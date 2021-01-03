@@ -15,4 +15,3 @@ class SecretCreationRequest(BaseModel):
 
 class UserSecretCreationRequest(SecretCreationRequest):
     user: str
-

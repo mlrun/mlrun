@@ -10,8 +10,8 @@ from random import randrange
 
 # Uncomment and set proper values for Vault test (at least one is required)
 # For this test, you must also have a k8s cluster available (minikube is good enough).
-environ["MLRUN_VAULT_ROLE"] = "user:saarc"
-environ["MLRUN_VAULT_TOKEN"] = "s.w7orlAPxaWnvf9c815ZDRlcN"
+# environ["MLRUN_VAULT_ROLE"] = "user:admin"
+# environ["MLRUN_VAULT_TOKEN"] = <Your vault token here>
 
 
 def _has_vault():
@@ -19,8 +19,8 @@ def _has_vault():
 
 
 def _set_vault_mlrun_configuration():
-    mlconf.vault_url = "http://localhost:8200"
-    mlconf.namespace = 'default-tenant'
+    mlconf.vault.url = "http://localhost:8200"
+    mlconf.namespace = "default-tenant"
 
 
 @pytest.mark.skipif(not _has_vault(), reason="no vault configuration")
@@ -32,8 +32,5 @@ def test_vault_secrets(db: Session, client: TestClient):
     data = {"provider": "vault", "secrets": {"secret1": "value1", "secret2": "value2"}}
 
     # Test project secrets
-    response = client.post(
-        f"/api/projects/{project_name}/secrets",
-        json=data
-    )
+    response = client.post(f"/api/projects/{project_name}/secrets", json=data)
     assert response.status_code == HTTPStatus.CREATED.value

@@ -1067,7 +1067,9 @@ class HTTPRunDB(RunDBInterface):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
-        response = self.api_call("PUT", path, error_message, body=json.dumps(project),params=params)
+        response = self.api_call(
+            "PUT", path, error_message, body=json.dumps(project), params=params
+        )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(
@@ -1102,10 +1104,13 @@ class HTTPRunDB(RunDBInterface):
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def create_project_secrets(
-            self,
-            project: str,
-            provider: Union[str, schemas.SecretProviderName] = schemas.SecretProviderName.vault,
-            secrets: dict = None):
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
         path = f"projects/{project}/secrets"
@@ -1116,13 +1121,16 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def create_user_secrets(
-            self,
-            user: str,
-            provider: Union[str, schemas.SecretProviderName] = schemas.SecretProviderName.vault,
-            secrets: dict = None):
+        self,
+        user: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
-        path = f"user-secrets"
+        path = "user-secrets"
         body = {"user": user, "provider": provider, "secrets": secrets}
         error_message = f"Failed creating user secrets - {user}"
         self.api_call(

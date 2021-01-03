@@ -222,30 +222,36 @@ class KubejobRuntime(KubeResource):
     def _add_vault_params_to_spec(self, runobj):
         from ..config import config as mlconf
 
-        proj_name = runobj.metadata.project
+        project_name = runobj.metadata.project
+        service_account_name = mlconf.vault.project_sa_name.format(project=project_name)
 
-        proj_secret = self._get_k8s().get_project_vault_secret_name(proj_name)
-        if proj_secret is None:
+        project_secret = self._get_k8s().get_project_vault_secret_name(
+            project_name, service_account_name
+        )
+        if project_secret is None:
             logger.info(
-                "No vault secret associated with project {}".format(proj_secret)
+                "No vault secret associated with project {}".format(project_secret)
             )
             return
 
         volumes = [
             {
                 "name": "vault-secret",
-                "secret": {"defaultMode": 420, "secretName": proj_secret},
+                "secret": {"defaultMode": 420, "secretName": project_secret},
             }
         ]
-        token_path = mlconf.vault_token_path.replace("~", "/root")
+        # We cannot use expanduser() here, since the user in question is the user running in the pod
+        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
+        token_path = mlconf.vault.token_path.replace("~", "/root")
+
         volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
 
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
         self.spec.env.append(
-            {"name": "MLRUN_VAULT_ROLE", "value": "proj:{}".format(proj_name)}
+            {"name": "MLRUN_VAULT_ROLE", "value": "project:{}".format(project_name)}
         )
         self.spec.env.append(
-            {"name": "MLRUN_VAULT_URL", "value": mlconf.vault_remote_url}
+            {"name": "MLRUN_VAULT_URL", "value": mlconf.vault.remote_url}
         )
 
     def _run(self, runobj: RunObject, execution):

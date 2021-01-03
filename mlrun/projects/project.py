@@ -48,7 +48,6 @@ from ..utils import (
     RunNotifications,
 )
 from ..runtimes.utils import add_code_metadata
-from ..k8s_utils import get_k8s_helper
 import mlrun.api.schemas
 import mlrun.api.utils.projects.leader
 
@@ -969,9 +968,7 @@ class MlrunProject(ModelObj):
     def create_vault_secrets(self, secrets):
         run_db = get_run_db(secrets=self._secrets)
         run_db.create_project_secrets(
-            self.metadata.name,
-            mlrun.api.schemas.SecretProviderName.vault,
-            secrets
+            self.metadata.name, mlrun.api.schemas.SecretProviderName.vault, secrets
         )
 
     def get_vault_secret_keys(self):

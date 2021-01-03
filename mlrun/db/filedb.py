@@ -611,10 +611,14 @@ class FileRunDB(RunDBInterface):
     ) -> mlrun.api.schemas.PipelinesOutput:
         raise NotImplementedError()
 
-    def create_project_secrets(self, project: str, provider: str = "vault", secrets: dict = None):
+    def create_project_secrets(
+        self, project: str, provider: str = "vault", secrets: dict = None
+    ):
         raise NotImplementedError()
 
-    def create_user_secrets(self, user: str, provider: str = "vault", secrets: dict = None):
+    def create_user_secrets(
+        self, user: str, provider: str = "vault", secrets: dict = None
+    ):
         raise NotImplementedError()
 
 

@@ -21,8 +21,6 @@ from ..config import config as mlconf
 from ..k8s_utils import get_k8s_helper
 
 vault_default_prefix = "v1/secret/data"
-vault_users_prefix = "users"
-vault_projects_prefix = "projects"
 vault_url_env_var = "MLRUN_VAULT_URL"
 vault_token_env_var = "MLRUN_VAULT_TOKEN"
 vault_role_env_var = "MLRUN_VAULT_ROLE"
@@ -32,7 +30,7 @@ token = None
 class VaultStore:
     def __init__(self):
         self._token = None
-        self.url = mlconf.vault_url or os.environ.get(vault_url_env_var)
+        self.url = mlconf.vault.url or os.environ.get(vault_url_env_var)
 
     def _login(self):
         if self._token:
@@ -46,12 +44,12 @@ class VaultStore:
         role_env = os.environ.get(vault_role_env_var)
         if role_env:
             role_type, role_val = role_env.split(":", 1)
-            vault_role = "role_{}_{}".format(role_type, role_val)
+            vault_role = "mlrun-role-{}-{}".format(role_type, role_val)
 
         self._login_with_jwt_token(vault_role)
         if self._token is None:
             logger.warning(
-                "warning: get_vault_params: no vault token is available. No secrets will be accessible"
+                "Vault login: no vault token is available. No secrets will be accessible"
             )
 
     @staticmethod
@@ -59,8 +57,8 @@ class VaultStore:
         prefix=vault_default_prefix,
         user=None,
         project=None,
-        user_prefix=vault_users_prefix,
-        project_prefix=vault_projects_prefix,
+        user_prefix="users",
+        project_prefix="projects",
     ):
         full_path = prefix + "/mlrun/{}/{}"
         if user:
@@ -69,17 +67,18 @@ class VaultStore:
             return full_path.format(project_prefix, project)
         else:
             raise ValueError(
-                "error: to generate a vault secret path, either user or project must be specified"
+                "To generate a vault secret path, either user or project must be specified"
             )
 
     @staticmethod
     def _read_jwt_token():
         # if for some reason the path to the token is not in conf, then attempt to get the SA token (works on k8s pods)
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-        if mlconf.vault_token_path:
+        if mlconf.vault.token_path:
             # Override the default SA token in case a specific token is installed in the mlconf-specified path
-            secret_token_path = expanduser(mlconf.vault_token_path + "/token")
+            secret_token_path = expanduser(mlconf.vault.token_path + "/token")
             if os.path.isfile(secret_token_path):
+                logger.info(f"Using vault JWT token from {secret_token_path}")
                 token_path = secret_token_path
 
         with open(token_path, "r") as token_file:
@@ -99,7 +98,7 @@ class VaultStore:
 
         if not response:
             logger.error(
-                "warning: Vault failed the API call. Response code: ({}) - {}".format(
+                "Vault failed the API call. Response code: ({}) - {}".format(
                     response.status_code, response.reason
                 )
             )
@@ -111,7 +110,7 @@ class VaultStore:
 
         if role is None:
             logger.warning(
-                "warning: login_with_token: Role passed is None. Will not attempt login"
+                "login_with_token: Role passed is None. Will not attempt login"
             )
             return
 
@@ -123,8 +122,8 @@ class VaultStore:
         response = requests.post(login_url, data=json.dumps(data))
         if not response:
             logger.error(
-                "error: login_with_token: Vault failed the login request. Response code: ({}) - {}".format(
-                    response.status_code, response.reason
+                "login_with_token: Vault failed the login request. Role: {}, Response code: ({}) - {}".format(
+                    role, response.status_code, response.reason
                 )
             )
             return
@@ -162,7 +161,9 @@ class VaultStore:
     def delete_vault_secrets(self, project=None, user=None):
         self._login()
         # Using the API to delete all versions + metadata of the given secret.
-        url = "v1/secret/metadata/" + VaultStore._generate_vault_path(prefix="", project=project, user=user)
+        url = "v1/secret/metadata/" + VaultStore._generate_vault_path(
+            prefix="", project=project, user=user
+        )
 
         response = self._vault_api_call("DELETE", url)
         if not response:
@@ -171,7 +172,7 @@ class VaultStore:
             )
 
     def create_project_policy(self, project):
-        policy_name = "mlrun-proj-{}".format(project)
+        policy_name = "mlrun-project-{}".format(project)
         # TODO - need to make sure name is escaped properly and invalid chars are stripped
         url = "v1/sys/policies/acl/" + policy_name
 
@@ -196,7 +197,7 @@ class VaultStore:
         return policy_name
 
     def create_project_role(self, project, sa, policy, namespace="default-tenant"):
-        role_name = "mlrun-role-proj-{}".format(project)
+        role_name = "mlrun-role-project-{}".format(project)
         # TODO - need to make sure name is escaped properly and invalid chars are stripped
         url = "v1/auth/kubernetes/role/" + role_name
 
@@ -239,17 +240,19 @@ def init_project_vault_configuration(project):
 
     namespace = mlconf.namespace
     k8s = get_k8s_helper(silent=True)
-    sa_name = "sa-vault-{}".format(project)
+    service_account_name = mlconf.vault.project_sa_name.format(project=project)
 
-    secret_name = k8s.get_project_vault_secret_name(project, namespace=namespace)
+    secret_name = k8s.get_project_vault_secret_name(
+        project, service_account_name, namespace=namespace
+    )
 
     if not secret_name:
-        k8s.create_project_service_account(project, namespace=namespace)
+        k8s.create_project_service_account(service_account_name, namespace=namespace)
 
     vault = VaultStore()
     policy_name = vault.create_project_policy(project)
     role_name = vault.create_project_role(
-        project, namespace=namespace, sa=sa_name, policy=policy_name
+        project, namespace=namespace, sa=service_account_name, policy=policy_name
     )
 
     logger.info("Created Vault policy: {}, role: {}".format(policy_name, role_name))

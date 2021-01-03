@@ -73,8 +73,9 @@ spec:
           value: "http://mlrun-api:8080"
         - name: MLRUN_ARTIFACT_PATH
           value: "/home/jovyan/data"
-        - name: MLRUN_VAULT_ROLE
-          value: "user:saarc"
+# Uncomment for Vault support
+#        - name: MLRUN_VAULT_ROLE
+#          value: "user:admin"
         volumeMounts:
         - mountPath: /home/jovyan/data
           name: storage
@@ -91,6 +92,7 @@ spec:
       - name: storage
         persistentVolumeClaim:
           claimName: nfs-pvc
+      serviceAccountName: jupyter
 ---
 kind: Service
 apiVersion: v1

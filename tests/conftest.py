@@ -114,4 +114,3 @@ def init_sqldb(dsn):
     engine = create_engine(dsn)
     Base.metadata.create_all(bind=engine)
     return sessionmaker(bind=engine)
-

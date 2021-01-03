@@ -1,6 +1,5 @@
 from http import HTTPStatus
 from fastapi import APIRouter, Response
-from mlrun.projects import new_project
 from mlrun.api import schemas
 from mlrun.utils.vault import (
     add_vault_user_secrets,
@@ -13,8 +12,7 @@ router = APIRouter()
 
 @router.post("/projects/{project}/secrets")
 def initialize_project_secrets(
-    project: str,
-    secrets: schemas.SecretCreationRequest,
+    project: str, secrets: schemas.SecretCreationRequest,
 ):
     if secrets.provider != schemas.SecretProviderName.vault:
         return Response(
@@ -29,9 +27,7 @@ def initialize_project_secrets(
 
 
 @router.post("/user-secrets")
-def add_user_secrets(
-    secrets: schemas.UserSecretCreationRequest,
-):
+def add_user_secrets(secrets: schemas.UserSecretCreationRequest,):
     if secrets.provider != schemas.SecretProviderName.vault:
         return Response(
             status_code=HTTPStatus.BAD_REQUEST.vault,

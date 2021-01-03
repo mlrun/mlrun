@@ -21,19 +21,24 @@ spec:
         env:
         - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
           value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
+# Uncomment to use a secret when accessing Dockerhub
+#        - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET
+#          value: my-docker
+        - name: MLRUN_HTTPDB__API_URL
+          value: "http://mlrun-api:8080"
         - name: V3IO_ACCESS_KEY
           value: <access-key>
         - name: V3IO_USERNAME
           value: admin
+        - name: MLRUN_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
 # Uncomment to enable Vault secrets integration
-#        - name: MLRUN_VAULT_URL
+#        - name: MLRUN_VAULT___URL
 #          value: 'http://docker.for.mac.localhost:8200'
 #        - name: MLRUN_VAULT_ROLE
 #          value: 'user:admin'
-# Uncomment to use a secret when accessing Dockerhub
-#        - name: DEFAULT_DOCKER_SECRET
-#          value: my-docker
-
         ports:
         - containerPort: 8080
 # UNCOMMENT TO ADD V3IO VOLUME + SET ACCESS KEY

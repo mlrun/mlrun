@@ -275,25 +275,30 @@ class K8sHelper:
 
         return results
 
-    def create_project_service_account(self, project, namespace=""):
+    def create_project_service_account(self, service_account, namespace=""):
         namespace = self.resolve_namespace(namespace)
-        sa_name = mlconfig.project_sa_name.format(proj=project)
-        sa = client.V1ServiceAccount()
-        sa.metadata = client.V1ObjectMeta(name=sa_name, namespace=namespace)
+        k8s_service_account = client.V1ServiceAccount()
+        k8s_service_account.metadata = client.V1ObjectMeta(
+            name=service_account, namespace=namespace
+        )
         try:
-            api_response = self.v1api.create_namespaced_service_account(namespace, sa,)
+            api_response = self.v1api.create_namespaced_service_account(
+                namespace, k8s_service_account,
+            )
             return api_response
         except ApiException as e:
             logger.error("failed to create service account: {}".format(e))
             raise e
 
-    def get_project_vault_secret_name(self, project, namespace=""):
+    def get_project_vault_secret_name(
+        self, project, service_account_name, namespace=""
+    ):
         namespace = self.resolve_namespace(namespace)
-        sa_name = mlconfig.project_sa_name.format(proj=project)
 
         try:
             sa_list = self.v1api.list_namespaced_service_account(
-                namespace=namespace, field_selector="metadata.name={}".format(sa_name)
+                namespace=namespace,
+                field_selector="metadata.name={}".format(service_account_name),
             )
         except ApiException as e:
             logger.error("failed to list service accounts: {}".format(e))

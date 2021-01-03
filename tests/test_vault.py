@@ -8,8 +8,9 @@ from mlrun import new_task, get_run_db, mlconf, code_to_function, new_project
 from os import environ
 
 # Uncomment and set proper values for Vault test (at least one is required)
-environ["MLRUN_VAULT_ROLE"] = "user:saarc"
-environ["MLRUN_VAULT_TOKEN"] = "s.w7orlAPxaWnvf9c815ZDRlcN"
+# If using a Vault role, then a JWT token is required as well to authenticate with the role.
+# environ["MLRUN_VAULT_ROLE"] = "user:admin"
+# environ["MLRUN_VAULT_TOKEN"] = <Vault token>
 
 
 def _has_vault():
@@ -20,7 +21,7 @@ def _has_vault():
 def _set_vault_mlrun_configuration(api_server_port=None):
     if api_server_port:
         mlconf.dbpath = f"http://localhost:{api_server_port}"
-    mlconf.vault_url = "http://localhost:8200"
+    mlconf.vault.url = "http://localhost:8200"
 
 
 # Verify that local activation of Vault functionality is successful. This does not
@@ -30,7 +31,7 @@ def test_direct_vault_usage():
     from mlrun.utils.vault import VaultStore
 
     _set_vault_mlrun_configuration()
-    project_name = 'the-blair-witch-project'
+    project_name = "the-blair-witch-project"
 
     vault = VaultStore()
     vault.delete_vault_secrets(project=project_name)
@@ -41,20 +42,24 @@ def test_direct_vault_usage():
     vault.add_vault_secrets(expected_secrets, project=project_name)
 
     secrets = vault.get_secrets(None, project=project_name)
-    assert secrets == expected_secrets, "Vault contains different set of secrets than expected"
+    assert (
+        secrets == expected_secrets
+    ), "Vault contains different set of secrets than expected"
 
     secrets = vault.get_secrets(["secret1"], project=project_name)
     assert len(secrets) == 1 and secrets["secret1"] == expected_secrets["secret1"]
 
     # Test the same thing for user
-    user_name = 'pikachu'
+    user_name = "pikachu"
     vault.delete_vault_secrets(user=user_name)
     secrets = vault.get_secrets(None, user=user_name)
     assert len(secrets) == 0, "Secrets were not deleted"
 
     vault.add_vault_secrets(expected_secrets, user=user_name)
     secrets = vault.get_secrets(None, user=user_name)
-    assert secrets == expected_secrets, "Vault contains different set of secrets than expected"
+    assert (
+        secrets == expected_secrets
+    ), "Vault contains different set of secrets than expected"
 
     # Cleanup
     vault.delete_vault_secrets(project=project_name)
@@ -63,7 +68,9 @@ def test_direct_vault_usage():
 
 @pytest.mark.skipif(not _has_vault(), reason="no vault configuration")
 def test_vault_end_to_end():
-    api_server_port = 10000
+    # This requires an MLRun API server to run and work with Vault. This port should
+    # be configured to allow access to the server.
+    api_server_port = 57764
 
     _set_vault_mlrun_configuration(api_server_port)
     project_name = "abc"
@@ -90,10 +97,8 @@ def test_vault_end_to_end():
         project=project_name,
         kind="job",
     )
-    function.spec.build.base_image = 'saarcoiguazio/mlrun:unstable'
-    function.spec.build.image = ".mlrun-vault-image"
-    # function.spec.image = ".mlrun-vault-image"
-    function.deploy()
+
+    function.spec.image = "saarcoiguazio/mlrun:unstable"
 
     # Create context for the execution
     spec = new_task(

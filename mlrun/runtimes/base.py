@@ -1285,13 +1285,16 @@ class BaseRuntimeHandler(ABC):
     ):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
         if not project or not uid:
-            logger.warning(
-                "Could not resolve run project or uid from runtime resource, can not monitor run. Continuing",
-                project=project,
-                uid=uid,
-                runtime_resource_name=runtime_resource["metadata"]["name"],
-                namespace=namespace,
-            )
+            # Currently any build pod won't have UID and therefore will cause this log message to be printed which
+            # spams the log
+            # TODO: uncomment the log message when builder become a kind / starts having a UID
+            # logger.warning(
+            #     "Could not resolve run project or uid from runtime resource, can not monitor run. Continuing",
+            #     project=project,
+            #     uid=uid,
+            #     runtime_resource_name=runtime_resource["metadata"]["name"],
+            #     namespace=namespace,
+            # )
             return
         run = project_run_uid_map.get(project, {}).get(uid)
         if runtime_resource_is_crd:

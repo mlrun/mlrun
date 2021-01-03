@@ -45,6 +45,8 @@ DB_SCHEMA = "store"
 
 
 class StorePrefix:
+    """map mlrun store objects to prefixes"""
+
     FeatureSet = "feature-sets"
     FeatureVector = "feature-vectors"
     Artifact = "artifacts"
@@ -498,10 +500,12 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
 
 
 def is_store_uri(url):
+    """detect if the uri starts with the store schema prefix"""
     return url.startswith(DB_SCHEMA + "://")
 
 
 def parse_store_uri(url):
+    """parse a store uri and return kind + uri suffix"""
     if not is_store_uri(url):
         return None, ""
     uri = url[len(DB_SCHEMA) + len("://") :]
@@ -514,6 +518,7 @@ def parse_store_uri(url):
 
 
 def get_store_uri(kind, uri):
+    """return uri from store kind and suffix"""
     return f"{DB_SCHEMA}://{kind}/{uri}"
 
 

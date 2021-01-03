@@ -22,16 +22,20 @@ from ..utils import StorePrefix, parse_store_uri
 
 
 class ResourceCache:
+    """Resource cache for real-time pipeline/serving and storey"""
+
     def __init__(self):
         self._tabels = {}
         self._resources = {}
 
     def cache_table(self, uri, value, is_default=False):
+        """Cache storey Table objects"""
         self._tabels[uri] = value
         if is_default:
             self._tabels["."] = value
 
     def get_table(self, uri):
+        """get storey Table object by uri"""
         try:
             from storey import Table, Driver, V3ioDriver
         except ImportError:
@@ -53,11 +57,13 @@ class ResourceCache:
         raise ValueError(f"table {uri} not found in cache")
 
     def cache_resource(self, uri, value, default=False):
+        """cache store resource (artifact/feature-set/feature-vector)"""
         self._resources[uri] = value
         if default:
             self._resources["."] = value
 
     def get_resource(self, uri):
+        """get resource from cache by uri"""
         return self._resources[uri]
 
     def resource_getter(self, db=None, secrets=None):
@@ -75,6 +81,8 @@ class ResourceCache:
 
 
 def get_store_resource(uri, db=None, secrets=None, project=None):
+    """get store resource object by uri"""
+
     db = db or mlrun.get_run_db(secrets=secrets)
     kind, uri = parse_store_uri(uri)
     if kind == StorePrefix.FeatureSet:

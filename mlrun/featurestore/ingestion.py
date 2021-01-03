@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import List
 
+import mlrun
 from storey import DataframeSource
 
 from .model import DataTarget
@@ -32,7 +33,7 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
 
     # init targets (and table)
     targets = targets or []
-    cache.cache_resource(featureset.uri(), featureset, True)
+    cache.cache_resource(featureset.uri(), featureset.to_dict(), True)
     table = add_target_states(
         graph, featureset, targets, to_df=return_df, final_state=default_final_state
     )
@@ -60,7 +61,8 @@ def featureset_initializer(server):
 
     featureset_uri = context.get_param("featureset")
     source = context.get_param("source")
-    featureset = context.get_data_resource(featureset_uri)
+    obj = context.get_data_resource(featureset_uri)
+    featureset = mlrun.featurestore.FeatureSet.from_dict(obj)
     targets = context.get_param("targets", None)
     if targets:
         targets = [DataTarget.from_dict(target) for target in targets]
@@ -73,7 +75,7 @@ def featureset_initializer(server):
     table = add_target_states(
         graph, featureset, targets, final_state=default_final_state
     )
-    cache.cache_resource(featureset_uri, featureset, True)
+    cache.cache_resource(featureset_uri, featureset.to_dict(), True)
     if table:
         cache.cache_table(featureset_uri, table, True)
 

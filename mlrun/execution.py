@@ -123,8 +123,8 @@ class MLClientCtx(object):
     def get_data_resource(self, url):
         """get mlrun data resource (feature set/vector, artifact, item) from url
 
-        :param uri:    resource uri/path, special prefixes:
-                       FeatureVector > 'fvec://' | FeatureSet > "fset://" | Artifact > "store://"
+        :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
+                       types: artifact | feature-set | feature-vector
         """
         return get_data_resource(url, db=self._rundb, secrets=self._secrets_manager)
 

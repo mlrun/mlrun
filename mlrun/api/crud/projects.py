@@ -15,7 +15,6 @@ class Projects(
     mlrun.api.utils.projects.remotes.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
@@ -38,8 +37,12 @@ class Projects(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
-        logger.debug("Patching project", name=name, project=project, patch_mode=patch_mode)
-        mlrun.api.utils.singletons.db.get_db().patch_project(session, name, project, patch_mode)
+        logger.debug(
+            "Patching project", name=name, project=project, patch_mode=patch_mode
+        )
+        mlrun.api.utils.singletons.db.get_db().patch_project(
+            session, name, project, patch_mode
+        )
 
     def delete_project(
         self,
@@ -47,13 +50,15 @@ class Projects(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
-        logger.debug(
-            "Deleting project", name=name, deletion_strategy=deletion_strategy
-        )
+        logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         if deletion_strategy == mlrun.api.schemas.DeletionStrategy.cascade:
             # delete runtime resources
-            mlrun.api.crud.Runtimes().delete_runtimes(session, label_selector=f'mlrun/project={name}', force=True)
-        mlrun.api.utils.singletons.db.get_db().delete_project(session, name, deletion_strategy)
+            mlrun.api.crud.Runtimes().delete_runtimes(
+                session, label_selector=f"mlrun/project={name}", force=True
+            )
+        mlrun.api.utils.singletons.db.get_db().delete_project(
+            session, name, deletion_strategy
+        )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -68,4 +73,6 @@ class Projects(
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        return mlrun.api.utils.singletons.db.get_db().list_projects(session, owner, format_, labels, state)
+        return mlrun.api.utils.singletons.db.get_db().list_projects(
+            session, owner, format_, labels, state
+        )

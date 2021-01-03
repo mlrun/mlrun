@@ -57,7 +57,12 @@ class Client(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
-        logger.debug("Patching project in Nuclio", name=name, project=project, patch_mode=patch_mode)
+        logger.debug(
+            "Patching project in Nuclio",
+            name=name,
+            project=project,
+            patch_mode=patch_mode,
+        )
         response = self._get_project_from_nuclio(name)
         response_body = response.json()
         if project.get("metadata", {}).get("labels") is not None:

@@ -28,7 +28,9 @@ def delete_runtimes(
     grace_period: int = config.runtime_resources_deletion_grace_period,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.crud.Runtimes().delete_runtimes(db_session, label_selector, force, grace_period)
+    mlrun.api.crud.Runtimes().delete_runtimes(
+        db_session, label_selector, force, grace_period
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -40,7 +42,9 @@ def delete_runtime(
     grace_period: int = config.runtime_resources_deletion_grace_period,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.crud.Runtimes().delete_runtime(db_session, kind, label_selector, force, grace_period)
+    mlrun.api.crud.Runtimes().delete_runtime(
+        db_session, kind, label_selector, force, grace_period
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -54,5 +58,7 @@ def delete_runtime_object(
     grace_period: int = config.runtime_resources_deletion_grace_period,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.crud.Runtimes().delete_runtime_object(db_session, kind, object_id, label_selector, force, grace_period)
+    mlrun.api.crud.Runtimes().delete_runtime_object(
+        db_session, kind, object_id, label_selector, force, grace_period
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

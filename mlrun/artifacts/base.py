@@ -19,7 +19,7 @@ import yaml
 import mlrun
 from ..model import ModelObj
 from ..datastore import store_manager
-from ..utils import DB_SCHEMA
+from ..utils import is_store_uri, get_store_uri, StorePrefix
 
 calc_hash = True
 
@@ -97,11 +97,14 @@ class Artifact(ModelObj):
     def get_body(self):
         return self._body
 
+    def get_target_path(self):
+        return self.target_path
+
     def get_store_url(self, with_tag=True, project=None):
-        url = "{}://{}/{}".format(DB_SCHEMA, project or self.project, self.db_key)
+        uri = "{}/{}".format(project or self.project, self.db_key)
         if with_tag:
-            url += "#" + self.tree
-        return url
+            uri += "#" + self.tree
+        return get_store_uri(StorePrefix.Artifact, uri)
 
     def base_dict(self):
         return super().to_dict()
@@ -258,7 +261,7 @@ def get_artifact_meta(artifact):
     if hasattr(artifact, "artifact_url"):
         artifact = artifact.artifact_url
 
-    if artifact.startswith(DB_SCHEMA + "://"):
+    if is_store_uri(artifact):
         artifact_spec, target = store_manager.get_store_artifact(artifact)
 
     elif artifact.lower().endswith(".yaml"):

@@ -22,7 +22,7 @@ from pandas.io.json import build_table_schema
 
 from .base import Artifact
 from ..datastore import store_manager
-from ..utils import DB_SCHEMA
+from ..utils import is_store_uri
 
 preview_lines = 20
 max_csv = 10000
@@ -206,7 +206,7 @@ def update_dataset_meta(
     stores = store_manager
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
-    elif artifact.startswith(DB_SCHEMA + "://"):
+    elif is_store_uri(artifact):
         artifact_spec, _ = stores.get_store_artifact(artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")

@@ -1,4 +1,5 @@
 import typing
+import unittest.mock
 import mergedeep
 import copy
 from http import HTTPStatus
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
+import mlrun.api.crud
 import mlrun.errors
 
 
@@ -141,6 +143,9 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+    # mock runtime resources deletion
+    mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
 
     # delete - cascade strategy, will succeed and delete function
     response = client.delete(

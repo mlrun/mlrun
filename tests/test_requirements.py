@@ -1,8 +1,14 @@
-import re
-import tests.conftest
-import pathlib
+import builtins
 import collections
+import json
+import pathlib
+import re
+import unittest.mock
+
 import deepdiff
+import setuptools
+
+import tests.conftest
 
 
 def test_requirement_specifiers_inconsistencies():
@@ -12,7 +18,9 @@ def test_requirement_specifiers_inconsistencies():
 
     requirement_specifiers = []
     for requirements_file_path in requirements_file_paths:
-        requirement_specifiers.extend(load_requirements(requirements_file_path))
+        requirement_specifiers.extend(_load_requirements(requirements_file_path))
+
+    requirement_specifiers.extend(_import_extras_requirements())
 
     regex = (
         r"^"
@@ -23,6 +31,9 @@ def test_requirement_specifiers_inconsistencies():
     requirement_specifiers_map = collections.defaultdict(list)
     for requirement_specifier in requirement_specifiers:
         match = re.fullmatch(regex, requirement_specifier)
+        assert (
+            match is not None
+        ), f"Requirement specifier did not matched regex. {requirement_specifier}"
         requirement_specifiers_map[match.groupdict()["requirementName"]].append(
             match.groupdict()["requirementSpecifier"]
         )
@@ -57,11 +68,44 @@ def test_requirement_specifiers_inconsistencies():
     assert inconsistent_specifiers_map == {}
 
 
-def is_ignored_requirement_line(line):
+def _import_extras_requirements():
+    def mock_file_open(file, *args, **kwargs):
+        if "setup.py" not in str(file):
+            return unittest.mock.mock_open(
+                read_data=json.dumps({"version": "some-ver"})
+            ).return_value
+        else:
+            return original_open(file, *args, **kwargs)
+
+    original_setup = setuptools.setup
+    original_open = builtins.open
+    setuptools.setup = lambda *args, **kwargs: 0
+    builtins.open = mock_file_open
+
+    import setup
+
+    setuptools.setup = original_setup
+    builtins.open = original_open
+
+    ignored_extras = [
+        "api",
+        "complete",
+        "complete-api",
+    ]
+
+    extras_requirements = []
+    for extra_name, extra_requirements in setup.extras_require.items():
+        if extra_name not in ignored_extras:
+            extras_requirements.extend(extra_requirements)
+
+    return extras_requirements
+
+
+def _is_ignored_requirement_line(line):
     line = line.strip()
     return (not line) or (line[0] == "#")
 
 
-def load_requirements(path):
+def _load_requirements(path):
     with open(path) as file:
-        return [line.strip() for line in file if not is_ignored_requirement_line(line)]
+        return [line.strip() for line in file if not _is_ignored_requirement_line(line)]

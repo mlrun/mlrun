@@ -78,34 +78,39 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
     db = db or mlrun.get_run_db(secrets=secrets)
     kind, uri = parse_store_uri(uri)
     if kind == StorePrefix.FeatureSet:
-        project, name, tag, uid = parse_function_uri(uri, project or config.default_project)
+        project, name, tag, uid = parse_function_uri(
+            uri, project or config.default_project
+        )
         return db.get_feature_set(name, project, tag, uid)
 
     elif kind == StorePrefix.FeatureVector:
-        project, name, tag, uid = parse_function_uri(uri, project or config.default_project)
+        project, name, tag, uid = parse_function_uri(
+            uri, project or config.default_project
+        )
         return db.get_feature_vector(name, project, tag, uid)
 
     elif StorePrefix.is_artifact(kind):
-        project, name, tag, uid = parse_function_uri(uri, project or config.default_project)
+        project, name, tag, uid = parse_function_uri(
+            uri, project or config.default_project
+        )
         iteration = None
         if "/" in name:
             loc = uri.find("/")
             name = uri[:loc]
             try:
-                iteration = int(uri[loc + 1:])
+                iteration = int(uri[loc + 1 :])
             except ValueError:
                 raise ValueError(
                     "illegal store path {}, iteration must be integer value".format(uri)
                 )
 
-        resource = db.read_artifact(name, project=project, tag=tag or uid, iter=iteration)
+        resource = db.read_artifact(
+            name, project=project, tag=tag or uid, iter=iteration
+        )
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             resource = db.read_artifact(
-                name,
-                tag=tag,
-                iter=resource.get("link_iteration", 0),
-                project=project,
+                name, tag=tag, iter=resource.get("link_iteration", 0), project=project,
             )
         if resource:
             return mlrun.artifacts.dict_to_artifact(resource)

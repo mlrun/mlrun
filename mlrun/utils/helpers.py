@@ -363,14 +363,14 @@ def parse_function_uri(uri, default_project=""):
     if "/" in uri:
         loc = uri.find("/")
         project = uri[:loc]
-        uri = uri[loc + 1:]
+        uri = uri[loc + 1 :]
     if ":" in uri:
         loc = uri.find(":")
-        tag = uri[loc + 1:]
+        tag = uri[loc + 1 :]
         uri = uri[:loc]
     if "@" in uri:
         loc = uri.find("@")
-        hash_key = uri[loc + 1:]
+        hash_key = uri[loc + 1 :]
         uri = uri[:loc]
 
     return project, uri, tag, hash_key

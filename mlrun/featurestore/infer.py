@@ -44,7 +44,7 @@ class InferOptions:
         return cls.all()
 
 
-def infer_from_source(
+def infer_from_df(
     df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
 ):
     if options & InferOptions.Schema:

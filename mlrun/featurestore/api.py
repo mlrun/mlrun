@@ -16,7 +16,7 @@ import mlrun
 from .common import get_feature_vector_by_uri, get_feature_set_by_uri
 from .infer import (
     InferOptions,
-    infer_from_source,
+    infer_from_df,
 )
 from .model.base import DataTargetSpec
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
@@ -138,7 +138,7 @@ def ingest(
         source, featureset, namespace, targets=targets, return_df=return_df
     )
     df = controller.await_termination()
-    infer_from_source(df, featureset, options=infer_stats)
+    infer_from_df(df, featureset, options=infer_stats)
     featureset.save()
     return df
 
@@ -163,7 +163,7 @@ def infer_metadata(
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
         # find/update entities schema
-        infer_from_source(
+        infer_from_df(
             source, featureset, entity_columns, options & InferOptions.Schema
         )
         controller = init_featureset_graph(
@@ -171,7 +171,7 @@ def infer_metadata(
         )
         source = controller.await_termination()
 
-    infer_from_source(source, featureset, entity_columns, options)
+    infer_from_df(source, featureset, entity_columns, options)
     return source
 
 

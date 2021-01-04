@@ -222,7 +222,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         art.struct = artifact
         self._upsert(session, art)
         tag = tag or "latest"
-        self.tag_objects(session, [art], project, tag)
+        self.tag_artifacts(session, [art], project, tag)
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
@@ -596,19 +596,21 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             self.delete_feature_vector(session, project, feature_vector.metadata.name)
 
     def tag_objects(self, session, objs, project: str, name: str):
-        """Tag objects with (project, name) tag.
+        # only artifacts left with this tagging schema
+        self.tag_artifacts(session, objs, project, name)
 
-        If force==True will update tag
-        """
-        for obj in objs:
-            tag = obj.Tag(project=project, name=name, obj_id=obj.id)
+    def tag_artifacts(self, session, artifacts, project: str, name: str):
+        for artifact in artifacts:
+            query = self._query(
+                session, artifact.Tag, project=project, name=name,
+            ).join(Artifact).filter(Artifact.key == artifact.key)
+            tag = query.one_or_none()
+            if not tag:
+                tag = artifact.Tag(project=project, name=name)
+            tag.obj_id = artifact.id
             self._upsert(session, tag, ignore=True)
 
     def tag_objects_v2(self, session, objs, project: str, name: str):
-        """Tag objects with (project, name) tag.
-
-        If force==True will update tag
-        """
         for obj in objs:
             query = self._query(
                 session, obj.Tag, name=name, project=project, obj_name=obj.name

@@ -31,11 +31,12 @@ from .base import (
     CommonMetadata,
 )
 from ..targets import get_offline_target
-from mlrun.model import ModelObj, ObjectList
-from mlrun.runtimes.function_reference import FunctionReference
-from mlrun.serving.states import BaseState, RootFlowState
-from mlrun.config import config as mlconf
-from mlrun.utils import get_store_uri, StorePrefix
+from ...model import ModelObj, ObjectList
+from ...runtimes.function_reference import FunctionReference
+from ...serving.states import BaseState, RootFlowState
+from ...config import config as mlconf
+from ...utils import StorePrefix
+from ...datastore import get_store_uri
 
 aggregates_step = "Aggregates"
 

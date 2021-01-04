@@ -14,13 +14,12 @@
 from typing import List
 
 import mlrun
-from storey import DataframeSource
 
 from .model import DataTarget
 from .model.base import DataTargetSpec
 from .sources import get_source_step
 from .targets import add_target_states
-from mlrun.datastore.data_resources import ResourceCache
+from mlrun.datastore.store_resources import ResourceCache
 from mlrun.serving.server import create_graph_server
 
 
@@ -61,7 +60,7 @@ def featureset_initializer(server):
 
     featureset_uri = context.get_param("featureset")
     source = context.get_param("source")
-    obj = context.get_data_resource(featureset_uri)
+    obj = context.get_store_resource(featureset_uri)
     featureset = mlrun.featurestore.FeatureSet.from_dict(obj)
     targets = context.get_param("targets", None)
     if targets:

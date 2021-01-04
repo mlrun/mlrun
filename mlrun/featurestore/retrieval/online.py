@@ -13,7 +13,7 @@
 # limitations under the License.
 from storey import Source
 
-from mlrun.datastore.data_resources import ResourceCache
+from mlrun.datastore.store_resources import ResourceCache
 from mlrun.serving.server import create_graph_server
 from .common import parse_features
 from ..targets import get_online_target

@@ -23,7 +23,7 @@ from .model.base import (
     store_config,
     ResourceKinds,
 )
-from mlrun.datastore.v3io import v3io_path
+from mlrun.datastore.v3io import parse_v3io_path
 
 
 def get_default_targets():
@@ -193,7 +193,7 @@ class NoSqlStore(BaseStoreDriver):
         from storey import Table, V3ioDriver
 
         # TODO use options/cred
-        endpoint, uri = v3io_path(self.target_path)
+        endpoint, uri = parse_v3io_path(self.target_path)
         return Table(uri, V3ioDriver(webapi=endpoint))
 
     def add_writer_state(

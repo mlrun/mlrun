@@ -23,7 +23,8 @@ from mlrun.artifacts.dataset import upload_dataframe
 from mlrun.config import config as mlconf
 from mlrun.serving.states import RootFlowState
 from ..targets import get_offline_target
-from ...utils import get_store_uri, StorePrefix
+from ...datastore import get_store_uri
+from ...utils import StorePrefix
 
 
 class FeatureVectorError(Exception):

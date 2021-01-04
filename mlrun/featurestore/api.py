@@ -22,7 +22,7 @@ from .ingestion import init_featureset_graph
 from .model import FeatureVector, FeatureSet, OnlineVectorService
 from .targets import get_default_targets
 from ..config import config
-from ..utils import parse_function_uri, get_caller_globals
+from ..utils import get_caller_globals, parse_versioned_object_uri
 
 _v3iofs = None
 
@@ -39,7 +39,7 @@ except Exception:
 def get_feature_set(uri):
     """get feature set from db"""
     db = mlrun.get_run_db()
-    project, name, tag, uid = parse_function_uri(uri, config.default_project)
+    project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
     obj = db.get_feature_set(name, project, tag, uid)
     return FeatureSet.from_dict(obj)
 
@@ -47,7 +47,7 @@ def get_feature_set(uri):
 def get_feature_vector(uri):
     """get feature vector from db"""
     db = mlrun.get_run_db()
-    project, name, tag, uid = parse_function_uri(uri, config.default_project)
+    project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
     obj = db.get_feature_vector(name, project, tag, uid)
     return FeatureVector.from_dict(obj)
 

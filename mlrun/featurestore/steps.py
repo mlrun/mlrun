@@ -15,7 +15,7 @@ class FeaturesetValidator(MapClass):
         self.name = name
         if not self.context:
             return
-        obj = self.context.get_data_resource(featureset)
+        obj = self.context.get_store_resource(featureset)
         self._featureset = mlrun.featurestore.FeatureSet.from_dict(obj)
         for key, feature in self._featureset.spec.features.items():
             if feature.validator and (not columns or key in columns):

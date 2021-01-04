@@ -28,10 +28,13 @@ def _assert_project_function_objects(project, expected_function_objects):
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
         assert (
-                deepdiff.DeepDiff(
-                    project_function_objects[function_name].to_dict(), function_object.to_dict(), ignore_order=True, exclude_paths=["root['spec']['build']['code_origin']"]
-                )
-                == {}
+            deepdiff.DeepDiff(
+                project_function_objects[function_name].to_dict(),
+                function_object.to_dict(),
+                ignore_order=True,
+                exclude_paths=["root['spec']['build']['code_origin']"],
+            )
+            == {}
         )
 
 

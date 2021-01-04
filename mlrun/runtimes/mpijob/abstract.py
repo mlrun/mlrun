@@ -26,10 +26,62 @@ from mlrun.runtimes.utils import AsyncLogWriter, RunError
 from mlrun.utils import get_in, logger
 
 
+class MPIResourceSpec(KubeResourceSpec):
+    def __init__(
+        self,
+        command=None,
+        py_args=None,
+        mpi_args=None,
+        image=None,
+        mode=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        default_handler=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        replicas=None,
+        image_pull_policy=None,
+        service_account=None,
+        build=None,
+        image_pull_secret=None,
+    ):
+        super().__init__(
+            command=command,
+            image=image,
+            mode=mode,
+            build=build,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            default_handler=default_handler,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+            env=env,
+            resources=resources,
+            replicas=replicas,
+            image_pull_policy=image_pull_policy,
+            service_account=service_account,
+            image_pull_secret=image_pull_secret,
+        )
+
+        self.py_args = py_args or []
+        self.mpi_args = mpi_args or []
+
+
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = "mpijob"
     _is_nested = False
-    mpi_args = []
+
+    @property
+    def spec(self) -> MPIResourceSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", MPIResourceSpec)
 
     @abc.abstractmethod
     def _generate_mpi_job(
@@ -324,7 +376,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         args : typing.List[str]
             Arguments to be used for the mpi-operator
         """
-        self.mpi_args = args
+        self.spec.mpi_args = args
 
     def add_mpi_arg(self, arg: typing.Union[str, typing.List[str]]) -> None:
         """Adds an mpi argument to the runtime.
@@ -342,10 +394,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             Only a list or str is allowed.
         """
         if type(arg) is str:
-            self.mpi_args.append(arg)
+            self.spec.mpi_args.append(arg)
         elif type(arg) is list:
             for argument in arg:
-                self.mpi_args.append(argument)
+                self.spec.mpi_args.append(argument)
         else:
             raise ValueError(
                 f"`arg` can only accept `str` or `List[str]`, not {arg}"

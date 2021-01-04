@@ -2,7 +2,12 @@ from typing import Optional, List, Tuple
 
 from pydantic import BaseModel, Field
 
-from mlrun.api.schemas import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from mlrun.api.schemas.object import (
+    ObjectKind,
+    ObjectMetadata,
+    ObjectSpec,
+    ObjectStatus,
+)
 
 
 class EndpointSpec(ObjectSpec):
@@ -34,10 +39,6 @@ class Metric(BaseModel):
     max: float
 
 
-class MetricList(BaseModel):
-    metrics: List[Metric]
-
-
 class Features(BaseModel):
     name: str
     weight: float
@@ -53,20 +54,16 @@ class Features(BaseModel):
     actual_hist: Histogram
 
 
-class FeatureList(BaseModel):
-    features: List[Features]
-
-
 class EndpointState(BaseModel):
     endpoint: Endpoint
     first_request: Optional[str]
     last_request: Optional[str]
-    accuracy: Optional[float]
+    accuracy: Optional[float] = None
     error_count: Optional[int]
     alert_count: Optional[int]
     drift_status: Optional[str]
-    metrics: Optional[MetricList] = None
-    features: Optional[FeatureList] = None
+    metrics: Optional[List[Metric]] = None
+    features: Optional[List[Features]] = None
 
 
 class EndpointStateList(BaseModel):

@@ -34,10 +34,8 @@ from .model_endpoints import (
     EndpointStateList,
     EndpointState,
     Features,
-    FeatureList,
     Histogram,
     Metric,
-    MetricList,
 )
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
 from .project import (

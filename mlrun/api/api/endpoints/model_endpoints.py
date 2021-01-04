@@ -10,7 +10,6 @@ from v3io.dataplane import RaiseForStatus
 from mlrun.api import schemas
 from mlrun.config import config
 from mlrun.errors import (
-    MLRunConflictError,
     MLRunNotFoundError,
     MLRunInvalidArgumentError,
 )
@@ -66,46 +65,12 @@ class TimeMetric:
 router = APIRouter()
 
 
-@router.post("/projects/{project}/model-endpoints", response_model=schemas.Endpoint)
-def create_endpoint(project: str, endpoint: schemas.Endpoint):
+@router.post("/projects/{project}/model-endpoints/{endpoint_id}/clear")
+def clear_endpoint_record(project: str, endpoint_id: str):
     """
-    Creates an endpoint record in KV, also parses labels into searchable KV fields.
+    Clears endpoint record from KV by endpoint_id
     """
-
-    endpoint_id = get_endpoint_id(endpoint)
-
-    if _get_endpoint_kv_record_by_id(endpoint_id):
-        url = f"/projects/{endpoint.metadata.project}/model-endpoints/{endpoint_id}"
-        raise MLRunConflictError(f"Adding an already-existing ModelEndpoint - {url}")
-
-    logger.info(f"Creating endpoint {endpoint_id} table...")
-
-    get_v3io_client().kv.put(
-        container=config.model_endpoint_monitoring_container,
-        table_path=ENDPOINTS,
-        key=endpoint_id,
-        attributes={
-            "project": project,
-            "function": endpoint.spec.function,
-            "model": endpoint.spec.model,
-            "tag": endpoint.metadata.tag,
-            "model_class": endpoint.spec.model_class,
-            "labels": json.dumps(endpoint.metadata.labels),
-            **{f"_{k}": v for k, v in endpoint.metadata.labels.items()},
-        },
-    )
-
-    logger.info(f"Model endpoint {endpoint_id} table created.")
-
-    return endpoint
-
-
-@router.delete("/projects/{project}/model-endpoints/{endpoint_id}")
-def delete_endpoint(project: str, endpoint_id: str):
-    """
-    Deletes endpoint record from KV by endpoint_id
-    """
-    logger.info(f"Deleting model endpoint {endpoint_id} table...")
+    logger.info(f"Clearing model endpoint {endpoint_id} table...")
     get_v3io_client().kv.delete(
         container=config.model_endpoint_monitoring_container,
         table_path=ENDPOINTS,
@@ -123,6 +88,9 @@ def list_endpoints(
     function: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
     labels: List[str] = Query([], alias="label"),
+    start: str = Query(default="now-1h"),
+    end: str = Query(default="now"),
+    metrics: bool = Query(default=False),
 ):
     """
     Returns a list of endpoints of type 'schema.ModelEndpoint', support filtering by model, function, tag and labels.
@@ -156,6 +124,16 @@ def list_endpoints(
 
     endpoint_state_list = []
     for endpoint in endpoints:
+
+        endpoint_metrics = None
+        if metrics:
+            endpoint_metrics = _get_endpoint_metrics(
+                endpoint_id=get_endpoint_id(schemas.Endpoint(**endpoint)),
+                name=["predictions", "latency"],
+                start=start,
+                end=end,
+            )
+
         # Collect labels (by convention labels are labeled with underscore '_'), ignore builtin '__name' field
         state = schemas.EndpointState(
             endpoint=schemas.Endpoint(
@@ -179,8 +157,7 @@ def list_endpoints(
             error_count=endpoint.get("error_count"),
             alert_count=endpoint.get("alert_count"),
             drift_status=endpoint.get("drift_status"),
-            metrics=None,
-            accuracy=None,
+            metrics=endpoint_metrics,
         )
         endpoint_state_list.append(state)
 
@@ -267,29 +244,9 @@ def get_endpoint(
     )
 
 
-@router.get(
-    "/projects/{project}/model-endpoints/{endpoint_id}/metrics",
-    response_model=schemas.MetricList,
-)
-def get_endpoint_metrics(
-    project: str,
-    endpoint_id: str,
-    name: List[str] = Query([]),
-    start: str = Query("now-1h"),
-    end: str = Query("now"),
-):
-    if not _get_endpoint_kv_record_by_id(endpoint_id):
-        url = f"projects/{project}/model-endpoints/{endpoint_id}/metrics"
-        raise MLRunNotFoundError(f"Endpoint not found' - {url}")
-    return _get_endpoint_metrics(endpoint_id, name, start, end)
-
-
 def _get_endpoint_metrics(
-    endpoint_id: str,
-    name: List[str],
-    start: str = "now-1h",
-    end: str = "now",
-) -> schemas.MetricList:
+    endpoint_id: str, name: List[str], start: str = "now-1h", end: str = "now",
+) -> List[schemas.Metric]:
     if not name:
         raise MLRunInvalidArgumentError("Metric names must be provided")
 
@@ -298,6 +255,7 @@ def _get_endpoint_metrics(
     except NotImplementedError as e:
         raise MLRunInvalidArgumentError(str(e))
 
+    # Columns most have at least an endpoint_id attribute for frames' filter expression
     columns = ["endpoint_id"]
 
     for metric in metrics:
@@ -314,19 +272,19 @@ def _get_endpoint_metrics(
 
     metrics = [time_metric.to_metric(data) for time_metric in metrics]
     metrics = [metric for metric in metrics if metric is not None]
-    return schemas.MetricList(metrics=metrics)
+    return metrics
 
 
 def _get_endpoint_features(
     project: str, endpoint_id: str, features: Optional[str]
-) -> schemas.FeatureList:
+) -> List[schemas.Features]:
     if not features:
         url = f"projects/{project}/model-endpoints/{endpoint_id}/features"
         raise MLRunNotFoundError(f"Endpoint features not found' - {url}")
 
     features = json.loads(features)
     features = [schemas.Features(**feature) for feature in features]
-    return schemas.FeatureList(features=features)
+    return features
 
 
 def _decode_labels(labels: Dict[str, Any]) -> List[str]:

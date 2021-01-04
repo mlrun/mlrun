@@ -34,57 +34,19 @@ def is_env_params_exist() -> bool:
 
 @pytest.mark.skipif(
     is_env_params_exist(),
-    reason="Either V3IO_ACCESS_KEY or V3IO_API environment params not found",
+    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
 )
-def test_create_endpoint(db: Session, client: TestClient):
-    endpoint = create_random_endpoint()
-
-    response = client.post(
-        f"/api/projects/{endpoint.metadata.project}/model-endpoints",
-        json=endpoint.dict(),
-    )
-
-    assert response.status_code == 200
-
-    endpoint_id = get_endpoint_id(endpoint)
-
-    kv_record = _get_endpoint_kv_record_by_id(
-        endpoint_id, ["project", "model", "function", "tag", "labels", "model_class"]
-    )
-
-    kv_record.update({"labels": json.loads(kv_record["labels"])})
-
-    assert endpoint.metadata.project == kv_record["project"]
-    assert endpoint.spec.model == kv_record["model"]
-    assert endpoint.spec.function == kv_record["function"]
-    assert endpoint.metadata.tag == kv_record["tag"]
-    assert json.dumps(endpoint.metadata.labels, sort_keys=True) == json.dumps(
-        kv_record["labels"], sort_keys=True
-    )
-
-
-@pytest.mark.skipif(
-    is_env_params_exist(),
-    reason="Either V3IO_ACCESS_KEY or V3IO_API environment params not found",
-)
-def test_delete_endpoint(db: Session, client: TestClient):
-    endpoint = create_random_endpoint()
-
-    response = client.post(
-        f"/api/projects/{endpoint.metadata.project}/model-endpoints",
-        json=endpoint.dict(),
-    )
-
-    assert response.status_code == 200
-
+def test_clear_endpoint(db: Session, client: TestClient):
+    endpoint = _mock_random_endpoint()
+    _write_endpoint_to_kv(endpoint)
     endpoint_id = get_endpoint_id(endpoint)
 
     kv_record = _get_endpoint_kv_record_by_id(endpoint_id)
 
     assert kv_record
 
-    response = client.delete(
-        f"/api/projects/{kv_record['project']}/model-endpoints/{endpoint_id}"
+    response = client.post(
+        f"/api/projects/{kv_record['project']}/model-endpoints/{endpoint_id}/clear"
     )
 
     assert response.status_code == 200
@@ -96,17 +58,13 @@ def test_delete_endpoint(db: Session, client: TestClient):
 
 @pytest.mark.skipif(
     is_env_params_exist(),
-    reason="Either V3IO_ACCESS_KEY or V3IO_API environment params not found",
+    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
 )
 def test_list_endpoints(db: Session, client: TestClient):
-    endpoints_in = [create_random_endpoint("active") for _ in range(5)]
+    endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        response = client.post(
-            f"/api/projects/test/model-endpoints",
-            json=endpoint.dict(),
-        )
-        assert response.status_code == 200
+        _write_endpoint_to_kv(endpoint)
 
     response = client.get("/api/projects/test/model-endpoints")
 
@@ -124,11 +82,11 @@ def test_list_endpoints(db: Session, client: TestClient):
 
 @pytest.mark.skipif(
     is_env_params_exist(),
-    reason="Either V3IO_ACCESS_KEY or V3IO_API environment params not found",
+    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
 )
 def test_list_endpoints_filter(db: Session, client: TestClient):
     for i in range(5):
-        endpoint_details = create_random_endpoint()
+        endpoint_details = _mock_random_endpoint()
 
         if i < 1:
             endpoint_details.spec.model = "filterme"
@@ -142,12 +100,7 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
         if i < 4:
             endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-        response = client.post(
-            f"/api/projects/test/model-endpoints",
-            json=endpoint_details.dict(),
-        )
-
-        assert response.status_code == 200
+        _write_endpoint_to_kv(endpoint_details)
 
     filter_model = json.loads(
         client.get("/api/projects/test/model-endpoints/?model=filterme").text
@@ -182,6 +135,106 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
     assert len(filter_labels) == 4
 
 
+@pytest.mark.skipif(
+    is_env_params_exist(),
+    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
+)
+def test_get_endpoint_metrics(db: Session, client: TestClient):
+
+    start = datetime.utcnow()
+
+    for i in range(5):
+        endpoint = _mock_random_endpoint()
+        endpoint_id = get_endpoint_id(endpoint)
+
+        _write_endpoint_to_kv(endpoint)
+
+        frames = get_frames_client(container="projects")
+
+        frames.create(backend="tsdb", table=ENDPOINT_EVENTS, rate="10/m", if_exists=1)
+
+        total = 0
+
+        dfs = []
+
+        for i in range(10):
+            count = randint(1, 10)
+            total += count
+            data = {
+                "predictions_per_second_count_1s": count,
+                "endpoint_id": endpoint_id,
+                "timestamp": start - timedelta(minutes=10 - i),
+            }
+            df = pd.DataFrame(data=[data])
+            dfs.append(df)
+
+        frames.write(
+            backend="tsdb",
+            table=ENDPOINT_EVENTS,
+            dfs=dfs,
+            index_cols=["timestamp", "endpoint_id"],
+        )
+
+        response = client.get(
+            f"/api/projects/test/model-endpoints/{endpoint_id}?metrics=true&name=predictions"
+        )
+        response = json.loads(response.content)
+
+        assert "metrics" in response
+
+        metrics = response["metrics"]
+
+        assert len(metrics) > 0
+
+        first_metric = metrics[0]
+
+        assert first_metric["name"] == "predictions_per_second"
+
+        response_total = sum((m[1] for m in first_metric["values"]))
+
+        assert total == response_total
+
+
+def _mock_random_endpoint(state: str = "") -> schemas.Endpoint:
+    return schemas.Endpoint(
+        metadata=schemas.ObjectMetadata(
+            name="",
+            project="test",
+            tag=f"v{randint(0, 100)}",
+            labels={
+                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
+            },
+            updated=None,
+            uid=None,
+        ),
+        spec=schemas.EndpointSpec(
+            model=f"model_{randint(0, 100)}",
+            function=f"function_{randint(0, 100)}",
+            model_class="classifier",
+        ),
+        status=schemas.ObjectStatus(state=state),
+    )
+
+
+def _write_endpoint_to_kv(endpoint: schemas.Endpoint):
+    endpoint_id = get_endpoint_id(endpoint)
+
+    get_v3io_client().kv.put(
+        container=config.model_endpoint_monitoring_container,
+        table_path=ENDPOINTS,
+        key=endpoint_id,
+        attributes={
+            "project": endpoint.metadata.project,
+            "function": endpoint.spec.function,
+            "model": endpoint.spec.model,
+            "tag": endpoint.metadata.tag,
+            "model_class": endpoint.spec.model_class,
+            "labels": json.dumps(endpoint.metadata.labels),
+            **{f"_{k}": v for k, v in endpoint.metadata.labels.items()},
+        },
+    )
+
+
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
     v3io = get_v3io_client()
@@ -209,86 +262,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
     try:
         # Cleanup TSDB
         frames.delete(
-            backend="tsdb",
-            table=ENDPOINT_EVENTS,
-            if_missing=fpb2.IGNORE,
+            backend="tsdb", table=ENDPOINT_EVENTS, if_missing=fpb2.IGNORE,
         )
     except CreateError:
         pass
-
-
-@pytest.mark.skipif(
-    is_env_params_exist(),
-    reason="Either V3IO_ACCESS_KEY or V3IO_API environment params not found",
-)
-def test_get_endpoint_metrics(db: Session, client: TestClient):
-    endpoint_id = "test.0dc1b5d623bf5d6584ee5d5ead27a7b2"
-
-    frames = get_frames_client(container="projects")
-    v3io = get_v3io_client()
-
-    v3io.kv.put(
-        container="projects",
-        table_path=ENDPOINTS,
-        key=endpoint_id,
-        attributes={"test": True},
-    )
-
-    frames.create(backend="tsdb", table=ENDPOINT_EVENTS, rate="10/m")
-
-    start = datetime.utcnow()
-
-    total = 0
-    dfs = []
-    for i in range(10):
-        count = randint(1, 10)
-        total += count
-        data = {
-            "predictions_per_second_count_1s": count,
-            "endpoint_id": endpoint_id,
-            "timestamp": start - timedelta(minutes=10 - i),
-        }
-        df = pd.DataFrame(data=[data])
-        dfs.append(df)
-
-    frames.write(
-        backend="tsdb",
-        table=ENDPOINT_EVENTS,
-        dfs=dfs,
-        index_cols=["timestamp", "endpoint_id"],
-    )
-
-    response = client.get(
-        f"/api/projects/test/model-endpoints/{endpoint_id}/metrics?name=predictions"
-    )
-
-    metric = json.loads(response.content)["metrics"][0]
-
-    assert metric["name"] == "predictions_per_second"
-
-    response_total = sum((m[1] for m in metric["values"]))
-
-    assert total == response_total
-
-    pass
-
-
-def create_random_endpoint(state: str = "") -> schemas.Endpoint:
-    return schemas.Endpoint(
-        metadata=schemas.ObjectMetadata(
-            name="",
-            project="test",
-            tag=f"v{randint(0, 100)}",
-            labels={
-                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
-            },
-            updated=None,
-            uid=None,
-        ),
-        spec=schemas.EndpointSpec(
-            model=f"model_{randint(0, 100)}",
-            function=f"function_{randint(0, 100)}",
-            model_class="classifier",
-        ),
-        status=schemas.ObjectStatus(state=state),
-    )

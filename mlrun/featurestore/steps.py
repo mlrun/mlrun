@@ -1,6 +1,4 @@
 from typing import Dict, Any
-
-import mlrun
 from storey import MapClass
 
 this_path = "mlrun.featurestore.steps"
@@ -15,8 +13,7 @@ class FeaturesetValidator(MapClass):
         self.name = name
         if not self.context:
             return
-        obj = self.context.get_store_resource(featureset)
-        self._featureset = mlrun.featurestore.FeatureSet.from_dict(obj)
+        self._featureset = self.context.get_store_resource(featureset)
         for key, feature in self._featureset.spec.features.items():
             if feature.validator and (not columns or key in columns):
                 feature.validator.set_feature(feature)

@@ -30,6 +30,7 @@ from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
+from ..featurestore.model import FeatureSet, FeatureVector
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
 
@@ -770,7 +771,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
-        return resp.json()
+        return FeatureSet.from_dict(resp.json())
 
     def list_features(
         self,
@@ -836,7 +837,9 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-sets, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["feature_sets"]
+        feature_sets = resp.json()["feature_sets"]
+        if feature_sets:
+            [FeatureSet.from_dict(obj) for obj in feature_sets]
 
     def store_feature_set(
         self,
@@ -928,7 +931,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-vector {project}/{name}"
         resp = self.api_call("GET", path, error_message)
-        return resp.json()
+        return FeatureVector.from_dict(resp.json())
 
     def list_feature_vectors(
         self,
@@ -952,7 +955,9 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-vectors, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["feature_vectors"]
+        feature_vectors = resp.json()["feature_vectors"]
+        if feature_vectors:
+            [FeatureVector.from_dict(obj) for obj in feature_vectors]
 
     def store_feature_vector(
         self,

@@ -13,8 +13,6 @@
 # limitations under the License.
 from typing import List
 
-import mlrun
-
 from .model import DataTarget
 from .model.base import DataTargetSpec
 from .sources import get_source_step
@@ -32,7 +30,7 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
 
     # init targets (and table)
     targets = targets or []
-    cache.cache_resource(featureset.uri(), featureset.to_dict(), True)
+    cache.cache_resource(featureset.uri(), featureset, True)
     table = add_target_states(
         graph, featureset, targets, to_df=return_df, final_state=default_final_state
     )
@@ -44,7 +42,9 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
     if not entity_columns:
         raise ValueError("entity column(s) are not defined in feature set")
     key_column = entity_columns[0]
-    source = get_source_step(source, key_column, time_column=featureset.spec.timestamp_key)
+    source = get_source_step(
+        source, key_column, time_column=featureset.spec.timestamp_key
+    )
     graph.set_flow_source(source)
 
     server = create_graph_server(graph=graph, parameters={})
@@ -60,8 +60,7 @@ def featureset_initializer(server):
 
     featureset_uri = context.get_param("featureset")
     source = context.get_param("source")
-    obj = context.get_store_resource(featureset_uri)
-    featureset = mlrun.featurestore.FeatureSet.from_dict(obj)
+    featureset = context.get_store_resource(featureset_uri)
     targets = context.get_param("targets", None)
     if targets:
         targets = [DataTarget.from_dict(target) for target in targets]
@@ -74,7 +73,7 @@ def featureset_initializer(server):
     table = add_target_states(
         graph, featureset, targets, final_state=default_final_state
     )
-    cache.cache_resource(featureset_uri, featureset.to_dict(), True)
+    cache.cache_resource(featureset_uri, featureset, True)
     if table:
         cache.cache_table(featureset_uri, table, True)
 

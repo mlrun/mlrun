@@ -1,4 +1,6 @@
 import os
+
+import mlrun
 import pandas as pd
 
 from mlrun.featurestore.ingestion import run_ingestion_function
@@ -117,8 +119,9 @@ def test_feature_set_db():
     )
     print(stocks_set.to_yaml())
     stocks_set.save()
+    db = mlrun.get_run_db()
 
-    print(fs.list_feature_sets(name))
+    print(db.list_feature_sets(name))
 
     fset = fs.get_feature_set(name)
     print(fset)

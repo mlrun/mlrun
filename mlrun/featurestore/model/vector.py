@@ -18,10 +18,10 @@ import pandas as pd
 
 
 from .base import DataSource, Feature, DataTarget, CommonMetadata, FeatureStoreError
-from mlrun.model import ModelObj, ObjectList
-from mlrun.artifacts.dataset import upload_dataframe
-from mlrun.config import config as mlconf
-from mlrun.serving.states import RootFlowState
+from ...model import ModelObj, ObjectList
+from ...artifacts.dataset import upload_dataframe
+from ...config import config as mlconf
+from ...serving.states import RootFlowState
 from ..targets import get_offline_target
 from ...datastore import get_store_uri
 from ...utils import StorePrefix
@@ -182,6 +182,11 @@ class FeatureVector(ModelObj):
         """get feature statistics table (as dataframe)"""
         if self.status.stats:
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
+
+    def get_target_path(self, name=None):
+        target, _ = get_offline_target(self, name=name)
+        if target:
+            return target.path
 
     def to_dataframe(self, df_module=None, target_name=None):
         """return feature vector (offline) data as dataframe"""

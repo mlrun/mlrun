@@ -17,6 +17,7 @@ from .infer import (
     InferOptions,
     infer_from_source,
 )
+from .model.base import DataTargetSpec
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
 from .ingestion import init_featureset_graph
 from .model import FeatureVector, FeatureSet, OnlineVectorService
@@ -37,49 +38,17 @@ except Exception:
 
 
 def get_feature_set(uri):
-    """get feature set from db"""
+    """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
-    obj = db.get_feature_set(name, project, tag, uid)
-    return FeatureSet.from_dict(obj)
+    return db.get_feature_set(name, project, tag, uid)
 
 
 def get_feature_vector(uri):
-    """get feature vector from db"""
+    """get feature vector object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
-    obj = db.get_feature_vector(name, project, tag, uid)
-    return FeatureVector.from_dict(obj)
-
-
-def list_feature_sets(
-    name: str = None,
-    project: str = None,
-    tag: str = None,
-    state: str = None,
-    labels: List[str] = None,
-):
-    """list feature sets with optional filter"""
-    project = project or config.default_project
-    db = mlrun.get_run_db()
-    resp = db.list_feature_sets(project, name, tag, state, labels=labels)
-    if resp:
-        return [FeatureSet.from_dict(obj) for obj in resp]
-
-
-def list_feature_vectors(
-    name: str = None,
-    project: str = None,
-    tag: str = None,
-    state: str = None,
-    labels: List[str] = None,
-):
-    """list feature vectors with optional filter"""
-    project = project or config.default_project
-    db = mlrun.get_run_db()
-    resp = db.list_feature_vectors(project, name, tag, state, labels=labels)
-    if resp:
-        return [FeatureVector.from_dict(obj) for obj in resp]
+    return db.get_feature_vector(name, project, tag, uid)
 
 
 def _features_to_vector(features, name):
@@ -98,20 +67,52 @@ def _features_to_vector(features, name):
 
 
 def get_offline_features(
-    features,
+    features: Union[str, List[str], FeatureVector],
     entity_rows=None,
-    entity_timestamp_column=None,
-    name=None,
-    watch=True,
-    store_target=None,
+    entity_timestamp_column: str = None,
+    name: str = None,
+    watch: bool = True,
+    store_target: DataTargetSpec = None,
 ):
+    """retrieve offline feature vector
+
+    example:
+        features = [
+            "stock-quotes#bid",
+            "stock-quotes#asks_sum_5h",
+            "stock-quotes#ask as mycol",
+            "stocks#*",
+        ]
+
+        resp = fs.get_offline_features(
+            features, entity_rows=trades, entity_timestamp_column="time"
+        )
+        print(resp.vector.to_yaml())
+        print(resp.to_dataframe())
+        resp.to_parquet("./xx.parquet")
+
+    :param features:     - list of features or feature vector uri or FeatureVector object
+    :param entity_rows:  - dataframe with entity rows to join with
+    :param name:         - name to use for the generated feature vector
+    :param watch:        - indicate we want to wait for the result
+    :param store_target: - where to write the results to
+    :param entity_timestamp_column: - timestamp column name in the entity rows dataframe
+    """
     vector = _features_to_vector(features, name)
     entity_timestamp_column = entity_timestamp_column or vector.spec.timestamp_field
     merger = LocalFeatureMerger(vector)
     return merger.start(entity_rows, entity_timestamp_column, store_target)
 
 
-def get_online_feature_service(features, name=None, function=None):
+def get_online_feature_service(
+    features: Union[str, List[str], FeatureVector], name: str = None, function=None
+):
+    """initialize and return the feature vector online client
+
+    :param features:     - list of features or feature vector uri or FeatureVector object
+    :param name:         - name to use for the generated feature vector
+    :param function:     - optional, mlrun FunctionReference object, serverless function template
+    """
     vector = _features_to_vector(features, name)
     controller = init_feature_vector_graph(vector)
     service = OnlineVectorService(vector, controller)
@@ -188,20 +189,8 @@ def infer_metadata(
     return source
 
 
-def run_ingestion_job(
-    featureset, source_path, targets=None, parameters=None, function=None
+def run_ingestion_task(
+    featureset, source, targets=None, parameters=None, function=None
 ):
-    """Start MLRun ingestion job to load data into the feature store"""
-    pass
-
-
-def deploy_ingestion_service(
-    featureset, source_path, targets=None, parameters=None, function=None
-):
-    """Start real-time Nuclio function which loads data into the feature store"""
-    pass
-
-
-def get_features_metadata(features):
-    """return metadata (schema & stats) for requested features"""
+    """Start MLRun ingestion job or nuclio function to load data into the feature store"""
     pass

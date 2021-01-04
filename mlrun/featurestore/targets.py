@@ -54,6 +54,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
             timestamp_key=timestamp_key,
         )
     if to_df:
+        # add dataframe target, will return a dataframe
         driver = DFStore(resource)
         driver.add_writer_state(
             graph,
@@ -66,13 +67,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     return table
 
 
-def update_target_status(featureset, status, producer):
-    for target in featureset.spec.targets:
-        target.status = status
-        target.producer = producer
-
-
-offline_lookup_order = [TargetTypes.parquet]
+offline_lookup_order = [TargetTypes.parquet, TargetTypes.csv]
 online_lookup_order = [TargetTypes.nosql]
 
 
@@ -86,6 +81,7 @@ def get_offline_target(featureset, start_time=None, name=None):
 
 
 def get_online_target(featureset):
+    # todo: take lookup order into account
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_online:
@@ -94,6 +90,8 @@ def get_online_target(featureset):
 
 
 class BaseStoreDriver:
+    """base target storage driver, used to materialize feature set/vector data"""
+
     kind = None
     is_table = False
     suffix = ""
@@ -114,7 +112,7 @@ class BaseStoreDriver:
     def update_resource_status(self, status="", producer=None):
         """update the data target status"""
         self.target = self.target or DataTarget(self.kind, self.name, self.target_path)
-        self.target.status = status or self.target.status
+        self.target.status = status or self.target.status or "created"
         self.target.updated = now_date().isoformat()
         self.target.producer = producer or self.target.producer
         self.resource.status.update_target(self.target)
@@ -122,9 +120,11 @@ class BaseStoreDriver:
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
+        """add writer state to graph"""
         pass
 
     def as_df(self, columns=None, df_module=None):
+        """return the target data as dataframe"""
         return get_dataitem(self.target_path).as_df(
             columns=columns, df_module=df_module
         )

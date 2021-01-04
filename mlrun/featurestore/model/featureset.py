@@ -57,6 +57,7 @@ class FeatureSetSpec(ModelObj):
         graph=None,
         function=None,
         analysis=None,
+        processing_engine=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -78,6 +79,7 @@ class FeatureSetSpec(ModelObj):
         self.label_column = label_column
         self.function = function
         self.analysis = analysis or {}
+        self.processing_engine = processing_engine
 
     @property
     def entities(self) -> List[Entity]:
@@ -218,6 +220,11 @@ class FeatureSet(ModelObj):
         uri = get_store_uri(StorePrefix.FeatureSet, uri)
         return uri
 
+    def get_target_path(self, name=None):
+        target, _ = get_offline_target(self, name=name)
+        if target:
+            return target.path
+
     def set_targets(self, targets=None, with_defaults=True):
         """set the desired target list"""
         if targets is not None and not isinstance(targets, list):
@@ -319,10 +326,15 @@ class FeatureSet(ModelObj):
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         """generate graphviz plot"""
         graph = self.spec.graph
+        _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
         if with_targets:
             targets = [
-                BaseState(target.kind, after=target.after_state, shape="cylinder")
+                BaseState(
+                    target.kind,
+                    after=target.after_state or default_final_state,
+                    shape="cylinder",
+                )
                 for target in self.spec.targets
             ]
         return graph.plot(filename, format, targets=targets, **kw)

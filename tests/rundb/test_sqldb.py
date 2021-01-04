@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import _tagged
+from mlrun.api.db.sqldb.models import _tagged, Artifact, Run
 from tests.conftest import new_run
 
 
@@ -118,10 +118,15 @@ def test_artifacts_latest(db: SQLDB, db_session: Session):
     assert {17, 99} == set(art["a"] for art in arts), "latest"
 
 
-@pytest.mark.parametrize("cls", _tagged)
+@pytest.mark.parametrize("cls", [tagged_model for tagged_model in _tagged if tagged_model != Run])
 def test_tags(db: SQLDB, db_session: Session, cls):
     p1, n1 = "prj1", "name1"
+    object_identifier = "name"
+    if cls == Artifact:
+        object_identifier = "key"
     obj1, obj2, obj3 = cls(), cls(), cls()
+    for index, obj in enumerate([obj1, obj2, obj3]):
+        setattr(obj, object_identifier, f"obj-identifier-{index}")
     db_session.add(obj1)
     db_session.add(obj2)
     db_session.add(obj3)

@@ -9,6 +9,32 @@ import mlrun.projects.project
 import tests.conftest
 
 
+def test_sync_functions():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name)
+    project.set_function("hub://describe", "describe")
+    project_function_object = project.spec._function_objects
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project(None, str(project_file_path))
+    assert imported_project.spec._function_objects == {}
+    imported_project.sync_functions()
+    _assert_project_function_objects(imported_project, project_function_object)
+
+
+def _assert_project_function_objects(project, expected_function_objects):
+    project_function_objects = project.spec._function_objects
+    assert len(project_function_objects) == len(expected_function_objects)
+    for function_name, function_object in expected_function_objects.items():
+        assert function_name in project_function_objects
+        assert (
+                deepdiff.DeepDiff(
+                    project_function_objects[function_name].to_dict(), function_object.to_dict(), ignore_order=True, exclude_paths=["root['spec']['build']['code_origin']"]
+                )
+                == {}
+        )
+
+
 def test_create_project_from_file_with_legacy_structure():
     project_name = "project-name"
     description = "project description"

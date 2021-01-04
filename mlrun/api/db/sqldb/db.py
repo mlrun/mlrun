@@ -601,9 +601,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
-            query = self._query(
-                session, artifact.Tag, project=project, name=name,
-            ).join(Artifact).filter(Artifact.key == artifact.key)
+            query = (
+                self._query(session, artifact.Tag, project=project, name=name,)
+                .join(Artifact)
+                .filter(Artifact.key == artifact.key)
+            )
             tag = query.one_or_none()
             if not tag:
                 tag = artifact.Tag(project=project, name=name)

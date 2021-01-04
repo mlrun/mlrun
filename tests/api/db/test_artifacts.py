@@ -141,9 +141,9 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
         db_session, artifact_1_key, artifact_1_with_kind_body, artifact_1_with_kind_uid,
     )
     artifact = db.read_artifact(db_session, artifact_1_key, tag="latest")
-    assert artifact['kind'] == artifact_1_kind
+    assert artifact["kind"] == artifact_1_kind
     artifact = db.read_artifact(db_session, artifact_1_key, tag=artifact_1_uid)
-    assert artifact.get('kind') is None
+    assert artifact.get("kind") is None
 
 
 def _generate_artifact(name, kind=None):

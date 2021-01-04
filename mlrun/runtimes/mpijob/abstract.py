@@ -29,7 +29,7 @@ from mlrun.utils import get_in, logger
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = "mpijob"
     _is_nested = False
-    mpi_args = {}
+    mpi_args = []
 
     @abc.abstractmethod
     def _generate_mpi_job(

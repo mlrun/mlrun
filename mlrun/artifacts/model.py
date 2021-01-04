@@ -16,9 +16,8 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import store_manager
+from ..datastore import store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
-from ..utils import is_store_uri
 
 model_spec_filename = "model_spec.yaml"
 

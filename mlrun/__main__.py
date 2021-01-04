@@ -42,7 +42,7 @@ from .utils import (
     run_keys,
     update_in,
     get_in,
-    parse_function_uri,
+    parse_versioned_object_uri,
     dict_to_yaml,
     pr_comment,
     RunNotifications,
@@ -907,7 +907,7 @@ def func_url_to_runtime(func_url):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]
-            project, name, tag, hash_key = parse_function_uri(func_url)
+            project, name, tag, hash_key = parse_versioned_object_uri(func_url)
             mldb = get_run_db(mlconf.dbpath)
             runtime = mldb.get_function(name, project, tag, hash_key)
         else:

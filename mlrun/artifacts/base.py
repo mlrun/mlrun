@@ -18,8 +18,8 @@ import yaml
 
 import mlrun
 from ..model import ModelObj
-from ..datastore import store_manager
-from ..utils import is_store_uri, get_store_uri, StorePrefix
+from ..datastore import is_store_uri, get_store_uri, store_manager
+from ..utils import StorePrefix
 
 calc_hash = True
 

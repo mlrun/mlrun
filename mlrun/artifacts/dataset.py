@@ -15,14 +15,15 @@ import os
 import pathlib
 from io import StringIO
 from tempfile import mktemp
+
+import mlrun
 import numpy as np
 import pandas as pd
 
 from pandas.io.json import build_table_schema
 
 from .base import Artifact
-from ..datastore import store_manager
-from ..utils import is_store_uri
+from ..datastore import store_manager, is_store_uri
 
 preview_lines = 20
 max_csv = 10000
@@ -300,4 +301,4 @@ def upload_dataframe(df, target_path, format, src_path=None, meta_setter=None, *
             os.remove(target)
         return
 
-    raise ValueError(f"format {format} not implemented yes")
+    raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

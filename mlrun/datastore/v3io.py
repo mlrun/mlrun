@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import v3io.dataplane
 
-import mlrun.errors
+import mlrun
 from ..platforms.iguazio import split_path
 from .base import (
     DataStore,
@@ -122,12 +122,12 @@ class V3ioStore(DataStore):
         return [obj.key[subpath_length:] for obj in response.output.contents]
 
 
-def v3io_path(url):
+def parse_v3io_path(url):
     """return v3io table path from url"""
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme.lower()
     if scheme != "v3io" and scheme != "v3ios":
-        raise ValueError(
+        raise mlrun.errors.MLRunInvalidArgumentError(
             "url must start with v3io://[host]/{container}/{path}, got " + url
         )
     endpoint = parsed_url.hostname

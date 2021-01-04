@@ -16,13 +16,38 @@
 
 import mlrun
 from mlrun.config import config
-from mlrun.utils.helpers import parse_function_uri
-from .v3io import v3io_path
-from ..utils import StorePrefix, parse_store_uri
+from mlrun.utils.helpers import parse_versioned_object_uri
+from .v3io import parse_v3io_path
+from ..utils import DB_SCHEMA, StorePrefix
+
+
+def is_store_uri(url):
+    """detect if the uri starts with the store schema prefix"""
+    return url.startswith(DB_SCHEMA + "://")
+
+
+def parse_store_uri(url):
+    """parse a store uri and return kind + uri suffix"""
+    if not is_store_uri(url):
+        return None, ""
+    uri = url[len(DB_SCHEMA) + len("://") :]
+    split = uri.strip("/").split("/", 1)
+    if len(split) == 0:
+        raise ValueError(f"url {url} has no path")
+    if split and StorePrefix.is_prefix(split[0]):
+        return split[0], split[1]
+    return StorePrefix.Artifact, uri
+
+
+def get_store_uri(kind, uri):
+    """return uri from store kind and suffix"""
+    return f"{DB_SCHEMA}://{kind}/{uri}"
 
 
 class ResourceCache:
-    """Resource cache for real-time pipeline/serving and storey"""
+    """Resource cache for real-time pipeline/serving and storey
+    this cache is basic and doesnt have sync or ttl logic
+    """
 
     def __init__(self):
         self._tabels = {}
@@ -48,7 +73,7 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
-            endpoint, uri = v3io_path(uri)
+            endpoint, uri = parse_v3io_path(uri)
             self._tabels[uri] = Table(uri, V3ioDriver(webapi=endpoint))
             return self._tabels[uri]
 
@@ -70,6 +95,9 @@ class ResourceCache:
         """wraps get_store_resource with a simple object cache"""
 
         def _get_store_resource(uri, use_cache=True):
+            """get mlrun store resource object
+            :param use_cache: indicate if we read from local cache or from DB
+            """
             if (uri == "." or use_cache) and uri in self._resources:
                 return self._resources[uri]
             resource = get_store_resource(uri, db, secrets=secrets)
@@ -86,19 +114,19 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
     db = db or mlrun.get_run_db(secrets=secrets)
     kind, uri = parse_store_uri(uri)
     if kind == StorePrefix.FeatureSet:
-        project, name, tag, uid = parse_function_uri(
+        project, name, tag, uid = parse_versioned_object_uri(
             uri, project or config.default_project
         )
         return db.get_feature_set(name, project, tag, uid)
 
     elif kind == StorePrefix.FeatureVector:
-        project, name, tag, uid = parse_function_uri(
+        project, name, tag, uid = parse_versioned_object_uri(
             uri, project or config.default_project
         )
         return db.get_feature_vector(name, project, tag, uid)
 
     elif StorePrefix.is_artifact(kind):
-        project, name, tag, uid = parse_function_uri(
+        project, name, tag, uid = parse_versioned_object_uri(
             uri, project or config.default_project
         )
         iteration = None

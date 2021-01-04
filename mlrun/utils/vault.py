@@ -24,13 +24,19 @@ vault_default_prefix = "v1/secret/data"
 vault_url_env_var = "MLRUN_VAULT_URL"
 vault_token_env_var = "MLRUN_VAULT_TOKEN"
 vault_role_env_var = "MLRUN_VAULT_ROLE"
-token = None
 
 
 class VaultStore:
-    def __init__(self):
-        self._token = None
-        self.url = mlconf.vault.url or os.environ.get(vault_url_env_var)
+    def __init__(self, token=None):
+        self._token = token
+        self.url = mlconf.secret_stores.vault.url or os.environ.get(vault_url_env_var)
+
+    @property
+    def token(self):
+        if not self._token:
+            self._login()
+
+        return self._token
 
     def _login(self):
         if self._token:
@@ -74,11 +80,12 @@ class VaultStore:
     def _read_jwt_token():
         # if for some reason the path to the token is not in conf, then attempt to get the SA token (works on k8s pods)
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-        if mlconf.vault.token_path:
+        if mlconf.secret_stores.vault.token_path:
             # Override the default SA token in case a specific token is installed in the mlconf-specified path
-            secret_token_path = expanduser(mlconf.vault.token_path + "/token")
+            secret_token_path = expanduser(
+                mlconf.secret_stores.vault.token_path + "/token"
+            )
             if os.path.isfile(secret_token_path):
-                logger.info(f"Using vault JWT token from {secret_token_path}")
                 token_path = secret_token_path
 
         with open(token_path, "r") as token_file:
@@ -240,14 +247,18 @@ def init_project_vault_configuration(project):
 
     namespace = mlconf.namespace
     k8s = get_k8s_helper(silent=True)
-    service_account_name = mlconf.vault.project_sa_name.format(project=project)
+    service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
+        project=project
+    )
 
     secret_name = k8s.get_project_vault_secret_name(
         project, service_account_name, namespace=namespace
     )
 
     if not secret_name:
-        k8s.create_project_service_account(service_account_name, namespace=namespace)
+        k8s.create_project_service_account(
+            project, service_account_name, namespace=namespace
+        )
 
     vault = VaultStore()
     policy_name = vault.create_project_policy(project)

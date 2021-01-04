@@ -616,6 +616,15 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: str = "vault",
+        secrets: List[str] = None,
+    ) -> dict:
+        raise NotImplementedError()
+
     def create_user_secrets(
         self, user: str, provider: str = "vault", secrets: dict = None
     ):

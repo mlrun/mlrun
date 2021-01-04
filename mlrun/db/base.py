@@ -308,6 +308,17 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> dict:
+        pass
+
     @abstractmethod
     def create_user_secrets(
         self,

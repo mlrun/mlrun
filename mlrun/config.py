@@ -110,11 +110,13 @@ default_config = {
             "mlrun_version_specifier": "",
         },
     },
-    "vault": {
-        "url": "http://docker.for.mac.localhost:8200",
-        "remote_url": "http://docker.for.mac.localhost:8200",
-        "token_path": "~/.mlrun/vault",
-        "project_sa_name": "sa-vault-{project}",
+    "secret_stores": {
+        "vault": {
+            "url": "http://docker.for.mac.localhost:8200",
+            "remote_url": "http://docker.for.mac.localhost:8200",
+            "token_path": "~/.mlrun/vault",
+            "project_service_account_name": "mlrun-vault-{project}",
+        },
     },
 }
 

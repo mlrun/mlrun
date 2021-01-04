@@ -12,7 +12,7 @@ This guide outlines the steps for installing and running MLRun locally.
   - [Install the MLRun API and Dashboard (UI) Services](#k8s-install-mlrun-api-n-ui-services)
   - [Install a Jupyter Server with a Preloaded MLRun Package](#k8s-install-jupyter-service-w-mlrun)
   - [Start Working](#k8s-install-start-working)
-- [Running a local setup with Vault support](#local-vault)
+  - [Running a local setup with Vault support](#local-vault)
 
 <a id="local-docker"></a>
 ## Run MLRun on a Local Docker Registry
@@ -110,44 +110,36 @@ To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](doc
 > - You can select to use a Kubernetes Ingress for better security.
 
 <a id="local-vault"></a>
-## Running a local setup with Vault support
+### Running a local setup with Vault support
+This section explains how to setup Vault to work with MLRun API and Jupyter pods running in a k8s cluster,
+for example on a Minikube cluster running on your laptop or any other k8s deployment.
 
-### Enabling k8s authentication with Vault
-To work locally with Vault, you need to first install Vault. This document does not cover the basic instructions on how to do that.
+#### Enabling k8s authentication in Vault
+Vault needs to be installed in your environment. This document does not cover the basic instructions on how to do that -
+refer to [**Vault documentation**](https://www.vaultproject.io/docs/install) for instructions.
+
 Once Vault is running locally, you need to enable Kubernetes authentication for vault. Follow the instructions in [**Kubernetes auth method**](https://www.vaultproject.io/docs/auth/kubernetes) to enable it. 
 This involves setting up a service account with `TokenReview` permissions - the page linked above explains how to configure that properly.
 
-### Configuring MLRun API service to work with Vault
+#### Configuring MLRun API service to work with Vault
 The MLRun API service needs to have permissions to manipulate Vault k8s roles, Vault policies and of course handle secrets. The Vault authentication
-method within MLRun uses the following logic:
-1. If a Vault Token is available in the `MLRUN_VAULT_TOKEN` environment variable, use it to authenticate directly with Vault (not through k8s authentication). For example, if you
-have the root token available and wants to use it, you can set it directly in the API pod env variables
-2. Otherwise, a JWT token is used to authenticate using k8s mode. The JWT token can be in one of two places:
+method within MLRun uses a JWT token to authenticate using k8s mode. The JWT token can be placed in one of two locations:
 
-    a.  As part of the default service-account for the pod, in the standard path of `/var/run/secrets/kubernetes.io/serviceaccount/token`. If this is your
-    chosen approach, then other than setting the API pod's service account properly, nothing else is needed.
+1. If the token is part of the default service-account for the pod, it will be located in the standard path of `/var/run/secrets/kubernetes.io/serviceaccount/token`. 
+If this is your chosen approach, then other than setting the API pod's service account properly, nothing else is needed.
     
-    b. In a path specified in MLRun conf under `vault.token_path` - the default for that is `~/.mlrun/vault`, but can be overridden like any other MLRun configuration -
-    to override set the `MLRUN_VAULT__TOKEN_PATH` to the place where you want to mount your token. This approach is handy if you want to utilize a different SA than the 
-    pod's default SA to authenticate with Vault. In that case, simply extract the token from the SA that you want to use and mount it in the location pointed at by the variable.
-     
-#### Working with k8s authentication and a JWT token
-If a JWT token was used (either of the approaches in 2a above), a proper Vault role must be provided. The role, together with the SA, are used by Vault to determine the Vault policy granted to the API.
-The role is specified through the `MLRUN_VAULT_ROLE` environment variable, and can be in one of two forms:
-1. `project:<project name>` - specifies a project-level context. 
-    Usually you would not use that for the MLRun API pod, as it needs access to secrets of multiple projects.
-2. `user:<user name>` - specifies a user-level context.
-
-To configure the MLRun API, the recommended approach is:
-1. Set the MLRun Vault URL using the `MLRUN_VAULT___URL` environment variable. 
-    For exmaple, If using Minikube on Mac it should be set to `http://docker.for.mac.localhost:8200`
-2. Set the Vault role for the pod to be `user:admin`
-3. Make sure the service-account set for the MLRun API pod is `mlrun-api`
-4. Configure a Vault role using the following command:
-
-    `$ vault write auth/kubernetes/role/mlrun-role-user-admin bound_service_account_names=mlrun-api bound_service_account_namespaces=default-tenant policies=admin_full ttl=12h`
-
-5. Create the `admin_full` Vault policy, with the following content:
+2. The token can be placed in a location specified in MLRun conf under `secret_stores.vault.token_path` - the default for that is `~/.mlrun/vault`, but can be overridden like any other MLRun configuration by
+setting `MLRUN_SECRET_STORES__VAULT__TOKEN_PATH` to the location where you want to mount your token. This approach is handy if you want to utilize a different SA than the 
+pod's default SA to authenticate with Vault. In that case, simply extract the token from the SA that you want to use and mount it in the location pointed at by the variable.
+  
+We will use the 1st approach here - to configure the MLRun API pod, perform the following steps:
+1. Set the MLRun Vault URL using the `MLRUN_SECRET_STORES__VAULT__URL` environment variable. 
+For example, If using Minikube on Mac and you're running Vault on your local laptop then it 
+should be set to `http://docker.for.mac.localhost:8200`. If you're running Vault on another
+pod then the URL should just be the DNS name of that pod.
+2. Set the Vault role for the pod to be `user:admin`. The role is specified through the `MLRUN_VAULT_ROLE` environment variable.
+3. Make sure the service-account set for the MLRun API pod is `mlrun-api`.
+4. Create an `admin_full` Vault policy, with the following content:
     ```yaml
     # Allow access to admin user-context secrets
     path "secret/data/mlrun/users/admin" {
@@ -181,19 +173,23 @@ To configure the MLRun API, the recommended approach is:
     }
     ```
    
-   This can be done using the Vault CLI following the example in [**This page**](https://www.vaultproject.io/docs/commands/policy). Write the policy content to an `.hcl` file and use it to create 
-   the policy as shown in the page.
+   This can be done using the Vault CLI: save the policy content to a file, for example `my-policy.hcl` 
+   and use it to create the policy using the command:
    
-### Configuring Jupyter to work with Vault
+   `$ vault policy write admin_full ./my-policy.hcl`
+
+5. Configure a Vault role for the `admin` user. The role must be named `mlrun-role-user-<username>`.
+The role binds together the service account whose JWT token you use, the namespace and the policy to assign
+(which determines the permissions you get on Vault). 
+Create the role using the following command:
+
+    `$ vault write auth/kubernetes/role/mlrun-role-user-admin bound_service_account_names=mlrun-api bound_service_account_namespaces=<namespace> policies=admin_full ttl=12h`
+
+   
+#### Configuring Jupyter to work with Vault
 Use the same approach as listed above for the MLRun API pod. If you wish to use the same Vault policy and role for this, then you can
 create the same role and assign multiple service-accounts to it. For example (using the same example as above):
 
-`$ vault write auth/kubernetes/role/mlrun-role-user-admin bound_service_account_names=mlrun-api,jupyter bound_service_account_namespaces=default-tenant policies=admin_full ttl=12h`
+`$ vault write auth/kubernetes/role/mlrun-role-user-admin bound_service_account_names=mlrun-api,jupyter bound_service_account_namespaces=<namespace> policies=admin_full ttl=12h`
 
 Then assign the `jupyter` service-account to the Jupyter pod and you're good to go.
-
->**Note:** 
->
->You don't have to configure Jupyter to work directly with Vault, as most of the Vault integration is expected to happen
->in the backend through the MLRun API service. Still, it is useful if you wish to run functions locally or view/modify Vault content directly from the 
->Jupyter notebook. The example provided in the `examples` folder expects that Jupyter is able to communicate with Vault. 

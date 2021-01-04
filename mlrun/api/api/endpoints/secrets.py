@@ -1,7 +1,9 @@
 from http import HTTPStatus
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Response, Header, Query
+from typing import List
 from mlrun.api import schemas
 from mlrun.utils.vault import (
+    VaultStore,
     add_vault_user_secrets,
     add_vault_project_secrets,
     init_project_vault_configuration,
@@ -16,7 +18,7 @@ def initialize_project_secrets(
 ):
     if secrets.provider != schemas.SecretProviderName.vault:
         return Response(
-            status_code=HTTPStatus.BAD_REQUEST.vault,
+            status_code=HTTPStatus.BAD_REQUEST.value,
             content=f"Invalid secrets provider {secrets.provider}",
         )
 
@@ -24,6 +26,29 @@ def initialize_project_secrets(
     init_project_vault_configuration(project)
     add_vault_project_secrets(project, secrets.secrets)
     return Response(status_code=HTTPStatus.CREATED.value)
+
+
+@router.get("/projects/{project}/secrets", response_model=schemas.SecretsQueryResult)
+def get_secrets(
+    project: str,
+    secrets: List[str] = Query(None, alias="secret"),
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
+    token: str = Header(None, alias=schemas.HeaderNames.secret_store_token),
+):
+    if not token:
+        return Response(
+            status_code=HTTPStatus.BAD_REQUEST.value,
+            content="Get project secrets request without providing token",
+        )
+    if provider != schemas.SecretProviderName.vault:
+        return Response(
+            status_code=HTTPStatus.BAD_REQUEST.value,
+            content=f"Invalid secrets provider {secrets.provider}",
+        )
+
+    vault = VaultStore(token)
+    secret_values = vault.get_secrets(secrets, project=project)
+    return schemas.SecretsQueryResult(secrets=secret_values)
 
 
 @router.post("/user-secrets")

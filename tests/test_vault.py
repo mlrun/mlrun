@@ -21,7 +21,7 @@ def _has_vault():
 def _set_vault_mlrun_configuration(api_server_port=None):
     if api_server_port:
         mlconf.dbpath = f"http://localhost:{api_server_port}"
-    mlconf.vault.url = "http://localhost:8200"
+    mlconf.secret_stores.vault.url = "http://localhost:8200"
 
 
 # Verify that local activation of Vault functionality is successful. This does not

@@ -275,11 +275,12 @@ class K8sHelper:
 
         return results
 
-    def create_project_service_account(self, service_account, namespace=""):
+    def create_project_service_account(self, project, service_account, namespace=""):
         namespace = self.resolve_namespace(namespace)
         k8s_service_account = client.V1ServiceAccount()
+        labels = {"mlrun/project": project}
         k8s_service_account.metadata = client.V1ObjectMeta(
-            name=service_account, namespace=namespace
+            name=service_account, namespace=namespace, labels=labels
         )
         try:
             api_response = self.v1api.create_namespaced_service_account(

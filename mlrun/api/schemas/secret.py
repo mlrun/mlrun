@@ -15,3 +15,7 @@ class SecretCreationRequest(BaseModel):
 
 class UserSecretCreationRequest(SecretCreationRequest):
     user: str
+
+
+class SecretsQueryResult(BaseModel):
+    secrets: dict

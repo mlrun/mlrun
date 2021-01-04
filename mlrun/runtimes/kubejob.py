@@ -223,7 +223,9 @@ class KubejobRuntime(KubeResource):
         from ..config import config as mlconf
 
         project_name = runobj.metadata.project
-        service_account_name = mlconf.vault.project_sa_name.format(project=project_name)
+        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
+            project=project_name
+        )
 
         project_secret = self._get_k8s().get_project_vault_secret_name(
             project_name, service_account_name
@@ -242,7 +244,7 @@ class KubejobRuntime(KubeResource):
         ]
         # We cannot use expanduser() here, since the user in question is the user running in the pod
         # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        token_path = mlconf.vault.token_path.replace("~", "/root")
+        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
 
         volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
 
@@ -251,7 +253,7 @@ class KubejobRuntime(KubeResource):
             {"name": "MLRUN_VAULT_ROLE", "value": "project:{}".format(project_name)}
         )
         self.spec.env.append(
-            {"name": "MLRUN_VAULT_URL", "value": mlconf.vault.remote_url}
+            {"name": "MLRUN_VAULT_URL", "value": mlconf.secret_stores.vault.remote_url}
         )
 
     def _run(self, runobj: RunObject, execution):

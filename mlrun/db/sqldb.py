@@ -408,8 +408,24 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project_secrets(
-        self, project: str, provider: str = "vault", secrets: dict = None
+        self,
+        project: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: dict = None,
     ):
+        raise NotImplementedError()
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> dict:
         raise NotImplementedError()
 
     def create_user_secrets(

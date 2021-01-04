@@ -1128,6 +1128,26 @@ class HTTPRunDB(RunDBInterface):
             "POST", path, error_message, body=dict_to_json(body),
         )
 
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> dict:
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = f"projects/{project}/secrets"
+        params = {"provider": provider, "secret": secrets}
+        headers = {schemas.HeaderNames.secret_store_token: token}
+        error_message = f"Failed retrieving secrets {project}/{provider}"
+        result = self.api_call(
+            "GET", path, error_message, params=params, headers=headers,
+        )
+        return result.json()["secrets"]
+
     def create_user_secrets(
         self,
         user: str,

@@ -971,9 +971,19 @@ class MlrunProject(ModelObj):
             self.metadata.name, mlrun.api.schemas.SecretProviderName.vault, secrets
         )
 
-    def get_vault_secret_keys(self):
-        return list(
-            self._secrets.vault.get_secrets([], project=self.metadata.name).keys()
+    def get_vault_secrets(self, secrets=None, local=False):
+        if local:
+            logger.warning(
+                "get_vault_secrets executed locally. This is not recommended and may become deprecated soon"
+            )
+            self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
+
+        run_db = get_run_db(secrets=self._secrets)
+        return run_db.get_project_secrets(
+            self.metadata.name,
+            self._secrets.vault.token,
+            mlrun.api.schemas.SecretProviderName.vault,
+            secrets,
         )
 
     def get_param(self, key: str, default=None):

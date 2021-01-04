@@ -14,10 +14,11 @@
 
 import mlrun
 from mlrun.utils import parse_versioned_object_uri
+from ..config import config
 
 
 def parse_features(vector):
-    """parse and validate feature list (from vector) and add feature sets metadata"""
+    """parse and validate feature list (from vector) and add metadata from feature sets """
     processed_features = {}  # dict of name to (featureset, feature object)
     feature_set_objects = {}  # cache of used feature set objects
     feature_set_fields = {}  # list of field (name, alias) per featureset
@@ -41,7 +42,7 @@ def parse_features(vector):
     for feature in vector.spec.features:
         feature_set, feature_name, alias = _parse_feature_string(feature)
         if feature_set not in feature_set_objects.keys():
-            feature_set_objects[feature_set] = _get_feature_set(
+            feature_set_objects[feature_set] = get_feature_set_by_uri(
                 feature_set, vector.metadata.project
             )
         feature_set_object = feature_set_objects[feature_set]
@@ -85,13 +86,20 @@ def _parse_feature_string(feature):
     feature_name = splitted[1]
     splitted = feature_name.split(" as ")
     if len(splitted) > 1:
-        return feature_set, splitted[0].strip(), splitted[1].strip()
-    return feature_set, feature_name, None
+        return feature_set.strip(), splitted[0].strip(), splitted[1].strip()
+    return feature_set.strip(), feature_name.strip(), None
 
 
-def _get_feature_set(uri, project):
+def get_feature_set_by_uri(uri, project):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
-    default_project = project or mlrun.config.config.config.default_project
+    default_project = project or config.default_project
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
     return db.get_feature_set(name, project, tag, uid)
+
+
+def get_feature_vector_by_uri(uri):
+    """get feature vector object from db by uri"""
+    db = mlrun.get_run_db()
+    project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
+    return db.get_feature_vector(name, project, tag, uid)

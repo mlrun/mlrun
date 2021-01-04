@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import List, Union
 import mlrun
+from .common import get_feature_vector_by_uri, get_feature_set_by_uri
 from .infer import (
     InferOptions,
     infer_from_source,
@@ -22,8 +23,7 @@ from .retrieval import LocalFeatureMerger, init_feature_vector_graph
 from .ingestion import init_featureset_graph
 from .model import FeatureVector, FeatureSet, OnlineVectorService
 from .targets import get_default_targets
-from ..config import config
-from ..utils import get_caller_globals, parse_versioned_object_uri
+from ..utils import get_caller_globals
 
 _v3iofs = None
 
@@ -37,23 +37,9 @@ except Exception:
     pass
 
 
-def get_feature_set(uri):
-    """get feature set object from db by uri"""
-    db = mlrun.get_run_db()
-    project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
-    return db.get_feature_set(name, project, tag, uid)
-
-
-def get_feature_vector(uri):
-    """get feature vector object from db by uri"""
-    db = mlrun.get_run_db()
-    project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
-    return db.get_feature_vector(name, project, tag, uid)
-
-
 def _features_to_vector(features, name):
     if isinstance(features, str):
-        vector = get_feature_vector(features)
+        vector = get_feature_vector_by_uri(features)
     elif isinstance(features, list):
         vector = FeatureVector(features=features)
     elif isinstance(features, FeatureVector):
@@ -130,7 +116,7 @@ def ingest(
     """Read local DataFrame, file, or URL into the feature store"""
     namespace = namespace or get_caller_globals()
     if isinstance(featureset, str):
-        featureset = get_feature_set(featureset)
+        featureset = get_feature_set_by_uri(featureset)
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame

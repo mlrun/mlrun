@@ -142,9 +142,10 @@ def test_tags(db: SQLDB, db_session: Session, cls):
 
 
 def _tag_objs(db: SQLDB, db_session: Session, count, project, tags):
+    tagged = [tagged_model for tagged_model in _tagged if tagged_model != Run]
     by_tag = defaultdict(list)
     for i in range(count):
-        cls = _tagged[i % len(_tagged)]
+        cls = tagged[i % len(tagged)]
         obj = cls()
         by_tag[tags[i % len(tags)]].append(obj)
         db_session.add(obj)

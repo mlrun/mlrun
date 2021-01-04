@@ -16,6 +16,7 @@
 
 from .datastore import StoreManager, uri_to_ipython, in_memory_store
 from .base import DataItem
+from .store_resources import is_store_uri, get_store_uri
 
 
 store_manager = StoreManager()

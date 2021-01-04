@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import _tagged
+from mlrun.api.db.sqldb.models import _tagged, Artifact, Run
 from tests.conftest import new_run
 
 
@@ -108,20 +108,27 @@ def test_artifacts_latest(db: SQLDB, db_session: Session):
     u2, art2 = "u2", {"a": 17}
     db.store_artifact(db_session, k1, art2, u2, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
-    assert 2 == len(arts), "count"
-    assert art2["a"] == arts[1]["a"], "bad artifact"
+    assert 1 == len(arts), "count"
+    assert art2["a"] == arts[0]["a"], "bad artifact"
 
     k2, u3, art3 = "k2", "u3", {"a": 99}
     db.store_artifact(db_session, k2, art3, u3, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
-    assert 3 == len(arts), "number"
-    assert {1, 17, 99} == set(art["a"] for art in arts), "latest"
+    assert 2 == len(arts), "number"
+    assert {17, 99} == set(art["a"] for art in arts), "latest"
 
 
-@pytest.mark.parametrize("cls", _tagged)
+@pytest.mark.parametrize(
+    "cls", [tagged_model for tagged_model in _tagged if tagged_model != Run]
+)
 def test_tags(db: SQLDB, db_session: Session, cls):
     p1, n1 = "prj1", "name1"
+    object_identifier = "name"
+    if cls == Artifact:
+        object_identifier = "key"
     obj1, obj2, obj3 = cls(), cls(), cls()
+    for index, obj in enumerate([obj1, obj2, obj3]):
+        setattr(obj, object_identifier, f"obj-identifier-{index}")
     db_session.add(obj1)
     db_session.add(obj2)
     db_session.add(obj3)
@@ -129,17 +136,18 @@ def test_tags(db: SQLDB, db_session: Session, cls):
 
     db.tag_objects(db_session, [obj1, obj2], p1, n1)
     objs = db.find_tagged(db_session, p1, n1)
-    assert {obj1, obj2} == set(objs), "find tags"
+    assert {obj1, obj2} == set(objs)
 
     db.del_tag(db_session, p1, n1)
     objs = db.find_tagged(db_session, p1, n1)
-    assert [] == objs, "find tags after del"
+    assert [] == objs
 
 
 def _tag_objs(db: SQLDB, db_session: Session, count, project, tags):
+    tagged = [tagged_model for tagged_model in _tagged if tagged_model != Run]
     by_tag = defaultdict(list)
     for i in range(count):
-        cls = _tagged[i % len(_tagged)]
+        cls = tagged[i % len(tagged)]
         obj = cls()
         by_tag[tags[i % len(tags)]].append(obj)
         db_session.add(obj)

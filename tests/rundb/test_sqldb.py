@@ -118,7 +118,9 @@ def test_artifacts_latest(db: SQLDB, db_session: Session):
     assert {17, 99} == set(art["a"] for art in arts), "latest"
 
 
-@pytest.mark.parametrize("cls", [tagged_model for tagged_model in _tagged if tagged_model != Run])
+@pytest.mark.parametrize(
+    "cls", [tagged_model for tagged_model in _tagged if tagged_model != Run]
+)
 def test_tags(db: SQLDB, db_session: Session, cls):
     p1, n1 = "prj1", "name1"
     object_identifier = "name"

@@ -15,8 +15,8 @@
 from typing import List
 import pandas as pd
 
-from .common import parse_features
-from mlrun.featurestore.model.vector import OfflineVectorResponse
+from ..common import parse_features
+from ..model.vector import OfflineVectorResponse
 
 
 class LocalFeatureMerger:

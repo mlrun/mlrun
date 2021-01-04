@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import mlrun
+from mlrun.utils import parse_versioned_object_uri
 
 
 def parse_features(vector):
+    """parse and validate feature list (from vector) and add feature sets metadata"""
     processed_features = {}  # dict of name to (featureset, feature object)
     feature_set_objects = {}  # cache of used feature set objects
     feature_set_fields = {}  # list of field (name, alias) per featureset
@@ -39,8 +41,8 @@ def parse_features(vector):
     for feature in vector.spec.features:
         feature_set, feature_name, alias = _parse_feature_string(feature)
         if feature_set not in feature_set_objects.keys():
-            feature_set_objects[feature_set] = mlrun.featurestore.get_feature_set(
-                feature_set
+            feature_set_objects[feature_set] = _get_feature_set(
+                feature_set, vector.metadata.project
             )
         feature_set_object = feature_set_objects[feature_set]
 
@@ -72,6 +74,7 @@ def parse_features(vector):
 
 
 def _parse_feature_string(feature):
+    """parse feature string into feature set name, feature name, alias"""
     # expected format: <feature-set>#<name|*>[ as alias]
     if "#" not in feature:
         raise ValueError(
@@ -84,3 +87,11 @@ def _parse_feature_string(feature):
     if len(splitted) > 1:
         return feature_set, splitted[0].strip(), splitted[1].strip()
     return feature_set, feature_name, None
+
+
+def _get_feature_set(uri, project):
+    """get feature set object from db by uri"""
+    db = mlrun.get_run_db()
+    default_project = project or mlrun.config.config.config.default_project
+    project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
+    return db.get_feature_set(name, project, tag, uid)

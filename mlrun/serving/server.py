@@ -29,7 +29,7 @@ from .states import (
     get_function,
     graph_root_setter,
 )
-from ..datastore.data_resources import ResourceCache
+from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
@@ -115,7 +115,7 @@ class GraphServer(ModelObj):
 
         context.stream = _StreamContext(self.parameters, self.function_uri)
         context.current_function = self._current_function
-        context.get_data_resource = self.resource_cache.resource_getter(
+        context.get_store_resource = self.resource_cache.resource_getter(
             self._get_db(), self._secrets
         )
         context.get_table = self.resource_cache.get_table
@@ -302,7 +302,7 @@ class GraphContext:
 
         self._server = server
         self.current_function = None
-        self.get_data_resource = None
+        self.get_store_resource = None
         self.get_table = None
 
     def push_error(self, event, message, source=None, **kwargs):

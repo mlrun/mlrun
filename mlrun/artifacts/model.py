@@ -16,9 +16,8 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import store_manager
+from ..datastore import store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
-from ..utils import DB_SCHEMA
 
 model_spec_filename = "model_spec.yaml"
 
@@ -128,7 +127,7 @@ def get_model(model_dir, suffix=""):
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
 
-    if model_dir.startswith(DB_SCHEMA + "://"):
+    if is_store_uri(model_dir):
         model_spec, target = store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
             raise ValueError("store artifact ({}) is not model kind".format(model_dir))
@@ -228,7 +227,7 @@ def update_model(
 
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
-    elif model_artifact.startswith(DB_SCHEMA + "://"):
+    elif is_store_uri(model_artifact):
         model_spec, _ = store_manager.get_store_artifact(model_artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")

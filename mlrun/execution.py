@@ -22,7 +22,7 @@ import mlrun
 from mlrun.artifacts import ModelArtifact
 
 from .artifacts import ArtifactManager, DatasetArtifact
-from mlrun.datastore.data_resources import get_data_resource
+from mlrun.datastore.store_resources import get_store_resource
 from .datastore import store_manager
 from .secrets import SecretsStore
 from .db import get_run_db
@@ -120,13 +120,13 @@ class MLClientCtx(object):
         self._child.append(ctx)
         return ctx
 
-    def get_data_resource(self, url):
+    def get_store_resource(self, url):
         """get mlrun data resource (feature set/vector, artifact, item) from url
 
         :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
                        types: artifact | feature-set | feature-vector
         """
-        return get_data_resource(url, db=self._rundb, secrets=self._secrets_manager)
+        return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
 
     def get_dataitem(self, url):
         """get mlrun dataitem from url"""

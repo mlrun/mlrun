@@ -923,7 +923,7 @@ class MlrunProject(ModelObj):
             if save:
                 func.save(versioned=False)
 
-        self._function_objects = funcs
+        self.spec._function_objects = funcs
         self._initialized = True
 
     def with_secrets(self, kind, source, prefix=""):

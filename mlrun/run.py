@@ -49,7 +49,7 @@ from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     get_in,
     logger,
-    parse_function_uri,
+    parse_versioned_object_uri,
     update_in,
     new_pipe_meta,
     extend_hub_uri,
@@ -367,7 +367,7 @@ def import_function(url="", secrets=None, db=""):
     """
     if url.startswith("db://"):
         url = url[5:]
-        project, name, tag, hash_key = parse_function_uri(url)
+        project, name, tag, hash_key = parse_versioned_object_uri(url)
         db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:

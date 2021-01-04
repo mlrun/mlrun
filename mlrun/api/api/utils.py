@@ -17,7 +17,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
-from mlrun.utils import get_in, logger, parse_function_uri
+from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 import re
 from hashlib import sha1
@@ -94,7 +94,7 @@ def _parse_submit_run_body(db_session: Session, data):
         if "://" in function_url:
             function = import_function(url=function_url)
         else:
-            project, name, tag, hash_key = parse_function_uri(function_url)
+            project, name, tag, hash_key = parse_versioned_object_uri(function_url)
             function_record = get_db().get_function(
                 db_session, name, project, tag, hash_key
             )

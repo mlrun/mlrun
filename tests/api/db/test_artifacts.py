@@ -122,6 +122,30 @@ def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
     assert artifacts[1]["metadata"]["name"] == artifact_name_2
 
 
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_store_artifact_tagging(db: DBInterface, db_session: Session):
+    artifact_1_key = "artifact_key_1"
+    artifact_1_body = _generate_artifact(artifact_1_key)
+    artifact_1_kind = ChartArtifact.kind
+    artifact_1_with_kind_body = _generate_artifact(artifact_1_key, kind=artifact_1_kind)
+    artifact_1_uid = "artifact_uid"
+    artifact_1_with_kind_uid = "artifact_uid_2"
+
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_1_uid,
+    )
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_with_kind_body, artifact_1_with_kind_uid,
+    )
+    artifact = db.read_artifact(db_session, artifact_1_key, tag="latest")
+    assert artifact["kind"] == artifact_1_kind
+    artifact = db.read_artifact(db_session, artifact_1_key, tag=artifact_1_uid)
+    assert artifact.get("kind") is None
+
+
 def _generate_artifact(name, kind=None):
     artifact = {
         "metadata": {"name": name},

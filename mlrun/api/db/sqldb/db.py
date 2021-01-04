@@ -597,7 +597,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def tag_objects(self, session, objs, project: str, name: str):
         # only artifacts left with this tagging schema
-        self.tag_artifacts(session, objs, project, name)
+        if objs and isinstance(objs[0], Artifact):
+            self.tag_artifacts(session, objs, project, name)
+        else:
+            self.tag_objects_v2(session, objs, project, name)
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:

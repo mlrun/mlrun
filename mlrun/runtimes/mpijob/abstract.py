@@ -12,27 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import os
 import time
 import typing
-import os
 
+from alembic import runtime
 from kubernetes import client
-
 from mlrun.config import config
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import AsyncLogWriter, RunError
-from mlrun.utils import logger, get_in
+from mlrun.utils import get_in, logger
 
 
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = "mpijob"
     _is_nested = False
+    mpi_args = {}
 
     @abc.abstractmethod
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 
@@ -84,7 +88,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             time.sleep(1)
 
         if resp:
-            logger.info("MpiJob {} state={}".format(meta.name, state or "unknown"))
+            logger.info(
+                "MpiJob {} state={}".format(meta.name, state or "unknown")
+            )
             if state:
                 state = state.lower()
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
@@ -96,7 +102,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                         launcher, meta.namespace, writer=writer
                     )
                     logger.info(
-                        "MpiJob {} finished with state {}".format(meta.name, status)
+                        "MpiJob {} finished with state {}".format(
+                            meta.name, status
+                        )
                     )
                     if status == "succeeded":
                         execution.set_state("completed")
@@ -131,7 +139,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
-                mpi_group, mpi_version, namespace=namespace, plural=mpi_plural, body=job
+                mpi_group,
+                mpi_version,
+                namespace=namespace,
+                plural=mpi_plural,
+                body=job,
             )
             name = get_in(resp, "metadata.name", "unknown")
             logger.info("MpiJob {} created".format(name))
@@ -150,7 +162,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.delete_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name, body
             )
-            logger.info("del status: {}".format(get_in(resp, "status", "unknown")))
+            logger.info(
+                "del status: {}".format(get_in(resp, "status", "unknown"))
+            )
         except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
 
@@ -283,9 +297,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             "HOROVOD_AUTOTUNE_LOG": log_path,
         }
         if warmup_samples is not None:
-            horovod_autotune_settings["autotune-warmup-samples"] = warmup_samples
+            horovod_autotune_settings[
+                "autotune-warmup-samples"
+            ] = warmup_samples
         if steps_per_sample is not None:
-            horovod_autotune_settings["autotune-steps-per-sample"] = steps_per_sample
+            horovod_autotune_settings[
+                "autotune-steps-per-sample"
+            ] = steps_per_sample
         if bayes_opt_max_samples is not None:
             horovod_autotune_settings[
                 "autotune-bayes-opt-max-samples"
@@ -296,3 +314,39 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             ] = gaussian_process_noise
 
         self.set_envs(horovod_autotune_settings)
+
+    def set_mpi_args(self, args: typing.List[str]) -> None:
+        """Sets the runtime's mpi arguments to args.
+            * This will replace existing args.
+
+        Parameters
+        ----------
+        args : typing.List[str]
+            Arguments to be used for the mpi-operator
+        """
+        self.mpi_args = args
+
+    def add_mpi_arg(self, arg: typing.Union[str, typing.List[str]]) -> None:
+        """Adds an mpi argument to the runtime.
+
+        Parameters
+        ----------
+        arg : typing.Union[str, typing.List[str]]
+            The MPI argument to be added to the runtime.
+            Could be given as an str, ex: `add_mpi_arg('--allow-run-as-root')`
+            Or as a List, ex: `add_mpi_arg(['-x', 'NCCL_DEBUG=INFO'])`
+
+        Raises
+        ------
+        ValueError
+            Only a list or str is allowed.
+        """
+        if type(arg) is str:
+            self.mpi_args.append(arg)
+        elif type(arg) is list:
+            for argument in arg:
+                self.mpi_args.append(argument)
+        else:
+            raise ValueError(
+                f"`arg` can only accept `str` or `List[str]`, not {arg}"
+            )

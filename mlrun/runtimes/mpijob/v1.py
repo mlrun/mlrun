@@ -74,15 +74,18 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         quoted_args = []
         for arg in self.spec.args:
             quoted_args.append(shlex.quote(arg))
+        quoted_mpi_args = []
+        for arg in self.mpi_args:
+            quoted_mpi_args.append(shlex.quote(arg))
         if self.spec.command:
             self._update_container(
                 launcher_pod_template,
                 "command",
                 [
                     "mpirun",
-                    *quoted_args,
+                    *quoted_mpi_args,
                     "python",
-                    shlex.quote(self.spec.command),
+                    shlex.quote(self.spec.command) + quoted_args,
                 ],
             )
 
@@ -141,8 +144,8 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             update_in(pod_template, "spec.volumes", self.spec.volumes)
 
         # configuration for workers only
-        # update resources only for workers because the launcher doesn't require
-        # special resources (like GPUs, Memory, etc..)
+        # update resources only for workers because the launcher
+        # doesn't require special resources (like GPUs, Memory, etc..)
         self._enrich_worker_configurations(worker_pod_template)
 
         # configuration for launcher only
@@ -212,7 +215,8 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
             .get("replicaStatuses", {})
             .get("Launcher", {})
         )
-        # the launcher status also has running property, but it's empty for short period after the creation, so we're
+        # the launcher status also has running property, but it's empty for
+        # short period after the creation, so we're
         # checking terminal state by the completion time existence
         in_terminal_state = (
             crd_object.get("status", {}).get("completionTime", None)
@@ -252,4 +256,3 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
             MpiRuntimeV1.crd_version,
             MpiRuntimeV1.crd_plural,
         )
-

@@ -123,7 +123,7 @@ def test_feature_set_db():
 
     print(db.list_feature_sets(name))
 
-    fset = fs.get_feature_set(name)
+    fset = db.get_feature_set(name)
     print(fset)
 
 

@@ -23,6 +23,7 @@ from mlrun.api.db.base import DBInterface
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
+from mlrun.runtimes.pod import KubeResourceSpec
 from mlrun.runtimes.constants import MPIJobCRDVersions
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import update_in, get_in

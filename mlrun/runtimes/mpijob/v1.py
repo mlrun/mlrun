@@ -85,8 +85,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
                     "mpirun",
                     *quoted_mpi_args,
                     "python",
-                    shlex.quote(self.spec.command) + quoted_args,
-                ],
+                    shlex.quote(self.spec.command),
+                ]
+                + quoted_args,
             )
 
     def _enrich_worker_configurations(self, worker_pod_template):

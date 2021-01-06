@@ -90,3 +90,6 @@ class SecretsStore:
             for src in self._hidden_sources.copy():
                 res.append(src)
         return res
+
+    def has_vault_source(self):
+        return any(source["kind"] == "vault" for source in self._hidden_sources)

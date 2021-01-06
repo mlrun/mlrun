@@ -188,7 +188,7 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project
+        self, name: str, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -201,7 +201,7 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project
+        self, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -405,4 +405,35 @@ class SQLDB(RunDBInterface):
         ] = mlrun.api.schemas.Format.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
+        raise NotImplementedError()
+
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        raise NotImplementedError()
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> mlrun.api.schemas.SecretsData:
+        raise NotImplementedError()
+
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
         raise NotImplementedError()

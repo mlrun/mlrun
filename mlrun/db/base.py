@@ -126,7 +126,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name: str, project: schemas.Project) -> schemas.Project:
+    def store_project(self, name: str, project: schemas.Project,) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -139,7 +139,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.Project) -> schemas.Project:
+    def create_project(self, project: schemas.Project,) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -295,4 +295,37 @@ class RunDBInterface(ABC):
         format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
         page_size: int = None,
     ) -> schemas.PipelinesOutput:
+        pass
+
+    @abstractmethod
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        pass
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> schemas.SecretsData:
+        pass
+
+    @abstractmethod
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
         pass

@@ -245,7 +245,7 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f"pip install {mlrun_version_specifier}"
+    return f'pip install "{mlrun_version_specifier}"'
 
 
 def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=False):

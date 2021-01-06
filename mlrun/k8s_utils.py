@@ -275,6 +275,45 @@ class K8sHelper:
 
         return results
 
+    def create_project_service_account(self, project, service_account, namespace=""):
+        namespace = self.resolve_namespace(namespace)
+        k8s_service_account = client.V1ServiceAccount()
+        labels = {"mlrun/project": project}
+        k8s_service_account.metadata = client.V1ObjectMeta(
+            name=service_account, namespace=namespace, labels=labels
+        )
+        try:
+            api_response = self.v1api.create_namespaced_service_account(
+                namespace, k8s_service_account,
+            )
+            return api_response
+        except ApiException as e:
+            logger.error("failed to create service account: {}".format(e))
+            raise e
+
+    def get_project_vault_secret_name(
+        self, project, service_account_name, namespace=""
+    ):
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            service_account = self.v1api.read_namespaced_service_account(
+                service_account_name, namespace
+            )
+        except ApiException as e:
+            # It's valid for the service account to not exist. Simply return None
+            if e.status != 404:
+                logger.error("failed to retrieve service accounts: {}".format(e))
+                raise e
+            return None
+
+        if len(service_account.secrets) > 1:
+            raise ValueError(
+                f"Service account {service_account_name} has more than one secret"
+            )
+
+        return service_account.secrets[0].name
+
 
 class BasePod:
     def __init__(

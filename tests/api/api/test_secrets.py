@@ -11,12 +11,12 @@ from mlrun.api import schemas
 
 # Uncomment and set proper values for Vault test (at least one is required)
 # For this test, you must also have a k8s cluster available (minikube is good enough).
-# environ["MLRUN_VAULT_ROLE"] = "user:admin"
+# mlconf.secret_stores.vault.role = "user:admin"
 # environ["MLRUN_VAULT_TOKEN"] = '<Your vault token here>'
 
 
 def _has_vault():
-    return "MLRUN_VAULT_ROLE" in environ or "MLRUN_VAULT_TOKEN" in environ
+    return mlconf.secret_stores.vault.role != "" or "MLRUN_VAULT_TOKEN" in environ
 
 
 def _set_vault_mlrun_configuration():

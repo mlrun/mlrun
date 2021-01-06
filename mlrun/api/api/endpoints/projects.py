@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun import new_project
 from mlrun.api.utils.singletons.project_member import get_project_member
 
 router = APIRouter()
@@ -25,12 +24,8 @@ def create_project(
 def store_project(
     project: schemas.Project,
     name: str,
-    use_vault=False,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if use_vault:
-        new_project(project.name, use_vault).init_vault()
-
     return get_project_member().store_project(db_session, name, project)
 
 

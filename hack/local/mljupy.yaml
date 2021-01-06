@@ -74,8 +74,10 @@ spec:
         - name: MLRUN_ARTIFACT_PATH
           value: "/home/jovyan/data"
 # Uncomment for Vault support
-#        - name: MLRUN_VAULT_ROLE
-#          value: "user:admin"
+#        - name: MLRUN_SECRET_STORES__VAULT__ROLE
+#          value: "user:mlrun-api"
+#        - name: MLRUN_SECRET_STORES__VAULT__URL
+#          value: 'Your vault URL here'
         volumeMounts:
         - mountPath: /home/jovyan/data
           name: storage

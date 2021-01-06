@@ -297,18 +297,22 @@ class K8sHelper:
         namespace = self.resolve_namespace(namespace)
 
         try:
-            sa_list = self.v1api.list_namespaced_service_account(
-                namespace=namespace,
-                field_selector="metadata.name={}".format(service_account_name),
+            service_account = self.v1api.read_namespaced_service_account(
+                service_account_name, namespace
             )
         except ApiException as e:
-            logger.error("failed to list service accounts: {}".format(e))
-            raise e
-
-        if 0 == len(sa_list.items):
+            # It's valid for the service account to not exist. Simply return None
+            if e.status != 404:
+                logger.error("failed to retrieve service accounts: {}".format(e))
+                raise e
             return None
-        sa = sa_list.items[0]
-        return sa.secrets[0].name
+
+        if len(service_account.secrets) > 1:
+            raise ValueError(
+                f"Service account {service_account_name} has more than one secret"
+            )
+
+        return service_account.secrets[0].name
 
 
 class BasePod:

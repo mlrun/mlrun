@@ -1122,7 +1122,8 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
         path = f"projects/{project}/secrets"
-        body = {"provider": provider, "secrets": secrets}
+        secrets_input = schemas.SecretsData(secrets=secrets, provider=provider)
+        body = secrets_input.dict()
         error_message = f"Failed creating secret provider {project}/{provider}"
         self.api_call(
             "POST", path, error_message, body=dict_to_json(body),
@@ -1159,7 +1160,10 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
         path = "user-secrets"
-        body = {"user": user, "provider": provider, "secrets": secrets}
+        secrets_creation_request = schemas.UserSecretCreationRequest(
+            user=user, provider=provider, secrets=secrets,
+        )
+        body = secrets_creation_request.dict()
         error_message = f"Failed creating user secrets - {user}"
         self.api_call(
             "POST", path, error_message, body=dict_to_json(body),

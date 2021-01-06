@@ -12,9 +12,9 @@ from mlrun.utils.vault import (
 router = APIRouter()
 
 
-@router.post("/projects/{project}/secrets")
+@router.post("/projects/{project}/secrets", status_code=HTTPStatus.CREATED.value)
 def initialize_project_secrets(
-    project: str, secrets: schemas.SecretCreationRequest,
+    project: str, secrets: schemas.SecretsData,
 ):
     if secrets.provider != schemas.SecretProviderName.vault:
         return Response(
@@ -28,7 +28,7 @@ def initialize_project_secrets(
     return Response(status_code=HTTPStatus.CREATED.value)
 
 
-@router.get("/projects/{project}/secrets", response_model=schemas.SecretsQueryResult)
+@router.get("/projects/{project}/secrets", response_model=schemas.SecretsData)
 def get_secrets(
     project: str,
     secrets: List[str] = Query(None, alias="secret"),
@@ -48,10 +48,10 @@ def get_secrets(
 
     vault = VaultStore(token)
     secret_values = vault.get_secrets(secrets, project=project)
-    return schemas.SecretsQueryResult(secrets=secret_values)
+    return schemas.SecretsData(provider=provider, secrets=secret_values)
 
 
-@router.post("/user-secrets")
+@router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)
 def add_user_secrets(secrets: schemas.UserSecretCreationRequest,):
     if secrets.provider != schemas.SecretProviderName.vault:
         return Response(

@@ -9,12 +9,12 @@ from os import environ
 
 # Uncomment and set proper values for Vault test (at least one is required)
 # If using a Vault role, then a JWT token is required as well to authenticate with the role.
-# environ["MLRUN_VAULT_ROLE"] = "user:admin"
+# mlconf.secret_stores.vault.role = "user:admin"
 # environ["MLRUN_VAULT_TOKEN"] = <Vault token>
 
 
 def _has_vault():
-    return "MLRUN_VAULT_ROLE" in environ or "MLRUN_VAULT_TOKEN" in environ
+    return mlconf.secret_stores.vault.role != "" or "MLRUN_VAULT_TOKEN" in environ
 
 
 # Set test secrets and configurations - you may need to modify these.

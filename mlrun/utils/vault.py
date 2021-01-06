@@ -19,17 +19,19 @@ import json
 from .helpers import logger
 from ..config import config as mlconf
 from ..k8s_utils import get_k8s_helper
+from mlrun.errors import MLRunInvalidArgumentError
 
 vault_default_prefix = "v1/secret/data"
-vault_url_env_var = "MLRUN_VAULT_URL"
+
+# Keeping this as an env var only, and not in config, since it's mostly used for testing
+# and local-side debugging. Not expecting users to use it.
 vault_token_env_var = "MLRUN_VAULT_TOKEN"
-vault_role_env_var = "MLRUN_VAULT_ROLE"
 
 
 class VaultStore:
     def __init__(self, token=None):
         self._token = token
-        self.url = mlconf.secret_stores.vault.url or os.environ.get(vault_url_env_var)
+        self.url = mlconf.secret_stores.vault.url
 
     @property
     def token(self):
@@ -46,33 +48,37 @@ class VaultStore:
         if self._token:
             return
 
-        vault_role = None
-        role_env = os.environ.get(vault_role_env_var)
-        if role_env:
-            role_type, role_val = role_env.split(":", 1)
+        config_role = mlconf.secret_stores.vault.role
+        if config_role != "":
+            role_type, role_val = config_role.split(":", 1)
             vault_role = "mlrun-role-{}-{}".format(role_type, role_val)
+            self._safe_login_with_jwt_token(vault_role)
 
-        self._login_with_jwt_token(vault_role)
         if self._token is None:
             logger.warning(
                 "Vault login: no vault token is available. No secrets will be accessible"
             )
 
     @staticmethod
-    def _generate_vault_path(
+    def _generate_path(
         prefix=vault_default_prefix,
         user=None,
         project=None,
         user_prefix="users",
         project_prefix="projects",
     ):
+        if user and project:
+            raise MLRunInvalidArgumentError(
+                "Both user and project were provided for Vault operations"
+            )
+
         full_path = prefix + "/mlrun/{}/{}"
         if user:
             return full_path.format(user_prefix, user)
         elif project:
             return full_path.format(project_prefix, project)
         else:
-            raise ValueError(
+            raise MLRunInvalidArgumentError(
                 "To generate a vault secret path, either user or project must be specified"
             )
 
@@ -93,7 +99,7 @@ class VaultStore:
 
         return jwt_token
 
-    def _vault_api_call(self, method, url, data=None):
+    def _api_call(self, method, url, data=None):
         self._login()
 
         headers = {"X-Vault-Token": self._token}
@@ -105,15 +111,16 @@ class VaultStore:
 
         if not response:
             logger.error(
-                "Vault failed the API call. Response code: ({}) - {}".format(
-                    response.status_code, response.reason
-                )
+                "Vault failed the API call",
+                status_code=response.status_code,
+                reason=response.reason,
+                url=url,
             )
         return response
 
     # This method logins to the vault, assuming the container has a JWT token mounted as part of its assigned service
     # account.
-    def _login_with_jwt_token(self, role):
+    def _safe_login_with_jwt_token(self, role):
 
         if role is None:
             logger.warning(
@@ -129,17 +136,18 @@ class VaultStore:
         response = requests.post(login_url, data=json.dumps(data))
         if not response:
             logger.error(
-                "login_with_token: Vault failed the login request. Role: {}, Response code: ({}) - {}".format(
-                    role, response.status_code, response.reason
-                )
+                "login_with_token: Vault failed the login request",
+                role=role,
+                status_code=response.status_code,
+                reason=response.reason,
             )
             return
         self._token = response.json()["auth"]["client_token"]
 
     def get_secrets(self, keys, user=None, project=None):
-        secret_path = VaultStore._generate_vault_path(user=user, project=project)
+        secret_path = VaultStore._generate_path(user=user, project=project)
         secrets = {}
-        response = self._vault_api_call("GET", secret_path)
+        response = self._api_call("GET", secret_path)
 
         if not response:
             return secrets
@@ -157,24 +165,24 @@ class VaultStore:
 
     def add_vault_secrets(self, items, project=None, user=None):
         data_object = {"data": items}
-        url = VaultStore._generate_vault_path(project=project, user=user)
+        url = VaultStore._generate_path(project=project, user=user)
 
-        response = self._vault_api_call("POST", url, data_object)
+        response = self._api_call("POST", url, data_object)
         if not response:
-            raise ValueError(
+            raise MLRunInvalidArgumentError(
                 f"Vault failed the API call to create secrets. project={project}/user={user}"
             )
 
     def delete_vault_secrets(self, project=None, user=None):
         self._login()
         # Using the API to delete all versions + metadata of the given secret.
-        url = "v1/secret/metadata/" + VaultStore._generate_vault_path(
+        url = "v1/secret/metadata/" + VaultStore._generate_path(
             prefix="", project=project, user=user
         )
 
-        response = self._vault_api_call("DELETE", url)
+        response = self._api_call("DELETE", url)
         if not response:
-            raise ValueError(
+            raise MLRunInvalidArgumentError(
                 f"Vault failed the API call to delete secrets. project={project}/user={user}"
             )
 
@@ -194,9 +202,9 @@ class VaultStore:
 
         data_object = {"policy": policy_str}
 
-        response = self._vault_api_call("PUT", url, data_object)
+        response = self._api_call("PUT", url, data_object)
         if not response:
-            raise ValueError(
+            raise MLRunInvalidArgumentError(
                 "Vault failed the API call to create a policy. Response code: ({}) - {}".format(
                     response.status_code, response.reason
                 )
@@ -212,12 +220,12 @@ class VaultStore:
             "bound_service_account_names": sa,
             "bound_service_account_namespaces": namespace,
             "policies": [policy],
-            "token_ttl": 1800000,
+            "token_ttl": mlconf.secret_stores.vault.token_ttl,
         }
 
-        response = self._vault_api_call("POST", url, role_object)
+        response = self._api_call("POST", url, role_object)
         if not response:
-            raise ValueError(
+            raise MLRunInvalidArgumentError(
                 "Vault failed the API call to create a secret. Response code: ({}) - {}".format(
                     response.status_code, response.reason
                 )
@@ -243,7 +251,7 @@ def init_project_vault_configuration(project):
 
     :param project: Project name
     """
-    logger.info(f"init_project_vault_configuration called, project name: {project}")
+    logger.info("Initializing project vault configuration", project=project)
 
     namespace = mlconf.namespace
     k8s = get_k8s_helper(silent=True)
@@ -266,4 +274,4 @@ def init_project_vault_configuration(project):
         project, namespace=namespace, sa=service_account_name, policy=policy_name
     )
 
-    logger.info("Created Vault policy: {}, role: {}".format(policy_name, role_name))
+    logger.info("Created Vault policy. ", policy=policy_name, role=role_name)

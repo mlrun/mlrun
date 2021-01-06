@@ -492,6 +492,7 @@ class RunTemplate(ModelObj):
         proj.with_secrets('file', 'file.txt')
         proj.with_secrets('inline', {'key': 'val'})
         proj.with_secrets('env', 'ENV1,ENV2')
+        proj.with_secrets('vault', ['secret1', 'secret2'...])
 
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)
@@ -499,8 +500,6 @@ class RunTemplate(ModelObj):
         :returns: project object
         """
 
-        # For vault, you can use with_secrets('vault',['secret1','secret2'...])
-        # in this case, the project will be injected to the secret source. Else, the source will be copied as-is.
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.project, "secrets": source}
 

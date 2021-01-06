@@ -48,8 +48,7 @@ from .schedule import (
     ScheduleRecord,
 )
 from .secret import (
-    SecretCreationRequest,
+    SecretsData,
     SecretProviderName,
     UserSecretCreationRequest,
-    SecretsQueryResult,
 )

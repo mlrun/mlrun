@@ -35,10 +35,10 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
 # Uncomment to enable Vault secrets integration
-#        - name: MLRUN_VAULT___URL
-#          value: 'http://docker.for.mac.localhost:8200'
-#        - name: MLRUN_VAULT_ROLE
-#          value: 'user:admin'
+#        - name: MLRUN_SECRET_STORES__VAULT__URL
+#          value: 'Your Vault URL here'
+#        - name: MLRUN_SECRET_STORES__VAULT__ROLE
+#          value: 'user:mlrun-api'
         ports:
         - containerPort: 8080
 # UNCOMMENT TO ADD V3IO VOLUME + SET ACCESS KEY

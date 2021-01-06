@@ -612,7 +612,10 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project_secrets(
-        self, project: str, provider: str = "vault", secrets: dict = None
+        self,
+        project: str,
+        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        secrets: dict = None,
     ):
         raise NotImplementedError()
 
@@ -620,13 +623,16 @@ class FileRunDB(RunDBInterface):
         self,
         project: str,
         token: str,
-        provider: str = "vault",
+        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
         secrets: List[str] = None,
     ) -> dict:
         raise NotImplementedError()
 
     def create_user_secrets(
-        self, user: str, provider: str = "vault", secrets: dict = None
+        self,
+        user: str,
+        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        secrets: dict = None,
     ):
         raise NotImplementedError()
 

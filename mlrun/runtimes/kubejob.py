@@ -275,7 +275,8 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        self._add_vault_params_to_spec(runobj)
+        if self._secrets and self._secrets.has_vault_source():
+            self._add_vault_params_to_spec(runobj)
 
         pod_spec = func_to_pod(
             self.full_image_path(), self, extra_env, command, args, self.spec.workdir

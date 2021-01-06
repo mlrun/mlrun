@@ -251,7 +251,7 @@ class ServingRuntime(RemoteRuntime):
         """
         graph = self.spec.graph
         if not graph:
-            self.set_topology()
+            graph = self.set_topology()
 
         if graph.kind != StateKinds.router:
             raise ValueError("models can only be added under router state")

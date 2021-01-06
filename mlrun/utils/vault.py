@@ -23,10 +23,6 @@ from mlrun.errors import MLRunInvalidArgumentError
 
 vault_default_prefix = "v1/secret/data"
 
-# Keeping this as an env var only, and not in config, since it's mostly used for testing
-# and local-side debugging. Not expecting users to use it.
-vault_token_env_var = "MLRUN_VAULT_TOKEN"
-
 
 class VaultStore:
     def __init__(self, token=None):
@@ -44,8 +40,11 @@ class VaultStore:
         if self._token:
             return
 
-        self._token = os.environ.get(vault_token_env_var)
-        if self._token:
+        if mlconf.secret_stores.vault.user_token != "":
+            logger.warning(
+                "Using a user-token from configuration. This should only be done in test/debug!"
+            )
+            self._token = mlconf.secret_stores.vault.user_token
             return
 
         config_role = mlconf.secret_stores.vault.role
@@ -176,7 +175,7 @@ class VaultStore:
     def delete_vault_secrets(self, project=None, user=None):
         self._login()
         # Using the API to delete all versions + metadata of the given secret.
-        url = "v1/secret/metadata/" + VaultStore._generate_path(
+        url = "v1/secret/metadata" + VaultStore._generate_path(
             prefix="", project=project, user=user
         )
 

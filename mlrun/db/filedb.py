@@ -625,7 +625,7 @@ class FileRunDB(RunDBInterface):
         token: str,
         provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
         secrets: List[str] = None,
-    ) -> dict:
+    ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
 
     def create_user_secrets(

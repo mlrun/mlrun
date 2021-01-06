@@ -979,12 +979,13 @@ class MlrunProject(ModelObj):
             self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
 
         run_db = get_run_db(secrets=self._secrets)
-        return run_db.get_project_secrets(
+        project_secrets = run_db.get_project_secrets(
             self.metadata.name,
             self._secrets.vault.token,
             mlrun.api.schemas.SecretProviderName.vault,
             secrets,
         )
+        return project_secrets.secrets
 
     def get_param(self, key: str, default=None):
         """get project param by key"""

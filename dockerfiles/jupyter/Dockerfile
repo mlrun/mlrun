@@ -27,16 +27,6 @@ RUN cd /tmp/mlrun && python -m pip install ".[complete-api]" && cd /tmp && rm -r
 
 RUN chown -R $NB_UID:$NB_GID $HOME
 
-RUN apt-get update && apt-get --yes install \
-    apt-utils \
-    curl
-# install whatever else you want on this line
-
-# install kubectl
-RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl" && \
-    chmod +x ./kubectl && \
-    mv ./kubectl /usr/local/bin/kubectl
-
 USER $NB_UID
 
 ENV MLRUN_DBPATH=http://localhost:8080 \

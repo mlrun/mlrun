@@ -120,6 +120,8 @@ default_config = {
             "token_path": "~/.mlrun/vault",
             "project_service_account_name": "mlrun-vault-{project}",
             "token_ttl": 180000,
+            # This config is for debug/testing purposes only!
+            "user_token": "",
         },
     },
 }

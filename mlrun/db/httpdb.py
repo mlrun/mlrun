@@ -1137,7 +1137,7 @@ class HTTPRunDB(RunDBInterface):
             str, schemas.SecretProviderName
         ] = schemas.SecretProviderName.vault,
         secrets: List[str] = None,
-    ) -> dict:
+    ) -> schemas.SecretsData:
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
         path = f"projects/{project}/secrets"
@@ -1147,7 +1147,7 @@ class HTTPRunDB(RunDBInterface):
         result = self.api_call(
             "GET", path, error_message, params=params, headers=headers,
         )
-        return result.json()["secrets"]
+        return schemas.SecretsData(**result.json())
 
     def create_user_secrets(
         self,

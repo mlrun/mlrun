@@ -425,7 +425,7 @@ class SQLDB(RunDBInterface):
             str, mlrun.api.schemas.SecretProviderName
         ] = mlrun.api.schemas.SecretProviderName.vault,
         secrets: List[str] = None,
-    ) -> dict:
+    ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
 
     def create_user_secrets(

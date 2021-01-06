@@ -5,16 +5,10 @@ from tests.conftest import (
     verify_state,
 )
 from mlrun import new_task, get_run_db, mlconf, code_to_function, new_project
-from os import environ
+from mlrun.utils.vault import VaultStore
 
-# Uncomment and set proper values for Vault test (at least one is required)
-# If using a Vault role, then a JWT token is required as well to authenticate with the role.
-# mlconf.secret_stores.vault.role = "user:admin"
-# environ["MLRUN_VAULT_TOKEN"] = <Vault token>
-
-
-def _has_vault():
-    return mlconf.secret_stores.vault.role != "" or "MLRUN_VAULT_TOKEN" in environ
+# Set a proper token value for Vault test
+user_token = ""
 
 
 # Set test secrets and configurations - you may need to modify these.
@@ -22,13 +16,13 @@ def _set_vault_mlrun_configuration(api_server_port=None):
     if api_server_port:
         mlconf.dbpath = f"http://localhost:{api_server_port}"
     mlconf.secret_stores.vault.url = "http://localhost:8200"
+    mlconf.secret_stores.vault.user_token = user_token
 
 
 # Verify that local activation of Vault functionality is successful. This does not
 # test the API-server implementation, which is verified in other tests
-@pytest.mark.skipif(not _has_vault(), reason="no vault configuration")
+@pytest.mark.skipif(user_token == "", reason="no vault configuration")
 def test_direct_vault_usage():
-    from mlrun.utils.vault import VaultStore
 
     _set_vault_mlrun_configuration()
     project_name = "the-blair-witch-project"
@@ -66,7 +60,7 @@ def test_direct_vault_usage():
     vault.delete_vault_secrets(user=user_name)
 
 
-@pytest.mark.skipif(not _has_vault(), reason="no vault configuration")
+@pytest.mark.skipif(user_token == "", reason="no vault configuration")
 def test_vault_end_to_end():
     # This requires an MLRun API server to run and work with Vault. This port should
     # be configured to allow access to the server.

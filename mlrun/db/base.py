@@ -316,7 +316,7 @@ class RunDBInterface(ABC):
             str, schemas.SecretProviderName
         ] = schemas.SecretProviderName.vault,
         secrets: List[str] = None,
-    ) -> dict:
+    ) -> schemas.SecretsData:
         pass
 
     @abstractmethod

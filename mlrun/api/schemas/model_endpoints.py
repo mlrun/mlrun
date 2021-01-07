@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Optional, List, Tuple
 
 from pydantic import BaseModel, Field

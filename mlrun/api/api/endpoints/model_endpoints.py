@@ -84,13 +84,13 @@ def clear_endpoint_record(project: str, endpoint_id: str):
 
     _verify_endpoint(project, endpoint_id)
 
-    logger.info(f"Clearing model endpoint table", endpoint_id=endpoint_id)
+    logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
     get_v3io_client().kv.delete(
         container=config.httpdb.model_endpoint_monitoring.container,
         table_path=ENDPOINTS_TABLE_PATH,
         key=endpoint_id,
     )
-    logger.info(f"Model endpoint table deleted", endpoint_id=endpoint_id)
+    logger.info("Model endpoint table deleted", endpoint_id=endpoint_id)
 
 
 @router.get(

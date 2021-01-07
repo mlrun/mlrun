@@ -76,7 +76,7 @@ class TimeMetric:
 router = APIRouter()
 
 
-@router.post("/projects/{project}/model-endpoints/{endpoint_id}/clear")
+@router.post("/projects/{project}/model-endpoints/{endpoint_id}/clear", status_code=HTTPStatus.NO_CONTENT.value)
 def clear_endpoint_record(project: str, endpoint_id: str):
     """
     Clears endpoint record from KV by endpoint_id

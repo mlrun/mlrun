@@ -13,7 +13,7 @@ from mlrun.errors import (
     MLRunNotFoundError,
     MLRunInvalidArgumentError,
 )
-from mlrun.utils import logger
+from mlrun.utils.helpers import logger
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 from mlrun.api.schemas import (
     ModelEndpointMetaData,
@@ -90,7 +90,10 @@ class TimeMetric:
 router = APIRouter()
 
 
-@router.post("/projects/{project}/model-endpoints/{endpoint_id}/clear", status_code=HTTPStatus.NO_CONTENT.value)
+@router.post(
+    "/projects/{project}/model-endpoints/{endpoint_id}/clear",
+    status_code=HTTPStatus.NO_CONTENT.value,
+)
 def clear_endpoint_record(project: str, endpoint_id: str):
     """
     Clears endpoint record from KV by endpoint_id
@@ -124,7 +127,7 @@ def list_endpoints(
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
     Lables can be used to filter on the existance of a label:
     `api/projects/{project}/model-endpoints/?label=mylabel`
-    
+
     Or on the value of a given label:
     `api/projects/{project}/model-endpoints/?label=mylabel=1`
 
@@ -134,7 +137,7 @@ def list_endpoints(
     Or by using a `,` (comma) seperator:
     `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
     """
-    # TODO: call async version of v3io_client
+
     client = get_v3io_client()
     cursor = client.kv.new_cursor(
         container=config.httpdb.model_endpoint_monitoring.container,

@@ -14,6 +14,17 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+__all__ = [
+    "KubejobRuntime",
+    "LocalRuntime",
+    "HandlerRuntime",
+    "RemoteRuntime",
+    "ServingRuntime",
+    "SparkRuntime",
+    "DaskCluster",
+]
+
+
 from .base import RunError, BaseRuntime, BaseRuntimeHandler  # noqa
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime

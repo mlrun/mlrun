@@ -33,7 +33,7 @@ MLRun includes the following key features:
 - **Managed pipelines** &mdash; deploy, run, and monitor your machine-learning execution plan.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Contents:
 
    quick-start
@@ -45,8 +45,14 @@ MLRun includes the following key features:
    projects
    load-from-marketplace
    job-submission-and-tracking
-   model-management-and-serving
+   serving/index
    examples
    cli
    api/index
 
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

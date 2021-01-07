@@ -75,7 +75,6 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
-    "model_endpoint_monitoring_container": "projects",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -110,6 +109,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
         },
+        "model_endpoint_monitoring": {"container": "projects"},
     },
 }
 

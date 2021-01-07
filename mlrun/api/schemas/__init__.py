@@ -29,11 +29,13 @@ from .feature_store import (
     FeatureVectorsOutput,
 )
 from .model_endpoints import (
-    EndpointSpec,
-    Endpoint,
-    EndpointStateList,
-    EndpointState,
+    ModelEndpointMetaData,
+    ModelEndpointSpec,
+    ModelEndpoint,
+    ModelEndpointStateList,
+    ModelEndpointState,
     Features,
+    FeatureValues,
     Histogram,
     Metric,
 )

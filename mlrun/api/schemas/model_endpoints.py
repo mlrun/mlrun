@@ -1,25 +1,35 @@
+from datetime import datetime
 from typing import Optional, List, Tuple
 
 from pydantic import BaseModel, Field
+from pydantic.main import Extra
 
 from mlrun.api.schemas.object import (
     ObjectKind,
-    ObjectMetadata,
     ObjectSpec,
     ObjectStatus,
 )
 
 
-class EndpointSpec(ObjectSpec):
+class ModelEndpointMetaData(BaseModel):
+    project: Optional[str]
+    tag: Optional[str]
+    labels: Optional[dict]
+
+    class Config:
+        extra = Extra.allow
+
+
+class ModelEndpointSpec(ObjectSpec):
     model: Optional[str]
     function: Optional[str]
     model_class: Optional[str]
 
 
-class Endpoint(BaseModel):
+class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
-    metadata: ObjectMetadata
-    spec: EndpointSpec
+    metadata: ModelEndpointMetaData
+    spec: ModelEndpointSpec
     status: ObjectStatus
 
 
@@ -39,23 +49,22 @@ class Metric(BaseModel):
     max: float
 
 
+class FeatureValues(BaseModel):
+    min: float
+    avg: float
+    max: float
+    histogram: Histogram
+
+
 class Features(BaseModel):
     name: str
     weight: float
-    # Expected
-    expected_min: float
-    expected_avg: float
-    expected_max: float
-    expected_hist: Histogram
-    # Actual
-    actual_min: Optional[float]
-    actual_avg: Optional[float]
-    actual_max: Optional[float]
-    actual_hist: Histogram
+    expected: FeatureValues
+    actual: Optional[FeatureValues]
 
 
-class EndpointState(BaseModel):
-    endpoint: Endpoint
+class ModelEndpointState(BaseModel):
+    endpoint: ModelEndpoint
     first_request: Optional[str]
     last_request: Optional[str]
     accuracy: Optional[float] = None
@@ -66,5 +75,5 @@ class EndpointState(BaseModel):
     features: Optional[List[Features]] = None
 
 
-class EndpointStateList(BaseModel):
-    endpoints: List[EndpointState]
+class ModelEndpointStateList(BaseModel):
+    endpoints: List[ModelEndpointState]

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+__all__ = ["TaskState", "RouterState", "RootFlowState"]
+
 import json
 import os
 import pathlib
@@ -1053,13 +1055,13 @@ def _add_graphviz_flow(
         for item in after:
             previous_object = state[item]
             kw = (
-                {"ltail": "cluster_" + child.fullname}
-                if child.kind == StateKinds.router
+                {"ltail": "cluster_" + previous_object.fullname}
+                if previous_object.kind == StateKinds.router
                 else {}
             )
             graph.edge(previous_object.fullname, child.fullname, **kw)
         if child.on_error:
-            graph.edge(child.fullname, child.on_error, style="dashed", **kw)
+            graph.edge(child.fullname, child.on_error, style="dashed")
 
     # draw targets after the last state (if specified)
     if targets:

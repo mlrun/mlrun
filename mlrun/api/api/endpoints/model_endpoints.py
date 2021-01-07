@@ -29,6 +29,20 @@ from mlrun.api.schemas import (
 
 ENDPOINTS_TABLE_PATH = "monitoring/endpoints"
 ENDPOINT_EVENTS_TABLE_PATH = "monitoring/endpoint_events"
+ENDPOINT_TABLE_ATTRIBUTES = [
+    "project",
+    "model",
+    "function",
+    "tag",
+    "model_class",
+    "labels",
+    "first_request",
+    "last_request",
+    "error_count",
+    "alert_count",
+    "drift_status",
+]
+ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES = ENDPOINT_TABLE_ATTRIBUTES + ["features"]
 
 
 @dataclass
@@ -55,8 +69,8 @@ class TimeMetric:
             max=describe["max"],
         )
 
-    @classmethod
-    def from_string(name) -> "TimeMetric":
+    @staticmethod
+    def from_string(name: str) -> "TimeMetric":
         if name in {"microsec", "latency"}:
             return TimeMetric(
                 tsdb_column="latency_avg_1s",
@@ -107,29 +121,25 @@ def list_endpoints(
     metrics: bool = Query(default=False),
 ):
     """
-    Returns a list of endpoints of type 'schema.ModelEndpoint', support filtering by model, function, tag and labels.
-    Labels are expected to be separated by '&' separator, for example:
+    Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
+    Lables can be used to filter on the existance of a label:
+    `api/projects/{project}/model-endpoints/?label=mylabel`
+    
+    Or on the value of a given label:
+    `api/projects/{project}/model-endpoints/?label=mylabel=1`
 
-    api/projects/{project}/model-endpoints/?label=mylabel==1&myotherlabel==150
+    Multiple labels can be queried in a single request by either using `&` seperator:
+    `api/projects/{project}/model-endpoints/?label=mylabel=1&label=myotherlabel=2`
+
+    Or by using a `,` (comma) seperator:
+    `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
     """
     # TODO: call async version of v3io_client
     client = get_v3io_client()
     cursor = client.kv.new_cursor(
         container=config.httpdb.model_endpoint_monitoring.container,
         table_path=ENDPOINTS_TABLE_PATH,
-        attribute_names=[
-            "project",
-            "model",
-            "function",
-            "tag",
-            "model_class",
-            "labels",
-            "first_request",
-            "last_request",
-            "error_count",
-            "alert_count",
-            "drift_status",
-        ],
+        attribute_names=ENDPOINT_TABLE_ATTRIBUTES,
         filter_expression=_build_kv_cursor_filter_expression(
             project, function, model, tag, labels
         ),
@@ -195,21 +205,7 @@ def get_endpoint(
     _verify_endpoint(project, endpoint_id)
 
     endpoint = _get_endpoint_kv_record_by_id(
-        endpoint_id,
-        [
-            "project",
-            "model",
-            "function",
-            "tag",
-            "model_class",
-            "labels",
-            "first_request",
-            "last_request",
-            "error_count",
-            "alert_count",
-            "drift_status",
-            "features",
-        ],
+        endpoint_id, ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES,
     )
 
     if not endpoint:
@@ -327,9 +323,11 @@ def _build_kv_cursor_filter_expression(
             if not label.startswith("_"):
                 label = f"_{label}"
 
-            if "==" in label:
-                lbl, value = list(map(lambda x: x.strip(), label.split("==")))
+            if "=" in label:
+                lbl, value = list(map(lambda x: x.strip(), label.split("=")))
                 filter_expression.append(f"{lbl}=='{value}'")
+            else:
+                filter_expression.append(f"exists({label})")
 
     return " AND ".join(filter_expression)
 

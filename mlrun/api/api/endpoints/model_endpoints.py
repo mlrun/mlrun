@@ -90,7 +90,7 @@ class TimeMetric:
 router = APIRouter()
 
 
-@router.post("/projects/{project}/model-endpoints/{endpoint_id}/clear")
+@router.post("/projects/{project}/model-endpoints/{endpoint_id}/clear", status_code=HTTPStatus.NO_CONTENT.value)
 def clear_endpoint_record(project: str, endpoint_id: str):
     """
     Clears endpoint record from KV by endpoint_id
@@ -262,7 +262,7 @@ def _get_endpoint_metrics(
     except NotImplementedError as e:
         raise MLRunInvalidArgumentError(str(e))
 
-    # Columns most have at least an endpoint_id attribute for frames' filter expression
+    # Columns must have at least an endpoint_id attribute for frames' filter expression
     columns = ["endpoint_id"]
 
     for metric in metrics:

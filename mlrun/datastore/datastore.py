@@ -19,8 +19,8 @@ import mlrun.errors
 from .base import DataItem, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
+from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
-from ..config import config
 from ..utils import run_keys, DB_SCHEMA
 
 in_memory_store = InMemoryStore()
@@ -126,49 +126,18 @@ class StoreManager:
         self._stores[store.name] = store
 
     def get_store_artifact(self, url, project=""):
-        schema, endpoint, parsed_url = parse_url(url)
-        if not parsed_url.path:
-            raise ValueError("store url without a path {}".format(url))
-        key = parsed_url.path[1:]
-        project = endpoint or project or config.default_project
-        tag = parsed_url.fragment if parsed_url.fragment else ""
-        iteration = None
-        if ":" in key:
-            if tag:
-                raise ValueError("Tag can not given both with : and with #")
-            idx = key.rfind(":")
-            tag = key[idx + 1 :]
-            key = key[:idx]
-        if "/" in key:
-            idx = key.rfind("/")
-            try:
-                iteration = int(key[idx + 1 :])
-            except ValueError:
-                raise ValueError(
-                    "illegal store path {}, iteration must be integer value".format(url)
-                )
-            key = key[:idx]
 
-        db = self._get_db()
         try:
-            meta = db.read_artifact(key, tag=tag, iter=iteration, project=project)
-            if meta.get("kind", "") == "link":
-                # todo: support other link types (not just iter, move this to the db/api layer
-                meta = self._get_db().read_artifact(
-                    parsed_url.path[1:],
-                    tag=tag,
-                    iter=meta.get("link_iteration", 0),
-                    project=project,
-                )
-
-            meta = mlrun.artifacts.dict_to_artifact(meta)
+            resource = get_store_resource(
+                url, db=self._get_db(), secrets=self._secrets, project=project
+            )
         except Exception as e:
             raise OSError("artifact {} not found, {}".format(url, e))
-        return meta, meta.target_path
+        return resource, resource.get_target_path()
 
     def object(self, url, key="", project=""):
         meta = artifact_url = None
-        if url.startswith(DB_SCHEMA + "://"):
+        if is_store_uri(url):
             artifact_url = url
             meta, url = self.get_store_artifact(url, project)
 

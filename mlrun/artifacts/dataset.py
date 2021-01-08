@@ -15,14 +15,15 @@ import os
 import pathlib
 from io import StringIO
 from tempfile import mktemp
+
+import mlrun
 import numpy as np
 import pandas as pd
 
 from pandas.io.json import build_table_schema
 
 from .base import Artifact
-from ..datastore import store_manager
-from ..utils import DB_SCHEMA
+from ..datastore import store_manager, is_store_uri
 
 preview_lines = 20
 max_csv = 10000
@@ -136,50 +137,14 @@ class DatasetArtifact(Artifact):
         self._kw = kwargs
 
     def upload(self):
-        suffix = pathlib.Path(self.target_path).suffix
-        if not self.format:
-            if suffix and suffix in [".csv", ".parquet", ".pq"]:
-                self.format = "csv" if suffix == ".csv" else "parquet"
-            else:
-                self.format = "csv" if self.length < max_csv else "parquet"
-
-        src_path = self.src_path
-        if src_path and os.path.isfile(src_path):
-            self._upload_file(src_path)
-            return
-
-        if self._df is None:
-            return
-
-        if self.target_path.startswith("memory://"):
-            store_manager.object(self.target_path).put(self._df)
-            return
-
-        if self.format in ["csv", "parquet"]:
-            if not suffix:
-                self.target_path = self.target_path + "." + self.format
-            writer_string = "to_{}".format(self.format)
-            saving_func = getattr(self._df, writer_string, None)
-            target = self.target_path
-            to_upload = False
-            if "://" in target:
-                target = mktemp()
-                to_upload = True
-            else:
-                dir = os.path.dirname(target)
-                if dir:
-                    os.makedirs(dir, exist_ok=True)
-
-            saving_func(target, **self._kw)
-            if to_upload:
-                self._upload_file(target)
-                self._set_meta(target)
-                os.remove(target)
-            else:
-                self._set_meta(target)
-            return
-
-        raise ValueError(f"format {self.format} not implemented yes")
+        upload_dataframe(
+            self._df,
+            self.target_path,
+            format=self.format,
+            src_path=self.src_path,
+            meta_setter=self._set_meta,
+            **self._kw,
+        )
 
 
 def get_df_stats(df):
@@ -242,7 +207,7 @@ def update_dataset_meta(
     stores = store_manager
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
-    elif artifact.startswith(DB_SCHEMA + "://"):
+    elif is_store_uri(artifact):
         artifact_spec, _ = stores.get_store_artifact(artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
@@ -289,3 +254,51 @@ def update_dataset_meta(
         iter=artifact_spec.iter,
         project=artifact_spec.project,
     )
+
+
+def upload_dataframe(df, target_path, format, src_path=None, meta_setter=None, **kw):
+    suffix = pathlib.Path(target_path).suffix
+    if not format:
+        if suffix and suffix in [".csv", ".parquet", ".pq"]:
+            format = "csv" if suffix == ".csv" else "parquet"
+        else:
+            format = "parquet"
+
+    if src_path and os.path.isfile(src_path):
+        store_manager.object(url=target_path).upload(src_path)
+        if meta_setter:
+            meta_setter(src_path)
+        return
+
+    if df is None:
+        return
+
+    if target_path.startswith("memory://"):
+        store_manager.object(target_path).put(df)
+        return
+
+    if format in ["csv", "parquet"]:
+        if not suffix:
+            target_path = target_path + "." + format
+        writer_string = "to_{}".format(format)
+        saving_func = getattr(df, writer_string, None)
+        target = target_path
+        to_upload = False
+        if "://" in target:
+            target = mktemp()
+            to_upload = True
+        else:
+            dir = os.path.dirname(target)
+            if dir:
+                os.makedirs(dir, exist_ok=True)
+
+        saving_func(target, **kw)
+        if to_upload:
+            store_manager.object(url=target_path).upload(target)
+        if meta_setter:
+            meta_setter(target)
+        if to_upload:
+            os.remove(target)
+        return
+
+    raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

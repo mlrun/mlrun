@@ -17,7 +17,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
-from mlrun.utils import get_in, logger, parse_function_uri
+from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 import re
 from hashlib import sha1
@@ -33,16 +33,27 @@ def log_path(project, uid) -> Path:
 
 
 def get_obj_path(schema, path, user=""):
-    if schema:
-        return schema + "://" + path
-    elif path.startswith("/User/"):
+    if path.startswith("/User/"):
         user = user or environ.get("V3IO_USERNAME", "admin")
-        return "v3io:///users/" + user + path[5:]
+        path = "v3io:///users/" + user + path[5:]
+        schema = schema or "v3io"
+    elif path.startswith("/v3io"):
+        path = "v3io://" + path[len("/v3io") :]
+        schema = schema or "v3io"
     elif config.httpdb.data_volume and path.startswith(config.httpdb.data_volume):
+        data_volume_prefix = config.httpdb.data_volume
+        if data_volume_prefix.endswith("/"):
+            data_volume_prefix = data_volume_prefix[:-1]
         if config.httpdb.real_path:
-            path = config.httpdb.real_path + path[len(config.httpdb.data_volume) - 1 :]
-        return path
-    return None
+            path_from_volume = path[len(data_volume_prefix) :]
+            if path_from_volume.startswith("/"):
+                path_from_volume = path_from_volume[1:]
+            path = str(Path(config.httpdb.real_path) / Path(path_from_volume))
+    if schema:
+        schema_prefix = schema + "://"
+        if not path.startswith(schema_prefix):
+            return schema + "://" + path
+    return path
 
 
 def get_secrets(_request: Request):
@@ -83,7 +94,7 @@ def _parse_submit_run_body(db_session: Session, data):
         if "://" in function_url:
             function = import_function(url=function_url)
         else:
-            project, name, tag, hash_key = parse_function_uri(function_url)
+            project, name, tag, hash_key = parse_versioned_object_uri(function_url)
             function_record = get_db().get_function(
                 db_session, name, project, tag, hash_key
             )

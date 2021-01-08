@@ -285,10 +285,10 @@ class Member(
         self, name: str
     ) -> mlrun.api.utils.projects.remotes.member.Member:
         # importing here to avoid circular import (db using project member using mlrun follower using db)
-        import mlrun.api.utils.singletons.db
+        import mlrun.api.crud
 
         followers_classes_map = {
-            "mlrun": mlrun.api.utils.singletons.db.get_db(),
+            "mlrun": mlrun.api.crud.Projects(),
             "nuclio": mlrun.api.utils.clients.nuclio.Client(),
             # for tests
             "nop": mlrun.api.utils.projects.remotes.nop.Member(),

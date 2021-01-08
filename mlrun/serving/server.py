@@ -29,6 +29,7 @@ from .states import (
     get_function,
     graph_root_setter,
 )
+from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
@@ -53,9 +54,9 @@ class GraphServer(ModelObj):
     def __init__(
         self,
         graph=None,
-        function_uri=None,
         parameters=None,
         load_mode=None,
+        function_uri=None,
         verbose=False,
         version=None,
         functions=None,
@@ -63,7 +64,7 @@ class GraphServer(ModelObj):
         error_stream=None,
     ):
         self._graph = None
-        self.graph: RouterState = graph
+        self.graph: Union[RouterState, RootFlowState] = graph
         self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
@@ -102,27 +103,33 @@ class GraphServer(ModelObj):
     def _get_db(self):
         return mlrun.get_run_db(secrets=self._secrets)
 
-    def init(self, context, namespace, resource_cache=None, logger=None):
+    def init(
+        self, context, namespace, resource_cache: ResourceCache = None, logger=None
+    ):
         """for internal use, initialize all states (recursively)"""
 
         if self.error_stream:
             self._error_stream_object = OutputStream(self.error_stream)
-        self.resource_cache = resource_cache
+        self.resource_cache = resource_cache or ResourceCache()
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
 
         context.stream = _StreamContext(self.parameters, self.function_uri)
         context.current_function = self._current_function
+        context.get_store_resource = self.resource_cache.resource_getter(
+            self._get_db(), self._secrets
+        )
+        context.get_table = self.resource_cache.get_table
         context.verbose = self.verbose
-        context.root = self.graph
         self.context = context
 
         if self.graph_initializer:
             if callable(self.graph_initializer):
                 handler = self.graph_initializer
             else:
-                handler = get_function(self.graph_initializer, namespace)
+                handler = get_function(self.graph_initializer, namespace or [])
             handler(self)
 
+        context.root = self.graph
         self.graph.init_object(context, namespace, self.load_mode)
         return v2_serving_handler
 
@@ -295,7 +302,7 @@ class GraphContext:
 
         self._server = server
         self.current_function = None
-        self.get_data_resource = None
+        self.get_store_resource = None
         self.get_table = None
 
     def push_error(self, event, message, source=None, **kwargs):
@@ -309,7 +316,7 @@ class GraphContext:
 
     def get_param(self, key: str, default=None):
         if self._server and self._server.parameters:
-            return self.parameters.get(key, default)
+            return self._server.parameters.get(key, default)
         return default
 
     def get_secret(self, key: str):

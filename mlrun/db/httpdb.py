@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import tempfile
 import time
 from datetime import datetime
@@ -347,6 +346,14 @@ class HTTPRunDB(RunDBInterface):
         error = "del artifacts"
         self.api_call("DELETE", "artifacts", error, params=params)
 
+    def list_artifact_tags(self, project=None):
+        project = project or default_project
+        error_message = f"Failed listing artifact tags. project={project}"
+        response = self.api_call(
+            "GET", f"/projects/{project}/artifact-tags", error_message
+        )
+        return response.json()
+
     def store_function(self, function, name, project="", tag=None, versioned=False):
         params = {"tag": tag, "versioned": versioned}
         project = project or default_project
@@ -354,7 +361,7 @@ class HTTPRunDB(RunDBInterface):
 
         error = f"store function {project}/{name}"
         resp = self.api_call(
-            "POST", path, error, params=params, body=json.dumps(function)
+            "POST", path, error, params=params, body=dict_to_json(function)
         )
 
         # hash key optional to be backwards compatible to API v<0.4.10 in which it wasn't in the response
@@ -450,7 +457,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/schedules"
 
         error_message = f"Failed creating schedule {project}/{schedule.name}"
-        self.api_call("POST", path, error_message, body=json.dumps(schedule.dict()))
+        self.api_call("POST", path, error_message, body=dict_to_json(schedule.dict()))
 
     def update_schedule(
         self, project: str, name: str, schedule: schemas.ScheduleUpdate
@@ -459,7 +466,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/schedules/{name}"
 
         error_message = f"Failed updating schedule {project}/{name}"
-        self.api_call("PUT", path, error_message, body=json.dumps(schedule.dict()))
+        self.api_call("PUT", path, error_message, body=dict_to_json(schedule.dict()))
 
     def get_schedule(
         self, project: str, name: str, include_last_run: bool = False
@@ -678,6 +685,39 @@ class HTTPRunDB(RunDBInterface):
         logger.info("submitted pipeline {} id={}".format(resp["name"], resp["id"]))
         return resp["id"]
 
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[
+            str, mlrun.api.schemas.Format
+        ] = mlrun.api.schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> mlrun.api.schemas.PipelinesOutput:
+        if project != "*" and (page_token or page_size or sort_by or filter_):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Filtering by project can not be used together with pagination, sorting, or custom filter"
+            )
+        if isinstance(format_, mlrun.api.schemas.Format):
+            format_ = format_.value
+        params = {
+            "namespace": namespace,
+            "sort_by": sort_by,
+            "page_token": page_token,
+            "filter": filter_,
+            "format": format_,
+            "page_size": page_size,
+        }
+
+        error_message = f"Failed listing pipelines, query: {params}"
+        response = self.api_call(
+            "GET", f"projects/{project}/pipelines", error_message, params=params
+        )
+        return mlrun.api.schemas.PipelinesOutput(**response.json())
+
     def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
 
         try:
@@ -718,7 +758,7 @@ class HTTPRunDB(RunDBInterface):
         name = feature_set["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=json.dumps(feature_set),
+            "POST", path, error_message, params=params, body=dict_to_json(feature_set),
         )
         return resp.json()
 
@@ -818,7 +858,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
         resp = self.api_call(
-            "PUT", path, error_message, params=params, body=json.dumps(feature_set)
+            "PUT", path, error_message, params=params, body=dict_to_json(feature_set)
         )
         return resp.json()
 
@@ -842,7 +882,7 @@ class HTTPRunDB(RunDBInterface):
             "PATCH",
             path,
             error_message,
-            body=json.dumps(feature_set_update),
+            body=dict_to_json(feature_set_update),
             headers=headers,
         )
 
@@ -872,7 +912,11 @@ class HTTPRunDB(RunDBInterface):
         name = feature_vector["metadata"]["name"]
         error_message = f"Failed creating feature-vector {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=json.dumps(feature_vector),
+            "POST",
+            path,
+            error_message,
+            params=params,
+            body=dict_to_json(feature_vector),
         )
         return resp.json()
 
@@ -932,7 +976,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed storing feature-vector {project}/{name}"
         resp = self.api_call(
-            "PUT", path, error_message, params=params, body=json.dumps(feature_vector)
+            "PUT", path, error_message, params=params, body=dict_to_json(feature_vector)
         )
         return resp.json()
 
@@ -956,7 +1000,7 @@ class HTTPRunDB(RunDBInterface):
             "PATCH",
             path,
             error_message,
-            body=json.dumps(feature_vector_update),
+            body=dict_to_json(feature_vector_update),
             headers=headers,
         )
 
@@ -969,12 +1013,14 @@ class HTTPRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.full,
         labels: List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: Union[str, mlrun.api.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
         if isinstance(state, mlrun.api.schemas.ProjectState):
             state = state.value
+        if isinstance(format_, mlrun.api.schemas.Format):
+            format_ = format_.value
         params = {
             "owner": owner,
             "state": state,
@@ -1030,7 +1076,9 @@ class HTTPRunDB(RunDBInterface):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
-        response = self.api_call("PUT", path, error_message, body=json.dumps(project),)
+        response = self.api_call(
+            "PUT", path, error_message, body=dict_to_json(project),
+        )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(
@@ -1045,7 +1093,7 @@ class HTTPRunDB(RunDBInterface):
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
         response = self.api_call(
-            "PATCH", path, error_message, body=json.dumps(project), headers=headers
+            "PATCH", path, error_message, body=dict_to_json(project), headers=headers
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
@@ -1059,9 +1107,67 @@ class HTTPRunDB(RunDBInterface):
             project = project.to_dict()
         error_message = f"Failed creating project {project['metadata']['name']}"
         response = self.api_call(
-            "POST", "projects", error_message, body=json.dumps(project),
+            "POST", "projects", error_message, body=dict_to_json(project),
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = f"projects/{project}/secrets"
+        secrets_input = schemas.SecretsData(secrets=secrets, provider=provider)
+        body = secrets_input.dict()
+        error_message = f"Failed creating secret provider {project}/{provider}"
+        self.api_call(
+            "POST", path, error_message, body=dict_to_json(body),
+        )
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> schemas.SecretsData:
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = f"projects/{project}/secrets"
+        params = {"provider": provider, "secret": secrets}
+        headers = {schemas.HeaderNames.secret_store_token: token}
+        error_message = f"Failed retrieving secrets {project}/{provider}"
+        result = self.api_call(
+            "GET", path, error_message, params=params, headers=headers,
+        )
+        return schemas.SecretsData(**result.json())
+
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = "user-secrets"
+        secrets_creation_request = schemas.UserSecretCreationRequest(
+            user=user, provider=provider, secrets=secrets,
+        )
+        body = secrets_creation_request.dict()
+        error_message = f"Failed creating user secrets - {user}"
+        self.api_call(
+            "POST", path, error_message, body=dict_to_json(body),
+        )
 
     @staticmethod
     def _validate_version_compatibility(server_version, client_version):

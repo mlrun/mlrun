@@ -40,6 +40,7 @@ from .model_endpoints import (
     Metric,
 )
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
+from .pipeline import PipelinesPagination, PipelinesOutput
 from .project import (
     Project,
     ProjectMetadata,
@@ -56,4 +57,9 @@ from .schedule import (
     ScheduleUpdate,
     ScheduleInput,
     ScheduleRecord,
+)
+from .secret import (
+    SecretsData,
+    SecretProviderName,
+    UserSecretCreationRequest,
 )

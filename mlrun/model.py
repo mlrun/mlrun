@@ -19,20 +19,10 @@ from copy import deepcopy
 from os import environ
 import re
 import typing
+import mlrun
 
 from .config import config
-from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
-
-
-class ResourceSchema:
-    FeatureSet = "fset"
-    FeatureVector = "fvec"
-    Artifact = "store"
-
-    @classmethod
-    def is_resource(cls, kind):
-        return kind in [cls.Artifact, cls.FeatureSet, cls.FeatureVector]
 
 
 class ModelObj:
@@ -502,12 +492,17 @@ class RunTemplate(ModelObj):
         proj.with_secrets('file', 'file.txt')
         proj.with_secrets('inline', {'key': 'val'})
         proj.with_secrets('env', 'ENV1,ENV2')
+        proj.with_secrets('vault', ['secret1', 'secret2'...])
 
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)
 
         :returns: project object
         """
+
+        if kind == "vault" and isinstance(source, list):
+            source = {"project": self.metadata.project, "secrets": source}
+
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
@@ -573,7 +568,7 @@ class RunObject(RunTemplate):
         return self.metadata.uid
 
     def state(self):
-        db = get_run_db()
+        db = mlrun.get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
             project=self.metadata.project,
@@ -583,12 +578,12 @@ class RunObject(RunTemplate):
             return get_in(run, "status.state", "unknown")
 
     def show(self):
-        db = get_run_db()
+        db = mlrun.get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
     def logs(self, watch=True, db=None):
         if not db:
-            db = get_run_db()
+            db = mlrun.get_run_db()
         if not db:
             print("DB is not configured, cannot show logs")
             return None

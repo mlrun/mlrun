@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Union
 
 import mlrun.api.schemas
 from mlrun.api.db.base import DBError
@@ -160,7 +160,7 @@ class SQLDB(RunDBInterface):
             self.db.list_functions, self.session, name, project, tag, labels
         )
 
-    def list_artifact_tags(self, project):
+    def list_artifact_tags(self, project=None):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
         )
@@ -188,7 +188,7 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project
+        self, name: str, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -201,7 +201,7 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project
+        self, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -392,3 +392,48 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(
             self.db.delete_feature_vector, self.session, project, name,
         )
+
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[
+            str, mlrun.api.schemas.Format
+        ] = mlrun.api.schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> mlrun.api.schemas.PipelinesOutput:
+        raise NotImplementedError()
+
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        raise NotImplementedError()
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> mlrun.api.schemas.SecretsData:
+        raise NotImplementedError()
+
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        raise NotImplementedError()

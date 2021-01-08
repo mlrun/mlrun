@@ -126,7 +126,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name: str, project: schemas.Project) -> schemas.Project:
+    def store_project(self, name: str, project: schemas.Project,) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -139,7 +139,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.Project) -> schemas.Project:
+    def create_project(self, project: schemas.Project,) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -156,8 +156,9 @@ class RunDBInterface(ABC):
     def get_project(self, name: str) -> schemas.Project:
         pass
 
-    def list_artifact_tags(self, project):
-        return []
+    @abstractmethod
+    def list_artifact_tags(self, project=None):
+        pass
 
     @abstractmethod
     def create_feature_set(
@@ -281,4 +282,50 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def delete_feature_vector(self, name, project=""):
+        pass
+
+    @abstractmethod
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> schemas.PipelinesOutput:
+        pass
+
+    @abstractmethod
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        pass
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> schemas.SecretsData:
+        pass
+
+    @abstractmethod
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
         pass

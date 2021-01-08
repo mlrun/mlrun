@@ -15,7 +15,7 @@
 import importlib.util as imputil
 import json
 import socket
-from typing import Union, List
+from typing import Union, List, Tuple, Optional
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -27,6 +27,8 @@ import yaml
 from kfp import Client
 from nuclio import build_file
 
+import mlrun.errors
+import mlrun.api.schemas
 from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
@@ -47,7 +49,7 @@ from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     get_in,
     logger,
-    parse_function_uri,
+    parse_versioned_object_uri,
     update_in,
     new_pipe_meta,
     extend_hub_uri,
@@ -365,7 +367,7 @@ def import_function(url="", secrets=None, db=""):
     """
     if url.startswith("db://"):
         url = url[5:]
-        project, name, tag, hash_key = parse_function_uri(url)
+        project, name, tag, hash_key = parse_versioned_object_uri(url)
         db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:
@@ -910,40 +912,36 @@ def get_pipeline(run_id, namespace=None):
 def list_pipelines(
     full=False,
     page_token="",
-    page_size=10,
+    page_size=None,
     sort_by="",
-    experiment_id=None,
+    filter_="",
     namespace=None,
-):
-    """List pipelines"""
-    namespace = namespace or mlconf.namespace
-    client = Client(namespace=namespace)
-    resp = client._run_api.list_runs(
-        page_token=page_token, page_size=page_size, sort_by=sort_by
-    )
-    runs = resp.runs
-    if not full and runs:
-        runs = []
-        for run in resp.runs:
-            runs.append(
-                {
-                    k: str(v)
-                    for k, v in run.to_dict().items()
-                    if k
-                    in [
-                        "id",
-                        "name",
-                        "status",
-                        "error",
-                        "created_at",
-                        "scheduled_at",
-                        "finished_at",
-                        "description",
-                    ]
-                }
-            )
+    project="*",
+    format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.metadata_only,
+) -> Tuple[int, Optional[int], List[dict]]:
+    """List pipelines
 
-    return resp.total_size, resp.next_page_token, runs
+    :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
+    :param page_token: A page token to request the next page of results. The token is acquried from the nextPageToken
+    field of the response from the previous call or can be omitted when fetching the first page.
+    :param page_size: The number of pipelines to be listed per page. If there are more pipelines than this number, the
+    response message will contain a nextPageToken field you can use to fetch the next page.
+    :param sort_by: Can be format of \"field_name\", \"field_name asc\" or \"field_name desc\" (Example, \"name asc\"
+    or \"id desc\"). Ascending by default.
+    :param filter_: A url-encoded, JSON-serialized Filter protocol buffer
+    (see [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto)).
+    :param namespace: Kubernetes namespace if other than default
+    :param project: Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that filtering
+    by project can't be used together with pagination, sorting, or custom filter.
+    :param format_: Control what will be returned (full/metadata_only/name_only)
+    """
+    if full:
+        format_ = mlrun.api.schemas.Format.full
+    run_db = get_run_db()
+    pipelines = run_db.list_pipelines(
+        project, namespace, sort_by, page_token, filter_, format_, page_size
+    )
+    return pipelines.total_size, pipelines.next_page_token, pipelines.runs
 
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):

@@ -16,7 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
-from typing import List
+from typing import List, Union
 
 import yaml
 from dateutil.parser import parse as parse_time
@@ -440,7 +440,7 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project
+        self, name: str, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -453,7 +453,7 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project
+        self, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -595,6 +595,48 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def delete_feature_vector(self, name, project=""):
+        raise NotImplementedError()
+
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[
+            str, mlrun.api.schemas.Format
+        ] = mlrun.api.schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> mlrun.api.schemas.PipelinesOutput:
+        raise NotImplementedError()
+
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        secrets: dict = None,
+    ):
+        raise NotImplementedError()
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        secrets: List[str] = None,
+    ) -> mlrun.api.schemas.SecretsData:
+        raise NotImplementedError()
+
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        secrets: dict = None,
+    ):
+        raise NotImplementedError()
+
+    def list_artifact_tags(self, project=None):
         raise NotImplementedError()
 
 

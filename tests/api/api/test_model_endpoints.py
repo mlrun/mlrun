@@ -21,7 +21,7 @@ from mlrun.api.api.endpoints.model_endpoints import (
 from mlrun.config import config
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 from mlrun.api.schemas import (
-    ModelEndpointMetaData,
+    ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpoint,
     ObjectStatus,
@@ -203,7 +203,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
 def _mock_random_endpoint(state: str = "") -> ModelEndpoint:
     return ModelEndpoint(
-        metadata=ModelEndpointMetaData(
+        metadata=ModelEndpointMetadata(
             project="test",
             tag=f"v{randint(0, 100)}",
             labels={

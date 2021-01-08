@@ -29,7 +29,7 @@ from .feature_store import (
     FeatureVectorsOutput,
 )
 from .model_endpoints import (
-    ModelEndpointMetaData,
+    ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpoint,
     ModelEndpointStateList,

@@ -17,7 +17,7 @@ from mlrun.errors import (
 from mlrun.utils.helpers import logger
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 from mlrun.api.schemas import (
-    ModelEndpointMetaData,
+    ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpoint,
     ModelEndpointStateList,
@@ -167,7 +167,7 @@ def list_endpoints(
         # Collect labels (by convention labels are labeled with underscore '_'), ignore builtin '__name' field
         state = ModelEndpointState(
             endpoint=ModelEndpoint(
-                metadata=ModelEndpointMetaData(
+                metadata=ModelEndpointMetadata(
                     project=endpoint.get("project"),
                     tag=endpoint.get("tag"),
                     labels=json.loads(endpoint.get("labels")),
@@ -235,7 +235,7 @@ def get_endpoint(
 
     return ModelEndpointState(
         endpoint=ModelEndpoint(
-            metadata=ModelEndpointMetaData(
+            metadata=ModelEndpointMetadata(
                 project=endpoint.get("project"),
                 tag=endpoint.get("tag"),
                 labels=json.loads(endpoint.get("labels", "")),

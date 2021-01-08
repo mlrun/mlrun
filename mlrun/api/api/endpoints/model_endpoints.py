@@ -1,10 +1,11 @@
 import hashlib
 import json
+from http import HTTPStatus
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 
 import pandas as pd
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from v3io.dataplane import RaiseForStatus
 
 from mlrun.config import config
@@ -108,6 +109,8 @@ def clear_endpoint_record(project: str, endpoint_id: str):
         key=endpoint_id,
     )
     logger.info("Model endpoint table deleted", endpoint_id=endpoint_id)
+
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get(

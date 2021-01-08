@@ -10,7 +10,7 @@ from mlrun.api.schemas.object import (
 )
 
 
-class ModelEndpointMetaData(BaseModel):
+class ModelEndpointMetadata(BaseModel):
     project: Optional[str]
     tag: Optional[str]
     labels: Optional[dict]
@@ -27,7 +27,7 @@ class ModelEndpointSpec(ObjectSpec):
 
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
-    metadata: ModelEndpointMetaData
+    metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
     status: ObjectStatus
 

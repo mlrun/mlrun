@@ -12,3 +12,4 @@ see the following sections for details and examples.
 
    serving-graph
    model-api
+   graph-example

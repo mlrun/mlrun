@@ -611,6 +611,7 @@ class FlowState(BaseState):
         before=None,
         graph_shape=None,
         function=None,
+        full_event: bool = None,
         **class_args,
     ):
         """add task, queue or router state/class to the flow
@@ -642,6 +643,7 @@ class FlowState(BaseState):
             handler,
             graph_shape=graph_shape,
             function=function,
+            full_event=full_event,
             class_args=class_args,
         )
 
@@ -877,8 +879,8 @@ class FlowState(BaseState):
 
         for state in self._states.values():
             # add error handler hooks
-            if state.on_error and state.async_object:
-                error_state = self._states[state.on_error]
+            if (state.on_error or self.on_error) and state.async_object:
+                error_state = self._states[state.on_error or self.on_error]
                 state.async_object.set_recovery_step(error_state.async_object)
 
         self._controller = source.run()

@@ -753,6 +753,8 @@ class FlowState(BaseState):
             if state.after:
                 prev_state = state.after[0]
                 self[prev_state].set_next(state.name)
+        if self.on_error and self.on_error in start_states:
+            start_states.remove(self.on_error)
 
         if (
             not start_states

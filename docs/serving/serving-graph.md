@@ -11,11 +11,11 @@ ensembles, data readers and writers, data engineering tasks, validators, etc.),
 or from native python classes/functions. Graphs can auto-scale and span multiple function 
 containers (connected through streaming protocols).
 
-
 Graphs can run inside your IDE or Notebook for test and simulation and can be deployed 
 into production serverless pipeline with a single command. Serving Graphs are built on 
-top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), MLRun Jobs, [MLRun Storey](https://github.com/mlrun/storey) 
-(native Python async and stream processing engine), and other MLRun facilities. 
+top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), MLRun Jobs, 
+[MLRun Storey](https://github.com/mlrun/storey) (native Python async and stream processing engine), 
+and other MLRun facilities. 
 
 ### Accelerate performance and time to production
 The underline Nuclio serverless engine uses high-performance parallel processing 
@@ -33,16 +33,11 @@ to production with minimal work.
     * [**Advanced data processing and serving ensemble**](#advanced-data-processing-and-serving-ensemble)
     * [**NLP processing pipeline with real-time streaming**](#nlp-processing-pipeline-with-real-time-streaming)
 * [**The Graph State Machine**](#the-graph-state-machine)
-    * Graph serving modes and operation 
-    * Router state 
-    * Async Flows 
-    * The Graph context and Event objects 
-    * Error handling and catchers 
-* Stateful stream processing and data-engineering 
-* Serving function configuration, resources, and triggers 
-* Using MLRun model repository with serving
-* Model monitoring and drift analysis 
-* Using class or function from other modules or files
+    * [**Graph overview and usage**](#graph-overview-and-usage) 
+    * [**Graph context and Event objects**](#graph-context-and-event-objects)
+    * [**Error handling and catchers**](#error-handling-and-catchers) 
+    * [**Implement your own task class or function**](#implement-your-own-task-class-or-function)
+    * [**Building distributed graphs**](#building-distributed-graphs)
 
 
 ## Examples
@@ -50,7 +45,7 @@ to production with minimal work.
 ### Simple model serving router
 
 in order to deploy a serving function you need to import or create the serving function, 
-add models to it and deploy, you can read more about [advanced routing]() options.  
+add models to it and deploy.  
 
 ```python
     import mlrun  
@@ -69,7 +64,7 @@ add models to it and deploy, you can read more about [advanced routing]() option
 The Serving function support the same protocol used in KFServing V2 and Triton Serving framework,
 In order to invoke the model you to use following url: `<function-host>/v2/models/model1/infer`.
 
-See the [**serving protocol specification**]() for details
+See the [**serving protocol specification**](model-api.md#model-server-api) for details
 
 > model url is either an MLRun model store object (starts with `store://`) or URL of a model directory 
 (in NFS, s3, v3io, azure, .. e.g. s3://{bucket}/{model-dir}), note that credentials may need to 
@@ -135,7 +130,6 @@ MLRun Serving graphs can host advanced pipelines which handle event/data process
  or any custom task, in the following example we build an asynchronous pipeline which pre-process data, 
 pass the data into a model ensemble, and finishes off with post processing. 
 
-
 create a new function of type serving and set the graph topology to `async flow`
 
 ```python
@@ -163,15 +157,15 @@ router.add_route("m2", class_name="ModelClass", model_path="{path2}")
 graph.add_step(class_name="PostProcess", name="final", after="ensemble").respond()
 
 # add error handling state, run only when/if the "loads" state fail (keep after="")  
-graph.add_step(class_name="ErrorCatch", name="catcher", after="")
+graph.add_step(class_name="ErrorCatch", name="catcher", full_event=True, after="")
 
 # plot the graph (using Graphviz) and run a test
 graph.plot(rankdir='LR')
 ```
 <br><img src="_static/images/graph-flow.png" alt="graph-flow" width="800"/><br>
 
-create a mock (test) server, and run a test, you need to use `` to wait for 
-the async event loop to complete
+create a mock (test) server, and run a test, you need to use `wait_for_completion()` 
+to wait for the async event loop to complete
   
 ```python
 server = function.to_mock_server()
@@ -190,7 +184,8 @@ if we dont specify the responder the graph will be non-blocking.
 
 In Some cases we want to split our processing to multiple functions and use 
 streaming protocols to connect those functions, in the following example we do the data 
-processing in the 1st function/container and the NLP processing in the 2nd function (for example if we need a GPU just for that part).
+processing in the 1st function/container and the NLP processing in the 2nd function 
+(for example if we need a GPU just for that part).
 
 ```python
 import mlrun
@@ -229,33 +224,158 @@ fn.deploy()
 
 ## The Graph State Machine
 
+### Graph overview and usage
+
 MLRun Graphs enable building and running DAGs (directed acyclic graph), the first graph element accepts 
 an `Event` object, transform/process the event and pass the result to the next states 
-in the graph. The final result can be written out to some destination (file, stream, ..)
+in the graph. The final result can be written out to some destination (file, DB, stream, ..)
 or return back to the caller (one of the graph states can be marked with `.respond()`).
 
 The graph can host 4 types of states:
 
-* **Task** – simple execution step which follow other steps and runs a function or class handler
+* **Task** – simple execution step which follow other steps and runs a function or class handler or a 
+  REST API call, tasks use one of many pre-built operators, readers and writers, can be standard Python 
+  functions or custom functions/classes, or can be a external REST API (the special `$remote` class).  
 * **Router** – emulate a smart router with routing logic and multiple child routes/models 
-  (each is a tasks), the basic routing logic is to route to the child routes based on the Event.path, more advanced or custom routing can be used, for example the ensemble router sends the event to all child routes in parallel, aggregate the result and respond 
+  (each is a tasks), the basic routing logic is to route to the child routes based on the Event.path, 
+  more advanced or custom routing can be used, for example the Ensemble router sends the event to all 
+  child routes in parallel, aggregate the result and respond (see the example). 
 * **Queue** – queue or stream which accept data from one or more source states and publish 
-  to one or more output states, queues are best used to connect independent functions/containers
+  to one or more output states, queues are best used to connect independent functions/containers.
+  queue can run in-memory or be implemented using a stream which allow it to span processes/containers. 
 * **Flow** – A flow hosts the DAG with multiple connected tasks, routers or queues, it
   starts with some source (http request, stream, data reader, cron, etc.) and follow the 
-  execution steps according to the graph layout.
-  
-### Graph serving modes and operation
+  execution steps according to the graph layout, flow can have branches (in the async mode), 
+  flow can produce results asynchronously (e.g. write to an output stream), or can respond synchronously 
+  when one of the states is marked as the responder (`state.respond()`).
 
+The Graph server have two modes of operation (topologies): 
+* **router topology** (default)- a minimal configuration with a single router and child tasks/routes, 
+  this can be used for simple model serving or single hop configurations.
+* **flow topology** - a full graph/DAG, the flow topology is implemented using two engines, `async` (the default)
+  is based on [Storey](https://github.com/mlrun/storey) and async event loop, and `sync` which support a simple 
+  sequence of steps.
 
-### Router state
+Example for setting the topology:
 
+    graph = function.set_topology("flow", engine="async")
 
-### Async Flows
+### Graph context and Event objects
 
+#### The Event object
 
-### The Graph context and Event objects
+The Graph state machine accepts an Event object (similar to Nuclio Event) and passes 
+it along the pipeline, an Event object hosts the event `body` along with other attributes 
+such as `path` (http request path), `method` (GET, POST, ..), `id` (unique event ID).
 
+In some cases the events represent a record with a unique `key`, which can be read/set 
+through the `event.key`, and records have associated `event.time` which by default will be 
+the arrival time, but can also be set by a state.
+
+The Task states are called with the `event.body` by default, if a Task state need to 
+read or set other event elements (key, path, time, ..) the user should set the task `full_event`
+argument to `True`.
+
+#### The Context object
+
+the state classes are initialized with a `context` object (when they have `context` in their `__init__` args)
+, the context is used to pass data and for interfacing with system services. The context object has the 
+following attributes and methods.
+
+Attributes:
+* **logger** - central logger (Nuclio logger when running in Nuclio)
+* **verbose** - will be True if in verbose/debug mode
+* **root** - the graph object
+* **current_function** - when running in a distributed graph, the current child function name 
+
+Methods:
+* get_param(key, default=None) - get graph parameter by key, parameters are set at the
+  serving function (e.g. `function.spec.parameters = {"param1": "x"}`)
+* get_store_resource(uri, use_cache=True) - get mlrun store object (data item, artifact, model, feature set, feature vector)
+* Response(headers=None, body=None, content_type=None, status_code=200) - create nuclio response object, for returning detailed http responses
+
+Example, using the context:
+
+    if self.context.verbose:
+        self.context.logger.info('my message', some_arg='text')
+    x = self.context.get_param('x', 0)
 
 ### Error handling and catchers
 
+Graph states may raise an exception and we may want to have an error handling flow,
+it is possible to specify exception handling state/branch which will be triggered on error,
+the error handler state will receive the event which entered the failed state, with two extra
+attributes: `event.origin_state` will indicate the name of the failed state, and `event.error`
+will hold the error string
+
+Example, setting an error catcher per state: 
+
+    graph.add_step("MyClass", name="my-class", after="pre-process").error_handler("catcher")
+    graph.add_step("ErrHandler", name="catcher", full_event=True, after="")
+    
+> Note: additional states may follow our `catcher` state
+
+see the full example [above](#advanced-data-processing-and-serving-ensemble)
+
+**exception stream:**
+
+The graph errors/exceptions can be pushed into a special error stream, this is very convenient 
+in the case of distributed and production graphs 
+
+setting the exception stream address (using v3io streams uri):
+
+    function.spec.error_stream = 'users/admin/my-err-stream'
+    
+
+### Implement your own task class or function
+
+The Graph executes built-in task classes or user provided classes and functions,
+the task parameters include the following:
+* `class_name` (str) - the relative or absolute class name
+* `handler` (str) - the function handler (if class_name is not specified it is the function handler)
+* `**class_args` - a set of class `__init__` arguments 
+
+you can use any python function by specifying the handler name (e.g. `handler=json.dumps`), 
+the function will be triggered with the `event.body` as the first argument, and its result 
+will be passed to the next step.
+
+instead we can use classes which can also store some state/configuration and separate the 
+one time init logic from the per event logic, the classes are initialized with the `class_args`,
+if the class init args contain `context` or `name`, those will be initialize with the 
+[graph context](#graph-context-and-event-objects) and the state name. 
+
+the class_name and handler specify a class/function name in the `globals()` (i.e. this module) by default
+or those can be full paths to the class (mudule.submodul.class), e.g. `storey.WriteToParquet`.
+users can also pass the module as an argument to functions such as `function.to_mock_server(namespace=module)`,
+in this case the class or handler names will also be searched in the provided module.
+
+when using classes the class event handler will be invoked on every event with the `event.body` 
+if the Task state `full_event` parameter is set to `True` the handler will be invoked and return
+the full `event` object. if we dont specify the class event handler it will invoke the class `do()` method. 
+
+if you need to implement async behaviour you should subclass `storey.MapClass`.
+
+
+### Building distributed graphs
+
+Graphs can be hosted by a single function (using zero to N containers), or span multiple functions
+where each function can have its own container image and resources (replicas, GPUs/CPUs, volumes, etc.).
+it has a `root` function which is where you configure triggers (http, incoming stream, cron, ..), 
+and optional downstream child functions.
+
+Users can specify the `function` attribute in `Task` or `Router` states, this will indicate where 
+this state should run, when the `function` attribute is not specified it would run on the root function.
+`function="*"` means the state can run in any of the child functions.
+
+states on different functions should be connected using a `Queue` state (a stream)
+
+**adding a child function:**
+
+```python
+fn.add_child_function('enrich', 
+                      './entity_extraction.ipynb', 
+                      image='mlrun/mlrun',
+                      requirements=["storey", "sklearn"])
+```
+
+see a [complete example](#nlp-processing-pipeline-with-real-time-streaming)  

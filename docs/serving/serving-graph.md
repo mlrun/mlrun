@@ -130,55 +130,63 @@ MLRun Serving graphs can host advanced pipelines which handle event/data process
  or any custom task, in the following example we build an asynchronous pipeline which pre-process data, 
 pass the data into a model ensemble, and finishes off with post processing. 
 
-create a new function of type serving and set the graph topology to `async flow`
+**Check out the advanced [graph example notebook](graph-example.ipynb)**
+
+create a new function of type serving from code and set the graph topology to `async flow`
 
 ```python
 import mlrun
-function = mlrun.new_function("advanced", kind="serving")
+function = mlrun.code_to_function("advanced", filename="demo.py", 
+                                  kind="serving", image="mlrun/mlrun",
+                                  requirements=['storey'])
 graph = function.set_topology("flow", engine="async")
 ```
 
-add 3 steps one after the other using `.to()`:
-* the first will run `json.loads()` on the event, in case of error it will jump to "catcher"
-* the 2nd will apply a filter using `storey.Filter` class and a lambda function
-* The 3rd use a custom pre processing class (and pass the some_arg='abc' to its init)
+Build and connect the graph (DAG) using the custom function and classes and plot the result. 
+we add states using the `state.to()` method (will add a new state after the current one), or using the 
+`graph.add_step()` method.
+
+We use the `graph.error_handler()` (apply to all states) or `state.error_handler()` 
+(apply to a specific state) if we want the error from the graph or the state to be 
+fed into a specific state (catcher)
+
+We can specify which state is the responder (returns the HTTP response) using the `state.respond()` method,
+if we dont specify the responder the graph will be non-blocking.
 
 ```python
-graph.to(name="loads", handler="json.loads").error_handler("catcher") \
-     .to("storey.Filter", name="filter", _fn='(event["type"]=="infer")') \
-     .to(class_name="PreProcess", name="pre-process", some_arg='abc')
+# use built-in storey class or our custom Echo class to create and link Task states
+graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
+     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler("catcher")
 
 # add an Ensemble router with two child models (routes), the "*" prefix mark it is a router class
 router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
-router.add_route("m1", class_name="ModelClass", model_path="{path1}")
-router.add_route("m2", class_name="ModelClass", model_path="{path2}")
+router.add_route("m1", class_name="ClassifierModel", model_path=path1, multiplier=2)
+router.add_route("m2", class_name="ClassifierModel", model_path=path2, multiplier=3)
 
 # add the final step (after the router) which handles post processing and respond to the client
-graph.add_step(class_name="PostProcess", name="final", after="ensemble").respond()
+graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
 
-# add error handling state, run only when/if the "loads" state fail (keep after="")  
-graph.add_step(class_name="ErrorCatch", name="catcher", full_event=True, after="")
+# add error handling state, run only when/if the "pre-process" state fail (keep after="")  
+graph.add_step(handler="error_catcher", name="catcher", full_event=True, after="")
 
 # plot the graph (using Graphviz) and run a test
 graph.plot(rankdir='LR')
 ```
-<br><img src="_static/images/graph-flow.png" alt="graph-flow" width="800"/><br>
+
+<br><img src="../_static/images/graph-flow.svg" alt="graph-flow" width="800"/><br>
 
 create a mock (test) server, and run a test, you need to use `wait_for_completion()` 
 to wait for the async event loop to complete
   
 ```python
 server = function.to_mock_server()
-resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
+resp = server.test("/v2/models/m2/infer", body={"inputs": data})
 server.wait_for_completion()
 ``` 
 
-The execution order in the graph is determined via the `after` parameter, we can add states 
-using the `state.to()` method (will add a new state after the current one), or using the 
-`graph.add_step()` method.
+and finally, you can deploy the graph as a real-time Nuclio serverless function with one command:
 
-We can specify which state is the responder (returns the HTTP response) using the `.respond()` method,
-if we dont specify the responder the graph will be non-blocking.
+    function.deploy()
 
 ### NLP processing pipeline with real-time streaming 
 

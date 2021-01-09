@@ -62,6 +62,7 @@ _task_state_fields = [
     "shape",
     "full_event",
     "on_error",
+    "responder",
 ]
 
 

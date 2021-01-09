@@ -328,9 +328,7 @@ class VotingEnsemble(BaseModelRouter):
         if "outputs" in events.body:
             # Dealing with a specific model prediction
             return events
-        predictions = [
-            model.body["outputs"] for _, model in events.body.items()
-        ]
+        predictions = [model.body["outputs"] for _, model in events.body.items()]
 
         flattened_predictions = [
             [predictions[j][i] for j in range(len(predictions))]

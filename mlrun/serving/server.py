@@ -134,7 +134,7 @@ class GraphServer(ModelObj):
             handler(self)
 
         context.root = self.graph
-        self.graph.init_object(context, namespace, self.load_mode)
+        self.graph.init_object(context, namespace, self.load_mode, reset=True)
         return v2_serving_handler
 
     def test(

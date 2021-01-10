@@ -282,6 +282,7 @@ class TaskState(BaseState):
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
+        self._async_object = None
         if not self._is_local_function(context):
             # skip init of non local functions
             return

@@ -64,7 +64,7 @@ add models to it and deploy.
 The Serving function support the same protocol used in KFServing V2 and Triton Serving framework,
 In order to invoke the model you to use following url: `<function-host>/v2/models/model1/infer`.
 
-See the [**serving protocol specification**](model-api.md#model-server-api) for details
+See the [**serving protocol specification**](model-api.md) for details
 
 > model url is either an MLRun model store object (starts with `store://`) or URL of a model directory 
 (in NFS, s3, v3io, azure, .. e.g. s3://{bucket}/{model-dir}), note that credentials may need to 
@@ -314,7 +314,11 @@ Graph states may raise an exception and we may want to have an error handling fl
 it is possible to specify exception handling state/branch which will be triggered on error,
 the error handler state will receive the event which entered the failed state, with two extra
 attributes: `event.origin_state` will indicate the name of the failed state, and `event.error`
-will hold the error string
+will hold the error string.
+
+We use the `graph.error_handler()` (apply to all states) or `state.error_handler()` 
+(apply to a specific state) if we want the error from the graph or the state to be 
+fed into a specific state (catcher)
 
 Example, setting an error catcher per state: 
 
@@ -342,6 +346,8 @@ the task parameters include the following:
 * `class_name` (str) - the relative or absolute class name
 * `handler` (str) - the function handler (if class_name is not specified it is the function handler)
 * `**class_args` - a set of class `__init__` arguments 
+
+**Check out the [example notebook](graph-example.ipynb)**
 
 you can use any python function by specifying the handler name (e.g. `handler=json.dumps`), 
 the function will be triggered with the `event.body` as the first argument, and its result 

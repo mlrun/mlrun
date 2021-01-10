@@ -160,8 +160,8 @@ graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
 
 # add an Ensemble router with two child models (routes), the "*" prefix mark it is a router class
 router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
-router.add_route("m1", class_name="ClassifierModel", model_path=path1, multiplier=2)
-router.add_route("m2", class_name="ClassifierModel", model_path=path2, multiplier=3)
+router.add_route("m1", class_name="ClassifierModel", model_path=path1)
+router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
 # add the final step (after the router) which handles post processing and respond to the client
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()

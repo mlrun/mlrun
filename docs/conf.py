@@ -53,9 +53,7 @@ release = current_version()
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    # "numpydoc",
     "sphinx.ext.napoleon",
-    #   "recommonmark",
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",

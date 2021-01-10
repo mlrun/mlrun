@@ -110,6 +110,20 @@ default_config = {
             "mlrun_version_specifier": "",
         },
     },
+    "secret_stores": {
+        "vault": {
+            # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:
+            # http://docker.for.mac.localhost:8200
+            "url": "",
+            "remote_url": "",
+            "role": "",
+            "token_path": "~/.mlrun/vault",
+            "project_service_account_name": "mlrun-vault-{project}",
+            "token_ttl": 180000,
+            # This config is for debug/testing purposes only!
+            "user_token": "",
+        },
+    },
 }
 
 

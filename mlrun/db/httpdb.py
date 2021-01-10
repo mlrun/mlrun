@@ -1116,6 +1116,64 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = f"projects/{project}/secrets"
+        secrets_input = schemas.SecretsData(secrets=secrets, provider=provider)
+        body = secrets_input.dict()
+        error_message = f"Failed creating secret provider {project}/{provider}"
+        self.api_call(
+            "POST", path, error_message, body=dict_to_json(body),
+        )
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> schemas.SecretsData:
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = f"projects/{project}/secrets"
+        params = {"provider": provider, "secret": secrets}
+        headers = {schemas.HeaderNames.secret_store_token: token}
+        error_message = f"Failed retrieving secrets {project}/{provider}"
+        result = self.api_call(
+            "GET", path, error_message, params=params, headers=headers,
+        )
+        return schemas.SecretsData(**result.json())
+
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = "user-secrets"
+        secrets_creation_request = schemas.UserSecretCreationRequest(
+            user=user, provider=provider, secrets=secrets,
+        )
+        body = secrets_creation_request.dict()
+        error_message = f"Failed creating user secrets - {user}"
+        self.api_call(
+            "POST", path, error_message, body=dict_to_json(body),
+        )
+
     @staticmethod
     def _validate_version_compatibility(server_version, client_version):
         try:

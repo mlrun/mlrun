@@ -935,12 +935,25 @@ class MlrunProject(ModelObj):
         proj.with_secrets('inline', {'key': 'val'})
         proj.with_secrets('env', 'ENV1,ENV2', prefix='PFX_')
 
-        :param kind:   secret type (file, inline, env)
+        Vault secret source has several options:
+        proj.with_secrets('vault', {'user': <user name>, 'secrets': ['secret1', 'secret2' ...]})
+        proj.with_secrets('vault', {'project': <proj. name>, 'secrets': ['secret1', 'secret2' ...]})
+        proj.with_secrets('vault', ['secret1', 'secret2' ...])
+        The 2nd option uses the current project name as context.
+        Can also use empty secret list:
+        proj.with_secrets('vault', [])
+        This will enable access to all secrets in vault registered to the current project.
+
+        :param kind:   secret type (file, inline, env, vault)
         :param source: secret data or link (see example)
         :param prefix: add a prefix to the keys in this source
 
         :returns: project object
         """
+
+        if kind == "vault" and isinstance(source, list):
+            source = {"project": self.metadata.name, "secrets": source}
+
         self._secrets.add_source(kind, source, prefix)
         return self
 
@@ -951,6 +964,28 @@ class MlrunProject(ModelObj):
         if self._secrets:
             return self._secrets.get(key)
         return None
+
+    def create_vault_secrets(self, secrets):
+        run_db = get_run_db(secrets=self._secrets)
+        run_db.create_project_secrets(
+            self.metadata.name, mlrun.api.schemas.SecretProviderName.vault, secrets
+        )
+
+    def get_vault_secrets(self, secrets=None, local=False):
+        if local:
+            logger.warning(
+                "get_vault_secrets executed locally. This is not recommended and may become deprecated soon"
+            )
+            self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
+
+        run_db = get_run_db(secrets=self._secrets)
+        project_secrets = run_db.get_project_secrets(
+            self.metadata.name,
+            self._secrets.vault.token,
+            mlrun.api.schemas.SecretProviderName.vault,
+            secrets,
+        )
+        return project_secrets.secrets
 
     def get_param(self, key: str, default=None):
         """get project param by key"""

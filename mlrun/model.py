@@ -492,12 +492,17 @@ class RunTemplate(ModelObj):
         proj.with_secrets('file', 'file.txt')
         proj.with_secrets('inline', {'key': 'val'})
         proj.with_secrets('env', 'ENV1,ENV2')
+        proj.with_secrets('vault', ['secret1', 'secret2'...])
 
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)
 
         :returns: project object
         """
+
+        if kind == "vault" and isinstance(source, list):
+            source = {"project": self.metadata.project, "secrets": source}
+
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 

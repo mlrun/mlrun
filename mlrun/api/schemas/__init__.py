@@ -47,3 +47,8 @@ from .schedule import (
     ScheduleInput,
     ScheduleRecord,
 )
+from .secret import (
+    SecretsData,
+    SecretProviderName,
+    UserSecretCreationRequest,
+)

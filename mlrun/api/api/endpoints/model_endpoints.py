@@ -70,16 +70,16 @@ class TimeMetric:
             max=describe["max"],
         )
 
-    @staticmethod
-    def from_string(name: str) -> "TimeMetric":
+    @classmethod
+    def from_string(cls, name: str) -> "TimeMetric":
         if name in {"microsec", "latency"}:
-            return TimeMetric(
+            return cls(
                 tsdb_column="latency_avg_1s",
                 metric_name="average_latency",
                 headers=["timestamp", "average"],
             )
         elif name in {"preds", "predictions"}:
-            return TimeMetric(
+            return cls(
                 tsdb_column="predictions_per_second_count_1s",
                 metric_name="predictions_per_second",
                 headers=["timestamp", "count"],

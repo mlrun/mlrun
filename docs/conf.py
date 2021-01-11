@@ -114,7 +114,7 @@ html_theme_options = {
 
 html_title = "The MLOps Stack"
 html_logo = "./MLRun_Character.png"
-# html_favicon = "path/to/favicon.ico"
+html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
 jupyter_execute_notebooks = "off"
 

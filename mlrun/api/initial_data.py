@@ -59,7 +59,7 @@ def _fix_artifact_tags_duplications(
             for tag in tags:
                 # sanity
                 if tag.obj_id not in artifact_record_id_map:
-                    logger.warning("Found orphan tag, deleting", tag=tag)
+                    logger.warning("Found orphan tag, deleting", tag=tag.to_dict())
                 if artifact_record_id_map[tag.obj_id].key == artifact_key:
                     artifact_key_tags.append(tag)
             tag_name_tags_map = collections.defaultdict(list)
@@ -89,22 +89,22 @@ def _find_last_updated_artifact(artifacts: typing.List[mlrun.api.db.sqldb.models
         raise RuntimeError('No artifacts given')
     last_updated_artifact = None
     last_updated_artifact_time = datetime.datetime.min
-    artifact_with_same_update_time = []
+    artifacts_with_same_update_time = []
     for artifact in artifacts:
         if artifact.updated > last_updated_artifact_time:
             last_updated_artifact = artifact
             last_updated_artifact_time = last_updated_artifact.updated
-            artifact_with_same_update_time = [last_updated_artifact]
+            artifacts_with_same_update_time = [last_updated_artifact]
         elif artifact.updated == last_updated_artifact_time:
-            artifact_with_same_update_time.append(artifact)
-    if len(artifact_with_same_update_time) > 1:
+            artifacts_with_same_update_time.append(artifact)
+    if len(artifacts_with_same_update_time) > 1:
         logger.warning("Found several artifact with same update time, heuristically choosing the first",
-                       artifacts=artifact_with_same_update_time)
+                       artifacts=[artifact.to_dict() for artifact in artifacts_with_same_update_time])
         # we don't really need to do anything to choose the first, it's already happening because the first if is >
         # and not >=
     if not last_updated_artifact:
         logger.warning("No artifact had update time, heuristically choosing the first",
-                       artifacts=artifacts)
+                       artifacts=[artifact.to_dict() for artifact in artifacts])
         last_updated_artifact = artifacts[0]
 
     return last_updated_artifact

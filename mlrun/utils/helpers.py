@@ -76,7 +76,7 @@ class StorePrefix:
 def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     if kind in ["dataset", "model"] and item.get("db_key"):
-        return "{}://{}/{}/{}#{}".format(
+        return "{}://{}/{}/{}:{}".format(
             DB_SCHEMA,
             StorePrefix.Artifact,
             project or item.get("project"),

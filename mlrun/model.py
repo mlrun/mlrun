@@ -46,6 +46,7 @@ class ModelObj:
         return param
 
     def to_dict(self, fields=None, exclude=None):
+        """convert the object to a python dictionary"""
         struct = {}
         fields = fields or self._dict_fields
         if not fields:
@@ -64,6 +65,7 @@ class ModelObj:
 
     @classmethod
     def from_dict(cls, struct=None, fields=None):
+        """create an object from a python dictionary"""
         struct = {} if struct is None else struct
         fields = fields or cls._dict_fields
         if not fields:
@@ -76,18 +78,22 @@ class ModelObj:
         return new_obj
 
     def to_yaml(self):
+        """convert the object to yaml"""
         return dict_to_yaml(self.to_dict())
 
     def to_json(self):
+        """convert the object to json"""
         return dict_to_json(self.to_dict())
 
     def to_str(self):
+        """convert the object to string (with dict layout)"""
         return "{}".format(self.to_dict())
 
     def __str__(self):
         return str(self.to_dict())
 
     def copy(self):
+        """create a copy of the object"""
         return deepcopy(self)
 
 
@@ -487,12 +493,12 @@ class RunTemplate(ModelObj):
     def with_secrets(self, kind, source):
         """register a secrets source (file, env or dict)
 
-        read secrets from a source provider to be used in workflows, e.g.
+        read secrets from a source provider to be used in workflows, example::
 
-        proj.with_secrets('file', 'file.txt')
-        proj.with_secrets('inline', {'key': 'val'})
-        proj.with_secrets('env', 'ENV1,ENV2')
-        proj.with_secrets('vault', ['secret1', 'secret2'...])
+            proj.with_secrets('file', 'file.txt')
+            proj.with_secrets('inline', {'key': 'val'})
+            proj.with_secrets('env', 'ENV1,ENV2')
+            proj.with_secrets('vault', ['secret1', 'secret2'...])
 
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)
@@ -706,7 +712,7 @@ def new_task(
 
     :param name:            task name
     :param project:         task project
-    :param handler          code entry-point/hanfler name
+    :param handler:         code entry-point/hanfler name
     :param params:          input parameters (dict)
     :param hyper_params:    dictionary of hyper parameters and list values, each
                             hyper param holds a list of values, the run will be

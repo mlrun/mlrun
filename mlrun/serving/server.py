@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+__all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
+
+
 import json
 import os
 import socket
@@ -130,7 +134,7 @@ class GraphServer(ModelObj):
             handler(self)
 
         context.root = self.graph
-        self.graph.init_object(context, namespace, self.load_mode)
+        self.graph.init_object(context, namespace, self.load_mode, reset=True)
         return v2_serving_handler
 
     def test(
@@ -144,10 +148,11 @@ class GraphServer(ModelObj):
     ):
         """invoke a test event into the server to simulate/test server behaviour
 
-        e.g.:
-                server = create_graph_server()
-                server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
-                print(server.test("my/infer", testdata))
+        example::
+
+            server = create_graph_server()
+            server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
+            print(server.test("my/infer", testdata))
 
         :param path:       api path, e.g. (/{router.url_prefix}/{model-name}/..) path
         :param body:       message body (dict or json str/bytes)
@@ -228,13 +233,14 @@ def create_graph_server(
     current_function=None,
     **kwargs,
 ) -> GraphServer:
-    """create serving host/emulator for local or test runs
+    """create graph server host/emulator for local or test runs
 
-        Usage:
-                server = create_graph_server(graph=RouterState(), parameters={})
-                server.init(None, globals())
-                server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
-                print(server.test("/v2/models/my/infer", testdata))
+    Usage example::
+
+        server = create_graph_server(graph=RouterState(), parameters={})
+        server.init(None, globals())
+        server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
+        print(server.test("/v2/models/my/infer", testdata))
     """
     server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
     server.set_current_function(

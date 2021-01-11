@@ -200,7 +200,7 @@ class TestMLRunSystem:
         assert run_outputs["model"] == str(output_path / iterpath / "model.txt")
         assert run_outputs["html_result"] == str(output_path / iterpath / "result.html")
         assert run_outputs["chart"] == str(output_path / iterpath / "chart.html")
-        assert run_outputs["mydf"] == f"store://{project}/{name}_mydf#{uid}"
+        assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf:{uid}"
         if accuracy:
             assert run_outputs["accuracy"] == accuracy
         if loss:

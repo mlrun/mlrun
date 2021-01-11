@@ -104,12 +104,13 @@ def get_model(model_dir, suffix=""):
 
     this function will get the model file, metadata, and extra data
     the returned model file is always local, when using remote urls
-      (such as v3io://, s3://, store://, ..) it will be copied locally.
+    (such as v3io://, s3://, store://, ..) it will be copied locally.
 
     returned extra data dict (of key, DataItem objects) allow reading additional model files/objects
     e.g. use DataItem.get() or .download(target) .as_df() to read
 
-    example:
+    example::
+
         model_file, model_artifact, extra_data = get_model(models_path, suffix='.pkl')
         model = load(open(model_file, "rb"))
         categories = extra_data['categories'].as_df()
@@ -207,7 +208,8 @@ def update_model(
 
     this method will edit or add attributes to a model object
 
-    example:
+    example::
+
         update_model(model_path, metrics={'speed': 100},
                      extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
 

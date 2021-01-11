@@ -45,7 +45,7 @@ def _fix_artifact_tags_duplications(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     # get all artifacts
-    artifacts = db._find_artifacts(db_session, None, '*')
+    artifacts = db._find_artifacts(db_session, None, "*")
     # get all artifact tags
     tags = db._query(db_session, mlrun.api.db.sqldb.models.Artifact.Tag).all()
     # artifact record id -> artifact
@@ -53,7 +53,9 @@ def _fix_artifact_tags_duplications(
     tags_to_delete = []
     projects = {artifact.project for artifact in artifacts}
     for project in projects:
-        artifact_keys = {artifact.key for artifact in artifacts if artifact.project == project}
+        artifact_keys = {
+            artifact.key for artifact in artifacts if artifact.project == project
+        }
         for artifact_key in artifact_keys:
             artifact_key_tags = []
             for tag in tags:
@@ -74,19 +76,25 @@ def _fix_artifact_tags_duplications(
                     if tag.obj_id != last_updated_artifact.id:
                         tags_to_delete.append(tag)
     if tags_to_delete:
-        logger.info('Found duplicated artifact tags. Removing duplications',
-                    tags_to_delete=[tag_to_delete.to_dict() for tag_to_delete in tags_to_delete],
-                    tags=[tag.to_dict() for tag in tags],
-                    artifacts=[artifact.to_dict() for artifact in artifacts])
+        logger.info(
+            "Found duplicated artifact tags. Removing duplications",
+            tags_to_delete=[
+                tag_to_delete.to_dict() for tag_to_delete in tags_to_delete
+            ],
+            tags=[tag.to_dict() for tag in tags],
+            artifacts=[artifact.to_dict() for artifact in artifacts],
+        )
         for tag in tags_to_delete:
             db_session.delete(tag)
         db_session.commit()
 
 
-def _find_last_updated_artifact(artifacts: typing.List[mlrun.api.db.sqldb.models.Artifact]):
+def _find_last_updated_artifact(
+    artifacts: typing.List[mlrun.api.db.sqldb.models.Artifact],
+):
     # sanity
     if not artifacts:
-        raise RuntimeError('No artifacts given')
+        raise RuntimeError("No artifacts given")
     last_updated_artifact = None
     last_updated_artifact_time = datetime.datetime.min
     artifacts_with_same_update_time = []
@@ -98,13 +106,19 @@ def _find_last_updated_artifact(artifacts: typing.List[mlrun.api.db.sqldb.models
         elif artifact.updated == last_updated_artifact_time:
             artifacts_with_same_update_time.append(artifact)
     if len(artifacts_with_same_update_time) > 1:
-        logger.warning("Found several artifact with same update time, heuristically choosing the first",
-                       artifacts=[artifact.to_dict() for artifact in artifacts_with_same_update_time])
+        logger.warning(
+            "Found several artifact with same update time, heuristically choosing the first",
+            artifacts=[
+                artifact.to_dict() for artifact in artifacts_with_same_update_time
+            ],
+        )
         # we don't really need to do anything to choose the first, it's already happening because the first if is >
         # and not >=
     if not last_updated_artifact:
-        logger.warning("No artifact had update time, heuristically choosing the first",
-                       artifacts=[artifact.to_dict() for artifact in artifacts])
+        logger.warning(
+            "No artifact had update time, heuristically choosing the first",
+            artifacts=[artifact.to_dict() for artifact in artifacts],
+        )
         last_updated_artifact = artifacts[0]
 
     return last_updated_artifact

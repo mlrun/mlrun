@@ -183,17 +183,23 @@ def test_data_migration_fix_artifact_tags_duplications(
     artifact_1_body = _generate_artifact(artifact_1_key, artifact_1_uid)
     artifact_1_kind = ChartArtifact.kind
     artifact_1_with_kind_uid = "artifact_1_uid_2"
-    artifact_1_with_kind_body = _generate_artifact(artifact_1_key, artifact_1_with_kind_uid, kind=artifact_1_kind)
+    artifact_1_with_kind_body = _generate_artifact(
+        artifact_1_key, artifact_1_with_kind_uid, kind=artifact_1_kind
+    )
     artifact_2_key = "artifact_key_2"
     artifact_2_uid = "artifact_2_uid_1"
     artifact_2_body = _generate_artifact(artifact_2_key, artifact_2_uid)
     artifact_2_kind = PlotArtifact.kind
     artifact_2_with_kind_uid = "artifact_2_uid_2"
-    artifact_2_with_kind_body = _generate_artifact(artifact_2_key, artifact_2_with_kind_uid, kind=artifact_2_kind)
+    artifact_2_with_kind_body = _generate_artifact(
+        artifact_2_key, artifact_2_with_kind_uid, kind=artifact_2_kind
+    )
     artifact_3_key = "artifact_key_3"
     artifact_3_kind = DatasetArtifact.kind
     artifact_3_with_kind_uid = "artifact_3_uid_1"
-    artifact_3_with_kind_body = _generate_artifact(artifact_3_key, artifact_3_with_kind_uid, kind=artifact_3_kind)
+    artifact_3_with_kind_body = _generate_artifact(
+        artifact_3_key, artifact_3_with_kind_uid, kind=artifact_3_kind
+    )
 
     db.store_artifact(
         db_session, artifact_1_key, artifact_1_body, artifact_1_uid,
@@ -205,7 +211,11 @@ def test_data_migration_fix_artifact_tags_duplications(
         db_session, artifact_2_key, artifact_2_body, artifact_2_uid, tag="not-latest"
     )
     db.store_artifact(
-        db_session, artifact_2_key, artifact_2_with_kind_body, artifact_2_with_kind_uid, tag="not-latest"
+        db_session,
+        artifact_2_key,
+        artifact_2_with_kind_body,
+        artifact_2_with_kind_uid,
+        tag="not-latest",
     )
     db.store_artifact(
         db_session, artifact_3_key, artifact_3_with_kind_body, artifact_3_with_kind_uid
@@ -222,58 +232,72 @@ def test_data_migration_fix_artifact_tags_duplications(
     # 2. read artifact would have succeed when there's only one tag record with the same key (happen when you
     # stored only once)
     artifact = db.read_artifact(db_session, artifact_3_key, tag="latest")
-    assert artifact["metadata"]['uid'] == artifact_3_with_kind_uid
+    assert artifact["metadata"]["uid"] == artifact_3_with_kind_uid
 
     # 3. list artifact without tag would have returned the latest (by update time) of each artifact key
     artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == len([artifact_1_key, artifact_2_key, artifact_3_key])
     assert (
-            deepdiff.DeepDiff(
-                [artifact["metadata"]['uid'] for artifact in artifacts],
-                [artifact_1_with_kind_uid, artifact_2_with_kind_uid, artifact_3_with_kind_uid], ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            [artifact["metadata"]["uid"] for artifact in artifacts],
+            [
+                artifact_1_with_kind_uid,
+                artifact_2_with_kind_uid,
+                artifact_3_with_kind_uid,
+            ],
+            ignore_order=True,
+        )
+        == {}
     )
 
     # 4. list artifact with tag would have returned all of the artifact that at some point were tagged with the given
     # tag
     artifacts = db.list_artifacts(db_session, tag="latest")
-    assert len(artifacts) == len([artifact_1_uid, artifact_1_with_kind_uid, artifact_3_with_kind_uid])
+    assert len(artifacts) == len(
+        [artifact_1_uid, artifact_1_with_kind_uid, artifact_3_with_kind_uid]
+    )
 
     # perform the migration
     mlrun.api.initial_data._fix_artifact_tags_duplications(db, db_session)
 
     # After the migration:
-    # 1. read artifact should succeed (fixed) and return the latest updated record that was tagged with the requested tag
+    # 1. read artifact should succeed (fixed) and return the latest updated record that was tagged with the requested
+    # tag
     artifact = db.read_artifact(db_session, artifact_1_key, tag="latest")
-    assert artifact["metadata"]['uid'] == artifact_1_with_kind_uid
+    assert artifact["metadata"]["uid"] == artifact_1_with_kind_uid
     artifact = db.read_artifact(db_session, artifact_2_key, tag="not-latest")
-    assert artifact["metadata"]['uid'] == artifact_2_with_kind_uid
+    assert artifact["metadata"]["uid"] == artifact_2_with_kind_uid
 
     # 2. read artifact should (still) succeed when there's only one tag record with the same key (happen when you
     # stored only once)
     artifact = db.read_artifact(db_session, artifact_3_key, tag="latest")
-    assert artifact["metadata"]['uid'] == artifact_3_with_kind_uid
+    assert artifact["metadata"]["uid"] == artifact_3_with_kind_uid
 
     # 3. list artifact without tag should (still) return the latest (by update time) of each artifact key
     artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == len([artifact_1_key, artifact_2_key, artifact_3_key])
     assert (
-            deepdiff.DeepDiff(
-                [artifact["metadata"]['uid'] for artifact in artifacts],
-                [artifact_1_with_kind_uid, artifact_2_with_kind_uid, artifact_3_with_kind_uid], ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            [artifact["metadata"]["uid"] for artifact in artifacts],
+            [
+                artifact_1_with_kind_uid,
+                artifact_2_with_kind_uid,
+                artifact_3_with_kind_uid,
+            ],
+            ignore_order=True,
+        )
+        == {}
     )
 
     # 4. list artifact with tag should (fixed) return all of the artifact that are tagged with the given tag
     artifacts = db.list_artifacts(db_session, tag="latest")
     assert (
-            deepdiff.DeepDiff(
-                [artifact["metadata"]['uid'] for artifact in artifacts],
-                [artifact_1_with_kind_uid, artifact_3_with_kind_uid], ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            [artifact["metadata"]["uid"] for artifact in artifacts],
+            [artifact_1_with_kind_uid, artifact_3_with_kind_uid],
+            ignore_order=True,
+        )
+        == {}
     )
 
 
@@ -286,6 +310,6 @@ def _generate_artifact(name, uid=None, kind=None):
     if kind:
         artifact["kind"] = kind
     if uid:
-        artifact['metadata']["uid"] = uid
+        artifact["metadata"]["uid"] = uid
 
     return artifact

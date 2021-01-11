@@ -269,7 +269,7 @@ class K8sHelper:
             if (
                 (kind not in ["spark", "mpijob"])
                 or (p.metadata.labels.get("spark-role", "") == "driver")
-                or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
+                or (p.metadata.labels.get("mpi-job-role", "") == "launcher")
             ):
                 results[p.metadata.name] = p.status.phase
 

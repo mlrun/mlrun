@@ -107,9 +107,9 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     def _generate_pods_selector(name: str, launcher: bool) -> str:
         selector = "mlrun/class=mpijob"
         if name:
-            selector += ",mpi-job-name={}".format(name)
+            selector += ",mpi_job_name={}".format(name)
         if launcher:
-            selector += ",mpi-job-role=launcher"
+            selector += ",mpi_role_type=launcher"
 
         return selector
 

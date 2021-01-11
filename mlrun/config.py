@@ -109,6 +109,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
         },
+        "model_endpoint_monitoring": {"container": "projects"},
     },
     "secret_stores": {
         "vault": {

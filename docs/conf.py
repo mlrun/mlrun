@@ -77,8 +77,9 @@ language = "en"
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 source_suffix = {
-    #    ".md": "markdown",
-    ".rst": "restructuredtext",
+    '.rst': 'restructuredtext',
+    '.ipynb': 'myst-nb',
+    '.myst': 'myst-nb',
 }
 
 

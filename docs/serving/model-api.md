@@ -50,7 +50,7 @@ in the load method we download the model from external store, run the algorithm/
 load will run synchronously (the deploy will be stalled until load completes), 
 this can be an issue for large models and cause a readiness timeout, we can increase the 
 function `spec.readiness_timeout`, or alternatively choose async loading (load () will 
-run in the background) sy setting the function `spec.load_mode = "async"`.  
+run in the background) by setting the function `spec.load_mode = "async"`.  
 
 the function `self.get_model()` downloads the model metadata object and main file (into `model_file` path),
 additional files can be accessed using the returned `extra_data` (dict of dataitem objects).
@@ -144,7 +144,8 @@ the `model` name and `operation` can be encoded inside the message body
 
 ### get server info
 
-    GET / or /v2/health
+    GET /
+    GET /v2/health
 
 response example: `{'name': 'my-server', 'version': 'v2', 'extensions': []}`
 

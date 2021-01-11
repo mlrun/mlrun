@@ -1,4 +1,4 @@
-# Mlrun Serving Graphs
+# MLRun Serving Graphs
 
 ## Overview
 
@@ -75,7 +75,7 @@ which explains how to create/log MLRun models.
 
 #### **Writing your own serving class**
 
-You can implement your own model serving or data processing classes, all you need is to inherit the 
+You can implement your own model serving or data processing classes, all you need to do is inherit the 
 base model serving class and add your implementation for model `load()` (download the model file(s) and load the model into memory) 
 and `predict()` (accept request payload and return prediction/inference results).
 
@@ -192,7 +192,7 @@ and finally, you can deploy the graph as a real-time Nuclio serverless function 
 
 In Some cases we want to split our processing to multiple functions and use 
 streaming protocols to connect those functions, in the following example we do the data 
-processing in the 1st function/container and the NLP processing in the 2nd function 
+processing in the first function/container and the NLP processing in the second function 
 (for example if we need a GPU just for that part).
 
 ```python
@@ -201,8 +201,8 @@ import mlrun
 # create a serving function from source code
 fn = mlrun.code_to_function('nlp-pipeline', filename='./nlp1.py', kind='serving', image='mlrun/mlrun')
 
-queue_stream = 'users/admin/mystream'
-result_stream = 'users/admin/mystream'
+queue_stream = 'projects/default/mystream'
+result_stream = 'projects/default/results'
 
 graph = fn.set_topology("flow", engine="async", exist_ok=True)
 

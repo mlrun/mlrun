@@ -56,8 +56,8 @@ def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     artifact_kind_1 = ChartArtifact.kind
     artifact_name_2 = "artifact_name_2"
     artifact_kind_2 = PlotArtifact.kind
-    artifact_1 = _generate_artifact(artifact_name_1, artifact_kind_1)
-    artifact_2 = _generate_artifact(artifact_name_2, artifact_kind_2)
+    artifact_1 = _generate_artifact(artifact_name_1, kind=artifact_kind_1)
+    artifact_2 = _generate_artifact(artifact_name_2, kind=artifact_kind_2)
     uid = "artifact_uid"
 
     db.store_artifact(
@@ -91,10 +91,10 @@ def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
     artifact_kind_3 = ModelArtifact.kind
     artifact_name_4 = "artifact_name_4"
     artifact_kind_4 = DatasetArtifact.kind
-    artifact_1 = _generate_artifact(artifact_name_1, artifact_kind_1)
-    artifact_2 = _generate_artifact(artifact_name_2, artifact_kind_2)
-    artifact_3 = _generate_artifact(artifact_name_3, artifact_kind_3)
-    artifact_4 = _generate_artifact(artifact_name_4, artifact_kind_4)
+    artifact_1 = _generate_artifact(artifact_name_1, kind=artifact_kind_1)
+    artifact_2 = _generate_artifact(artifact_name_2, kind=artifact_kind_2)
+    artifact_3 = _generate_artifact(artifact_name_3, kind=artifact_kind_3)
+    artifact_4 = _generate_artifact(artifact_name_4, kind=artifact_kind_4)
     uid = "artifact_uid"
 
     db.store_artifact(
@@ -279,11 +279,13 @@ def test_data_migration_fix_artifact_tags_duplications(
 
 def _generate_artifact(name, uid=None, kind=None):
     artifact = {
-        "metadata": {"name": name, "uid": uid},
+        "metadata": {"name": name},
         "kind": kind,
         "status": {"bla": "blabla"},
     }
     if kind:
         artifact["kind"] = kind
+    if uid:
+        artifact['metadata']["uid"] = uid
 
     return artifact

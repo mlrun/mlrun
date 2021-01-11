@@ -7,24 +7,34 @@
 
 <p align="left"><img src="docs/_static/images/MLRun-logo.png" width="150"/></p>
 
-*The fastest way to develop and deploy your AI application today.*
+*The Open-Source MLOps Orchestration Framework.*
 
-**MLRun** is the first end-to-end open-source MLOps solution for managing and automating your entire analytics and machine-learning life cycle, from data ingestion through model development to full pipeline deployment in production.
+**MLRun** offers an integrative approach to manage your machine-learning pipelines from early development through management in your production environment. MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering the Data Engineers and Data Scientists to define the feature and models.
+
 
 <a id="key-benefits"></a>
 #### Key Benefits <!-- omit in toc -->
 
-- Develop your training pipeline on any framework, locally and/or on a cluster.
-- Leverage the power of the open-source functions marketplace to focus on your research.
-- Deploy your pipeline at scale in a single click.
-- Monitor your model performance and automate your actions.
+MLRun provides the following key benefits:
+
+- **Rapid deployment** of code to production pipelines
+- **Elastic scaling** for batch and real-time workloads
+- **Feature management** ingestion, preparation, and monitoring
+- **Works anywhere** in your local IDE, multi-cloud or on-prem
 
 <a id="key-features"></a>
 #### Key Features <!-- omit in toc -->
 
-- **Project life-cycle management** &mdash; experiment management and tracking of jobs, functions, and artifacts.
-- **Scalable functions** &mdash; turn code to scalable microservices in a single command.
-- **Managed pipelines** &mdash; deploy, run, and monitor your machine-learning execution plan.
+MLRun includes the following key features:
+
+- **Feature store** – Define and reuse features with a robust feature store that includes a highly flexible transformation framework.
+- **Elastic serverless runtimes** – Turn your Python code to composable functions, that can run at scale on Kubernetes, Dask and Horovod in a single command.
+- **Function marketplace** – Leverage a function marketplace to accelerate your model development process.
+- **Data ingestion & preparation** – Read and transform data from batch and online data stores.
+- **Model training & testing** – Train models at scale with automated testing functions.
+- **Real-time Data & model Pipeline** – Deploy real-time pipelines for data collection, model serving and monitoring.
+- **Data & model Monitoring** – Automate model monitoring and drift detection.
+- **Central data & metadata management** – Log all data, models and artifacts and track all code execution.
 
 MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), and a graphical user interface (the MLRun dashboard).
 

@@ -28,6 +28,17 @@ from .feature_store import (
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
+from .model_endpoints import (
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpoint,
+    ModelEndpointStateList,
+    ModelEndpointState,
+    Features,
+    FeatureValues,
+    Histogram,
+    Metric,
+)
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
 from .pipeline import PipelinesPagination, PipelinesOutput
 from .project import (

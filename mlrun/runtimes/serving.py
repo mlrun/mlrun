@@ -159,6 +159,8 @@ class ServingSpec(NuclioSpec):
 
 
 class ServingRuntime(RemoteRuntime):
+    """MLRun Serving Runtime"""
+
     kind = "serving"
 
     @property
@@ -174,11 +176,13 @@ class ServingRuntime(RemoteRuntime):
     ) -> Union[RootFlowState, RouterState]:
         """set the serving graph topology (router/flow) and root class or params
 
-        e.g.:
+        example::
+
             graph = fn.set_topology("flow", engine="async")
             graph.to("MyClass").to(name="to_json", handler="json.dumps").respond()
 
-        topology can be:
+        topology options are::
+
           router - root router + multiple child route states/models
                    route is usually determined by the path (route key/name)
                    can specify special router class and router arguments
@@ -231,7 +235,7 @@ class ServingRuntime(RemoteRuntime):
     ):
         """add ml model and/or route to the function.
 
-        Example, create a function (from the notebook), add a model class, and deploy:
+        Example, create a function (from the notebook), add a model class, and deploy::
 
             fn = code_to_function(kind='serving')
             fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
@@ -280,14 +284,15 @@ class ServingRuntime(RemoteRuntime):
     ):
         """in a multi-function pipeline add child function
 
-        example:
+        example::
+
             fn.add_child_function('enrich', './enrich.ipynb', 'mlrun/mlrun')
 
-        :param name:   - child function name
-        :param url:    - function/code url, support .py, .ipynb, .yaml extensions
-        :param image:  - base docker image for the function
-        :param requirements - py package requirements file path OR list of packages
-        :param kind:   - mlrun function/runtime kind
+        :param name:   child function name
+        :param url:    function/code url, support .py, .ipynb, .yaml extensions
+        :param image:  base docker image for the function
+        :param requirements: py package requirements file path OR list of packages
+        :param kind:   mlrun function/runtime kind
 
         :return function object
         """

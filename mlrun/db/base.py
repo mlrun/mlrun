@@ -118,8 +118,9 @@ class RunDBInterface(ABC):
     def delete_project(self, name: str):
         pass
 
+    @abstractmethod
     def list_projects(self):
-        return []
+        pass
 
     @abstractmethod
     def list_artifact_tags(self, project=None):

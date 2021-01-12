@@ -670,6 +670,9 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
+    def list_projects(self):
+        raise NotImplementedError()
+
     @staticmethod
     def _validate_version_compatibility(server_version, client_version):
         try:

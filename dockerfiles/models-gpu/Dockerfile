@@ -125,7 +125,7 @@ RUN conda install -n base -c rapidsai -c nvidia \
 
 RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip~=20.2.0
 
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)

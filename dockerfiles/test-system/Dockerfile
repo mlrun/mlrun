@@ -17,7 +17,7 @@ FROM python:${MLRUN_PYTHON_VERSION}
 
 ENV PIP_NO_CACHE_DIR=1
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip~=20.2.0
 
 COPY . /tmp/mlrun
 RUN pip install --upgrade pytest

@@ -12,33 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.featurestore.model import FeatureSet, FeatureVector, Entity, Feature, ValueType
+from mlrun.featurestore.model import (
+    FeatureSet,
+    FeatureVector,
+    Entity,
+    Feature,
+    ValueType,
+)
 from mlrun.featurestore.common import _parse_feature_string
 
 
 def test_feature_set():
     myset = FeatureSet("set1", entities=[Entity("key")])
-    myset['f1'] = Feature(ValueType.INT64, description='my f1')
+    myset["f1"] = Feature(ValueType.INT64, description="my f1")
 
-    assert list(myset.spec.entities.keys()) == ['key'], 'index wasnt set'
-    assert list(myset.spec.features.keys()) == ['f1'], 'feature wasnt set'
+    assert list(myset.spec.entities.keys()) == ["key"], "index wasnt set"
+    assert list(myset.spec.features.keys()) == ["f1"], "feature wasnt set"
 
 
 def test_features_parser():
     cases = [
-        {'feature': 'set1', 'result': None, 'error': True},
-        {'feature': 'set1 as x', 'result': None, 'error': True},
-        {'feature': 'set1#f1', 'result': ('set1', 'f1', None)},
-        {'feature': 'proj/set1#f1', 'result': ('proj/set1', 'f1', None)},
-        {'feature': 'set1# f1', 'result': ('set1', 'f1', None)},
-        {'feature': 'set1 # f1 ', 'result': ('set1', 'f1', None)},
-        {'feature': 'set1#*', 'result': ('set1', '*', None)},
-        {'feature': 'set1#f2 as x', 'result': ('set1', 'f2', 'x')},
+        {"feature": "set1", "result": None, "error": True},
+        {"feature": "set1 as x", "result": None, "error": True},
+        {"feature": "set1#f1", "result": ("set1", "f1", None)},
+        {"feature": "proj/set1#f1", "result": ("proj/set1", "f1", None)},
+        {"feature": "set1# f1", "result": ("set1", "f1", None)},
+        {"feature": "set1 # f1 ", "result": ("set1", "f1", None)},
+        {"feature": "set1#*", "result": ("set1", "*", None)},
+        {"feature": "set1#f2 as x", "result": ("set1", "f2", "x")},
     ]
     for case in cases:
         try:
-            result = _parse_feature_string(case['feature'])
+            result = _parse_feature_string(case["feature"])
         except Exception as e:
-            assert case.get('error', False), f'got unexpected error {e}'
+            assert case.get("error", False), f"got unexpected error {e}"
             continue
-        assert result == case['result']
+        assert result == case["result"]

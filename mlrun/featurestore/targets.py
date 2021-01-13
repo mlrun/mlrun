@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Dict
+
 from mlrun.utils import now_date
 
 from mlrun.run import get_dataitem
@@ -43,7 +45,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     table = None
 
     for target in targets:
-        driver = kind_to_driver[target.kind](resource, target)
+        driver = get_target_driver(target.kind, target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
         driver.add_writer_state(
@@ -55,7 +57,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
         )
     if to_df:
         # add dataframe target, will return a dataframe
-        driver = DFStore(resource)
+        driver = DFTarget(resource)
         driver.add_writer_state(
             graph,
             final_state,
@@ -76,8 +78,8 @@ def get_offline_target(featureset, start_time=None, name=None):
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_offline and (not name or name == target.name):
-            return target, driver(featureset, target)
-    return None, None
+            return get_target_driver(target.kind, target, featureset)
+    return None
 
 
 def get_online_target(featureset):
@@ -85,20 +87,49 @@ def get_online_target(featureset):
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_online:
-            return target, driver(featureset, target)
-    return None, None
+            return get_target_driver(target.kind, target, featureset)
+    return None
 
 
-class BaseStoreDriver:
+def get_target_driver(kind, target_spec, resource=None):
+    driver_class = kind_to_driver[kind]
+    return driver_class.from_spec(target_spec, resource)
+
+
+class BaseStoreTarget(DataTargetSpec):
     """base target storage driver, used to materialize feature set/vector data"""
 
-    kind = None
+    kind = ""
     is_table = False
     suffix = ""
     is_online = False
     is_offline = False
 
-    def __init__(self, resource, target_spec: DataTargetSpec):
+    def __init__(
+        self,
+        name: str = "",
+        path=None,
+        attributes: Dict[str, str] = None,
+        after_state=None,
+    ):
+        self.name = name
+        self.path = path
+        self.after_state = after_state
+        self.attributes = attributes or {}
+
+        self._target = None
+        self._resource = None
+
+    @classmethod
+    def from_spec(cls, spec: DataTargetSpec, resource=None):
+        driver = cls()
+        driver.name = spec.name
+        driver.path = spec.path
+        driver.attributes = spec.attributes
+        driver._resource = resource
+        return driver
+
+    def xx(self, resource, target_spec: DataTargetSpec):
         self.name = target_spec.name
         self.target_path = target_spec.path or _get_target_path(self, resource)
         self.attributes = target_spec.attributes
@@ -109,13 +140,18 @@ class BaseStoreDriver:
         """get storey Table object"""
         return None
 
+    @property
+    def _target_path(self):
+        return self.path or _get_target_path(self, self._resource)
+
     def update_resource_status(self, status="", producer=None):
         """update the data target status"""
-        self.target = self.target or DataTarget(self.kind, self.name, self.target_path)
-        self.target.status = status or self.target.status or "created"
-        self.target.updated = now_date().isoformat()
-        self.target.producer = producer or self.target.producer
-        self.resource.status.update_target(self.target)
+        self._target = self._target or DataTarget(self.kind, self.name, self._target_path)
+        target = self._target
+        target.status = status or target.status or "created"
+        target.updated = now_date().isoformat()
+        target.producer = producer or target.producer
+        self._resource.status.update_target(target)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -125,12 +161,12 @@ class BaseStoreDriver:
 
     def as_df(self, columns=None, df_module=None):
         """return the target data as dataframe"""
-        return get_dataitem(self.target_path).as_df(
+        return get_dataitem(self._target_path).as_df(
             columns=columns, df_module=df_module
         )
 
 
-class ParquetStore(BaseStoreDriver):
+class ParquetTarget(BaseStoreTarget):
     kind = TargetTypes.parquet
     suffix = ".parquet"
     is_offline = True
@@ -147,13 +183,13 @@ class ParquetStore(BaseStoreDriver):
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToParquet",
-            path=self.target_path,
+            path=self._target_path,
             columns=column_list,
             index_cols=key_column,
         )
 
 
-class CSVStore(BaseStoreDriver):
+class CSVTarget(BaseStoreTarget):
     kind = TargetTypes.csv
     suffix = ".csv"
     is_offline = True
@@ -170,36 +206,29 @@ class CSVStore(BaseStoreDriver):
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToCSV",
-            path=self.target_path,
+            path=self._target_path,
             columns=column_list,
             header=True,
             index_cols=key_column,
         )
 
 
-class NoSqlStore(BaseStoreDriver):
+class NoSqlTarget(BaseStoreTarget):
     kind = TargetTypes.nosql
     is_table = True
     is_online = True
-
-    def __init__(self, resource, target_spec: DataTargetSpec):
-        self.name = target_spec.name
-        self.target_path = target_spec.path or _get_target_path(self, resource)
-        self.resource = resource
-        self.attributes = target_spec.attributes
-        self.target = None
 
     def get_table_object(self):
         from storey import Table, V3ioDriver
 
         # TODO use options/cred
-        endpoint, uri = parse_v3io_path(self.target_path)
+        endpoint, uri = parse_v3io_path(self._target_path)
         return Table(uri, V3ioDriver(webapi=endpoint))
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
-        table = self.resource.uri()
+        table = self._resource.uri()
         column_list = [
             key for key, feature in features.items() if not feature.aggregate
         ]
@@ -216,10 +245,9 @@ class NoSqlStore(BaseStoreDriver):
         raise NotImplementedError()
 
 
-class DFStore(BaseStoreDriver):
+class DFTarget(BaseStoreTarget):
     def __init__(self, resource, target_spec: DataTargetSpec = None):
         self.name = "dataframe"
-        self.target = None
         self._df = None
 
     def set_df(self, df):
@@ -247,10 +275,10 @@ class DFStore(BaseStoreDriver):
 
 
 kind_to_driver = {
-    TargetTypes.parquet: ParquetStore,
-    TargetTypes.csv: CSVStore,
-    TargetTypes.nosql: NoSqlStore,
-    TargetTypes.dataframe: DFStore,
+    TargetTypes.parquet: ParquetTarget,
+    TargetTypes.csv: CSVTarget,
+    TargetTypes.nosql: NoSqlTarget,
+    TargetTypes.dataframe: DFTarget,
 }
 
 

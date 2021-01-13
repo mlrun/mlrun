@@ -3,17 +3,18 @@ import os
 import mlrun
 import pandas as pd
 
-from mlrun.featurestore.ingestion import run_ingestion_function
 from mlrun.featurestore.model.base import DataSource, DataTargetSpec
+from mlrun.featurestore.sources import CSVSource
 from mlrun.featurestore.steps import FeaturesetValidator
 
 from data_sample import quotes, stocks, trades
 from storey import MapClass
 
+from mlrun.featurestore.targets import CSVTarget
 from mlrun.utils import logger
 import mlrun.featurestore as fs
 from mlrun.config import config as mlconf
-from mlrun.featurestore import FeatureSet, Entity
+from mlrun.featurestore import FeatureSet, Entity, run_ingestion_task
 from mlrun.featurestore.model.datatypes import ValueType
 from mlrun.featurestore.model.validators import MinMaxValidator
 
@@ -139,7 +140,16 @@ def test_serverless_ingest():
         options=fs.InferOptions.default(),
     )
     print(df.head(5))
-    source = DataSource("csv", "csv", path="measurements1.csv")
-    run_ingestion_function(
-        measurements, source, [DataTargetSpec("csv", "mycsv", path="./mycsv.csv")]
+    source = CSVSource("mycsv", path="measurements1.csv")
+    targets = [CSVTarget("mycsv", path="./mycsv.csv")]
+
+    run_ingestion_task(
+        measurements,
+        source,
+        targets,
+        name="tst_ingest",
+        infer_options=fs.InferOptions.Null,
+        parameters={},
+        function=None,
+        local=True,
     )

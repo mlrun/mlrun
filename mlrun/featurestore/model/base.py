@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from mlrun.model import ModelObj
 from .datatypes import ValueType
@@ -102,13 +102,15 @@ class Feature(ModelObj):
         aggregate=None,
         name=None,
         validator=None,
+        default=None,
+        labels: Dict[str, str] = None,
     ):
         self.name = name or ""
         self.value_type: ValueType = value_type or ""
         self.shape = None
         self.description = description
-        self.default = None
-        self.labels = {}
+        self.default = default
+        self.labels = labels or {}
         self.aggregate = aggregate
         self._validator = validator
 
@@ -125,12 +127,12 @@ class Feature(ModelObj):
 
 
 class FeatureSetProducer(ModelObj):
-    def __init__(self, kind=None, name=None, uri=None, owner=None):
+    def __init__(self, kind=None, name=None, uri=None, owner=None, sources=None):
         self.kind = kind
         self.name = name
         self.owner = owner
         self.uri = uri
-        self.sources = {}
+        self.sources = sources or {}
 
 
 class SourceTypes:
@@ -142,21 +144,18 @@ class DataTargetSpec(ModelObj):
     _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
 
     def __init__(
-        self, kind: TargetTypes = None, name: str = "", path=None, after_state=None
+        self,
+        kind: TargetTypes = None,
+        name: str = "",
+        path=None,
+        attributes: Dict[str, str] = None,
+        after_state=None,
     ):
         self.name = name
         self.kind: TargetTypes = kind
         self.path = path
         self.after_state = after_state
-        self.attributes = None
-        self._table = None
-
-    def set_table(self, table):
-        self._table = table
-
-    @property
-    def table(self):
-        return self._table
+        self.attributes = attributes or {}
 
 
 class DataTarget(DataTargetSpec):
@@ -165,7 +164,7 @@ class DataTarget(DataTargetSpec):
     def __init__(
         self, kind: TargetTypes = None, name: str = "", path=None, online=None
     ):
-        super().__init__(name, kind, path)
+        super().__init__(kind, name, path)
         self.status = ""
         self.updated = None
         self.online = online
@@ -185,24 +184,37 @@ class DataTarget(DataTargetSpec):
 
 class DataSource(ModelObj):
     _dict_fields = [
-        "name",
         "kind",
+        "name",
         "path",
         "attributes",
+        "key_column",
+        "time_column",
+        "schedule",
         "online",
         "workers",
         "max_age",
     ]
+    kind = ""
 
     def __init__(
-        self, name: str = "", kind: TargetTypes = None, path=None, online=None
+        self,
+        name: str = "",
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_column: str = None,
+        time_column: str = None,
+        schedule: str = None,
     ):
         self.name = name
-        self.online = online
-        self.kind: SourceTypes = kind
         self.path = path
+        self.attributes = attributes
+        self.schedule = schedule
+        self.key_column = key_column
+        self.time_column = time_column
+
+        self.online = None
         self.max_age = None
-        self.attributes = None
         self.workers = None
 
 
@@ -220,12 +232,12 @@ class FeatureAggregation(ModelObj):
 class CommonMetadata(ModelObj):
     def __init__(
         self,
-        name=None,
-        tag=None,
-        hash=None,
-        project=None,
-        labels=None,
-        annotations=None,
+        name: str = None,
+        tag: str = None,
+        hash: str = None,
+        project: str = None,
+        labels: Dict[str, str] = None,
+        annotations: Dict[str, str] = None,
         updated=None,
     ):
         self.name = name

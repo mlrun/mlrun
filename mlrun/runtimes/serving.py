@@ -392,6 +392,7 @@ class ServingRuntime(RemoteRuntime):
             graph=self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
+            graph_initializer=self.spec.graph_initializer,
             **kwargs,
         )
         server.init(None, namespace or get_caller_globals(), logger=logger)

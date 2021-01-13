@@ -112,7 +112,7 @@ def get_df_stats(df, options, num_bins=default_num_bins):
     """get per column data stats from dataframe"""
 
     results_dict = {}
-    if options & InferOptions.Index:
+    if (options & InferOptions.Index) and df.index.name:
         df = df.reset_index()
     for col, values in df.describe(
         include="all", percentiles=[], datetime_is_numeric=True

@@ -63,7 +63,7 @@ def init_feature_vector_graph(vector):
 
     cache = ResourceCache()
     for featureset in feature_set_objects.values():
-        target, driver = get_online_target(featureset)
+        driver = get_online_target(featureset)
         cache.cache_table(featureset.uri(), driver.get_table_object())
     server.init(None, None, cache)
     return graph._controller

@@ -57,7 +57,6 @@ class FeatureSetSpec(ModelObj):
         graph=None,
         function=None,
         analysis=None,
-        processing_engine=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -79,7 +78,6 @@ class FeatureSetSpec(ModelObj):
         self.label_column = label_column
         self.function = function
         self.analysis = analysis or {}
-        self.processing_engine = processing_engine
 
     @property
     def entities(self) -> List[Entity]:
@@ -121,7 +119,7 @@ class FeatureSetSpec(ModelObj):
     @property
     def function(self) -> FunctionReference:
         """reference to template graph processing function"""
-        return self._spec
+        return self._function
 
     @function.setter
     def function(self, function):
@@ -147,7 +145,7 @@ class FeatureSetStatus(ModelObj):
         targets=None,
         stats=None,
         preview=None,
-        runtime=None,
+        function_uri=None,
         run_uri=None,
     ):
         self.state = state or "created"
@@ -155,7 +153,7 @@ class FeatureSetStatus(ModelObj):
         self.targets = targets or []
         self.stats = stats or {}
         self.preview = preview or []
-        self.runtime = runtime
+        self.function_uri = function_uri
         self.run_uri = run_uri
 
     @property
@@ -221,7 +219,7 @@ class FeatureSet(ModelObj):
         return uri
 
     def get_target_path(self, name=None):
-        target, _ = get_offline_target(self, name=name)
+        target = get_offline_target(self, name=name)
         if target:
             return target.path
 
@@ -269,17 +267,18 @@ class FeatureSet(ModelObj):
     ):
         """add feature aggregation rule
 
-        example:
-                myset.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
+        example::
 
-        :param name:       - aggregation name/prefix
-        :param column:     - name of column/field aggregate
-        :param operations: - aggregation operations, e.g. ['sum', 'std']
-        :param windows:    - list of time windows, e.g. ['1h', '6h', '1d']
-        :param period:     - optional, sliding window granularity, e.g. '10m'
-        :param state_name: - optional, graph state name
-        :param after:      - optional, after which graph state it runs
-        :param before:     - optional, comes before graph state
+            myset.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
+
+        :param name:       aggregation name/prefix
+        :param column:     name of column/field aggregate
+        :param operations: aggregation operations, e.g. ['sum', 'std']
+        :param windows:    list of time windows, e.g. ['1h', '6h', '1d']
+        :param period:     optional, sliding window granularity, e.g. '10m'
+        :param state_name: optional, graph state name
+        :param after:      optional, after which graph state it runs
+        :param before:     optional, comes before graph state
         """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -345,8 +344,8 @@ class FeatureSet(ModelObj):
             if self.spec.timestamp_key:
                 columns = [self.spec.timestamp_key] + columns
             columns = list(self.spec.entities.keys()) + columns
-        target, driver = get_offline_target(self, name=target_name)
-        if not target:
+        driver = get_offline_target(self, name=target_name)
+        if not driver:
             raise FeatureStoreError("there are no offline targets for this feature set")
         return driver.as_df(columns=columns, df_module=df_module)
 

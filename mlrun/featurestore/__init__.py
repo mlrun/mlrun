@@ -12,10 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+__all__ = [
+    "get_offline_features",
+    "get_online_feature_service",
+    "ingest",
+    "infer_metadata",
+    "run_ingestion_task",
+    "Feature",
+    "Entity",
+    "FeatureSet",
+    "FeatureVector",
+]
+
+
 from .model import FeatureSet, FeatureVector  # noqa
 from .model.base import Feature, Entity, store_config, ValueType  # noqa
 from .steps import FeaturesetValidator  # noqa
 from .model.validators import MinMaxValidator  # noqa
-from .api import *  # noqa
+from .api import (
+    get_offline_features,
+    get_online_feature_service,
+    ingest,
+    infer_metadata,
+    run_ingestion_task,
+)  # noqa
 from .targets import TargetTypes  # noqa
 from .infer import InferOptions  # noqa

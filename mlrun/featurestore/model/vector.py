@@ -184,14 +184,14 @@ class FeatureVector(ModelObj):
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
 
     def get_target_path(self, name=None):
-        target, _ = get_offline_target(self, name=name)
+        target = get_offline_target(self, name=name)
         if target:
             return target.path
 
     def to_dataframe(self, df_module=None, target_name=None):
         """return feature vector (offline) data as dataframe"""
-        target, driver = get_offline_target(self, name=target_name)
-        if not target:
+        driver = get_offline_target(self, name=target_name)
+        if not driver:
             raise FeatureStoreError(
                 "there are no offline targets for this feature vector"
             )

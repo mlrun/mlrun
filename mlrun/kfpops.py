@@ -205,7 +205,7 @@ def mlrun_op(
                     command = '/User/kubeflow/training.py',
                     params = {'p1':p1, 'p2':p2},
                     outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
+                    out_path ='v3io:///projects/my-proj/mlrun/{{workflow.uid}}/',
                     rundb = '/User/kubeflow')
 
     # use data from the first step
@@ -213,7 +213,7 @@ def mlrun_op(
         return mlrun_op('validation',
                     command = '/User/kubeflow/validation.py',
                     inputs = {'model.txt':modelfile},
-                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
+                    out_path ='v3io:///projects/my-proj/{{workflow.uid}}/',
                     rundb = '/User/kubeflow')
 
     @dsl.pipeline(

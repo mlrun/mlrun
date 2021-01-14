@@ -1,7 +1,5 @@
 import os
 import pytest
-
-import mlrun
 import pandas as pd
 from tests.conftest import results, tests_root_directory
 
@@ -69,9 +67,11 @@ def test_advanced_featureset():
     quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
 
     flow = quotes_set.graph
-    flow.to("MyMap", multiplier=3).to("storey.Extend", _fn="({'z': event['bid'] * 77})").to(
-        "storey.Filter", "filter", _fn="(event['bid'] > 51.92)"
-    ).to(FeaturesetValidator())
+    flow.to("MyMap", multiplier=3).to(
+        "storey.Extend", _fn="({'z': event['bid'] * 77})"
+    ).to("storey.Filter", "filter", _fn="(event['bid'] > 51.92)").to(
+        FeaturesetValidator()
+    )
 
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
     quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
@@ -108,10 +108,16 @@ def test_realtime_query():
         features, entity_rows=trades, entity_timestamp_column="time"
     )
     vector = resp.vector
-    assert len(vector.spec.features) == len(features), "unexpected num of requested features"
+    assert len(vector.spec.features) == len(
+        features
+    ), "unexpected num of requested features"
     # stocks (*) returns 2 features
-    assert len(vector.status.features) == len(features) + 1, "unexpected num of returned features"
-    assert len(vector.status.stats) == len(features) + 1, "unexpected num of feature stats"
+    assert (
+        len(vector.status.features) == len(features) + 1
+    ), "unexpected num of returned features"
+    assert (
+        len(vector.status.stats) == len(features) + 1
+    ), "unexpected num of feature stats"
 
     df = resp.to_dataframe()
     columns = trades.shape[1] + len(features) + 1
@@ -125,7 +131,9 @@ def test_realtime_query():
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
     print(resp)
     resp = svc.get([{"ticker": "AAPL"}])
-    assert resp[0]["ticker"] == "AAPL" and resp[0]["exchange"] == "NASDAQ", "unexpected online result"
+    assert (
+        resp[0]["ticker"] == "AAPL" and resp[0]["exchange"] == "NASDAQ"
+    ), "unexpected online result"
     svc.close()
 
 

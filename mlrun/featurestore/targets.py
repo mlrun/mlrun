@@ -143,7 +143,9 @@ class BaseStoreTarget(DataTargetSpec):
 
     def update_resource_status(self, status="", producer=None):
         """update the data target status"""
-        self._target = self._target or DataTarget(self.kind, self.name, self._target_path)
+        self._target = self._target or DataTarget(
+            self.kind, self.name, self._target_path
+        )
         target = self._target
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()

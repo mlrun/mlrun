@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 
 from mlrun.model import ModelObj
 from .datatypes import ValueType

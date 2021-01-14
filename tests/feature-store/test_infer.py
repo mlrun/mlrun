@@ -1,5 +1,5 @@
 from mlrun.featurestore.infer import infer_from_df, InferOptions
-from tests.conftest import results, tests_root_directory
+from tests.conftest import tests_root_directory
 import pandas as pd
 import mlrun.featurestore as fs
 

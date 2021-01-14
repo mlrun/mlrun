@@ -14,7 +14,6 @@
 
 from mlrun.featurestore.model import (
     FeatureSet,
-    FeatureVector,
     Entity,
     Feature,
     ValueType,

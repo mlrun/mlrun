@@ -18,6 +18,7 @@ from ..config import config
 
 feature_separator = "."
 
+
 def parse_features(vector):
     """parse and validate feature list (from vector) and add metadata from feature sets """
     processed_features = {}  # dict of name to (featureset, feature object)

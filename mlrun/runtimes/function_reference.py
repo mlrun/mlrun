@@ -100,7 +100,9 @@ class FunctionReference(ModelObj):
         elif self.code is not None:
             code = self.code
             if kind == mlrun.runtimes.RuntimeKinds.serving:
-                code = code + mlrun_footer.format(serving_subkind)
+                code = code + mlrun_footer.format(
+                    mlrun.runtimes.serving.serving_subkind
+                )
             func = mlrun.new_function(self.name, kind=kind, image=self.image)
             data = b64encode(code.encode("utf-8")).decode("utf-8")
             func.spec.build.functionSourceCode = data

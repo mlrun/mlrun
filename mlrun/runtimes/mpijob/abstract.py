@@ -31,7 +31,7 @@ class MPIResourceSpec(KubeResourceSpec):
     def __init__(
         self,
         command=None,
-        py_args=None,
+        args=None,
         mpi_args=None,
         image=None,
         mode=None,
@@ -66,6 +66,7 @@ class MPIResourceSpec(KubeResourceSpec):
             image_pull_policy=image_pull_policy,
             service_account=service_account,
             image_pull_secret=image_pull_secret,
+            args=args,
         )
 
         self.py_args = py_args or []
@@ -370,36 +371,45 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def set_mpi_args(self, args: typing.List[str]) -> None:
         """Sets the runtime's mpi arguments to args.
-            * This will replace existing args.
 
         Parameters
         ----------
         args : typing.List[str]
             Arguments to be used for the mpi-operator
-        """
-        self.spec.mpi_args = args
-
-    def add_mpi_arg(self, arg: typing.Union[str, typing.List[str]]) -> None:
-        """Adds an mpi argument to the runtime.
-
-        Parameters
-        ----------
-        arg : typing.Union[str, typing.List[str]]
-            The MPI argument to be added to the runtime.
-            Could be given as an str, ex: `add_mpi_arg('--allow-run-as-root')`
-            Or as a List, ex: `add_mpi_arg(['-x', 'NCCL_DEBUG=INFO'])`
 
         Raises
         ------
         ValueError
-            Only a list or str is allowed.
+            args is of type `List[str]` and can only accept `str` parameters.
+
+        Example
+        -------
+        ```
+        # Define the wanted MPI arguments
+        mpi_args = []
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_DEBUG=INFO')
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_SOCKET_NTHREADS=2')
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_NSOCKS_PERTHREAD=8')
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_MIN_NCHANNELS=4')
+
+        # Set the MPI arguments in the function
+        fn.set_mpi_args(mpi_args)
+        ```
+
+        Notes
+        -----
+        * This will replace existing args.
+
         """
-        if type(arg) is str:
-            self.spec.mpi_args.append(arg)
-        elif type(arg) is list:
-            for argument in arg:
-                self.spec.mpi_args.append(argument)
-        else:
+
+        # Verify that we are given only strings
+        if not all([isinstance(arg, str) for arg in args]):
             raise ValueError(
-                f"`arg` can only accept `str` or `List[str]`, not {arg}"
+                "Args is of type `List[str]` and can only accept `str` type params."
             )
+
+        self.spec.mpi_args = args

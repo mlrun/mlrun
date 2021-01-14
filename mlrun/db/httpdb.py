@@ -765,7 +765,7 @@ class HTTPRunDB(RunDBInterface):
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    ) -> FeatureSet:
         project = project or default_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
@@ -820,7 +820,7 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> List[dict]:
+    ) -> List[FeatureSet]:
         project = project or default_project
         params = {
             "name": name,
@@ -839,7 +839,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error_message, params=params)
         feature_sets = resp.json()["feature_sets"]
         if feature_sets:
-            [FeatureSet.from_dict(obj) for obj in feature_sets]
+            return [FeatureSet.from_dict(obj) for obj in feature_sets]
 
     def store_feature_set(
         self,
@@ -925,7 +925,7 @@ class HTTPRunDB(RunDBInterface):
 
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    ) -> FeatureVector:
         project = project or default_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
@@ -940,7 +940,7 @@ class HTTPRunDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-    ) -> List[dict]:
+    ) -> List[FeatureVector]:
         project = project or default_project
         params = {
             "name": name,
@@ -957,7 +957,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error_message, params=params)
         feature_vectors = resp.json()["feature_vectors"]
         if feature_vectors:
-            [FeatureVector.from_dict(obj) for obj in feature_vectors]
+            return [FeatureVector.from_dict(obj) for obj in feature_vectors]
 
     def store_feature_vector(
         self,

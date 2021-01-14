@@ -1,4 +1,6 @@
 import os
+
+import mlrun
 import pytest
 import pandas as pd
 from tests.conftest import results, tests_root_directory
@@ -135,6 +137,25 @@ def test_realtime_query():
         resp[0]["ticker"] == "AAPL" and resp[0]["exchange"] == "NASDAQ"
     ), "unexpected online result"
     svc.close()
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_feature_set_db():
+    init_store()
+
+    name = "stocks_test"
+    stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
+    fs.infer_metadata(
+        stocks_set, stocks,
+    )
+    stocks_set.save()
+    db = mlrun.get_run_db()
+
+    sets = db.list_feature_sets('', name)
+    assert len(sets) == 1, "bad number of results"
+
+    feature_set = db.get_feature_set(name)
+    assert feature_set.metadata.name == name, "bas feature set response"
 
 
 @pytest.mark.skipif(not has_db(), reason="no db access")

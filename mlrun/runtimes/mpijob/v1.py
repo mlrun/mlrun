@@ -79,7 +79,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             self._update_container(
                 launcher_pod_template,
                 "command",
-                ["mpirun", *quoted_mpi_args, "python", shlex.quote(self.spec.command),]
+                ["mpirun", *quoted_mpi_args, "python", shlex.quote(self.spec.command)]
                 + quoted_args,
             )
 

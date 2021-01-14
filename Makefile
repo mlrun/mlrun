@@ -462,3 +462,25 @@ fmt-check: ## Format and check the code (using black)
 flake8: ## Run flake8 lint
 	@echo "Running flake8 lint..."
 	python -m flake8 .
+
+.PHONY: release
+release: ## Release a version
+ifndef MLRUN_VERSION
+	$(error MLRUN_VERSION is undefined)
+endif
+	TAG_SUFFIX=$$(echo $${MLRUN_VERSION%.*}.x); \
+	BRANCH_NAME=$$(echo release/$$TAG_SUFFIX-latest); \
+	git fetch origin $$BRANCH_NAME || EXIT_CODE=$$?; \
+	echo $$EXIT_CODE; \
+	if [ "$$EXIT_CODE" = "" ]; \
+		then \
+			echo "Branch $$BRANCH_NAME exists. Adding changes"; \
+			git checkout $$BRANCH_NAME; \
+			git checkout $(MLRUN_TAG) .; \
+			git add -A; \
+		else \
+			echo "Creating new branch: $$BRANCH_NAME"; \
+			git checkout --orphan $$BRANCH_NAME; \
+	fi; \
+	git commit -m "Adding $(MLRUN_TAG) tag contents"; \
+	git push origin $$BRANCH_NAME

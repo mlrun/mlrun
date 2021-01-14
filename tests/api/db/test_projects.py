@@ -152,7 +152,7 @@ def test_data_migration_fill_project_state(
     # verify not storing for no reason
     db.store_project = unittest.mock.Mock()
     mlrun.api.initial_data._fill_project_state(db, db_session)
-    db.store_project.call_count == 0
+    assert db.store_project.call_count == 0
 
 
 def _generate_and_insert_pre_060_record(

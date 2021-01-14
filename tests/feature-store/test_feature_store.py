@@ -151,7 +151,7 @@ def test_feature_set_db():
     stocks_set.save()
     db = mlrun.get_run_db()
 
-    sets = db.list_feature_sets('', name)
+    sets = db.list_feature_sets("", name)
     assert len(sets) == 1, "bad number of results"
 
     feature_set = db.get_feature_set(name)

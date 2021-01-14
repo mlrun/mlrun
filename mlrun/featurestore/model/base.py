@@ -63,6 +63,13 @@ class FeatureStoreConfig:
     def __setattr__(self, attr, value):
         self._config[attr] = value
 
+    def __dir__(self):
+        return list(self._config) + dir(self.__class__)
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        return f"{name}({self._config!r})"
+
 
 store_config = FeatureStoreConfig(copy.deepcopy(default_config))
 

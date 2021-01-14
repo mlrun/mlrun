@@ -95,10 +95,11 @@ def deploy_ingestion_function(
     if function_ref.kind == RuntimeKinds.serving:
         function_ref.code = function_ref.code or ""
     elif function_ref.kind == RuntimeKinds.spark:
-        function_ref.code = _default_spark_handler
+        function_ref.code = function_ref.code or _default_spark_handler
         # todo: use spark specific image
     else:
-        function_ref.code = _default_job_handler
+        function_ref.code = function_ref.code or _default_job_handler
+
     function_ref.image = function_ref.image or "mlrun/mlrun"
     function = function_ref.to_function()
     function.metadata.project = featureset.metadata.project

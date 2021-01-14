@@ -69,7 +69,6 @@ class MPIResourceSpec(KubeResourceSpec):
             args=args,
         )
 
-        self.py_args = py_args or []
         self.mpi_args = mpi_args or []
 
 

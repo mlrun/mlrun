@@ -16,6 +16,7 @@ import mlrun
 from mlrun.utils import parse_versioned_object_uri
 from ..config import config
 
+feature_separator = "."
 
 def parse_features(vector):
     """parse and validate feature list (from vector) and add metadata from feature sets """
@@ -66,9 +67,9 @@ def parse_features(vector):
         feature_set = feature_set_objects[feature_set_name]
         for name, alias in fields:
             field_name = alias or name
-            if field_name in feature_set.status.stats:
+            if name in feature_set.status.stats:
                 vector.status.stats[field_name] = feature_set.status.stats[name]
-            if field_name in feature_set.spec.features.keys():
+            if name in feature_set.spec.features.keys():
                 vector.status.features[field_name] = feature_set.spec.features[name]
 
     return feature_set_objects, feature_set_fields
@@ -76,12 +77,12 @@ def parse_features(vector):
 
 def _parse_feature_string(feature):
     """parse feature string into feature set name, feature name, alias"""
-    # expected format: <feature-set>#<name|*>[ as alias]
-    if "#" not in feature:
+    # expected format: <feature-set>.<name|*>[ as alias]
+    if feature_separator not in feature:
         raise ValueError(
-            f"feature {feature} must be in the form feature-set#name[ as alias]"
+            f"feature {feature} must be in the form feature-set.feature[ as alias]"
         )
-    splitted = feature.split("#")
+    splitted = feature.split(feature_separator)
     feature_set = splitted[0]
     feature_name = splitted[1]
     splitted = feature_name.split(" as ")

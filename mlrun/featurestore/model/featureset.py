@@ -170,7 +170,7 @@ class FeatureSetStatus(ModelObj):
 
 
 class FeatureSet(ModelObj):
-    """Feature Set"""
+    """Feature set object, defines a set of features and their data pipeline"""
 
     kind = ResourceKinds.FeatureSet
     _dict_fields = ["kind", "metadata", "spec", "status"]

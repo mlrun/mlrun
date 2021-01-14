@@ -34,12 +34,12 @@ def test_features_parser():
     cases = [
         {"feature": "set1", "result": None, "error": True},
         {"feature": "set1 as x", "result": None, "error": True},
-        {"feature": "set1#f1", "result": ("set1", "f1", None)},
-        {"feature": "proj/set1#f1", "result": ("proj/set1", "f1", None)},
-        {"feature": "set1# f1", "result": ("set1", "f1", None)},
-        {"feature": "set1 # f1 ", "result": ("set1", "f1", None)},
-        {"feature": "set1#*", "result": ("set1", "*", None)},
-        {"feature": "set1#f2 as x", "result": ("set1", "f2", "x")},
+        {"feature": "set1.f1", "result": ("set1", "f1", None)},
+        {"feature": "proj/set1.f1", "result": ("proj/set1", "f1", None)},
+        {"feature": "set1. f1", "result": ("set1", "f1", None)},
+        {"feature": "set1 . f1 ", "result": ("set1", "f1", None)},
+        {"feature": "set1.*", "result": ("set1", "*", None)},
+        {"feature": "set1.f2 as x", "result": ("set1", "f2", "x")},
     ]
     for case in cases:
         try:

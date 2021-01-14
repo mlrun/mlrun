@@ -67,18 +67,18 @@ def get_offline_features(
     example::
 
         features = [
-            "stock-quotes#bid",
-            "stock-quotes#asks_sum_5h",
-            "stock-quotes#ask as mycol",
-            "stocks#*",
+            "stock-quotes.bid",
+            "stock-quotes.asks_sum_5h",
+            "stock-quotes.ask as mycol",
+            "stocks.*",
         ]
 
         resp = fs.get_offline_features(
             features, entity_rows=trades, entity_timestamp_column="time"
         )
-        print(resp.vector.to_yaml())
         print(resp.to_dataframe())
-        resp.to_parquet("./xx.parquet")
+        print(resp.vector.get_stats_table())
+        resp.to_parquet("./out.parquet")
 
     :param features:     list of features or feature vector uri or FeatureVector object
     :param entity_rows:  dataframe with entity rows to join with
@@ -233,8 +233,8 @@ def run_ingestion_task(
 
     example::
 
-        source = DataSource("csv", "csv", path="measurements1.csv")
-        targets = [DataTargetSpec("csv", "mycsv", path="./mycsv.csv")]
+        source = CSVSource("mycsv", path="measurements.csv")
+        targets = [CSVTarget("mycsv", path="./mycsv.csv")]
         run_ingestion_task(measurements, source, targets, name="tst_ingest")
 
     :param featureset:    feature set object or uri

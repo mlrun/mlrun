@@ -57,7 +57,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
         )
     if to_df:
         # add dataframe target, will return a dataframe
-        driver = DFTarget(resource)
+        driver = DFTarget()
         driver.add_writer_state(
             graph,
             final_state,
@@ -74,6 +74,7 @@ online_lookup_order = [TargetTypes.nosql]
 
 
 def get_offline_target(featureset, start_time=None, name=None):
+    """return an optimal offline feature set target"""
     # todo: take status, start_time and lookup order into account
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
@@ -83,6 +84,7 @@ def get_offline_target(featureset, start_time=None, name=None):
 
 
 def get_online_target(featureset):
+    """return an optimal online feature set target"""
     # todo: take lookup order into account
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
@@ -122,6 +124,7 @@ class BaseStoreTarget(DataTargetSpec):
 
     @classmethod
     def from_spec(cls, spec: DataTargetSpec, resource=None):
+        """create target driver from target spec or other target driver"""
         driver = cls()
         driver.name = spec.name
         driver.path = spec.path
@@ -129,19 +132,13 @@ class BaseStoreTarget(DataTargetSpec):
         driver._resource = resource
         return driver
 
-    def xx(self, resource, target_spec: DataTargetSpec):
-        self.name = target_spec.name
-        self.target_path = target_spec.path or _get_target_path(self, resource)
-        self.attributes = target_spec.attributes
-        self.target = None
-        self.resource = resource
-
     def get_table_object(self):
         """get storey Table object"""
         return None
 
     @property
     def _target_path(self):
+        """return the actual/computed target path"""
         return self.path or _get_target_path(self, self._resource)
 
     def update_resource_status(self, status="", producer=None):
@@ -156,8 +153,8 @@ class BaseStoreTarget(DataTargetSpec):
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
-        """add writer state to graph"""
-        pass
+        """add storey writer state to graph"""
+        raise NotImplementedError()
 
     def as_df(self, columns=None, df_module=None):
         """return the target data as dataframe"""
@@ -246,7 +243,7 @@ class NoSqlTarget(BaseStoreTarget):
 
 
 class DFTarget(BaseStoreTarget):
-    def __init__(self, resource, target_spec: DataTargetSpec = None):
+    def __init__(self):
         self.name = "dataframe"
         self._df = None
 
@@ -283,6 +280,7 @@ kind_to_driver = {
 
 
 def _get_target_path(driver, resource):
+    """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
     kind_prefix = "sets" if resource.kind == ResourceKinds.FeatureSet else "vectors"

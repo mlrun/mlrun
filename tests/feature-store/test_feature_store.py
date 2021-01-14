@@ -1,9 +1,10 @@
 import os
+import pytest
 
 import mlrun
 import pandas as pd
+from tests.conftest import results, tests_root_directory
 
-from mlrun.featurestore.model.base import DataSource, DataTargetSpec
 from mlrun.featurestore.sources import CSVSource
 from mlrun.featurestore.steps import FeaturesetValidator
 
@@ -19,10 +20,19 @@ from mlrun.featurestore.model.datatypes import ValueType
 from mlrun.featurestore.model.validators import MinMaxValidator
 
 
+this_dir = f"{tests_root_directory}/feature-store/"
+results_dir = f"{results}/feature-store/"
+
+
 def init_store():
     mlconf.dbpath = os.environ["TEST_DBPATH"]
 
 
+def has_db():
+    return "TEST_DBPATH" in os.environ
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
 def test_basic_featureset():
     init_store()
 
@@ -42,23 +52,24 @@ def test_basic_featureset():
 
 
 class MyMap(MapClass):
-    def __init__(self, mul=1, **kwargs):
+    def __init__(self, multiplier=1, **kwargs):
         super().__init__(**kwargs)
-        self._mul = mul
+        self._multiplier = multiplier
 
     def do(self, event):
-        event["xx"] = event["bid"] * self._mul
+        event["xx"] = event["bid"] * self._multiplier
         event["zz"] = 9
         return event
 
 
+@pytest.mark.skipif(not has_db(), reason="no db access")
 def test_advanced_featureset():
     init_store()
 
     quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
 
     flow = quotes_set.graph
-    flow.to("MyMap", mul=3).to("storey.Extend", _fn="({'z': event['bid'] * 77})").to(
+    flow.to("MyMap", multiplier=3).to("storey.Extend", _fn="({'z': event['bid'] * 77})").to(
         "storey.Filter", "filter", _fn="(event['bid'] > 51.92)"
     ).to(FeaturesetValidator())
 
@@ -76,63 +87,54 @@ def test_advanced_featureset():
     assert df["zz"].mean() == 9, "map didnt set the zz column properly"
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
-    quotes_set.plot("pipe.png", rankdir="LR", with_targets=True)
+    quotes_set.plot(results_dir + "pipe.png", rankdir="LR", with_targets=True)
     df = fs.ingest(quotes_set, quotes, return_df=True)
     logger.info(f"output df:\n{df}")
     assert quotes_set.status.stats.get("asks_sum_1h"), "stats not created"
 
 
+@pytest.mark.skipif(not has_db(), reason="no db access")
 def test_realtime_query():
     init_store()
 
     features = [
-        "stock-quotes#bid",
-        "stock-quotes#asks_sum_5h",
-        "stock-quotes#ask as mycol",
-        "stocks#*",
+        "stock-quotes.bid",
+        "stock-quotes.asks_sum_5h",
+        "stock-quotes.ask as mycol",
+        "stocks.*",
     ]
 
     resp = fs.get_offline_features(
         features, entity_rows=trades, entity_timestamp_column="time"
     )
-    print(resp.vector.to_yaml())
-    print(resp.to_dataframe())
-    print(resp.to_parquet("./xx.parquet"))
+    vector = resp.vector
+    assert len(vector.spec.features) == len(features), "unexpected num of requested features"
+    # stocks (*) returns 2 features
+    assert len(vector.status.features) == len(features) + 1, "unexpected num of returned features"
+    assert len(vector.status.stats) == len(features) + 1, "unexpected num of feature stats"
 
+    df = resp.to_dataframe()
+    columns = trades.shape[1] + len(features) + 1
+    assert df.shape[1] == columns, "unexpected num of returned df columns"
+    resp.to_parquet(results_dir + "query.parquet")
+
+    # test real-time query
     vector = fs.FeatureVector("my-vec", features)
-    vector.spec.graph.to("storey.Extend", _fn="({'xyw': 88})")
     svc = fs.get_online_feature_service(vector)
 
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
     print(resp)
     resp = svc.get([{"ticker": "AAPL"}])
-    print(resp)
+    assert resp[0]["ticker"] == "AAPL" and resp[0]["exchange"] == "NASDAQ", "unexpected online result"
     svc.close()
 
 
-def test_feature_set_db():
-    init_store()
-
-    name = "stocks_test"
-    stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
-    fs.infer_metadata(
-        stocks_set, stocks,
-    )
-    print(stocks_set.to_yaml())
-    stocks_set.save()
-    db = mlrun.get_run_db()
-
-    print(db.list_feature_sets(name))
-
-    fset = db.get_feature_set(name)
-    print(fset)
-
-
+@pytest.mark.skipif(not has_db(), reason="no db access")
 def test_serverless_ingest():
     init_store()
 
-    measurements = fs.FeatureSet("measurements1", entities=[Entity("patient_id")])
-    src_df = pd.read_csv("measurements1.csv")
+    measurements = fs.FeatureSet("measurements", entities=[Entity("patient_id")])
+    src_df = pd.read_csv(this_dir + "testdata.csv")
     df = fs.infer_metadata(
         measurements,
         src_df,
@@ -140,16 +142,20 @@ def test_serverless_ingest():
         options=fs.InferOptions.default(),
     )
     print(df.head(5))
-    source = CSVSource("mycsv", path="measurements1.csv")
-    targets = [CSVTarget("mycsv", path="./mycsv.csv")]
+    target_path = os.path.relpath(results_dir + "mycsv.csv")
+    source = CSVSource("mycsv", path=os.path.relpath(this_dir + "testdata.csv"))
+    targets = [CSVTarget("mycsv", path=target_path)]
+    if os.path.exists(target_path):
+        os.remove(target_path)
 
     run_ingestion_task(
         measurements,
         source,
         targets,
-        name="tst_ingest",
+        name="test_ingest",
         infer_options=fs.InferOptions.Null,
         parameters={},
         function=None,
         local=True,
     )
+    assert os.path.exists(target_path), "result file was not generated"

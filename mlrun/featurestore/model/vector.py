@@ -124,7 +124,7 @@ class FeatureVectorStatus(ModelObj):
 
 
 class FeatureVector(ModelObj):
-    """Feature Vector"""
+    """Feature vector, specify selected features, their metadata and material views"""
 
     kind = "FeatureVector"
     _dict_fields = ["kind", "metadata", "spec", "status"]

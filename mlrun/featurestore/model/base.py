@@ -68,6 +68,8 @@ store_config = FeatureStoreConfig(copy.deepcopy(default_config))
 
 
 class Entity(ModelObj):
+    """data entity (index)"""
+
     def __init__(
         self,
         name: str = None,
@@ -84,6 +86,8 @@ class Entity(ModelObj):
 
 
 class Feature(ModelObj):
+    """data feature"""
+
     _dict_fields = [
         "name",
         "description",
@@ -127,6 +131,8 @@ class Feature(ModelObj):
 
 
 class FeatureSetProducer(ModelObj):
+    """information about the task/job which produced the feature set data"""
+
     def __init__(self, kind=None, name=None, uri=None, owner=None, sources=None):
         self.kind = kind
         self.name = name
@@ -141,6 +147,8 @@ class SourceTypes:
 
 
 class DataTargetSpec(ModelObj):
+    """data target spec, specify a destination for the feature set data"""
+
     _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
 
     def __init__(
@@ -159,6 +167,8 @@ class DataTargetSpec(ModelObj):
 
 
 class DataTarget(DataTargetSpec):
+    """data target with extra status information (used in the feature-set/vector status)"""
+
     _dict_fields = ["name", "kind", "path", "start_time", "online", "status"]
 
     def __init__(
@@ -183,6 +193,8 @@ class DataTarget(DataTargetSpec):
 
 
 class DataSource(ModelObj):
+    """online or offline data source spec"""
+
     _dict_fields = [
         "kind",
         "name",
@@ -219,6 +231,8 @@ class DataSource(ModelObj):
 
 
 class FeatureAggregation(ModelObj):
+    """feature aggregation requirements"""
+
     def __init__(
         self, name=None, column=None, operations=None, windows=None, period=None
     ):

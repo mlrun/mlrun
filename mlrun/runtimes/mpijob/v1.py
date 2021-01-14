@@ -51,9 +51,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
     crd_version = MPIJobCRDVersions.v1
     crd_plural = "mpijobs"
 
-    def _generate_mpi_job_template(
-        self, launcher_pod_template, worker_pod_template
-    ):
+    def _generate_mpi_job_template(self, launcher_pod_template, worker_pod_template):
         return {
             "apiVersion": "kubeflow.org/v1",
             "kind": "MPIJob",
@@ -81,12 +79,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             self._update_container(
                 launcher_pod_template,
                 "command",
-                [
-                    "mpirun",
-                    *quoted_mpi_args,
-                    "python",
-                    shlex.quote(self.spec.command),
-                ]
+                ["mpirun", *quoted_mpi_args, "python", shlex.quote(self.spec.command),]
                 + quoted_args,
             )
 
@@ -97,10 +90,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             )
 
     def _generate_mpi_job(
-        self,
-        runobj: RunObject,
-        execution: MLClientCtx,
-        meta: client.V1ObjectMeta,
+        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
     ) -> dict:
         pod_labels = deepcopy(meta.labels)
         pod_labels["mlrun/job"] = meta.name
@@ -114,27 +104,19 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         # configuration for both launcher and workers
         for pod_template in [launcher_pod_template, worker_pod_template]:
             if self.spec.image:
-                self._update_container(
-                    pod_template, "image", self.full_image_path()
-                )
+                self._update_container(pod_template, "image", self.full_image_path())
             self._update_container(
                 pod_template, "volumeMounts", self.spec.volume_mounts
             )
             extra_env = self._generate_runtime_env(runobj)
             extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
-            self._update_container(
-                pod_template, "env", extra_env + self.spec.env
-            )
+            self._update_container(pod_template, "env", extra_env + self.spec.env)
             if self.spec.image_pull_policy:
                 self._update_container(
-                    pod_template,
-                    "imagePullPolicy",
-                    self.spec.image_pull_policy,
+                    pod_template, "imagePullPolicy", self.spec.image_pull_policy,
                 )
             if self.spec.workdir:
-                self._update_container(
-                    pod_template, "workingDir", self.spec.workdir
-                )
+                self._update_container(pod_template, "workingDir", self.spec.workdir)
             if self.spec.image_pull_secret:
                 update_in(
                     pod_template,
@@ -159,16 +141,12 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
         # update the replicas only for workers
         update_in(
-            job,
-            "spec.mpiReplicaSpecs.Worker.replicas",
-            self.spec.replicas or 1,
+            job, "spec.mpiReplicaSpecs.Worker.replicas", self.spec.replicas or 1,
         )
 
         if execution.get_param("slots_per_worker"):
             update_in(
-                job,
-                "spec.slotsPerWorker",
-                execution.get_param("slots_per_worker"),
+                job, "spec.slotsPerWorker", execution.get_param("slots_per_worker"),
             )
 
         update_in(job, "metadata", meta.to_dict())
@@ -212,16 +190,13 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
         https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
         """
         launcher_status = (
-            crd_object.get("status", {})
-            .get("replicaStatuses", {})
-            .get("Launcher", {})
+            crd_object.get("status", {}).get("replicaStatuses", {}).get("Launcher", {})
         )
         # the launcher status also has running property, but it's empty for
         # short period after the creation, so we're
         # checking terminal state by the completion time existence
         in_terminal_state = (
-            crd_object.get("status", {}).get("completionTime", None)
-            is not None
+            crd_object.get("status", {}).get("completionTime", None) is not None
         )
         desired_run_state = RunStates.running
         completion_time = None

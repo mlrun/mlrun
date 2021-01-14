@@ -85,10 +85,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @abc.abstractmethod
     def _generate_mpi_job(
-        self,
-        runobj: RunObject,
-        execution: MLClientCtx,
-        meta: client.V1ObjectMeta,
+        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 
@@ -140,9 +137,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             time.sleep(1)
 
         if resp:
-            logger.info(
-                "MpiJob {} state={}".format(meta.name, state or "unknown")
-            )
+            logger.info("MpiJob {} state={}".format(meta.name, state or "unknown"))
             if state:
                 state = state.lower()
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
@@ -154,9 +149,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                         launcher, meta.namespace, writer=writer
                     )
                     logger.info(
-                        "MpiJob {} finished with state {}".format(
-                            meta.name, status
-                        )
+                        "MpiJob {} finished with state {}".format(meta.name, status)
                     )
                     if status == "succeeded":
                         execution.set_state("completed")
@@ -214,9 +207,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.delete_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name, body
             )
-            logger.info(
-                "del status: {}".format(get_in(resp, "status", "unknown"))
-            )
+            logger.info("del status: {}".format(get_in(resp, "status", "unknown")))
         except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
 
@@ -349,13 +340,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             "HOROVOD_AUTOTUNE_LOG": log_path,
         }
         if warmup_samples is not None:
-            horovod_autotune_settings[
-                "autotune-warmup-samples"
-            ] = warmup_samples
+            horovod_autotune_settings["autotune-warmup-samples"] = warmup_samples
         if steps_per_sample is not None:
-            horovod_autotune_settings[
-                "autotune-steps-per-sample"
-            ] = steps_per_sample
+            horovod_autotune_settings["autotune-steps-per-sample"] = steps_per_sample
         if bayes_opt_max_samples is not None:
             horovod_autotune_settings[
                 "autotune-bayes-opt-max-samples"

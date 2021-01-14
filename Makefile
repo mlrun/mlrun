@@ -482,5 +482,5 @@ endif
 			echo "Creating new branch: $$BRANCH_NAME"; \
 			git checkout --orphan $$BRANCH_NAME; \
 	fi; \
-	git commit -m "Adding $(MLRUN_VERSION) tag contents"; \
+	git commit -m "Adding $(MLRUN_VERSION) tag contents" --allow-empty; \
 	git push origin $$BRANCH_NAME

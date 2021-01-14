@@ -16,7 +16,6 @@ import os
 import time
 import typing
 
-from alembic import runtime
 from kubernetes import client
 from mlrun.config import config
 from mlrun.execution import MLClientCtx

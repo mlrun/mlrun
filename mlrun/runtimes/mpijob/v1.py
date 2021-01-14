@@ -75,7 +75,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         for arg in self.spec.args:
             quoted_args.append(shlex.quote(arg))
         quoted_mpi_args = []
-        for arg in self.mpi_args:
+        for arg in self.spec.mpi_args:
             quoted_mpi_args.append(shlex.quote(arg))
         if self.spec.command:
             self._update_container(

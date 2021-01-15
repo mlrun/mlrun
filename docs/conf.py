@@ -117,6 +117,7 @@ html_logo = "./MLRun_Character.png"
 html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
 jupyter_execute_notebooks = "off"
+html_sourcelink_suffix = ""
 
 # -- Extension configuration -------------------------------------------------
 

@@ -31,7 +31,6 @@ class MPIResourceSpec(KubeResourceSpec):
         self,
         command=None,
         args=None,
-        mpi_args=None,
         image=None,
         mode=None,
         volumes=None,
@@ -47,6 +46,7 @@ class MPIResourceSpec(KubeResourceSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
+        mpi_args=None,
     ):
         super().__init__(
             command=command,

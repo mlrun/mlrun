@@ -187,6 +187,14 @@ class VotingTypes(str, Enum):
     regression = "regression"
 
 
+class OperationTypes(str, Enum):
+    """Supported opreations for VotingEnsemble"""
+
+    infer = "infer"
+    predict = "predict"
+    explain = "explain"
+
+
 class VotingEnsemble(BaseModelRouter):
     """Voting Ensemble class
 
@@ -263,34 +271,54 @@ class VotingEnsemble(BaseModelRouter):
             # process the url <prefix>/<model>[/versions/<ver>]/operation
             subpath = ""
             urlpath = urlpath[len(self.url_prefix) :].strip("/")
+
+            # Test if Only `self.url_prefix/` was given
             if not urlpath:
-                # Only self.url_prefix was given
                 return "", None, ""
             segments = urlpath.split("/")
+
+            # Test for router level `/operation`
             if len(segments) == 1:
+                # Path =  <prefix>/<segment>
                 # Are we looking at a router level operation?
-                if segments[0] in ["infer", "predict", "explain"]:
-                    # We are given an operation
+                try:
+                    operation = OperationTypes(segments[0])
                     self.log_router = True
-                    return self.name, None, segments[0]
-            model = segments[0]
+                    return self.name, None, operation
+
+                # Unrecognized operation was given, probably a model name
+                except ValueError:
+                    model = segments[0]
+
+            # Test for `self.url_prefix/<model>/versions/<version>/operation`
             if len(segments) > 2 and segments[1] == "versions":
+                # Add versioning to the model as: <model>:<version>
                 model = model + ":" + segments[2]
+
+                # Prune handled URI parts
                 segments = segments[2:]
             if len(segments) > 1:
                 subpath = "/".join(segments[1:])
 
+        # accepting route information from body as well
+        # to support streaming protocols (e.g. Kafka).
         if isinstance(body, dict):
-            # accepting route information from body as well
-            # to support streaming protocols (e.g. Kafka).
             model = model or self.name
             subpath = body.get("operation", subpath)
+
+        # Set default subpath (operation) if needed
         if subpath is None:
             subpath = "infer"
 
+        # Test if the given model is one of our registered models
         if model in self.routes:
+            # Turn off unnecessary router logging for simple event passing
             self.log_router = False
+
+        # Test if it's our voting ensemble name
         elif model != self.name:
+            # The given model is not the `VotingEnsemble.name` nor is it
+            # any of our registered models.
             models = " | ".join(self.routes.keys())
             raise ValueError(
                 f"model {model} doesnt exist, available models: {models} or an operation alone for ensemble operation"
@@ -324,17 +352,11 @@ class VotingEnsemble(BaseModelRouter):
     def _is_int(self, value):
         return float(value).is_integer()
 
-    def _vote(self, events):
-        if "outputs" in events.body:
-            # Dealing with a specific model prediction
-            return events
-        predictions = [model.body["outputs"] for _, model in events.body.items()]
-
-        flattened_predictions = [
-            [predictions[j][i] for j in range(len(predictions))]
-            for i in range(len(predictions[0]))
-        ]
+    def logic(self, predictions):
+        # Infer voting type if not given (Classification or recommendation) (once)
         if not self.vote_flag:
+            # Are we dealing with an All-Int predictions
+            # e.g. Classification
             if all(
                 [
                     all(response)
@@ -345,59 +367,102 @@ class VotingEnsemble(BaseModelRouter):
                 ]
             ):
                 self.vote_type = VotingTypes.classification
+            # Do we have `float` predictions
+            # e.g. Regression
             else:
                 self.vote_type = VotingTypes.regression
+
+            # set flag to not infer this again
             self.vote_flag = True
+
+        # Apply voting logic
         if self.vote_type == VotingTypes.classification:
-            flattened_predictions = [
-                list(map(int, predictions)) for predictions in flattened_predictions
+            int_predictions = [
+                list(map(int, sample_predictions)) for sample_predictions in predictions
             ]
-            result = self._max_vote(flattened_predictions)
+            votes = self._max_vote(int_predictions)
         else:
-            result = self._mean_vote(flattened_predictions)
+            votes = self._mean_vote(predictions)
 
-        event = {
-            "model_name": self.name,
-            "outputs": result,
-            "id": events.body[list(events.body.keys())[0]].body["id"],
-        }
+        return votes
 
-        events.body = event
-        return events
+    def _apply_logic(self, predictions):
+        """Reduces a list of k predictions from n models to k predictions according to voting logic
 
-    def preprocess(self, event):
-        try:
-            event.body = json.loads(event.body)
-            return event
-        except Exception:
-            return event
+        Parameters
+        ----------
+        predictions : List[List]
+            A list of sample predictions by models
+            e.g. predictions[model][prediction]
+
+        Returns
+        -------
+        List
+            List of the resulting voted predictions
+        """
+
+        # Flatten predictions by sample instead of by model as received
+        flattened_predictions = [
+            [predictions[j][i] for j in range(len(predictions))]
+            for i in range(len(predictions[0]))
+        ]
+
+        return self.logic(flattened_predictions)
 
     def do_event(self, event, *args, **kwargs):
-        """handle incoming events
+        """Handles incoming requests.
 
-        Args:
-            event (nuclio.Event): Incoming nuclio event
+        Parameters
+        ----------
+        event : nuclio.Event
+            Incoming request as a nuclio.Event.
 
-        Raises:
-            ValueError: Illeagel prefix from URI
-
-        Returns:
-            Response: Event response after running the event processing logic
+        Returns
+        -------
+        Response
+            Event repsonse after running the requested logic
         """
         start = datetime.now()
+
+        # Handle and verify the request
         event = self.preprocess(event)
-        request = event.body
-        request = self.validate(request)
         event = self._pre_handle_event(event)
+        request = self.validate(event.body)
+
+        # Should we terminate the event?
         if hasattr(event, "terminated") and event.terminated:
             return event
+
+        # Extract route information
+        name, route, subpath = self._resolve_route(event.body, event.path)
+        self.context.logger.debug(f"router run model {name}, op={subpath}")
+        event.path = subpath
+
+        # Is this a router level event?
+        if name == self.name:
+            predictions = self._parallel_run(event)
+            votes = self._apply_logic(predictions)
+
+            response = {
+                "id": event.id,
+                "model_name": self.name,
+                "outputs": votes,
+            }
+            if self.version:
+                response["model_version"] = self.version
+
+        # A specific model event
         else:
-            response = self.postprocess(self._vote(self._handle_event(event)))
-            if self._model_logger and self.log_router:
-                if "id" not in request:
-                    request["id"] = response.body["id"]
-                self._model_logger.push(start, request, response.body)
-            return response
+            response = route.run(event)
+            event.body = response.body if response else None
+
+        response = self.postprocess(response)
+
+        if self._model_logger and self.log_router:
+            if "id" not in request:
+                request["id"] = response.body["id"]
+            self._model_logger.push(start, request, response.body)
+        return response
 
     def _parallel_run(self, event, mode: str = ParallelRunnerModes.thread):
         """Executes the processing logic in parallel
@@ -411,24 +476,23 @@ class VotingEnsemble(BaseModelRouter):
         """
         if mode == ParallelRunnerModes.array:
             results = {
-                model_name: model.run(copy.deepcopy(event))
+                model_name: model.run(copy.copy(event))
                 for model_name, model in self.routes.items()
             }
         elif mode == ParallelRunnerModes.thread:
             pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.routes))
             with pool as executor:
                 results = []
-                futures = {
-                    executor.submit(self.routes[model].run, copy.copy(event)): model
+                futures = [
+                    executor.submit(self.routes[model].run, copy.copy(event))
                     for model in self.routes.keys()
-                }
+                ]
                 for future in concurrent.futures.as_completed(futures):
-                    child = futures[future]
                     try:
                         results.append(future.result())
                     except Exception as exc:
-                        print("%r generated an exception: %s" % (child.fullname, exc))
-                results = {event.body["model_name"]: event for event in results}
+                        print("%r generated an exception: %s" % (future.fullname, exc))
+                results = [event.body["outputs"] for event in results]
         else:
             raise ValueError(
                 f"{mode} is not a supported parallel run mode, please select from "
@@ -437,7 +501,25 @@ class VotingEnsemble(BaseModelRouter):
         return results
 
     def validate(self, request):
-        """validate the event body (after preprocess)"""
+        """Validate the event body (after preprocessing)
+
+        Parameters
+        ----------
+        request : dict
+            Event body.
+
+        Returns
+        -------
+        dict
+            Event body after validation
+
+        Raises
+        ------
+        Exception
+            `inputs` key not found in `request`
+        Exception
+            `inputs` should be of type List
+        """
         if self.protocol == "v2":
             if "inputs" not in request:
                 raise Exception('Expected key "inputs" in request body')
@@ -445,21 +527,3 @@ class VotingEnsemble(BaseModelRouter):
             if not isinstance(request["inputs"], list):
                 raise Exception('Expected "inputs" to be a list')
         return request
-
-    def _handle_event(self, event):
-        name, route, subpath = self._resolve_route(event.body, event.path)
-        if not route and name != self.name:
-            # if model wasn't specified return model list
-            setattr(event, "terminated", True)
-            event.body = {"models": list(self.routes.keys())}
-            return event
-
-        self.context.logger.debug(f"router run model {name}, op={subpath}")
-        event.path = subpath
-        if name == self.name:
-            response = self._parallel_run(event)
-            event.body = response
-        else:
-            response = route.run(event)
-            event.body = response.body if response else None
-        return event

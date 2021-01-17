@@ -17,7 +17,7 @@ import pandas as pd
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
 from .model import Feature, FeatureSetSpec, Entity
-from .model.datatypes import pd_schema_to_value_type
+from .model.data_types import pd_schema_to_value_type
 
 
 default_num_bins = 20
@@ -53,19 +53,19 @@ class InferOptions:
     def default():
         return InferOptions.all()
 
-
-def get_common_infer_options(one, two):
-    return one & two
+    @staticmethod
+    def get_common_options(one, two):
+        return one & two
 
 
 def infer_from_df(
     df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
 ):
-    if get_common_infer_options(options, InferOptions.schema()):
+    if InferOptions.get_common_options(options, InferOptions.schema()):
         infer_schema_from_df(df, featureset.spec, entity_columns, options)
-    if get_common_infer_options(options, InferOptions.Stats):
+    if InferOptions.get_common_options(options, InferOptions.Stats):
         featureset.status.stats = get_df_stats(df, options)
-    if get_common_infer_options(options, InferOptions.Preview):
+    if InferOptions.get_common_options(options, InferOptions.Preview):
         featureset.status.preview = get_df_preview(df)
 
 
@@ -93,14 +93,14 @@ def infer_schema_from_df(
             if column not in current_entities:
                 featureset_spec.entities[column] = Entity(value_type=value_type)
         elif (
-            get_common_infer_options(options, InferOptions.Features)
+            InferOptions.get_common_options(options, InferOptions.Features)
             and column != featureset_spec.timestamp_key
         ):
             upsert_feature(column, value_type)
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
-    if get_common_infer_options(options, InferOptions.Index):
+    if InferOptions.get_common_options(options, InferOptions.Index):
         # infer types of index fields
         if df.index.name:
             if column not in current_entities:
@@ -127,7 +127,7 @@ def get_df_stats(df, options, num_bins=default_num_bins):
     """get per column data stats from dataframe"""
 
     results_dict = {}
-    if get_common_infer_options(options, InferOptions.Index) and df.index.name:
+    if InferOptions.get_common_options(options, InferOptions.Index) and df.index.name:
         df = df.reset_index()
     for col, values in df.describe(
         include="all", percentiles=[], datetime_is_numeric=True
@@ -142,7 +142,7 @@ def get_df_stats(df, options, num_bins=default_num_bins):
                 else:
                     stats_dict[stat] = str(val)
 
-        if get_common_infer_options(
+        if InferOptions.get_common_options(
             options, InferOptions.Histogram
         ) and pd.api.types.is_numeric_dtype(df[col]):
             # store histogram

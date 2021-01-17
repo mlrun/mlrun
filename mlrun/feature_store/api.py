@@ -16,7 +16,7 @@ from typing import List, Union, Dict
 import mlrun
 import pandas as pd
 from .common import get_feature_vector_by_uri, get_feature_set_by_uri
-from .infer import InferOptions, infer_from_df, get_common_infer_options
+from .infer import InferOptions, infer_from_df
 from .model.base import DataTargetBase, DataSource
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
 from .ingestion import init_featureset_graph, deploy_ingestion_function
@@ -148,10 +148,14 @@ def ingest(
         infer_metadata(
             featureset,
             source,
-            options=get_common_infer_options(infer_options, InferOptions.schema()),
+            options=InferOptions.get_common_options(
+                infer_options, InferOptions.schema()
+            ),
             namespace=namespace,
         )
-    infer_stats = get_common_infer_options(infer_options, InferOptions.all_stats())
+    infer_stats = InferOptions.get_common_options(
+        infer_options, InferOptions.all_stats()
+    )
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
@@ -210,7 +214,7 @@ def infer_metadata(
             source,
             featureset,
             entity_columns,
-            get_common_infer_options(options, InferOptions.schema()),
+            InferOptions.get_common_options(options, InferOptions.schema()),
         )
         graph = init_featureset_graph(source, featureset, namespace, return_df=True)
         source = graph.wait_for_completion()

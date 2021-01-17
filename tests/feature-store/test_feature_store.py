@@ -5,19 +5,19 @@ import pytest
 import pandas as pd
 from tests.conftest import results, tests_root_directory
 
-from mlrun.featurestore.sources import CSVSource
-from mlrun.featurestore.steps import FeaturesetValidator
+from mlrun.feature_store.sources import CSVSource
+from mlrun.feature_store.steps import FeaturesetValidator
 
 from data_sample import quotes, stocks, trades
 from storey import MapClass
 
-from mlrun.featurestore.targets import CSVTarget
+from mlrun.feature_store.targets import CSVTarget
 from mlrun.utils import logger
-import mlrun.featurestore as fs
+import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
-from mlrun.featurestore import FeatureSet, Entity, run_ingestion_task
-from mlrun.featurestore.model.datatypes import ValueType
-from mlrun.featurestore.model.validators import MinMaxValidator
+from mlrun.feature_store import FeatureSet, Entity, run_ingestion_task
+from mlrun.feature_store.model.data_types import ValueType
+from mlrun.feature_store.model.validators import MinMaxValidator
 
 
 local_dir = f"{tests_root_directory}/feature-store/"

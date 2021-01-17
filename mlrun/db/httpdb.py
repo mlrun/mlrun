@@ -30,7 +30,7 @@ from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
-from ..featurestore.model import FeatureSet, FeatureVector
+from ..feature_store.model import FeatureSet, FeatureVector
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
 

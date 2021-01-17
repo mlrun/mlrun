@@ -294,10 +294,10 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefixes = mlrun.mlconf.feature_store.data_prefixes.to_dict()
-    data_prefix = data_prefixes.get(kind, None)
+    data_prefixes = mlrun.mlconf.feature_store.data_prefixes
+    data_prefix = getattr(data_prefixes, kind, None)
     if not data_prefix:
-        data_prefix = data_prefixes["default"]
+        data_prefix = data_prefixes.default
     data_prefix = data_prefix.format(project=project, kind=kind)
     if version:
         name = f"{name}-{version}"

@@ -1,7 +1,7 @@
 from typing import Dict, Any
 from storey import MapClass
 
-this_path = "mlrun.featurestore.steps"
+this_path = "mlrun.feature_store.steps"
 
 
 class FeaturesetValidator(MapClass):

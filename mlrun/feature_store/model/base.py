@@ -14,7 +14,7 @@
 
 from typing import Dict, Optional
 from mlrun.model import ModelObj
-from .datatypes import ValueType
+from .data_types import ValueType
 from .validators import validator_kinds
 
 

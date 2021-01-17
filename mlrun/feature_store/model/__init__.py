@@ -21,4 +21,4 @@ from .feature_vector import (
     OfflineVectorResponse,
 )
 from .base import Feature, Entity, DataTarget
-from .datatypes import ValueType
+from .data_types import ValueType

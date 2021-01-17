@@ -111,7 +111,7 @@ def deploy_ingestion_function(
         # add triggers
         function.spec.parameters = parameters
         function.spec.graph_initializer = (
-            "mlrun.featurestore.ingestion.featureset_initializer"
+            "mlrun.feature_store.ingestion.featureset_initializer"
         )
         function.verbose = True
         if local:
@@ -129,7 +129,7 @@ import mlrun
 def handler(context):
     verbose = context.get_param('verbose', True)
     server = mlrun.serving.create_graph_server(parameters=context.parameters, verbose=verbose)
-    server.graph_initializer = "mlrun.featurestore.ingestion.featureset_initializer"
+    server.graph_initializer = "mlrun.feature_store.ingestion.featureset_initializer"
     server.init(None, globals())
     server.wait_for_completion()
 """

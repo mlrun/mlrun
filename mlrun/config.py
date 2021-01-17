@@ -154,15 +154,6 @@ class Config:
             return self.__class__(val)
         return val
 
-    def __getitem__(self, item):
-        val = self._cfg.get(item, self._missing)
-        if val is self._missing:
-            raise AttributeError(item)
-
-        if isinstance(val, Mapping):
-            return self.__class__(val)
-        return val
-
     def __setattr__(self, attr, value):
         # in order for the dbpath setter to work
         if attr == "dbpath":

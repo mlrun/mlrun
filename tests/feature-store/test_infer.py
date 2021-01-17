@@ -1,7 +1,7 @@
-from mlrun.featurestore.infer import infer_from_df, InferOptions
+from mlrun.feature_store.infer import infer_from_df, InferOptions
 from tests.conftest import tests_root_directory
 import pandas as pd
-import mlrun.featurestore as fs
+import mlrun.feature_store as fs
 
 this_dir = f"{tests_root_directory}/feature-store/"
 

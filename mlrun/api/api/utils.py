@@ -21,6 +21,7 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 import re
 from hashlib import sha1
+from mlrun.api.db.sqldb.db import unversioned_tagged_object_uid_prefix
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -216,7 +217,12 @@ def parse_reference(reference: str):
     uid = None
     regex_match = uid_regex.match(reference)
     if not regex_match:
-        tag = reference
+        # If the uid of an unversioned object was used (i.e. "unversioned-latest"), strip
+        # the prefix and remain with the original tag.
+        if reference.startswith(unversioned_tagged_object_uid_prefix):
+            tag = reference.strip(unversioned_tagged_object_uid_prefix)
+        else:
+            tag = reference
     else:
         uid = regex_match.string
     return tag, uid

@@ -31,19 +31,20 @@ def _patch_object(
     object_update,
     object_url_path,
     additive=False,
+    reference="latest",
 ):
     patch_mode = "replace"
     if additive:
         patch_mode = "additive"
     headers = {mlrun.api.schemas.HeaderNames.patch_mode: patch_mode}
     response = client.patch(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/latest",
+        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}",
         json=object_update,
         headers=headers,
     )
     assert response.status_code == HTTPStatus.OK.value
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/latest"
+        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}"
     )
     return response.json()
 

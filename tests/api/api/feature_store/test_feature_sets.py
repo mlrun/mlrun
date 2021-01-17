@@ -1,10 +1,10 @@
 from http import HTTPStatus
 from uuid import uuid4
-
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-
 from .base import _patch_object, _list_and_assert_objects
+from mlrun.api.db.sqldb.db import unversioned_tagged_object_uid_prefix
+from deepdiff import DeepDiff
 
 
 def _generate_feature_set(name, extra_feature_name="extra"):
@@ -563,3 +563,33 @@ def test_no_feature_leftovers_when_storing_feature_sets(
         _list_and_assert_objects(
             client, "features", project_name, None, expected_number_of_features
         )
+
+
+def test_unversioned_feature_set_reference_by_uid(
+    db: Session, client: TestClient
+) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set_1"
+    feature_set = _generate_feature_set(name)
+    feature_set_response = _feature_set_create_and_assert(
+        client, project_name, feature_set, versioned=False
+    )
+
+    feature_set_uid = feature_set_response["metadata"]["uid"]
+    assert feature_set_uid == f"{unversioned_tagged_object_uid_prefix}latest"
+
+    feature_set_patch = {"status": {"patched": "yes"}}
+    # Since the function calls both PATCH and GET on the same reference, it tests both cases
+    patched_feature_set = _patch_object(
+        client,
+        project_name,
+        name,
+        feature_set_patch,
+        "feature-sets",
+        reference=feature_set_uid,
+    )
+
+    expected_diff = {"dictionary_item_added": ["root['status']['patched']"]}
+    diff = DeepDiff(feature_set_response, patched_feature_set, ignore_order=True,)
+    assert diff == expected_diff

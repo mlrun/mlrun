@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import collections
 from typing import List
 import mlrun
 import pandas as pd
 
 
-from .base import DataSource, Feature, DataTarget, CommonMetadata, FeatureStoreError
+from .base import DataSource, Feature, DataTarget, CommonMetadata
+from ..common import parse_feature_string, get_feature_set_by_uri
 from ...model import ModelObj, ObjectList
 from ...artifacts.dataset import upload_dataframe
 from ...config import config as mlconf
@@ -25,13 +26,6 @@ from ...serving.states import RootFlowState
 from ..targets import get_offline_target
 from ...datastore import get_store_uri
 from ...utils import StorePrefix
-
-
-class FeatureVectorError(Exception):
-    """ feature vector error. """
-
-    def __init__(self, *args, **kwargs):
-        pass
 
 
 class FeatureVectorSpec(ModelObj):
@@ -126,7 +120,7 @@ class FeatureVectorStatus(ModelObj):
 class FeatureVector(ModelObj):
     """Feature vector, specify selected features, their metadata and material views"""
 
-    kind = "FeatureVector"
+    kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(self, name=None, features=None, description=None):
@@ -166,6 +160,7 @@ class FeatureVector(ModelObj):
     def status(self, status):
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
 
+    @property
     def uri(self):
         """fully qualified feature vector uri"""
         uri = f'{self._metadata.project or ""}/{self._metadata.name}'
@@ -192,7 +187,7 @@ class FeatureVector(ModelObj):
         """return feature vector (offline) data as dataframe"""
         driver = get_offline_target(self, name=target_name)
         if not driver:
-            raise FeatureStoreError(
+            raise mlrun.errors.MLRunNotFoundError(
                 "there are no offline targets for this feature vector"
             )
         return driver.as_df(df_module=df_module)
@@ -205,13 +200,69 @@ class FeatureVector(ModelObj):
         as_dict = self.to_dict()
         db.store_feature_vector(as_dict, tag=tag, versioned=versioned)
 
+    def parse_features(self):
+        """parse and validate feature list (from vector) and add metadata from feature sets
+
+        :returns
+            feature_set_objects: cache of used feature set objects
+            feature_set_fields:  list of field (name, alias) per featureset
+        """
+        processed_features = {}  # dict of name to (featureset, feature object)
+        feature_set_objects = {}
+        feature_set_fields = collections.defaultdict(list)
+
+        def add_feature(name, alias, feature_set_object):
+            if alias in processed_features.keys():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"feature name/alias {alias} already specified,"
+                    " use another alias (feature-set:name[@alias])"
+                )
+            feature = feature_set_object[name]
+            processed_features[alias or name] = (feature_set_object, feature)
+            featureset_name = feature_set_object.metadata.name
+            feature_set_fields[featureset_name].append((name, alias))
+
+        for feature in self.spec.features:
+            feature_set, feature_name, alias = parse_feature_string(feature)
+            if feature_set not in feature_set_objects.keys():
+                feature_set_objects[feature_set] = get_feature_set_by_uri(
+                    feature_set, self.metadata.project
+                )
+            feature_set_object = feature_set_objects[feature_set]
+
+            feature_fields = feature_set_object.spec.features.keys()
+            if feature_name == "*":
+                for field in feature_fields:
+                    if field != feature_set_object.spec.timestamp_key:
+                        if alias:
+                            add_feature(field, alias + "_" + field, feature_set_object)
+                        else:
+                            add_feature(field, field, feature_set_object)
+            else:
+                if feature_name not in feature_fields:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"feature {feature} not found in feature set {feature_set}"
+                    )
+                add_feature(feature_name, alias, feature_set_object)
+
+        for feature_set_name, fields in feature_set_fields.items():
+            feature_set = feature_set_objects[feature_set_name]
+            for name, alias in fields:
+                field_name = alias or name
+                if name in feature_set.status.stats:
+                    self.status.stats[field_name] = feature_set.status.stats[name]
+                if name in feature_set.spec.features.keys():
+                    self.status.features[field_name] = feature_set.spec.features[name]
+
+        return feature_set_objects, feature_set_fields
+
 
 class OnlineVectorService:
     """get_online_feature_service response object"""
 
-    def __init__(self, vector, controller):
+    def __init__(self, vector, graph):
         self.vector = vector
-        self._controller = controller
+        self._controller = graph.controller
 
     @property
     def status(self):
@@ -250,7 +301,7 @@ class OfflineVectorResponse:
     def to_dataframe(self):
         """return result as dataframe"""
         if self.status != "ready":
-            raise FeatureVectorError("feature vector dataset is not ready")
+            raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
         return self._merger.get_df()
 
     def to_parquet(self, target_path, **kw):

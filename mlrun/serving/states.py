@@ -33,6 +33,7 @@ from ..errors import MLRunInvalidArgumentError
 
 callable_prefix = "_"
 path_splitter = "/"
+previous_step = "$prev"
 
 
 class GraphError(Exception):
@@ -955,7 +956,7 @@ class FlowState(BaseState):
         if self._controller:
             if hasattr(self._controller, "terminate"):
                 self._controller.terminate()
-            self._controller.await_termination()
+            return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz"""

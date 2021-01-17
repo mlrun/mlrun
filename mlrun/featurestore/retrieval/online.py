@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import mlrun
 from storey import Source
 
 from mlrun.datastore.store_resources import ResourceCache
 from mlrun.serving.server import create_graph_server
-from ..common import parse_features
 from ..targets import get_online_target
 
 
@@ -39,7 +40,7 @@ def _build_feature_vector_graph(
             "storey.QueryByKey",
             f"query-{name}",
             features=column_names,
-            table=featureset.uri(),
+            table=featureset.uri,
             key=key_column,
             aliases=aliases,
         )
@@ -51,12 +52,14 @@ def _build_feature_vector_graph(
     elif not responders and default_final_state:  # graph has clear state sequence
         graph[default_final_state].respond()
     elif not responders:
-        raise ValueError("the graph doesnt have an explicit final step to respond on")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "the graph doesnt have an explicit final step to respond on"
+        )
     return graph
 
 
 def init_feature_vector_graph(vector):
-    feature_set_objects, feature_set_fields = parse_features(vector)
+    feature_set_objects, feature_set_fields = vector.parse_features()
     graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)
     graph.set_flow_source(Source())
     server = create_graph_server(graph=graph, parameters={})
@@ -64,6 +67,6 @@ def init_feature_vector_graph(vector):
     cache = ResourceCache()
     for featureset in feature_set_objects.values():
         driver = get_online_target(featureset)
-        cache.cache_table(featureset.uri(), driver.get_table_object())
+        cache.cache_table(featureset.uri, driver.get_table_object())
     server.init(None, None, cache)
-    return graph._controller
+    return graph

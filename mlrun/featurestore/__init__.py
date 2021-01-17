@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa
+
 __all__ = [
     "get_offline_features",
     "get_online_feature_service",
@@ -25,16 +27,16 @@ __all__ = [
 ]
 
 
-from .model import FeatureSet, FeatureVector  # noqa
-from .model.base import Feature, Entity, store_config, ValueType  # noqa
-from .steps import FeaturesetValidator  # noqa
-from .model.validators import MinMaxValidator  # noqa
+from .model import FeatureSet, FeatureVector
+from .model.base import Feature, Entity, ValueType
+from .steps import FeaturesetValidator
+from .model.validators import MinMaxValidator
 from .api import (
     get_offline_features,
     get_online_feature_service,
     ingest,
     infer_metadata,
     run_ingestion_task,
-)  # noqa
-from .targets import TargetTypes  # noqa
-from .infer import InferOptions  # noqa
+)
+from .targets import TargetTypes
+from .infer import InferOptions

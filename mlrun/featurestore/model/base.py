@@ -12,18 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from typing import Dict, Optional
-
 from mlrun.model import ModelObj
 from .datatypes import ValueType
-from .validators import validator_types
-
-
-class FeatureStoreError(Exception):
-    """error in feature store data or configuration"""
-
-    pass
+from .validators import validator_kinds
 
 
 class TargetTypes:
@@ -33,45 +25,6 @@ class TargetTypes:
     tsdb = "tsdb"
     stream = "stream"
     dataframe = "dataframe"
-
-
-class ResourceKinds:
-    FeatureSet = "FeatureSet"
-    FeatureVector = "FeatureVector"
-
-
-default_config = {
-    "data_prefixes": {
-        "default": "./store/{project}/{kind}",
-        "parquet": "v3io:///projects/{project}/fs/{kind}",
-        "nosql": "v3io:///projects/{project}/fs/{kind}",
-    },
-    "default_targets": [TargetTypes.parquet, TargetTypes.nosql],
-}
-
-
-class FeatureStoreConfig:
-    def __init__(self, config=None):
-        object.__setattr__(self, "_config", config or {})
-
-    def __getattr__(self, attr):
-        val = self._config.get(attr, None)
-        if val is None:
-            raise AttributeError(attr)
-        return val
-
-    def __setattr__(self, attr, value):
-        self._config[attr] = value
-
-    def __dir__(self):
-        return list(self._config) + dir(self.__class__)
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        return f"{name}({self._config!r})"
-
-
-store_config = FeatureStoreConfig(copy.deepcopy(default_config))
 
 
 class Entity(ModelObj):
@@ -133,7 +86,7 @@ class Feature(ModelObj):
     def validator(self, validator):
         if isinstance(validator, dict):
             kind = validator.get("kind")
-            validator = validator_types[kind].from_dict(validator)
+            validator = validator_kinds[kind].from_dict(validator)
         self._validator = validator
 
 
@@ -153,7 +106,7 @@ class SourceTypes:
     dataframe = "dataframe"
 
 
-class DataTargetSpec(ModelObj):
+class DataTargetBase(ModelObj):
     """data target spec, specify a destination for the feature set data"""
 
     _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
@@ -173,7 +126,7 @@ class DataTargetSpec(ModelObj):
         self.attributes = attributes or {}
 
 
-class DataTarget(DataTargetSpec):
+class DataTarget(DataTargetBase):
     """data target with extra status information (used in the feature-set/vector status)"""
 
     _dict_fields = ["name", "kind", "path", "start_time", "online", "status"]
@@ -255,7 +208,7 @@ class CommonMetadata(ModelObj):
         self,
         name: str = None,
         tag: str = None,
-        hash: str = None,
+        uid: str = None,
         project: str = None,
         labels: Dict[str, str] = None,
         annotations: Dict[str, str] = None,
@@ -263,7 +216,7 @@ class CommonMetadata(ModelObj):
     ):
         self.name = name
         self.tag = tag
-        self.hash = hash
+        self.uid = uid
         self.project = project
         self.labels = labels or {}
         self.annotations = annotations or {}

@@ -32,26 +32,40 @@ class InferOptions:
     Histogram = 16
     Preview = 32
 
-    Schema = 1 + 2 + 4
-    AllStats = 8 + 16 + 32
+    @staticmethod
+    def schema():
+        return InferOptions.Entities + InferOptions.Features + InferOptions.Index
 
-    @classmethod
-    def all(cls):
-        return cls.Schema + cls.Stats + cls.Histogram + cls.Preview
+    @staticmethod
+    def all_stats():
+        return InferOptions.Stats + InferOptions.Histogram + InferOptions.Preview
 
-    @classmethod
-    def default(cls):
-        return cls.all()
+    @staticmethod
+    def all():
+        return (
+            InferOptions.schema()
+            + InferOptions.Stats
+            + InferOptions.Histogram
+            + InferOptions.Preview
+        )
+
+    @staticmethod
+    def default():
+        return InferOptions.all()
+
+
+def get_common_infer_options(one, two):
+    return one & two
 
 
 def infer_from_df(
     df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
 ):
-    if options & InferOptions.Schema:
+    if get_common_infer_options(options, InferOptions.schema()):
         infer_schema_from_df(df, featureset.spec, entity_columns, options)
-    if options & InferOptions.Stats:
+    if get_common_infer_options(options, InferOptions.Stats):
         featureset.status.stats = get_df_stats(df, options)
-    if options & InferOptions.Preview:
+    if get_common_infer_options(options, InferOptions.Preview):
         featureset.status.preview = get_df_preview(df)
 
 
@@ -72,20 +86,21 @@ def infer_schema_from_df(
         else:
             featureset_spec.features[name] = Feature(name=column, value_type=value_type)
 
-    for column, s in df.items():
-        value_type = _get_column_type(s)
+    for column, series in df.items():
+        value_type = _get_column_type(series)
         is_entity = column in entity_columns or column in current_entities
         if is_entity:
             if column not in current_entities:
                 featureset_spec.entities[column] = Entity(value_type=value_type)
         elif (
-            options & InferOptions.Features and column != featureset_spec.timestamp_key
+            get_common_infer_options(options, InferOptions.Features)
+            and column != featureset_spec.timestamp_key
         ):
             upsert_feature(column, value_type)
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
-    if options & InferOptions.Index:
+    if get_common_infer_options(options, InferOptions.Index):
         # infer types of index fields
         if df.index.name:
             if column not in current_entities:
@@ -112,7 +127,7 @@ def get_df_stats(df, options, num_bins=default_num_bins):
     """get per column data stats from dataframe"""
 
     results_dict = {}
-    if (options & InferOptions.Index) and df.index.name:
+    if get_common_infer_options(options, InferOptions.Index) and df.index.name:
         df = df.reset_index()
     for col, values in df.describe(
         include="all", percentiles=[], datetime_is_numeric=True
@@ -127,7 +142,9 @@ def get_df_stats(df, options, num_bins=default_num_bins):
                 else:
                     stats_dict[stat] = str(val)
 
-        if options & InferOptions.Histogram and pd.api.types.is_numeric_dtype(df[col]):
+        if get_common_infer_options(
+            options, InferOptions.Histogram
+        ) and pd.api.types.is_numeric_dtype(df[col]):
             # store histogram
             try:
                 hist, bins = np.histogram(df[col], bins=num_bins)

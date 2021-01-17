@@ -20,7 +20,7 @@ from mlrun.featurestore.model.datatypes import ValueType
 from mlrun.featurestore.model.validators import MinMaxValidator
 
 
-this_dir = f"{tests_root_directory}/feature-store/"
+local_dir = f"{tests_root_directory}/feature-store/"
 results_dir = f"{results}/feature-store/"
 
 
@@ -163,7 +163,7 @@ def test_serverless_ingest():
     init_store()
 
     measurements = fs.FeatureSet("measurements", entities=[Entity("patient_id")])
-    src_df = pd.read_csv(this_dir + "testdata.csv")
+    src_df = pd.read_csv(local_dir + "testdata.csv")
     df = fs.infer_metadata(
         measurements,
         src_df,
@@ -172,7 +172,7 @@ def test_serverless_ingest():
     )
     print(df.head(5))
     target_path = os.path.relpath(results_dir + "mycsv.csv")
-    source = CSVSource("mycsv", path=os.path.relpath(this_dir + "testdata.csv"))
+    source = CSVSource("mycsv", path=os.path.relpath(local_dir + "testdata.csv"))
     targets = [CSVTarget("mycsv", path=target_path)]
     if os.path.exists(target_path):
         os.remove(target_path)

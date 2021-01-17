@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import copy
 from typing import List
 
 import mlrun
@@ -24,16 +23,13 @@ from .base import (
     Entity,
     DataTarget,
     DataSource,
-    ResourceKinds,
-    FeatureStoreError,
-    DataTargetSpec,
-    store_config,
+    DataTargetBase,
     CommonMetadata,
 )
-from ..targets import get_offline_target
+from ..targets import get_offline_target, default_target_names
 from ...model import ModelObj, ObjectList
 from ...runtimes.function_reference import FunctionReference
-from ...serving.states import BaseState, RootFlowState
+from ...serving.states import BaseState, RootFlowState, previous_step
 from ...config import config as mlconf
 from ...utils import StorePrefix
 from ...datastore import get_store_uri
@@ -98,13 +94,13 @@ class FeatureSetSpec(ModelObj):
         self._features = ObjectList.from_list(Feature, features)
 
     @property
-    def targets(self) -> List[DataTargetSpec]:
+    def targets(self) -> List[DataTargetBase]:
         """list of desired targets (material storage)"""
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTargetSpec]):
-        self._targets = ObjectList.from_list(DataTargetSpec, targets)
+    def targets(self, targets: List[DataTargetBase]):
+        self._targets = ObjectList.from_list(DataTargetBase, targets)
 
     @property
     def graph(self) -> RootFlowState:
@@ -172,7 +168,7 @@ class FeatureSetStatus(ModelObj):
 class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
-    kind = ResourceKinds.FeatureSet
+    kind = mlrun.api.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(self, name=None, description=None, entities=None, timestamp_key=None):
@@ -212,6 +208,7 @@ class FeatureSet(ModelObj):
     def status(self, status):
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
+    @property
     def uri(self):
         """fully qualified feature set uri"""
         uri = f'{self._metadata.project or ""}/{self._metadata.name}:{self._metadata.tag or "latest"}'
@@ -226,15 +223,15 @@ class FeatureSet(ModelObj):
     def set_targets(self, targets=None, with_defaults=True):
         """set the desired target list"""
         if targets is not None and not isinstance(targets, list):
-            raise ValueError(
-                "targets can only be None or a list of kinds/DataTargetSpec"
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "targets can only be None or a list of kinds/DataTargetBase"
             )
         targets = targets or []
         if with_defaults:
-            targets.extend(copy(store_config.default_targets))
+            targets.extend(default_target_names())
         for target in targets:
-            if not isinstance(target, DataTargetSpec):
-                target = DataTargetSpec(target, name=str(target))
+            if not isinstance(target, DataTargetBase):
+                target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
 
     def add_entity(self, entity, name=None):
@@ -300,7 +297,7 @@ class FeatureSet(ModelObj):
         else:
             graph.add_step(
                 name=state_name,
-                after=after or "$prev",
+                after=after or previous_step,
                 before=before,
                 class_name="storey.AggregateByKey",
                 aggregates=[aggregation],
@@ -346,7 +343,9 @@ class FeatureSet(ModelObj):
             columns = list(self.spec.entities.keys()) + columns
         driver = get_offline_target(self, name=target_name)
         if not driver:
-            raise FeatureStoreError("there are no offline targets for this feature set")
+            raise mlrun.errors.MLRunNotFoundError(
+                "there are no offline targets for this feature set"
+            )
         return driver.as_df(columns=columns, df_module=df_module)
 
     def save(self, tag="", versioned=False):

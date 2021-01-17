@@ -125,6 +125,14 @@ default_config = {
             "user_token": "",
         },
     },
+    "feature_store": {
+        "data_prefixes": {
+            "default": "./store/{project}/{kind}",
+            "parquet": "v3io:///projects/{project}/fs/{kind}",
+            "nosql": "v3io:///projects/{project}/fs/{kind}",
+        },
+        "default_targets": "parquet,nosql",
+    },
 }
 
 
@@ -141,6 +149,15 @@ class Config:
         val = self._cfg.get(attr, self._missing)
         if val is self._missing:
             raise AttributeError(attr)
+
+        if isinstance(val, Mapping):
+            return self.__class__(val)
+        return val
+
+    def __getitem__(self, item):
+        val = self._cfg.get(item, self._missing)
+        if val is self._missing:
+            raise AttributeError(item)
 
         if isinstance(val, Mapping):
             return self.__class__(val)
@@ -174,6 +191,9 @@ class Config:
     @classmethod
     def from_dict(cls, dict_):
         return cls(copy.deepcopy(dict_))
+
+    def to_dict(self):
+        return copy.copy(self._cfg)
 
     @staticmethod
     def reload():

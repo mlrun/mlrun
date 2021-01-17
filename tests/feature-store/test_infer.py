@@ -25,7 +25,7 @@ expected_schema = [
 ]
 
 
-def test_infer():
+def test_infer_from_df():
     key = "patient_id"
     df = pd.read_csv(this_dir + "testdata.csv")
     featureset = fs.FeatureSet("testdata", entities=[fs.Entity(key)])

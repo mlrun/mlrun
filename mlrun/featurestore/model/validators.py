@@ -23,7 +23,7 @@ class MinMaxValidator(Validator):
     """validate min/max value ranges"""
 
     kind = "minmax"
-    _dict_fields = ["kind", "check_type", "severity", "min", "max"]
+    _dict_fields = Validator._dict_fields + ["min", "max"]
 
     def __init__(self, check_type=None, severity=None, min=None, max=None):
         super().__init__(check_type, severity)
@@ -56,7 +56,7 @@ class MinMaxValidator(Validator):
         return ok, args
 
 
-validator_types = {
+validator_kinds = {
     "": Validator,
     "minmax": MinMaxValidator,
 }

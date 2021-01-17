@@ -18,7 +18,7 @@ from mlrun.featurestore.model import (
     Feature,
     ValueType,
 )
-from mlrun.featurestore.common import _parse_feature_string
+from mlrun.featurestore.common import parse_feature_string
 
 
 def test_feature_set():
@@ -42,7 +42,7 @@ def test_features_parser():
     ]
     for case in cases:
         try:
-            result = _parse_feature_string(case["feature"])
+            result = parse_feature_string(case["feature"])
         except Exception as e:
             assert case.get("error", False), f"got unexpected error {e}"
             continue

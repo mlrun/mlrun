@@ -12,27 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Dict
-
+import mlrun
 from mlrun.utils import now_date
 
 from mlrun.run import get_dataitem
-from mlrun.config import config as mlconf
 
 from .model.base import (
-    DataTargetSpec,
+    DataTargetBase,
     TargetTypes,
     DataTarget,
-    store_config,
-    ResourceKinds,
 )
 from mlrun.datastore.v3io import parse_v3io_path
+
+
+def default_target_names():
+    targets = mlrun.mlconf.feature_store.default_targets
+    return [target.strip() for target in targets.split(",")]
 
 
 def get_default_targets():
     """initialize the default feature set targets list"""
     return [
-        DataTargetSpec(target, name=str(target))
-        for target in store_config.default_targets
+        DataTargetBase(target, name=str(target)) for target in default_target_names()
     ]
 
 
@@ -98,7 +99,7 @@ def get_target_driver(kind, target_spec, resource=None):
     return driver_class.from_spec(target_spec, resource)
 
 
-class BaseStoreTarget(DataTargetSpec):
+class BaseStoreTarget(DataTargetBase):
     """base target storage driver, used to materialize feature set/vector data"""
 
     kind = ""
@@ -123,7 +124,7 @@ class BaseStoreTarget(DataTargetSpec):
         self._resource = None
 
     @classmethod
-    def from_spec(cls, spec: DataTargetSpec, resource=None):
+    def from_spec(cls, spec: DataTargetBase, resource=None):
         """create target driver from target spec or other target driver"""
         driver = cls()
         driver.name = spec.name
@@ -227,7 +228,7 @@ class NoSqlTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
-        table = self._resource.uri()
+        table = self._resource.uri
         column_list = [
             key for key, feature in features.items() if not feature.aggregate
         ]
@@ -285,13 +286,18 @@ def _get_target_path(driver, resource):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
-    kind_prefix = "sets" if resource.kind == ResourceKinds.FeatureSet else "vectors"
+    kind_prefix = (
+        "sets"
+        if resource.kind == mlrun.api.schemas.ObjectKind.feature_set
+        else "vectors"
+    )
     name = resource.metadata.name
     version = resource.metadata.tag
-    project = resource.metadata.project or mlconf.default_project
-    data_prefix = store_config.data_prefixes.get(kind, None)
+    project = resource.metadata.project or mlrun.mlconf.default_project
+    data_prefixes = mlrun.mlconf.feature_store.data_prefixes.to_dict()
+    data_prefix = data_prefixes.get(kind, None)
     if not data_prefix:
-        data_prefix = store_config.data_prefixes["default"]
+        data_prefix = data_prefixes["default"]
     data_prefix = data_prefix.format(project=project, kind=kind)
     if version:
         name = f"{name}-{version}"

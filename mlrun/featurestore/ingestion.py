@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mlrun
 from mlrun.runtimes import RuntimeKinds
 
 from .model import DataTarget
@@ -36,7 +37,7 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
 
     server = create_graph_server(graph=graph, parameters={})
     server.init(None, namespace, cache)
-    return graph._controller
+    return graph
 
 
 def featureset_initializer(server):
@@ -65,12 +66,12 @@ def _add_data_states(
     graph, cache, featureset, targets, source, return_df=False,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
-    cache.cache_resource(featureset.uri(), featureset, True)
+    cache.cache_resource(featureset.uri, featureset, True)
     table = add_target_states(
         graph, featureset, targets, to_df=return_df, final_state=default_final_state
     )
     if table:
-        cache.cache_table(featureset.uri(), table, True)
+        cache.cache_table(featureset.uri, table, True)
 
     entity_columns = list(featureset.spec.entities.keys())
     key_column = entity_columns[0] if entity_columns else None
@@ -87,10 +88,12 @@ def deploy_ingestion_function(
     name = name or f"{featureset.metadata.name}_ingest"
     function_ref = function_ref or featureset.spec.function.copy()
     if not function_ref.to_dict():
-        runtime = RuntimeKinds.serving if source.online else RuntimeKinds.job
-        function_ref = FunctionReference(name=name, kind=runtime)
+        runtime_kind = RuntimeKinds.serving if source.online else RuntimeKinds.job
+        function_ref = FunctionReference(name=name, kind=runtime_kind)
     if not function_ref.kind:
-        raise ValueError(f"function reference is missing kind {function_ref}")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"function reference is missing kind {function_ref}"
+        )
 
     if function_ref.kind == RuntimeKinds.serving:
         function_ref.code = function_ref.code or ""

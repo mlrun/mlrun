@@ -47,8 +47,8 @@ def pd_schema_to_value_type(value):
     return type_map[value]
 
 
-def py_to_value_type(value):
-    type_name = type(value).__name__
+def python_type_to_value_type(value_type):
+    type_name = value_type.__name__
     type_map = {
         "int": ValueType.INT64,
         "str": ValueType.STRING,

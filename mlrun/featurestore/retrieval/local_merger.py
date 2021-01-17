@@ -15,7 +15,6 @@
 from typing import List
 import pandas as pd
 
-from ..common import parse_features
 from ..model.vector import OfflineVectorResponse
 
 
@@ -25,7 +24,7 @@ class LocalFeatureMerger:
         self.vector = vector
 
     def start(self, entity_rows=None, entity_timestamp_column=None, target=None):
-        feature_set_objects, feature_set_fields = parse_features(self.vector)
+        feature_set_objects, feature_set_fields = self.vector.parse_features()
         if self.vector.metadata.name:
             self.vector.save()
 

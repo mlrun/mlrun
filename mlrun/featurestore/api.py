@@ -14,15 +14,13 @@
 
 from typing import List, Union, Dict
 import mlrun
+import pandas as pd
 from .common import get_feature_vector_by_uri, get_feature_set_by_uri
-from .infer import (
-    InferOptions,
-    infer_from_df,
-)
-from .model.base import DataTargetSpec, DataSource
+from .infer import InferOptions, infer_from_df, get_common_infer_options
+from .model.base import DataTargetBase, DataSource
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
 from .ingestion import init_featureset_graph, deploy_ingestion_function
-from .model import FeatureVector, FeatureSet, OnlineVectorService
+from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
 from .targets import get_default_targets
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals
@@ -39,7 +37,7 @@ except Exception:
     pass
 
 
-def _features_to_vector(features, name):
+def _features_to_vector(features):
     if isinstance(features, str):
         vector = get_feature_vector_by_uri(features)
     elif isinstance(features, list):
@@ -47,10 +45,7 @@ def _features_to_vector(features, name):
     elif isinstance(features, FeatureVector):
         vector = features
     else:
-        raise ValueError("illegal features value/type")
-
-    if name:
-        vector.metadata.name = name
+        raise mlrun.errors.MLRunInvalidArgumentError("illegal features value/type")
     return vector
 
 
@@ -58,11 +53,11 @@ def get_offline_features(
     features: Union[str, List[str], FeatureVector],
     entity_rows=None,
     entity_timestamp_column: str = None,
-    name: str = None,
     watch: bool = True,
-    store_target: DataTargetSpec = None,
-):
-    """retrieve offline feature vector
+    store_target: DataTargetBase = None,
+    engine: str = None,
+) -> OfflineVectorResponse:
+    """retrieve offline feature vector results
 
     example::
 
@@ -73,7 +68,7 @@ def get_offline_features(
             "stocks.*",
         ]
 
-        resp = fs.get_offline_features(
+        resp = get_offline_features(
             features, entity_rows=trades, entity_timestamp_column="time"
         )
         print(resp.to_dataframe())
@@ -82,53 +77,56 @@ def get_offline_features(
 
     :param features:     list of features or feature vector uri or FeatureVector object
     :param entity_rows:  dataframe with entity rows to join with
-    :param name:         name to use for the generated feature vector
     :param watch:        indicate we want to wait for the result
     :param store_target: where to write the results to
+    :param engine:       join/merge engine (local, job, spark)
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
     """
-    vector = _features_to_vector(features, name)
+    vector = _features_to_vector(features)
     entity_timestamp_column = entity_timestamp_column or vector.spec.timestamp_field
+    # todo: support different merger engines (job, spark)
     merger = LocalFeatureMerger(vector)
     return merger.start(entity_rows, entity_timestamp_column, store_target)
 
 
 def get_online_feature_service(
-    features: Union[str, List[str], FeatureVector], name: str = None, function=None
-):
-    """initialize and return the feature vector online client
+    features: Union[str, List[str], FeatureVector], function=None
+) -> OnlineVectorService:
+    """initialize and return online feature vector service api
 
     example::
 
-        svc = fs.get_online_feature_service(vector_uri)
+        svc = get_online_feature_service(vector_uri)
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
         print(resp)
         resp = svc.get([{"ticker": "AAPL"}])
         print(resp)
 
     :param features:     list of features or feature vector uri or FeatureVector object
-    :param name:         name to use for the generated feature vector
     :param function:     optional, mlrun FunctionReference object, serverless function template
     """
-    vector = _features_to_vector(features, name)
-    controller = init_feature_vector_graph(vector)
-    service = OnlineVectorService(vector, controller)
+    vector = _features_to_vector(features)
+    graph = init_feature_vector_graph(vector)
+    service = OnlineVectorService(vector, graph)
+
+    # todo: support remote service (using remote nuclio/mlrun function)
     return service
 
 
 def ingest(
     featureset: Union[FeatureSet, str],
     source,
-    targets: List[DataTargetSpec] = None,
+    targets: List[DataTargetBase] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.Null,
-):
+) -> pd.DataFrame:
     """Read local DataFrame, file, or URL into the feature store
 
     example::
 
-        stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker")])
+        stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
+        stocks = pd.read_csv("stocks.csv")
         df = ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
 
     :param featureset:    feature set object or uri
@@ -146,22 +144,22 @@ def ingest(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
-    if infer_options & InferOptions.Schema:
+    if infer_options & InferOptions.schema():
         infer_metadata(
             featureset,
             source,
-            options=infer_options & InferOptions.Schema,
+            options=get_common_infer_options(infer_options, InferOptions.schema()),
             namespace=namespace,
         )
-    infer_stats = infer_options & InferOptions.AllStats
+    infer_stats = get_common_infer_options(infer_options, InferOptions.all_stats())
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
     targets = targets or featureset.spec.targets or get_default_targets()
-    controller = init_featureset_graph(
+    graph = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df
     )
-    df = controller.await_termination()
+    df = graph.wait_for_completion()
     infer_from_df(df, featureset, options=infer_stats)
     featureset.save()
     return df
@@ -174,7 +172,7 @@ def infer_metadata(
     timestamp_key=None,
     namespace=None,
     options: InferOptions = None,
-):
+) -> pd.DataFrame:
     """Infer features schema and stats from a local DataFrame
 
     example::
@@ -182,7 +180,7 @@ def infer_metadata(
         quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
         quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
         quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
-        df = fs.infer_metadata(
+        df = infer_metadata(
             quotes_set,
             quotes_df,
             entity_columns=["ticker"],
@@ -208,11 +206,14 @@ def infer_metadata(
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
         # find/update entities schema
-        infer_from_df(source, featureset, entity_columns, options & InferOptions.Schema)
-        controller = init_featureset_graph(
-            source, featureset, namespace, return_df=True
+        infer_from_df(
+            source,
+            featureset,
+            entity_columns,
+            get_common_infer_options(options, InferOptions.schema()),
         )
-        source = controller.await_termination()
+        graph = init_featureset_graph(source, featureset, namespace, return_df=True)
+        source = graph.wait_for_completion()
 
     infer_from_df(source, featureset, entity_columns, options)
     return source
@@ -221,7 +222,7 @@ def infer_metadata(
 def run_ingestion_task(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetSpec] = None,
+    targets: List[DataTargetBase] = None,
     name: str = None,
     infer_options: InferOptions = InferOptions.Null,
     parameters: Dict[str, Union[str, list, dict]] = None,
@@ -253,7 +254,7 @@ def run_ingestion_task(
     source = source or featureset.spec.source
     parameters = parameters or {}
     parameters["infer_options"] = infer_options
-    parameters["featureset"] = featureset.uri()
+    parameters["featureset"] = featureset.uri
     if not source.online:
         parameters["source"] = source.to_dict()
     if targets:

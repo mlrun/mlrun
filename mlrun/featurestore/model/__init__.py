@@ -14,5 +14,5 @@
 
 from .featureset import FeatureSet, FeatureSetSpec  # noqa
 from .vector import FeatureVector, OnlineVectorService, OfflineVectorResponse  # noqa
-from .base import Feature, Entity, DataTarget, store_config  # noqa
+from .base import Feature, Entity, DataTarget  # noqa
 from .datatypes import ValueType  # noqa

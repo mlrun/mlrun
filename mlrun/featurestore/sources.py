@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Dict
+import mlrun
 
 from .model.base import DataSource
 
@@ -24,7 +25,7 @@ def get_source_step(source, key_column=None, time_column=None):
     if hasattr(source, "to_csv"):
         source = DFSourceDriver(source)
     if not key_column and not source.key_column:
-        raise ValueError("key column is not defined")
+        raise mlrun.errors.MLRunInvalidArgumentError("key column is not defined")
     return source.to_step(key_column, time_column)
 
 
@@ -81,6 +82,7 @@ class DFSourceDriver:
         )
 
 
+# map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
     "": BaseSourceDriver,
     "csv": CSVSource,

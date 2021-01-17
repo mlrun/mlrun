@@ -15,7 +15,7 @@
 from typing import List
 import pandas as pd
 
-from ..model.vector import OfflineVectorResponse
+from ..model.feature_vector import OfflineVectorResponse
 
 
 class LocalFeatureMerger:

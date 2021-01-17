@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .featureset import FeatureSet, FeatureSetSpec  # noqa
-from .vector import FeatureVector, OnlineVectorService, OfflineVectorResponse  # noqa
-from .base import Feature, Entity, DataTarget  # noqa
-from .datatypes import ValueType  # noqa
+# flake8: noqa
+
+from .feature_set import FeatureSet, FeatureSetSpec
+from .feature_vector import (
+    FeatureVector,
+    OnlineVectorService,
+    OfflineVectorResponse,
+)
+from .base import Feature, Entity, DataTarget
+from .datatypes import ValueType

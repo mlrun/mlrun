@@ -176,6 +176,7 @@ def test_get_parsed_docker_registry():
 
 def test_parse_store_uri():
     cases = [
+        {"uri": "store:///123", "expected_output": (StorePrefix.Artifact, "123")},
         {"uri": "store://xyz", "expected_output": (StorePrefix.Artifact, "xyz")},
         {
             "uri": "store://feature-sets/123",

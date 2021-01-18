@@ -593,6 +593,50 @@ class MlrunProject(ModelObj):
         self.spec.mountdir = mountdir
 
     @property
+    def params(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.params instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.params
+
+    @params.setter
+    def params(self, params):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.params instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.params = params
+
+    @property
+    def description(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.description instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.description
+
+    @description.setter
+    def description(self, description):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.description instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.description = description
+
+    @property
     def functions(self) -> list:
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""

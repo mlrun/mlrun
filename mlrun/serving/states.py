@@ -33,6 +33,7 @@ from ..errors import MLRunInvalidArgumentError
 
 callable_prefix = "_"
 path_splitter = "/"
+previous_step = "$prev"
 
 
 class GraphError(Exception):
@@ -953,8 +954,9 @@ class FlowState(BaseState):
     def wait_for_completion(self):
         """wait for completion of run in async flows"""
         if self._controller:
-            self._controller.terminate()
-            self._controller.await_termination()
+            if hasattr(self._controller, "terminate"):
+                self._controller.terminate()
+            return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz"""

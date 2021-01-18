@@ -127,8 +127,7 @@ default_config = {
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "./store/{project}/{kind}",
-            "parquet": "v3io:///projects/{project}/fs/{kind}",
+            "default": "v3io:///projects/{project}/fs/{kind}",
             "nosql": "v3io:///projects/{project}/fs/{kind}",
         },
         "default_targets": "parquet,nosql",

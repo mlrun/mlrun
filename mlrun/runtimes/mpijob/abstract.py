@@ -12,27 +12,80 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import os
 import time
 import typing
-import os
 
 from kubernetes import client
-
 from mlrun.config import config
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import AsyncLogWriter, RunError
-from mlrun.utils import logger, get_in
+from mlrun.utils import get_in, logger
+from mlrun.runtimes.pod import KubeResourceSpec
+
+
+class MPIResourceSpec(KubeResourceSpec):
+    def __init__(
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        default_handler=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        replicas=None,
+        image_pull_policy=None,
+        service_account=None,
+        build=None,
+        image_pull_secret=None,
+        mpi_args=None,
+    ):
+        super().__init__(
+            command=command,
+            image=image,
+            mode=mode,
+            build=build,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            default_handler=default_handler,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+            env=env,
+            resources=resources,
+            replicas=replicas,
+            image_pull_policy=image_pull_policy,
+            service_account=service_account,
+            image_pull_secret=image_pull_secret,
+            args=args,
+        )
+
+        self.mpi_args = mpi_args or []
 
 
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = "mpijob"
     _is_nested = False
 
+    @property
+    def spec(self) -> MPIResourceSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", MPIResourceSpec)
+
     @abc.abstractmethod
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta
+        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 
@@ -131,7 +184,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
-                mpi_group, mpi_version, namespace=namespace, plural=mpi_plural, body=job
+                mpi_group,
+                mpi_version,
+                namespace=namespace,
+                plural=mpi_plural,
+                body=job,
             )
             name = get_in(resp, "metadata.name", "unknown")
             logger.info("MpiJob {} created".format(name))
@@ -296,3 +353,48 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             ] = gaussian_process_noise
 
         self.set_envs(horovod_autotune_settings)
+
+    def set_mpi_args(self, args: typing.List[str]) -> None:
+        """Sets the runtime's mpi arguments to args.
+
+        Parameters
+        ----------
+        args : typing.List[str]
+            Arguments to be used for the mpi-operator
+
+        Raises
+        ------
+        ValueError
+            args is of type `List[str]` and can only accept `str` parameters.
+
+        Example
+        -------
+        ```
+        # Define the wanted MPI arguments
+        mpi_args = []
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_DEBUG=INFO')
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_SOCKET_NTHREADS=2')
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_NSOCKS_PERTHREAD=8')
+        mpi_args.append('-x')
+        mpi_args.append('NCCL_MIN_NCHANNELS=4')
+
+        # Set the MPI arguments in the function
+        fn.set_mpi_args(mpi_args)
+        ```
+
+        Notes
+        -----
+        * This will replace existing args.
+
+        """
+
+        # Verify that we are given only strings
+        if not all([isinstance(arg, str) for arg in args]):
+            raise ValueError(
+                "Args is of type `List[str]` and can only accept `str` type params."
+            )
+
+        self.spec.mpi_args = args

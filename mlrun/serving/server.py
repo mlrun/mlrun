@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+__all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
+
+
 import json
 import os
 import socket
@@ -29,6 +33,7 @@ from .states import (
     get_function,
     graph_root_setter,
 )
+from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
@@ -53,9 +58,9 @@ class GraphServer(ModelObj):
     def __init__(
         self,
         graph=None,
-        function_uri=None,
         parameters=None,
         load_mode=None,
+        function_uri=None,
         verbose=False,
         version=None,
         functions=None,
@@ -63,7 +68,7 @@ class GraphServer(ModelObj):
         error_stream=None,
     ):
         self._graph = None
-        self.graph: RouterState = graph
+        self.graph: Union[RouterState, RootFlowState] = graph
         self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
@@ -102,28 +107,34 @@ class GraphServer(ModelObj):
     def _get_db(self):
         return mlrun.get_run_db(secrets=self._secrets)
 
-    def init(self, context, namespace, resource_cache=None, logger=None):
+    def init(
+        self, context, namespace, resource_cache: ResourceCache = None, logger=None
+    ):
         """for internal use, initialize all states (recursively)"""
 
         if self.error_stream:
             self._error_stream_object = OutputStream(self.error_stream)
-        self.resource_cache = resource_cache
+        self.resource_cache = resource_cache or ResourceCache()
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
 
         context.stream = _StreamContext(self.parameters, self.function_uri)
         context.current_function = self._current_function
+        context.get_store_resource = self.resource_cache.resource_getter(
+            self._get_db(), self._secrets
+        )
+        context.get_table = self.resource_cache.get_table
         context.verbose = self.verbose
-        context.root = self.graph
         self.context = context
 
         if self.graph_initializer:
             if callable(self.graph_initializer):
                 handler = self.graph_initializer
             else:
-                handler = get_function(self.graph_initializer, namespace)
+                handler = get_function(self.graph_initializer, namespace or [])
             handler(self)
 
-        self.graph.init_object(context, namespace, self.load_mode)
+        context.root = self.graph
+        self.graph.init_object(context, namespace, self.load_mode, reset=True)
         return v2_serving_handler
 
     def test(
@@ -137,10 +148,11 @@ class GraphServer(ModelObj):
     ):
         """invoke a test event into the server to simulate/test server behaviour
 
-        e.g.:
-                server = create_graph_server()
-                server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
-                print(server.test("my/infer", testdata))
+        example::
+
+            server = create_graph_server()
+            server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
+            print(server.test("my/infer", testdata))
 
         :param path:       api path, e.g. (/{router.url_prefix}/{model-name}/..) path
         :param body:       message body (dict or json str/bytes)
@@ -221,13 +233,14 @@ def create_graph_server(
     current_function=None,
     **kwargs,
 ) -> GraphServer:
-    """create serving host/emulator for local or test runs
+    """create graph server host/emulator for local or test runs
 
-        Usage:
-                server = create_graph_server(graph=RouterState(), parameters={})
-                server.init(None, globals())
-                server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
-                print(server.test("/v2/models/my/infer", testdata))
+    Usage example::
+
+        server = create_graph_server(graph=RouterState(), parameters={})
+        server.init(None, globals())
+        server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
+        print(server.test("/v2/models/my/infer", testdata))
     """
     server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
     server.set_current_function(
@@ -295,7 +308,7 @@ class GraphContext:
 
         self._server = server
         self.current_function = None
-        self.get_data_resource = None
+        self.get_store_resource = None
         self.get_table = None
 
     def push_error(self, event, message, source=None, **kwargs):
@@ -309,7 +322,7 @@ class GraphContext:
 
     def get_param(self, key: str, default=None):
         if self._server and self._server.parameters:
-            return self.parameters.get(key, default)
+            return self._server.parameters.get(key, default)
         return default
 
     def get_secret(self, key: str):

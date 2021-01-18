@@ -58,3 +58,4 @@ class ObjectKind(str, Enum):
     feature_set = "FeatureSet"
     background_task = "BackgroundTask"
     feature_vector = "FeatureVector"
+    model_endpoint = "model-endpoint"

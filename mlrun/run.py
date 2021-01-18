@@ -49,7 +49,7 @@ from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     get_in,
     logger,
-    parse_function_uri,
+    parse_versioned_object_uri,
     update_in,
     new_pipe_meta,
     extend_hub_uri,
@@ -108,15 +108,16 @@ def run_local(
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
-    e.g.:
-           # define a task
-           task = new_task(params={'p1': 8}, out_path=out_path)
-           # run
-           run = run_local(spec, command='src/training.py', workdir='src')
+    example::
 
-           or specify base task parameters (handler, params, ..) in the call
+        # define a task
+        task = new_task(params={'p1': 8}, out_path=out_path)
+        # run
+        run = run_local(spec, command='src/training.py', workdir='src')
 
-           run = run_local(handler=my_function, params={'x': 5})
+    or specify base task parameters (handler, params, ..) in the call::
+
+        run = run_local(handler=my_function, params={'x': 5})
 
     :param task:     task template object or dict (see RunTemplate)
     :param command:  command/url/function
@@ -175,7 +176,7 @@ def function_to_module(code="", workdir=None, secrets=None):
 
     Note: the function may have package requirements which must be satisfied
 
-    example:
+    example::
 
         mod = mlrun.function_to_module('./examples/training.py')
         task = mlrun.new_task(inputs={'infile.txt': '../examples/infile.txt'})
@@ -286,31 +287,31 @@ def get_or_create_ctx(
 
     :return: execution context
 
-    Example:
+    Examples::
 
-    # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-    context = get_or_create_ctx('train')
+        # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
+        context = get_or_create_ctx('train')
 
-    # get parameters from the runtime context (or use defaults)
-    p1 = context.get_param('p1', 1)
-    p2 = context.get_param('p2', 'a-string')
+        # get parameters from the runtime context (or use defaults)
+        p1 = context.get_param('p1', 1)
+        p2 = context.get_param('p2', 'a-string')
 
-    # access input metadata, values, files, and secrets (passwords)
-    print(f'Run: {context.name} (uid={context.uid})')
-    print(f'Params: p1={p1}, p2={p2}')
-    print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-    print('file: {}'.format(context.get_input('infile.txt').get()))
+        # access input metadata, values, files, and secrets (passwords)
+        print(f'Run: {context.name} (uid={context.uid})')
+        print(f'Params: p1={p1}, p2={p2}')
+        print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
+        print('file: {}'.format(context.get_input('infile.txt').get()))
 
-    # RUN some useful code e.g. ML training, data prep, etc.
+        # RUN some useful code e.g. ML training, data prep, etc.
 
-    # log scalar result values (job result metrics)
-    context.log_result('accuracy', p1 * 2)
-    context.log_result('loss', p1 * 3)
-    context.set_label('framework', 'sklearn')
+        # log scalar result values (job result metrics)
+        context.log_result('accuracy', p1 * 2)
+        context.log_result('loss', p1 * 3)
+        context.set_label('framework', 'sklearn')
 
-    # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-    context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
-    context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
+        # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
+        context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
+        context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
 
     """
 
@@ -367,7 +368,7 @@ def import_function(url="", secrets=None, db=""):
     """
     if url.startswith("db://"):
         url = url[5:]
-        project, name, tag, hash_key = parse_function_uri(url)
+        project, name, tag, hash_key = parse_versioned_object_uri(url)
         db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:
@@ -439,7 +440,8 @@ def new_function(
 ):
     """Create a new ML function from base properties
 
-    e.g.:
+    example::
+
            # define a container based function
            f = new_function(command='job://training.py -v', image='myrepo/image:latest')
 
@@ -733,15 +735,15 @@ def run_pipeline(
 
     Submit a workflow task to KFP via mlrun API service
 
-    :param pipeline   KFP pipeline function or path to .yaml/.zip pipeline file
-    :param arguments  pipeline arguments
-    :param experiment experiment name
-    :param run        optional, run name
-    :param namespace  Kubernetes namespace (if not using default)
-    :param url        optional, url to mlrun API service
-    :param artifact_path  target location/url for mlrun artifacts
-    :param ops        additional operators (.apply() to all pipeline functions)
-    :param ttl        pipeline ttl in secs (after that the pods will be removed)
+    :param pipeline:   KFP pipeline function or path to .yaml/.zip pipeline file
+    :param arguments:  pipeline arguments
+    :param experiment: experiment name
+    :param run:        optional, run name
+    :param namespace:  Kubernetes namespace (if not using default)
+    :param url:        optional, url to mlrun API service
+    :param artifact_path:  target location/url for mlrun artifacts
+    :param ops:        additional operators (.apply() to all pipeline functions)
+    :param ttl:        pipeline ttl in secs (after that the pods will be removed)
 
     :returns: kubeflow pipeline id
     """
@@ -926,8 +928,8 @@ def list_pipelines(
     field of the response from the previous call or can be omitted when fetching the first page.
     :param page_size: The number of pipelines to be listed per page. If there are more pipelines than this number, the
     response message will contain a nextPageToken field you can use to fetch the next page.
-    :param sort_by: Can be format of \"field_name\", \"field_name asc\" or \"field_name desc\" (Example, \"name asc\"
-    or \"id desc\"). Ascending by default.
+    :param sort_by: Can be format of "field_name", "field_name asc" or "field_name desc" (Example, "name asc"
+    or "id desc"). Ascending by default.
     :param filter_: A url-encoded, JSON-serialized Filter protocol buffer
     (see [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto)).
     :param namespace: Kubernetes namespace if other than default

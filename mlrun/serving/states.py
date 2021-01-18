@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+__all__ = ["TaskState", "RouterState", "RootFlowState"]
+
 import json
 import os
 import pathlib
@@ -31,6 +33,7 @@ from ..errors import MLRunInvalidArgumentError
 
 callable_prefix = "_"
 path_splitter = "/"
+previous_step = "$prev"
 
 
 class GraphError(Exception):
@@ -60,6 +63,7 @@ _task_state_fields = [
     "shape",
     "full_event",
     "on_error",
+    "responder",
 ]
 
 
@@ -279,6 +283,7 @@ class TaskState(BaseState):
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
+        self._async_object = None
         if not self._is_local_function(context):
             # skip init of non local functions
             return
@@ -609,6 +614,7 @@ class FlowState(BaseState):
         before=None,
         graph_shape=None,
         function=None,
+        full_event: bool = None,
         **class_args,
     ):
         """add task, queue or router state/class to the flow
@@ -640,6 +646,7 @@ class FlowState(BaseState):
             handler,
             graph_shape=graph_shape,
             function=function,
+            full_event=full_event,
             class_args=class_args,
         )
 
@@ -749,6 +756,8 @@ class FlowState(BaseState):
             if state.after:
                 prev_state = state.after[0]
                 self[prev_state].set_next(state.name)
+        if self.on_error and self.on_error in start_states:
+            start_states.remove(self.on_error)
 
         if (
             not start_states
@@ -875,8 +884,8 @@ class FlowState(BaseState):
 
         for state in self._states.values():
             # add error handler hooks
-            if state.on_error and state.async_object:
-                error_state = self._states[state.on_error]
+            if (state.on_error or self.on_error) and state.async_object:
+                error_state = self._states[state.on_error or self.on_error]
                 state.async_object.set_recovery_step(error_state.async_object)
 
         self._controller = source.run()
@@ -945,8 +954,9 @@ class FlowState(BaseState):
     def wait_for_completion(self):
         """wait for completion of run in async flows"""
         if self._controller:
-            self._controller.terminate()
-            self._controller.await_termination()
+            if hasattr(self._controller, "terminate"):
+                self._controller.terminate()
+            return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz"""
@@ -1053,13 +1063,13 @@ def _add_graphviz_flow(
         for item in after:
             previous_object = state[item]
             kw = (
-                {"ltail": "cluster_" + child.fullname}
-                if child.kind == StateKinds.router
+                {"ltail": "cluster_" + previous_object.fullname}
+                if previous_object.kind == StateKinds.router
                 else {}
             )
             graph.edge(previous_object.fullname, child.fullname, **kw)
         if child.on_error:
-            graph.edge(child.fullname, child.on_error, style="dashed", **kw)
+            graph.edge(child.fullname, child.on_error, style="dashed")
 
     # draw targets after the last state (if specified)
     if targets:

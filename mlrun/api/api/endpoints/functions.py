@@ -19,7 +19,7 @@ from mlrun.config import config
 from mlrun.run import new_function
 from mlrun.runtimes import runtime_resources_map, RuntimeKinds
 from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
-from mlrun.utils import get_in, logger, parse_function_uri, update_in
+from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 
 router = APIRouter()
 
@@ -306,7 +306,7 @@ def _parse_start_function_body(db_session, data):
             reason="runtime error: functionUrl not specified",
         )
 
-    project, name, tag, hash_key = parse_function_uri(url)
+    project, name, tag, hash_key = parse_versioned_object_uri(url)
     runtime = get_db().get_function(db_session, name, project, tag, hash_key)
     if not runtime:
         log_and_raise(

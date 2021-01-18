@@ -4,4 +4,5 @@ mlrun.model
 .. automodule:: mlrun.model
    :members:
    :show-inheritance:
-   :undoc-members:
+   :no-undoc-members:
+   :exclude-members: ImageBuilder

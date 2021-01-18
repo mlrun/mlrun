@@ -1,9 +1,11 @@
 from mlrun.config import config
+from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils.helpers import (
     verify_field_regex,
     extend_hub_uri,
     enrich_image_url,
     get_parsed_docker_registry,
+    StorePrefix,
 )
 from mlrun.utils.regex import run_name
 
@@ -170,3 +172,26 @@ def test_get_parsed_docker_registry():
         registry, repository = get_parsed_docker_registry()
         assert case["expected_registry"] == registry
         assert case["expected_repository"] == repository
+
+
+def test_parse_store_uri():
+    cases = [
+        {"uri": "store:///123", "expected_output": (StorePrefix.Artifact, "123")},
+        {"uri": "store://xyz", "expected_output": (StorePrefix.Artifact, "xyz")},
+        {
+            "uri": "store://feature-sets/123",
+            "expected_output": (StorePrefix.FeatureSet, "123"),
+        },
+        {
+            "uri": "store://feature-vectors/456",
+            "expected_output": (StorePrefix.FeatureVector, "456"),
+        },
+        {
+            "uri": "store://artifacts/890",
+            "expected_output": (StorePrefix.Artifact, "890"),
+        },
+        {"uri": "xxx://xyz", "expected_output": (None, "")},
+    ]
+    for case in cases:
+        output = parse_store_uri(case["uri"])
+        assert case["expected_output"] == output

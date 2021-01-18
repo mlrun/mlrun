@@ -35,7 +35,9 @@ class V2ModelServer:
     you can add custom api endpoint by adding method op_xx(event), will be invoked by
     calling the <model-url>/xx (operation = xx)
 
-    minimal serving function example:
+    Example
+    -------
+    defining a class::
 
         class MyClass(V2ModelServer):
             def load(self):
@@ -112,20 +114,33 @@ class V2ModelServer:
     def get_model(self, suffix=""):
         """get the model file(s) and metadata from model store
 
-        the method returns a path to the model file and the extra data (dict of dataitem objects)
-        it also loads the model metadata into the self.model_spec attribute, allowing direct access
-        to all the model metadata attributes.
+    the method returns a path to the model file and the extra data (dict of dataitem objects)
+    it also loads the model metadata into the self.model_spec attribute, allowing direct access
+    to all the model metadata attributes.
 
-        get_model is usually used in the model .load() method to init the model
+    get_model is usually used in the model .load() method to init the model
 
-        example:
-            def load(self):
-                model_file, extra_data = self.get_model(suffix='.pkl')
-                self.model = load(open(model_file, "rb"))
-                categories = extra_data['categories'].as_df()
+    Examples
+    --------
+    ::
 
-        :param  suffix:  optional, model file suffix (when the model_path is a directory)
-        :return (local) model file, extra dataitems dictionary
+        def load(self):
+            model_file, extra_data = self.get_model(suffix='.pkl')
+            self.model = load(open(model_file, "rb"))
+            categories = extra_data['categories'].as_df()
+
+    Parameters
+    ----------
+    suffix : str
+        optional, model file suffix (when the model_path is a directory)
+
+    Returns
+    -------
+    str
+        (local) model file
+    dict
+        extra dataitems dictionary
+
         """
         model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
             self.model_path, suffix

@@ -328,9 +328,7 @@ class VotingEnsemble(BaseModelRouter):
         if "outputs" in events.body:
             # Dealing with a specific model prediction
             return events
-        predictions = [
-            model.body["outputs"]["prediction"] for _, model in events.body.items()
-        ]
+        predictions = [model.body["outputs"] for _, model in events.body.items()]
 
         flattened_predictions = [
             [predictions[j][i] for j in range(len(predictions))]
@@ -360,13 +358,7 @@ class VotingEnsemble(BaseModelRouter):
 
         event = {
             "model_name": self.name,
-            "outputs": {
-                "id": events.body[list(events.body.keys())[0]].body["id"],
-                "inputs": events.body[list(events.body.keys())[0]].body["outputs"][
-                    "inputs"
-                ],
-                "prediction": result,
-            },
+            "outputs": result,
             "id": events.body[list(events.body.keys())[0]].body["id"],
         }
 
@@ -427,7 +419,7 @@ class VotingEnsemble(BaseModelRouter):
             with pool as executor:
                 results = []
                 futures = {
-                    executor.submit(self.routes[model].run, copy.deepcopy(event)): model
+                    executor.submit(self.routes[model].run, copy.copy(event)): model
                     for model in self.routes.keys()
                 }
                 for future in concurrent.futures.as_completed(futures):

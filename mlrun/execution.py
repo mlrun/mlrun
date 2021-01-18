@@ -22,6 +22,7 @@ import mlrun
 from mlrun.artifacts import ModelArtifact
 
 from .artifacts import ArtifactManager, DatasetArtifact
+from mlrun.datastore.store_resources import get_store_resource
 from .datastore import store_manager
 from .secrets import SecretsStore
 from .db import get_run_db
@@ -44,13 +45,13 @@ class MLCtxValueError(Exception):
 class MLClientCtx(object):
     """ML Execution Client Context
 
-    the context is generated using the get_or_create_ctx call (see its doc)
+    the context is generated using the ``function.run()`` or manually ``using get_or_create_ctx`` call (see its doc)
     and provides an interface to use run params, metadata, inputs, and outputs
 
     base metadata include: uid, name, project, and iteration (for hyper params)
-    users can set labels and annotations using set_labels(), set_annotation()
-    access parameters and secrets using get_param(), get_secret()
-    access input data objects using get_input()
+    users can set labels and annotations using ``set_labels()``, ``set_annotation()``
+    access parameters and secrets using ``get_param()``, ``get_secret()``
+    access input data objects using ``get_input()``
     store results, artifacts, and real-time metrics using log_xx methods
 
     see doc for the individual params and methods
@@ -102,7 +103,9 @@ class MLClientCtx(object):
         will create a new iteration, log_xx will update the child only
         use commit_children() to save all the children and specify the best run
 
-        :param **params:           extra (or override) params to parent context
+        :param **params:  extra (or override) params to parent context
+
+        :return: child context
         """
         if self.iteration != 0:
             raise ValueError("cannot create child from a child iteration!")
@@ -118,6 +121,14 @@ class MLClientCtx(object):
         )
         self._child.append(ctx)
         return ctx
+
+    def get_store_resource(self, url):
+        """get mlrun data resource (feature set/vector, artifact, item) from url
+
+        :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
+                       types: artifact | feature-set | feature-vector
+        """
+        return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
 
     def get_dataitem(self, url):
         """get mlrun dataitem from url"""

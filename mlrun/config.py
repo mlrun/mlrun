@@ -109,6 +109,29 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
         },
+        "model_endpoint_monitoring": {"container": "projects"},
+    },
+    "secret_stores": {
+        "vault": {
+            # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:
+            # http://docker.for.mac.localhost:8200
+            "url": "",
+            "remote_url": "",
+            "role": "",
+            "token_path": "~/.mlrun/vault",
+            "project_service_account_name": "mlrun-vault-{project}",
+            "token_ttl": 180000,
+            # This config is for debug/testing purposes only!
+            "user_token": "",
+        },
+    },
+    "feature_store": {
+        "data_prefixes": {
+            "default": "./store/{project}/{kind}",
+            "parquet": "v3io:///projects/{project}/fs/{kind}",
+            "nosql": "v3io:///projects/{project}/fs/{kind}",
+        },
+        "default_targets": "parquet,nosql",
     },
 }
 
@@ -159,6 +182,9 @@ class Config:
     @classmethod
     def from_dict(cls, dict_):
         return cls(copy.deepcopy(dict_))
+
+    def to_dict(self):
+        return copy.copy(self._cfg)
 
     @staticmethod
     def reload():

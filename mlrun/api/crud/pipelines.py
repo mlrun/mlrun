@@ -115,7 +115,7 @@ def _resolve_project_from_command(
             ):
                 function_url = command[index + 1]
                 if function_url.startswith("db://"):
-                    project, _, _, _ = mlrun.utils.helpers.parse_function_uri(
+                    project, _, _, _ = mlrun.utils.helpers.parse_versioned_object_uri(
                         function_url[len("db://") :]
                     )
                     if project:

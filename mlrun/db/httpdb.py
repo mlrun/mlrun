@@ -30,6 +30,7 @@ from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
+from ..feature_store.model import FeatureSet, FeatureVector
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
 
@@ -764,13 +765,13 @@ class HTTPRunDB(RunDBInterface):
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    ) -> FeatureSet:
         project = project or default_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
-        return resp.json()
+        return FeatureSet.from_dict(resp.json())
 
     def list_features(
         self,
@@ -819,7 +820,7 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> List[dict]:
+    ) -> List[FeatureSet]:
         project = project or default_project
         params = {
             "name": name,
@@ -836,7 +837,9 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-sets, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["feature_sets"]
+        feature_sets = resp.json()["feature_sets"]
+        if feature_sets:
+            return [FeatureSet.from_dict(obj) for obj in feature_sets]
 
     def store_feature_set(
         self,
@@ -922,13 +925,13 @@ class HTTPRunDB(RunDBInterface):
 
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    ) -> FeatureVector:
         project = project or default_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-vector {project}/{name}"
         resp = self.api_call("GET", path, error_message)
-        return resp.json()
+        return FeatureVector.from_dict(resp.json())
 
     def list_feature_vectors(
         self,
@@ -937,7 +940,7 @@ class HTTPRunDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-    ) -> List[dict]:
+    ) -> List[FeatureVector]:
         project = project or default_project
         params = {
             "name": name,
@@ -952,7 +955,9 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-vectors, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["feature_vectors"]
+        feature_vectors = resp.json()["feature_vectors"]
+        if feature_vectors:
+            return [FeatureVector.from_dict(obj) for obj in feature_vectors]
 
     def store_feature_vector(
         self,
@@ -1110,6 +1115,64 @@ class HTTPRunDB(RunDBInterface):
             "POST", "projects", error_message, body=dict_to_json(project),
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def create_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = f"projects/{project}/secrets"
+        secrets_input = schemas.SecretsData(secrets=secrets, provider=provider)
+        body = secrets_input.dict()
+        error_message = f"Failed creating secret provider {project}/{provider}"
+        self.api_call(
+            "POST", path, error_message, body=dict_to_json(body),
+        )
+
+    def get_project_secrets(
+        self,
+        project: str,
+        token: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ) -> schemas.SecretsData:
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = f"projects/{project}/secrets"
+        params = {"provider": provider, "secret": secrets}
+        headers = {schemas.HeaderNames.secret_store_token: token}
+        error_message = f"Failed retrieving secrets {project}/{provider}"
+        result = self.api_call(
+            "GET", path, error_message, params=params, headers=headers,
+        )
+        return schemas.SecretsData(**result.json())
+
+    def create_user_secrets(
+        self,
+        user: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: dict = None,
+    ):
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+        path = "user-secrets"
+        secrets_creation_request = schemas.UserSecretCreationRequest(
+            user=user, provider=provider, secrets=secrets,
+        )
+        body = secrets_creation_request.dict()
+        error_message = f"Failed creating user secrets - {user}"
+        self.api_call(
+            "POST", path, error_message, body=dict_to_json(body),
+        )
 
     @staticmethod
     def _validate_version_compatibility(server_version, client_version):

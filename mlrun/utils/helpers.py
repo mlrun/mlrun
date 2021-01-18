@@ -44,6 +44,48 @@ hub_prefix = "hub://"
 DB_SCHEMA = "store"
 
 
+class StorePrefix:
+    """map mlrun store objects to prefixes"""
+
+    FeatureSet = "feature-sets"
+    FeatureVector = "feature-vectors"
+    Artifact = "artifacts"
+    Model = "models"
+    Dataset = "datasets"
+
+    @classmethod
+    def is_artifact(cls, prefix):
+        return prefix in [cls.Artifact, cls.Model, cls.Dataset]
+
+    @classmethod
+    def kind_to_prefix(cls, kind):
+        kind_map = {"model": cls.Model, "dataset": cls.Dataset}
+        return kind_map.get(kind, cls.Artifact)
+
+    @classmethod
+    def is_prefix(cls, prefix):
+        return prefix in [
+            cls.Artifact,
+            cls.Model,
+            cls.Dataset,
+            cls.FeatureSet,
+            cls.FeatureVector,
+        ]
+
+
+def get_artifact_target(item: dict, project=None):
+    kind = item.get("kind")
+    if kind in ["dataset", "model"] and item.get("db_key"):
+        return "{}://{}/{}/{}:{}".format(
+            DB_SCHEMA,
+            StorePrefix.Artifact,
+            project or item.get("project"),
+            item.get("db_key"),
+            item.get("tree"),
+        )
+    return item.get("target_path")
+
+
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
@@ -329,7 +371,7 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
     return "{}{}".format(base or "", local_path)
 
 
-def parse_function_uri(uri, default_project=""):
+def parse_versioned_object_uri(uri, default_project=""):
     project = default_project
     tag = ""
     hash_key = ""
@@ -468,18 +510,6 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
             docker_registry[:first_slash_index],
             docker_registry[first_slash_index + 1 :],
         )
-
-
-def get_artifact_target(item: dict, project=None):
-    kind = item.get("kind")
-    if kind in ["dataset", "model"] and item.get("db_key"):
-        return "{}://{}/{}#{}".format(
-            DB_SCHEMA,
-            project or item.get("project"),
-            item.get("db_key"),
-            item.get("tree"),
-        )
-    return item.get("target_path")
 
 
 def pr_comment(repo: str, issue: int, message: str, token=None):

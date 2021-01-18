@@ -21,8 +21,6 @@ from kubernetes.client.rest import ApiException
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 from .config import config as mlconfig
-from kubernetes.stream import stream
-
 
 _k8s = None
 
@@ -271,54 +269,53 @@ class K8sHelper:
             if (
                 (kind not in ["spark", "mpijob"])
                 or (p.metadata.labels.get("spark-role", "") == "driver")
+                # v1alpha1
                 or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
+                # v1
+                or (p.metadata.labels.get("mpi-job-role", "") == "launcher")
             ):
                 results[p.metadata.name] = p.status.phase
 
         return results
 
-    def get_shell_pod_name(self, pod_name='shell'):
-        shell_pod = self.v1api.list_namespaced_pod(namespace=self.namespace)
-        for i in shell_pod.items:
-            if pod_name in i.metadata.name:
-                logger.info("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
-                shell_name = i.metadata.name
-                break
-        return shell_name
+    def create_project_service_account(self, project, service_account, namespace=""):
+        namespace = self.resolve_namespace(namespace)
+        k8s_service_account = client.V1ServiceAccount()
+        labels = {"mlrun/project": project}
+        k8s_service_account.metadata = client.V1ObjectMeta(
+            name=service_account, namespace=namespace, labels=labels
+        )
+        try:
+            api_response = self.v1api.create_namespaced_service_account(
+                namespace, k8s_service_account,
+            )
+            return api_response
+        except ApiException as e:
+            logger.error("failed to create service account: {}".format(e))
+            raise e
 
-    def exec_shell_cmd(self, cmd, v3io_access_key):
-        shell_name = self.get_shell_pod_name()
-        # Calling exec and waiting for response
-        exec_command = [
-            '/bin/bash',
-            '-c',
-            cmd]
-        if self._validate_access_key(v3io_access_key):
+    def get_project_vault_secret_name(
+        self, project, service_account_name, namespace=""
+    ):
+        namespace = self.resolve_namespace(namespace)
 
-            resp = stream(self.v1api.connect_get_namespaced_pod_exec,
-                          shell_name,
-                          self.namespace,
-                          command=exec_command,
-                          stderr=True, stdin=False,
-                          stdout=True, tty=False)
-            logger.info("Response: " + resp)
-        else:
-            logger.info("Access key not valid")
+        try:
+            service_account = self.v1api.read_namespaced_service_account(
+                service_account_name, namespace
+            )
+        except ApiException as e:
+            # It's valid for the service account to not exist. Simply return None
+            if e.status != 404:
+                logger.error("failed to retrieve service accounts: {}".format(e))
+                raise e
+            return None
 
-    def _validate_access_key(self, v3io_access_key):
-        shell_name = self.get_shell_pod_name()
-        # Calling exec and waiting for response
-        exec_command = [
-            '/bin/bash',
-            '-c',
-            "printenv V3IO_ACCESS_KEY"]
-        resp = stream(self.v1api.connect_get_namespaced_pod_exec,
-                      shell_name,
-                      self.namespace,
-                      command=exec_command,
-                      stderr=True, stdin=False,
-                      stdout=True, tty=False)
-        return resp.rstrip() == v3io_access_key
+        if len(service_account.secrets) > 1:
+            raise ValueError(
+                f"Service account {service_account_name} has more than one secret"
+            )
+
+        return service_account.secrets[0].name
 
 
 class BasePod:

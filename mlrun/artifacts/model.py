@@ -16,9 +16,8 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import store_manager
+from ..datastore import store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
-from ..utils import DB_SCHEMA
 
 model_spec_filename = "model_spec.yaml"
 
@@ -105,12 +104,13 @@ def get_model(model_dir, suffix=""):
 
     this function will get the model file, metadata, and extra data
     the returned model file is always local, when using remote urls
-      (such as v3io://, s3://, store://, ..) it will be copied locally.
+    (such as v3io://, s3://, store://, ..) it will be copied locally.
 
     returned extra data dict (of key, DataItem objects) allow reading additional model files/objects
     e.g. use DataItem.get() or .download(target) .as_df() to read
 
-    example:
+    example::
+
         model_file, model_artifact, extra_data = get_model(models_path, suffix='.pkl')
         model = load(open(model_file, "rb"))
         categories = extra_data['categories'].as_df()
@@ -128,7 +128,7 @@ def get_model(model_dir, suffix=""):
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
 
-    if model_dir.startswith(DB_SCHEMA + "://"):
+    if is_store_uri(model_dir):
         model_spec, target = store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
             raise ValueError("store artifact ({}) is not model kind".format(model_dir))
@@ -208,7 +208,8 @@ def update_model(
 
     this method will edit or add attributes to a model object
 
-    example:
+    example::
+
         update_model(model_path, metrics={'speed': 100},
                      extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
 
@@ -228,7 +229,7 @@ def update_model(
 
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
-    elif model_artifact.startswith(DB_SCHEMA + "://"):
+    elif is_store_uri(model_artifact):
         model_spec, _ = store_manager.get_store_artifact(model_artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")

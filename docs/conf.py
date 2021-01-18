@@ -34,7 +34,7 @@ def current_version():
 # -- Project information -----------------------------------------------------
 
 project = "mlrun"
-copyright = "2020, Iguazio"
+copyright = "2021, Iguazio"
 author = "Iguazio"
 
 master_doc = "index"
@@ -53,12 +53,12 @@ release = current_version()
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "numpydoc",
-    "recommonmark",
+    "sphinx.ext.napoleon",
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
+    "myst_nb",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -77,8 +77,9 @@ language = "en"
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 source_suffix = {
-    ".md": "markdown",
     ".rst": "restructuredtext",
+    ".ipynb": "myst-nb",
+    ".myst": "myst-nb",
 }
 
 
@@ -91,7 +92,7 @@ html_theme = "alabaster"
 try:
     import sphinx_rtd_theme  # noqa
 
-    html_theme = "sphinx_rtd_theme"
+    html_theme = "sphinx_book_theme"
 except ImportError:
     pass
 
@@ -99,7 +100,24 @@ except ImportError:
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_title = "Mlrun"
 
+html_theme_options = {
+    "repository_url": "https://github.com/mlrun/mlrun",
+    "use_repository_button": True,
+    "use_issues_button": True,
+    "use_edit_page_button": True,
+    "path_to_docs": "docs",
+    "home_page_in_toc": True,
+    "repository_branch": "development",
+}
+
+html_title = "The MLOps Stack"
+html_logo = "./MLRun_Character.png"
+html_favicon = "./favicon.ico"
+extra_navbar = "<p>Your HTML</p>"
+jupyter_execute_notebooks = "off"
+html_sourcelink_suffix = ""
 
 # -- Extension configuration -------------------------------------------------
 

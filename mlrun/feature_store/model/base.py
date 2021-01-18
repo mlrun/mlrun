@@ -167,11 +167,11 @@ class DataSource(ModelObj):
         "workers",
         "max_age",
     ]
-    kind = ""
+    kind = None
 
     def __init__(
         self,
-        name: str = "",
+        name: str = None,
         path: str = None,
         attributes: Dict[str, str] = None,
         key_column: str = None,

@@ -145,7 +145,7 @@ class SparkJobSpec(KubeResourceSpec):
         self.job_type = job_type
         self.python_version = python_version
         self.spark_version = spark_version
-        self.restart_policy = restart_policy
+        self.restart_policy = restart_policy or {}
         self.deps = deps
         self.main_class = main_class
 
@@ -215,6 +215,30 @@ class SparkRuntime(KubejobRuntime):
             update_in(job, "spec.mainClass", self.spec.main_class)
         if self.spec.spark_version:
             update_in(job, "spec.sparkVersion", self.spec.spark_version)
+
+        if self.spec.restart_policy:
+            update_in(job, "spec.restartPolicy.type", self.spec.restart_policy["type"])
+            update_in(
+                job,
+                "spec.restartPolicy.onFailureRetries",
+                self.spec.restart_policy["retries"],
+            )
+            update_in(
+                job,
+                "spec.restartPolicy.onFailureRetryInterval",
+                self.spec.restart_policy["retry_interval"],
+            )
+            update_in(
+                job,
+                "spec.restartPolicy.onSubmissionFailureRetries",
+                self.spec.restart_policy["submission_retries"],
+            )
+            update_in(
+                job,
+                "spec.restartPolicy.onSubmissionFailureRetryInterval",
+                self.spec.restart_policy["submission_retry_interval"],
+            )
+
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
@@ -463,6 +487,26 @@ class SparkRuntime(KubejobRuntime):
     def with_driver_limits(self, cpu=None):
         """set driver pod cpu limits"""
         update_in(self.spec.driver_resources, "limits", generate_resources(cpu=cpu))
+
+    def with_restart_policy(
+        self,
+        restart_type="OnFailure",
+        retries=3,
+        retry_interval=10,
+        submission_retries=5,
+        submission_retry_interval=20,
+    ):
+        """set restart policy
+           restart_type=OnFailure/Never/Always"""
+        update_in(self.spec.restart_policy, "type", restart_type)
+        update_in(self.spec.restart_policy, "retries", retries)
+        update_in(self.spec.restart_policy, "retry_interval", retry_interval)
+        update_in(self.spec.restart_policy, "submission_retries", submission_retries)
+        update_in(
+            self.spec.restart_policy,
+            "submission_retry_interval",
+            submission_retry_interval,
+        )
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

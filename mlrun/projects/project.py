@@ -467,14 +467,14 @@ class MlrunProject(ModelObj):
         self.status = None
 
         # Handling the fields given in the legacy way
-        self.metadata.name = self.metadata.name or name
-        self.spec.description = self.spec.description or description
-        self.spec.params = self.spec.params or params
-        self.spec.functions = self.spec.functions or functions or []
-        self.spec.workflows = self.spec.workflows or workflows or []
-        self.spec.artifacts = self.spec.artifacts or artifacts or []
-        self.spec.artifact_path = self.spec.artifact_path or artifact_path
-        self.spec.conda = self.spec.conda or conda
+        self.metadata.name = name or self.metadata.name
+        self.spec.description = description or self.spec.description
+        self.spec.params = params or self.spec.params
+        self.spec.functions = functions or self.spec.functions
+        self.spec.workflows = workflows or self.spec.workflows
+        self.spec.artifacts = artifacts or self.spec.artifacts
+        self.spec.artifact_path = artifact_path or self.spec.artifact_path
+        self.spec.conda = conda or self.spec.conda
 
         self._initialized = False
         self._secrets = SecretsStore()

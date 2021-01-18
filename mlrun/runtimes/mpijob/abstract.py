@@ -67,8 +67,14 @@ class MPIResourceSpec(KubeResourceSpec):
             image_pull_secret=image_pull_secret,
             args=args,
         )
-
-        self.mpi_args = mpi_args or []
+        self.mpi_args = mpi_args or [
+            "-x",
+            "NCCL_SOCKET_NTHREADS=2",
+            "-x",
+            "NCCL_NSOCKS_PERTHREAD=8",
+            "-x",
+            "NCCL_MIN_NCHANNELS=4",
+        ]
 
 
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):

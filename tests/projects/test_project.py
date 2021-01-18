@@ -106,9 +106,9 @@ def test_create_project_with_invalid_name():
 def test_get_set_params():
     project_name = "project-name"
     project = mlrun.new_project(project_name)
-    param_key = 'param-key'
-    param_value = 'param-value'
+    param_key = "param-key"
+    param_value = "param-value"
     project.params[param_key] = param_value
     assert param_value == project.get_param(param_key)
-    default_value = 'default-value'
-    assert project.get_param('not-exist', default_value) == default_value
+    default_value = "default-value"
+    assert project.get_param("not-exist", default_value) == default_value

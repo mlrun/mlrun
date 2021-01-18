@@ -125,6 +125,14 @@ default_config = {
             "user_token": "",
         },
     },
+    "feature_store": {
+        "data_prefixes": {
+            "default": "./store/{project}/{kind}",
+            "parquet": "v3io:///projects/{project}/fs/{kind}",
+            "nosql": "v3io:///projects/{project}/fs/{kind}",
+        },
+        "default_targets": "parquet,nosql",
+    },
 }
 
 
@@ -174,6 +182,9 @@ class Config:
     @classmethod
     def from_dict(cls, dict_):
         return cls(copy.deepcopy(dict_))
+
+    def to_dict(self):
+        return copy.copy(self._cfg)
 
     @staticmethod
     def reload():

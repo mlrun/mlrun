@@ -426,7 +426,7 @@ def test_feature_sets(create_server):
     assert len(feature_sets) == count, "bad list results - wrong number of members"
 
     feature_set = db.get_feature_set(name, project)
-    assert len(feature_set["spec"]["features"]) == 4
+    assert len(feature_set.spec.features) == 4
 
     # Create a feature-set that has no labels
     name = "feature_set_no_labels"
@@ -441,7 +441,7 @@ def test_feature_sets(create_server):
     }
     db.patch_feature_set(name, feature_set_update, project)
     feature_set = db.get_feature_set(name, project)
-    assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"
+    assert len(feature_set.metadata.labels) == 2, "Labels didn't get updated"
 
     features = db.list_features(project, "time")
     # The feature-set with different labels also counts here
@@ -501,7 +501,7 @@ def test_feature_vectors(create_server):
 
     feature_vector = db.get_feature_vector(name, project)
     assert (
-        len(feature_vector["spec"]["features"]) == 5
+        len(feature_vector.spec.features) == 5
     ), "Features didn't get updated properly"
 
     # Create a feature-vector that has no labels
@@ -518,7 +518,7 @@ def test_feature_vectors(create_server):
     )
     feature_vector = db.get_feature_vector(name, project)
     assert (
-        len(feature_vector["spec"]["features"]) == 2
+        len(feature_vector.spec.features) == 2
     ), "Features didn't get updated properly"
 
 

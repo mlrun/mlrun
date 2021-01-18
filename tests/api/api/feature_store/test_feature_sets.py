@@ -590,6 +590,13 @@ def test_unversioned_feature_set_reference_by_uid(
         reference=feature_set_uid,
     )
 
+    # Updated field is expected to change
+    exclude_paths = ["root['metadata']['updated']"]
     expected_diff = {"dictionary_item_added": ["root['status']['patched']"]}
-    diff = DeepDiff(feature_set_response, patched_feature_set, ignore_order=True,)
+    diff = DeepDiff(
+        feature_set_response,
+        patched_feature_set,
+        ignore_order=True,
+        exclude_paths=exclude_paths,
+    )
     assert diff == expected_diff

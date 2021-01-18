@@ -1227,9 +1227,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         db_object, common_object_dict: dict, uid,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
-        db_object.updated = datetime.now(timezone.utc)
+        updated_datetime = datetime.now(timezone.utc)
+        db_object.updated = updated_datetime
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
+
+        common_object_dict["metadata"]["updated"] = str(updated_datetime)
         db_object.full_object = common_object_dict
 
         labels = common_object_dict["metadata"].pop("labels", {}) or {}

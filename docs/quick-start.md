@@ -36,12 +36,10 @@ train_run = train.run(name='train',
 
 Go to the [**MLRun UI**]((http://localhost:30050)) to see the details of this job:
 
-<br><br>
 <img src="./_static/images/mlrun-quick-start-train-info.png" alt="ui-info" width="800"/>
 
 As well as artifacts:
 
-<br><br>
 <img src="./_static/images/mlrun-quick-start-train-artifacts.png" alt="ui-artifacts" width="800"/>
 
 If you run the function in a Jupyter notebook, the output cell for your function execution will contain a table with run information &mdash; including the state of the execution, all inputs and parameters, and the execution results and artifacts.

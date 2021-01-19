@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import mlrun
-from storey import Source
 
 from mlrun.datastore.store_resources import ResourceCache
 from mlrun.serving.server import create_graph_server
@@ -59,6 +58,11 @@ def _build_feature_vector_graph(
 
 
 def init_feature_vector_graph(vector):
+    try:
+        from storey import Source
+    except ImportError as e:
+        raise ImportError('storey not installed, use pip install storey first')
+
     feature_set_objects, feature_set_fields = vector.parse_features()
     graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)
     graph.set_flow_source(Source())

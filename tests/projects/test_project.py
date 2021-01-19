@@ -71,8 +71,12 @@ def test_create_project_from_file_with_legacy_structure():
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description
+    # assert accessible from the project as well
+    assert project.description == description
     assert project.spec.artifact_path == artifact_path
     assert deepdiff.DeepDiff(params, project.spec.params, ignore_order=True,) == {}
+    # assert accessible from the project as well
+    assert deepdiff.DeepDiff(params, project.params, ignore_order=True,) == {}
     assert (
         deepdiff.DeepDiff(
             legacy_project.functions, project.functions, ignore_order=True,
@@ -97,3 +101,14 @@ def test_create_project_with_invalid_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         mlrun.projects.project.new_project(invalid_name, init_git=False)
+
+
+def test_get_set_params():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name)
+    param_key = "param-key"
+    param_value = "param-value"
+    project.params[param_key] = param_value
+    assert param_value == project.get_param(param_key)
+    default_value = "default-value"
+    assert project.get_param("not-exist", default_value) == default_value

@@ -467,14 +467,14 @@ class MlrunProject(ModelObj):
         self.status = None
 
         # Handling the fields given in the legacy way
-        self.metadata.name = self.metadata.name or name
-        self.spec.description = self.spec.description or description
-        self.spec.params = self.spec.params or params
-        self.spec.functions = self.spec.functions or functions or []
-        self.spec.workflows = self.spec.workflows or workflows or []
-        self.spec.artifacts = self.spec.artifacts or artifacts or []
-        self.spec.artifact_path = self.spec.artifact_path or artifact_path
-        self.spec.conda = self.spec.conda or conda
+        self.metadata.name = name or self.metadata.name
+        self.spec.description = description or self.spec.description
+        self.spec.params = params or self.spec.params
+        self.spec.functions = functions or self.spec.functions
+        self.spec.workflows = workflows or self.spec.workflows
+        self.spec.artifacts = artifacts or self.spec.artifacts
+        self.spec.artifact_path = artifact_path or self.spec.artifact_path
+        self.spec.conda = conda or self.spec.conda
 
         self._initialized = False
         self._secrets = SecretsStore()
@@ -591,6 +591,50 @@ class MlrunProject(ModelObj):
             PendingDeprecationWarning,
         )
         self.spec.mountdir = mountdir
+
+    @property
+    def params(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.params instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.params
+
+    @params.setter
+    def params(self, params):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.params instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.params = params
+
+    @property
+    def description(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.description instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.description
+
+    @description.setter
+    def description(self, description):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.description instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.description = description
 
     @property
     def functions(self) -> list:

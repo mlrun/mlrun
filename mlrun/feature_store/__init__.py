@@ -29,7 +29,6 @@ __all__ = [
 
 from .model import FeatureSet, FeatureVector
 from .model.base import Feature, Entity, ValueType
-from .steps import FeaturesetValidator
 from .model.validators import MinMaxValidator
 from .api import (
     get_offline_features,

@@ -61,7 +61,7 @@ def init_feature_vector_graph(vector):
     try:
         from storey import Source
     except ImportError as e:
-        raise ImportError('storey not installed, use pip install storey first')
+        raise ImportError(f"storey not installed, use pip install storey, {e}")
 
     feature_set_objects, feature_set_fields = vector.parse_features()
     graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)

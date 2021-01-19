@@ -19,7 +19,7 @@ Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and create a ne
 
 Run model training
 
-MLRun introduces the concept of functions. You can run your own code as functions, or use functions from the function marketplace. In the example below, we'll use the `sklearn_classifer` from the function marketplace to train a model.
+MLRun introduces the concept of functions. You can run your own code as functions, or use functions from the function marketplace. In the example below, we'll use the [`sklearn_classifer`](https://github.com/mlrun/functions/tree/master/sklearn_classifier) from the function marketplace to train a model.
 
 ```python
 from mlrun import import_function
@@ -34,7 +34,7 @@ train_run = train.run(name='train',
 ```
 
 
-Go to the [**MLRun UI**]((http://localhost:30050)) to see the details of this job:
+Go to the [**MLRun UI**](http://localhost:30050) to see the details of this job:
 
 <img src="./_static/images/mlrun-quick-start-train-info.png" alt="ui-info" width="800"/>
 
@@ -100,9 +100,10 @@ MLRun serving can take MLRun models or standard model files and produce managed 
 
 Nuclio is a high-performance "serverless" framework focused on data, I/O, and compute intensive workloads. More details can be found on <https://github.com/nuclio/nuclio>
 
-To deploy your model run the following code:
+To deploy your model using the [`v2_model_server` function](https://github.com/mlrun/functions/tree/master/v2_model_server) run the following code:
 
 ``` python
+serve = import_function('hub://v2_model_server').apply(auto_mount())
 model_name='iris'
 serve.add_model(model_name, model_path=train_run.outputs['model'])
 addr = serve.deploy()
@@ -130,4 +131,4 @@ Open the [**Nuclio UI**](http://localhost:30040) to view the function and test i
 
 ![MLRun serving UI](./_static/images/mlrun-quick-start-serve.png)
 
-For a more detailed, refer to the [End-to-end Pipeline Tutorial](./end-to-end-pipeline.html).
+For a more detailed, refer to the [End-to-end Pipeline Tutorial](end-to-end-pipeline.rst).

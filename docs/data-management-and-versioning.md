@@ -40,7 +40,7 @@ MLRun will also calculate statistics on the DataFrame on all numeric fields. You
 
 ### Logging a Dataset From a Job
 
-The following example shows how to work with datasets from a [job](job-submission-and-tracking.html):
+The following example shows how to work with datasets from a [job](./job-submission-and-tracking.md):
 
 ``` python
 from os import path

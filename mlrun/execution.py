@@ -103,7 +103,7 @@ class MLClientCtx(object):
         will create a new iteration, log_xx will update the child only
         use commit_children() to save all the children and specify the best run
 
-        :param **params:  extra (or override) params to parent context
+        :param params:  extra (or override) params to parent context
 
         :return: child context
         """
@@ -433,7 +433,7 @@ class MLClientCtx(object):
                               as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
                               to define a subpath under the default location use:
-                                  artifact_path=context.artifact_subpath('data')
+                              `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
         :param viewer:        kubeflow viewer type
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
@@ -489,7 +489,7 @@ class MLClientCtx(object):
                               as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
                               to define a subpath under the default location use:
-                                  artifact_path=context.artifact_subpath('data')
+                              `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
         :param format:        optional, format to use (e.g. csv, parquet, ..)
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
@@ -554,7 +554,7 @@ class MLClientCtx(object):
         :param model_dir:     path to the local dir holding the model file and extra files
         :param artifact_path: target artifact path (when not using the default)
                               to define a subpath under the default location use:
-                                  artifact_path=context.artifact_subpath('data')
+                              `artifact_path=context.artifact_subpath('data')`
         :param framework:     name of the ML framework
         :param tag:           version tag
         :param metrics:       key/value dict of model metrics

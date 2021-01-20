@@ -5,3 +5,4 @@ sphinx_rtd_theme~=0.4
 sphinx-copybutton~=0.3
 myst-nb~=0.10
 sphinx-book-theme~=0.0.39
+readthedocs-sphinx-ext==2.1.2

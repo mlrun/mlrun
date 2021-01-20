@@ -36,7 +36,7 @@ Finally, experiments are useful to show your work to any reviewer. This is usefu
 
 ## Artifact
 
-Artifacts are stored in the project and are versioned. For more information, see [data management and versioning](data-management-and-versioning.html)
+Artifacts are stored in the project and are versioned. For more information, see [data management and versioning](./data-management-and-versioning.md)
 
 ## Tasks
 
@@ -69,7 +69,7 @@ Runtimes may support parallelism and clustering to distribute the work among mul
 
 The following code example creates a task that defines a run specification &mdash; including the run parameters, inputs, and secrets.
 You run the task on a "job" function, and print the result output (in this case, the "model" artifact) or watch the run's progress.
-For more information and examples, see the [**Examples section**](examples.html).
+For more information and examples, see the [**Examples section**](./examples.md).
 ```python
 # Create a task and set its attributes
 task = NewTask(handler=handler, name='demo', params={'p1': 5})
@@ -187,7 +187,7 @@ train_run = run_local(handler=xgb_train, pramas={'eta': 0.3})
 ```
 
 Alternatively, you can replace the function with a serverless runtime to run the same code on a remote cluster, which could result in a ~10x performance boost.
-You can find examples for different runtimes &mdash; such as a Kubernetes job, Nuclio, Dask, Spark, or an MPI job &mdash; in the MLRun [**examples**](examples.html) directory.
+You can find examples for different runtimes &mdash; such as a Kubernetes job, Nuclio, Dask, Spark, or an MPI job &mdash; in the MLRun [**examples**](./examples.md) directory.
 
 If you run your code from the `main` function, you can get the runtime context by calling the `get_or_create_ctx` method, as demonstrated in the following code from the MLRun [**training.py**](https://github.com/mlrun/mlrun/blob/master/examples/training.py) example application.
 The code also demonstrates how you can use the context object to read and write execution metadata, parameters, secrets, inputs, and outputs:
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     my_job(context, p1, p2)
 ```
 
-The example **training.py** application can be invoked as a local task, as demonstrated in the following code from the MLRun [**Examples section**](examples.html):
+The example **training.py** application can be invoked as a local task, as demonstrated in the following code from the MLRun [**Examples section**](./examples.md):
 ```python
 run = run_local(task, command='training.py')
 ```
@@ -294,7 +294,7 @@ mlrun run --name train_hyper -x p1="[3,7,5]" -x p2="[5,2,9]" --out-path '/User/m
 ```
 
 You can also use a parameters file if you want to control the parameter combinations or if the parameters are more complex.
-The following code from the [**Examples section**](examples.html) demonstrates how to run a task that uses a CSV parameters file (**params.csv** in the current directory):
+The following code from the [**Examples section**](./examples.md) demonstrates how to run a task that uses a CSV parameters file (**params.csv** in the current directory):
 ```python
     task = NewTask(handler=xgb_train).with_param_file('params.csv', 'max.accuracy')
     run = run_local(task)

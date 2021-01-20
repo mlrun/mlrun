@@ -48,6 +48,11 @@ MLRun includes the following key features:
    remote
    end-to-end-pipeline
    data-management-and-versioning
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Details:
+
    projects
    load-from-marketplace
    job-submission-and-tracking

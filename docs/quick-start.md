@@ -5,7 +5,7 @@ Its primary goal is to ease the development of machine learning pipeline at scal
 ## Table of Contents <!-- omit in toc -->
 
 - [Working with MLRun](#working-with-mlrun)
-  - [Train a Model](#train-a-model)
+  - [Train Model](#train-model)
   - [Test Model](#test-model)
   - [Serve Model](#serve-model)
 
@@ -15,9 +15,7 @@ If you need to install MLRun, refer to the [Installation Guide](install.md).
 
 Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and create a new notebook.
 
-### Train a Model
-
-Run model training
+### Train Model
 
 MLRun introduces the concept of functions. You can run your own code as functions, or use functions from the function marketplace. In the example below, we'll use the [`sklearn_classifer`](https://github.com/mlrun/functions/tree/master/sklearn_classifier) from the function marketplace to train a model.
 

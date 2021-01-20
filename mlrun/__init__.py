@@ -61,21 +61,31 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
-def set_environment(api_path: str = None, artifact_path: str = "", project: str = ""):
+def set_environment(
+    api_path: str = None,
+    artifact_path: str = "",
+    project: str = "",
+    access_key: str = None,
+):
     """set and test default config for: api path, artifact_path and project
 
     this function will try and read the configuration from the environment/api
-    and merge it with the user provided parameters
+    and merge it with the user provided project name, artifacts path or api path/access_key.
+    it returns the configured artifacts path, this can be used to define sub paths.
+
+    Note: the artifact path is an mlrun data uri (e.g. `s3://bucket/path`) and can not be used with file utils.
 
     example::
-        artifact_path = set_environment()
+
+        artifact_path = set_environment(project='my-project')
         data_subpath = os.join(artifact_path, 'data')
 
     :param api_path:       location/url of mlrun api service
     :param artifact_path:  path/url for storing experiment artifacts
     :param project:        default project name
+    :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
 
-    :returns: actual artifact path/url, can be used to create subpaths per task,
+    :returns: actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:
@@ -86,16 +96,20 @@ def set_environment(api_path: str = None, artifact_path: str = "", project: str 
     if api_path:
         environ["MLRUN_DBPATH"] = mlconf.dbpath
 
+    if access_key:
+        environ["V3IO_ACCESS_KEY"] = access_key
+
     mlconf.default_project = project or mlconf.default_project
 
     if not mlconf.artifact_path and not artifact_path:
         raise ValueError("please specify a valid artifact_path")
 
-    if artifact_path.startswith("./"):
-        artifact_path = path.abspath(artifact_path)
-    elif not artifact_path.startswith("/") and "://" not in artifact_path:
-        raise ValueError(
-            "artifact_path must refer to an absolute path" " or a valid url"
-        )
-    mlconf.artifact_path = artifact_path or mlconf.artifact_path
+    if artifact_path:
+        if artifact_path.startswith("./"):
+            artifact_path = path.abspath(artifact_path)
+        elif not artifact_path.startswith("/") and "://" not in artifact_path:
+            raise ValueError(
+                "artifact_path must refer to an absolute path" " or a valid url"
+            )
+        mlconf.artifact_path = artifact_path
     return mlconf.artifact_path

@@ -50,8 +50,8 @@ def _patch_object(
 
 
 # There will be fields added (uid for example), but we don't allow any other changes
-def _assert_diff_empty_except_for_specific_metadata(
-    expected_object, actual_object, allowed_metadata_fields
+def _assert_diff_as_expected_except_for_specific_metadata(
+    expected_object, actual_object, allowed_metadata_fields, expected_diff={}
 ):
     exclude_paths = []
     for field in allowed_metadata_fields:
@@ -59,4 +59,4 @@ def _assert_diff_empty_except_for_specific_metadata(
     diff = DeepDiff(
         expected_object, actual_object, ignore_order=True, exclude_paths=exclude_paths,
     )
-    assert diff == {}
+    assert diff == expected_diff

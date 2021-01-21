@@ -20,7 +20,7 @@ You need a way to seamlessly run your code on a remote cluster and automatically
 
 ## The MLRun Vision
 
-When ML running experiments, you should ideally be able to record and version your code, configuration, outputs, and associated inputs (lineage), so you can easily reproduce and explain your results.
+When running ML experiments, you should ideally be able to record and version your code, configuration, outputs, and associated inputs (lineage), so you can easily reproduce and explain your results.
 The fact that you probably need to use different types of storage (such as files and AWS S3 buckets) and various databases, further complicates the implementation.
 
 Wouldn't it be great if you could write the code once, using your preferred development environment and simple "local" semantics, and then run it as-is on different platforms?

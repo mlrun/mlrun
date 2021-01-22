@@ -8,10 +8,10 @@ import mlrun.artifacts.dataset
 def test_dataset_preview_size_limit():
     # more than allowed rows
     data_frame = pandas.DataFrame(
-        range(0, mlrun.artifacts.dataset.default_preview_raws_length * 2), columns=["A"]
+        range(0, mlrun.artifacts.dataset.default_preview_rows_length * 2), columns=["A"]
     )
     artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame)
-    assert len(artifact.preview) == mlrun.artifacts.dataset.default_preview_raws_length
+    assert len(artifact.preview) == mlrun.artifacts.dataset.default_preview_rows_length
 
     # override limit
     limit = 25

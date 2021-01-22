@@ -206,8 +206,23 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def store_artifact(
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
+        self._store_artifact(session, key, artifact, uid, iter, tag, project)
+
+    def _store_artifact(
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        tag_artifact=True,
+        ensure_project=True,
+    ):
         project = project or config.default_project
-        get_project_member().ensure_project(session, project)
+        if ensure_project:
+            get_project_member().ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -221,8 +236,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         update_labels(art, labels)
         art.struct = artifact
         self._upsert(session, art)
-        tag = tag or "latest"
-        self.tag_artifacts(session, [art], project, tag)
+        if tag_artifact:
+            tag = tag or "latest"
+            self.tag_artifacts(session, [art], project, tag)
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project

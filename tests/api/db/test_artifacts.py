@@ -156,7 +156,9 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
-    "data_migration_db,db_session", [(dbs[0], dbs[0])], indirect=["data_migration_db", "db_session"]
+    "data_migration_db,db_session",
+    [(dbs[0], dbs[0])],
+    indirect=["data_migration_db", "db_session"],
 )
 def test_data_migration_fix_artifact_tags_duplications(
     data_migration_db: DBInterface, db_session: Session,
@@ -260,14 +262,18 @@ def test_data_migration_fix_artifact_tags_duplications(
     )
 
     # perform the migration
-    mlrun.api.initial_data._fix_artifact_tags_duplications(data_migration_db, db_session)
+    mlrun.api.initial_data._fix_artifact_tags_duplications(
+        data_migration_db, db_session
+    )
 
     # After the migration:
     # 1. read artifact should succeed (fixed) and return the latest updated record that was tagged with the requested
     # tag
     artifact = data_migration_db.read_artifact(db_session, artifact_1_key, tag="latest")
     assert artifact["metadata"]["uid"] == artifact_1_with_kind_uid
-    artifact = data_migration_db.read_artifact(db_session, artifact_2_key, tag="not-latest")
+    artifact = data_migration_db.read_artifact(
+        db_session, artifact_2_key, tag="not-latest"
+    )
     assert artifact["metadata"]["uid"] == artifact_2_with_kind_uid
 
     # 2. read artifact should (still) succeed when there's only one tag record with the same key (happen when you

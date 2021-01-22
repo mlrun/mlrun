@@ -123,7 +123,9 @@ class DatasetArtifact(Artifact):
         self.column_metadata = column_metadata or {}
 
         if df is not None:
-            self.update_preview_fields_from_df(self, df, stats, preview, ignore_preview_limits)
+            self.update_preview_fields_from_df(
+                self, df, stats, preview, ignore_preview_limits
+            )
 
         self._df = df
         self._kw = kwargs
@@ -139,7 +141,9 @@ class DatasetArtifact(Artifact):
         )
 
     @staticmethod
-    def update_preview_fields_from_df(artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False):
+    def update_preview_fields_from_df(
+        artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False
+    ):
         preview_rows_length = preview_rows_length or default_preview_raws_length
         artifact.length = df.shape[0]
         preview_df = df
@@ -147,11 +151,15 @@ class DatasetArtifact(Artifact):
             preview_df = df.head(preview_rows_length)
         preview_df = preview_df.reset_index()
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
-            preview_df = preview_df.iloc[:, : max_preview_columns]
+            preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.header = preview_df.columns.values.tolist()
         artifact.preview = preview_df.values.tolist()
         artifact.schema = build_table_schema(preview_df)
-        if stats or (artifact.length < max_csv and len(df.columns) < max_preview_columns) or ignore_preview_limits:
+        if (
+            stats
+            or (artifact.length < max_csv and len(df.columns) < max_preview_columns)
+            or ignore_preview_limits
+        ):
             artifact.stats = get_df_stats(df)
 
 
@@ -226,7 +234,9 @@ def update_dataset_meta(
         raise ValueError("store artifact ({}) is not dataset kind".format(artifact))
 
     if from_df is not None:
-        DatasetArtifact.update_preview_fields_from_df(artifact_spec, from_df, stats, ignore_preview_limits)
+        DatasetArtifact.update_preview_fields_from_df(
+            artifact_spec, from_df, stats, ignore_preview_limits
+        )
 
     if header:
         artifact_spec.header = header

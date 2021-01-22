@@ -25,7 +25,7 @@ from pandas.io.json import build_table_schema
 from .base import Artifact
 from ..datastore import store_manager, is_store_uri
 
-default_preview_lines = 20
+default_preview_raws_length = 20
 max_preview_columns = 100
 max_csv = 10000
 
@@ -123,19 +123,7 @@ class DatasetArtifact(Artifact):
         self.column_metadata = column_metadata or {}
 
         if df is not None:
-            self.length = df.shape[0]
-            preview_lines = preview or default_preview_lines
-            preview_df = df
-            if self.length > preview_lines and not ignore_preview_limits:
-                preview_df = df.head(preview_lines)
-            preview_df = preview_df.reset_index()
-            if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
-                preview_df = preview_df.iloc[:, : max_preview_columns]
-            self.header = preview_df.columns.values.tolist()
-            self.preview = preview_df.values.tolist()
-            self.schema = build_table_schema(preview_df)
-            if stats or (self.length < max_csv and len(df.columns) < max_preview_columns) or ignore_preview_limits:
-                self.stats = get_df_stats(df)
+            self.update_preview_fields_from_df(self, df, stats, preview, ignore_preview_limits)
 
         self._df = df
         self._kw = kwargs
@@ -149,6 +137,22 @@ class DatasetArtifact(Artifact):
             meta_setter=self._set_meta,
             **self._kw,
         )
+
+    @staticmethod
+    def update_preview_fields_from_df(artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False):
+        preview_rows_length = preview_rows_length or default_preview_raws_length
+        artifact.length = df.shape[0]
+        preview_df = df
+        if artifact.length > preview_rows_length and not ignore_preview_limits:
+            preview_df = df.head(preview_rows_length)
+        preview_df = preview_df.reset_index()
+        if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
+            preview_df = preview_df.iloc[:, : max_preview_columns]
+        artifact.header = preview_df.columns.values.tolist()
+        artifact.preview = preview_df.values.tolist()
+        artifact.schema = build_table_schema(preview_df)
+        if stats or (artifact.length < max_csv and len(df.columns) < max_preview_columns) or ignore_preview_limits:
+            artifact.stats = get_df_stats(df)
 
 
 def get_df_stats(df):
@@ -185,6 +189,7 @@ def update_dataset_meta(
     extra_data: dict = None,
     column_metadata: dict = None,
     labels: dict = None,
+    ignore_preview_limits: bool = False,
 ):
     """Update dataset object attributes/metadata
 
@@ -194,15 +199,16 @@ def update_dataset_meta(
         update_dataset_meta(dataset, from_df=df,
                             extra_data={'histogram': 's3://mybucket/..'})
 
-    :param from_df:         read metadata (schema, preview, ..) from provided df
-    :param artifact:        dataset artifact object or path (store://..) or DataItem
-    :param schema:          dataset schema, see pandas build_table_schema
-    :param header:          column headers
-    :param preview:         list of rows and row values (from df.values.tolist())
-    :param stats:           dict of column names and their stats (cleaned df.describe(include='all'))
-    :param extra_data:      extra data items (key: path string | artifact)
-    :param column_metadata: dict of metadata per column
-    :param labels:          metadata labels
+    :param from_df:                 read metadata (schema, preview, ..) from provided df
+    :param artifact:                dataset artifact object or path (store://..) or DataItem
+    :param schema:                  dataset schema, see pandas build_table_schema
+    :param header:                  column headers
+    :param preview:                 list of rows and row values (from df.values.tolist())
+    :param stats:                   dict of column names and their stats (cleaned df.describe(include='all'))
+    :param extra_data:              extra data items (key: path string | artifact)
+    :param column_metadata:         dict of metadata per column
+    :param labels:                  metadata labels
+    :param ignore_preview_limits:   whether to ignore the preview size limits
     """
 
     if hasattr(artifact, "artifact_url"):
@@ -220,15 +226,7 @@ def update_dataset_meta(
         raise ValueError("store artifact ({}) is not dataset kind".format(artifact))
 
     if from_df is not None:
-        shortdf = from_df
-        length = from_df.shape[0]
-        if length > default_preview_lines:
-            shortdf = from_df.head(default_preview_lines)
-        artifact_spec.header = shortdf.reset_index().columns.values.tolist()
-        artifact_spec.preview = shortdf.reset_index().values.tolist()
-        artifact_spec.schema = build_table_schema(from_df)
-        if stats is None and length < max_csv:
-            artifact_spec.stats = get_df_stats(from_df)
+        DatasetArtifact.update_preview_fields_from_df(artifact_spec, from_df, stats, ignore_preview_limits)
 
     if header:
         artifact_spec.header = header

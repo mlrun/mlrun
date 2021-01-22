@@ -25,7 +25,8 @@ from pandas.io.json import build_table_schema
 from .base import Artifact
 from ..datastore import store_manager, is_store_uri
 
-preview_lines = 20
+default_preview_lines = 20
+max_preview_columns = 100
 max_csv = 10000
 
 
@@ -101,6 +102,7 @@ class DatasetArtifact(Artifact):
         target_path=None,
         extra_data=None,
         column_metadata=None,
+        ignore_preview_limits=False,
         **kwargs,
     ):
 
@@ -122,15 +124,17 @@ class DatasetArtifact(Artifact):
 
         if df is not None:
             self.length = df.shape[0]
-            preview = preview or preview_lines
-            shortdf = df
-            if self.length > preview:
-                shortdf = df.head(preview)
-            shortdf = shortdf.reset_index()
-            self.header = shortdf.columns.values.tolist()
-            self.preview = shortdf.values.tolist()
-            self.schema = build_table_schema(df)
-            if stats or self.length < max_csv:
+            preview_lines = preview or default_preview_lines
+            preview_df = df
+            if self.length > preview_lines and not ignore_preview_limits:
+                preview_df = df.head(preview_lines)
+            preview_df = preview_df.reset_index()
+            if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
+                preview_df = preview_df.iloc[:, : max_preview_columns]
+            self.header = preview_df.columns.values.tolist()
+            self.preview = preview_df.values.tolist()
+            self.schema = build_table_schema(preview_df)
+            if stats or (self.length < max_csv and len(df.columns) < max_preview_columns) or ignore_preview_limits:
                 self.stats = get_df_stats(df)
 
         self._df = df
@@ -218,8 +222,8 @@ def update_dataset_meta(
     if from_df is not None:
         shortdf = from_df
         length = from_df.shape[0]
-        if length > preview_lines:
-            shortdf = from_df.head(preview_lines)
+        if length > default_preview_lines:
+            shortdf = from_df.head(default_preview_lines)
         artifact_spec.header = shortdf.reset_index().columns.values.tolist()
         artifact_spec.preview = shortdf.reset_index().values.tolist()
         artifact_spec.schema = build_table_schema(from_df)

@@ -126,7 +126,9 @@ async def startup_event():
     # consumption - https://bugs.python.org/issue35279
     # TODO: remove when moving to python 3.8
     max_workers = config.httpdb.max_workers or min(32, os.cpu_count() + 4)
-    loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=max_workers))
+    loop.set_default_executor(
+        concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+    )
 
     await _initialize_singletons()
 

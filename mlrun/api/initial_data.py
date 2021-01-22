@@ -115,6 +115,7 @@ def _fix_datasets_large_previews(
                         artifact.uid,
                         project=artifact.project,
                         tag_artifact=False,
+                        ensure_project=False,
                     )
         except Exception as exc:
             logger.warning(

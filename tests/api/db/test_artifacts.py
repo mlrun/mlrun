@@ -156,10 +156,10 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+    "data_migration_db,db_session", [(dbs[0], dbs[0])], indirect=["data_migration_db", "db_session"]
 )
 def test_data_migration_fix_artifact_tags_duplications(
-    db: DBInterface, db_session: Session,
+    data_migration_db: DBInterface, db_session: Session,
 ):
     def _buggy_tag_artifacts(session, objs, project: str, name: str):
         # This is the function code that was used before we did the fix and added the data migration
@@ -178,7 +178,7 @@ def test_data_migration_fix_artifact_tags_duplications(
             if not ignore:
                 raise DBError(f"duplicate {cls} - {err}") from err
 
-    db.tag_artifacts = _buggy_tag_artifacts
+    data_migration_db.tag_artifacts = _buggy_tag_artifacts
 
     artifact_1_key = "artifact_key_1"
     artifact_1_uid = "artifact_1_uid_1"
@@ -203,23 +203,23 @@ def test_data_migration_fix_artifact_tags_duplications(
         artifact_3_key, artifact_3_with_kind_uid, kind=artifact_3_kind
     )
 
-    db.store_artifact(
+    data_migration_db.store_artifact(
         db_session, artifact_1_key, artifact_1_body, artifact_1_uid,
     )
-    db.store_artifact(
+    data_migration_db.store_artifact(
         db_session, artifact_1_key, artifact_1_with_kind_body, artifact_1_with_kind_uid,
     )
-    db.store_artifact(
+    data_migration_db.store_artifact(
         db_session, artifact_2_key, artifact_2_body, artifact_2_uid, tag="not-latest"
     )
-    db.store_artifact(
+    data_migration_db.store_artifact(
         db_session,
         artifact_2_key,
         artifact_2_with_kind_body,
         artifact_2_with_kind_uid,
         tag="not-latest",
     )
-    db.store_artifact(
+    data_migration_db.store_artifact(
         db_session, artifact_3_key, artifact_3_with_kind_body, artifact_3_with_kind_uid
     )
 
@@ -227,17 +227,17 @@ def test_data_migration_fix_artifact_tags_duplications(
     # 1. read artifact would have failed when there's more than one tag record with the same key (happen when you
     # store twice)
     with pytest.raises(MultipleResultsFound):
-        db.read_artifact(db_session, artifact_1_key, tag="latest")
+        data_migration_db.read_artifact(db_session, artifact_1_key, tag="latest")
     with pytest.raises(MultipleResultsFound):
-        db.read_artifact(db_session, artifact_2_key, tag="not-latest")
+        data_migration_db.read_artifact(db_session, artifact_2_key, tag="not-latest")
 
     # 2. read artifact would have succeed when there's only one tag record with the same key (happen when you
     # stored only once)
-    artifact = db.read_artifact(db_session, artifact_3_key, tag="latest")
+    artifact = data_migration_db.read_artifact(db_session, artifact_3_key, tag="latest")
     assert artifact["metadata"]["uid"] == artifact_3_with_kind_uid
 
     # 3. list artifact without tag would have returned the latest (by update time) of each artifact key
-    artifacts = db.list_artifacts(db_session)
+    artifacts = data_migration_db.list_artifacts(db_session)
     assert len(artifacts) == len([artifact_1_key, artifact_2_key, artifact_3_key])
     assert (
         deepdiff.DeepDiff(
@@ -254,29 +254,29 @@ def test_data_migration_fix_artifact_tags_duplications(
 
     # 4. list artifact with tag would have returned all of the artifact that at some point were tagged with the given
     # tag
-    artifacts = db.list_artifacts(db_session, tag="latest")
+    artifacts = data_migration_db.list_artifacts(db_session, tag="latest")
     assert len(artifacts) == len(
         [artifact_1_uid, artifact_1_with_kind_uid, artifact_3_with_kind_uid]
     )
 
     # perform the migration
-    mlrun.api.initial_data._fix_artifact_tags_duplications(db, db_session)
+    mlrun.api.initial_data._fix_artifact_tags_duplications(data_migration_db, db_session)
 
     # After the migration:
     # 1. read artifact should succeed (fixed) and return the latest updated record that was tagged with the requested
     # tag
-    artifact = db.read_artifact(db_session, artifact_1_key, tag="latest")
+    artifact = data_migration_db.read_artifact(db_session, artifact_1_key, tag="latest")
     assert artifact["metadata"]["uid"] == artifact_1_with_kind_uid
-    artifact = db.read_artifact(db_session, artifact_2_key, tag="not-latest")
+    artifact = data_migration_db.read_artifact(db_session, artifact_2_key, tag="not-latest")
     assert artifact["metadata"]["uid"] == artifact_2_with_kind_uid
 
     # 2. read artifact should (still) succeed when there's only one tag record with the same key (happen when you
     # stored only once)
-    artifact = db.read_artifact(db_session, artifact_3_key, tag="latest")
+    artifact = data_migration_db.read_artifact(db_session, artifact_3_key, tag="latest")
     assert artifact["metadata"]["uid"] == artifact_3_with_kind_uid
 
     # 3. list artifact without tag should (still) return the latest (by update time) of each artifact key
-    artifacts = db.list_artifacts(db_session)
+    artifacts = data_migration_db.list_artifacts(db_session)
     assert len(artifacts) == len([artifact_1_key, artifact_2_key, artifact_3_key])
     assert (
         deepdiff.DeepDiff(
@@ -292,7 +292,7 @@ def test_data_migration_fix_artifact_tags_duplications(
     )
 
     # 4. list artifact with tag should (fixed) return all of the artifact that are tagged with the given tag
-    artifacts = db.list_artifacts(db_session, tag="latest")
+    artifacts = data_migration_db.list_artifacts(db_session, tag="latest")
     assert (
         deepdiff.DeepDiff(
             [artifact["metadata"]["uid"] for artifact in artifacts],
@@ -305,10 +305,12 @@ def test_data_migration_fix_artifact_tags_duplications(
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+    "data_migration_db,db_session",
+    [(dbs[0], dbs[0])],
+    indirect=["data_migration_db", "db_session"],
 )
 def test_data_migration_fix_datasets_large_previews(
-    db: DBInterface, db_session: Session,
+    data_migration_db: DBInterface, db_session: Session,
 ):
     artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
     artifact_with_valid_preview_uid = "artifact-with-valid-preview-uid"
@@ -318,11 +320,12 @@ def test_data_migration_fix_datasets_large_previews(
             [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
         ),
     )
-    db.store_artifact(
+    data_migration_db._store_artifact(
         db_session,
         artifact_with_valid_preview_key,
         artifact_with_valid_preview.to_dict(),
         artifact_with_valid_preview_uid,
+        ensure_project=False,
     )
 
     artifact_with_invalid_preview_key = "artifact-with-invalid-preview-key"
@@ -336,17 +339,18 @@ def test_data_migration_fix_datasets_large_previews(
         ),
         ignore_preview_limits=True,
     )
-    db.store_artifact(
+    data_migration_db._store_artifact(
         db_session,
         artifact_with_invalid_preview_key,
         artifact_with_invalid_preview.to_dict(),
         artifact_with_invalid_preview_uid,
+        ensure_project=False,
     )
 
     # perform the migration
-    mlrun.api.initial_data._fix_datasets_large_previews(db, db_session)
+    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
 
-    artifact_with_valid_preview_after_migration = db.read_artifact(
+    artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
         db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid
     )
     assert (
@@ -359,7 +363,7 @@ def test_data_migration_fix_datasets_large_previews(
         == {}
     )
 
-    artifact_with_invalid_preview_after_migration = db.read_artifact(
+    artifact_with_invalid_preview_after_migration = data_migration_db.read_artifact(
         db_session, artifact_with_invalid_preview_key, artifact_with_invalid_preview_uid
     )
     assert (

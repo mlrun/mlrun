@@ -218,9 +218,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag="",
         project="",
         tag_artifact=True,
+        ensure_project=True,
     ):
         project = project or config.default_project
-        get_project_member().ensure_project(session, project)
+        if ensure_project:
+            get_project_member().ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:

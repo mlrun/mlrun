@@ -197,6 +197,19 @@ class SQLDB(DBInterface):
     def store_artifact(
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
+        self._store_artifact(session, key, artifact, uid, iter, tag, project)
+
+    def _store_artifact(
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        tag_artifact=True,
+    ):
         project = project or config.default_project
         self._ensure_project(session, project)
         artifact = artifact.copy()
@@ -212,8 +225,9 @@ class SQLDB(DBInterface):
         update_labels(art, labels)
         art.struct = artifact
         self._upsert(session, art)
-        tag = tag or "latest"
-        self.tag_objects(session, [art], project, tag)
+        if tag_artifact:
+            tag = tag or "latest"
+            self.tag_objects(session, [art], project, tag)
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project

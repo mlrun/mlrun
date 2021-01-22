@@ -25,7 +25,7 @@ from pandas.io.json import build_table_schema
 from .base import Artifact
 from ..datastore import store_manager, is_store_uri
 
-default_preview_raws_length = 20
+default_preview_rows_length = 20
 max_preview_columns = 100
 max_csv = 10000
 
@@ -144,7 +144,7 @@ class DatasetArtifact(Artifact):
     def update_preview_fields_from_df(
         artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False
     ):
-        preview_rows_length = preview_rows_length or default_preview_raws_length
+        preview_rows_length = preview_rows_length or default_preview_rows_length
         artifact.length = df.shape[0]
         preview_df = df
         if artifact.length > preview_rows_length and not ignore_preview_limits:

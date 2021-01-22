@@ -195,12 +195,20 @@ class SQLDB(DBInterface):
         session.commit()
 
     def store_artifact(
-            self, session, key, artifact, uid, iter=None, tag="", project=""
+        self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
         self._store_artifact(session, key, artifact, uid, iter, tag, project)
 
     def _store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project="", tag_artifact=True,
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        tag_artifact=True,
     ):
         project = project or config.default_project
         self._ensure_project(session, project)

@@ -88,7 +88,9 @@ def set_environment(
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
     :param user_project:   add the current user name to the provided project name (making it unique per user)
 
-    :returns: actual artifact path/url, can be used to create subpaths per task or group of artifacts
+    :returns:
+        default project name
+        actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:
@@ -119,4 +121,4 @@ def set_environment(
                 "artifact_path must refer to an absolute path" " or a valid url"
             )
         mlconf.artifact_path = artifact_path
-    return mlconf.artifact_path
+    return mlconf.default_project, mlconf.artifact_path

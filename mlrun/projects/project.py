@@ -81,19 +81,27 @@ def new_project(name, context=None, init_git=False, user_project=False):
 
 
 def load_project(
-    context, url=None, name=None, secrets=None, init_git=False, subpath="", clone=False
+    context,
+    url=None,
+    name=None,
+    secrets=None,
+    init_git=False,
+    subpath="",
+    clone=False,
+    user_project=False,
 ):
     """Load an MLRun project from git or tar or dir
 
-    :param context:    project local directory path
-    :param url:        git or tar.gz sources archive path e.g.:
-                       git://github.com/mlrun/demo-xgb-project.git
-                       db://<project-name>
-    :param name:       project name
-    :param secrets:    key:secret dict or SecretsStore used to download sources
-    :param init_git:   if True, will git init the context dir
-    :param subpath:    project subpath (within the archive)
-    :param clone:      if True, always clone (delete any existing content)
+    :param context:      project local directory path
+    :param url:          git or tar.gz sources archive path e.g.:
+                         git://github.com/mlrun/demo-xgb-project.git
+                         db://<project-name>
+    :param name:         project name
+    :param secrets:      key:secret dict or SecretsStore used to download sources
+    :param init_git:     if True, will git init the context dir
+    :param subpath:      project subpath (within the archive)
+    :param clone:        if True, always clone (delete any existing content)
+    :param user_project: add the current user name to the project name (for db:// prefixes)
 
     :returns: project object
     """
@@ -109,6 +117,9 @@ def load_project(
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets)
         elif url.startswith("db://"):
+            if user_project:
+                user = environ.get("V3IO_USERNAME") or getpass.getuser()
+                url = f"{url}-{user}"
             project = _load_project_from_db(url, secrets)
         else:
             raise ValueError("unsupported code archive {}".format(url))

@@ -1,5 +1,7 @@
+import getpass
 import pathlib
 import pytest
+import os
 
 import deepdiff
 
@@ -12,7 +14,7 @@ import tests.conftest
 def test_sync_functions():
     project_name = "project-name"
     project = mlrun.new_project(project_name)
-    project.set_function("hub://describe", "describe")
+    project.set_function("hub://describe")
     project_function_object = project.spec._function_objects
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
@@ -112,3 +114,10 @@ def test_get_set_params():
     assert param_value == project.get_param(param_key)
     default_value = "default-value"
     assert project.get_param("not-exist", default_value) == default_value
+
+
+def test_user_project():
+    project_name = "project-name"
+    user = os.environ.get("V3IO_USERNAME") or getpass.getuser()
+    project = mlrun.new_project(project_name, user_project=True)
+    assert project.metadata.name == f'{project_name}-{user}', "project name doesnt include user name"

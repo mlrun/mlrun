@@ -1,5 +1,5 @@
 <a id="top"></a>
-# General Concept and Motivation <!-- omit in toc -->
+# General Concept and Architecture <!-- omit in toc -->
 - [The Challenge](#the-challenge)
 - [The MLRun Vision](#the-mlrun-vision)
 - [Basic Components](#basic-components)

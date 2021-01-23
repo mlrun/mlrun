@@ -40,30 +40,30 @@ MLRun includes the following key features:
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: MLRun Basics:
 
    quick-start
+   tutorial/idx
    general
    install
    remote
-   end-to-end-pipeline
-   data-management-and-versioning
 
 .. toctree::
    :maxdepth: 2
-   :caption: Details:
+   :caption: Topics:
 
+   end-to-end-pipeline
+   data-management-and-versioning
    projects
    load-from-marketplace
    job-submission-and-tracking
    serving/index
    examples
+
+.. toctree::
+   :maxdepth: 2
+   :caption: References:
+
    cli
+   genindex
    api/index
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

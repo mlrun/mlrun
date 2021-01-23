@@ -851,7 +851,8 @@ class MlrunProject(ModelObj):
         :returns: project object
         """
         if isinstance(func, str):
-            if not name:
+            # in hub or db functions name defaults to the function name
+            if not name and not (func.startswith("db://") or func.startswith("hub://")):
                 raise ValueError("function name must be specified")
             function_dict = {
                 "url": func,
@@ -862,6 +863,7 @@ class MlrunProject(ModelObj):
             }
             func = {k: v for k, v in function_dict.items() if v}
             name, function_object = _init_function_from_dict(func, self)
+            func["name"] = name
         elif hasattr(func, "to_dict"):
             name, function_object = _init_function_from_obj(func, self, name=name)
             if image:

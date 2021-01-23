@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import getpass
 import shutil
 import warnings
 
@@ -24,7 +24,7 @@ from tempfile import mktemp
 from git import Repo
 
 import yaml
-from os import path, remove
+from os import path, remove, environ
 
 from ..datastore import store_manager
 from ..config import config
@@ -56,15 +56,20 @@ class ProjectError(Exception):
     pass
 
 
-def new_project(name, context=None, init_git=False):
+def new_project(name, context=None, init_git=False, user_project=False):
     """Create a new MLRun project
 
-    :param name:       project name
-    :param context:    project local directory path
-    :param init_git:   if True, will git init the context dir
+    :param name:         project name
+    :param context:      project local directory path
+    :param init_git:     if True, will git init the context dir
+    :param user_project: add the current user name to the provided project name (making it unique per user)
 
     :returns: project object
     """
+    if user_project:
+        user = environ.get("V3IO_USERNAME") or getpass.getuser()
+        name = f"{name}-{user}"
+
     project = MlrunProject(name=name)
     project.spec.context = context
 

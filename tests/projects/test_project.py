@@ -120,4 +120,6 @@ def test_user_project():
     project_name = "project-name"
     user = os.environ.get("V3IO_USERNAME") or getpass.getuser()
     project = mlrun.new_project(project_name, user_project=True)
-    assert project.metadata.name == f'{project_name}-{user}', "project name doesnt include user name"
+    assert (
+        project.metadata.name == f"{project_name}-{user}"
+    ), "project name doesnt include user name"

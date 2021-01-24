@@ -196,7 +196,19 @@ class OperationTypes(str, Enum):
 
 
 class VotingEnsemble(BaseModelRouter):
-    """Voting Ensemble class
+    def __init__(
+        self,
+        context,
+        name,
+        routes=None,
+        protocol=None,
+        url_prefix=None,
+        health_prefix=None,
+        vote_type=None,
+        executor_type=None,
+        **kwargs,
+    ):
+        """Voting Ensemble
 
         The `VotingEnsemble` class enables you to apply prediction logic on top of
         the different added models.
@@ -219,20 +231,38 @@ class VotingEnsemble(BaseModelRouter):
         * When enabling model tracking via `set_tracking()` the ensemble logic
         predictions will appear with model name as the given VotingEnsemble name
         or "VotingEnsemble" by default.
-    """
 
-    def __init__(
-        self,
-        context,
-        name,
-        routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
-        vote_type=None,
-        executor_type=None,
-        **kwargs,
-    ):
+        How to extend the VotingEnsemble
+        --------------------------------
+        The VotingEnsemble applies its logic using the `logic(predictions)` function.
+        The `logic()` function receives an array of (# samples, # predictors) which you
+        can then use to apply whatever logic you may need.
+
+        If we use this `VotingEnsemble` as an example, the `logic()` function tries to figure
+        out weather you are trying to do a **classification** or a **regression** prediction by
+        the prediction type or by the given `vote_type` parameter.  Then we apply the appropriate
+        `max_vote()` or `mean_vote()` which calculates the actual prediction result and returns it
+        as the VotingEnsemble's prediction.
+
+        Parameters
+        ----------
+        context : [type]
+            [description]
+        name : [type]
+            [description]
+        routes : [type], optional
+            [description], by default None
+        protocol : [type], optional
+            [description], by default None
+        url_prefix : [type], optional
+            [description], by default None
+        health_prefix : [type], optional
+            [description], by default None
+        vote_type : [type], optional
+            [description], by default None
+        executor_type : [type], optional
+            [description], by default None
+        """
         super().__init__(
             context, name, routes, protocol, url_prefix, health_prefix, **kwargs
         )
@@ -404,7 +434,7 @@ class VotingEnsemble(BaseModelRouter):
         # Flatten predictions by sample instead of by model as received
         flattened_predictions = [
             [predictions[j][i] for j in range(len(predictions))]
-            for i in range(len(predictions[0]))
+            for i in range(len(predictions.get(0, [])))
         ]
 
         return self.logic(flattened_predictions)

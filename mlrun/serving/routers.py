@@ -195,7 +195,7 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
-class VotingEnsembles(BaseModelRouter):
+class VotingEnsemble(BaseModelRouter):
     def __init__(
         self,
         context,

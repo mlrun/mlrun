@@ -50,20 +50,36 @@ MLRun includes the following key features:
 
 .. toctree::
    :maxdepth: 2
-   :caption: Topics:
+   :caption: ML Pipelines:
 
-   end-to-end-pipeline
-   data-management-and-versioning
-   projects
-   load-from-marketplace
    job-submission-and-tracking
+   end-to-end-pipeline
+   projects
+   pipeline/monitoring
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Serverless Runtimes:
+
+   runtimes/functions
+   runtimes/mlrun_jobs
    serving/index
-   examples
+   load-from-marketplace
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Store & Artifacts:
+
+   store/datastore
+   store/artifacts
+   store/models
+   store/feature-store
 
 .. toctree::
    :maxdepth: 2
    :caption: References:
 
+   examples
    cli
    genindex
    api/index

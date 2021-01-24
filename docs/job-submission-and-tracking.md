@@ -36,7 +36,7 @@ Finally, experiments are useful to show your work to any reviewer. This is usefu
 
 ## Artifact
 
-Artifacts are stored in the project and are versioned. For more information, see [data management and versioning](./data-management-and-versioning.md)
+Artifacts are stored in the project and are versioned. For more information, see [data management and versioning](store/artifacts.md)
 
 ## Tasks
 

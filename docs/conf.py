@@ -111,12 +111,12 @@ html_theme_options = {
     "use_issues_button": True,
     "use_edit_page_button": True,
     "path_to_docs": "docs",
-    "home_page_in_toc": True,
+    "home_page_in_toc": False,
     "home_page_in_navbar": True,
     "repository_branch": "development",
     "show_navbar_depth": 1,
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
-    "extra_footer": "extra_footer",
+    "extra_footer": "",
     "google_analytics_id": "",
 }
 

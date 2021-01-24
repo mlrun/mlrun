@@ -195,7 +195,7 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
-class VotingEnsemble(BaseModelRouter):
+class VotingEnsembles(BaseModelRouter):
     def __init__(
         self,
         context,
@@ -327,6 +327,8 @@ class VotingEnsemble(BaseModelRouter):
 
                 # Prune handled URI parts
                 segments = segments[2:]
+
+            model = segments[0]
             if len(segments) > 1:
                 subpath = "/".join(segments[1:])
 
@@ -434,7 +436,7 @@ class VotingEnsemble(BaseModelRouter):
         # Flatten predictions by sample instead of by model as received
         flattened_predictions = [
             [predictions[j][i] for j in range(len(predictions))]
-            for i in range(len(predictions.get(0, [])))
+            for i in range(len(predictions[0]))
         ]
 
         return self.logic(flattened_predictions)
@@ -472,14 +474,19 @@ class VotingEnsemble(BaseModelRouter):
         if name == self.name:
             predictions = self._parallel_run(event)
             votes = self._apply_logic(predictions)
-
-            response = {
+            response = copy.copy(event)
+            response_body = {
                 "id": event.id,
                 "model_name": self.name,
-                "outputs": votes,
+                "outputs": {
+                    "id": event.id,
+                    "inputs": response.body["inputs"],
+                    "outputs": votes,
+                },
             }
             if self.version:
-                response["model_version"] = self.version
+                response_body["model_version"] = self.version
+            response.body = response_body
 
         # A specific model event
         else:
@@ -522,7 +529,7 @@ class VotingEnsemble(BaseModelRouter):
                         results.append(future.result())
                     except Exception as exc:
                         print("%r generated an exception: %s" % (future.fullname, exc))
-                results = [event.body["outputs"] for event in results]
+                results = [event.body["outputs"]["prediction"] for event in results]
         else:
             raise ValueError(
                 f"{mode} is not a supported parallel run mode, please select from "

@@ -13,7 +13,7 @@ from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
 from mlrun.api.api.endpoints.model_endpoints import (
-    get_endpoint_id,
+    get_model_endpoint_id,
     _get_endpoint_kv_record_by_id,
     ENDPOINTS_TABLE_PATH,
     ENDPOINT_EVENTS_TABLE_PATH,
@@ -44,14 +44,13 @@ def is_env_params_dont_exist() -> bool:
 def test_clear_endpoint(db: Session, client: TestClient):
     endpoint = _mock_random_endpoint()
     _write_endpoint_to_kv(endpoint)
-    endpoint_id = get_endpoint_id(endpoint)
+    endpoint_id = get_model_endpoint_id(endpoint)
 
     kv_record = _get_endpoint_kv_record_by_id(endpoint_id)
 
     assert kv_record
-
     response = client.post(
-        f"/api/projects/{kv_record['project']}/model-endpoints/{endpoint_id}/clear"
+        url=f"/api/projects/{kv_record['project']}/model-endpoints/{endpoint_id}/clear"
     )
 
     assert response.status_code == 200
@@ -149,7 +148,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
     for i in range(5):
         endpoint = _mock_random_endpoint()
-        endpoint_id = get_endpoint_id(endpoint)
+        endpoint_id = get_model_endpoint_id(endpoint)
 
         _write_endpoint_to_kv(endpoint)
 
@@ -220,7 +219,7 @@ def _mock_random_endpoint(state: str = "") -> ModelEndpoint:
 
 
 def _write_endpoint_to_kv(endpoint: ModelEndpoint):
-    endpoint_id = get_endpoint_id(endpoint)
+    endpoint_id = get_model_endpoint_id(endpoint)
 
     get_v3io_client().kv.put(
         container=config.httpdb.model_endpoint_monitoring.container,

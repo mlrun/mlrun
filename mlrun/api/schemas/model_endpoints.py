@@ -1,8 +1,9 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
+from mlrun.api.api.endpoints.model_endpoints import get_model_endpoint_id
 from mlrun.api.schemas.object import (
     ObjectKind,
     ObjectSpec,
@@ -30,6 +31,11 @@ class ModelEndpoint(BaseModel):
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
     status: ObjectStatus
+    id: Optional[str] = None
+
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+        self.id = get_model_endpoint_id(self)
 
 
 class Histogram(BaseModel):

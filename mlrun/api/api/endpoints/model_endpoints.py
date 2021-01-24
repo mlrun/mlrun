@@ -1,14 +1,13 @@
-import hashlib
 import json
 from dataclasses import dataclass
 from http import HTTPStatus
-from os import environ
 from typing import List, Optional, Dict, Any
 
 import pandas as pd
 from fastapi import APIRouter, Query, Response, Request
 from v3io.dataplane import RaiseForStatus
 
+from mlrun.api.api.utils import get_model_endpoint_secrets, get_model_endpoint_id
 from mlrun.api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
@@ -24,8 +23,6 @@ from mlrun.errors import (
     MLRunConflictError,
     MLRunNotFoundError,
     MLRunInvalidArgumentError,
-    MLRunBadRequestError,
-    MLRunPreconditionFailedError,
 )
 from mlrun.utils.helpers import logger
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
@@ -50,6 +47,9 @@ ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES = ENDPOINT_TABLE_ATTRIBUTES + ["features
 V3IO_ACCESS_KEY = "V3IO_ACCESS_KEY"
 V3IO_API = "V3IO_API"
 V3IO_FRAMESD = "V3IO_FRAMESD"
+
+
+router = APIRouter()
 
 
 @dataclass
@@ -94,9 +94,6 @@ class TimeMetric:
             raise NotImplementedError(f"Unsupported metric '{name}'")
 
 
-router = APIRouter()
-
-
 @router.post(
     "/projects/{project}/model-endpoints/{endpoint_id}/clear",
     status_code=HTTPStatus.NO_CONTENT.value,
@@ -107,7 +104,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     """
 
     _verify_endpoint(project, endpoint_id)
-    secrets = get_secrets(request)
+    secrets = get_model_endpoint_secrets(request)
 
     logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
     client = get_v3io_client(
@@ -151,7 +148,7 @@ def list_endpoints(
     Or by using a `,` (comma) seperator:
     `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
     """
-    secrets = get_secrets(request)
+    secrets = get_model_endpoint_secrets(request)
     client = get_v3io_client(
         endpoint=secrets[V3IO_API], access_key=secrets[V3IO_ACCESS_KEY]
     )
@@ -172,7 +169,7 @@ def list_endpoints(
         if metrics:
             endpoint_metrics = _get_endpoint_metrics(
                 request=request,
-                endpoint_id=get_endpoint_id(ModelEndpoint(**endpoint)),
+                endpoint_id=get_model_endpoint_id(ModelEndpoint(**endpoint)),
                 name=["predictions", "latency"],
                 start=start,
                 end=end,
@@ -281,7 +278,7 @@ def _get_endpoint_metrics(
     end: str = "now",
 ) -> List[Metric]:
 
-    secrets = get_secrets(request)
+    secrets = get_model_endpoint_secrets(request)
 
     if not name:
         raise MLRunInvalidArgumentError("Metric names must be provided")
@@ -366,7 +363,7 @@ def _get_endpoint_kv_record_by_id(
     request: Request, endpoint_id: str, attribute_names: Optional[List[str]] = None
 ) -> Dict[str, Any]:
 
-    secrets = get_secrets(request)
+    secrets = get_model_endpoint_secrets(request)
     client = get_v3io_client(
         endpoint=secrets[V3IO_API], access_key=secrets[V3IO_ACCESS_KEY]
     )
@@ -380,47 +377,9 @@ def _get_endpoint_kv_record_by_id(
     return endpoint
 
 
-def get_endpoint_id(endpoint: ModelEndpoint) -> str:
-    endpoint_unique_string = (
-        f"{endpoint.spec.function}_{endpoint.spec.model}_{endpoint.metadata.tag}"
-    )
-    md5 = hashlib.md5(endpoint_unique_string.encode("utf-8")).hexdigest()
-    return f"{endpoint.metadata.project}.{md5}"
-
-
 def _verify_endpoint(project, endpoint_id):
     endpoint_id_project, _ = endpoint_id.split(".")
     if endpoint_id_project != project:
         raise MLRunConflictError(
             f"project: {project} and endpoint_id: {endpoint_id} missmatch."
         )
-
-
-def get_secrets(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
-    if not access_key:
-        raise MLRunBadRequestError(
-            f"Request header missing 'X-V3io-Session-Key' parameter."
-        )
-
-    v3io_api = environ.get("V3IO_WEBAPI_PORT_8081_TCP")
-    if not v3io_api:
-        raise MLRunPreconditionFailedError(
-            "Environment missing 'V3IO_WEBAPI_PORT_8081_TCP' parameter."
-        )
-    else:
-        v3io_api = v3io_api.replace("tcp", "http")
-
-    v3io_framesd = environ.get("FRAMESD_PORT_8081_TCP")
-    if not v3io_framesd:
-        raise MLRunPreconditionFailedError(
-            "Environment missing 'V3IO_WEBAPI_PORT_8081_TCP' parameter."
-        )
-    else:
-        v3io_framesd = v3io_framesd.replace("tcp", "http")
-
-    return {
-        V3IO_ACCESS_KEY: access_key,
-        V3IO_API: v3io_api,
-        V3IO_FRAMESD: v3io_framesd,
-    }

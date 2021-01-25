@@ -73,6 +73,8 @@ Table Of Content
    runtimes/functions
    runtimes/mlrun_jobs
    runtimes/dask-overview
+   runtimes/horovod
+   runtimes/spark-operator
    load-from-marketplace
 
 .. toctree::

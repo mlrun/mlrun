@@ -20,7 +20,7 @@ Functions (function objects) can be created by using any of the following method
   or from the function marketplace (e.g. `hub://describe`).
 
 You can use the `.save` function method to save a function object in the MLRun database, or 
-the `.export` method to save a YAML function-configuration function to your preferred local or remote location.
+the `.export` method to save a YAML function-configuration to your preferred local or remote location.
 Use `.deploy` to build/deploy the function (if we need to add packages or run it as an online service), 
 `.run` to execute a task, `.as_step` to convert a function to a Kubeflow pipeline step.
 For function-method details and examples, see the embedded documentation/help text.

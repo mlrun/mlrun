@@ -14,9 +14,11 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+__all__ = ["DataItem", "get_store_resource"]
+
 from .datastore import StoreManager, uri_to_ipython, in_memory_store
 from .base import DataItem
-from .store_resources import is_store_uri, get_store_uri
+from .store_resources import is_store_uri, get_store_uri, get_store_resource
 
 
 store_manager = StoreManager()

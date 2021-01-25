@@ -112,7 +112,6 @@ html_theme_options = {
     "use_edit_page_button": True,
     "path_to_docs": "docs",
     "home_page_in_toc": False,
-    "home_page_in_navbar": True,
     "repository_branch": "development",
     "show_navbar_depth": 1,
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
@@ -126,6 +125,11 @@ myst_enable_extensions = [
     "colon_fence",
     "deflist",
     "html_image",
+    "html_admonition",
+    "smartquotes",
+    "replacements",
+    "linkify",
+    "substitution",
 ]
 myst_url_schemes = ("http", "https", "mailto")
 panels_add_bootstrap_css = False

@@ -46,7 +46,7 @@ MLRun includes the following key features:
    tutorial/index
    general
    install
-   remote
+   howto/index
 
 .. toctree::
    :maxdepth: 2
@@ -55,7 +55,7 @@ MLRun includes the following key features:
    job-submission-and-tracking
    end-to-end-pipeline
    projects
-   pipeline/monitoring
+   serving/index
 
 .. toctree::
    :maxdepth: 2
@@ -64,7 +64,6 @@ MLRun includes the following key features:
    runtimes/functions
    runtimes/mlrun_jobs
    runtimes/dask-overview
-   serving/index
    load-from-marketplace
 
 .. toctree::
@@ -74,7 +73,6 @@ MLRun includes the following key features:
    store/datastore
    store/artifacts
    store/models
-   store/feature-store
 
 .. toctree::
    :maxdepth: 2

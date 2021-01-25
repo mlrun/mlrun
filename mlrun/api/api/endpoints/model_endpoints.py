@@ -397,7 +397,7 @@ def get_model_endpoint_secrets(_request: Request):
     access_key = _request.headers.get("X-V3io-Session-Key")
     if not access_key:
         raise MLRunBadRequestError(
-            f"Request header missing 'X-V3io-Session-Key' parameter."
+            "Request header missing 'X-V3io-Session-Key' parameter."
         )
 
     v3io_api = environ.get("V3IO_WEBAPI_PORT_8081_TCP")

@@ -26,7 +26,6 @@ from mlrun.api.schemas import (
     ModelEndpoint,
     ObjectStatus,
 )
-from mlrun.config import config
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_WEBAPI_PORT_8081_TCP", "FRAMESD_PORT_8081_TCP"}

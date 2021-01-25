@@ -3,6 +3,6 @@ recommonmark~=0.6
 sphinx~=2.2
 sphinx_rtd_theme~=0.4
 sphinx-copybutton~=0.3
-pip install sphinx-togglebutton~=0.2.0
+pip install sphinx-togglebutton==0.2.3
 myst-nb==0.10
 sphinx-book-theme~=0.0.39

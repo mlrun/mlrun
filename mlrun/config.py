@@ -43,7 +43,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
-    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks)
+    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
@@ -133,6 +133,10 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
     },
+    "ui": {
+        "projects_prefix": "projects",  # The UI link prefix for projects
+        "url": "",  # remote/external mlrun UI url (for hyperlinks)
+    },
 }
 
 
@@ -210,6 +214,13 @@ class Config:
 
             return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
+
+    @staticmethod
+    def resolve_ui_url():
+        # ui_url is deprecated in favor of the ui.url (we created the ui block)
+        # since the config class is used in a "recursive" way, we can't use property like we used in other places
+        # since the property will need to be url, which exists in other structs as well
+        return config.ui.url or config.ui_url
 
     @property
     def dbpath(self):

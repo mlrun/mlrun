@@ -43,7 +43,7 @@ MLRun includes the following key features:
    :caption: MLRun Basics:
 
    quick-start
-   tutorial/idx
+   tutorial/index
    general
    install
    remote
@@ -63,6 +63,7 @@ MLRun includes the following key features:
 
    runtimes/functions
    runtimes/mlrun_jobs
+   runtimes/dask-overview
    serving/index
    load-from-marketplace
 

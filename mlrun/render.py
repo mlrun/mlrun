@@ -340,7 +340,12 @@ def runs_to_html(df, display=True, classes=None, short=False):
     if config.ui_url:
         df["uid"] = df.apply(
             lambda x: uid_template.format(
-                x.uid, config.ui_url, config.ui.projects_prefix, x.project, x.uid, x.uid[-8:]
+                x.uid,
+                config.ui_url,
+                config.ui.projects_prefix,
+                x.project,
+                x.uid,
+                x.uid[-8:],
             ),
             axis=1,
         )

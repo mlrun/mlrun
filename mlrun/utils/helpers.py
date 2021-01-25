@@ -675,7 +675,10 @@ class RunNotifications:
                 meta = r["metadata"]
                 if config.ui_url:
                     url = template.format(
-                        config.ui_url, config.ui.projects_prefix, meta.get("project"), meta.get("uid")
+                        config.ui_url,
+                        config.ui.projects_prefix,
+                        meta.get("project"),
+                        meta.get("uid"),
                     )
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:

@@ -3,7 +3,8 @@ from typing import Optional, List, Tuple, Any
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
-from mlrun.api.api.endpoints.model_endpoints import get_model_endpoint_id
+from hashlib import md5
+
 from mlrun.api.schemas.object import (
     ObjectKind,
     ObjectSpec,
@@ -35,7 +36,14 @@ class ModelEndpoint(BaseModel):
 
     def __init__(self, **data: Any):
         super().__init__(**data)
-        self.id = get_model_endpoint_id(self)
+        self.id = self.create_endpoint_id()
+
+    def create_endpoint_id(self):
+        endpoint_unique_string = (
+            f"{self.spec.function}_{self.spec.model}_{self.metadata.tag}"
+        )
+        md5_str = md5(endpoint_unique_string.encode("utf-8")).hexdigest()
+        return f"{self.metadata.project}.{md5_str}"
 
 
 class Histogram(BaseModel):

@@ -1,7 +1,7 @@
 import re
 import traceback
 import typing
-from hashlib import sha1, md5
+from hashlib import sha1
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -13,13 +13,11 @@ from sqlalchemy.orm import Session
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.schemas import ModelEndpoint
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
-from mlrun.errors import MLRunBadRequestError, MLRunPreconditionFailedError
 from mlrun.run import import_function, new_function
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
@@ -221,41 +219,3 @@ def parse_reference(reference: str):
     else:
         uid = regex_match.string
     return tag, uid
-
-
-def get_model_endpoint_id(endpoint: ModelEndpoint) -> str:
-    endpoint_unique_string = (
-        f"{endpoint.spec.function}_{endpoint.spec.model}_{endpoint.metadata.tag}"
-    )
-    md5_str = md5(endpoint_unique_string.encode("utf-8")).hexdigest()
-    return f"{endpoint.metadata.project}.{md5_str}"
-
-
-def get_model_endpoint_secrets(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
-    if not access_key:
-        raise MLRunBadRequestError(
-            f"Request header missing 'X-V3io-Session-Key' parameter."
-        )
-
-    v3io_api = environ.get("V3IO_WEBAPI_PORT_8081_TCP")
-    if not v3io_api:
-        raise MLRunPreconditionFailedError(
-            "Environment missing 'V3IO_WEBAPI_PORT_8081_TCP' parameter."
-        )
-    else:
-        v3io_api = v3io_api.replace("tcp", "http")
-
-    v3io_framesd = environ.get("FRAMESD_PORT_8081_TCP")
-    if not v3io_framesd:
-        raise MLRunPreconditionFailedError(
-            "Environment missing 'V3IO_WEBAPI_PORT_8081_TCP' parameter."
-        )
-    else:
-        v3io_framesd = v3io_framesd.replace("tcp", "http")
-
-    return {
-        "V3IO_ACCESS_KEY": access_key,
-        "V3IO_API": v3io_api,
-        "V3IO_FRAMESD": v3io_framesd,
-    }

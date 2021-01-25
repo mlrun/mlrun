@@ -16,6 +16,7 @@ def health():
         "remote_host": config.remote_host,
         "mpijob_crd_version": mpijob_crd_version,
         "ui_url": config.ui_url,
+        "ui_projects_prefix": config.ui.projects_prefix,
         "artifact_path": config.artifact_path,
         "spark_app_image": config.spark_app_image,
         "spark_app_image_tag": config.spark_app_image_tag,

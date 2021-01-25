@@ -747,13 +747,13 @@ def project(
                 message = "Pipeline started id={}".format(run)
                 if proj.params and "commit" in proj.params:
                     message += ", commit={}".format(proj.params["commit"])
-                if mlconf.ui_url:
+                if mlconf.resolve_ui_url():
                     temp = (
                         '<div><a href="{}/{}/{}/jobs" target='
                         + ' "_blank">click here to check progress</a></div>'
                     )
                     message += temp.format(
-                        mlconf.ui_url, mlconf.ui.projects_prefix, proj.name
+                        mlconf.resolve_ui_url(), mlconf.ui.projects_prefix, proj.name
                     )
             pr_comment(
                 git_repo, git_issue, message, token=proj.get_secret("GITHUB_TOKEN")

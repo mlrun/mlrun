@@ -156,7 +156,7 @@ class HTTPRunDB(RunDBInterface):
             config.mpijob_crd_version = config.mpijob_crd_version or server_cfg.get(
                 "mpijob_crd_version"
             )
-            config.ui_url = config.ui_url or server_cfg.get("ui_url")
+            config.ui.url = config.resolve_ui_url() or server_cfg.get("ui_url")
             # This is has a default value, therefore config.ui.projects_prefix will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (

@@ -673,9 +673,9 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs:
                 meta = r["metadata"]
-                if config.ui_url:
+                if config.resolve_ui_url():
                     url = template.format(
-                        config.ui_url,
+                        config.resolve_ui_url(),
                         config.ui.projects_prefix,
                         meta.get("project"),
                         meta.get("uid"),

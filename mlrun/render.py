@@ -337,11 +337,11 @@ def runs_to_html(df, display=True, classes=None, short=False):
     df["artifacts"] = df["artifacts"].apply(lambda x: artifacts_html(x, "target_path"))
     df["results"] = df["results"].apply(dict_html)
     df["start"] = df["start"].apply(time_str)
-    if config.ui_url:
+    if config.resolve_ui_url():
         df["uid"] = df.apply(
             lambda x: uid_template.format(
                 x.uid,
-                config.ui_url,
+                config.resolve_ui_url(),
                 config.ui.projects_prefix,
                 x.project,
                 x.uid,

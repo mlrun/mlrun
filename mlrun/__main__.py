@@ -749,10 +749,10 @@ def project(
                     message += ", commit={}".format(proj.params["commit"])
                 if mlconf.ui_url:
                     temp = (
-                        '<div><a href="{}/projects/{}/jobs" target='
+                        '<div><a href="{}/{}/{}/jobs" target='
                         + ' "_blank">click here to check progress</a></div>'
                     )
-                    message += temp.format(mlconf.ui_url, proj.name)
+                    message += temp.format(mlconf.ui_url, mlconf.ui.projects_prefix, proj.name)
             pr_comment(
                 git_repo, git_issue, message, token=proj.get_secret("GITHUB_TOKEN")
             )

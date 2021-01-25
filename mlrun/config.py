@@ -133,6 +133,9 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
     },
+    "ui": {
+        "projects_prefix": "projects",  # The UI link prefix for projects
+    },
 }
 
 

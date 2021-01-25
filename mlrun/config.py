@@ -135,7 +135,7 @@ default_config = {
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
-        "url": ""  # remote/external mlrun UI url (for hyperlinks)
+        "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
 }
 

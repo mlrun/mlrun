@@ -16,6 +16,7 @@
 
 __all__ = ["get_version", "set_environment", "code_to_function", "import_function"]
 
+import getpass
 from os import environ, path
 
 from .config import config as mlconf
@@ -66,6 +67,7 @@ def set_environment(
     artifact_path: str = "",
     project: str = "",
     access_key: str = None,
+    user_project=False,
 ):
     """set and test default config for: api path, artifact_path and project
 
@@ -84,8 +86,11 @@ def set_environment(
     :param artifact_path:  path/url for storing experiment artifacts
     :param project:        default project name
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
+    :param user_project:   add the current user name to the provided project name (making it unique per user)
 
-    :returns: actual artifact path/url, can be used to create subpaths per task or group of artifacts
+    :returns:
+        default project name
+        actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:
@@ -98,6 +103,10 @@ def set_environment(
 
     if access_key:
         environ["V3IO_ACCESS_KEY"] = access_key
+
+    if project and user_project:
+        user = environ.get("V3IO_USERNAME") or getpass.getuser()
+        project = f"{project}-{user}"
 
     mlconf.default_project = project or mlconf.default_project
 
@@ -112,4 +121,4 @@ def set_environment(
                 "artifact_path must refer to an absolute path" " or a valid url"
             )
         mlconf.artifact_path = artifact_path
-    return mlconf.artifact_path
+    return mlconf.default_project, mlconf.artifact_path

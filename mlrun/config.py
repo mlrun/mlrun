@@ -87,6 +87,7 @@ default_config = {
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
+        "max_workers": "",
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute

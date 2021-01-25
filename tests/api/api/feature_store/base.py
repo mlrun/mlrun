@@ -31,26 +31,27 @@ def _patch_object(
     object_update,
     object_url_path,
     additive=False,
+    reference="latest",
 ):
     patch_mode = "replace"
     if additive:
         patch_mode = "additive"
     headers = {mlrun.api.schemas.HeaderNames.patch_mode: patch_mode}
     response = client.patch(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/latest",
+        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}",
         json=object_update,
         headers=headers,
     )
     assert response.status_code == HTTPStatus.OK.value
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/latest"
+        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}"
     )
     return response.json()
 
 
 # There will be fields added (uid for example), but we don't allow any other changes
-def _assert_diff_empty_except_for_specific_metadata(
-    expected_object, actual_object, allowed_metadata_fields
+def _assert_diff_as_expected_except_for_specific_metadata(
+    expected_object, actual_object, allowed_metadata_fields, expected_diff={}
 ):
     exclude_paths = []
     for field in allowed_metadata_fields:
@@ -58,4 +59,4 @@ def _assert_diff_empty_except_for_specific_metadata(
     diff = DeepDiff(
         expected_object, actual_object, ignore_order=True, exclude_paths=exclude_paths,
     )
-    assert diff == {}
+    assert diff == expected_diff

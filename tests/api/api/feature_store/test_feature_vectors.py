@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .base import (
     _patch_object,
     _list_and_assert_objects,
-    _assert_diff_empty_except_for_specific_metadata,
+    _assert_diff_as_expected_except_for_specific_metadata,
 )
 
 
@@ -54,7 +54,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
         client, project_name, feature_vector, True
     )
     allowed_added_fields = ["uid", "updated", "tag"]
-    _assert_diff_empty_except_for_specific_metadata(
+    _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )
     uid = feature_vector_response["metadata"]["uid"]
@@ -63,7 +63,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
         f"/api/projects/{project_name}/feature-vectors/{name}/references/latest"
     )
     assert feature_vector_response.status_code == HTTPStatus.OK.value
-    _assert_diff_empty_except_for_specific_metadata(
+    _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response.json(), allowed_added_fields
     )
 
@@ -73,7 +73,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     assert feature_vector_response.status_code == HTTPStatus.OK.value
     # When querying by uid, tag will not be returned
     feature_vector["metadata"].pop("tag")
-    _assert_diff_empty_except_for_specific_metadata(
+    _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response.json(), allowed_added_fields
     )
 
@@ -248,3 +248,45 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 2)
+
+
+def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_vector1"
+    feature_vector = _generate_feature_vector(name)
+    feature_vector_response = _create_and_assert_feature_vector(
+        client, project_name, feature_vector, versioned=False
+    )
+
+    allowed_added_fields = ["uid", "updated", "tag", "project"]
+    _assert_diff_as_expected_except_for_specific_metadata(
+        feature_vector, feature_vector_response, allowed_added_fields
+    )
+    assert feature_vector_response["metadata"]["uid"] is None
+
+    feature_vector_response = _assert_store_feature_vector(
+        client, project_name, name, "latest", feature_vector, versioned=False
+    )
+
+    _assert_diff_as_expected_except_for_specific_metadata(
+        feature_vector, feature_vector_response, allowed_added_fields
+    )
+    assert feature_vector_response["metadata"]["uid"] is None
+
+    feature_vector_patch = {"status": {"patched": "yes"}}
+    patched_feature_vector = _patch_object(
+        client,
+        project_name,
+        name,
+        feature_vector_patch,
+        "feature-vectors",
+        reference="latest",
+    )
+
+    expected_diff = {"dictionary_item_added": ["root['status']['patched']"]}
+    _assert_diff_as_expected_except_for_specific_metadata(
+        feature_vector_response,
+        patched_feature_vector,
+        allowed_added_fields,
+        expected_diff,
+    )

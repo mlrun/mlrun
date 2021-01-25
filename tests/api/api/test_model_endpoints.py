@@ -223,7 +223,7 @@ def _write_endpoint_to_kv(endpoint: ModelEndpoint):
     endpoint_id = get_endpoint_id(endpoint)
 
     get_v3io_client().kv.put(
-        container=config.model_endpoint_monitoring_container,
+        container=config.httpdb.model_endpoint_monitoring.container,
         table_path=ENDPOINTS_TABLE_PATH,
         key=endpoint_id,
         attributes={
@@ -238,13 +238,13 @@ def _write_endpoint_to_kv(endpoint: ModelEndpoint):
     )
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=False)
 def cleanup_endpoints(db: Session, client: TestClient):
     v3io = get_v3io_client()
     frames = get_frames_client(container="projects")
     try:
         all_records = v3io.kv.new_cursor(
-            container=config.model_endpoint_monitoring_container,
+            container=config.httpdb.model_endpoint_monitoring.container,
             table_path=ENDPOINTS_TABLE_PATH,
             raise_for_status=RaiseForStatus.never,
         ).all()
@@ -254,7 +254,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
         # Cleanup KV
         for record in all_records:
             get_v3io_client().kv.delete(
-                container=config.model_endpoint_monitoring_container,
+                container=config.httpdb.model_endpoint_monitoring.container,
                 table_path=ENDPOINTS_TABLE_PATH,
                 key=record,
                 raise_for_status=RaiseForStatus.never,

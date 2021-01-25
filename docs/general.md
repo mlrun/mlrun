@@ -11,6 +11,10 @@ As an ML developer or data scientist, you typically want to write code in your p
 When you determine that the code is ready, you or someone else need to transfer the code to an automated ML workflow (for example, using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)).
 This pipeline should be secure and include capabilities such as logging and monitoring, as well as allow adjustments to relevant components and easy redeployment.
 
+After you developed your model and feature engineering logic you need to deploy those into production pipelines 
+with real-time feature engineering, online model serving, API and data integrations, model and data quality 
+monitoring, no intrusive upgrades and so on. 
+
 However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters, and data sources.
 In addition, multiple frameworks and platforms are used to focus on different stages of the development life cycle.
 This leads to constant development and DevOps/MLOps work.
@@ -25,23 +29,34 @@ You need a way to seamlessly run your code on a remote cluster and automatically
 When running ML experiments, you should ideally be able to record and version your code, configuration, outputs, and associated inputs (lineage), so you can easily reproduce and explain your results.
 The fact that you probably need to use different types of storage (such as files and AWS S3 buckets) and various databases, further complicates the implementation.
 
+Once you finished development you want to serve models online or build real-time pipelines without having to refactor or 
+re-implement the logic, or call an army of developers to help.
+
 Wouldn't it be great if you could write the code once, using your preferred development environment and simple "local" semantics, and then run it as-is on different platforms?
-Imagine a layer that automates the build process, execution, data movement, scaling, versioning, parameterization, outputs tracking, and more.
-A world of easily developed, published, or consumed data or ML "functions" that can be used to form complex and large-scale ML pipelines.
+Imagine a layer that automates the build process, execution, data movement, scaling, versioning, parameterization, outputs tracking, deployment to production, monitoring, and more.
+A world of easily developed, published, or consumed data or ML "functions" that can be used to form complex and large-scale offline or real-time ML pipelines.
 
 In addition, imagine a marketplace of ML functions that includes both open-source templates and your internally developed functions, to support code reuse across projects and companies and thus further accelerate your work.
 
-<b>This is the goal of MLRun.</b>
+<b>This is the goal of MLRun, Simplify & Accelerate Time To Production.</b>
 
-> **Note:** The code is in early development stages and is provided as a reference.
-> The hope is to foster wide industry collaboration and make all the resources pluggable, so that developers can code to a single API and use various open-source projects or commercial products.
+## Architecture 
 
-[Back to top](#top)
+<img src="_static/images/mlrun-architecture.png" alt="mlrun-architecture" width="800"/>
+
+MLRun comprises of the following layers:
+* **Feature & Artifact Store** - Handle the ingestion, processing, metadata and storage of data and features across multiple repositories and technologies
+* **Elastic Serverless Runtimes** - Convert simple code to scalable and managed micro-services with 
+  workload specific runtime engines (Kubernetes jobs, Nuclio, Dask, Spark, Horovod, etc.)  .
+* **ML Pipeline Automation** - Automated data preparation, model training & testing, 
+  deployment of production (real-time) pipelines, and end to end monitoring.
+* **Central Management** - Unified portal, UI, CLI, and SDK to manage the entire MLOps workflow which is 
+  accessible from everywhere. 
 
 <a id="basic-components"></a>
 ## Basic Components
 
-MLRun has the following main components:
+MLRun has the following main components that are used throughout the system:
 
 - <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity.
     Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration.
@@ -54,7 +69,6 @@ MLRun has the following main components:
 - <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) that are produced or consumed by functions, runs, and workflows.
 
 - <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/).
-
-- <a id="def-ui"></a>**UI** &mdash; a graphical user interface (dashboard) for displaying and managing projects and their contained experiments, artifacts, and code.
+  or MLRun [Real-time Serving Graphs](./serving/serving-graph.md)
 
 [Back to top](#top)

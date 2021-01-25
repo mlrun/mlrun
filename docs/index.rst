@@ -14,6 +14,25 @@ Introduction
 MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
 MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
 
+**MLRun Architecture**
+
+.. image:: _static/images/mlrun-architecture.png
+
+
+MLRun comprises of the following layers:
+
+- **Feature & Artifact Store** - Handle the ingestion, processing, metadata and storage of data and features across multiple repositories and technologies
+- **Elastic Serverless Runtimes** - Convert simple code to scalable and managed micro-services with
+  workload specific runtime engines (Kubernetes jobs, Nuclio, Dask, Spark, Horovod, etc.)  .
+- **ML Pipeline Automation** - Automated data preparation, model training & testing,
+  deployment of production (real-time) pipelines, and end to end monitoring.
+- **Central Management** - Unified portal, UI, CLI, and SDK to manage the entire MLOps workflow which is
+  accessible from everywhere.
+
+
+
+*Check the different documentation sections to learn about each of the components*
+
 Key Benefits
 ------------
 
@@ -24,22 +43,12 @@ MLRun provides the following key benefits:
 - **Feature management** – ingestion, preparation, and monitoring
 - **Works anywhere** – your local IDE, multi-cloud, or on-prem
 
-Key Features
---------------
 
-MLRun includes the following key features:
-
-- **Feature store** – define and reuse features with a robust feature store that includes a highly flexible transformation framework.
-- **Elastic serverless runtimes** – use a single command to turn your Python code into composable functions that can run at scale on Kubernetes, Dask, and Horovod.
-- **Function marketplace** – leverage a function marketplace to accelerate your model-development process.
-- **Data ingestion & preparation** &mdash; read and transform data from batch and online data stores.
-- **Model training & testing** – train models at scale with automated testing functions.
-- **Real-time Data & model Pipeline** &mdash; deploy real-time pipelines for data collection and model serving and monitoring.
-- **Data & model Monitoring** – automate model monitoring and drift detection.
-- **Central data & metadata management** – log all data, models and artifacts and track all code execution.
+Table Of Content
+----------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: MLRun Basics:
 
    quick-start
@@ -49,7 +58,7 @@ MLRun includes the following key features:
    howto/index
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: ML Pipelines:
 
    job-submission-and-tracking
@@ -58,7 +67,7 @@ MLRun includes the following key features:
    serving/index
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Serverless Runtimes:
 
    runtimes/functions
@@ -67,15 +76,15 @@ MLRun includes the following key features:
    load-from-marketplace
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Store & Artifacts:
+   :maxdepth: 1
+   :caption: Feature & Artifacts Store:
 
    store/datastore
    store/artifacts
    store/models
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: References:
 
    examples

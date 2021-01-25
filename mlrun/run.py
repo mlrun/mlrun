@@ -954,11 +954,11 @@ def list_pipelines(
                        response message will contain a nextPageToken field you can use to fetch the next page.
     :param sort_by:    Can be format of "field_name", "field_name asc" or "field_name desc" (Example, "name asc"
                        or "id desc"). Ascending by default.
-    :param filter_:    A url-encoded, JSON-serialized Filter protocol buffer
-                       (see [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto)).
+    :param filter_:    A url-encoded, JSON-serialized Filter protocol buffer, see:
+                       [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto).
     :param namespace:  Kubernetes namespace if other than default
-    :param project:    Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that filtering
-                       by project can't be used together with pagination, sorting, or custom filter.
+    :param project:    Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that
+                       filtering by project can't be used together with pagination, sorting, or custom filter.
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:

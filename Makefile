@@ -476,7 +476,9 @@ endif
 		then \
 			echo "Branch $$BRANCH_NAME exists. Adding changes"; \
 			git checkout $$BRANCH_NAME; \
-			git checkout $(MLRUN_TAG) .; \
+			git replace --graft $(MLRUN_VERSION) HEAD; \
+			git merge $(MLRUN_VERSION) --allow-unrelated-histories --squash -X theirs; \
+			git replace --delete $(MLRUN_VERSION); \
 			git add -A; \
 		else \
 			echo "Creating new branch: $$BRANCH_NAME"; \

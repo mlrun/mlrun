@@ -186,7 +186,14 @@ class HTTPRunDB(RunDBInterface):
         return f"{prefix}/{project}/{uid}"
 
     def connect(self, secrets=None):
-        """ Connect to the MLRun API server. Must be called prior to executing any other method."""
+        """ Connect to the MLRun API server. Must be called prior to executing any other method.
+        The code utilizes the URL for the API server from the configuration - ``mlconf.dbpath``.
+
+        For example::
+
+            mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
+            db = get_run_db().connect()
+        """
 
         resp = self.api_call("GET", "healthz", timeout=5)
         try:
@@ -370,14 +377,22 @@ class HTTPRunDB(RunDBInterface):
         last_update_time_to: datetime = None,
     ):
         """ Retrieve a list of runs, filtered by various options.
+        Example::
+
+            runs = db.list_runs(name='download', project='iris', labels='owner=admin')
+            # If running in Jupyter, can use the .show() function to display the results
+            db.list_runs(name='', project=project_name).show()
+
 
         :param name: Name of the run to retrieve.
+        :param uid: Unique ID of the run.
         :param project: Project that the runs belongs to.
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
+        :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Return only the ``last`` latest records.
+        :param last: Deprecated - currently not used.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -406,6 +421,10 @@ class HTTPRunDB(RunDBInterface):
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
         """ Delete a group of runs identified by the parameters of the function.
+
+        Example::
+
+            db.del_runs(state='completed')
 
         :param name: Name of the task which the runs belong to.
         :param project: Project to which the runs belong.
@@ -474,7 +493,14 @@ class HTTPRunDB(RunDBInterface):
     def list_artifacts(
         self, name=None, project=None, tag=None, labels=None, since=None, until=None
     ):
-        """ List artifacts meeting the query parameters.
+        """ List artifacts filtered by various parameters.
+
+        Examples::
+
+            # Show latest version of all artifacts in project
+            latest_artifacts = db.list_artifacts('', tag='latest', project='iris')
+            # check different artifact versions for a specific artifact
+            result_versions = db.list_artifacts('results', tag='*', project='iris')
 
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
@@ -584,11 +610,12 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["funcs"]
 
     def list_runtimes(self, label_selector: str = None) -> List:
-        """ List current runtimes, which are usually (but not limited to) Kubernetes pods.
-        Function applies for runs of type ``[dask, job, spark, mpijob]``.
+        """ List current runtime resources, which are usually (but not limited to) Kubernetes pods or CRDs.
+        Function applies for runs of type ``['dask', 'job', 'spark', 'mpijob']``, and will return per runtime
+        kind a list of the resources (which may have already completed their execution).
 
-        :param label_selector: Return runtimes with specific k8s labels. By default labels will be
-            ``mlrun/class=<type>`` (for example ``mlrun/class=spark``)
+        :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
+            to their labels.
         """
         params = {"label_selector": label_selector}
         error = "list runtimes"
@@ -597,9 +624,20 @@ class HTTPRunDB(RunDBInterface):
 
     def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
         """ Return a list of runtime resources of a given kind, and potentially matching a specified label.
-        There may be multiple runtimes returned from this function. This function is similar to the
+        There may be multiple runtime resources returned from this function. This function is similar to the
         :py:func:`~list_runtimes` function, only it focuses on a specific ``kind``, rather than list all runtimes
         of all kinds which generate runtime pods.
+
+        Example::
+
+            project_pods = db.get_runtime('job', label_selector='mlrun/project=iris')['resources']['pod_resources']
+            for pod in project_pods:
+                print(pod["name"])
+
+        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'mpijob']``
+        :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
+            to their labels.
+
         """
 
         params = {"label_selector": label_selector}
@@ -673,7 +711,25 @@ class HTTPRunDB(RunDBInterface):
 
     def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
         """ Create a new schedule on the given project. The details on the actual object to schedule as well as the
-        schedule itself are within the schedule object provided."""
+        schedule itself are within the schedule object provided.
+        The :py:class:`~ScheduleCronTrigger` follows the guidelines in
+        https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html.
+        It also supports a :py:func:`~ScheduleCronTrigger.from_crontab` function that accepts a
+        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format).
+
+        Example::
+
+            from mlrun.api import schemas
+
+            # Execute the get_data_func function every Tuesday at 15:30
+            schedule = schemas.ScheduleInput(
+                name="run_func_on_tuesdays",
+                kind="job",
+                scheduled_object=get_data_func,
+                cron_trigger=schemas.ScheduleCronTrigger(day_of_week='tue', hour=15, minute=30),
+            )
+            db.create_schedule(project_name, schedule)
+        """
 
         project = project or default_project
         path = f"projects/{project}/schedules"

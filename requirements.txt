@@ -1,0 +1,34 @@
+# >=1.24.2 from kubernetes-asyncio (from API requirements), <1.25 from kfp
+urllib3>=1.24.2, <1.25
+GitPython>=2.1.0
+# required by google-auth
+aiohttp<4.0.0dev,>=3.6.2
+# In 1.16 boto3 requires botocore >=1.19.0 which requires urllib3>=1.25.4,<1.26 which conflicting with our dependencies
+boto3>=1.9, <1.16
+# ==7.0 from kfp
+click==7.0
+# this is the pipelines version running in 2.8/2.10 iguazio system, for now locking it to this version
+kfp==0.2.5
+nest-asyncio>=1.0.0
+# <0.16 from botocore inside nuclio-jupyter, >=0.13.1 from readme-renderer inside twine (from dev-requirements)
+docutils<0.16, >=0.13.1
+# >=5.5 from nuclio-jupyter, <7.17 cause from 7.17 python 3.6 is not supported (and models-gpu-legacy image build fail)
+ipython>=5.5, <7.17
+nuclio-jupyter>=0.8.7
+pandas>=1.0.1
+pyarrow>=0.13
+pyyaml>=5.1.0
+requests>=2.20.1
+sqlalchemy>=1.3.0
+tabulate>=0.8.0, <=0.8.3
+v3io>=0.3.3
+matplotlib
+scikit-learn
+seaborn
+# required by some sub-dependency of a package installed in models-gpu, otherwise building this image fails
+google-auth<2.0dev,>=1.19.1
+azure-storage-blob
+pydantic~=1.5
+# <3.4 since 3.4 can't be installed on pip 18.1
+orjson>=3,<3.4
+importlib-resources; python_version < '3.7'

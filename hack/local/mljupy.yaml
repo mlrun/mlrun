@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyter-notebook
+  labels:
+    app: jupyter-notebook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyter-notebook
+  template:
+    metadata:
+      labels:
+        app: jupyter-notebook
+    spec:
+      containers:
+      - name: jupyter-notebook
+        image: mlrun/jupyter:0.5.3
+        env:
+        - name: MLRUN_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MLRUN_DBPATH
+          value: "http://mlrun-api:8080"
+        volumeMounts:
+        - mountPath: /home/jovyan/data
+          name: storage
+        ports:
+        - containerPort: 8888
+        command: ["start-notebook.sh"]
+        args:
+        - --ip="0.0.0.0"
+        - --port=8888
+        - --NotebookApp.token=''
+        - --NotebookApp.password=''
+        - --NotebookApp.default_url="/lab"
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: nfs-pvc
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: jupyter-notebook
+spec:
+  type: NodePort
+  selector:
+    app: jupyter-notebook
+  ports:
+  - protocol: TCP
+    nodePort: 30040
+    port: 8888
+    targetPort: 8888

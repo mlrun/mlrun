@@ -1,20 +1,27 @@
+import unittest.mock
 from http import HTTPStatus
 from os import environ
-from typing import Callable, Generator
+from tempfile import TemporaryDirectory
+from typing import Callable
+from typing import Generator
 from unittest.mock import Mock
 
 import pytest
 import requests
 import v3io.dataplane
+from fastapi.testclient import TestClient
 
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.utils
+from mlrun import mlconf
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import create_session, _init_engine
 from mlrun.api.initial_data import init_data
+from mlrun.api.main import app
 from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from tests.conftest import root_path, rundb_path, logs_path
 
@@ -35,7 +42,7 @@ def config_test_base():
     mlrun.config.config.reload()
 
 
-@pytest.fixture
+@pytest.fixture()
 def db():
     global session_maker
     dsn = "sqlite:///:memory:?check_same_thread=false"
@@ -109,3 +116,20 @@ def mock_failed_get_func(status_code: int):
         return mock_response
 
     return mock_get
+
+
+@pytest.fixture()
+def client() -> Generator:
+    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+        mlconf.httpdb.logs_path = log_dir
+        mlconf.runs_monitoring_interval = 0
+        mlconf.runtimes_cleanup_interval = 0
+        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+
+        # in case some test setup already mocked them, don't override it
+        if not hasattr(get_k8s(), "v1api"):
+            get_k8s().v1api = unittest.mock.Mock()
+        if not hasattr(get_k8s(), "crdapi"):
+            get_k8s().crdapi = unittest.mock.Mock()
+        with TestClient(app) as c:
+            yield c

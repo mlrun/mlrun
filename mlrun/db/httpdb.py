@@ -1209,20 +1209,27 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: bool = False,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metric: Optional[List[str]] = None,
         features: bool = False,
         token: Optional[str] = None,
     ) -> schemas.ModelEndpointState:
-        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
-        params = {"start": start, "end": end}
-        if metrics:
-            params["metrics"] = metrics
-        if features:
-            params["features"] = features
+        """ Return a specific model endpoint state object.
+
+        :param project: Name of endpoint's project
+        :param endpoint_id: ID of model endpoint
+        :param start: The start time of a given metrics/features time-series graph
+        :param end: The end time of a given metrics/features time-series graph
+        :param metric: Name of metric (currently "predictions" and "latency" are supported)
+        :param features: When True, the returned model object will include feature analysis
+        :param token: V3io access token, overrides self.token when passed
+        """
+        api_path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        params = {"start": start, "end": end, "metric": metric, "features": features}
+        params = {k: v for k, v in params.items() if v}
         headers = {schemas.HeaderNames.secret_store_token: token or self.token}
-        result = self.api_call(GET, path, params=params, headers=headers)
+        result = self.api_call(GET, api_path, params=params, headers=headers or None)
         return schemas.ModelEndpointState(**result.json())
 
     def list_model_endpoints(
@@ -1232,30 +1239,46 @@ class HTTPRunDB(RunDBInterface):
         function: Optional[str] = None,
         tag: Optional[str] = None,
         labels: Optional[List[str]] = None,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: bool = False,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metric: Optional[List[str]] = None,
         token: Optional[str] = None,
     ) -> schemas.ModelEndpointStateList:
-        path = f"/projects/{project}/model-endpoints"
-        params = {"start": start, "end": end}
-        if model:
-            params["model"] = model
-        if function:
-            params["function"] = function
-        if tag:
-            params["tag"] = tag
-        if labels:
-            params["labels"] = labels
-        if metrics:
-            params["metrics"] = metrics
+        """ Lists all available model endpoints for a given project.
+
+        :param project: Name of project
+        :param model: Name of model to filter by
+        :param function: Name of function to filter by
+        :param tag: Name of tag to filter by
+        :param labels: List of labels filter by
+        :param start: The start time of a given metric time-series graph
+        :param end: The end time of a given metric time-series graph
+        :param metric: Name of metric (currently "predictions" and "latency" are supported)
+        :param token: V3io access token, overrides self.token when passed
+        """
+        api_path = f"projects/{project}/model-endpoints"
+        params = {
+            "model": model,
+            "function": function,
+            "tag": tag,
+            "labels": labels,
+            "start": start,
+            "end": end,
+            "metric": metric,
+        }
+        params = {k: v for k, v in params.items() if v}
         headers = {schemas.HeaderNames.secret_store_token: token or self.token}
-        result = self.api_call(GET, path, params=params, headers=headers)
+        result = self.api_call(GET, api_path, params=params, headers=headers)
         return schemas.ModelEndpointStateList(**result.json())
 
     def clear_endpoint_record(self, project: str, endpoint_id: str):
-        path = (f"/projects/{project}/model-endpoints/{endpoint_id}/clear",)
-        self.api_call(POST, path)
+        """ Clears all available data about a given endpoint.
+
+        :param project: Name of project
+        :param endpoint_id: ID of model endpoint
+        """
+        api_path = (f"projects/{project}/model-endpoints/{endpoint_id}/clear",)
+        self.api_call(POST, api_path)
 
 
 def _as_json(obj):

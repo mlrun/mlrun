@@ -789,13 +789,14 @@ def test_get_endpoint_metrics(create_server):
         )
 
         response = db.get_model_endpoint(
-            "test", endpoint.id, metrics=True, token=secrets[V3IO_ACCESS_KEY]
+            "test", endpoint.id, metric=["predictions"], token=secrets[V3IO_ACCESS_KEY]
         )
         assert len(response.metrics) != 0
-        assert response.metrics["predictions_per_second"] == "predictions_per_second"
 
-        response_total = sum((m[1] for m in first_metric["values"]))
+        predictions = response.metrics["predictions_per_second"]
+        assert predictions.name == "predictions_per_second"
 
+        response_total = sum((m[1] for m in predictions.values))
         assert total == response_total
 
 

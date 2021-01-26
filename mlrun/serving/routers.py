@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent
+import copy
 import json
+from datetime import datetime
+from enum import Enum
+from io import BytesIO
+
 import mlrun
+from numpy.core.fromnumeric import mean
 
 from .v2_serving import _ModelLogPusher
-
-from io import BytesIO
-from numpy.core.fromnumeric import mean
-from datetime import datetime
-import copy
-import concurrent
-
-from enum import Enum
 
 
 class BaseModelRouter:
@@ -232,6 +231,26 @@ class VotingEnsemble(BaseModelRouter):
         predictions will appear with model name as the given VotingEnsemble name
         or "VotingEnsemble" by default.
 
+        Example
+        -------
+        ```
+        # Define a serving function
+        # Note: You can point the function to a file containing you own Router or Classifier Model class
+        #       this basic class supports sklearn based models (with `<model>.predict()` api)
+        fn = mlrun.code_to_function(name='ensemble',
+                                    kind='serving',
+                                    filename='https://raw.githubusercontent.com/mlrun/functions/master/v2_model_server/v2-model-server.py'ת
+                                    image='mlrun/ml-models')
+
+        # Set the router class
+        # You can set your own classes by simply changing the `class_name`
+        fn.set_topology(class_name='mlrun.serving.routers.VotingEnsemble')
+
+        # Add models
+        fn.add_model(<model_name>, <model_path>, <model_class_name>)
+        fn.add_model(<model_name>, <model_path>, <model_class_name>)
+        ```
+
         How to extend the VotingEnsemble
         --------------------------------
         The VotingEnsemble applies its logic using the `logic(predictions)` function.
@@ -246,22 +265,26 @@ class VotingEnsemble(BaseModelRouter):
 
         Parameters
         ----------
-        context : [type]
-            [description]
-        name : [type]
-            [description]
+        context : mlrun.MLClientCtx
+            MLRun context, Injected by mlrun.
+        name : str
+            Router name, as will be referenced for logging or routes.
         routes : [type], optional
             [description], by default None
-        protocol : [type], optional
-            [description], by default None
-        url_prefix : [type], optional
-            [description], by default None
-        health_prefix : [type], optional
-            [description], by default None
-        vote_type : [type], optional
-            [description], by default None
-        executor_type : [type], optional
-            [description], by default None
+        protocol : str, optional
+            Protocol, by default `v2`
+        url_prefix : str, optional
+            Route prefix for the URI, will enforce all incoming requests
+            to begin with `<url_prefix>`. by default `/{self.protocol}/models`
+        health_prefix : str, optional
+            Router function health request prefix, by default `/{self.protocol}/health`
+        vote_type : str, optional
+            Voting type to be used (from `VotingTypes`).
+            by default will try to self-deduct upon the first event:
+                - float prediction type: regression
+                - int prediction type: classification
+        executor_type : str, optional
+            Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
         """
         super().__init__(
             context, name, routes, protocol, url_prefix, health_prefix, **kwargs

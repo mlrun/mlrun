@@ -476,9 +476,10 @@ endif
 		then \
 			echo "Branch $$BRANCH_NAME exists. Adding changes"; \
 			git checkout $$BRANCH_NAME; \
-			git replace --graft $(MLRUN_VERSION) HEAD; \
-			git merge $(MLRUN_VERSION) --allow-unrelated-histories --squash -X theirs; \
-			git replace --delete $(MLRUN_VERSION); \
+			rm -rf /tmp/mlrun; \
+			git clone --branch $(MLRUN_VERSION) git@github.com:mlrun/mlrun.git /tmp/mlrun; \
+			find . -path ./.git -prune -o -exec rm -rf {} \; 2> /dev/null; \
+			rsync -avr --exclude='.git/' /tmp/mlrun/ .; \
 			git add -A; \
 		else \
 			echo "Creating new branch: $$BRANCH_NAME"; \

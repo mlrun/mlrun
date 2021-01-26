@@ -54,6 +54,7 @@ from ..utils import (
     enrich_image_url,
     dict_to_yaml,
     dict_to_json,
+    get_parsed_docker_registry,
 )
 
 
@@ -205,8 +206,11 @@ class BaseRuntime(ModelObj):
             hash_key=hash_key,
         )
 
-    def _get_db(self):
+    def _ensure_run_db(self):
         self.spec.rundb = self.spec.rundb or get_or_set_dburl()
+
+    def _get_db(self):
+        self._ensure_run_db()
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
@@ -227,6 +231,8 @@ class BaseRuntime(ModelObj):
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
         verbose=None,
         scrape_metrics=False,
+        local=False,
+        local_code_path=None,
     ):
         """Run a local or remote task.
 
@@ -245,10 +251,30 @@ class BaseRuntime(ModelObj):
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param verbose:        add verbose prints/logs
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
+        :param local:           run the function locally vs on the runtime/cluster
+        :param local_code_path: path of the code for local runs & debug
 
         :return: run context object (dict) with run metadata, results and
             status
         """
+        if local:
+            # allow local run simulation with a flip of a flag
+            command = self
+            if local_code_path:
+                project = project or self.metadata.project
+                name = name or self.metadata.name
+                command = local_code_path
+            return mlrun.run_local(
+                runspec,
+                command,
+                name,
+                workdir=workdir,
+                project=project,
+                handler=handler,
+                params=params,
+                inputs=inputs,
+                artifact_path=artifact_path,
+            )
 
         if runspec:
             runspec = deepcopy(runspec)
@@ -343,7 +369,7 @@ class BaseRuntime(ModelObj):
             )
             meta.labels["kind"] = self.kind
             if "owner" not in meta.labels:
-                meta.labels["owner"] = environ.get("V3IO_USERNAME", getpass.getuser())
+                meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
             if runspec.spec.output_path:
                 runspec.spec.output_path = runspec.spec.output_path.replace(
                     "{{run.user}}", meta.labels["owner"]
@@ -474,10 +500,18 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
-        extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
+    def _generate_runtime_env(self, runobj: RunObject):
+        runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
-            extra_env["MLRUN_LOG_LEVEL"] = "debug"
+            runtime_env["MLRUN_LOG_LEVEL"] = "debug"
+        if config.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
+        if self.metadata.namespace or config.namespace:
+            runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
+        return runtime_env
+
+    def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
+        extra_env = self._generate_runtime_env(runobj)
         if self.spec.pythonpath:
             extra_env["PYTHONPATH"] = self.spec.pythonpath
         args = []
@@ -589,8 +623,9 @@ class BaseRuntime(ModelObj):
         image = enrich_image_url(image)
         if not image.startswith("."):
             return image
-        if "DEFAULT_DOCKER_REGISTRY" in environ:
-            return "{}/{}".format(environ.get("DEFAULT_DOCKER_REGISTRY"), image[1:])
+        registry, _ = get_parsed_docker_registry()
+        if registry:
+            return "{}/{}".format(registry, image[1:])
         if "IGZ_NAMESPACE_DOMAIN" in environ:
             return "docker-registry.{}:80/{}".format(
                 environ.get("IGZ_NAMESPACE_DOMAIN"), image[1:]

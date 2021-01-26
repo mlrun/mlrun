@@ -22,7 +22,7 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
 from .funcdoc import update_function_entry_points
 from .pod import KubeResource
-from .utils import AsyncLogWriter, default_image_name
+from .utils import AsyncLogWriter, generate_function_image_name
 from ..builder import build_runtime
 from ..db import RunDBError
 from ..kfpops import build_op
@@ -99,11 +99,19 @@ class KubejobRuntime(KubeResource):
     def build(self, **kw):
         raise ValueError(".build() is deprecated, use .deploy() instead")
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
             self.status.state = "ready"
+            self.save(versioned=False)
             return True
 
         build = self.spec.build
@@ -114,6 +122,7 @@ class KubejobRuntime(KubeResource):
                     "please set the function image or build args"
                 )
             self.status.state = "ready"
+            self.save(versioned=False)
             return True
 
         if not build.source and not build.commands and with_mlrun:
@@ -122,7 +131,9 @@ class KubejobRuntime(KubeResource):
                 "with_mlrun=False to skip if its already in the image"
             )
 
-        self.spec.build.image = self.spec.build.image or default_image_name(self)
+        self.spec.build.image = self.spec.build.image or generate_function_image_name(
+            self
+        )
         self.status.state = ""
 
         if self._is_remote_api() and not is_kfp:
@@ -130,7 +141,7 @@ class KubejobRuntime(KubeResource):
             logger.info(
                 "starting remote build, image: {}".format(self.spec.build.image)
             )
-            data = db.remote_builder(self, with_mlrun)
+            data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
@@ -140,7 +151,9 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(self, with_mlrun, watch or is_kfp)
+            ready = build_runtime(
+                self, with_mlrun, mlrun_version_specifier, watch or is_kfp
+            )
             self.save(versioned=False)
 
         return ready

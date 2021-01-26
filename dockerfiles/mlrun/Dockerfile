@@ -16,9 +16,11 @@ ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}
 
+ENV PIP_NO_CACHE_DIR=1
+
 WORKDIR /mlrun
 
-RUN pip install --upgrade pip
+RUN python -m pip install --upgrade pip~=20.2.0
 COPY ./requirements.txt ./
 RUN python -m pip install -r requirements.txt
 

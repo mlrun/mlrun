@@ -2,6 +2,8 @@ ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}-slim-buster
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
@@ -17,6 +19,8 @@ RUN apt update -qqq \
     && apt clean \
     && apt autoremove \
     && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --upgrade pip~=20.2.0
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 

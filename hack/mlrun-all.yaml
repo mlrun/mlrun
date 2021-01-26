@@ -17,14 +17,14 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/mlrun-api:0.5.3
+        image: mlrun/mlrun-api:0.5.5
         env:
         - name: MLRUN_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
         - name: DEFAULT_DOCKER_REGISTRY
-          value: "<set default registry url>"
+          value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
         - name: V3IO_ACCESS_KEY
           value: <access-key>
         - name: V3IO_USERNAME
@@ -77,7 +77,7 @@ spec:
     spec:
       containers:
       - name: mlrun-ui
-        image: mlrun/mlrun-ui:0.5.3
+        image: mlrun/mlrun-ui:0.5.5
         env:
         - name: MLRUN_API_PROXY_URL
           value: http://mlrun-api:8080

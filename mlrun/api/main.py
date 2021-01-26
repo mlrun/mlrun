@@ -1,3 +1,6 @@
+import asyncio
+import concurrent.futures
+import os
 import uuid
 
 import fastapi
@@ -114,6 +117,14 @@ async def log_request_response(request: fastapi.Request, call_next):
 @app.on_event("startup")
 async def startup_event():
     logger.info("configuration dump", dumped_config=config.dump_yaml())
+    loop = asyncio.get_running_loop()
+    # Using python 3.8 default instead of 3.7 one - max(1, os.cpu_count()) * 5 cause it's causing to high memory
+    # consumption - https://bugs.python.org/issue35279
+    # TODO: remove when moving to python 3.8
+    max_workers = config.httpdb.max_workers or min(32, os.cpu_count() + 4)
+    loop.set_default_executor(
+        concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+    )
 
     await _initialize_singletons()
 
@@ -165,7 +176,6 @@ def _monitor_runs():
 
 
 def _cleanup_runtimes():
-    logger.debug("Cleaning runtimes")
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():

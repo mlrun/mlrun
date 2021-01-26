@@ -1,13 +1,12 @@
 FROM jupyter/scipy-notebook
 
+ENV PIP_NO_CACHE_DIR=1
+
+RUN python -m pip install --upgrade pip~=20.2.0
+
 # by default COPY creates files with root permissions, so doing all the preparation with root and chown-ing everything
 # in the end
 USER root
-COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install --no-cache-dir ".[api]" && cd /tmp && rm -rf mlrun
-
-COPY ./dockerfiles/jupyter/requirements.txt /tmp
-RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
 
 WORKDIR $HOME
 
@@ -19,6 +18,12 @@ RUN git clone https://github.com/mlrun/demos.git $HOME/demos
 RUN git clone https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data
+
+COPY . /tmp/mlrun
+RUN cd /tmp/mlrun && python -m pip install ".[api]" && cd /tmp && rm -rf mlrun
+
+COPY ./dockerfiles/jupyter/requirements.txt /tmp
+RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
 
 RUN chown -R $NB_UID:$NB_GID $HOME
 

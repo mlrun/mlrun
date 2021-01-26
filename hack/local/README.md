@@ -26,12 +26,12 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 ```
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:0.5.3
-docker pull mlrun/mlrun-ui:0.5.3
+docker pull mlrun/jupyter:0.5.5
+docker pull mlrun/mlrun-ui:0.5.5
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.3
-docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.5.3
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.5
+docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.5.5
 ```
 
 When the execution completes &mdash;
@@ -71,16 +71,16 @@ The following example uses a shared NFS server and a Helm chart for the installa
 If you plan to push containers or use a private registry, you need to first create a secret with your Docker registry information.
 You can do this by running the following command:
 ```sh
-kubectl create -n <namespace> secret docker-registry my-docker --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>
+kubectl create -n <namespace> secret docker-registry my-docker-secret --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>
 ```
 
 Copy the [**mlrun-local.yaml**](mlrun-local.yaml) file to your cluster, edit the registry and other attributes as needed, for example:
 
 ```yaml
     - name: DEFAULT_DOCKER_REGISTRY
-      value: "https://index.docker.io/v1/"
+      value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
     - name: DEFAULT_DOCKER_SECRET
-      value: my-docker
+      value: my-docker-secret
 ``` 
 
 and run the following command from the directory that contains the file:

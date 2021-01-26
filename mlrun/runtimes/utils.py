@@ -29,6 +29,7 @@ from ..artifacts import TableArtifact
 from ..config import config
 from ..utils import get_in
 from ..utils import logger
+from ..utils import helpers
 
 
 class RunError(Exception):
@@ -265,10 +266,13 @@ def results_to_iter(results, runspec, execution):
     execution.commit()
 
 
-def default_image_name(function):
-    meta = function.metadata
-    proj = meta.project or config.default_project
-    return ".mlrun/func-{}-{}-{}".format(proj, meta.name, meta.tag or "latest")
+def generate_function_image_name(function):
+    project = function.metadata.project or config.default_project
+    tag = function.metadata.tag or "latest"
+    _, repository = helpers.get_parsed_docker_registry()
+    if not repository:
+        repository = "mlrun"
+    return f".{repository}/func-{project}-{function.metadata.name}-{tag}"
 
 
 def set_named_item(obj, item):

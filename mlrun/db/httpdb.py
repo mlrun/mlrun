@@ -20,15 +20,17 @@ from typing import List, Dict, Union
 
 import kfp
 import requests
-import mlrun
+import semver
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun
 from mlrun.api import schemas
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta
+import mlrun.errors
 
 default_project = config.default_project
 
@@ -135,12 +137,8 @@ class HTTPRunDB(RunDBInterface):
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
-            if self.server_version != config.version:
-                logger.warning(
-                    "warning!, server ({}) and client ({}) ver dont match".format(
-                        self.server_version, config.version
-                    )
-                )
+            self._validate_version_compatibility(self.server_version, config.version)
+            config.namespace = config.namespace or server_cfg.get("namespace")
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace
@@ -335,6 +333,14 @@ class HTTPRunDB(RunDBInterface):
         error = "del artifacts"
         self.api_call("DELETE", "artifacts", error, params=params)
 
+    def list_artifact_tags(self, project=None):
+        project = project or default_project
+        error_message = f"Failed listing artifact tags. project={project}"
+        response = self.api_call(
+            "GET", f"/projects/{project}/artifact-tags", error_message
+        )
+        return response.json()
+
     def store_function(self, function, name, project="", tag=None, versioned=False):
         params = {"tag": tag, "versioned": versioned}
         project = project or default_project
@@ -474,9 +480,11 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 
-    def remote_builder(self, func, with_mlrun):
+    def remote_builder(self, func, with_mlrun, mlrun_version_specifier=None):
         try:
             req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
+            if mlrun_version_specifier:
+                req["mlrun_version_specifier"] = mlrun_version_specifier
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
             logger.error("error submitting build task: {}".format(err))
@@ -661,6 +669,34 @@ class HTTPRunDB(RunDBInterface):
             raise ValueError("bad get pipeline response, {}".format(resp.text))
 
         return resp.json()
+
+    def list_projects(self):
+        raise NotImplementedError()
+
+    @staticmethod
+    def _validate_version_compatibility(server_version, client_version):
+        try:
+            parsed_server_version = semver.VersionInfo.parse(server_version)
+            parsed_client_version = semver.VersionInfo.parse(client_version)
+        except ValueError:
+            # This will mostly happen in dev scenarios when the version is unstable and such - therefore we're ignoring
+            logger.warning(
+                "Unable to parse server or client version. Assuming compatible",
+                server_version=server_version,
+                client_version=client_version,
+            )
+            return
+        if (
+            parsed_server_version.major != parsed_client_version.major
+            or parsed_server_version.minor != parsed_client_version.minor
+        ):
+            message = "Server and client versions are incompatible"
+            logger.warning(
+                message,
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
 
 def _as_json(obj):

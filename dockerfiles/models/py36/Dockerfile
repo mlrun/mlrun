@@ -1,5 +1,7 @@
 FROM continuumio/anaconda3:2020.02
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
@@ -23,6 +25,8 @@ RUN apt update -qqq \
     && apt clean \
     && apt autoremove \
     && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --upgrade pip~=20.2.0
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
@@ -54,6 +58,8 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 RUN conda install -y -c plotly plotly-orca python=3.6
 
+RUN conda clean -ayq
+
 # pytorch caused cuda download, this guarantees cpu version:
 RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
@@ -61,7 +67,7 @@ RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
 RUN python -m pip install -U 'intel-tensorflow<2' keras mxnet
 
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-    python -m pip install horovod
+    python -m pip install 'horovod~=0.20.0'
 
 WORKDIR /mlrun
 

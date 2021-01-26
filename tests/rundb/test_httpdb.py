@@ -16,18 +16,19 @@ import codecs
 from collections import namedtuple
 from os import environ
 from pathlib import Path
+from shutil import rmtree
 from socket import socket
 from subprocess import Popen, run, PIPE, DEVNULL
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
-from shutil import rmtree
 
 import pytest
 
+import mlrun.errors
+from mlrun import RunObject
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
-from mlrun import RunObject
 from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
@@ -322,3 +323,34 @@ def test_list_functions(create_server):
     for function in functions:
         assert function["metadata"]["tag"] is not None
     assert len(functions) == count, "bad list"
+
+
+def test_version_compatibility_validation():
+    cases = [
+        {
+            "server_version": "unstable",
+            "client_version": "unstable",
+            "compatible": True,
+        },
+        {"server_version": "0.5.3", "client_version": "unstable", "compatible": True},
+        {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
+        {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
+        {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
+        {
+            "server_version": "0.6.0-rc1",
+            "client_version": "0.5.4",
+            "compatible": False,
+        },
+        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": False},
+        {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
+    ]
+    for case in cases:
+        if not case["compatible"]:
+            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+                HTTPRunDB._validate_version_compatibility(
+                    case["server_version"], case["client_version"]
+                )
+        else:
+            HTTPRunDB._validate_version_compatibility(
+                case["server_version"], case["client_version"]
+            )

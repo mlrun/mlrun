@@ -31,7 +31,7 @@ class TestJobs(TestMLRunSystem):
         self._trainer.apply(mount_v3io())
 
         self._logger.debug("Deploying trainer")
-        self._trainer.deploy()
+        self._trainer.deploy(with_mlrun=False)
 
     def test_run_training_job(self):
         output_path = str(self.results_path / "{{run.uid}}")

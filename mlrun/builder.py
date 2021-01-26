@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import logger, normalize_name, enrich_image_url
+from .utils import logger, normalize_name, enrich_image_url, get_parsed_docker_registry
 from .config import config
 
 
@@ -133,6 +133,7 @@ def build_image(
     secret_name=None,
     namespace=None,
     with_mlrun=True,
+    mlrun_version_specifier=None,
     registry=None,
     interactive=True,
     name="",
@@ -144,14 +145,11 @@ def build_image(
         dest = "{}/{}".format(registry, dest)
     elif dest.startswith("."):
         dest = dest[1:]
-        if "DOCKER_REGISTRY_PORT" in environ:
-            registry = urlparse(environ.get("DOCKER_REGISTRY_PORT")).netloc
-        else:
-            registry = environ.get("DEFAULT_DOCKER_REGISTRY")
-            secret_name = secret_name or environ.get("DEFAULT_DOCKER_SECRET")
+        registry, _ = get_parsed_docker_registry()
+        secret_name = secret_name or environ.get("DEFAULT_DOCKER_SECRET")
         if not registry:
             raise ValueError(
-                "local docker registry is not defined, set "
+                "Default docker registry is not defined, set "
                 "DEFAULT_DOCKER_REGISTRY/SECRET env vars"
             )
         dest = "{}/{}".format(registry, dest)
@@ -168,7 +166,7 @@ def build_image(
     base_image = base_image or config.default_image
     if with_mlrun:
         commands = commands or []
-        commands.append("pip install {}".format(config.package_path))
+        commands.append(_resolve_mlrun_install_command(mlrun_version_specifier))
 
     if not inline_code and not source and not commands:
         logger.info("skipping build, nothing to add")
@@ -233,7 +231,18 @@ def build_image(
         return "build:{}".format(pod)
 
 
-def build_runtime(runtime, with_mlrun, interactive=False):
+def _resolve_mlrun_install_command(mlrun_version_specifier):
+    if not mlrun_version_specifier:
+        if config.httpdb.builder.mlrun_version_specifier:
+            mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
+        elif config.version == "unstable":
+            mlrun_version_specifier = "git+https://github.com/mlrun/mlrun@development"
+        else:
+            mlrun_version_specifier = f"{config.package_path}=={config.version}"
+    return f"pip install {mlrun_version_specifier}"
+
+
+def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=False):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     inline = None  # noqa: F841
@@ -261,6 +270,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
         interactive=interactive,
         name=name,
         with_mlrun=with_mlrun,
+        mlrun_version_specifier=mlrun_version_specifier,
     )
     runtime.status.build_pod = None
     if status == "skipped":

@@ -1,0 +1,9 @@
+# please keep this to a minimum - defaults are good
+[tool.black]
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \venv
+)/
+'''

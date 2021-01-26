@@ -170,7 +170,7 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
 def test_get_endpoint_metrics(db: Session, client: TestClient):
     secrets = get_test_secrets()
 
-    frames = get_frames_client(container="projects", address=secrets[V3IO_FRAMESD],)
+    frames = get_frames_client(container="projects", address=secrets[V3IO_FRAMESD])
 
     start = datetime.utcnow()
 
@@ -209,7 +209,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
         )
 
         response = client.get(
-            url=f"/api/projects/test/model-endpoints/{endpoint.id}?metrics=true&name=predictions",
+            url=f"/api/projects/test/model-endpoints/{endpoint.id}?metric=predictions",
             headers={"X-V3io-Session-Key": secrets[V3IO_ACCESS_KEY]},
         )
         response = json.loads(response.content)
@@ -220,11 +220,11 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         assert len(metrics) > 0
 
-        first_metric = metrics[0]
+        predictions_per_second = metrics["predictions_per_second"]
 
-        assert first_metric["name"] == "predictions_per_second"
+        assert predictions_per_second["name"] == "predictions_per_second"
 
-        response_total = sum((m[1] for m in first_metric["values"]))
+        response_total = sum((m[1] for m in predictions_per_second["values"]))
 
         assert total == response_total
 

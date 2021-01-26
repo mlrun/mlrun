@@ -32,7 +32,7 @@ async def store_artifact(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug(data)
+    logger.debug("Storing artifact", data=data)
     await run_in_threadpool(
         get_db().store_artifact,
         db_session,

@@ -358,12 +358,24 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db=""):
     """Create function object from DB or local/remote YAML file
 
-    Reading from a file or remote URL (http(s), s3, git, v3io, ..)
+    Function can be imported from function repositories (mlrun marketplace or local db),
+    or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
-    :param url: path/url to function YAML file or
-                'db://{project}/{name}[:tag]' when reading from mlrun db
+    special URLs::
+
+        function marketplace: hub://{name}[:{tag}]
+        local mlrun db:       db://{project-name}/{name}[:{tag}]
+
+    examples::
+
+        function = mlrun.import_function("hub://sklearn_classifier")
+        function = mlrun.import_function("./func.yaml")
+        function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
+
+    :param url: path/url to marketplace, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
+
     :returns: function object
     """
     if url.startswith("db://"):
@@ -566,8 +578,20 @@ def code_to_function(
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
 
+    if `filename=` is not specified it will try and grab the code from the current notebook
+
+    example::
+
+        # create job function object from notebook code and add doc/metadata
+        import mlrun
+        fn = mlrun.code_to_function('file_utils', kind='job',
+                                    handler='open_archive', image='mlrun/mlrun',
+                                    description = "this function opens a zip archive into a local/mounted folder",
+                                    categories = ['fileutils'],
+                                    labels = {'author': 'me'})
+
     :param name:         function name
-    :param project:      function project (none for 'default')
+    :param project:      function project (none for default)
     :param tag:          function tag (none for 'latest')
     :param filename:     blank for current notebook, or path to .py/.ipynb file
     :param handler:      name of function handler (if not main)

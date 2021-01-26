@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import getpass
 import shutil
 import warnings
 
@@ -24,7 +24,7 @@ from tempfile import mktemp
 from git import Repo
 
 import yaml
-from os import path, remove
+from os import path, remove, environ
 
 from ..datastore import store_manager
 from ..config import config
@@ -56,15 +56,20 @@ class ProjectError(Exception):
     pass
 
 
-def new_project(name, context=None, init_git=False):
+def new_project(name, context=None, init_git=False, user_project=False):
     """Create a new MLRun project
 
-    :param name:       project name
-    :param context:    project local directory path
-    :param init_git:   if True, will git init the context dir
+    :param name:         project name
+    :param context:      project local directory path
+    :param init_git:     if True, will git init the context dir
+    :param user_project: add the current user name to the provided project name (making it unique per user)
 
     :returns: project object
     """
+    if user_project:
+        user = environ.get("V3IO_USERNAME") or getpass.getuser()
+        name = f"{name}-{user}"
+
     project = MlrunProject(name=name)
     project.spec.context = context
 
@@ -76,19 +81,27 @@ def new_project(name, context=None, init_git=False):
 
 
 def load_project(
-    context, url=None, name=None, secrets=None, init_git=False, subpath="", clone=False
+    context,
+    url=None,
+    name=None,
+    secrets=None,
+    init_git=False,
+    subpath="",
+    clone=False,
+    user_project=False,
 ):
     """Load an MLRun project from git or tar or dir
 
-    :param context:    project local directory path
-    :param url:        git or tar.gz sources archive path e.g.:
-                       git://github.com/mlrun/demo-xgb-project.git
-                       db://<project-name>
-    :param name:       project name
-    :param secrets:    key:secret dict or SecretsStore used to download sources
-    :param init_git:   if True, will git init the context dir
-    :param subpath:    project subpath (within the archive)
-    :param clone:      if True, always clone (delete any existing content)
+    :param context:      project local directory path
+    :param url:          git or tar.gz sources archive path e.g.:
+                         git://github.com/mlrun/demo-xgb-project.git
+                         db://<project-name>
+    :param name:         project name
+    :param secrets:      key:secret dict or SecretsStore used to download sources
+    :param init_git:     if True, will git init the context dir
+    :param subpath:      project subpath (within the archive)
+    :param clone:        if True, always clone (delete any existing content)
+    :param user_project: add the current user name to the project name (for db:// prefixes)
 
     :returns: project object
     """
@@ -104,6 +117,9 @@ def load_project(
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets)
         elif url.startswith("db://"):
+            if user_project:
+                user = environ.get("V3IO_USERNAME") or getpass.getuser()
+                url = f"{url}-{user}"
             project = _load_project_from_db(url, secrets)
         else:
             raise ValueError("unsupported code archive {}".format(url))
@@ -835,7 +851,8 @@ class MlrunProject(ModelObj):
         :returns: project object
         """
         if isinstance(func, str):
-            if not name:
+            # in hub or db functions name defaults to the function name
+            if not name and not (func.startswith("db://") or func.startswith("hub://")):
                 raise ValueError("function name must be specified")
             function_dict = {
                 "url": func,
@@ -846,6 +863,7 @@ class MlrunProject(ModelObj):
             }
             func = {k: v for k, v in function_dict.items() if v}
             name, function_object = _init_function_from_dict(func, self)
+            func["name"] = name
         elif hasattr(func, "to_dict"):
             name, function_object = _init_function_from_obj(func, self, name=name)
             if image:

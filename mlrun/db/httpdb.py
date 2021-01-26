@@ -16,7 +16,7 @@ import tempfile
 import time
 from datetime import datetime
 from os import path, remove
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 
 import kfp
 import requests
@@ -44,6 +44,11 @@ _artifact_keys = [
     "target_path",
     "viewer",
 ]
+
+GET = "GET"
+POST = "POST"
+PATCH = "PATCH"
+DELETE = "DELETE"
 
 
 def bool2str(val):
@@ -135,7 +140,7 @@ class HTTPRunDB(RunDBInterface):
         return f"{prefix}/{project}/{uid}"
 
     def connect(self, secrets=None):
-        resp = self.api_call("GET", "healthz", timeout=5)
+        resp = self.api_call(GET, "healthz", timeout=5)
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
@@ -186,13 +191,13 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of("log", project, uid)
         params = {"append": bool2str(append)}
         error = f"store log {project}/{uid}"
-        self.api_call("POST", path, error, params, body)
+        self.api_call(POST, path, error, params, body)
 
     def get_log(self, uid, project="", offset=0, size=-1):
         params = {"offset": offset, "size": size}
         path = self._path_of("log", project, uid)
         error = f"get log {project}/{uid}"
-        resp = self.api_call("GET", path, error, params=params)
+        resp = self.api_call(GET, path, error, params=params)
         if resp.headers:
             state = resp.headers.get("x-mlrun-run-state", "")
             return state.lower(), resp.content
@@ -225,27 +230,27 @@ class HTTPRunDB(RunDBInterface):
         params = {"iter": iter}
         error = f"store run {project}/{uid}"
         body = _as_json(struct)
-        self.api_call("POST", path, error, params=params, body=body)
+        self.api_call(POST, path, error, params=params, body=body)
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
-        self.api_call("PATCH", path, error, params=params, body=body)
+        self.api_call(PATCH, path, error, params=params, body=body)
 
     def read_run(self, uid, project="", iter=0):
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"get run {project}/{uid}"
-        resp = self.api_call("GET", path, error, params=params)
+        resp = self.api_call(GET, path, error, params=params)
         return resp.json()["data"]
 
     def del_run(self, uid, project="", iter=0):
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"del run {project}/{uid}"
-        self.api_call("DELETE", path, error, params=params)
+        self.api_call(DELETE, path, error, params=params)
 
     def list_runs(
         self,
@@ -278,7 +283,7 @@ class HTTPRunDB(RunDBInterface):
             "last_update_time_to": datetime_to_iso(last_update_time_to),
         }
         error = "list runs"
-        resp = self.api_call("GET", "runs", error, params=params)
+        resp = self.api_call(GET, "runs", error, params=params)
         return RunList(resp.json()["runs"])
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -291,7 +296,7 @@ class HTTPRunDB(RunDBInterface):
             "days_ago": str(days_ago),
         }
         error = "del runs"
-        self.api_call("DELETE", "runs", error, params=params)
+        self.api_call(DELETE, "runs", error, params=params)
 
     def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=""):
         path = self._path_of("artifact", project, uid) + "/" + key
@@ -304,7 +309,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"store artifact {project}/{uid}/{key}"
 
         body = _as_json(artifact)
-        self.api_call("POST", path, error, params=params, body=body)
+        self.api_call(POST, path, error, params=params, body=body)
 
     def read_artifact(self, key, tag=None, iter=None, project=""):
         project = project or default_project
@@ -312,7 +317,7 @@ class HTTPRunDB(RunDBInterface):
         path = "projects/{}/artifact/{}?tag={}".format(project, key, tag)
         error = f"read artifact {project}/{key}"
         params = {"iter": str(iter)} if iter else {}
-        resp = self.api_call("GET", path, error, params=params)
+        resp = self.api_call(GET, path, error, params=params)
         return resp.json()["data"]
 
     def del_artifact(self, key, tag=None, project=""):
@@ -322,7 +327,7 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", path, error, params=params)
+        self.api_call(DELETE, path, error, params=params)
 
     def list_artifacts(
         self, name=None, project=None, tag=None, labels=None, since=None, until=None
@@ -335,7 +340,7 @@ class HTTPRunDB(RunDBInterface):
             "label": labels or [],
         }
         error = "list artifacts"
-        resp = self.api_call("GET", "artifacts", error, params=params)
+        resp = self.api_call(GET, "artifacts", error, params=params)
         values = ArtifactList(resp.json()["artifacts"])
         values.tag = tag
         return values
@@ -350,13 +355,13 @@ class HTTPRunDB(RunDBInterface):
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
-        self.api_call("DELETE", "artifacts", error, params=params)
+        self.api_call(DELETE, "artifacts", error, params=params)
 
     def list_artifact_tags(self, project=None):
         project = project or default_project
         error_message = f"Failed listing artifact tags. project={project}"
         response = self.api_call(
-            "GET", f"/projects/{project}/artifact-tags", error_message
+            GET, f"/projects/{project}/artifact-tags", error_message
         )
         return response.json()
 
@@ -367,7 +372,7 @@ class HTTPRunDB(RunDBInterface):
 
         error = f"store function {project}/{name}"
         resp = self.api_call(
-            "POST", path, error, params=params, body=dict_to_json(function)
+            POST, path, error, params=params, body=dict_to_json(function)
         )
 
         # hash key optional to be backwards compatible to API v<0.4.10 in which it wasn't in the response
@@ -378,14 +383,14 @@ class HTTPRunDB(RunDBInterface):
         project = project or default_project
         path = self._path_of("func", project, name)
         error = f"get function {project}/{name}"
-        resp = self.api_call("GET", path, error, params=params)
+        resp = self.api_call(GET, path, error, params=params)
         return resp.json()["func"]
 
     def delete_function(self, name: str, project: str = ""):
         project = project or default_project
         path = f"projects/{project}/functions/{name}"
         error_message = f"Failed deleting function {project}/{name}"
-        self.api_call("DELETE", path, error_message)
+        self.api_call(DELETE, path, error_message)
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
         params = {
@@ -395,20 +400,20 @@ class HTTPRunDB(RunDBInterface):
             "label": labels or [],
         }
         error = "list functions"
-        resp = self.api_call("GET", "funcs", error, params=params)
+        resp = self.api_call(GET, "funcs", error, params=params)
         return resp.json()["funcs"]
 
     def list_runtimes(self, label_selector: str = None) -> List:
         params = {"label_selector": label_selector}
         error = "list runtimes"
-        resp = self.api_call("GET", "runtimes", error, params=params)
+        resp = self.api_call(GET, "runtimes", error, params=params)
         return resp.json()
 
     def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
         params = {"label_selector": label_selector}
         path = f"runtimes/{kind}"
         error = f"get runtime {kind}"
-        resp = self.api_call("GET", path, error, params=params)
+        resp = self.api_call(GET, path, error, params=params)
         return resp.json()
 
     def delete_runtimes(
@@ -423,7 +428,7 @@ class HTTPRunDB(RunDBInterface):
             "grace_period": grace_period,
         }
         error = "delete runtimes"
-        self.api_call("DELETE", "runtimes", error, params=params)
+        self.api_call(DELETE, "runtimes", error, params=params)
 
     def delete_runtime(
         self,
@@ -439,7 +444,7 @@ class HTTPRunDB(RunDBInterface):
         }
         path = f"runtimes/{kind}"
         error = f"delete runtime {kind}"
-        self.api_call("DELETE", path, error, params=params)
+        self.api_call(DELETE, path, error, params=params)
 
     def delete_runtime_object(
         self,
@@ -456,14 +461,14 @@ class HTTPRunDB(RunDBInterface):
         }
         path = f"runtimes/{kind}/{object_id}"
         error = f"delete runtime object {kind} {object_id}"
-        self.api_call("DELETE", path, error, params=params)
+        self.api_call(DELETE, path, error, params=params)
 
     def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
         project = project or default_project
         path = f"projects/{project}/schedules"
 
         error_message = f"Failed creating schedule {project}/{schedule.name}"
-        self.api_call("POST", path, error_message, body=dict_to_json(schedule.dict()))
+        self.api_call(POST, path, error_message, body=dict_to_json(schedule.dict()))
 
     def update_schedule(
         self, project: str, name: str, schedule: schemas.ScheduleUpdate
@@ -481,7 +486,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed getting schedule for {project}/{name}"
         resp = self.api_call(
-            "GET", path, error_message, params={"include_last_run": include_last_run}
+            GET, path, error_message, params={"include_last_run": include_last_run}
         )
         return schemas.ScheduleOutput(**resp.json())
 
@@ -496,27 +501,27 @@ class HTTPRunDB(RunDBInterface):
         params = {"kind": kind, "name": name, "include_last_run": include_last_run}
         path = f"projects/{project}/schedules"
         error_message = f"Failed listing schedules for {project} ? {kind} {name}"
-        resp = self.api_call("GET", path, error_message, params=params)
+        resp = self.api_call(GET, path, error_message, params=params)
         return schemas.SchedulesOutput(**resp.json())
 
     def delete_schedule(self, project: str, name: str):
         project = project or default_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed deleting schedule {project}/{name}"
-        self.api_call("DELETE", path, error_message)
+        self.api_call(DELETE, path, error_message)
 
     def invoke_schedule(self, project: str, name: str):
         project = project or default_project
         path = f"projects/{project}/schedules/{name}/invoke"
         error_message = f"Failed invoking schedule {project}/{name}"
-        self.api_call("POST", path, error_message)
+        self.api_call(POST, path, error_message)
 
     def remote_builder(self, func, with_mlrun, mlrun_version_specifier=None):
         try:
             req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
-            resp = self.api_call("POST", "build/function", json=req)
+            resp = self.api_call(POST, "build/function", json=req)
         except OSError as err:
             logger.error("error submitting build task: {}".format(err))
             raise OSError("error: cannot submit build, {}".format(err))
@@ -540,7 +545,7 @@ class HTTPRunDB(RunDBInterface):
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            resp = self.api_call("GET", "build/status", params=params)
+            resp = self.api_call(GET, "build/status", params=params)
         except OSError as err:
             logger.error("error getting build status: {}".format(err))
             raise OSError("error: cannot get build status, {}".format(err))
@@ -570,7 +575,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             req = {"functionUrl": func_url}
             resp = self.api_call(
-                "POST",
+                POST,
                 "start/function",
                 json=req,
                 timeout=int(config.submit_timeout) or 60,
@@ -591,13 +596,13 @@ class HTTPRunDB(RunDBInterface):
         error_message = (
             f"Failed getting background task. project={project}, name={name}"
         )
-        response = self.api_call("GET", path, error_message)
+        response = self.api_call(GET, path, error_message)
         return schemas.BackgroundTask(**response.json())
 
     def remote_status(self, kind, selector):
         try:
             req = {"kind": kind, "selector": selector}
-            resp = self.api_call("POST", "status/function", json=req)
+            resp = self.api_call(POST, "status/function", json=req)
         except OSError as err:
             logger.error("error starting function: {}".format(err))
             raise OSError("error: cannot start function, {}".format(err))
@@ -618,7 +623,7 @@ class HTTPRunDB(RunDBInterface):
                     schedule = schedule.dict()
                 req["schedule"] = schedule
             timeout = (int(config.submit_timeout) or 120) + 20
-            resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
+            resp = self.api_call(POST, "submit_job", json=req, timeout=timeout)
         except OSError as err:
             logger.error("error submitting task: {}".format(err))
             raise OSError("error: cannot submit task, {}".format(err))
@@ -672,7 +677,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             params = {"namespace": namespace, "experiment": experiment, "run": run}
             resp = self.api_call(
-                "POST",
+                POST,
                 "submit_pipeline",
                 params=params,
                 timeout=20,
@@ -720,7 +725,7 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed listing pipelines, query: {params}"
         response = self.api_call(
-            "GET", f"projects/{project}/pipelines", error_message, params=params
+            GET, f"projects/{project}/pipelines", error_message, params=params
         )
         return mlrun.api.schemas.PipelinesOutput(**response.json())
 
@@ -731,7 +736,7 @@ class HTTPRunDB(RunDBInterface):
             if namespace:
                 query = "namespace={}".format(namespace)
             resp = self.api_call(
-                "GET", "pipelines/{}?{}".format(run_id, query), timeout=timeout
+                GET, "pipelines/{}?{}".format(run_id, query), timeout=timeout
             )
         except OSError as err:
             logger.error("error cannot get pipeline: {}".format(err))
@@ -764,7 +769,7 @@ class HTTPRunDB(RunDBInterface):
         name = feature_set["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=dict_to_json(feature_set),
+            POST, path, error_message, params=params, body=dict_to_json(feature_set),
         )
         return resp.json()
 
@@ -775,7 +780,7 @@ class HTTPRunDB(RunDBInterface):
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
-        resp = self.api_call("GET", path, error_message)
+        resp = self.api_call(GET, path, error_message)
         return FeatureSet.from_dict(resp.json())
 
     def list_features(
@@ -797,7 +802,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/features"
 
         error_message = f"Failed listing features, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
+        resp = self.api_call(GET, path, error_message, params=params)
         return resp.json()["features"]
 
     def list_entities(
@@ -813,7 +818,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/entities"
 
         error_message = f"Failed listing entities, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
+        resp = self.api_call(GET, path, error_message, params=params)
         return resp.json()["entities"]
 
     def list_feature_sets(
@@ -841,7 +846,7 @@ class HTTPRunDB(RunDBInterface):
         error_message = (
             f"Failed listing feature-sets, project: {project}, query: {params}"
         )
-        resp = self.api_call("GET", path, error_message, params=params)
+        resp = self.api_call(GET, path, error_message, params=params)
         feature_sets = resp.json()["feature_sets"]
         if feature_sets:
             return [FeatureSet.from_dict(obj) for obj in feature_sets]
@@ -887,7 +892,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
-            "PATCH",
+            PATCH,
             path,
             error_message,
             body=dict_to_json(feature_set_update),
@@ -898,7 +903,7 @@ class HTTPRunDB(RunDBInterface):
         project = project or default_project
         path = f"projects/{project}/feature-sets/{name}"
         error_message = f"Failed deleting feature-set {name}"
-        self.api_call("DELETE", path, error_message)
+        self.api_call(DELETE, path, error_message)
 
     def create_feature_vector(
         self,
@@ -920,11 +925,7 @@ class HTTPRunDB(RunDBInterface):
         name = feature_vector["metadata"]["name"]
         error_message = f"Failed creating feature-vector {project}/{name}"
         resp = self.api_call(
-            "POST",
-            path,
-            error_message,
-            params=params,
-            body=dict_to_json(feature_vector),
+            POST, path, error_message, params=params, body=dict_to_json(feature_vector),
         )
         return resp.json()
 
@@ -935,7 +936,7 @@ class HTTPRunDB(RunDBInterface):
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-vector {project}/{name}"
-        resp = self.api_call("GET", path, error_message)
+        resp = self.api_call(GET, path, error_message)
         return FeatureVector.from_dict(resp.json())
 
     def list_feature_vectors(
@@ -959,7 +960,7 @@ class HTTPRunDB(RunDBInterface):
         error_message = (
             f"Failed listing feature-vectors, project: {project}, query: {params}"
         )
-        resp = self.api_call("GET", path, error_message, params=params)
+        resp = self.api_call(GET, path, error_message, params=params)
         feature_vectors = resp.json()["feature_vectors"]
         if feature_vectors:
             return [FeatureVector.from_dict(obj) for obj in feature_vectors]
@@ -1007,7 +1008,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"
         self.api_call(
-            "PATCH",
+            PATCH,
             path,
             error_message,
             body=dict_to_json(feature_vector_update),
@@ -1018,7 +1019,7 @@ class HTTPRunDB(RunDBInterface):
         project = project or default_project
         path = f"projects/{project}/feature-vectors/{name}"
         error_message = f"Failed deleting feature-vector {name}"
-        self.api_call("DELETE", path, error_message)
+        self.api_call(DELETE, path, error_message)
 
     def list_projects(
         self,
@@ -1039,7 +1040,7 @@ class HTTPRunDB(RunDBInterface):
         }
 
         error_message = f"Failed listing projects, query: {params}"
-        response = self.api_call("GET", "projects", error_message, params=params)
+        response = self.api_call(GET, "projects", error_message, params=params)
         if format_ == mlrun.api.schemas.Format.name_only:
             return response.json()["projects"]
         elif format_ == mlrun.api.schemas.Format.full:
@@ -1058,7 +1059,7 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{name}"
         error_message = f"Failed retrieving project {name}"
-        response = self.api_call("GET", path, error_message)
+        response = self.api_call(GET, path, error_message)
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def delete_project(
@@ -1073,7 +1074,7 @@ class HTTPRunDB(RunDBInterface):
             deletion_strategy = deletion_strategy.value
         headers = {schemas.HeaderNames.deletion_strategy: deletion_strategy}
         error_message = f"Failed deleting project {name}"
-        self.api_call("DELETE", path, error_message, headers=headers)
+        self.api_call(DELETE, path, error_message, headers=headers)
 
     def store_project(
         self,
@@ -1103,7 +1104,7 @@ class HTTPRunDB(RunDBInterface):
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
         response = self.api_call(
-            "PATCH", path, error_message, body=dict_to_json(project), headers=headers
+            PATCH, path, error_message, body=dict_to_json(project), headers=headers
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
@@ -1117,7 +1118,7 @@ class HTTPRunDB(RunDBInterface):
             project = project.to_dict()
         error_message = f"Failed creating project {project['metadata']['name']}"
         response = self.api_call(
-            "POST", "projects", error_message, body=dict_to_json(project),
+            POST, "projects", error_message, body=dict_to_json(project),
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
@@ -1136,7 +1137,7 @@ class HTTPRunDB(RunDBInterface):
         body = secrets_input.dict()
         error_message = f"Failed creating secret provider {project}/{provider}"
         self.api_call(
-            "POST", path, error_message, body=dict_to_json(body),
+            POST, path, error_message, body=dict_to_json(body),
         )
 
     def get_project_secrets(
@@ -1155,7 +1156,7 @@ class HTTPRunDB(RunDBInterface):
         headers = {schemas.HeaderNames.secret_store_token: token}
         error_message = f"Failed retrieving secrets {project}/{provider}"
         result = self.api_call(
-            "GET", path, error_message, params=params, headers=headers,
+            GET, path, error_message, params=params, headers=headers,
         )
         return schemas.SecretsData(**result.json())
 
@@ -1176,7 +1177,7 @@ class HTTPRunDB(RunDBInterface):
         body = secrets_creation_request.dict()
         error_message = f"Failed creating user secrets - {user}"
         self.api_call(
-            "POST", path, error_message, body=dict_to_json(body),
+            POST, path, error_message, body=dict_to_json(body),
         )
 
     @staticmethod
@@ -1203,6 +1204,58 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
+
+    def get_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        features: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointState:
+        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
+        params = {"start": start, "end": end}
+        if metrics:
+            params["metrics"] = metrics
+        if features:
+            params["features"] = features
+        headers = {schemas.HeaderNames.secret_store_token: token or self.token}
+        result = self.api_call(GET, path, params=params, headers=headers)
+        return schemas.ModelEndpointState(**result.json())
+
+    def list_model_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointStateList:
+        path = f"/projects/{project}/model-endpoints"
+        params = {"start": start, "end": end}
+        if model:
+            params["model"] = model
+        if function:
+            params["function"] = function
+        if tag:
+            params["tag"] = tag
+        if labels:
+            params["labels"] = labels
+        if metrics:
+            params["metrics"] = metrics
+        headers = {schemas.HeaderNames.secret_store_token: token or self.token}
+        result = self.api_call(GET, path, params=params, headers=headers)
+        return schemas.ModelEndpointStateList(**result.json())
+
+    def clear_endpoint_record(self, project: str, endpoint_id: str):
+        path = (f"/projects/{project}/model-endpoints/{endpoint_id}/clear",)
+        self.api_call(POST, path)
 
 
 def _as_json(obj):

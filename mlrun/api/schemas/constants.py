@@ -45,10 +45,12 @@ class DeletionStrategy(str, Enum):
             )
 
 
-headers_prefix = "x-mlrun-"
+mlrun_headers_prefix = "x-mlrun-"
+v3io_header_prefix = "x-v3io-"
 
 
 class HeaderNames:
-    patch_mode = f"{headers_prefix}patch-mode"
-    deletion_strategy = f"{headers_prefix}deletion-strategy"
-    secret_store_token = f"{headers_prefix}secret-store-token"
+    patch_mode = f"{mlrun_headers_prefix}patch-mode"
+    deletion_strategy = f"{mlrun_headers_prefix}deletion-strategy"
+    secret_store_token = f"{mlrun_headers_prefix}secret-store-token"
+    v3io_session_key = f"{v3io_header_prefix}session-key"

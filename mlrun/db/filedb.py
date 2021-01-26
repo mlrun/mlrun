@@ -16,7 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
-from typing import List, Union
+from typing import List, Union, Optional
 
 import yaml
 from dateutil.parser import parse as parse_time
@@ -24,6 +24,7 @@ from dateutil.parser import parse as parse_time
 import mlrun.api.schemas
 import mlrun.errors
 from .base import RunDBError, RunDBInterface
+from ..api import schemas
 from ..config import config
 from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
@@ -637,6 +638,35 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def list_artifact_tags(self, project=None):
+        raise NotImplementedError()
+
+    def get_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        features: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointState:
+        raise NotImplementedError()
+
+    def list_model_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointStateList:
+        raise NotImplementedError()
+
+    def clear_endpoint_record(self, project: str, endpoint_id: str):
         raise NotImplementedError()
 
 

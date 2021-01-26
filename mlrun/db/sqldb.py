@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union
+from typing import List, Union, Optional
 
 import mlrun.api.schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
 from .base import RunDBInterface, RunDBError
-
-
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
 # require a RunDB to manage their state, when a user run them locally this db will either be the
@@ -29,6 +27,9 @@ from .base import RunDBInterface, RunDBError
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
+from ..api import schemas
+
+
 class SQLDB(RunDBInterface):
     def __init__(self, dsn, session=None):
         self.session = session
@@ -436,4 +437,33 @@ class SQLDB(RunDBInterface):
         ] = mlrun.api.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
+        raise NotImplementedError()
+
+    def get_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        features: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointState:
+        raise NotImplementedError()
+
+    def list_model_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointStateList:
+        raise NotImplementedError()
+
+    def clear_endpoint_record(self, project: str, endpoint_id: str):
         raise NotImplementedError()

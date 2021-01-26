@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Union, Optional
 
 from mlrun.api import schemas
 
@@ -328,4 +328,36 @@ class RunDBInterface(ABC):
         ] = schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
+        pass
+
+    @abstractmethod
+    def get_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        features: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointState:
+        pass
+
+    @abstractmethod
+    def list_model_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: bool = False,
+        token: Optional[str] = None,
+    ) -> schemas.ModelEndpointStateList:
+        pass
+
+    @abstractmethod
+    def clear_endpoint_record(self, project: str, endpoint_id: str):
         pass

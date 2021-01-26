@@ -28,6 +28,7 @@ MLRUN_CACHE_DATE ?= $(shell date +%s)
 # 2. add the --cache-from falg to the docker build
 # 3. docker tag and push (also) the (updated) cache image
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
+MLRUN_GIT_ORG ?= mlrun
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -477,7 +478,7 @@ endif
 			echo "Branch $$BRANCH_NAME exists. Adding changes"; \
 			git checkout $$BRANCH_NAME; \
 			rm -rf /tmp/mlrun; \
-			git clone --branch $(MLRUN_VERSION) git@github.com:mlrun/mlrun.git /tmp/mlrun; \
+			git clone --branch $(MLRUN_VERSION) https://github.com/$(MLRUN_GIT_ORG)/mlrun.git /tmp/mlrun; \
 			find . -path ./.git -prune -o -exec rm -rf {} \; 2> /dev/null; \
 			rsync -avr --exclude='.git/' /tmp/mlrun/ .; \
 			git add -A; \

@@ -9,32 +9,32 @@
 
 *The Open-Source MLOps Orchestration Framework.*
 
-**MLRun** offers an integrative approach to manage your machine-learning pipelines from early development through management in your production environment. MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering the Data Engineers and Data Scientists to define the feature and models.
-
+MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
+MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
 
 <a id="key-benefits"></a>
 #### Key Benefits <!-- omit in toc -->
 
 MLRun provides the following key benefits:
 
-- **Rapid deployment** of code to production pipelines
-- **Elastic scaling** for batch and real-time workloads
-- **Feature management** ingestion, preparation, and monitoring
-- **Works anywhere** in your local IDE, multi-cloud or on-prem
+- **Rapid deployment** of code to production pipelines
+- **Elastic scaling** of batch and real-time workloads
+- **Feature management** &mdash; ingestion, preparation, and monitoring
+- **Works anywhere** &mdash; your local IDE, multi-cloud, or on-prem
 
 <a id="key-features"></a>
 #### Key Features <!-- omit in toc -->
 
 MLRun includes the following key features:
 
-- **Feature store** – Define and reuse features with a robust feature store that includes a highly flexible transformation framework.
-- **Elastic serverless runtimes** – Turn your Python code to composable functions, that can run at scale on Kubernetes, Dask and Horovod in a single command.
-- **Function marketplace** – Leverage a function marketplace to accelerate your model development process.
-- **Data ingestion & preparation** – Read and transform data from batch and online data stores.
-- **Model training & testing** – Train models at scale with automated testing functions.
-- **Real-time Data & model Pipeline** – Deploy real-time pipelines for data collection, model serving and monitoring.
-- **Data & model Monitoring** – Automate model monitoring and drift detection.
-- **Central data & metadata management** – Log all data, models and artifacts and track all code execution.
+- **Feature store** &mdash; define and reuse features with a robust feature store that includes a highly flexible transformation framework.
+- **Elastic serverless runtimes** &mdash; use a single command to turn your Python code into composable functions that can run at scale on Kubernetes, Dask, and Horovod.
+- **Function marketplace** &mdash; leverage a function marketplace to accelerate your model-development process.
+- **Data ingestion & preparation** &mdash; read and transform data from batch and online data stores.
+- **Model training & testing** &mdash; train models at scale with automated testing functions.
+- **Real-time Data & model Pipeline** &mdash; deploy real-time pipelines for data collection and model serving and monitoring.
+- **Data & model Monitoring** &mdash; automate model monitoring and drift detection.
+- **Central data & metadata management** &mdash; log all data, models and artifacts and track all code execution.
 
 MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), and a graphical user interface (the MLRun dashboard).
 
@@ -43,7 +43,7 @@ MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), a
 #### In This Document <!-- omit in toc -->
 - [General Concept and Motivation](#general-concept-and-motivation)
   - [The Challenge](#the-challenge)
-  - [The MLRun Vision](#the-mlrun-vision)
+  - [Why MLRun?](#why-mlrun)
 - [Installation](#installation)
   - [Installation on the Iguazio Data Science Platform](#installation-on-the-iguazio-data-science-platform)
 - [Examples and Tutorial Notebooks](#examples-and-tutorial-notebooks)
@@ -76,7 +76,7 @@ As an ML developer or data scientist, you typically want to write code in your p
 When you determine that the code is ready, you or someone else need to transfer the code to an automated ML workflow (for example, using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)).
 This pipeline should be secure and include capabilities such as logging and monitoring, as well as allow adjustments to relevant components and easy redeployment.
 
-However, the implementation is challenging: various environments (**"runtimes"**) use different configurations, parameters, and data sources.
+However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters, and data sources.
 In addition, multiple frameworks and platforms are used to focus on different stages of the development life cycle.
 This leads to constant development and DevOps/MLOps work.
 
@@ -84,8 +84,8 @@ Furthermore, as your project scales, you need greater computation power or GPUs,
 This cannot work on laptops.
 You need a way to seamlessly run your code on a remote cluster and automatically scale it out.
 
-<a id="the-vision"></a>
-### The MLRun Vision
+<a id="why-mlrun"></a>
+### Why MLRun?
 
 When running ML experiments, you should ideally be able to record and version your code, configuration, outputs, and associated inputs (lineage), so you can easily reproduce and explain your results.
 The fact that you probably need to use different types of storage (such as files and AWS S3 buckets) and various databases, further complicates the implementation.
@@ -114,7 +114,7 @@ pip install mlrun
 MLRun requires separate containers for the API and the dashboard (UI).
 You can also select to use the pre-baked JupyterLab image.
 
-To install and run MLRun locally using Docker or Kubernetes, see the instructions in the [**MLRun documentation**](https://mlrun.readthedocs.io/en/latest/install.html)).
+To install and run MLRun locally using Docker or Kubernetes, see the instructions in the [**MLRun documentation**](https://mlrun.readthedocs.io/en/latest/install.html).
 
 <a id="installation-iguazio-platform"></a>
 ### Installation on the Iguazio Data Science Platform
@@ -170,16 +170,21 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 <a id="basic-components"></a>
 ### Basic Components
 
-MLRun has the following main components, which are usually grouped into **"projects"**:
+MLRun has the following main components:
+
+- <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity.
+    Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration.
 
 - <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment).
-    A function can run one or more runs or tasks, it can be created from templates, and it can be stored in a versioned database.
-- <a id="def-task"></a>**Task** &mdash; defines the parameters, inputs, and outputs of a logical job or task to execute.
-    A task can be created from a template, and can run over different runtimes or functions.
-- <a id="def-run"></a>**Run** &mdash; contains information about an executed task.
-  The run object is created as a result of running a task on a function, and it has all the attributes of a task (such as run parameters and relevant inputs and outputs) with the addition of the execution status and results (including links to output artifacts).
-- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as files, objects, data sets, and models) that are produced or consumed by functions, runs, and workflows.
-- <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using Kubeflow Pipelines.
+
+- <a id="def-run"></a>**Run** &mdash; an object that contains information about an executed function.
+    The run object is created as a result of running a function, and contains the function attributes (such as arguments, inputs, and outputs), as well the execution status and results (including links to output artifacts).
+
+- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) that are produced or consumed by functions, runs, and workflows.
+
+- <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/).
+
+- <a id="def-ui"></a>**UI** &mdash; a graphical user interface (dashboard) for displaying and managing projects and their contained experiments, artifacts, and code.
 
 <a id="managed-and-portable-execution"></a>
 ### Managed and Portable Execution

@@ -324,7 +324,7 @@ def get_tblframe(df, display, classes=None):
     return ipython_display(html, display)
 
 
-uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/monitor/{}/info" target="_blank" >...{}</a></div>'
+uid_template = '<div title="{}"><a href="{}/{}/{}/jobs/monitor/{}/info" target="_blank" >...{}</a></div>'
 
 
 def runs_to_html(df, display=True, classes=None, short=False):
@@ -337,10 +337,15 @@ def runs_to_html(df, display=True, classes=None, short=False):
     df["artifacts"] = df["artifacts"].apply(lambda x: artifacts_html(x, "target_path"))
     df["results"] = df["results"].apply(dict_html)
     df["start"] = df["start"].apply(time_str)
-    if config.ui_url:
+    if config.resolve_ui_url():
         df["uid"] = df.apply(
             lambda x: uid_template.format(
-                x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]
+                x.uid,
+                config.resolve_ui_url(),
+                config.ui.projects_prefix,
+                x.project,
+                x.uid,
+                x.uid[-8:],
             ),
             axis=1,
         )

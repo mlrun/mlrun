@@ -660,7 +660,7 @@ class RunNotifications:
     def slack(self, webhook=""):
         emoji = {"completed": ":smiley:", "running": ":man-running:", "error": ":x:"}
 
-        template = "{}/projects/{}/jobs/{}/info"
+        template = "{}/{}/{}/jobs/{}/info"
 
         webhook = webhook or environ.get("SLACK_WEBHOOK")
         if not webhook:
@@ -673,9 +673,12 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs:
                 meta = r["metadata"]
-                if config.ui_url:
+                if config.resolve_ui_url():
                     url = template.format(
-                        config.ui_url, meta.get("project"), meta.get("uid")
+                        config.resolve_ui_url(),
+                        config.ui.projects_prefix,
+                        meta.get("project"),
+                        meta.get("uid"),
                     )
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:

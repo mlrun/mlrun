@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple, Any, Dict
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
@@ -84,7 +84,7 @@ class ModelEndpointState(BaseModel):
     error_count: Optional[int]
     alert_count: Optional[int]
     drift_status: Optional[str]
-    metrics: Optional[List[Metric]] = None
+    metrics: Optional[Dict[str, Metric]] = None
     features: Optional[List[Features]] = None
 
 

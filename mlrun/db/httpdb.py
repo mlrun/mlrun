@@ -1263,7 +1263,9 @@ class HTTPRunDB(RunDBInterface):
         :param feature_set_update: The modifications needed in the object. This parameter only has the changes in it,
             not a full object.
             Example::
+
                 feature_set_update = {"status": {"processed" : True}}
+
             Will apply the field ``status.processed`` to the existing object.
         :param project: Project which contains the modified object.
         :param tag: The tag of the object to modify.
@@ -1622,6 +1624,7 @@ class HTTPRunDB(RunDBInterface):
         :param provider: The name of the secrets-provider to work with. Currently only ``vault`` is supported.
         :param secrets: A set of secret values to store within the Vault.
             Example::
+
                 secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
         """
         if isinstance(provider, schemas.SecretProviderName):

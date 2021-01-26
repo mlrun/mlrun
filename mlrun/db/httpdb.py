@@ -57,8 +57,8 @@ http_adapter = HTTPAdapter(
 
 class HTTPRunDB(RunDBInterface):
     """ Interface for accessing and manipulating the :py:mod:`mlrun` persistent store, maintaining the full state
-    and catalog of objects that MLRun uses. The :py:class:`HTTPRunDB` class serves as a client-side proxy to the MLRun API
-    service which maintains the actual data-store, accesses the server through REST APIs.
+    and catalog of objects that MLRun uses. The :py:class:`HTTPRunDB` class serves as a client-side proxy to the MLRun
+    API service which maintains the actual data-store, accesses the server through REST APIs.
 
     The class provides functions for accessing and modifying the various objects that are used by MLRun in its
     operation. The functions provided follow some standard guidelines, which are:
@@ -71,8 +71,8 @@ class HTTPRunDB(RunDBInterface):
     - Many objects can be assigned labels, and listed/queried by label. The label parameter for query APIs allows for
       listing objects that:
 
-      - Have a specific label, by asking for ``label="<label_name>"``. In this case the actual value of the label doesn't
-        matter and every object with that label will be returned
+      - Have a specific label, by asking for ``label="<label_name>"``. In this case the actual value of the label
+        doesn't matter and every object with that label will be returned
       - Have a label with a specific value. This is done by specifying ``label="<label_name>=<label_value>"``. In this
         case only objects whose label matches the value will be returned
 
@@ -90,6 +90,7 @@ class HTTPRunDB(RunDBInterface):
       The strategy can be either ``replace`` or ``additive``. For further details on those strategies, refer
       to https://pypi.org/project/mergedeep/
     """
+
     kind = "http"
 
     def __init__(self, base_url, user="", password="", token=""):
@@ -380,7 +381,8 @@ class HTTPRunDB(RunDBInterface):
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
-        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
+            last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
         """
 

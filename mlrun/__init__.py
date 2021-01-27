@@ -43,6 +43,7 @@ from .run import (
     get_object,
     get_pipeline,
     wait_for_pipeline_completion,
+    get_dataitem,
 )
 from .runtimes import new_model_server
 from .utils.version import Version

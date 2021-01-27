@@ -1,4 +1,4 @@
-# Loading MLRun functions from the marketplace  <!-- omit in toc -->
+# MLRun functions marketplace  <!-- omit in toc -->
 
 - [Overview](#overview)
 - [Functions Marketplace](#functions-marketplace)

@@ -53,7 +53,7 @@ Table Of Content
 
    quick-start
    tutorial/index
-   general
+   architecture
    install
    howto/index
 
@@ -62,7 +62,6 @@ Table Of Content
    :caption: ML Pipelines:
 
    job-submission-and-tracking
-   end-to-end-pipeline
    projects
    serving/index
 

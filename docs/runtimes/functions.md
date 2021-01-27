@@ -1,15 +1,17 @@
 # Functions & Runs
 
 All the executions in MLRun are based on Serverless Functions, the functions allow specifying code and 
-all the operational aspects (required packages, cpu/mem/gpu resources, storage, environment, etc.), 
+all the operational aspects (image, required packages, cpu/mem/gpu resources, storage, environment, etc.), 
 the different function runtimes take care of automatically transforming the code and spec to fully 
 managed and elastic services over Kubernetes which save significant operational overhead, 
 address scalability and reduce infrastructure costs.
 
 Function objects are all inclusive (code +  spec + API and metadata definitions) which allow placing them 
 in a shared and versioned function market place, this way different members of the team can produce or 
-consume functions. There is also an open [public marketplace](https://github.com/mlrun/functions) which store many pre-developed functions for
-use in your projects.
+consume functions. Each function is versioned and stored in the MLRun database with a unique hash code, 
+and gets a new hash code upon changes.
+There is also an open [public marketplace](https://github.com/mlrun/functions) which store many pre-developed functions for
+use in your projects. 
 
 Functions (function objects) can be created by using any of the following methods:
 

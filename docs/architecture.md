@@ -1,4 +1,4 @@
-<a id="top"></a>
+(architecture)=
 # Architecture and Vision <!-- omit in toc -->
 - [The Challenge](#the-challenge)
 - [Why MLRun?](#why-mlrun)
@@ -70,5 +70,3 @@ MLRun has the following main components that are used throughout the system:
 
 - <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/).
   or MLRun [Real-time Serving Graphs](./serving/serving-graph.md)
-
-[Back to top](#top)

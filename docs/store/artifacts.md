@@ -1,3 +1,4 @@
+(artifacts)=
 # Artifacts and Versioning <!-- omit in toc -->
 
 - [Overview](#overview)
@@ -8,19 +9,13 @@
 
 ## Overview
 
-An artifact is any data that is produced and/or consumed by functions or jobs.
+An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines. 
 
-The artifacts are stored in the project and are divided to 4 main types:
+Artifacts metadata is stored in the projects database, artifacts are divided to 4 main types:
 1. **Files** — files, directories, images, figures, and plotlines.
 2. **Datasets** — any data , such as tables and DataFrames.
 3. **Models** — all trained models.
 4. **Feature Store Objects** - Feature Sets and Feature Vectors
-
-Artifacts have unique URI in the form `store://<type>/<project>/<key/path>[:tag]`, 
-the URI is automatically generate when we `log_artifact` and can be used as input to jobs, functions, pipelines, etc..
-
-Artifacts are versioned, each unique version has a unique IDs (uid) and can have a `tag` label, 
-when the tag is not specified we use the `latest` version. 
 
 Artifacts can be viewed and manages in the UI, in the project page select the artifact type
 `models`, `files`, or `feature-store` (for datasets and feature store objects).
@@ -30,13 +25,59 @@ Example dataset artifact screen:
 <img src="../_static/images/dataset_artifact.png" alt="projects-artifacts" width="800"/>
 
 You can search the artifacts based on time and labels.
-In the Monitor view, you can view per artifact its location, the artifact type, labels, 
-the producer of the artifact, the artifact owner, last update date.
+You can view per artifact its location, the artifact type, labels, 
+the producer of the artifact, the artifact owner, last update date, and type specific information.
 
-Artifacts can also be viewed from the job page (in the artifacts tab).
+Artifacts can also be viewed from the job page (in the `artifacts` tab).
 Per each artifact you can view its content as well as download the artifact.
 
-Artifact objects can be accessed through the SDK or downloaded for the UI (as YAML files), 
+### Artifact Path
+
+Jobs use the default or job specific `artifact_path` parameter to determine where they should store artifacts.
+The default `artifact_path` can be specified at the cluster level, client level, project level or job level 
+(at that precedence order) or can be specified as a parameter in the specific `log` operation.
+
+You can set the default artifact_path for your environment using the {py:func}`~mlrun.set_environment` function.
+
+You can override the default artifact_path configuration by setting the artifact_path parameter of 
+the {py:func}`~mlrun.set_environment` function. You can use variables in the artifacts path, 
+such as {{run.project}} for the name of the running project or {{run.uid}} for the current job/pipeline run UID. 
+(The default artifacts path uses {{run.project}}.) The following example configures the artifacts path to an 
+artifacts directory in the current active directory (./artifacts)
+
+    set_environment(project=project_name, artifact_path='./artifacts')
+
+```{admonition} For Iguazio Platform Users
+In the Iguazio Data Science Patform, the default artifacts path is a <project name>/artifacts directory in the 
+predefined “projects” data container — /v3io/projects/<project name>/artifacts 
+(for example, /v3io/projects/myproject/artifacts for a “myproject” project).
+```
+
+When you use use `{{run.uid}}`, the artifacts for each job are stored in a dedicated directory for the executed job.
+Otherwise, the same artifacts directory is used in all runs, so the artifacts for newer runs override those from the previous runs.
+
+As previously explained, `set_environment` returns a tuple with the project name and artifacts path.
+You can optionally save your environment's artifacts path to a variable, as demonstrated in the previous steps.
+You can then use the artifacts-path variable to extract paths to task-specific artifact subdirectories.
+For example, the following code extracts the path to the artifacts directory of a `training` task, and saves the path 
+to a `training_artifacts` variable:
+
+```python
+training_artifacts = os.join(artifact_path, 'training')
+```
+
+> **Note:** The artifacts path is using [data store URLs](./datastore.md) which are not necessarily local file paths 
+> (for example, `s3://bucket/path`). Take care not to use such paths with general file utilities.
+
+### Artifact URIs, Metadata and Versioning 
+
+Artifacts have unique URI in the form `store://<type>/<project>/<key/path>[:tag]`, 
+the URI is automatically generate when we `log_artifact` and can be used as input to jobs, functions, pipelines, etc..
+
+Artifacts are versioned, each unique version has a unique IDs (uid) and can have a `tag` label, 
+when the tag is not specified we use the `latest` version. 
+
+Artifact metadata and objects can be accessed through the SDK or downloaded from the UI (as YAML files), 
 they host common and object specific metadata such as:
 
 * common metadata: name, project, updated, version info
@@ -44,8 +85,9 @@ they host common and object specific metadata such as:
 * Lineage data (sources used to produce that artifact)
 * information about formats, schema, sample data 
 * links to other artifacts (e.g. a model can point to a chart)
+* type specific attributes
 
-Artifacts can be obtained via the SDK through artifact specific APIs or generic APIs such as:
+Artifacts can be obtained via the SDK through type specific APIs or using generic artifact APIs such as:
 * {py:func}`~mlrun.run.get_data_item` - get the {py:class}`~mlrun.datastore.DataItem` object for reading/downloading the artifact content
 * {py:func}`~mlrun.datastore.get_store_resource` - get the artifact object
 

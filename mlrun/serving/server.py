@@ -193,6 +193,7 @@ def v2_serving_init(context, namespace=None):
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "root", server.graph)
+    setattr(context, "verbose", server.verbose)
     context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())

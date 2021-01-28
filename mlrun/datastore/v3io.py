@@ -40,7 +40,7 @@ V3IO_LOCAL_ROOT = "v3io"
 class V3ioStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
-        self.endpoint = self.endpoint or environ.get("V3IO_API", "v3io-webapi:8081")
+        self.endpoint = self.endpoint or config.httpdb.v3io_api or "v3io-webapi:8081"
 
         token = self._secret("V3IO_ACCESS_KEY") or environ.get("V3IO_ACCESS_KEY")
         username = self._secret("V3IO_USERNAME") or environ.get("V3IO_USERNAME")

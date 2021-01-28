@@ -88,6 +88,8 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        "v3io_api": "",
+        "v3io_framesd": "",
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
@@ -320,6 +322,18 @@ def read_env(env=None, prefix=env_prefix):
         config["dbpath"] = "http://mlrun-api:{}".format(
             default_config["httpdb"]["port"] or 8080
         )
+
+    # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
+    # of MLRUN_HTTPDB__V3IO_API)
+    v3io_api = env.get("V3IO_API")
+    if v3io_api:
+        config.setdefault("httpdb", {})["v3io_api"] = v3io_api
+
+    # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
+    # of MLRUN_HTTPDB__V3IO_FRAMESD)
+    v3io_framesd = env.get("V3IO_FRAMESD")
+    if v3io_framesd:
+        config.setdefault("httpdb", {})["v3io_framesd"] = v3io_framesd
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")

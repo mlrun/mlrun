@@ -66,7 +66,7 @@ class SystemTestPreparer:
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_API": webapi_direct_http,
-            "V3IO_FRAMSED": framesd_url,
+            "V3IO_FRAMESD": framesd_url,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
         }

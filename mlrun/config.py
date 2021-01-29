@@ -75,6 +75,8 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    "v3io_api": "",
+    "v3io_framesd": "",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -88,8 +90,6 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
-        "v3io_api": "",
-        "v3io_framesd": "",
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
@@ -324,16 +324,16 @@ def read_env(env=None, prefix=env_prefix):
         )
 
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
-    # of MLRUN_HTTPDB__V3IO_API)
+    # of MLRUN_V3IO_API)
     v3io_api = env.get("V3IO_API")
     if v3io_api:
-        config.setdefault("httpdb", {})["v3io_api"] = v3io_api
+        config["v3io_api"] = v3io_api
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
-    # of MLRUN_HTTPDB__V3IO_FRAMESD)
+    # of MLRUN_V3IO_FRAMESD)
     v3io_framesd = env.get("V3IO_FRAMESD")
     if v3io_framesd:
-        config.setdefault("httpdb", {})["v3io_framesd"] = v3io_framesd
+        config["v3io_framesd"] = v3io_framesd
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")

@@ -127,13 +127,15 @@ def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
     )
 
 
-def test_parse_submit_job_imported_function_project_assignment(db: Session, client: TestClient, monkeypatch):
+def test_parse_submit_job_imported_function_project_assignment(
+    db: Session, client: TestClient, monkeypatch
+):
     task_name = "task_name"
     task_project = "task-project"
     _mock_import_function(monkeypatch)
     submit_job_body = {
         "task": {
-            "spec": {"function": f"hub://gen_class_data"},
+            "spec": {"function": "hub://gen_class_data"},
             "metadata": {"name": task_name, "project": task_project},
         },
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
@@ -222,11 +224,18 @@ def _mock_import_function(monkeypatch):
         _, _, _, original_function = _generate_original_function()
         return original_function
 
-    monkeypatch.setattr(mlrun.run, "import_function_to_dict", _mock_import_function_to_dict)
+    monkeypatch.setattr(
+        mlrun.run, "import_function_to_dict", _mock_import_function_to_dict
+    )
 
 
 def _mock_original_function(client):
-    project, function_name, function_tag, original_function = _generate_original_function()
+    (
+        project,
+        function_name,
+        function_tag,
+        original_function,
+    ) = _generate_original_function()
     resp = client.post(
         f"/api/func/{project}/{function_name}",
         json=original_function,

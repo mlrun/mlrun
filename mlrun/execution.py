@@ -14,6 +14,8 @@
 
 from copy import deepcopy
 from datetime import datetime
+from typing import List
+
 import numpy as np
 import uuid
 import os
@@ -24,6 +26,7 @@ from mlrun.artifacts import ModelArtifact
 from .artifacts import ArtifactManager, DatasetArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from .datastore import store_manager
+from .features import Feature
 from .secrets import SecretsStore
 from .db import get_run_db
 from .utils import (
@@ -541,36 +544,49 @@ class MLClientCtx(object):
         artifact_path=None,
         upload=True,
         labels=None,
-        inputs=None,
-        outputs=None,
+        inputs: List[Feature] = None,
+        outputs: List[Feature] = None,
+        feature_vector: str = None,
+        feature_weights: list = None,
+        training_set=None,
+        label_column=None,
         extra_data=None,
         db_key=None,
     ):
         """log a model artifact and optionally upload it to datastore
 
-        :param key:           artifact key or artifact class ()
-        :param body:          will use the body as the artifact content
-        :param model_file:    path to the local model file we upload (seel also model_dir)
-        :param model_dir:     path to the local dir holding the model file and extra files
-        :param artifact_path: target artifact path (when not using the default)
-                              to define a subpath under the default location use:
-                              `artifact_path=context.artifact_subpath('data')`
-        :param framework:     name of the ML framework
-        :param tag:           version tag
-        :param metrics:       key/value dict of model metrics
-        :param parameters:    key/value dict of model parameters
-        :param inputs:        ordered list of model input features (name, type, ..)
-        :param outputs:       ordered list of model output/result elements (name, type, ..)
-        :param upload:        upload to datastore (default is True)
-        :param labels:        a set of key/value labels to tag the artifact with
-        :param extra_data:    key/value list of extra files/charts to link with this dataset
-                              value can be abs/relative path string | bytes | artifact object
-        :param db_key:        the key to use in the artifact DB table, by default
-                              its run name + '_' + key
-                              db_key=False will not register it in the artifacts table
+        :param key:             artifact key or artifact class ()
+        :param body:            will use the body as the artifact content
+        :param model_file:      path to the local model file we upload (seel also model_dir)
+        :param model_dir:       path to the local dir holding the model file and extra files
+        :param artifact_path:   target artifact path (when not using the default)
+                                to define a subpath under the default location use:
+                                `artifact_path=context.artifact_subpath('data')`
+        :param framework:       name of the ML framework
+        :param tag:             version tag
+        :param metrics:         key/value dict of model metrics
+        :param parameters:      key/value dict of model parameters
+        :param inputs:          ordered list of model input features (name, type, ..)
+        :param outputs:         ordered list of model output/result elements (name, type, ..)
+        :param upload:          upload to datastore (default is True)
+        :param labels:          a set of key/value labels to tag the artifact with
+        :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+        :param feature_weights: list of feature weights, one per input column
+        :param training_set:    training set dataframe, used to infer inputs & outputs
+        :param label_column:    which columns in the training set are the label (target) columns
+        :param extra_data:      key/value list of extra files/charts to link with this dataset
+                                value can be abs/relative path string | bytes | artifact object
+        :param db_key:          the key to use in the artifact DB table, by default
+                                its run name + '_' + key
+                                db_key=False will not register it in the artifacts table
 
         :returns: artifact object
         """
+
+        if training_set is not None and inputs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify inputs and training set together"
+            )
 
         model = ModelArtifact(
             key,
@@ -581,8 +597,12 @@ class MLClientCtx(object):
             inputs=inputs,
             outputs=outputs,
             framework=framework,
+            feature_vector=feature_vector,
+            feature_weights=feature_weights,
             extra_data=extra_data,
         )
+        if training_set:
+            model.infer_from_df(training_set, label_column)
 
         item = self._artifacts_manager.log_artifact(
             self,

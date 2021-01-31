@@ -76,7 +76,7 @@ def make_kaniko_pod(
 
     kpod = BasePod(
         name or "mlrun-build",
-        "gcr.io/kaniko-project/executor:" + config.kaniko_version,
+        config.kaniko_image + ":" + config.kaniko_version,
         args=args,
         kind="build",
     )
@@ -105,7 +105,7 @@ def make_kaniko_pod(
             ).decode("utf-8")
 
         kpod.set_init_container(
-            "alpine", args=["sh", "-c", "; ".join(commands)], env=env
+            config.builder_alpine_image, args=["sh", "-c", "; ".join(commands)], env=env
         )
 
     return kpod

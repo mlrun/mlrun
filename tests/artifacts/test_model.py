@@ -1,7 +1,7 @@
 import pandas as pd
-import os, mlrun
+import os
+import mlrun
 
-from mlrun import new_project
 from mlrun.artifacts.model import ModelArtifact, update_model, get_model
 from mlrun.features import Feature
 from tests.conftest import results
@@ -42,7 +42,7 @@ def test_model_update():
     model = ModelArtifact("my-model", model_file="a.pkl")
     target_path = results_dir + "model/"
 
-    project = new_project("test-proj")
+    project = mlrun.new_project("test-proj")
     artifact = project.log_artifact(model, upload=False, artifact_path=target_path)
 
     artifact_uri = f"store://artifacts/{artifact.project}/{artifact.db_key}"

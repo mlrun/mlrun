@@ -476,7 +476,6 @@ class HTTPRunDB(RunDBInterface):
         path = "projects/{}/artifact/{}?tag={}".format(project, key, tag)
         error = f"read artifact {project}/{key}"
         params = {"iter": str(iter)} if iter else {}
-        print(f"PATH: {path}, {params}")
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["data"]
 

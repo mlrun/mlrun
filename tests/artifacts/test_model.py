@@ -37,13 +37,16 @@ def test_infer():
 
 
 def test_model_update():
+    # mlrun.mlconf.dbpath = os.environ["TEST_DBPATH"]
     model = ModelArtifact("my-model", model_file="a.pkl")
     target_path = results_dir + "model/"
 
     project = mlrun.new_project("test-proj")
     artifact = project.log_artifact(model, upload=False, artifact_path=target_path)
 
-    artifact_uri = f"store://artifacts/{artifact.project}/{artifact.db_key}"
+    artifact_uri = (
+        f"store://artifacts/{artifact.project}/{artifact.db_key}:{artifact.tree}"
+    )
     updated_model_spec = update_model(
         artifact_uri,
         parameters={"a": 1},

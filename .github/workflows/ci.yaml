@@ -98,6 +98,7 @@ jobs:
     - name: Install missing packages
       run: |
         sudo apt-get install -y gcc
+        sudo apt-get install -y build-essential
         sudo apt install libpython{{ matrix.python-version }}-dev
     - name: Test package
       run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package

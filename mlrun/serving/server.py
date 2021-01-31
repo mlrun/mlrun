@@ -42,22 +42,22 @@ from ..utils import create_logger, get_caller_globals, parse_versioned_object_ur
 
 class _StreamContext:
     def __init__(self, enabled, parameters, function_uri):
-        self.enabled = enabled
+        self.enabled = False
         self.hostname = socket.gethostname()
         self.output_stream = None
         self.function_uri = function_uri
-        out_stream = parameters.get("log_stream", "")
-        if out_stream:
-            self.enabled = True
-        out_stream = out_stream or config.model_stream_url
         self.output_stream = None
-        if self.enabled and out_stream and function_uri:
+
+        log_stream = parameters.get("log_stream", "")
+        if ((enabled and config.model_stream_url) or log_stream) and function_uri:
+            self.enabled = True
+            log_stream = log_stream or config.model_stream_url
             project, _, _, _ = parse_versioned_object_uri(
                 function_uri, config.default_project
             )
             stream_args = parameters.get("stream_args", {})
             self.output_stream = get_stream_pusher(
-                out_stream.format(project=project), **stream_args
+                log_stream.format(project=project), **stream_args
             )
 
 

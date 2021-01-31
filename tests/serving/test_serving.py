@@ -34,6 +34,7 @@ def generate_spec(graph, mode="sync", params={}):
         "graph": graph,
         "load_mode": mode,
         "verbose": True,
+        "function_uri": "default/func",
     }
 
 
@@ -61,6 +62,7 @@ raiser_spec = generate_spec(
             },
         },
     },
+    params={"log_stream": "dummy://"},
 )
 
 

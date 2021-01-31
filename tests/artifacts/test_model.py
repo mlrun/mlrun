@@ -37,6 +37,8 @@ def test_infer():
 def test_model_update():
     model = ModelArtifact("my-model", model_file="a.pkl")
     model.project = "test-proj"
+    model.iter = 0
+    model.tree = "sometree"
     model.target_path = results_dir + "model/"
     updated_model_spec = update_model(
         model,

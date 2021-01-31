@@ -346,12 +346,12 @@ class VotingEnsemble(BaseModelRouter):
             # Test for `self.url_prefix/<model>/versions/<version>/operation`
             if len(segments) > 2 and segments[1] == "versions":
                 # Add versioning to the model as: <model>:<version>
-                model = model + ":" + segments[2]
+                model = f"{segments[0]}:{segments[2]}"
 
                 # Prune handled URI parts
                 segments = segments[2:]
-
-            model = segments[0]
+            else:
+                model = segments[0]
             if len(segments) > 1:
                 subpath = "/".join(segments[1:])
 
@@ -369,6 +369,7 @@ class VotingEnsemble(BaseModelRouter):
         if model in self.routes:
             # Turn off unnecessary router logging for simple event passing
             self.log_router = False
+            return model, self.routes[model], subpath
 
         # Test if it's our voting ensemble name
         elif model != self.name:
@@ -376,9 +377,10 @@ class VotingEnsemble(BaseModelRouter):
             # any of our registered models.
             models = " | ".join(self.routes.keys())
             raise ValueError(
-                f"model {model} doesnt exist, available models: {models} or an operation alone for ensemble operation"
+                f"model {model} doesnt exist, available models: "
+                f"{models} | {self.name} or an operation alone for ensemble operation"
             )
-        return model, self.routes[model], subpath
+        return model, None, subpath
 
     def _max_vote(self, all_predictions):
         """Returns most predicted class for each event
@@ -408,6 +410,7 @@ class VotingEnsemble(BaseModelRouter):
         return float(value).is_integer()
 
     def logic(self, predictions):
+        self.context.logger.debug(f"Applying logic to {predictions}")
         # Infer voting type if not given (Classification or recommendation) (once)
         if not self.vote_flag:
             # Are we dealing with an All-Int predictions
@@ -482,7 +485,6 @@ class VotingEnsemble(BaseModelRouter):
         # Handle and verify the request
         event = self.preprocess(event)
         event = self._pre_handle_event(event)
-        request = self.validate(event.body)
 
         # Should we terminate the event?
         if hasattr(event, "terminated") and event.terminated:
@@ -493,28 +495,43 @@ class VotingEnsemble(BaseModelRouter):
         self.context.logger.debug(f"router run model {name}, op={subpath}")
         event.path = subpath
 
-        # Is this a router level event?
-        if name == self.name:
-            predictions = self._parallel_run(event)
-            votes = self._apply_logic(predictions)
-            response = copy.copy(event)
-            response_body = {
-                "id": event.id,
-                "model_name": self.name,
-                "outputs": {
-                    "id": event.id,
-                    "inputs": response.body["inputs"],
-                    "outputs": votes,
-                },
-            }
-            if self.version:
-                response_body["model_version"] = self.version
-            response.body = response_body
-
-        # A specific model event
+        # Return the correct response
+        # If no model name was given and no operation
+        if not name and route is None:
+            # Return model list
+            setattr(event, "terminated", True)
+            event.body = {"models": list(self.routes.keys()) + [self.name]}
+            return event
         else:
-            response = route.run(event)
-            event.body = response.body if response else None
+            # Verify we use the V2 protocol
+            request = self.validate(event.body)
+
+            # If this is a Router Operation
+            if name == self.name:
+                predictions = self._parallel_run(event)
+                votes = self._apply_logic(predictions)
+                response = copy.copy(event)
+                response_body = {
+                    "id": event.id,
+                    "model_name": votes,
+                    "outputs": votes,
+                }
+                # response_body = {
+                #     "id": event.id,
+                #     "model_name": self.name,
+                #     "outputs": {
+                #         "id": event.id,
+                #         "inputs": response.body["inputs"],
+                #         "outputs": votes,
+                #     },
+                # }
+                if self.version:
+                    response_body["model_version"] = self.version
+                response.body = response_body
+            # A specific model event
+            else:
+                response = route.run(event)
+                event.body = response.body if response else None
 
         response = self.postprocess(response)
 
@@ -552,7 +569,8 @@ class VotingEnsemble(BaseModelRouter):
                         results.append(future.result())
                     except Exception as exc:
                         print("%r generated an exception: %s" % (future.fullname, exc))
-                results = [event.body["outputs"]["prediction"] for event in results]
+                results = [event.body["outputs"] for event in results]
+                self.context.logger.debug(f"Collected results from models: {results}")
         else:
             raise ValueError(
                 f"{mode} is not a supported parallel run mode, please select from "

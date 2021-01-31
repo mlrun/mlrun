@@ -1,30 +1,37 @@
 import json
 import os
 import time
-import mlrun
 
-from mlrun.utils import logger
+import mlrun
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
-from mlrun.serving.server import MockEvent, GraphContext, create_graph_server
+from mlrun.serving.server import GraphContext, MockEvent, create_graph_server
 from mlrun.serving.states import RouterState, TaskState
+from mlrun.utils import logger
+
+
+def test_routes(model_class):
+    return {
+        "m1": TaskState(model_class, class_args={"model_path": "", "multiplier": 100}),
+        "m2": TaskState(model_class, class_args={"model_path": "", "multiplier": 200}),
+        "m3:v1": TaskState(
+            model_class, class_args={"model_path": "", "multiplier": 300}
+        ),
+        "m3:v2": TaskState(
+            model_class, class_args={"model_path": "", "multiplier": 400}
+        ),
+    }
+
 
 router_object = RouterState()
-router_object.routes = {
-    "m1": TaskState(
-        "ModelTestingClass", class_args={"model_path": "", "multiplier": 100}
-    ),
-    "m2": TaskState(
-        "ModelTestingClass", class_args={"model_path": "", "multiplier": 200}
-    ),
-    "m3:v1": TaskState(
-        "ModelTestingClass", class_args={"model_path": "", "multiplier": 300}
-    ),
-    "m3:v2": TaskState(
-        "ModelTestingClass", class_args={"model_path": "", "multiplier": 400}
-    ),
-}
+router_object.routes = test_routes("ModelTestingClass")
+
+ensemble_object = RouterState(
+    class_name="mlrun.serving.routers.VotingEnsemble",
+    class_args={"vote_type": "regression"},
+)
+ensemble_object.routes = test_routes("EnsembleModelTestingClass")
 
 
 def generate_spec(graph, mode="sync", params={}):
@@ -52,6 +59,7 @@ asyncspec = generate_spec(
 
 
 spec = generate_spec(router_object.to_dict())
+ensemble_spec = generate_spec(ensemble_object.to_dict())
 testdata = '{"inputs": [5]}'
 
 
@@ -73,6 +81,12 @@ class ModelTestingClass(V2ModelServer):
         return event.body
 
 
+class EnsembleModelTestingClass(ModelTestingClass):
+    def predict(self, request):
+        resp = [request["inputs"][0] * self.get_param("multiplier")]
+        return resp
+
+
 class AsyncModelTestingClass(V2ModelServer):
     def load(self):
         print("loading..")
@@ -85,7 +99,7 @@ class AsyncModelTestingClass(V2ModelServer):
         return resp
 
 
-def init_ctx():
+def init_ctx(spec=spec):
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
     context = GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
@@ -101,6 +115,37 @@ def test_v2_get_models():
 
     # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2"]}
     assert len(data["models"]) == 4, f"wrong get models response {resp.body}"
+
+
+def test_ensemble_get_models():
+    context = init_ctx(ensemble_spec)
+    event = MockEvent("", path="/v2/models/", method="GET")
+    resp = context.mlrun_handler(context, event)
+    data = json.loads(resp.body)
+
+    # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"]}
+    assert len(data["models"]) == 5, f"wrong get models response {resp.body}"
+
+
+def test_ensemble_infer():
+    def run_model(url, expected):
+        url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
+        event = MockEvent(testdata, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == [expected], f"wrong model response {data['outputs']}"
+
+    context = init_ctx(ensemble_spec)
+
+    # Test normal routes
+    run_model("m1", 500)
+    run_model("m2", 1000)
+    run_model("m3/versions/v1", 1500)
+    run_model("m3/versions/v2", 2000)
+
+    # Test ensemble routes
+    run_model("VotingEnsemble", 1250.0)
+    run_model("", 1250.0)
 
 
 def test_v2_infer():

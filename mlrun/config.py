@@ -111,6 +111,8 @@ default_config = {
             "mlrun_version_specifier": "",
         },
         "model_endpoint_monitoring": {"container": "projects"},
+        "v3io_api": "",
+        "v3io_framesd": ""
     },
     "secret_stores": {
         "vault": {

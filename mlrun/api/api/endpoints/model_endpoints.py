@@ -1,7 +1,6 @@
 import json
 from dataclasses import dataclass
 from http import HTTPStatus
-from os import environ
 from typing import List, Optional, Dict, Any
 
 import pandas as pd
@@ -24,7 +23,6 @@ from mlrun.errors import (
     MLRunNotFoundError,
     MLRunInvalidArgumentError,
     MLRunBadRequestError,
-    MLRunPreconditionFailedError,
 )
 from mlrun.utils.helpers import logger
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
@@ -45,10 +43,6 @@ ENDPOINT_TABLE_ATTRIBUTES = [
     "drift_status",
 ]
 ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES = ENDPOINT_TABLE_ATTRIBUTES + ["features"]
-
-V3IO_ACCESS_KEY = "V3IO_ACCESS_KEY"
-V3IO_API = "V3IO_API"
-V3IO_FRAMESD = "V3IO_FRAMESD"
 
 
 router = APIRouter()
@@ -106,16 +100,14 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     """
 
     _verify_endpoint(project, endpoint_id)
-    secrets = get_model_endpoint_secrets(request)
 
     logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
-    client = get_v3io_client(
-        endpoint=secrets[V3IO_API], access_key=secrets[V3IO_ACCESS_KEY]
-    )
+    client = get_v3io_client(endpoint=config.httpdb.v3io_api)
     client.kv.delete(
         container=config.httpdb.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
         key=endpoint_id,
+        access_key=_get_access_key(request),
     )
     logger.info("Model endpoint table deleted", endpoint_id=endpoint_id)
 
@@ -150,13 +142,12 @@ def list_endpoints(
     Or by using a `,` (comma) seperator:
     `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
     """
-    secrets = get_model_endpoint_secrets(request)
-    client = get_v3io_client(
-        endpoint=secrets[V3IO_API], access_key=secrets[V3IO_ACCESS_KEY]
-    )
+    access_key = _get_access_key(request)
+    client = get_v3io_client(endpoint=config.httpdb.v3io_api)
     cursor = client.kv.new_cursor(
         container=config.httpdb.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+        access_key=access_key,
         attribute_names=ENDPOINT_TABLE_ATTRIBUTES,
         filter_expression=_build_kv_cursor_filter_expression(
             project, function, model, tag, labels
@@ -169,7 +160,7 @@ def list_endpoints(
         endpoint_metrics = None
         if metrics:
             endpoint_metrics = _get_endpoint_metrics(
-                secrets=secrets,
+                access_key=access_key,
                 project=project,
                 endpoint_id=endpoint.get("id"),
                 name=["predictions", "latency"],
@@ -223,10 +214,9 @@ def get_endpoint(
     """
 
     _verify_endpoint(project, endpoint_id)
-    secrets = get_model_endpoint_secrets(request)
-
+    access_key = _get_access_key(request)
     endpoint = get_endpoint_kv_record_by_id(
-        secrets, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES,
+        access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES,
     )
 
     if not endpoint:
@@ -236,7 +226,7 @@ def get_endpoint(
     endpoint_metrics = None
     if metrics:
         endpoint_metrics = _get_endpoint_metrics(
-            secrets=secrets,
+            access_key=access_key,
             project=project,
             endpoint_id=endpoint_id,
             start=start,
@@ -275,7 +265,7 @@ def get_endpoint(
 
 
 def _get_endpoint_metrics(
-    secrets: dict,
+    access_key: str,
     project: str,
     endpoint_id: str,
     name: List[str],
@@ -298,7 +288,8 @@ def _get_endpoint_metrics(
         columns.append(metric.tsdb_column)
 
     client = get_frames_client(
-        address=secrets[V3IO_FRAMESD],
+        token=access_key,
+        address=config.httpdb.v3io_framesd,
         container=config.httpdb.model_endpoint_monitoring.container,
     )
 
@@ -365,20 +356,19 @@ def _build_kv_cursor_filter_expression(
 
 
 def get_endpoint_kv_record_by_id(
-    secrets: dict,
+    access_key: str,
     project: str,
     endpoint_id: str,
     attribute_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
 
-    client = get_v3io_client(
-        endpoint=secrets[V3IO_API], access_key=secrets[V3IO_ACCESS_KEY]
-    )
+    client = get_v3io_client(endpoint=config.httpdb.v3io_api)
 
     endpoint = client.kv.get(
         container=config.httpdb.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
         key=endpoint_id,
+        access_key=access_key,
         attribute_names=attribute_names or "*",
         raise_for_status=RaiseForStatus.never,
     ).output.item
@@ -393,31 +383,10 @@ def _verify_endpoint(project, endpoint_id):
         )
 
 
-def get_model_endpoint_secrets(_request: Request):
+def _get_access_key(_request: Request):
     access_key = _request.headers.get("X-V3io-Session-Key")
     if not access_key:
         raise MLRunBadRequestError(
             "Request header missing 'X-V3io-Session-Key' parameter."
         )
-
-    v3io_api = environ.get("V3IO_WEBAPI_PORT_8081_TCP")
-    if not v3io_api:
-        raise MLRunPreconditionFailedError(
-            "Environment missing 'V3IO_WEBAPI_PORT_8081_TCP' parameter."
-        )
-    else:
-        v3io_api = v3io_api.replace("tcp", "http")
-
-    v3io_framesd = environ.get("FRAMESD_PORT_8081_TCP")
-    if not v3io_framesd:
-        raise MLRunPreconditionFailedError(
-            "Environment missing 'V3IO_WEBAPI_PORT_8081_TCP' parameter."
-        )
-    else:
-        v3io_framesd = v3io_framesd.replace("tcp", "http")
-
-    return {
-        V3IO_ACCESS_KEY: access_key,
-        V3IO_API: v3io_api,
-        V3IO_FRAMESD: v3io_framesd,
-    }
+    return access_key

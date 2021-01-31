@@ -140,7 +140,6 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
                     "illegal store path {}, iteration must be integer value".format(uri)
                 )
 
-        print(f"P {project};N {name}; T {tag} ; U {uid} ; I {iteration}")
         resource = db.read_artifact(
             name, project=project, tag=tag or uid, iter=iteration
         )

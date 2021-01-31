@@ -43,7 +43,7 @@ def test_model_update():
     project = new_project("test-proj")
     artifact = project.log_artifact(model, upload=False, artifact_path=target_path)
 
-    artifact_uri = f'store://artifacts/{artifact.project}/{artifact.db_key}'
+    artifact_uri = f"store://artifacts/{artifact.project}/{artifact.db_key}"
     updated_model_spec = update_model(
         artifact_uri,
         parameters={"a": 1},
@@ -54,7 +54,7 @@ def test_model_update():
         feature_weights=[1, 2],
         key_prefix="test-",
         labels={"lbl": "tst"},
-        write_spec_copy=False
+        write_spec_copy=False,
     )
     print(updated_model_spec.to_yaml())
 

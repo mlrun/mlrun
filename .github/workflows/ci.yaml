@@ -96,7 +96,9 @@ jobs:
           ${{ runner.os }}-pip-${{ matrix.python-version }}-
           ${{ runner.os }}-pip-
     - name: Install missing packages
-      run: sudo apt-get install -y gcc
+      run: |
+        sudo apt-get install -y gcc
+        sudo apt install libpython{{ matrix.python-version }}-dev
     - name: Test package
       run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
 

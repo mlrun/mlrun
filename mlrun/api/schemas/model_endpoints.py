@@ -39,6 +39,9 @@ class ModelEndpoint(BaseModel):
         self.id = self.create_endpoint_id()
 
     def create_endpoint_id(self):
+        if not self.spec.function or not self.spec.model or not self.metadata.tag:
+            raise ValueError("'ModelEndpoint.spec.function, ModelEndpoint.spec.model and ModelEndpoint.metadata.tag must be initalized'")
+
         endpoint_unique_string = (
             f"{self.spec.function}_{self.spec.model}_{self.metadata.tag}"
         )

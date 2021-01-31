@@ -41,6 +41,7 @@ def config_test_base():
     mlrun.db._last_db_url = None
     mlrun.datastore.store_manager._db = None
 
+
 @pytest.fixture
 def db():
     global session_maker

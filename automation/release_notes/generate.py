@@ -1,7 +1,7 @@
 import pathlib
+import re
 import subprocess
 import tempfile
-import re
 
 import click
 
@@ -25,26 +25,38 @@ class ReleaseNotesGenerator:
         provctl_binary_format = "provctl-{release_name}-linux-amd64"
 
     def __init__(
-        self,
-        last_release: str,
-        release_branch: str,
+        self, last_release: str, release_branch: str,
     ):
         self._logger = logger
         self._last_release = last_release
         self._release_branch = release_branch
 
     def run(self):
-        self._logger.info("Generating release notes",
-                          last_release=self._last_release,
-                          release_branch=self._release_branch)
+        self._logger.info(
+            "Generating release notes",
+            last_release=self._last_release,
+            release_branch=self._release_branch,
+        )
 
-        with tempfile.TemporaryDirectory(suffix="mlrun-release-notes-clone") as repo_dir:
-            self._logger.info("Cloning repo",
-                              repo_dir=repo_dir)
-            self._run_command("git", args=["clone", "--branch", self._release_branch, "git@github.com:mlrun/mlrun.git",
-                                           repo_dir])
+        with tempfile.TemporaryDirectory(
+            suffix="mlrun-release-notes-clone"
+        ) as repo_dir:
+            self._logger.info("Cloning repo", repo_dir=repo_dir)
+            self._run_command(
+                "git",
+                args=[
+                    "clone",
+                    "--branch",
+                    self._release_branch,
+                    "git@github.com:mlrun/mlrun.git",
+                    repo_dir,
+                ],
+            )
 
-            commits = self._run_command("git", args=["log", '--pretty=format:"%h %s"', f'{self._last_release}..HEAD'])
+            commits = self._run_command(
+                "git",
+                args=["log", '--pretty=format:"%h %s"', f"{self._last_release}..HEAD"],
+            )
 
         self._generate_release_notes_from_commits(commits)
 
@@ -53,7 +65,8 @@ class ReleaseNotesGenerator:
         # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
-        print(f"""
+        print(
+            f"""
 ### Features / Enhancements
 {highlight_notes}
 
@@ -62,8 +75,9 @@ class ReleaseNotesGenerator:
 
 
 #### Pull requests:
-{commits}        
-        """)
+{commits}
+        """
+        )
 
     def _generate_highlight_notes_from_commits(self, commits):
         regex = (
@@ -78,16 +92,16 @@ class ReleaseNotesGenerator:
             r"$"
         )
         highlighted_notes = ""
-        for commit in commits.split('\n'):
+        for commit in commits.split("\n"):
             match = re.fullmatch(regex, commit)
-            assert (
-                    match is not None
-            ), f"Commit did not matched regex. {commit}"
-            scope = match.groupdict()["scope"] or 'Unknown'
+            assert match is not None, f"Commit did not matched regex. {commit}"
+            scope = match.groupdict()["scope"] or "Unknown"
             message = match.groupdict()["commitMessage"]
             pull_request_number = match.groupdict()["pullRequestNumber"]
             # currently just defaulting to hedingber TODO: resolve the real author name
-            highlighted_notes += f"* **{scope}**: {message}, {pull_request_number}, @hedingber\n"
+            highlighted_notes += (
+                f"* **{scope}**: {message}, {pull_request_number}, @hedingber\n"
+            )
 
         return highlighted_notes
 
@@ -101,7 +115,14 @@ class ReleaseNotesGenerator:
                 command, shell=True, check=True, capture_output=True, encoding="utf-8",
             )
         except subprocess.CalledProcessError as exc:
-            logger.warning("Command failed", stdout=exc.stdout, stderr=exc.stderr, return_code=exc.returncode, cmd=exc.cmd, args=exc.args)
+            logger.warning(
+                "Command failed",
+                stdout=exc.stdout,
+                stderr=exc.stderr,
+                return_code=exc.returncode,
+                cmd=exc.cmd,
+                args=exc.args,
+            )
             raise
         output = process.stdout
 
@@ -117,13 +138,9 @@ def main():
 @click.argument("last-release", type=str, required=True)
 @click.argument("release-branch", type=str, required=False, default="master")
 def run(
-    last_release: str,
-    release_branch: str,
+    last_release: str, release_branch: str,
 ):
-    release_notes_generator = ReleaseNotesGenerator(
-        last_release,
-        release_branch,
-    )
+    release_notes_generator = ReleaseNotesGenerator(last_release, release_branch,)
     try:
         release_notes_generator.run()
     except Exception as exc:

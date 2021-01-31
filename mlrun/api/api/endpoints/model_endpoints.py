@@ -417,7 +417,7 @@ def get_model_endpoint_secrets(_request: Request):
         v3io_framesd = v3io_framesd.replace("tcp", "http")
 
     return {
-        "V3IO_ACCESS_KEY": access_key,
-        "V3IO_API": v3io_api,
-        "V3IO_FRAMESD": v3io_framesd,
+        V3IO_ACCESS_KEY: access_key,
+        V3IO_API: v3io_api,
+        V3IO_FRAMESD: v3io_framesd,
     }

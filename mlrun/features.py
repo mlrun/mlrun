@@ -136,7 +136,7 @@ def infer_schema_from_df(
             InferOptions.get_common_options(options, InferOptions.Features)
             and column != timestamp_key
         ):
-            if column in features:
+            if column in features.keys():
                 features[column].value_type = value_type
             else:
                 features[column] = Feature(name=column, value_type=value_type)

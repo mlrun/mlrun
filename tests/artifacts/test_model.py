@@ -1,4 +1,5 @@
 import pandas as pd
+import os, mlrun
 
 from mlrun import new_project
 from mlrun.artifacts.model import ModelArtifact, update_model, get_model
@@ -37,6 +38,7 @@ def test_infer():
 
 
 def test_model_update():
+    mlrun.mlconf.dbpath = os.environ["TEST_DBPATH"]
     model = ModelArtifact("my-model", model_file="a.pkl")
     target_path = results_dir + "model/"
 

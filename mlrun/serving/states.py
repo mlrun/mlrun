@@ -26,7 +26,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import requests
 
-from ..platforms.iguazio import OutputStream
+from ..datastore import get_stream_pusher
 from ..model import ModelObj, ObjectDict
 from ..utils import get_function, get_class
 from ..errors import MLRunInvalidArgumentError
@@ -534,7 +534,11 @@ class QueueState(BaseState):
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         if self.path:
-            self._stream = OutputStream(self.path, self.shards, self.retention_in_hours)
+            self._stream = get_stream_pusher(
+                self.path,
+                shards=self.shards,
+                retention_in_hours=self.retention_in_hours,
+            )
         self._set_error_handler()
 
     @property

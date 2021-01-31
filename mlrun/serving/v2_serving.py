@@ -73,7 +73,9 @@ class V2ModelServer:
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
         self._params = class_args
-        self._model_logger = _ModelLogPusher(self, context)
+        self._model_logger = (
+            _ModelLogPusher(self, context) if context.stream.enabled else None
+        )
 
         self.metrics = {}
         self.labels = {}
@@ -276,8 +278,8 @@ class _ModelLogPusher:
         self.model = model
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
-        self.stream_batch = context.stream.stream_batch
-        self.stream_sample = context.stream.stream_sample
+        self.stream_batch = int(context.get_param("log_stream_sample", 1))
+        self.stream_sample = int(context.get_param("log_stream_batch", 1))
         self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id
         self._sample_iter = 0

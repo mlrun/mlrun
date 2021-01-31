@@ -75,6 +75,8 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # url template for default model tracking stream
+    "model_stream_url": "v3io:///projects/{project}/model-endpoints/stream",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),

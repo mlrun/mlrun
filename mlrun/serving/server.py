@@ -33,23 +33,32 @@ from .states import (
     get_function,
     graph_root_setter,
 )
+from ..datastore import get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
-from ..platforms.iguazio import OutputStream
-from ..utils import create_logger, get_caller_globals
+from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
 
 
 class _StreamContext:
-    def __init__(self, parameters, function_uri):
+    def __init__(self, enabled, parameters, function_uri):
+        self.enabled = enabled
         self.hostname = socket.gethostname()
         self.output_stream = None
         self.function_uri = function_uri
         out_stream = parameters.get("log_stream", "")
-        self.stream_sample = int(parameters.get("log_stream_sample", "1"))
-        self.stream_batch = int(parameters.get("log_stream_batch", "1"))
         if out_stream:
-            self.output_stream = OutputStream(out_stream)
+            self.enabled = True
+        out_stream = out_stream or config.model_stream_url
+        self.output_stream = None
+        if self.enabled and out_stream and function_uri:
+            project, _, _, _ = parse_versioned_object_uri(
+                function_uri, config.default_project
+            )
+            stream_args = parameters.get("stream_args", {})
+            self.output_stream = get_stream_pusher(
+                out_stream.format(project=project), **stream_args
+            )
 
 
 class GraphServer(ModelObj):
@@ -66,6 +75,7 @@ class GraphServer(ModelObj):
         functions=None,
         graph_initializer=None,
         error_stream=None,
+        track_models=None,
     ):
         self._graph = None
         self.graph: Union[RouterState, RootFlowState] = graph
@@ -79,6 +89,7 @@ class GraphServer(ModelObj):
         self.functions = functions or {}
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
+        self.track_models = track_models
         self._error_stream_object = None
         self._secrets = SecretsStore()
         self._db_conn = None
@@ -100,7 +111,7 @@ class GraphServer(ModelObj):
         """set/initialize the error notification stream"""
         self.error_stream = error_stream
         if error_stream:
-            self._error_stream_object = OutputStream(error_stream)
+            self._error_stream_object = get_stream_pusher(error_stream)
         else:
             self._error_stream_object = None
 
@@ -113,11 +124,13 @@ class GraphServer(ModelObj):
         """for internal use, initialize all states (recursively)"""
 
         if self.error_stream:
-            self._error_stream_object = OutputStream(self.error_stream)
+            self._error_stream_object = get_stream_pusher(self.error_stream)
         self.resource_cache = resource_cache or ResourceCache()
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
 
-        context.stream = _StreamContext(self.parameters, self.function_uri)
+        context.stream = _StreamContext(
+            self.track_models, self.parameters, self.function_uri
+        )
         context.current_function = self._current_function
         context.get_store_resource = self.resource_cache.resource_getter(
             self._get_db(), self._secrets

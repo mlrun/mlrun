@@ -1,4 +1,6 @@
 import pandas as pd
+
+from mlrun import new_project
 from mlrun.artifacts.model import ModelArtifact, update_model, get_model
 from mlrun.features import Feature
 from tests.conftest import results
@@ -36,12 +38,14 @@ def test_infer():
 
 def test_model_update():
     model = ModelArtifact("my-model", model_file="a.pkl")
-    model.project = "test-proj"
-    model.iter = 0
-    model.tree = "sometree"
-    model.target_path = results_dir + "model/"
+    target_path = results_dir + "model/"
+
+    project = new_project("test-proj")
+    artifact = project.log_artifact(model, upload=False, artifact_path=target_path)
+
+    artifact_uri = f'store://artifacts/{artifact.project}/{artifact.db_key}'
     updated_model_spec = update_model(
-        model,
+        artifact_uri,
         parameters={"a": 1},
         metrics={"b": 2},
         inputs=[Feature(name="f1")],
@@ -50,13 +54,11 @@ def test_model_update():
         feature_weights=[1, 2],
         key_prefix="test-",
         labels={"lbl": "tst"},
+        write_spec_copy=False
     )
     print(updated_model_spec.to_yaml())
 
-    model_path, model_spec, extra_dataitems = get_model(
-        f"store://artifacts/{model.project}/{model.key}"
-    )
-
+    model_path, model, extra_dataitems = get_model(artifact_uri)
     # print(model_spec.to_yaml())
     assert model_path.endswith(f"model/{model.model_file}"), "illegal model path"
     assert model.parameters == {"a": 1}, "wrong parameters"

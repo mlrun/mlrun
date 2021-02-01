@@ -112,7 +112,7 @@ default_config = {
         },
         "model_endpoint_monitoring": {"container": "projects"},
         "v3io_api": "",
-        "v3io_framesd": ""
+        "v3io_framesd": "",
     },
     "secret_stores": {
         "vault": {

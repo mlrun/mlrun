@@ -494,10 +494,13 @@ endif
 
 .PHONY: release-notes
 release-notes: ## Create release notes
+ifndef MLRUN_VERSION
+	$(error MLRUN_VERSION is undefined)
+endif
 ifndef MLRUN_OLD_VERSION
 	$(error MLRUN_OLD_VERSION is undefined)
 endif
 ifndef MLRUN_RELEASE_BRANCH
 	$(error MLRUN_RELEASE_BRANCH is undefined)
 endif
-	python ./automation/release_notes/generate.py run $(MLRUN_OLD_VERSION) $(MLRUN_RELEASE_BRANCH)
+	python ./automation/release_notes/generate.py run $(MLRUN_VERSION) $(MLRUN_OLD_VERSION) $(MLRUN_RELEASE_BRANCH)

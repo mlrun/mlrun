@@ -11,30 +11,19 @@ logger = mlrun.utils.create_logger(level="debug", name="automation")
 
 
 class ReleaseNotesGenerator:
-    class Constants:
-        ssh_username = "iguazio"
-
-        ci_dir_name = "mlrun-automation"
-        homedir = pathlib.Path("/home/iguazio/")
-        workdir = homedir / ci_dir_name
-        mlrun_code_path = workdir / "mlrun"
-        system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
-
-        git_url = "https://github.com/mlrun/mlrun.git"
-        provctl_releases = "https://api.github.com/repos/iguazio/provazio/releases"
-        provctl_binary_format = "provctl-{release_name}-linux-amd64"
-
     def __init__(
-        self, last_release: str, release_branch: str,
+        self, release: str, previous_release: str, release_branch: str,
     ):
         self._logger = logger
-        self._last_release = last_release
+        self._release = release
+        self._previous_release = previous_release
         self._release_branch = release_branch
 
     def run(self):
         self._logger.info(
             "Generating release notes",
-            last_release=self._last_release,
+            release=self._release,
+            previous_release=self._previous_release,
             release_branch=self._release_branch,
         )
 
@@ -55,7 +44,8 @@ class ReleaseNotesGenerator:
 
             commits = self._run_command(
                 "git",
-                args=["log", '--pretty=format:"%h %s"', f"{self._last_release}..HEAD"],
+                args=["log", '--pretty=format:"%h %s"', f"{self._previous_release}..HEAD"],
+                cwd=repo_dir,
             )
 
         self._generate_release_notes_from_commits(commits)
@@ -69,9 +59,10 @@ class ReleaseNotesGenerator:
             f"""
 ### Features / Enhancements
 {highlight_notes}
-
+* **UI**: [Features & enhancment](https://github.com/mlrun/ui/releases/tag/{self._release}#features-and-enhancements)
 
 ### Bug fixes
+* **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{self._release}#bug-fixes)
 
 
 #### Pull requests:
@@ -106,13 +97,13 @@ class ReleaseNotesGenerator:
         return highlighted_notes
 
     @staticmethod
-    def _run_command(command, args=None):
+    def _run_command(command, args=None, cwd=None):
         if args:
             command += " " + " ".join(args)
 
         try:
             process = subprocess.run(
-                command, shell=True, check=True, capture_output=True, encoding="utf-8",
+                command, shell=True, check=True, capture_output=True, encoding="utf-8", cwd=cwd,
             )
         except subprocess.CalledProcessError as exc:
             logger.warning(
@@ -135,12 +126,13 @@ def main():
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("last-release", type=str, required=True)
+@click.argument("release", type=str, required=True)
+@click.argument("previous-release", type=str, required=True)
 @click.argument("release-branch", type=str, required=False, default="master")
 def run(
-    last_release: str, release_branch: str,
+    release: str, previous_release: str, release_branch: str,
 ):
-    release_notes_generator = ReleaseNotesGenerator(last_release, release_branch,)
+    release_notes_generator = ReleaseNotesGenerator(release, previous_release, release_branch)
     try:
         release_notes_generator.run()
     except Exception as exc:

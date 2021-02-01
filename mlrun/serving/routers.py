@@ -205,6 +205,7 @@ class VotingEnsemble(BaseModelRouter):
         health_prefix=None,
         vote_type=None,
         executor_type=None,
+        prediction_col_name=None,
         **kwargs,
     ):
         """Voting Ensemble
@@ -239,7 +240,7 @@ class VotingEnsemble(BaseModelRouter):
         #       this basic class supports sklearn based models (with `<model>.predict()` api)
         fn = mlrun.code_to_function(name='ensemble',
                                     kind='serving',
-                                    filename='https://raw.githubusercontent.com/mlrun/functions/master/v2_model_server/v2-model-server.py'ת
+                                    filename='https://raw.githubusercontent.com/mlrun/functions/master/v2_model_server/v2-model-server.py'
                                     image='mlrun/ml-models')
 
         # Set the router class
@@ -285,6 +286,12 @@ class VotingEnsemble(BaseModelRouter):
                 - int prediction type: classification
         executor_type : str, optional
             Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
+        prediction_col_name: str, optional
+            The dict key for the predictions column in the model's responses output.
+            Example: If the model returns
+                    {id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}
+                    the prediction_col_name should be `prediction`.
+            by default, `prediction`
         """
         super().__init__(
             context, name, routes, protocol, url_prefix, health_prefix, **kwargs
@@ -296,6 +303,8 @@ class VotingEnsemble(BaseModelRouter):
         self._model_logger = _ModelLogPusher(self, context)
         self.version = kwargs.get("version", "v1")
         self.log_router = True
+        self.prediction_col_name = prediction_col_name or "prediction"
+        self.format_response_with_col_name_flag = False
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -510,21 +519,16 @@ class VotingEnsemble(BaseModelRouter):
             if name == self.name:
                 predictions = self._parallel_run(event)
                 votes = self._apply_logic(predictions)
+                # Format the prediction response like the regular
+                # model's responses
+                if self.format_response_with_col_name_flag:
+                    votes = {self.prediction_col_name: votes}
                 response = copy.copy(event)
                 response_body = {
                     "id": event.id,
                     "model_name": votes,
                     "outputs": votes,
                 }
-                # response_body = {
-                #     "id": event.id,
-                #     "model_name": self.name,
-                #     "outputs": {
-                #         "id": event.id,
-                #         "inputs": response.body["inputs"],
-                #         "outputs": votes,
-                #     },
-                # }
                 if self.version:
                     response_body["model_version"] = self.version
                 response.body = response_body
@@ -540,6 +544,32 @@ class VotingEnsemble(BaseModelRouter):
                 request["id"] = response.body["id"]
             self._model_logger.push(start, request, response.body)
         return response
+
+    def extract_results_from_response(self, response):
+        """Extracts the prediction from the model response.
+        This function is used to allow multiple model return types. and allow for easy
+        extention to the user's ensemble and models best practices.
+
+        Parameters
+        ----------
+        response : Union[List, Dict]
+            The model response's `output` field.
+
+        Returns
+        -------
+        List
+            The model's predictions
+        """
+        if type(response) == list:
+            return response
+        try:
+            self.format_response_with_col_name_flag = True
+            return response[self.prediction_col_name]
+        except KeyError:
+            raise ValueError(
+                f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist"
+                f"in the model's response ({response.keys()})"
+            )
 
     def _parallel_run(self, event, mode: str = ParallelRunnerModes.thread):
         """Executes the processing logic in parallel
@@ -569,7 +599,10 @@ class VotingEnsemble(BaseModelRouter):
                         results.append(future.result())
                     except Exception as exc:
                         print("%r generated an exception: %s" % (future.fullname, exc))
-                results = [event.body["outputs"] for event in results]
+                results = [
+                    self.extract_results_from_response(event.body["outputs"])
+                    for event in results
+                ]
                 self.context.logger.debug(f"Collected results from models: {results}")
         else:
             raise ValueError(

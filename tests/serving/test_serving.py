@@ -29,7 +29,7 @@ router_object.routes = test_routes("ModelTestingClass")
 
 ensemble_object = RouterState(
     class_name="mlrun.serving.routers.VotingEnsemble",
-    class_args={"vote_type": "regression"},
+    class_args={"vote_type": "regression", "prediction_col_name": "predictions"},
 )
 ensemble_object.routes = test_routes("EnsembleModelTestingClass")
 
@@ -83,7 +83,7 @@ class ModelTestingClass(V2ModelServer):
 
 class EnsembleModelTestingClass(ModelTestingClass):
     def predict(self, request):
-        resp = [request["inputs"][0] * self.get_param("multiplier")]
+        resp = {"predictions": [request["inputs"][0] * self.get_param("multiplier")]}
         return resp
 
 
@@ -133,7 +133,9 @@ def test_ensemble_infer():
         event = MockEvent(testdata, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == [expected], f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {
+            "predictions": [expected]
+        }, f"wrong model response {data['outputs']}"
 
     context = init_ctx(ensemble_spec)
 

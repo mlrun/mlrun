@@ -1,4 +1,3 @@
-import pathlib
 import re
 import subprocess
 import tempfile
@@ -44,7 +43,11 @@ class ReleaseNotesGenerator:
 
             commits = self._run_command(
                 "git",
-                args=["log", '--pretty=format:"%h %s"', f"{self._previous_release}..HEAD"],
+                args=[
+                    "log",
+                    '--pretty=format:"%h %s"',
+                    f"{self._previous_release}..HEAD",
+                ],
                 cwd=repo_dir,
             )
 
@@ -103,7 +106,12 @@ class ReleaseNotesGenerator:
 
         try:
             process = subprocess.run(
-                command, shell=True, check=True, capture_output=True, encoding="utf-8", cwd=cwd,
+                command,
+                shell=True,
+                check=True,
+                capture_output=True,
+                encoding="utf-8",
+                cwd=cwd,
             )
         except subprocess.CalledProcessError as exc:
             logger.warning(
@@ -132,7 +140,9 @@ def main():
 def run(
     release: str, previous_release: str, release_branch: str,
 ):
-    release_notes_generator = ReleaseNotesGenerator(release, previous_release, release_branch)
+    release_notes_generator = ReleaseNotesGenerator(
+        release, previous_release, release_branch
+    )
     try:
         release_notes_generator.run()
     except Exception as exc:

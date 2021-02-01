@@ -427,6 +427,7 @@ test-system: build-test-system ## Run mlrun system tests
 
 .PHONY: test-package
 test-package: ## Run mlrun package tests
+	python -m pip install --upgrade pip~=20.2.0
 	PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) bash ./automation/package_test/test_imports.sh
 
 .PHONY: run-api-undockerized

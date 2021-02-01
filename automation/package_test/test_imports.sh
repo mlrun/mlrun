@@ -8,6 +8,7 @@ test_import () {
     python -m pip install virtualenv
     virtualenv venv
     source venv/bin/activate
+    python -m pip install --upgrade pip~=20.2.0
     pip install ."$1"
     python -c "$2"
     deactivate

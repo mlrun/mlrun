@@ -375,7 +375,7 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
         }
-        env['SERVING_SPEC_ENV'] = json.dumps(serving_spec)
+        env["SERVING_SPEC_ENV"] = json.dumps(serving_spec)
         return env
 
     def to_mock_server(

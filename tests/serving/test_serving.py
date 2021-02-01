@@ -11,7 +11,7 @@ from mlrun.serving.states import RouterState, TaskState
 from mlrun.utils import logger
 
 
-def test_routes(model_class):
+def generate_test_routes(model_class):
     return {
         "m1": TaskState(model_class, class_args={"model_path": "", "multiplier": 100}),
         "m2": TaskState(model_class, class_args={"model_path": "", "multiplier": 200}),
@@ -25,13 +25,13 @@ def test_routes(model_class):
 
 
 router_object = RouterState()
-router_object.routes = test_routes("ModelTestingClass")
+router_object.routes = generate_test_routes("ModelTestingClass")
 
 ensemble_object = RouterState(
     class_name="mlrun.serving.routers.VotingEnsemble",
     class_args={"vote_type": "regression", "prediction_col_name": "predictions"},
 )
-ensemble_object.routes = test_routes("EnsembleModelTestingClass")
+ensemble_object.routes = generate_test_routes("EnsembleModelTestingClass")
 
 
 def generate_spec(graph, mode="sync", params={}):

@@ -83,7 +83,14 @@ def _add_data_states(
 
 
 def deploy_ingestion_function(
-    name, source, featureset, parameters, function_ref=None, local=False, watch=True
+    name,
+    source,
+    featureset,
+    parameters,
+    function_ref=None,
+    local=False,
+    watch=True,
+    modifiers=None,
 ):
     name = name or f"{featureset.metadata.name}_ingest"
     function_ref = function_ref or featureset.spec.function.copy()
@@ -95,17 +102,22 @@ def deploy_ingestion_function(
             f"function reference is missing kind {function_ref}"
         )
 
-    if function_ref.kind == RuntimeKinds.serving:
-        function_ref.code = function_ref.code or ""
-    elif function_ref.kind == RuntimeKinds.spark:
-        function_ref.code = function_ref.code or _default_spark_handler
-        # todo: use spark specific image
-    else:
-        function_ref.code = function_ref.code or _default_job_handler
+    if not function_ref.url:
+        if function_ref.kind == RuntimeKinds.serving:
+            function_ref.code = function_ref.code or ""
+        elif function_ref.kind == RuntimeKinds.spark:
+            function_ref.code = function_ref.code or _default_spark_handler
+        else:
+            function_ref.code = function_ref.code or _default_job_handler
 
+    # todo: use spark specific default image
     function_ref.image = function_ref.image or "mlrun/mlrun"
     function = function_ref.to_function()
     function.metadata.project = featureset.metadata.project
+    if modifiers and not isinstance(modifiers, list):
+        modifiers = [modifiers]
+    for modifier in modifiers or []:
+        function.apply(modifier)
 
     if function.kind == RuntimeKinds.serving:
         # add triggers

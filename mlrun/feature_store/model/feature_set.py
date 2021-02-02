@@ -229,7 +229,7 @@ class FeatureSet(ModelObj):
         if with_defaults:
             targets.extend(default_target_names())
         for target in targets:
-            if not isinstance(target, DataTargetBase):
+            if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
 

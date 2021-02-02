@@ -21,6 +21,7 @@ from .model.base import (
     DataTarget,
 )
 from mlrun.datastore.v3io import parse_v3io_path
+from ..datastore import store_path_to_spark
 
 
 def default_target_names():
@@ -105,6 +106,8 @@ class BaseStoreTarget(DataTargetBase):
     suffix = ""
     is_online = False
     is_offline = False
+    support_spark = False
+    support_storey = False
 
     def __init__(
         self,
@@ -163,11 +166,17 @@ class BaseStoreTarget(DataTargetBase):
             columns=columns, df_module=df_module
         )
 
+    def get_spark_options(self):
+        # options used in spark.read.load(**options)
+        raise NotImplementedError()
+
 
 class ParquetTarget(BaseStoreTarget):
     kind = TargetTypes.parquet
     suffix = ".parquet"
     is_offline = True
+    support_spark = True
+    support_storey = True
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -186,11 +195,19 @@ class ParquetTarget(BaseStoreTarget):
             index_cols=key_column,
         )
 
+    def get_spark_options(self):
+        return {
+            "path": store_path_to_spark(self.path),
+            "format": "parquet",
+        }
+
 
 class CSVTarget(BaseStoreTarget):
     kind = TargetTypes.csv
     suffix = ".csv"
     is_offline = True
+    support_spark = True
+    support_storey = True
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -210,11 +227,21 @@ class CSVTarget(BaseStoreTarget):
             index_cols=key_column,
         )
 
+    def get_spark_options(self):
+        attributes = {"header": "true"}
+        return {
+            "path": store_path_to_spark(self.path),
+            "format": "csv",
+            "options": attributes,
+        }
+
 
 class NoSqlTarget(BaseStoreTarget):
     kind = TargetTypes.nosql
     is_table = True
     is_online = True
+    support_spark = True
+    support_storey = True
 
     def get_table_object(self):
         from storey import Table, V3ioDriver
@@ -244,6 +271,8 @@ class NoSqlTarget(BaseStoreTarget):
 
 
 class DFTarget(BaseStoreTarget):
+    support_storey = True
+
     def __init__(self):
         self.name = "dataframe"
         self._df = None

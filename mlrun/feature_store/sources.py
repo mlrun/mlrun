@@ -15,6 +15,7 @@ from typing import Dict
 import mlrun
 
 from .model.base import DataSource
+from ..datastore import store_path_to_spark
 
 
 def get_source_step(source, key_column=None, time_column=None):
@@ -23,13 +24,16 @@ def get_source_step(source, key_column=None, time_column=None):
         kind = source["kind"] or ""
         source = source_kind_to_driver[kind].from_dict(source)
     if hasattr(source, "to_csv"):
-        source = DFSourceDriver(source)
+        source = DataFrameSource(source)
     if not key_column and not source.key_column:
         raise mlrun.errors.MLRunInvalidArgumentError("key column is not defined")
     return source.to_step(key_column, time_column)
 
 
 class BaseSourceDriver(DataSource):
+    support_spark = False
+    support_storey = False
+
     def to_step(self, key_column=None, time_column=None):
         import storey
 
@@ -39,9 +43,26 @@ class BaseSourceDriver(DataSource):
         """get storey Table object"""
         return None
 
+    def to_dataframe(self):
+        return mlrun.store_manager.object(url=self.path).as_df()
+
+    def to_spark_df(self, session, named_view=False):
+        if self.support_spark:
+            df = session.read.load(**self.get_spark_options())
+            if named_view:
+                df.createOrReplaceTempView(self.name)
+            return df
+        raise NotImplementedError()
+
+    def get_spark_options(self):
+        # options used in spark.read.load(**options)
+        raise NotImplementedError()
+
 
 class CSVSource(BaseSourceDriver):
     kind = "csv"
+    support_storey = True
+    support_spark = True
 
     def __init__(
         self,
@@ -67,19 +88,34 @@ class CSVSource(BaseSourceDriver):
             **attributes,
         )
 
+    def get_spark_options(self):
+        attributes = {"header": "true"}
+        return {
+            "path": store_path_to_spark(self.path),
+            "format": "csv",
+            "options": attributes,
+        }
 
-class DFSourceDriver:
-    def __init__(self, df):
+
+class DataFrameSource:
+    support_storey = True
+
+    def __init__(self, df, key_column=None, time_column=None):
         self._df = df
-        self.key_column = None
-        self.time_column = None
+        self.key_column = key_column
+        self.time_column = time_column
 
     def to_step(self, key_column=None, time_column=None):
         import storey
 
         return storey.DataframeSource(
-            dfs=self._df, key_column=key_column, time_column=time_column,
+            dfs=self._df,
+            key_column=self.key_column or key_column,
+            time_column=self.time_column or time_column,
         )
+
+    def to_dataframe(self):
+        return self._df
 
 
 # map of sources (exclude DF source which is not serializable)

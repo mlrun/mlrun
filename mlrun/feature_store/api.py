@@ -144,27 +144,26 @@ def ingest(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
-    if infer_options & InferOptions.schema():
+    schema_options = InferOptions.get_common_options(
+        infer_options, InferOptions.schema()
+    )
+    if schema_options:
         infer_metadata(
-            featureset,
-            source,
-            options=InferOptions.get_common_options(
-                infer_options, InferOptions.schema()
-            ),
-            namespace=namespace,
+            featureset, source, options=schema_options, namespace=namespace,
         )
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
     )
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
+    print(featureset.to_yaml())
 
     targets = targets or featureset.spec.targets or get_default_targets()
     graph = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df
     )
     df = graph.wait_for_completion()
-    _infer_from_df(df, featureset, options=infer_stats)
+    infer_from_static_df(df, featureset, options=infer_stats)
     featureset.save()
     return df
 
@@ -210,17 +209,18 @@ def infer_metadata(
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
         # find/update entities schema
-        _infer_from_df(
-            source,
-            featureset,
-            entity_columns,
-            InferOptions.get_common_options(options, InferOptions.schema()),
-        )
+        if len(featureset.spec.entities) == 0:
+            infer_from_static_df(
+                source,
+                featureset,
+                entity_columns,
+                InferOptions.get_common_options(options, InferOptions.Entities),
+            )
         graph = init_featureset_graph(source, featureset, namespace, return_df=True)
         source = graph.wait_for_completion()
 
-    _infer_from_df(source, featureset, entity_columns, options)
-    return source
+    df = infer_from_static_df(source, featureset, entity_columns, options)
+    return df
 
 
 def run_ingestion_task(
@@ -279,9 +279,12 @@ def run_ingestion_task(
     return
 
 
-def _infer_from_df(
+def infer_from_static_df(
     df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
 ):
+    """infer feature-set schema & stats from static dataframe (without pipeline)"""
+    if hasattr(df, "to_dataframe"):
+        df = df.to_dataframe()
     if InferOptions.get_common_options(options, InferOptions.schema()):
         featureset.spec.timestamp_key = infer_schema_from_df(
             df,
@@ -295,3 +298,4 @@ def _infer_from_df(
         featureset.status.stats = get_df_stats(df, options)
     if InferOptions.get_common_options(options, InferOptions.Preview):
         featureset.status.preview = get_df_preview(df)
+    return df

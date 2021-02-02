@@ -358,10 +358,17 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
 
 class OutputStream:
-    def __init__(self, stream_path, shards=None, retention_in_hours=None, create=True):
+    def __init__(
+        self,
+        stream_path,
+        shards=None,
+        retention_in_hours=None,
+        create=True,
+        endpoint=None,
+    ):
         import v3io
 
-        self._v3io_client = v3io.dataplane.Client()
+        self._v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         self._container, self._stream_path = split_path(stream_path)
         if create:
             response = self._v3io_client.create_stream(

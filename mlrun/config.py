@@ -75,6 +75,7 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -112,7 +113,10 @@ default_config = {
             "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
         },
-        "model_endpoint_monitoring": {"container": "projects"},
+    },
+    "model_endpoint_monitoring": {
+        "container": "projects",
+        "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
     },
     "secret_stores": {
         "vault": {

@@ -210,8 +210,10 @@ class FeatureSet(ModelObj):
     @property
     def uri(self):
         """fully qualified feature set uri"""
-        uri = f'{self._metadata.project or ""}/{self._metadata.name}:{self._metadata.tag or "latest"}'
+        uri = f'{self._metadata.project or mlconf.default_project}/{self._metadata.name}'
         uri = get_store_uri(StorePrefix.FeatureSet, uri)
+        if self._metadata.tag:
+            uri += ":" + self._metadata.tag
         return uri
 
     def get_target_path(self, name=None):

@@ -57,7 +57,9 @@ def test_dataset_upload():
     which caused us to upbound numpy to 1.20
     see https://github.com/Azure/MachineLearningNotebooks/issues/1314
     """
-    data_frame = pandas.DataFrame({'x': [1, 2]})
+    data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame, target_path=str(target_path))
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=data_frame, target_path=str(target_path)
+    )
     artifact.upload()

@@ -382,7 +382,7 @@ class ServingRuntime(RemoteRuntime):
         return super().deploy(dashboard, project, tag, verbose=verbose)
 
     def _get_runtime_env(self):
-
+        env = super()._get_runtime_env()
         function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
         serving_spec = {
             "function_uri": self._function_uri(),
@@ -395,7 +395,8 @@ class ServingRuntime(RemoteRuntime):
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
         }
-        return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
+        env["SERVING_SPEC_ENV"] = json.dumps(serving_spec)
+        return env
 
     def to_mock_server(
         self, namespace=None, current_function=None, **kwargs

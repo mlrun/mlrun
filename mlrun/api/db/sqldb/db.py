@@ -336,6 +336,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def store_function(
         self, session, function, name, project="", tag="", versioned=False
     ):
+        logger.debug(
+            "Storing function to DB",
+            name=name,
+            project=project,
+            tag=tag,
+            versioned=versioned,
+            function=function,
+        )
         project = project or config.default_project
         get_project_member().ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"

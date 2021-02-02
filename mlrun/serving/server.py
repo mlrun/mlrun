@@ -49,9 +49,10 @@ class _StreamContext:
         self.output_stream = None
 
         log_stream = parameters.get("log_stream", "")
-        if ((enabled and config.model_stream_url) or log_stream) and function_uri:
+        stream_url = config.model_endpoint_monitoring.stream_url
+        if ((enabled and stream_url) or log_stream) and function_uri:
             self.enabled = True
-            log_stream = log_stream or config.model_stream_url
+            log_stream = log_stream or stream_url
             project, _, _, _ = parse_versioned_object_uri(
                 function_uri, config.default_project
             )

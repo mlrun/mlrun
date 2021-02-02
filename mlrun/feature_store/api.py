@@ -230,7 +230,7 @@ def run_ingestion_task(
     name: str = None,
     infer_options: InferOptions = InferOptions.Null,
     parameters: Dict[str, Union[str, list, dict]] = None,
-    function: FunctionReference = None,
+    function=None,
     local=False,
     watch=True,
 ):
@@ -248,7 +248,7 @@ def run_ingestion_task(
     :param name:          name name for the job/function
     :param infer_options: schema and stats infer options
     :param parameters:    extra parameter dictionary which is passed to the graph context
-    :param function:      reference to custom ingestion function (points to function/code/..)
+    :param function:      custom ingestion function
     :param local:         run local emulation using mock_server() or run_local()
     :param watch:         wait for job completion, set to False if you dont want to wait
     """
@@ -269,10 +269,10 @@ def run_ingestion_task(
 
     deploy_ingestion_function(
         name,
-        source,
         featureset,
+        source,
         parameters,
-        function_ref=function,
+        function=function,
         local=local,
         watch=watch,
     )

@@ -45,7 +45,6 @@ class FunctionReference(ModelObj):
 
         self._function = None
         self._address = None
-        self._modifiers = []
 
     def fullname(self, parent):
         return f"{parent.metadata.name}-{self.name}"
@@ -64,16 +63,8 @@ class FunctionReference(ModelObj):
         """get the generated function object"""
         return self._function
 
-    def apply(self, modifier):
-        """apply modifier, e.g. to add a volume or secrets"""
-        self._modifiers.append(modifier)
-        return self
-
-    def to_function(self, default_kind=None, regenerate=False):
-        """generate function object from the reference"""
-        if self._function and not regenerate:
-            return self._function
-
+    def to_function(self, default_kind=None):
+        """generate a function object from the ref definitions"""
         if self.url and "://" not in self.url:
             if not os.path.isfile(self.url):
                 raise OSError("{} not found".format(self.url))
@@ -124,8 +115,6 @@ class FunctionReference(ModelObj):
 
         if self.requirements:
             func.with_requirements(self.requirements)
-        for modifier in self._modifiers:
-            func.apply(modifier)
         self._function = func
         return func
 
@@ -135,7 +124,5 @@ class FunctionReference(ModelObj):
 
     def deploy(self, **kwargs):
         """deploy the function"""
-        if not self._function:
-            self.to_function()
         self._address = self._function.deploy(**kwargs)
         return self._address

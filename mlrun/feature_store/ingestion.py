@@ -83,31 +83,11 @@ def _add_data_states(
 
 
 def deploy_ingestion_function(
-    name, source, featureset, parameters, function_ref=None, local=False, watch=True,
+    name, featureset, source, parameters, function=None, local=False, watch=True,
 ):
-    name = name or f"{featureset.metadata.name}_ingest"
-    function_ref = function_ref or featureset.spec.function.copy()
-    if not function_ref.to_dict():
-        runtime_kind = RuntimeKinds.serving if source.online else RuntimeKinds.job
-        function_ref = FunctionReference(name=name, kind=runtime_kind)
-    if not function_ref.kind:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"function reference is missing kind {function_ref}"
-        )
-
-    if not function_ref.url:
-        if function_ref.kind == RuntimeKinds.serving:
-            function_ref.code = function_ref.code or ""
-        elif function_ref.kind == RuntimeKinds.spark:
-            function_ref.code = function_ref.code or _default_spark_handler
-        else:
-            function_ref.code = function_ref.code or _default_job_handler
-
-    # todo: use spark specific default image
-    function_ref.image = function_ref.image or "mlrun/mlrun"
-    function = function_ref.to_function()
+    if not function:
+        name, function = default_ingestion_function(name, featureset, source.online)
     function.metadata.project = featureset.metadata.project
-
     if function.kind == RuntimeKinds.serving:
         # add triggers
         function.spec.parameters = parameters
@@ -129,6 +109,31 @@ def deploy_ingestion_function(
         )
 
 
+def default_ingestion_function(name, featureset, online):
+    name = name or f"{featureset.metadata.name}_ingest"
+    function_ref = featureset.spec.function.copy()
+    if not function_ref.to_dict():
+        runtime_kind = RuntimeKinds.serving if online else RuntimeKinds.job
+        function_ref = FunctionReference(name=name, kind=runtime_kind)
+    if not function_ref.kind:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"function reference is missing kind {function_ref}"
+        )
+
+    if not function_ref.url:
+        if function_ref.kind == RuntimeKinds.serving:
+            function_ref.code = function_ref.code or ""
+        elif function_ref.kind == RuntimeKinds.spark:
+            function_ref.code = function_ref.code or _default_spark_handler
+        else:
+            function_ref.code = function_ref.code or _default_job_handler
+
+    # todo: use spark specific default image
+    function_ref.image = function_ref.image or "mlrun/mlrun"
+    function = function_ref.to_function()
+    return name, function
+
+
 _default_job_handler = """
 import mlrun
 def handler(context):
@@ -140,8 +145,9 @@ def handler(context):
     server.init(None, globals())
     server.wait_for_completion()
     featureset = server.context.get_store_resource(".")
-    context.logger.info("ingestion task completed:")
-    context.logger.info(f"{featureset.status.to_yaml()}")
+    context.logger.info("ingestion task completed, targets:")
+    context.logger.info(f"{featureset.status.targets.to_yaml()}")
+    context.log_result('featureset', featureset_uri)
 """
 
 

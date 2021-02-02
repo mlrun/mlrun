@@ -140,7 +140,8 @@ def handler(context):
     server.init(None, globals())
     server.wait_for_completion()
     featureset = context.get_store_resource(".")
-    context.logger.info(f"ingestion task completed:\n {featureset.status.to_yaml()}")
+    context.logger.info("ingestion task completed:")
+    context.logger.info(f"{featureset.status.to_yaml()}")
 """
 
 

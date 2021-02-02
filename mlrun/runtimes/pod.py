@@ -145,6 +145,7 @@ class KubeResource(BaseRuntime):
         return struct
 
     def apply(self, modify):
+        """apply modifier, e.g. to add a volume or secrets"""
         return apply_kfp(modify, self._cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):

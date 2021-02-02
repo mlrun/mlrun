@@ -233,7 +233,6 @@ def run_ingestion_task(
     function: FunctionReference = None,
     local=False,
     watch=True,
-    modifiers=None,
 ):
     """Start ingestion task using MLRun job or nuclio function
 
@@ -276,7 +275,6 @@ def run_ingestion_task(
         function_ref=function,
         local=local,
         watch=watch,
-        modifiers=modifiers,
     )
     return
 

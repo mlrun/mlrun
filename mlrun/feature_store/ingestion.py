@@ -83,14 +83,7 @@ def _add_data_states(
 
 
 def deploy_ingestion_function(
-    name,
-    source,
-    featureset,
-    parameters,
-    function_ref=None,
-    local=False,
-    watch=True,
-    modifiers=None,
+    name, source, featureset, parameters, function_ref=None, local=False, watch=True,
 ):
     name = name or f"{featureset.metadata.name}_ingest"
     function_ref = function_ref or featureset.spec.function.copy()
@@ -114,10 +107,6 @@ def deploy_ingestion_function(
     function_ref.image = function_ref.image or "mlrun/mlrun"
     function = function_ref.to_function()
     function.metadata.project = featureset.metadata.project
-    if modifiers and not isinstance(modifiers, list):
-        modifiers = [modifiers]
-    for modifier in modifiers or []:
-        function.apply(modifier)
 
     if function.kind == RuntimeKinds.serving:
         # add triggers
@@ -132,18 +121,26 @@ def deploy_ingestion_function(
             function.deploy()
     else:
         return function.run(
-            params=parameters, schedule=source.schedule, local=local, watch=watch
+            name=name,
+            params=parameters,
+            schedule=source.schedule,
+            local=local,
+            watch=watch,
         )
 
 
 _default_job_handler = """
 import mlrun
 def handler(context):
+    featureset_uri = context.get_param("featureset")
     verbose = context.get_param('verbose', True)
     server = mlrun.serving.create_graph_server(parameters=context.parameters, verbose=verbose)
     server.graph_initializer = "mlrun.feature_store.ingestion.featureset_initializer"
+    context.logger.info(f"starting ingestion task to {featureset_uri}")
     server.init(None, globals())
     server.wait_for_completion()
+    featureset = context.get_store_resource(".")
+    context.logger.info(f"ingestion task completed:\n {featureset.status.to_yaml()}")
 """
 
 

@@ -80,7 +80,9 @@ class Member(
     ):
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers(True, "patch_project", session, name, project, patch_mode)
+        self._run_on_all_followers(
+            True, "patch_project", session, name, project, patch_mode
+        )
         return self.get_project(session, name)
 
     def delete_project(
@@ -89,7 +91,9 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
-        self._run_on_all_followers(False, "delete_project", session, name, deletion_strategy)
+        self._run_on_all_followers(
+            False, "delete_project", session, name, deletion_strategy
+        )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

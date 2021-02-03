@@ -168,7 +168,7 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
 def test_get_endpoint_metrics(db: Session, client: TestClient):
     frames = get_frames_client(
         token=_get_access_key(),
-        container="projects",
+        container=config.model_endpoint_monitoring.container,
         address=config.httpdb.v3io_framesd,
     )
 
@@ -252,7 +252,7 @@ def _write_endpoint_to_kv(endpoint: ModelEndpoint):
         endpoint=config.httdb.v3io_api, access_key=_get_access_key()
     )
     client.kv.put(
-        container="projects",
+        container=config.model_endpoint_monitoring.container,
         table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}/",
         key=endpoint.id,
         attributes={
@@ -275,12 +275,12 @@ def cleanup_endpoints(db: Session, client: TestClient):
 
     frames = get_frames_client(
         token=_get_access_key(),
-        container="projects",
+        container=config.model_endpoint_monitoring.container,
         address=config.httpdb.v3io_framesd,
     )
     try:
         all_records = v3io.kv.new_cursor(
-            container="projects",
+            container=config.model_endpoint_monitoring.container,
             table_path=f"test/{ENDPOINTS_TABLE_PATH}",
             raise_for_status=RaiseForStatus.never,
         ).all()
@@ -290,7 +290,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
         # Cleanup KV
         for record in all_records:
             v3io.kv.delete(
-                container="projects",
+                container=config.model_endpoint_monitoring.container,
                 table_path=f"test/{ENDPOINTS_TABLE_PATH}",
                 key=record,
                 raise_for_status=RaiseForStatus.never,

@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.data_types import ValueType
+from mlrun.data_types.data_types import DataType
 from mlrun.feature_store.common import parse_feature_string
 from mlrun.feature_store import FeatureSet, Feature, Entity
 
 
 def test_feature_set():
     myset = FeatureSet("set1", entities=[Entity("key")])
-    myset["f1"] = Feature(ValueType.INT64, description="my f1")
+    myset["f1"] = Feature(DataType.INT64, description="my f1")
 
     assert list(myset.spec.entities.keys()) == ["key"], "index wasnt set"
     assert list(myset.spec.features.keys()) == ["f1"], "feature wasnt set"

@@ -25,9 +25,8 @@ from .ingestion import (
 )
 from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
 from .targets import get_default_targets
-from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals
-from ..features import infer_schema_from_df, InferOptions, get_df_stats, get_df_preview
+from ..data_types import InferOptions, get_infer_interface
 
 _v3iofs = None
 
@@ -305,8 +304,9 @@ def infer_from_static_df(
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):
         df = df.to_dataframe()
+    inferer = get_infer_interface(df)
     if InferOptions.get_common_options(options, InferOptions.schema()):
-        featureset.spec.timestamp_key = infer_schema_from_df(
+        featureset.spec.timestamp_key = inferer.infer_schema(
             df,
             featureset.spec.features,
             featureset.spec.entities,
@@ -315,7 +315,7 @@ def infer_from_static_df(
             options=options,
         )
     if InferOptions.get_common_options(options, InferOptions.Stats):
-        featureset.status.stats = get_df_stats(df, options)
+        featureset.status.stats = inferer.get_stats(df, options)
     if InferOptions.get_common_options(options, InferOptions.Preview):
-        featureset.status.preview = get_df_preview(df)
+        featureset.status.preview = inferer.get_preview(df)
     return df

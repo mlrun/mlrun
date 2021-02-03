@@ -89,11 +89,11 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        attributes = {"header": "true"}
         return {
             "path": store_path_to_spark(self.path),
             "format": "csv",
-            "options": attributes,
+            "header": "true",
+            "inferSchema": "true",
         }
 
 

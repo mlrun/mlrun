@@ -104,7 +104,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
     client = get_v3io_client(endpoint=config.httpdb.v3io_api)
     client.kv.delete(
-        container=config.httpdb.model_endpoint_monitoring.container,
+        container=config.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
         key=endpoint_id,
         access_key=_get_access_key(request),
@@ -145,7 +145,7 @@ def list_endpoints(
     access_key = _get_access_key(request)
     client = get_v3io_client(endpoint=config.httpdb.v3io_api)
     cursor = client.kv.new_cursor(
-        container=config.httpdb.model_endpoint_monitoring.container,
+        container=config.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
         access_key=access_key,
         attribute_names=ENDPOINT_TABLE_ATTRIBUTES,
@@ -290,7 +290,7 @@ def _get_endpoint_metrics(
     client = get_frames_client(
         token=access_key,
         address=config.httpdb.v3io_framesd,
-        container=config.httpdb.model_endpoint_monitoring.container,
+        container=config.model_endpoint_monitoring.container,
     )
 
     data = client.read(
@@ -362,10 +362,10 @@ def get_endpoint_kv_record_by_id(
     attribute_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
 
-    client = get_v3io_client(endpoint=config.httpdb.v3io_api)
+    client = get_v3io_client(endpoint=config.model_endpoint_monitoring.container)
 
     endpoint = client.kv.get(
-        container=config.httpdb.model_endpoint_monitoring.container,
+        container=config.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
         key=endpoint_id,
         access_key=access_key,

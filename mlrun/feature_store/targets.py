@@ -15,8 +15,6 @@ from typing import Dict
 import mlrun
 from mlrun.utils import now_date
 
-from mlrun.run import get_dataitem
-
 from .model.base import (
     DataTargetBase,
     TargetTypes,
@@ -161,7 +159,7 @@ class BaseStoreTarget(DataTargetBase):
 
     def as_df(self, columns=None, df_module=None):
         """return the target data as dataframe"""
-        return get_dataitem(self._target_path).as_df(
+        return mlrun.get_dataitem(self._target_path).as_df(
             columns=columns, df_module=df_module
         )
 

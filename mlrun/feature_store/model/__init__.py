@@ -20,5 +20,4 @@ from .feature_vector import (
     OnlineVectorService,
     OfflineVectorResponse,
 )
-from .base import Feature, Entity, DataTarget
-from .data_types import ValueType
+from .base import DataTarget

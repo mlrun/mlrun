@@ -232,7 +232,9 @@ class VotingEnsemble(BaseModelRouter):
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
         self.executor_type = executor_type
-        self._model_logger = _ModelLogPusher(self, context)
+        self._model_logger = (
+            _ModelLogPusher(self, context) if context.stream.enabled else None
+        )
         self.version = kwargs.get("version", "v1")
         self.log_router = True
 

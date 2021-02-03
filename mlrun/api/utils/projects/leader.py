@@ -56,7 +56,7 @@ class Member(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:
         self._enrich_and_validate_before_creation(project)
-        self._run_on_all_followers("create_project", session, project)
+        self._run_on_all_followers(True, "create_project", session, project)
         return self.get_project(session, project.metadata.name)
 
     def store_project(
@@ -68,7 +68,7 @@ class Member(
         self._enrich_project(project)
         self.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers("store_project", session, name, project)
+        self._run_on_all_followers(True, "store_project", session, name, project)
         return self.get_project(session, name)
 
     def patch_project(
@@ -80,7 +80,9 @@ class Member(
     ):
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers("patch_project", session, name, project, patch_mode)
+        self._run_on_all_followers(
+            True, "patch_project", session, name, project, patch_mode
+        )
         return self.get_project(session, name)
 
     def delete_project(
@@ -89,7 +91,9 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
-        self._run_on_all_followers("delete_project", session, name, deletion_strategy)
+        self._run_on_all_followers(
+            False, "delete_project", session, name, deletion_strategy
+        )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -133,7 +137,7 @@ class Member(
             leader_projects: mlrun.api.schemas.ProjectsOutput
             follower_projects_map: typing.Dict[str, mlrun.api.schemas.ProjectsOutput]
             leader_projects, follower_projects_map = self._run_on_all_followers(
-                "list_projects", session
+                True, "list_projects", session
             )
             leader_project_names = {
                 project.metadata.name for project in leader_projects.projects
@@ -254,14 +258,18 @@ class Member(
                         )
 
     def _run_on_all_followers(
-        self, method: str, *args, **kwargs
+        self, leader_first: bool, method: str, *args, **kwargs
     ) -> typing.Tuple[typing.Any, typing.Dict[str, typing.Any]]:
+        leader_response = None
+        if leader_first:
+            leader_response = getattr(self._leader_follower, method)(*args, **kwargs)
         # TODO: do it concurrently
-        leader_response = getattr(self._leader_follower, method)(*args, **kwargs)
         follower_responses = {
             follower_name: getattr(follower, method)(*args, **kwargs)
             for follower_name, follower in self._followers.items()
         }
+        if not leader_first:
+            leader_response = getattr(self._leader_follower, method)(*args, **kwargs)
         return leader_response, follower_responses
 
     def _initialize_followers(self):

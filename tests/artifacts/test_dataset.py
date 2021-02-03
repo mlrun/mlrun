@@ -1,6 +1,8 @@
 import numpy
 import pandas
 import pandas.io.json
+import pathlib
+import tests.conftest
 
 import mlrun.artifacts.dataset
 
@@ -47,3 +49,17 @@ def test_dataset_preview_size_limit():
     )
     artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame)
     assert artifact.stats is None
+
+
+def test_dataset_upload():
+    """
+    This test fails when we use numpy>=1.20 and is here to reproduce the scenario that didn't work
+    which caused us to upbound numpy to 1.20
+    see https://github.com/Azure/MachineLearningNotebooks/issues/1314
+    """
+    data_frame = pandas.DataFrame({"x": [1, 2]})
+    target_path = pathlib.Path(tests.conftest.results) / "dataset"
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=data_frame, target_path=str(target_path)
+    )
+    artifact.upload()

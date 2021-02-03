@@ -70,15 +70,15 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
 1. From the main menu, choose **Run | Edit Configurations**.
 
-    ![Edit configurations](_static/images/pycharm/remote-pycharm-run_edit_configurations.png)
+    ![Edit configurations](../_static/images/pycharm/remote-pycharm-run_edit_configurations.png)
 
 2. To set-up default values for all Python configurations, on the left-hand pane of the run/debug configuration dialog, expand the **Templates** node and select the **Python** node. The corresponding configuration template appears in the right-hand pane. Alternatively, you can edit a specific file configuration by choosing the corresponding file on the left-hand pane. Choose the **Environment Variables** edit box and expand it to edit the environment variables.
 
-    ![Edit configuration screen](_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
+    ![Edit configuration screen](../_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
 
 3. Add the environment variables and values of `MLRUN_DBPATH`, `MLRUN_ARTIFACT_PATH`, `V3IO_USERNAME`, `V3IO_API`, and `V3IO_ACCESS_KEY`.
 
-    ![Environment variables](_static/images/pycharm/remote-pycharm-environment_variables.png)
+    ![Environment variables](../_static/images/pycharm/remote-pycharm-environment_variables.png)
 
 ## Remote Environment from VSCode
 
@@ -107,24 +107,24 @@ Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/pyth
 
 To initialize debug configurations, first select the Run view in the sidebar:
 
-![Run icon](_static/images/vscode/debug-icon.png)
+![Run icon](../_static/images/vscode/debug-icon.png)
 
 If you don't yet have any configurations defined, you'll see a button to Run and Debug, as well as a link to create a configuration (launch.json) file:
 
-![Debug toolbar settings command](_static/images/vscode/debug-start.png)
+![Debug toolbar settings command](../_static/images/vscode/debug-start.png)
 
 To generate a `launch.json` file with Python configurations, do the following steps:
 
 1. Click the **create a launch.json file** link (circled in the image above) or use the **Run** > **Open configurations** menu command.
 
 2. A configuration menu will open from the Command Palette allowing you to choose the type of debug configuration you want for the opened file. For now, in the **Select a debug configuration** menu that appears, select **Python File**.
-![Debug configurations menu](_static/images/vscode/debug-configurations.png)
+![Debug configurations menu](../_static/images/vscode/debug-configurations.png)
 
    > **Note** Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists will also bring up the debug configuration menu, but will not create a launch.json file.
 
 3. The Python extension then creates and opens a `launch.json` file that contains a pre-defined configuration based on what you previously selected, in this case **Python File**. You can modify configurations (to add arguments, for example), and also add custom configurations.
 
-   ![Configuration json](_static/images/vscode/configuration-json.png)
+   ![Configuration json](../_static/images/vscode/configuration-json.png)
 
 ### Set Environment File in Debug Configuration
 

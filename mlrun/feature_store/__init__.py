@@ -28,8 +28,7 @@ __all__ = [
 
 
 from .model import FeatureSet, FeatureVector
-from .model.base import Feature, Entity, ValueType
-from .model.validators import MinMaxValidator
+from ..features import Feature, Entity, InferOptions
 from .api import (
     get_offline_features,
     get_online_feature_service,
@@ -38,4 +37,3 @@ from .api import (
     run_ingestion_task,
 )
 from .targets import TargetTypes
-from .infer import InferOptions

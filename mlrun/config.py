@@ -43,7 +43,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
-    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks)
+    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
@@ -53,7 +53,7 @@ default_config = {
     "igz_version": "",  # the version of the iguazio system the API is running on
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
-    "kaniko_version": "v0.24.0",  # kaniko builder version
+    "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_image": "python:3.6-jessie",
     "default_project": "default",  # default project name
@@ -75,6 +75,7 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -109,8 +110,13 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
+            "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
+            "kaniko_init_container_image": "alpine:3.13.1",
         },
-        "model_endpoint_monitoring": {"container": "projects"},
+    },
+    "model_endpoint_monitoring": {
+        "container": "projects",
+        "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
     },
     "secret_stores": {
         "vault": {
@@ -132,6 +138,10 @@ default_config = {
             "nosql": "v3io:///projects/{project}/fs/{kind}",
         },
         "default_targets": "parquet,nosql",
+    },
+    "ui": {
+        "projects_prefix": "projects",  # The UI link prefix for projects
+        "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
 }
 
@@ -210,6 +220,13 @@ class Config:
 
             return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
+
+    @staticmethod
+    def resolve_ui_url():
+        # ui_url is deprecated in favor of the ui.url (we created the ui block)
+        # since the config class is used in a "recursive" way, we can't use property like we used in other places
+        # since the property will need to be url, which exists in other structs as well
+        return config.ui.url or config.ui_url
 
     @property
     def dbpath(self):

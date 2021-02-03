@@ -402,9 +402,9 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def extend_hub_uri(uri):
+def extend_hub_uri_if_needed(uri):
     if not uri.startswith(hub_prefix):
-        return uri
+        return uri, False
     name = uri[len(hub_prefix) :]
     tag = "master"
     if ":" in name:
@@ -414,7 +414,7 @@ def extend_hub_uri(uri):
 
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    return config.hub_url.format(name=name, tag=tag)
+    return config.hub_url.format(name=name, tag=tag), True
 
 
 def gen_md_table(header, rows=None):
@@ -660,7 +660,7 @@ class RunNotifications:
     def slack(self, webhook=""):
         emoji = {"completed": ":smiley:", "running": ":man-running:", "error": ":x:"}
 
-        template = "{}/projects/{}/jobs/{}/info"
+        template = "{}/{}/{}/jobs/{}/info"
 
         webhook = webhook or environ.get("SLACK_WEBHOOK")
         if not webhook:
@@ -673,9 +673,12 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs:
                 meta = r["metadata"]
-                if config.ui_url:
+                if config.resolve_ui_url():
                     url = template.format(
-                        config.ui_url, meta.get("project"), meta.get("uid")
+                        config.resolve_ui_url(),
+                        config.ui.projects_prefix,
+                        meta.get("project"),
+                        meta.get("uid"),
                     )
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:

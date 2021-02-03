@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.feature_store.model import (
-    FeatureSet,
-    Entity,
-    Feature,
-    ValueType,
-)
+from mlrun.data_types import ValueType
 from mlrun.feature_store.common import parse_feature_string
+from mlrun.feature_store import FeatureSet, Feature, Entity
 
 
 def test_feature_set():

@@ -22,7 +22,9 @@ def mount_pvc(pvc_name, volume_name="pipeline", volume_mount_path="/mnt/pipeline
     """
     Modifier function to apply to a Container Op to simplify volume, volume mount addition and
     enable better reuse of volumes, volume claims across container ops.
-    Usage:
+
+    Usage::
+
         train = train_op(...)
         train.apply(mount_pvc('claim-name', 'pipeline', '/mnt/pipeline'))
     """

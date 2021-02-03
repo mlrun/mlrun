@@ -796,6 +796,7 @@ class MlrunProject(ModelObj):
             target_path=target_path,
         )
         self.spec.set_artifact(item.key, item.base_dict())
+        return item
 
     def reload(self, sync=False):
         """reload the project and function objects from yaml/specs

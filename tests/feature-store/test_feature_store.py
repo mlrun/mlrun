@@ -155,7 +155,7 @@ def test_feature_set_db():
     assert len(sets) == 1, "bad number of results"
 
     feature_set = db.get_feature_set(name)
-    assert feature_set.metadata.name == name, "bas feature set response"
+    assert feature_set.metadata.name == name, "bad feature set response"
 
 
 @pytest.mark.skipif(not has_db(), reason="no db access")

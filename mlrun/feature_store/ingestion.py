@@ -85,8 +85,6 @@ def _add_data_states(
 def deploy_ingestion_function(
     name, featureset, source, parameters, function=None, local=False, watch=True,
 ):
-    if not function:
-        name, function = default_ingestion_function(name, featureset, source.online)
     function.metadata.project = featureset.metadata.project
     if function.kind == RuntimeKinds.serving:
         # add triggers
@@ -109,7 +107,7 @@ def deploy_ingestion_function(
         )
 
 
-def default_ingestion_function(name, featureset, online):
+def default_ingestion_function(name, featureset, online, engine=None):
     name = name or f"{featureset.metadata.name}_ingest"
     function_ref = featureset.spec.function.copy()
     if not function_ref.to_dict():
@@ -123,13 +121,17 @@ def default_ingestion_function(name, featureset, online):
     if not function_ref.url:
         if function_ref.kind == RuntimeKinds.serving:
             function_ref.code = function_ref.code or ""
-        elif function_ref.kind == RuntimeKinds.spark:
-            function_ref.code = function_ref.code or _default_spark_handler
         else:
-            function_ref.code = function_ref.code or _default_job_handler
+            engine = engine or featureset.spec.engine
+            if engine and engine == "spark":
+                function_ref.code = function_ref.code or _default_spark_handler
+            else:
+                function_ref.code = function_ref.code or _default_job_handler
 
     # todo: use spark specific default image
-    function_ref.image = function_ref.image or "mlrun/mlrun"
+    function_ref.image = (
+        function_ref.image or mlrun.mlconf.feature_store.default_job_image
+    )
     function = function_ref.to_function()
     return name, function
 

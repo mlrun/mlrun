@@ -18,7 +18,11 @@ import pandas as pd
 from .common import get_feature_vector_by_uri, get_feature_set_by_uri
 from .model.base import DataTargetBase, DataSource
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
-from .ingestion import init_featureset_graph, deploy_ingestion_function
+from .ingestion import (
+    init_featureset_graph,
+    deploy_ingestion_function,
+    default_ingestion_function,
+)
 from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
 from .targets import get_default_targets
 from ..runtimes.function_reference import FunctionReference
@@ -223,6 +227,21 @@ def infer_metadata(
     return df
 
 
+def _set_task_params(featureset, source, targets, parameters, infer_options):
+    source = source or featureset.spec.source
+    parameters = parameters or {}
+    parameters["infer_options"] = infer_options
+    parameters["featureset"] = featureset.uri
+    if not source.online:
+        parameters["source"] = source.to_dict()
+    if targets:
+        parameters["targets"] = [target.to_dict() for target in targets]
+    elif not featureset.spec.targets:
+        featureset.set_targets()
+    featureset.save()
+    return source, parameters
+
+
 def run_ingestion_task(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
@@ -233,6 +252,8 @@ def run_ingestion_task(
     function=None,
     local=False,
     watch=True,
+    auto_mount=False,
+    engine=None,
 ):
     """Start ingestion task using MLRun job or nuclio function
 
@@ -255,17 +276,16 @@ def run_ingestion_task(
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
-    source = source or featureset.spec.source
-    parameters = parameters or {}
-    parameters["infer_options"] = infer_options
-    parameters["featureset"] = featureset.uri
-    if not source.online:
-        parameters["source"] = source.to_dict()
-    if targets:
-        parameters["targets"] = [target.to_dict() for target in targets]
-    elif not featureset.spec.targets:
-        featureset.set_targets()
-    featureset.save()
+    source, parameters = _set_task_params(
+        featureset, source, targets, parameters, infer_options
+    )
+
+    if not function:
+        name, function = default_ingestion_function(
+            name, featureset, source.online, engine
+        )
+    if auto_mount:
+        function.apply(mlrun.platforms.auto_mount())
 
     deploy_ingestion_function(
         name,

@@ -52,6 +52,7 @@ class FeatureSetSpec(ModelObj):
         graph=None,
         function=None,
         analysis=None,
+        engine=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -73,6 +74,7 @@ class FeatureSetSpec(ModelObj):
         self.label_column = label_column
         self.function = function
         self.analysis = analysis or {}
+        self.engine = engine
 
     @property
     def entities(self) -> List[Entity]:
@@ -210,7 +212,9 @@ class FeatureSet(ModelObj):
     @property
     def uri(self):
         """fully qualified feature set uri"""
-        uri = f'{self._metadata.project or mlconf.default_project}/{self._metadata.name}'
+        uri = (
+            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
+        )
         uri = get_store_uri(StorePrefix.FeatureSet, uri)
         if self._metadata.tag:
             uri += ":" + self._metadata.tag

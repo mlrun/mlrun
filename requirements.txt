@@ -11,6 +11,9 @@ nest-asyncio~=1.0
 # >=5.5 from nuclio-jupyter, <7.17 cause from 7.17 python 3.6 is not supported (and models-gpu-legacy image build fail)
 ipython>=5.5, <7.17
 nuclio-jupyter>=0.8.9
+# >=1.16.5 from pandas 1.2.1 and <1.20.0 because we're hitting the same issue as this one
+# https://github.com/Azure/MachineLearningNotebooks/issues/1314
+numpy>=1.16.5, <1.20.0
 pandas~=1.0
 # used as a the engine for parquet files by pandas
 pyarrow~=1.0
@@ -33,7 +36,10 @@ dask~=2.12
 # so without our limitation to <3, 2020.12.0 is installed which is incompatible since it has dask>=2020.12.0 while ours
 # is ~=2.12
 # TODO: dask-kubernetes will probably release 0.11.1 with a fix for this soon and this could be removed
-distributed>=2.5.2, <3
+# (19.01.2021) - >=2.5.2, <3 in the client resolves to 2.30.1, and mlrun/ml-models comes pre-installed with 2.11.0 which
+# is fine for that specifier, but they don't work together (couldn't find why) only 2.23 and up is working, so putting
+# min bound of 2.23
+distributed>=2.23, <3
 # 3.0 iguazio system is running k8s 1.17 so ideally we would use 17.X, but kfp limiting to <12.0
 kubernetes~=11.0
 # TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from

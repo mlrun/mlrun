@@ -283,7 +283,9 @@ def mount_v3iod(namespace, v3io_config_configmap):
 def v3io_cred(api="", user="", access_key=""):
     """
     Modifier function to copy local v3io env vars to task
-    Usage:
+
+    Usage::
+
         train = train_op(...)
         train.apply(use_v3io_cred())
     """
@@ -356,10 +358,17 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
 
 class OutputStream:
-    def __init__(self, stream_path, shards=None, retention_in_hours=None, create=True):
+    def __init__(
+        self,
+        stream_path,
+        shards=None,
+        retention_in_hours=None,
+        create=True,
+        endpoint=None,
+    ):
         import v3io
 
-        self._v3io_client = v3io.dataplane.Client()
+        self._v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         self._container, self._stream_path = split_path(stream_path)
         if create:
             response = self._v3io_client.create_stream(

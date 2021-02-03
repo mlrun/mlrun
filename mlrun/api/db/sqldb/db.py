@@ -206,8 +206,23 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def store_artifact(
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
+        self._store_artifact(session, key, artifact, uid, iter, tag, project)
+
+    def _store_artifact(
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        tag_artifact=True,
+        ensure_project=True,
+    ):
         project = project or config.default_project
-        get_project_member().ensure_project(session, project)
+        if ensure_project:
+            get_project_member().ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -221,8 +236,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         update_labels(art, labels)
         art.struct = artifact
         self._upsert(session, art)
-        tag = tag or "latest"
-        self.tag_artifacts(session, [art], project, tag)
+        if tag_artifact:
+            tag = tag or "latest"
+            self.tag_artifacts(session, [art], project, tag)
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
@@ -320,6 +336,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def store_function(
         self, session, function, name, project="", tag="", versioned=False
     ):
+        logger.debug(
+            "Storing function to DB",
+            name=name,
+            project=project,
+            tag=tag,
+            versioned=versioned,
+            function=function,
+        )
         project = project or config.default_project
         get_project_member().ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
@@ -1227,9 +1251,18 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         db_object, common_object_dict: dict, uid,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
-        db_object.updated = datetime.now(timezone.utc)
+        updated_datetime = datetime.now(timezone.utc)
+        db_object.updated = updated_datetime
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
+
+        common_object_dict["metadata"]["updated"] = str(updated_datetime)
+
+        # In case of an unversioned object, we don't want to return uid to user queries. However,
+        # the uid DB field has to be set, since it's used for uniqueness in the DB.
+        if uid.startswith(unversioned_tagged_object_uid_prefix):
+            common_object_dict["metadata"].pop("uid", None)
+
         db_object.full_object = common_object_dict
 
         labels = common_object_dict["metadata"].pop("labels", {}) or {}
@@ -1355,9 +1388,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
 
-        versioned = not feature_set_record.metadata.uid.startswith(
-            unversioned_tagged_object_uid_prefix
-        )
+        versioned = feature_set_record.metadata.uid is not None
+
         # If a bad kind value was passed, it will fail here (return 422 to caller)
         feature_set = schemas.FeatureSet(**feature_set_struct)
         return self.store_feature_set(
@@ -1532,9 +1564,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_vector_struct, feature_vector_update, strategy=strategy)
 
-        versioned = not feature_vector_record.metadata.uid.startswith(
-            unversioned_tagged_object_uid_prefix
-        )
+        versioned = feature_vector_record.metadata.uid is not None
+
         feature_vector = schemas.FeatureVector(**feature_vector_struct)
         return self.store_feature_vector(
             session,

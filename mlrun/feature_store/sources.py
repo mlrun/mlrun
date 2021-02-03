@@ -20,7 +20,7 @@ from .model.base import DataSource
 def get_source_step(source, key_column=None, time_column=None):
     """initialize the source driver"""
     if isinstance(source, dict):
-        kind = source["kind"]
+        kind = source["kind"] or ""
         source = source_kind_to_driver[kind].from_dict(source)
     if hasattr(source, "to_csv"):
         source = DFSourceDriver(source)

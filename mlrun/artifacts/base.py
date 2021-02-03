@@ -68,7 +68,7 @@ class Artifact(ModelObj):
         self.description = None
         self.viewer = viewer
         self.encoding = None
-        self.labels = None
+        self.labels = {}
         self.annotations = None
         self.sources = []
         self.producer = None

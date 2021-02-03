@@ -17,7 +17,8 @@ import mlrun
 import pandas as pd
 
 
-from .base import DataSource, Feature, DataTarget, CommonMetadata
+from ...features import Feature
+from .base import DataSource, DataTarget, CommonMetadata
 from ..common import parse_feature_string, get_feature_set_by_uri
 from ...model import ModelObj, ObjectList
 from ...artifacts.dataset import upload_dataframe

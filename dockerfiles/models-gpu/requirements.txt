@@ -6,7 +6,7 @@ dask-kubernetes~=0.11.0
 dask-ml~=1.4
 dask[complete]~=2.12
 # see main requirements.txt for reasoning the resrictions
-distributed>=2.5.2, <3
+distributed>=2.23, <3
 face_recognition~=1.3
 gnureadline~=8.0
 imutils~=0.5.3

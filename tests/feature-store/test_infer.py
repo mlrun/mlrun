@@ -1,4 +1,5 @@
-from mlrun.feature_store.infer import infer_from_df, InferOptions
+from mlrun.feature_store.api import _infer_from_df
+from mlrun.features import InferOptions
 from tests.conftest import tests_root_directory
 import pandas as pd
 import mlrun.feature_store as fs
@@ -28,9 +29,21 @@ expected_schema = [
 def test_infer_from_df():
     key = "patient_id"
     df = pd.read_csv(this_dir + "testdata.csv")
-    featureset = fs.FeatureSet("testdata", entities=[fs.Entity(key)])
-    infer_from_df(df, featureset, options=InferOptions.all())
+    df.set_index(key, inplace=True)
+    featureset = fs.FeatureSet("testdata")
+    _infer_from_df(df, featureset, options=InferOptions.all())
     # print(featureset.to_yaml())
+
+    # test entity infer
+    assert len(featureset.spec.entities) == 1, "entity not properly inferred"
+    assert (
+        list(featureset.spec.entities.keys())[0] == key
+    ), "entity key not properly inferred"
+    assert (
+        list(featureset.spec.entities.values())[0].value_type == "str"
+    ), "entity type not properly inferred"
+
+    # test infer features
     assert (
         featureset.spec.features.to_dict() == expected_schema
     ), "did not infer schema properly"

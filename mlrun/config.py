@@ -120,7 +120,6 @@ default_config = {
         "container": "projects",
         "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
         "model_endpoint_monitoring": {"container": "projects"},
-
     },
     "secret_stores": {
         "vault": {

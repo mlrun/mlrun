@@ -148,7 +148,7 @@ def handler(context):
     server.wait_for_completion()
     featureset = server.context.get_store_resource(".")
     context.logger.info("ingestion task completed, targets:")
-    context.logger.info(f"{featureset.status.targets.to_yaml()}")
+    context.logger.info(f"{featureset.status.targets.to_dict()}")
     context.log_result('featureset', featureset_uri)
 """
 

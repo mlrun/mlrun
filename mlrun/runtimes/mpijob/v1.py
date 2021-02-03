@@ -72,11 +72,20 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         quoted_args = []
         for arg in self.spec.args:
             quoted_args.append(shlex.quote(arg))
+        quoted_mpi_args = []
+        for arg in self.spec.mpi_args:
+            quoted_mpi_args.append(shlex.quote(arg))
         if self.spec.command:
             self._update_container(
                 launcher_pod_template,
                 "command",
-                ["mpirun", "python", shlex.quote(self.spec.command)] + quoted_args,
+                [
+                    "mpirun",
+                    *quoted_mpi_args,
+                    "python",
+                    shlex.quote(self.spec.command),
+                    *quoted_args,
+                ],
             )
 
     def _enrich_worker_configurations(self, worker_pod_template):
@@ -86,7 +95,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             )
 
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta
+        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
     ) -> dict:
         pod_labels = deepcopy(meta.labels)
         pod_labels["mlrun/job"] = meta.name
@@ -109,7 +118,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             self._update_container(pod_template, "env", extra_env + self.spec.env)
             if self.spec.image_pull_policy:
                 self._update_container(
-                    pod_template, "imagePullPolicy", self.spec.image_pull_policy
+                    pod_template, "imagePullPolicy", self.spec.image_pull_policy,
                 )
             if self.spec.workdir:
                 self._update_container(pod_template, "workingDir", self.spec.workdir)
@@ -123,8 +132,8 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             update_in(pod_template, "spec.volumes", self.spec.volumes)
 
         # configuration for workers only
-        # update resources only for workers because the launcher doesn't require
-        # special resources (like GPUs, Memory, etc..)
+        # update resources only for workers because the launcher
+        # doesn't require special resources (like GPUs, Memory, etc..)
         self._enrich_worker_configurations(worker_pod_template)
 
         # configuration for launcher only
@@ -136,11 +145,13 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         )
 
         # update the replicas only for workers
-        update_in(job, "spec.mpiReplicaSpecs.Worker.replicas", self.spec.replicas or 1)
+        update_in(
+            job, "spec.mpiReplicaSpecs.Worker.replicas", self.spec.replicas or 1,
+        )
 
         if execution.get_param("slots_per_worker"):
             update_in(
-                job, "spec.slotsPerWorker", execution.get_param("slots_per_worker")
+                job, "spec.slotsPerWorker", execution.get_param("slots_per_worker"),
             )
 
         update_in(job, "metadata", meta.to_dict())
@@ -168,7 +179,11 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:
-        return MpiRuntimeV1.crd_group, MpiRuntimeV1.crd_version, MpiRuntimeV1.crd_plural
+        return (
+            MpiRuntimeV1.crd_group,
+            MpiRuntimeV1.crd_version,
+            MpiRuntimeV1.crd_plural,
+        )
 
 
 class MpiV1RuntimeHandler(BaseRuntimeHandler):
@@ -182,7 +197,8 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
         launcher_status = (
             crd_object.get("status", {}).get("replicaStatuses", {}).get("Launcher", {})
         )
-        # the launcher status also has running property, but it's empty for short period after the creation, so we're
+        # the launcher status also has running property, but it's empty for
+        # short period after the creation, so we're
         # checking terminal state by the completion time existence
         in_terminal_state = (
             crd_object.get("status", {}).get("completionTime", None) is not None
@@ -216,4 +232,8 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:
-        return MpiRuntimeV1.crd_group, MpiRuntimeV1.crd_version, MpiRuntimeV1.crd_plural
+        return (
+            MpiRuntimeV1.crd_group,
+            MpiRuntimeV1.crd_version,
+            MpiRuntimeV1.crd_plural,
+        )

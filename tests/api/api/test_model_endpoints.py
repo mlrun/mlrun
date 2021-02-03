@@ -169,7 +169,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
     frames = get_frames_client(
         token=_get_access_key(),
         container="projects",
-        address=config.httpdb.v3io_framesd,
+        address=config.v3io_framesd,
     )
 
     start = datetime.utcnow()
@@ -270,13 +270,13 @@ def _write_endpoint_to_kv(endpoint: ModelEndpoint):
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
     v3io = get_v3io_client(
-        endpoint=config.httpdb.v3io_api, access_key=_get_access_key()
+        endpoint=config.v3io_api, access_key=_get_access_key()
     )
 
     frames = get_frames_client(
         token=_get_access_key(),
         container="projects",
-        address=config.httpdb.v3io_framesd,
+        address=config.v3io_framesd,
     )
     try:
         all_records = v3io.kv.new_cursor(

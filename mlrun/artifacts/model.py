@@ -13,9 +13,12 @@
 # limitations under the License.
 from os import path
 from tempfile import mktemp
+from typing import List
 
 import yaml
-
+import mlrun
+from ..features import infer_schema_from_df, Feature, InferOptions, get_df_stats
+from ..model import ObjectList
 from ..datastore import store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
 
@@ -23,7 +26,10 @@ model_spec_filename = "model_spec.yaml"
 
 
 class ModelArtifact(Artifact):
-    """ML Model artifact"""
+    """ML Model artifact
+
+    Store link to ML model file(s) along with the model metrics, parameters, schema, and stats
+    """
 
     _dict_fields = Artifact._dict_fields + [
         "model_file",
@@ -33,6 +39,9 @@ class ModelArtifact(Artifact):
         "outputs",
         "framework",
         "extra_data",
+        "feature_vector",
+        "feature_weights",
+        "feature_stats",
     ]
     kind = "model"
 
@@ -48,17 +57,58 @@ class ModelArtifact(Artifact):
         inputs=None,
         outputs=None,
         framework=None,
+        feature_vector=None,
+        feature_weights=None,
         extra_data=None,
     ):
 
         super().__init__(key, body, format=format, target_path=target_path)
+        self._inputs: ObjectList = None
+        self._outputs: ObjectList = None
+
         self.model_file = model_file
         self.parameters = parameters or {}
         self.metrics = metrics or {}
-        self.inputs = inputs or []
-        self.outputs = outputs or []
+        self.inputs: List[Feature] = inputs or []
+        self.outputs: List[Feature] = outputs or []
         self.extra_data = extra_data or {}
         self.framework = framework
+        self.feature_vector = feature_vector
+        self.feature_weights = feature_weights
+        self.feature_stats = None
+
+    @property
+    def inputs(self) -> List[Feature]:
+        """input feature list"""
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, inputs: List[Feature]):
+        self._inputs = ObjectList.from_list(Feature, inputs)
+
+    @property
+    def outputs(self) -> List[Feature]:
+        """output feature list"""
+        return self._outputs
+
+    @outputs.setter
+    def outputs(self, outputs: List[Feature]):
+        self._outputs = ObjectList.from_list(Feature, outputs)
+
+    def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
+        """infer inputs, outputs, and stats from provided df (training set)"""
+        subset = df
+        if label_columns:
+            subset = df.drop(columns=label_columns)
+        infer_schema_from_df(subset, self.inputs, {}, options=InferOptions.Features)
+        if label_columns:
+            infer_schema_from_df(
+                df[label_columns], self.outputs, {}, options=InferOptions.Features
+            )
+        if with_stats:
+            self.feature_stats = get_df_stats(
+                df, options=InferOptions.Histogram, num_bins=num_bins
+            )
 
     @property
     def is_dir(self):
@@ -199,10 +249,13 @@ def update_model(
     parameters: dict = None,
     metrics: dict = None,
     extra_data: dict = None,
-    inputs: list = None,
-    outputs: list = None,
+    inputs: List[Feature] = None,
+    outputs: List[Feature] = None,
+    feature_vector: str = None,
+    feature_weights: list = None,
     key_prefix: str = "",
     labels: dict = None,
+    write_spec_copy=True,
 ):
     """Update model object attributes
 
@@ -218,10 +271,13 @@ def update_model(
     :param metrics:         model metrics e.g. accuracy
     :param extra_data:      extra data items key, value dict
                             (value can be: path string | bytes | artifact)
-    :param inputs:          list of inputs (feature vector schema)
-    :param outputs:         list of outputs (output vector schema)
+    :param inputs:          list of input features (feature vector schema)
+    :param outputs:         list of output features (output vector schema)
+    :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+    :param feature_weights: list of feature weights, one per input column
     :param key_prefix:      key prefix to add to metrics and extra data items
     :param labels:          metadata labels
+    :param write_spec_copy: write a YAML copy of the spec to the target dir
     """
 
     if hasattr(model_artifact, "artifact_url"):
@@ -250,6 +306,10 @@ def update_model(
         model_spec.inputs = inputs
     if outputs:
         model_spec.outputs = outputs
+    if feature_weights:
+        model_spec.feature_weights = feature_weights
+    if feature_vector:
+        model_spec.feature_vector = feature_vector
 
     if extra_data:
         for key, item in extra_data.items():
@@ -258,13 +318,16 @@ def update_model(
 
         upload_extra_data(model_spec, extra_data, prefix=key_prefix, update_spec=True)
 
-    spec_path = path.join(model_spec.target_path, model_spec_filename)
-    store_manager.object(url=spec_path).put(model_spec.to_yaml())
+    if write_spec_copy:
+        spec_path = path.join(model_spec.target_path, model_spec_filename)
+        store_manager.object(url=spec_path).put(model_spec.to_yaml())
 
-    store_manager._get_db().store_artifact(
+    model_spec.db_key = model_spec.db_key or model_spec.key
+    mlrun.get_run_db().store_artifact(
         model_spec.db_key,
         model_spec.to_dict(),
         model_spec.tree,
         iter=model_spec.iter,
         project=model_spec.project,
     )
+    return model_spec

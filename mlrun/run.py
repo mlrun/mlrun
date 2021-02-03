@@ -52,7 +52,7 @@ from .utils import (
     parse_versioned_object_uri,
     update_in,
     new_pipe_meta,
-    extend_hub_uri,
+    extend_hub_uri_if_needed,
 )
 from .utils import retry_until_successful
 
@@ -355,7 +355,7 @@ def get_or_create_ctx(
     return ctx
 
 
-def import_function(url="", secrets=None, db=""):
+def import_function(url="", secrets=None, db="", project=None):
     """Create function object from DB or local/remote YAML file
 
     Function can be imported from function repositories (mlrun marketplace or local db),
@@ -375,21 +375,27 @@ def import_function(url="", secrets=None, db=""):
     :param url: path/url to marketplace, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
+    :param project: optional, target project for the function
 
     :returns: function object
     """
+    is_hub_uri = False
     if url.startswith("db://"):
         url = url[5:]
-        project, name, tag, hash_key = parse_versioned_object_uri(url)
+        _project, name, tag, hash_key = parse_versioned_object_uri(url)
         db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
-        runtime = db.get_function(name, project, tag, hash_key)
+        runtime = db.get_function(name, _project, tag, hash_key)
         if not runtime:
             raise KeyError("function {}:{} not found in the DB".format(name, tag))
-        return new_function(runtime=runtime)
-
-    url = extend_hub_uri(url)
-    runtime = import_function_to_dict(url, secrets)
-    return new_function(runtime=runtime)
+    else:
+        url, is_hub_uri = extend_hub_uri_if_needed(url)
+        runtime = import_function_to_dict(url, secrets)
+    function = new_function(runtime=runtime)
+    # When we're importing from the hub we want to assign to a target project, otherwise any store on it will
+    # simply default to the default project
+    if project and is_hub_uri:
+        function.metadata.project = project
+    return function
 
 
 def import_function_to_dict(url, secrets=None):
@@ -949,17 +955,17 @@ def list_pipelines(
 
     :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
     :param page_token: A page token to request the next page of results. The token is acquried from the nextPageToken
-    field of the response from the previous call or can be omitted when fetching the first page.
-    :param page_size: The number of pipelines to be listed per page. If there are more pipelines than this number, the
-    response message will contain a nextPageToken field you can use to fetch the next page.
-    :param sort_by: Can be format of "field_name", "field_name asc" or "field_name desc" (Example, "name asc"
-    or "id desc"). Ascending by default.
-    :param filter_: A url-encoded, JSON-serialized Filter protocol buffer
-    (see [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto)).
-    :param namespace: Kubernetes namespace if other than default
-    :param project: Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that filtering
-    by project can't be used together with pagination, sorting, or custom filter.
-    :param format_: Control what will be returned (full/metadata_only/name_only)
+                       field of the response from the previous call or can be omitted when fetching the first page.
+    :param page_size:  The number of pipelines to be listed per page. If there are more pipelines than this number, the
+                       response message will contain a nextPageToken field you can use to fetch the next page.
+    :param sort_by:    Can be format of "field_name", "field_name asc" or "field_name desc" (Example, "name asc"
+                       or "id desc"). Ascending by default.
+    :param filter_:    A url-encoded, JSON-serialized Filter protocol buffer, see:
+                       [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto).
+    :param namespace:  Kubernetes namespace if other than default
+    :param project:    Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that
+                       filtering by project can't be used together with pagination, sorting, or custom filter.
+    :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
         format_ = mlrun.api.schemas.Format.full

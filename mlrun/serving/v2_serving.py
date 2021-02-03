@@ -73,7 +73,9 @@ class V2ModelServer:
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
         self._params = class_args
-        self._model_logger = _ModelLogPusher(self, context)
+        self._model_logger = (
+            _ModelLogPusher(self, context) if context.stream.enabled else None
+        )
 
         self.metrics = {}
         self.labels = {}
@@ -182,7 +184,13 @@ class V2ModelServer:
         if op == "predict" or op == "infer":
             # predict operation
             request = self._pre_event_processing_actions(event, op)
-            outputs = self.predict(request)
+            try:
+                outputs = self.predict(request)
+            except Exception as e:
+                if self._model_logger:
+                    self._model_logger.push(start, request, op=op, error=e)
+                raise e
+
             response = {
                 "id": request["id"],
                 "model_name": self.name,
@@ -219,7 +227,13 @@ class V2ModelServer:
         elif op == "explain":
             # explain operation
             request = self._pre_event_processing_actions(event, op)
-            outputs = self.explain(request)
+            try:
+                outputs = self.explain(request)
+            except Exception as e:
+                if self._model_logger:
+                    self._model_logger.push(start, request, op=op, error=e)
+                raise e
+
             response = {
                 "id": request["id"],
                 "model_name": self.name,
@@ -239,7 +253,7 @@ class V2ModelServer:
 
         response = self.postprocess(response)
         if self._model_logger:
-            self._model_logger.push(start, request, response)
+            self._model_logger.push(start, request, response, op)
         event.body = response
         return event
 
@@ -274,10 +288,11 @@ class V2ModelServer:
 class _ModelLogPusher:
     def __init__(self, model, context, output_stream=None):
         self.model = model
+        self.verbose = context.verbose
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
-        self.stream_batch = context.stream.stream_batch
-        self.stream_sample = context.stream.stream_sample
+        self.stream_batch = int(context.get_param("log_stream_sample", 1))
+        self.stream_sample = int(context.get_param("log_stream_batch", 1))
         self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id
         self._sample_iter = 0
@@ -297,7 +312,19 @@ class _ModelLogPusher:
             base_data["labels"] = self.model.labels
         return base_data
 
-    def push(self, start, request, resp):
+    def push(self, start, request, resp=None, op=None, error=None):
+        if error:
+            data = self.base_data()
+            data["request"] = request
+            data["op"] = op
+            data["when"] = str(start)
+            message = str(error)
+            if self.verbose:
+                message = f"{message}\n{traceback.format_exc()}"
+            data["error"] = message
+            self.output_stream.push([data])
+            return
+
         self._sample_iter = (self._sample_iter + 1) % self.stream_sample
         if self.output_stream and self._sample_iter == 0:
             microsec = (datetime.now() - start).microseconds
@@ -306,18 +333,26 @@ class _ModelLogPusher:
                 if self._batch_iter == 0:
                     self._batch = []
                 self._batch.append(
-                    [request, resp, str(start), microsec, self.model.metrics]
+                    [request, op, resp, str(start), microsec, self.model.metrics]
                 )
                 self._batch_iter = (self._batch_iter + 1) % self.stream_batch
 
                 if self._batch_iter == 0:
                     data = self.base_data()
-                    data["headers"] = ["request", "resp", "when", "microsec", "metrics"]
+                    data["headers"] = [
+                        "request",
+                        "op",
+                        "resp",
+                        "when",
+                        "microsec",
+                        "metrics",
+                    ]
                     data["values"] = self._batch
                     self.output_stream.push([data])
             else:
                 data = self.base_data()
                 data["request"] = request
+                data["op"] = op
                 data["resp"] = resp
                 data["when"] = str(start)
                 data["microsec"] = microsec

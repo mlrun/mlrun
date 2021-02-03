@@ -34,6 +34,7 @@ def generate_spec(graph, mode="sync", params={}):
         "graph": graph,
         "load_mode": mode,
         "verbose": True,
+        "function_uri": "default/func",
     }
 
 
@@ -48,6 +49,20 @@ asyncspec = generate_spec(
         },
     },
     "async",
+)
+
+
+raiser_spec = generate_spec(
+    {
+        "kind": "router",
+        "routes": {
+            "m6": {
+                "class_name": "RaiserTestingClass",
+                "class_args": {"model_path": "."},
+            },
+        },
+    },
+    params={"log_stream": "dummy://"},
 )
 
 
@@ -71,6 +86,15 @@ class ModelTestingClass(V2ModelServer):
 
     def op_myop(self, event):
         return event.body
+
+
+class RaiserTestingClass(V2ModelServer):
+    def load(self):
+        print("loading..")
+
+    def predict(self, request):
+        print("predict:", request)
+        raise ValueError("simulated error..")
 
 
 class AsyncModelTestingClass(V2ModelServer):
@@ -132,6 +156,17 @@ def test_v2_stream_mode():
     logger.info(f"resp: {resp.body}")
     data = json.loads(resp.body)
     assert data["outputs"]["explained"] == 5, f"wrong model response {data}"
+
+
+def test_v2_raised_err():
+    os.environ["SERVING_SPEC_ENV"] = json.dumps(raiser_spec)
+    context = GraphContext()
+    nuclio_init_hook(context, globals(), serving_subkind)
+
+    event = MockEvent(testdata, path="/v2/models/m6/infer")
+    resp = context.mlrun_handler(context, event)
+    context.logger.info(f"model responded: {resp}")
+    assert resp.status_code == 400, "expecting Response() with status_code 400"
 
 
 def test_v2_async_mode():
@@ -249,9 +284,13 @@ def test_function():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("router")
     fn.add_model("my", class_name="ModelTestingClass", model_path=".", multiplier=100)
+    fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
     logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/my/infer", testdata)
     # expected: source (5) * multiplier (100)
     assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"

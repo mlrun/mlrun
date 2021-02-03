@@ -53,7 +53,7 @@ default_config = {
     "igz_version": "",  # the version of the iguazio system the API is running on
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
-    "kaniko_version": "v0.24.0",  # kaniko builder version
+    "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_image": "python:3.6-jessie",
     "default_project": "default",  # default project name
@@ -75,6 +75,7 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -109,11 +110,18 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
+            "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
+            "kaniko_init_container_image": "alpine:3.13.1",
         },
-        "model_endpoint_monitoring": {"container": "projects"},
-        "v3io_api": "",
-        "v3io_framesd": "",
     },
+    "model_endpoint_monitoring": {
+        "container": "projects",
+        "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
+        "model_endpoint_monitoring": {"container": "projects"},
+
+    },
+    "v3io_api": "",
+    "v3io_framesd": "",
     "secret_stores": {
         "vault": {
             # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:

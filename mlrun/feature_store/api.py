@@ -16,7 +16,6 @@ from typing import List, Union, Dict
 import mlrun
 import pandas as pd
 from .common import get_feature_vector_by_uri, get_feature_set_by_uri
-from .infer import InferOptions, infer_from_df
 from .model.base import DataTargetBase, DataSource
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
 from .ingestion import init_featureset_graph, deploy_ingestion_function
@@ -24,6 +23,7 @@ from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVector
 from .targets import get_default_targets
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals
+from ..features import infer_schema_from_df, InferOptions, get_df_stats, get_df_preview
 
 _v3iofs = None
 
@@ -164,7 +164,7 @@ def ingest(
         source, featureset, namespace, targets=targets, return_df=return_df
     )
     df = graph.wait_for_completion()
-    infer_from_df(df, featureset, options=infer_stats)
+    _infer_from_df(df, featureset, options=infer_stats)
     featureset.save()
     return df
 
@@ -210,7 +210,7 @@ def infer_metadata(
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
         # find/update entities schema
-        infer_from_df(
+        _infer_from_df(
             source,
             featureset,
             entity_columns,
@@ -219,7 +219,7 @@ def infer_metadata(
         graph = init_featureset_graph(source, featureset, namespace, return_df=True)
         source = graph.wait_for_completion()
 
-    infer_from_df(source, featureset, entity_columns, options)
+    _infer_from_df(source, featureset, entity_columns, options)
     return source
 
 
@@ -277,3 +277,21 @@ def run_ingestion_task(
         watch=watch,
     )
     return
+
+
+def _infer_from_df(
+    df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
+):
+    if InferOptions.get_common_options(options, InferOptions.schema()):
+        featureset.spec.timestamp_key = infer_schema_from_df(
+            df,
+            featureset.spec.features,
+            featureset.spec.entities,
+            featureset.spec.timestamp_key,
+            entity_columns,
+            options=options,
+        )
+    if InferOptions.get_common_options(options, InferOptions.Stats):
+        featureset.status.stats = get_df_stats(df, options)
+    if InferOptions.get_common_options(options, InferOptions.Preview):
+        featureset.status.preview = get_df_preview(df)

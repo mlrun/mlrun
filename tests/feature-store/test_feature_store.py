@@ -16,8 +16,8 @@ from mlrun.utils import logger
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
 from mlrun.feature_store import FeatureSet, Entity, run_ingestion_task
-from mlrun.feature_store.model.data_types import ValueType
-from mlrun.feature_store.model.validators import MinMaxValidator
+from mlrun.data_types import ValueType
+from mlrun.features import MinMaxValidator
 
 
 local_dir = f"{tests_root_directory}/feature-store/"

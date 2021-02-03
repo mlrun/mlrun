@@ -79,9 +79,9 @@ You can implement your own model serving or data processing classes, all you nee
 base model serving class and add your implementation for model `load()` (download the model file(s) and load the model into memory) 
 and `predict()` (accept request payload and return prediction/inference results).
 
-you can override additional methods : `preprocess`, `validate`, `postprocess`, `explain`<br>
+you can override additional methods : `preprocess`, `validate`, `postprocess`, `explain`,<br>
 you can add custom api endpoint by adding method `op_xx(event)` (which can be invoked by
-calling the `<model-url>/xx`, where operation = xx), see [model class API]().
+calling the `<model-url>/xx`, where operation = xx), see [model class API](./model-api.md).
 
 #### **Minimal sklearn serving function example:**
 

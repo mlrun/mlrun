@@ -353,11 +353,18 @@ class BasePod:
     def init_container(self, container):
         self._init_container = container
 
-    def set_init_container(self, image, command=None, args=None, env=None):
+    def set_init_container(
+        self, image, command=None, args=None, env=None, image_pull_policy="IfNotPresent"
+    ):
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
         self._init_container = client.V1Container(
-            name="init", image=image, env=env, command=command, args=args
+            name="init",
+            image=image,
+            env=env,
+            command=command,
+            args=args,
+            image_pull_policy=image_pull_policy,
         )
 
     def add_label(self, key, value):

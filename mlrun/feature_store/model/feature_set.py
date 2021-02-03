@@ -17,10 +17,9 @@ from typing import List
 import mlrun
 import pandas as pd
 
+from ...features import Feature, Entity
 from .base import (
     FeatureAggregation,
-    Feature,
-    Entity,
     DataTarget,
     DataSource,
     DataTargetBase,

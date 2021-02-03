@@ -75,6 +75,8 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    "v3io_api": "",
+    "v3io_framesd": "",
     # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
@@ -113,8 +115,6 @@ default_config = {
             "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
         },
-        "v3io_api": "",
-        "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
         "container": "projects",
@@ -329,6 +329,18 @@ def read_env(env=None, prefix=env_prefix):
         config["dbpath"] = "http://mlrun-api:{}".format(
             default_config["httpdb"]["port"] or 8080
         )
+
+    # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
+    # of MLRUN_V3IO_API)
+    v3io_api = env.get("V3IO_API")
+    if v3io_api:
+        config["v3io_api"] = v3io_api
+
+    # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
+    # of MLRUN_V3IO_FRAMESD)
+    v3io_framesd = env.get("V3IO_FRAMESD")
+    if v3io_framesd:
+        config["v3io_framesd"] = v3io_framesd
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")

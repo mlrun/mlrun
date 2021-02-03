@@ -20,6 +20,7 @@ class TestMLRunSystem:
     mandatory_env_vars = [
         "MLRUN_DBPATH",
         "V3IO_API",
+        "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
     ]

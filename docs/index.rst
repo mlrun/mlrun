@@ -17,7 +17,7 @@ MLRun offers a convenient abstraction layer to a wide variety of technology stac
 **MLRun Architecture**
 
 .. image:: _static/images/mlrun-architecture.png
-
+    :alt: MLRun architecture
 
 MLRun comprises of the following layers:
 
@@ -83,6 +83,7 @@ Table Of Content
    store/datastore
    store/artifacts
    store/models
+   store/feature-store-demo
 
 .. toctree::
    :maxdepth: 1

@@ -52,7 +52,7 @@ from .utils import (
     parse_versioned_object_uri,
     update_in,
     new_pipe_meta,
-    extend_hub_uri,
+    extend_hub_uri_if_needed,
 )
 from .utils import retry_until_successful
 
@@ -355,7 +355,7 @@ def get_or_create_ctx(
     return ctx
 
 
-def import_function(url="", secrets=None, db=""):
+def import_function(url="", secrets=None, db="", project=None):
     """Create function object from DB or local/remote YAML file
 
     Function can be imported from function repositories (mlrun marketplace or local db),
@@ -375,21 +375,27 @@ def import_function(url="", secrets=None, db=""):
     :param url: path/url to marketplace, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
+    :param project: optional, target project for the function
 
     :returns: function object
     """
+    is_hub_uri = False
     if url.startswith("db://"):
         url = url[5:]
-        project, name, tag, hash_key = parse_versioned_object_uri(url)
+        _project, name, tag, hash_key = parse_versioned_object_uri(url)
         db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
-        runtime = db.get_function(name, project, tag, hash_key)
+        runtime = db.get_function(name, _project, tag, hash_key)
         if not runtime:
             raise KeyError("function {}:{} not found in the DB".format(name, tag))
-        return new_function(runtime=runtime)
-
-    url = extend_hub_uri(url)
-    runtime = import_function_to_dict(url, secrets)
-    return new_function(runtime=runtime)
+    else:
+        url, is_hub_uri = extend_hub_uri_if_needed(url)
+        runtime = import_function_to_dict(url, secrets)
+    function = new_function(runtime=runtime)
+    # When we're importing from the hub we want to assign to a target project, otherwise any store on it will
+    # simply default to the default project
+    if project and is_hub_uri:
+        function.metadata.project = project
+    return function
 
 
 def import_function_to_dict(url, secrets=None):

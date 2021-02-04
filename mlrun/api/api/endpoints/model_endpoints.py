@@ -466,7 +466,7 @@ async def grafana_list_endpoints(request: Request):
     return [{"columns": columns, "rows": rows, "type": "table"}]
 
 
-@router.get("/model-endpoints-grafana-proxy/", status_code=HTTPStatus.OK.value)
+@router.get("/model-endpoints-grafana-proxy", status_code=HTTPStatus.OK.value)
 def grafana_list_endpoints(request: Request):
     _get_access_key(request)
     return Response(status_code=HTTPStatus.OK.value)

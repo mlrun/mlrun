@@ -1,9 +1,8 @@
-from typing import Optional, List, Tuple, Any, Dict
+from hashlib import md5
+from typing import Optional, List, Tuple, Any, Dict, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
-
-from hashlib import md5
 
 from mlrun.api.schemas.object import (
     ObjectKind,
@@ -96,3 +95,14 @@ class ModelEndpointState(BaseModel):
 
 class ModelEndpointStateList(BaseModel):
     endpoints: List[ModelEndpointState]
+
+
+class GrafanaColumn(BaseModel):
+    text: str
+    type: str
+
+
+class GrafanaTable(BaseModel):
+    columns: List[GrafanaColumn]
+    rows: List[List[Union[int, float, str]]]
+    type: str = "table"

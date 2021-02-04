@@ -16,6 +16,8 @@ from mlrun.api.schemas import (
     Features,
     Metric,
     ObjectStatus,
+    GrafanaTable,
+    GrafanaColumn,
 )
 from mlrun.config import config
 from mlrun.errors import (
@@ -393,40 +395,43 @@ def _get_access_key(_request: Request):
     return access_key
 
 
-@router.post("/model-endpoints-grafana-proxy/query")
+@router.post(
+    "/projects/model-endpoints-grafana-proxy/query", response_model=List[GrafanaTable]
+)
 async def grafana_list_endpoints(request: Request):
     body = await request.json()
     target = body.get("target")
+
     if not target:
         raise Exception("testing testing")
 
     parameters = dict(t.split("=") for t in target.split(";"))
-
     project = parameters.get("project")
     model = parameters.get("model", None)
     function = parameters.get("function", None)
     tag = parameters.get("tag", None)
     labels = parameters.get("labels", "").split(",")
-    start = parameters.get("start", "now-1h")
-    end = parameters.get("end", "now")
     metrics = parameters.get("metrics", "").split(",")
+
+    start = body.get("rangeRaw", {}).get("start", "now-1h")
+    end = body.get("rangeRaw", {}).get("end", "now")
 
     endpoint_list: ModelEndpointStateList = list_endpoints(
         request, project, model, function, tag, labels, start, end, metrics,
     )
 
     columns = [
-        {"text": "endpoint_id", "type": "string"},
-        {"text": "endpoint_function", "type": "string"},
-        {"text": "endpoint_model", "type": "string"},
-        {"text": "endpoint_model_class", "type": "string"},
-        {"text": "endpoint_tag", "type": "string"},
-        {"text": "first_request", "type": "time"},
-        {"text": "last_request", "type": "time"},
-        {"text": "accuracy", "type": "number"},
-        {"text": "error_count", "type": "number"},
-        {"text": "alert_count", "type": "number"},
-        {"text": "drift_status", "type": "number"},
+        GrafanaColumn(text="endpoint_id", type="string"),
+        GrafanaColumn(text="endpoint_function", type="string"),
+        GrafanaColumn(text="endpoint_model", type="string"),
+        GrafanaColumn(text="endpoint_model_class", type="string"),
+        GrafanaColumn(text="endpoint_tag", type="string"),
+        GrafanaColumn(text="first_request", type="time"),
+        GrafanaColumn(text="last_request", type="time"),
+        GrafanaColumn(text="accuracy", type="number"),
+        GrafanaColumn(text="error_count", type="number"),
+        GrafanaColumn(text="alert_count", type="number"),
+        GrafanaColumn(text="drift_status", type="number"),
     ]
 
     metric_columns = []
@@ -437,7 +442,7 @@ async def grafana_list_endpoints(request: Request):
             for key in endpoint_state.metrics.keys():
                 if key not in found_metrics:
                     found_metrics.add(key)
-                    metric_columns.append({"text": key, "type": "number"})
+                    metric_columns.append(GrafanaColumn(text=key, type="number"))
 
     columns = columns + metric_columns
 
@@ -458,15 +463,15 @@ async def grafana_list_endpoints(request: Request):
         ]
 
         if metric_columns and endpoint_state.metrics:
-            for col in metric_columns:
-                row.append(endpoint_state.metrics[col["text"]])
+            for metric_column in metric_columns:
+                row.append(endpoint_state.metrics[metric_column.text])
 
         rows.append(row)
 
-    return [{"columns": columns, "rows": rows, "type": "table"}]
+    return [GrafanaTable(columns=columns, rows=rows)]
 
 
-@router.get("/model-endpoints-grafana-proxy", status_code=HTTPStatus.OK.value)
+@router.get("/projects/model-endpoints-grafana-proxy", status_code=HTTPStatus.OK.value)
 def grafana_list_endpoints(request: Request):
     _get_access_key(request)
     return Response(status_code=HTTPStatus.OK.value)

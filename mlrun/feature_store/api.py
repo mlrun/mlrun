@@ -64,6 +64,9 @@ def get_offline_features(
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
+    specify list of features or feature vector object/uri and retrieve the desired features,
+    their metadata and statistics. results can be returned as a dataframe or written to a target
+
     example::
 
         features = [
@@ -227,21 +230,6 @@ def infer_metadata(
     return df
 
 
-def _set_task_params(featureset, source, targets, parameters, infer_options):
-    source = source or featureset.spec.source
-    parameters = parameters or {}
-    parameters["infer_options"] = infer_options
-    parameters["featureset"] = featureset.uri
-    if not source.online:
-        parameters["source"] = source.to_dict()
-    if targets:
-        parameters["targets"] = [target.to_dict() for target in targets]
-    elif not featureset.spec.targets:
-        featureset.set_targets()
-    featureset.save()
-    return source, parameters
-
-
 def run_ingestion_task(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
@@ -255,7 +243,13 @@ def run_ingestion_task(
     auto_mount=False,
     engine=None,
 ):
-    """Start ingestion task using MLRun job or nuclio function
+    """Start ingestion task using remote MLRun job, spark or nuclio function
+
+    Deploy and run batch job or real-time function implementing feature ingestion pipeline
+    the source type and attributes will determine if its batch or real-time
+    HTTP or Streaming sources will deploy real-time functions, offline (csv, parquet, ..)
+    sources will deploy mlrun python or spark jobs (use the `engine` attribute to select spark),
+    for scheduled jobs set the schedule attribute in the offline source.
 
     example::
 
@@ -272,6 +266,8 @@ def run_ingestion_task(
     :param function:      custom ingestion function
     :param local:         run local emulation using mock_server() or run_local()
     :param watch:         wait for job completion, set to False if you dont want to wait
+    :param auto_mount:    add PVC or v3io volume to the function (using mlrun.platform.auto_mount)
+    :param engine:        ingestion engine, set to "spark" for using Spark
     """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -312,6 +308,21 @@ def spark_ingestion(
 ):
     """Start ingestion task using Spark
 
+    example::
+
+        # custom transformation function
+        def transform(spark, context, df):
+            df.filter("age > 40")
+            return df
+
+        spark = SparkSession.builder.appName("Spark function").getOrCreate()
+        featureset = fs.FeatureSet("iris", entities=[fs.Entity("length")])
+        source = CSVSource('mydata', 'v3io:///projects/iris/mycsv.csv')
+        targets = [CSVTarget('out', 'v3io:///projects/iris/dataout')]
+
+        df = spark_ingestion(spark, featureset, source, targets,
+                             fs.InferOptions.all(), transformer=transform)
+
     :param spark:         spark session
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -338,26 +349,6 @@ def spark_ingestion(
     return df
 
 
-def spark_job_handler(context):
-    featureset, source, targets, infer_options = context_to_ingestion_params(context)
-    if not source:
-        raise ValueError("data source was not specified")
-    from pyspark.sql import SparkSession
-
-    spark = SparkSession.builder.appName(f"{context.name}-{context.uid}").getOrCreate()
-    handler = globals().get(spark_transform_handler, None)
-    spark_ingestion(
-        spark,
-        featureset,
-        source,
-        targets,
-        infer_options,
-        mlrun_context=context,
-        transformer=handler,
-    )
-    spark.stop()
-
-
 def infer_from_static_df(
     df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
 ):
@@ -379,3 +370,18 @@ def infer_from_static_df(
     if InferOptions.get_common_options(options, InferOptions.Preview):
         featureset.status.preview = inferer.get_preview(df)
     return df
+
+
+def _set_task_params(featureset, source, targets, parameters, infer_options):
+    source = source or featureset.spec.source
+    parameters = parameters or {}
+    parameters["infer_options"] = infer_options
+    parameters["featureset"] = featureset.uri
+    if not source.online:
+        parameters["source"] = source.to_dict()
+    if targets:
+        parameters["targets"] = [target.to_dict() for target in targets]
+    elif not featureset.spec.targets:
+        featureset.set_targets()
+    featureset.save()
+    return source, parameters

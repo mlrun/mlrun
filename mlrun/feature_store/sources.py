@@ -18,11 +18,13 @@ from .model.base import DataSource
 from ..datastore import store_path_to_spark
 
 
+def get_source_from_dict(source):
+    kind = source["kind"] or ""
+    return source_kind_to_driver[kind].from_dict(source)
+
+
 def get_source_step(source, key_column=None, time_column=None):
     """initialize the source driver"""
-    if isinstance(source, dict):
-        kind = source["kind"] or ""
-        source = source_kind_to_driver[kind].from_dict(source)
     if hasattr(source, "to_csv"):
         source = DataFrameSource(source)
     if not key_column and not source.key_column:

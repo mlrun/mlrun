@@ -22,6 +22,7 @@ from .ingestion import (
     init_featureset_graph,
     deploy_ingestion_function,
     default_ingestion_function,
+    context_to_ingestion_params,
 )
 from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
 from .targets import get_default_targets
@@ -29,6 +30,7 @@ from ..utils import get_caller_globals
 from ..data_types import InferOptions, get_infer_interface
 
 _v3iofs = None
+spark_transform_handler = "transform"
 
 
 try:
@@ -159,7 +161,6 @@ def ingest(
     )
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
-    print(featureset.to_yaml())
 
     targets = targets or featureset.spec.targets or get_default_targets()
     graph = init_featureset_graph(
@@ -295,7 +296,66 @@ def run_ingestion_task(
         local=local,
         watch=watch,
     )
+    if watch:
+        featureset.reload()
     return
+
+
+def spark_ingestion(
+    spark,
+    featureset: Union[FeatureSet, str],
+    source: DataSource = None,
+    targets: List[DataTargetBase] = None,
+    infer_options: InferOptions = InferOptions.Null,
+    mlrun_context=None,
+    transformer=None,
+):
+    """Start ingestion task using Spark
+
+    :param spark:         spark session
+    :param featureset:    feature set object or uri
+    :param source:        data source object describing the online or offline source
+    :param targets:       list of data target objects
+    :param infer_options: schema and stats infer options
+    :param mlrun_context: mlrun context (when running as a job)
+    :param transformer:   custom transformation function
+    """
+    if isinstance(featureset, str):
+        featureset = get_feature_set_by_uri(featureset)
+
+    df = source.to_spark_df(spark)
+    infer_from_static_df(df, featureset, options=infer_options)
+
+    if transformer:
+        df = transformer(spark, mlrun_context, df)
+
+    for target in targets or []:
+        df.write.mode("overwrite").save(**target.get_spark_options())
+        target.set_resource(featureset)
+        target.update_resource_status("ready")
+
+    featureset.save()
+    return df
+
+
+def spark_job_handler(context):
+    featureset, source, targets, infer_options = context_to_ingestion_params(context)
+    if not source:
+        raise ValueError("data source was not specified")
+    from pyspark.sql import SparkSession
+
+    spark = SparkSession.builder.appName(f"{context.name}-{context.uid}").getOrCreate()
+    handler = globals().get(spark_transform_handler, None)
+    spark_ingestion(
+        spark,
+        featureset,
+        source,
+        targets,
+        infer_options,
+        mlrun_context=context,
+        transformer=handler,
+    )
+    spark.stop()
 
 
 def infer_from_static_df(

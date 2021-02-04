@@ -2,7 +2,7 @@ import os
 
 import mlrun
 import pytest
-import pandas as pd
+
 from tests.conftest import results, tests_root_directory
 
 from mlrun.feature_store.sources import CSVSource
@@ -161,16 +161,11 @@ def test_feature_set_db():
 @pytest.mark.skipif(not has_db(), reason="no db access")
 def test_serverless_ingest():
     init_store()
+    key = "patient_id"
 
-    measurements = fs.FeatureSet("measurements", entities=[Entity("patient_id")])
-    src_df = pd.read_csv(local_dir + "testdata.csv")
-    df = fs.infer_metadata(
-        measurements,
-        src_df,
-        timestamp_key="timestamp",
-        options=fs.InferOptions.default(),
+    measurements = fs.FeatureSet(
+        "measurements", entities=[Entity(key)], timestamp_key="timestamp"
     )
-    print(df.head(5))
     target_path = os.path.relpath(results_dir + "mycsv.csv")
     source = CSVSource("mycsv", path=os.path.relpath(local_dir + "testdata.csv"))
     targets = [CSVTarget("mycsv", path=target_path)]
@@ -182,9 +177,17 @@ def test_serverless_ingest():
         source,
         targets,
         name="test_ingest",
-        infer_options=fs.InferOptions.Null,
+        infer_options=fs.InferOptions.schema() + fs.InferOptions.Stats,
         parameters={},
         function=None,
         local=True,
     )
     assert os.path.exists(target_path), "result file was not generated"
+    features = sorted(measurements.spec.features.keys())
+    stats = sorted(measurements.status.stats.keys())
+    print(features)
+    print(stats)
+    stats.remove("timestamp")
+    assert features == stats, "didnt infer stats for all features"
+
+    print(measurements.to_yaml())

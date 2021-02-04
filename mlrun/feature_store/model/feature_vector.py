@@ -203,6 +203,15 @@ class FeatureVector(ModelObj):
         as_dict = self.to_dict()
         db.store_feature_vector(as_dict, tag=tag, versioned=versioned)
 
+    def reload(self, update_spec=True):
+        """reload/sync the feature set status and spec from the DB"""
+        from_db = mlrun.get_run_db().get_feature_vector(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
+        self.status = from_db.status
+        if update_spec:
+            self.spec = from_db.spec
+
     def parse_features(self):
         """parse and validate feature list (from vector) and add metadata from feature sets
 

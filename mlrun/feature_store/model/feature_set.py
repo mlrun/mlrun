@@ -363,3 +363,12 @@ class FeatureSet(ModelObj):
             "features", []
         )  # bypass DB bug
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
+
+    def reload(self, update_spec=True):
+        """reload/sync the feature vector status and spec from the DB"""
+        from_db = mlrun.get_run_db().get_feature_set(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
+        self.status = from_db.status
+        if update_spec:
+            self.spec = from_db.spec

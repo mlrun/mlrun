@@ -45,7 +45,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     table = None
 
     for target in targets:
-        driver = get_target_driver(target.kind, target, resource)
+        driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
         driver.add_writer_state(
@@ -79,7 +79,7 @@ def get_offline_target(featureset, start_time=None, name=None):
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_offline and (not name or name == target.name):
-            return get_target_driver(target.kind, target, featureset)
+            return get_target_driver(target, featureset)
     return None
 
 
@@ -89,12 +89,14 @@ def get_online_target(featureset):
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_online:
-            return get_target_driver(target.kind, target, featureset)
+            return get_target_driver(target, featureset)
     return None
 
 
-def get_target_driver(kind, target_spec, resource=None):
-    driver_class = kind_to_driver[kind]
+def get_target_driver(target_spec, resource=None):
+    if isinstance(target_spec, dict):
+        target_spec = DataTargetBase.from_dict(target_spec)
+    driver_class = kind_to_driver[target_spec.kind]
     return driver_class.from_spec(target_spec, resource)
 
 
@@ -123,6 +125,9 @@ class BaseStoreTarget(DataTargetBase):
 
         self._target = None
         self._resource = None
+
+    def set_resource(self, resource):
+        self._resource = resource
 
     @classmethod
     def from_spec(cls, spec: DataTargetBase, resource=None):

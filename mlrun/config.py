@@ -139,6 +139,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
+        "default_spark_image": "",
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects

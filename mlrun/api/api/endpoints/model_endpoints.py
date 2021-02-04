@@ -396,7 +396,7 @@ def _get_access_key(_request: Request):
 
 
 @router.post(
-    "/projects/model-endpoints-grafana-proxy/query", response_model=List[GrafanaTable]
+    "/model-endpoints-grafana-proxy/query", response_model=List[GrafanaTable]
 )
 async def grafana_list_endpoints(request: Request):
     body = await request.json()
@@ -471,7 +471,7 @@ async def grafana_list_endpoints(request: Request):
     return [GrafanaTable(columns=columns, rows=rows)]
 
 
-@router.get("/projects/model-endpoints-grafana-proxy", status_code=HTTPStatus.OK.value)
+@router.get("/model-endpoints-grafana-proxy", status_code=HTTPStatus.OK.value)
 def grafana_list_endpoints(request: Request):
     _get_access_key(request)
     return Response(status_code=HTTPStatus.OK.value)

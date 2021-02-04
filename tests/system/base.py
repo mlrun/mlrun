@@ -1,12 +1,13 @@
 import os
 import pathlib
-import pytest
 import sys
+
+import pytest
 import yaml
 
+import mlrun.api.schemas
 from mlrun import get_run_db, mlconf, set_environment
 from mlrun.utils import create_logger
-
 
 logger = create_logger(level="debug", name="test")
 
@@ -58,8 +59,10 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        self._run_db.del_runs(project=self.project_name, days_ago=1)
-        self._run_db.del_artifacts(project=self.project_name, tag="*")
+        self._run_db.delete_project(
+            self.project_name,
+            deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascade,
+        )
 
         self._teardown_env()
         self._logger.info(

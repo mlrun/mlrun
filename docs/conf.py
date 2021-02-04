@@ -53,12 +53,13 @@ release = current_version()
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "myst_nb",
     "sphinx.ext.napoleon",
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
-    "myst_nb",
+    "sphinx_togglebutton",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -74,12 +75,13 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 
 source_suffix = {
     ".rst": "restructuredtext",
     ".ipynb": "myst-nb",
     ".myst": "myst-nb",
+    ".md": "myst-nb",
 }
 
 
@@ -87,41 +89,50 @@ source_suffix = {
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
-html_theme = "alabaster"
-try:
-    import sphinx_rtd_theme  # noqa
 
-    html_theme = "sphinx_book_theme"
-except ImportError:
-    pass
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
-html_title = "Mlrun"
-
-html_theme_options = {
-    "repository_url": "https://github.com/mlrun/mlrun",
-    "use_repository_button": True,
-    "use_issues_button": True,
-    "use_edit_page_button": True,
-    "path_to_docs": "docs",
-    "home_page_in_toc": True,
-    "repository_branch": "development",
-}
-
-html_title = "The MLOps Stack"
+html_theme = "sphinx_book_theme"
+html_title = ""
 html_logo = "./MLRun_Character.png"
 html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
 jupyter_execute_notebooks = "off"
 html_sourcelink_suffix = ""
 
-# -- Extension configuration -------------------------------------------------
+# Add any paths that contain custom static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin static files,
+# so a file named "default.css" will overwrite the builtin "default.css".
+html_static_path = ["_static"]
 
-# -- Options for todo extension ----------------------------------------------
+html_theme_options = {
+    "github_url": "https://github.com/mlrun/mlrun",
+    "repository_url": "https://github.com/mlrun/mlrun",
+    "use_repository_button": True,
+    "use_issues_button": True,
+    "use_edit_page_button": True,
+    "path_to_docs": "docs",
+    "home_page_in_toc": False,
+    "repository_branch": "development",
+    "show_navbar_depth": 1,
+    "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
+    "extra_footer": "",
+    "google_analytics_id": "",
+}
+
+copybutton_selector = "div:not(.output) > div.highlight pre"
+
+myst_enable_extensions = [
+    "colon_fence",
+    "deflist",
+    "html_image",
+    "html_admonition",
+    "smartquotes",
+    "replacements",
+    "linkify",
+    "substitution",
+]
+myst_url_schemes = ("http", "https", "mailto")
+panels_add_bootstrap_css = False
+
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True

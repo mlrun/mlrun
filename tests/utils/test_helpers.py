@@ -2,7 +2,7 @@ from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils.helpers import (
     verify_field_regex,
-    extend_hub_uri,
+    extend_hub_uri_if_needed,
     enrich_image_url,
     get_parsed_docker_registry,
     StorePrefix,
@@ -78,7 +78,7 @@ def test_extend_hub_uri():
     for case in cases:
         input_uri = case["input_uri"]
         expected_output = case["expected_output"]
-        output = extend_hub_uri(input_uri)
+        output, _ = extend_hub_uri_if_needed(input_uri)
         assert expected_output == output
 
 

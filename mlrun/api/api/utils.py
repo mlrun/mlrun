@@ -92,7 +92,9 @@ def _parse_submit_run_body(db_session: Session, data):
         function = new_function(runtime=function_dict)
     else:
         if "://" in function_url:
-            function = import_function(url=function_url)
+            function = import_function(
+                url=function_url, project=task.get("metadata", {}).get("project")
+            )
         else:
             project, name, tag, hash_key = parse_versioned_object_uri(function_url)
             function_record = get_db().get_function(

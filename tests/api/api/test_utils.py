@@ -127,6 +127,23 @@ def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
     )
 
 
+def test_parse_submit_job_imported_function_project_assignment(
+    db: Session, client: TestClient, monkeypatch
+):
+    task_name = "task_name"
+    task_project = "task-project"
+    _mock_import_function(monkeypatch)
+    submit_job_body = {
+        "task": {
+            "spec": {"function": "hub://gen_class_data"},
+            "metadata": {"name": task_name, "project": task_project},
+        },
+        "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
+    }
+    parsed_function_object, task = _parse_submit_run_body(db, submit_job_body)
+    assert parsed_function_object.metadata.project == task_project
+
+
 def test_get_obj_path(db: Session, client: TestClient):
     cases = [
         {"path": "/local/path", "expected_path": "/local/path"},
@@ -202,7 +219,33 @@ def test_get_obj_path(db: Session, client: TestClient):
             mlrun.mlconf.httpdb.data_volume = old_data_volume
 
 
+def _mock_import_function(monkeypatch):
+    def _mock_import_function_to_dict(*args, **kwargs):
+        _, _, _, original_function = _generate_original_function()
+        return original_function
+
+    monkeypatch.setattr(
+        mlrun.run, "import_function_to_dict", _mock_import_function_to_dict
+    )
+
+
 def _mock_original_function(client):
+    (
+        project,
+        function_name,
+        function_tag,
+        original_function,
+    ) = _generate_original_function()
+    resp = client.post(
+        f"/api/func/{project}/{function_name}",
+        json=original_function,
+        params={"tag": function_tag},
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    return project, function_name, function_tag, original_function
+
+
+def _generate_original_function():
     function_name = "function_name"
     project = "some-project"
     function_tag = "function_tag"
@@ -256,13 +299,6 @@ def _mock_original_function(client):
             "replicas": "1",
         },
     }
-
-    resp = client.post(
-        f"/api/func/{project}/{function_name}",
-        json=original_function,
-        params={"tag": function_tag},
-    )
-    assert resp.status_code == HTTPStatus.OK.value
     return project, function_name, function_tag, original_function
 
 

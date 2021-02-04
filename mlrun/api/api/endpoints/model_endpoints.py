@@ -104,7 +104,7 @@ def clear_endpoint_record(project: str, endpoint_id: str):
 
     logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
     get_v3io_client().kv.delete(
-        container=config.httpdb.model_endpoint_monitoring.container,
+        container=config.model_endpoint_monitoring.container,
         table_path=ENDPOINTS_TABLE_PATH,
         key=endpoint_id,
     )
@@ -143,7 +143,7 @@ def list_endpoints(
 
     client = get_v3io_client()
     cursor = client.kv.new_cursor(
-        container=config.httpdb.model_endpoint_monitoring.container,
+        container=config.model_endpoint_monitoring.container,
         table_path=ENDPOINTS_TABLE_PATH,
         attribute_names=ENDPOINT_TABLE_ATTRIBUTES,
         filter_expression=_build_kv_cursor_filter_expression(
@@ -274,9 +274,7 @@ def _get_endpoint_metrics(
     for metric in metrics:
         columns.append(metric.tsdb_column)
 
-    data = get_frames_client(
-        container=config.httpdb.model_endpoint_monitoring.container
-    ).read(
+    data = get_frames_client(container=config.model_endpoint_monitoring.container).read(
         backend="tsdb",
         table=ENDPOINT_EVENTS_TABLE_PATH,
         columns=columns,
@@ -344,7 +342,7 @@ def _get_endpoint_kv_record_by_id(
     endpoint = (
         get_v3io_client()
         .kv.get(
-            container=config.httpdb.model_endpoint_monitoring.container,
+            container=config.model_endpoint_monitoring.container,
             table_path=ENDPOINTS_TABLE_PATH,
             key=endpoint_id,
             attribute_names=attribute_names or "*",

@@ -84,14 +84,14 @@ class Features(BaseModel):
 
 class ModelEndpointState(BaseModel):
     endpoint: ModelEndpoint
-    first_request: Optional[str]
-    last_request: Optional[str]
+    first_request: Optional[str] = None
+    last_request: Optional[str] = None
     accuracy: Optional[float] = None
-    error_count: Optional[int]
-    alert_count: Optional[int]
-    drift_status: Optional[str]
-    metrics: Optional[Dict[str, Metric]] = None
-    features: Optional[List[Features]] = None
+    error_count: Optional[int] = None
+    alert_count: Optional[int] = None
+    drift_status: Optional[str] = None
+    metrics: Dict[str, Metric] = {}
+    features: List[Features] = []
 
 
 class ModelEndpointStateList(BaseModel):

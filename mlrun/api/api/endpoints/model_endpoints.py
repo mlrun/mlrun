@@ -391,3 +391,82 @@ def _get_access_key(_request: Request):
             "Request header missing 'X-V3io-Session-Key' parameter."
         )
     return access_key
+
+
+@router.post("/model-endpoints-grafana-proxy/query")
+async def grafana_list_endpoints(request: Request):
+    body = await request.json()
+    target = body.get("target")
+    if not target:
+        raise Exception("testing testing")
+
+    parameters = dict(t.split("=") for t in target.split(";"))
+
+    project = parameters.get("project")
+    model = parameters.get("model", None)
+    function = parameters.get("function", None)
+    tag = parameters.get("tag", None)
+    labels = parameters.get("labels", "").split(",")
+    start = parameters.get("start", "now-1h")
+    end = parameters.get("end", "now")
+    metrics = parameters.get("metrics", "").split(",")
+
+    endpoint_list: ModelEndpointStateList = list_endpoints(
+        request, project, model, function, tag, labels, start, end, metrics,
+    )
+
+    columns = [
+        {"text": "endpoint_id", "type": "string"},
+        {"text": "endpoint_function", "type": "string"},
+        {"text": "endpoint_model", "type": "string"},
+        {"text": "endpoint_model_class", "type": "string"},
+        {"text": "endpoint_tag", "type": "string"},
+        {"text": "first_request", "type": "time"},
+        {"text": "last_request", "type": "time"},
+        {"text": "accuracy", "type": "number"},
+        {"text": "error_count", "type": "number"},
+        {"text": "alert_count", "type": "number"},
+        {"text": "drift_status", "type": "number"},
+    ]
+
+    metric_columns = []
+
+    found_metrics = set()
+    for endpoint_state in endpoint_list.endpoints:
+        if endpoint_state.metrics:
+            for key in endpoint_state.metrics.keys():
+                if key not in found_metrics:
+                    found_metrics.add(key)
+                    metric_columns.append({"text": key, "type": "number"})
+
+    columns = columns + metric_columns
+
+    rows = []
+    for endpoint_state in endpoint_list.endpoints:
+        row = [
+            endpoint_state.endpoint.id,
+            endpoint_state.endpoint.spec.function,
+            endpoint_state.endpoint.spec.model,
+            endpoint_state.endpoint.spec.model_class,
+            endpoint_state.endpoint.metadata.tag,
+            endpoint_state.first_request,
+            endpoint_state.last_request,
+            endpoint_state.accuracy,
+            endpoint_state.error_count,
+            endpoint_state.alert_count,
+            endpoint_state.drift_status,
+        ]
+
+        if metric_columns and endpoint_state.metrics:
+            for col in metric_columns:
+                row.append(endpoint_state.metrics[col["text"]])
+
+        rows.append(row)
+
+    return [{"columns": columns, "rows": rows, "type": "table"}]
+
+
+@router.get("/model-endpoints-grafana-proxy/", status_code=HTTPStatus.OK.value)
+def grafana_list_endpoints(request: Request):
+    _get_access_key(request)
+    return Response(status_code=HTTPStatus.OK.value)

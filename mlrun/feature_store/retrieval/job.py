@@ -1,5 +1,6 @@
 import uuid
 
+import mlrun
 from mlrun.model import new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger

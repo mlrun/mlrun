@@ -8,6 +8,8 @@ def run_merge_job(
     name = vector.metadata.name
     if not name:
         raise ValueError("feature vector name must be specified")
+    if not target or not hasattr(target, 'to_dict'):
+        raise ValueError("target object must be specified")
     name = f"{name}_merger"
     function_ref = vector.spec.function
     if not function_ref.to_dict():
@@ -23,7 +25,7 @@ def run_merge_job(
             name=name,
             handler="merge_handler",
             params={
-                "vector": vector.uri,
+                "vector_uri": vector.uri,
                 "target": target.to_dict(),
                 "timestamp_column": timestamp_column,
             },

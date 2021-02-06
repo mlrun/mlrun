@@ -23,6 +23,7 @@ from ..common import parse_feature_string, get_feature_set_by_uri
 from ...model import ModelObj, ObjectList
 from ...artifacts.dataset import upload_dataframe
 from ...config import config as mlconf
+from ...runtimes.function_reference import FunctionReference
 from ...serving.states import RootFlowState
 from ..targets import get_offline_target, ParquetTarget, CSVTarget
 from ...datastore import get_store_uri
@@ -45,6 +46,7 @@ class FeatureVectorSpec(ModelObj):
         self._graph: RootFlowState = None
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
+        self._function: FunctionReference = None
 
         self.description = description
         self.features: List[str] = features or []
@@ -83,6 +85,15 @@ class FeatureVectorSpec(ModelObj):
     def graph(self, graph):
         self._graph = self._verify_dict(graph, "graph", RootFlowState)
         self._graph.engine = "async"
+
+    @property
+    def function(self) -> FunctionReference:
+        """reference to template graph processing function"""
+        return self._function
+
+    @function.setter
+    def function(self, function):
+        self._function = self._verify_dict(function, "function", FunctionReference)
 
 
 class FeatureVectorStatus(ModelObj):

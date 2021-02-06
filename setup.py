@@ -57,8 +57,8 @@ api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 # NOTE: These are tested in `automation/package_test/test_imports.sh` If
 # you modify these, make sure to change the corresponding line there.
 extras_require = {
-    "s3": ["boto3~=1.9"],
-    "azure-blob-storage": ["azure-storage-blob~=12.0"],
+    "s3": ["boto3~=1.9", "s3fs~=0.5"],
+    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=0.6"],
 }
 extras_require["complete"] = sorted(
     {

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-import os
+import fsspec
 from azure.storage.blob import BlobServiceClient
 from .base import DataStore, FileStats
 
@@ -25,11 +25,25 @@ class AzureBlobStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
 
-        con_string = self._secret("AZURE_STORAGE_CONNECTION_STRING") or os.getenv(
-            "AZURE_STORAGE_CONNECTION_STRING"
-        )
+        con_string = self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
         if con_string:
             self.bsc = BlobServiceClient.from_connection_string(con_string)
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        try:
+            import adlfs
+        except ImportError as e:
+            if not silent:
+                raise ImportError(
+                    f"Azure adlfs not installed, run pip install adlfs, {e}"
+                )
+            return None
+        return fsspec.filesystem(
+            "az",
+            account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT"),
+            account_key=self._get_secret_or_env("AZURE_STORAGE_KEY"),
+        )
 
     def upload(self, key, src_path):
         # Need to strip leading / from key

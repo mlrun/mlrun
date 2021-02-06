@@ -24,7 +24,7 @@ from ...model import ModelObj, ObjectList
 from ...artifacts.dataset import upload_dataframe
 from ...config import config as mlconf
 from ...serving.states import RootFlowState
-from ..targets import get_offline_target
+from ..targets import get_offline_target, ParquetTarget, CSVTarget
 from ...datastore import get_store_uri
 from ...utils import StorePrefix
 
@@ -39,6 +39,7 @@ class FeatureVectorSpec(ModelObj):
         timestamp_field=None,
         graph=None,
         label_column=None,
+        function=None,
         analysis=None,
     ):
         self._graph: RootFlowState = None
@@ -52,6 +53,7 @@ class FeatureVectorSpec(ModelObj):
         self.graph = graph
         self.timestamp_field = timestamp_field
         self.label_column = label_column
+        self.function = function
         self.analysis = analysis or {}
 
     @property
@@ -85,7 +87,13 @@ class FeatureVectorSpec(ModelObj):
 
 class FeatureVectorStatus(ModelObj):
     def __init__(
-        self, state=None, targets=None, features=None, stats=None, preview=None
+        self,
+        state=None,
+        targets=None,
+        features=None,
+        stats=None,
+        preview=None,
+        run_uri=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -95,6 +103,7 @@ class FeatureVectorStatus(ModelObj):
         self.stats = stats or {}
         self.preview = preview or []
         self.features: List[Feature] = features or []
+        self.run_uri = run_uri
 
     @property
     def targets(self) -> List[DataTarget]:
@@ -312,19 +321,14 @@ class OfflineVectorResponse:
 
     def to_dataframe(self):
         """return result as dataframe"""
-        if self.status != "ready":
+        if self.status != "completed":
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
         return self._merger.get_df()
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        return self._upload(target_path, "parquet", **kw)
+        ParquetTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return self._upload(target_path, "csv", **kw)
-
-    def _upload(self, target_path, format="parquet", src_path=None, **kw):
-        upload_dataframe(
-            self._merger.get_df(), target_path, format=format, src_path=src_path, **kw,
-        )
+        CSVTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)

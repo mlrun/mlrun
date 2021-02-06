@@ -46,7 +46,12 @@ class LocalFeatureMerger:
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
-        # todo: if target, upload to target, save target info to status
+        if target:
+            target.write_datafreme(self._result_df)
+            if self.vector.metadata.name:
+                target.set_resource(self.vector)
+                target.update_resource_status("ready")
+                self.vector.save()
 
         return OfflineVectorResponse(self)
 
@@ -108,7 +113,7 @@ class LocalFeatureMerger:
     def get_status(self):
         if self._result_df is None:
             raise RuntimeError("unexpected status, no result df")
-        return "ready"
+        return "completed"
 
     def get_df(self):
         return self._result_df

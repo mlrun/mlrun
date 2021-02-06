@@ -127,6 +127,13 @@ class BaseStoreTarget(DataTargetBase):
         self._resource = None
         self._secrets = {}
 
+    def get_store(self):
+        store, _ = mlrun.store_manager.get_or_create_store(self.path)
+        return store
+
+    def write_datafreme(self, df, **kwargs):
+        raise NotImplementedError()
+
     def set_secrets(self, secrets):
         self._secrets = secrets
 
@@ -188,6 +195,10 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
 
+    def write_datafreme(self, df, **kwargs):
+        fs = self.get_store().get_filesystem(False)
+        df.to_parquet(fs.open(self.path, "wb"), **kwargs)
+
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
@@ -218,6 +229,10 @@ class CSVTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
+
+    def write_datafreme(self, df, **kwargs):
+        fs = self.get_store().get_filesystem(False)
+        df.to_csv(fs.open(self.path, "wb"), **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

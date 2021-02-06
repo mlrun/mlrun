@@ -130,14 +130,15 @@ def default_ingestion_function(name, featureset, online, engine=None):
         )
 
     if not function_ref.url:
+        code = function_ref.code or ""
         if function_ref.kind == RuntimeKinds.serving:
-            function_ref.code = function_ref.code or ""
+            function_ref.code = code
         else:
             engine = engine or featureset.spec.engine
             if engine and engine == "spark":
-                function_ref.code = function_ref.code + _default_spark_handler
+                function_ref.code = code + _default_spark_handler
             else:
-                function_ref.code = function_ref.code + _default_job_handler
+                function_ref.code = code + _default_job_handler
 
     if not function_ref.image:
         function_ref.image = (

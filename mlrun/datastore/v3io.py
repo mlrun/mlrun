@@ -18,6 +18,7 @@ from os import environ
 import time
 from urllib.parse import urlparse
 
+import fsspec
 import v3io.dataplane
 
 import mlrun
@@ -70,6 +71,20 @@ class V3ioStore(DataStore):
     def url(self):
         schema = "https" if self.secure else "http"
         return "{}://{}".format(schema, self.endpoint)
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        try:
+            import v3iofs
+        except ImportError as e:
+            if not silent:
+                raise ImportError(
+                    f"v3iofs or storey not installed, run pip install storey, {e}"
+                )
+            return None
+        return fsspec.filesystem(
+            "v3io", v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"),
+        )
 
     def upload(self, key, src_path):
         http_upload(self.url + self._join(key), src_path, self.headers, None)

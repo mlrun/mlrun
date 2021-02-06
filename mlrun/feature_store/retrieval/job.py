@@ -1,6 +1,6 @@
 import uuid
 
-import mlrun
+from mlrun.model import new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
 
@@ -24,9 +24,8 @@ def run_merge_job(
         function_ref.code = _default_merger_handler
     function = function_ref.to_function()
     function.metadata.project = vector.metadata.project
-    task = mlrun.new_task(
+    task = new_task(
         name=name,
-        handler="merge_handler",
         params={
             "vector_uri": vector.uri,
             "target": target.to_dict(),
@@ -38,7 +37,7 @@ def run_merge_job(
     vector.status.run_uri = task.metadata.uid
     vector.save()
 
-    run = function.run(task, local=local, watch=watch)
+    run = function.run(task, handler="merge_handler", local=local, watch=watch)
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
     return RemoteVectorResponse(vector, run)
 

@@ -347,7 +347,7 @@ def spark_ingestion(
             **target.get_spark_options(key_column, timestamp_key)
         )
         target.set_resource(featureset)
-        target.update_resource_status("ready")
+        target.update_resource_status("ready", is_dir=True)
 
     featureset.save()
     return df

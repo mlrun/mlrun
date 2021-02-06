@@ -64,10 +64,10 @@ class DataTargetBase(ModelObj):
 class DataTarget(DataTargetBase):
     """data target with extra status information (used in the feature-set/vector status)"""
 
-    _dict_fields = ["name", "kind", "path", "start_time", "online", "status"]
+    _dict_fields = ["name", "kind", "path", "start_time", "online", "status", "is_dir"]
 
     def __init__(
-        self, kind: TargetTypes = None, name: str = "", path=None, online=None
+        self, kind: TargetTypes = None, name: str = "", path=None, online=None,
     ):
         super().__init__(kind, name, path)
         self.status = ""
@@ -75,6 +75,7 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
+        self.is_dir = None
         self._producer = None
         self.producer = {}
 

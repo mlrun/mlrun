@@ -152,12 +152,13 @@ class BaseStoreTarget(DataTargetBase):
         """return the actual/computed target path"""
         return self.path or _get_target_path(self, self._resource)
 
-    def update_resource_status(self, status="", producer=None):
+    def update_resource_status(self, status="", producer=None, is_dir=None):
         """update the data target status"""
         self._target = self._target or DataTarget(
             self.kind, self.name, self._target_path
         )
         target = self._target
+        target.is_dir = is_dir
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
         target.producer = producer or target.producer
@@ -326,7 +327,7 @@ class DFTarget(BaseStoreTarget):
     def set_df(self, df):
         self._df = df
 
-    def update_resource_status(self, status="", producer=None):
+    def update_resource_status(self, status="", producer=None, is_dir=None):
         pass
 
     def add_writer_state(

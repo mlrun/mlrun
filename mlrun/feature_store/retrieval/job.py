@@ -19,10 +19,9 @@ def run_merge_job(
         function_ref.code = _default_merger_handler
     function = function_ref.to_function()
     function.metadata.project = vector.metadata.project
-    return RemoteVectorResponse(
-        vector,
-        function.run(
+    run = function.run(
             name=name,
+            handler="merge_handler",
             params={
                 "vector": vector.uri,
                 "target": target.to_dict(),
@@ -31,8 +30,9 @@ def run_merge_job(
             inputs={"entity_rows": entity_rows},
             local=local,
             watch=watch,
-        ),
-    )
+        )
+    # todo: add log of run id, use watch False
+    return RemoteVectorResponse(vector, run)
 
 
 class RemoteVectorResponse:

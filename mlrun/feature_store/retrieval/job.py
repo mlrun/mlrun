@@ -1,5 +1,9 @@
+import uuid
+
 import mlrun
+from mlrun import new_task
 from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.utils import logger
 
 
 def run_merge_job(
@@ -8,7 +12,7 @@ def run_merge_job(
     name = vector.metadata.name
     if not name:
         raise ValueError("feature vector name must be specified")
-    if not target or not hasattr(target, 'to_dict'):
+    if not target or not hasattr(target, "to_dict"):
         raise ValueError("target object must be specified")
     name = f"{name}_merger"
     function_ref = vector.spec.function
@@ -21,19 +25,22 @@ def run_merge_job(
         function_ref.code = _default_merger_handler
     function = function_ref.to_function()
     function.metadata.project = vector.metadata.project
-    run = function.run(
-            name=name,
-            handler="merge_handler",
-            params={
-                "vector_uri": vector.uri,
-                "target": target.to_dict(),
-                "timestamp_column": timestamp_column,
-            },
-            inputs={"entity_rows": entity_rows},
-            local=local,
-            watch=watch,
-        )
-    # todo: add log of run id, use watch False
+    task = new_task(
+        name=name,
+        handler="merge_handler",
+        params={
+            "vector_uri": vector.uri,
+            "target": target.to_dict(),
+            "timestamp_column": timestamp_column,
+        },
+        inputs={"entity_rows": entity_rows},
+    )
+    task.metadata.uid = uuid.uuid4().hex
+    vector.status.run_uri = task.metadata.uid
+    vector.save()
+
+    run = function.run(task, local=local, watch=watch)
+    logger.info(f'feature vector merge job started, run id = {run.uid()}')
     return RemoteVectorResponse(vector, run)
 
 

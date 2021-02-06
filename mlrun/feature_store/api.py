@@ -63,6 +63,7 @@ def get_offline_features(
     engine: str = None,
     name: str = None,
     local=None,
+    watch=False,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -104,6 +105,7 @@ def get_offline_features(
             entity_rows,
             timestamp_column=entity_timestamp_column,
             local=local,
+            watch=watch,
         )
 
     merger = LocalFeatureMerger(vector)

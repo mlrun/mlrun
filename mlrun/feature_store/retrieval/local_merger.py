@@ -16,6 +16,7 @@ from typing import List
 import pandas as pd
 
 from ..model.feature_vector import OfflineVectorResponse
+from ...utils import logger
 
 
 class LocalFeatureMerger:
@@ -47,12 +48,12 @@ class LocalFeatureMerger:
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
         if target:
+            logger.info(f"writing target: {target.path}")
             target.write_datafreme(self._result_df)
             if self.vector.metadata.name:
                 target.set_resource(self.vector)
                 target.update_resource_status("ready")
                 self.vector.save()
-
         return OfflineVectorResponse(self)
 
     def merge(

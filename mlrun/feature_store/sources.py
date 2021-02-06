@@ -100,7 +100,7 @@ class CSVSource(BaseSourceDriver):
 
 
 class ParquetSource(BaseSourceDriver):
-    kind = "csv"
+    kind = "parquet"
     support_storey = True
     support_spark = True
 
@@ -158,4 +158,5 @@ class DataFrameSource:
 source_kind_to_driver = {
     "": BaseSourceDriver,
     "csv": CSVSource,
+    "parquet": ParquetSource,
 }

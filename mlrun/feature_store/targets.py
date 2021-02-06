@@ -353,6 +353,7 @@ kind_to_driver = {
     TargetTypes.csv: CSVTarget,
     TargetTypes.nosql: NoSqlTarget,
     TargetTypes.dataframe: DFTarget,
+    TargetTypes.stream: StreamTarget,
 }
 
 

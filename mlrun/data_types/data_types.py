@@ -77,6 +77,7 @@ def spark_to_value_type(data_type):
     type_map = {
         "int": DataType.INT64,
         "double": DataType.DOUBLE,
+        "boolean": DataType.BOOL,
         "timestamp": DataType.DATETIME,
         "string": DataType.STRING,
         "array": "list",

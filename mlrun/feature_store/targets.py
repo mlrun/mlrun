@@ -119,12 +119,16 @@ class BaseStoreTarget(DataTargetBase):
         after_state=None,
     ):
         self.name = name
-        self.path = path
+        self.path = str(path)
         self.after_state = after_state
         self.attributes = attributes or {}
 
         self._target = None
         self._resource = None
+        self._secrets = {}
+
+    def set_secrets(self, secrets):
+        self._secrets = secrets
 
     def set_resource(self, resource):
         self._resource = resource
@@ -171,7 +175,7 @@ class BaseStoreTarget(DataTargetBase):
             columns=columns, df_module=df_module
         )
 
-    def get_spark_options(self):
+    def get_spark_options(self, key_column=None, timestamp_key=None):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
@@ -200,7 +204,7 @@ class ParquetTarget(BaseStoreTarget):
             index_cols=key_column,
         )
 
-    def get_spark_options(self):
+    def get_spark_options(self, key_column=None, timestamp_key=None):
         return {
             "path": store_path_to_spark(self.path),
             "format": "parquet",
@@ -232,7 +236,7 @@ class CSVTarget(BaseStoreTarget):
             index_cols=key_column,
         )
 
-    def get_spark_options(self):
+    def get_spark_options(self, key_column=None, timestamp_key=None):
         return {
             "path": store_path_to_spark(self.path),
             "format": "csv",
@@ -268,6 +272,44 @@ class NoSqlTarget(BaseStoreTarget):
             class_name="storey.WriteToTable",
             columns=column_list,
             table=table,
+        )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None):
+        return {
+            "path": store_path_to_spark(self.path),
+            "format": "io.iguaz.v3io.spark.sql.kv",
+            "key": key_column,
+        }
+
+    def as_df(self, columns=None, df_module=None):
+        raise NotImplementedError()
+
+
+class StreamTarget(BaseStoreTarget):
+    kind = TargetTypes.stream
+    is_table = False
+    is_online = False
+    support_spark = False
+    support_storey = True
+
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
+        from storey import V3ioDriver
+
+        endpoint, uri = parse_v3io_path(self._target_path)
+        column_list = list(features.keys())
+        if timestamp_key:
+            column_list = [timestamp_key] + column_list
+        graph.add_step(
+            name="WriteToStream",
+            after=after,
+            graph_shape="cylinder",
+            class_name="storey.WriteToV3IOStream",
+            columns=column_list,
+            storage=V3ioDriver(webapi=endpoint),
+            stream_path=uri,
+            **self.attributes,
         )
 
     def as_df(self, columns=None, df_module=None):

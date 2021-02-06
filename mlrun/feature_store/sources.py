@@ -99,6 +99,40 @@ class CSVSource(BaseSourceDriver):
         }
 
 
+class ParquetSource(BaseSourceDriver):
+    kind = "csv"
+    support_storey = True
+    support_spark = True
+
+    def __init__(
+        self,
+        name: str = "",
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_column: str = None,
+        time_column: str = None,
+        schedule: str = None,
+    ):
+        super().__init__(name, path, attributes, key_column, time_column, schedule)
+
+    def to_step(self, key_column=None, time_column=None):
+        import storey
+
+        attributes = self.attributes or {}
+        return storey.ReadParquet(
+            paths=self.path,
+            key_column=self.key_column or key_column,
+            time_column=self.time_column or time_column,
+            **attributes,
+        )
+
+    def get_spark_options(self):
+        return {
+            "path": store_path_to_spark(self.path),
+            "format": "parquet",
+        }
+
+
 class DataFrameSource:
     support_storey = True
 

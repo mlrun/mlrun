@@ -272,7 +272,7 @@ def run_ingestion_task(
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
-    source, parameters = _set_task_params(
+    source, parameters = set_task_params(
         featureset, source, targets, parameters, infer_options
     )
 
@@ -340,8 +340,12 @@ def spark_ingestion(
     if transformer:
         df = transformer(spark, mlrun_context, df)
 
+    key_column = featureset.spec.entities[0].name
+    timestamp_key = featureset.spec.timestamp_key
     for target in targets or []:
-        df.write.mode("overwrite").save(**target.get_spark_options())
+        df.write.mode("overwrite").save(
+            **target.get_spark_options(key_column, timestamp_key)
+        )
         target.set_resource(featureset)
         target.update_resource_status("ready")
 
@@ -372,7 +376,14 @@ def infer_from_static_df(
     return df
 
 
-def _set_task_params(featureset, source, targets, parameters, infer_options):
+def set_task_params(
+    featureset: FeatureSet,
+    source: DataSource = None,
+    targets: List[DataTargetBase] = None,
+    parameters: dict = None,
+    infer_options: InferOptions = InferOptions.Null,
+):
+    """convert ingestion parameters to dict, return source + params dict"""
     source = source or featureset.spec.source
     parameters = parameters or {}
     parameters["infer_options"] = infer_options

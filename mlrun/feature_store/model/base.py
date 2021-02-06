@@ -114,7 +114,7 @@ class DataSource(ModelObj):
         schedule: str = None,
     ):
         self.name = name
-        self.path = path
+        self.path = str(path)
         self.attributes = attributes
         self.schedule = schedule
         self.key_column = key_column
@@ -123,6 +123,10 @@ class DataSource(ModelObj):
         self.online = None
         self.max_age = None
         self.workers = None
+        self._secrets = {}
+
+    def set_secrets(self, secrets):
+        self._secrets = secrets
 
 
 class FeatureAggregation(ModelObj):

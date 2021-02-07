@@ -97,7 +97,9 @@ class TimeMetric:
 )
 async def grafana_list_endpoints(request: Request):
     body = await request.json()
-    target = body.get("target")
+    targets = body.get("data", {}).get("targets", [])
+    target = targets[0] if targets else {}
+    target = target.get("target") if target else {}
 
     if not target:
         raise Exception("testing testing")

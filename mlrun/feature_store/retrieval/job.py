@@ -7,7 +7,14 @@ from mlrun.utils import logger
 
 
 def run_merge_job(
-    vector, target, entity_rows=None, timestamp_column=None, local=None, watch=None
+    vector,
+    target,
+    entity_rows=None,
+    timestamp_column=None,
+    local=None,
+    watch=None,
+    function=None,
+    secrets=None,
 ):
     name = vector.metadata.name
     if not name:
@@ -15,15 +22,16 @@ def run_merge_job(
     if not target or not hasattr(target, "to_dict"):
         raise ValueError("target object must be specified")
     name = f"{name}_merger"
-    function_ref = vector.spec.function
-    if not function_ref.to_dict():
-        function_ref = FunctionReference(name=name, kind="job")
-    function_ref.image = (
-        function_ref.image or mlrun.mlconf.feature_store.default_job_image
-    )
-    if not function_ref.url:
-        function_ref.code = _default_merger_handler
-    function = function_ref.to_function()
+    if not function:
+        function_ref = vector.spec.function
+        if not function_ref.to_dict():
+            function_ref = FunctionReference(name=name, kind="job")
+        function_ref.image = (
+            function_ref.image or mlrun.mlconf.feature_store.default_job_image
+        )
+        if not function_ref.url:
+            function_ref.code = _default_merger_handler
+        function = function_ref.to_function()
     function.metadata.project = vector.metadata.project
     task = new_task(
         name=name,
@@ -34,6 +42,8 @@ def run_merge_job(
         },
         inputs={"entity_rows": entity_rows},
     )
+    if secrets:
+        task.with_secrets("inline", secrets)
     task.metadata.uid = uuid.uuid4().hex
     vector.status.run_uri = task.metadata.uid
     vector.save()

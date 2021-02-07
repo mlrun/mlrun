@@ -61,6 +61,8 @@ def get_offline_features(
     store_target: DataTargetBase = None,
     engine: str = None,
     name: str = None,
+    function=None,
+    secrets=None,
     local=None,
     watch=False,
 ) -> OfflineVectorResponse:
@@ -105,6 +107,8 @@ def get_offline_features(
             timestamp_column=entity_timestamp_column,
             local=local,
             watch=watch,
+            function=function,
+            secrets=secrets,
         )
 
     merger = LocalFeatureMerger(vector)

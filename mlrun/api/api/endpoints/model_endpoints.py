@@ -102,7 +102,7 @@ async def grafana_list_endpoints(request: Request):
     target = target.get("target") if target else {}
 
     if not target:
-        raise Exception("testing testing")
+        raise Exception(f"target missing in request body:\n {body}")
 
     parameters = dict(t.split("=") for t in target.split(";"))
     project = parameters.get("project")

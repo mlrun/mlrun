@@ -1,5 +1,5 @@
 <a id="top"></a>
-# Projects <!-- omit in toc -->
+# Projects and CI/CD<!-- omit in toc -->
 
 A Project is a container for all your work on a particular activity. All the associated code, jobs and artifacts are organized within the projects. A project is also a great way to collaborate with others, since you can share your work, as well as create projects based on existing projects.
 

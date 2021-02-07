@@ -29,6 +29,7 @@ MLRUN_CACHE_DATE ?= $(shell date +%s)
 # 3. docker tag and push (also) the (updated) cache image
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
 MLRUN_GIT_ORG ?= mlrun
+MLRUN_RELEASE_BRANCH ?= master
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -427,6 +428,7 @@ test-system: build-test-system ## Run mlrun system tests
 
 .PHONY: test-package
 test-package: ## Run mlrun package tests
+	python -m pip install --upgrade pip~=20.2.0
 	PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) bash ./automation/package_test/test_imports.sh
 
 .PHONY: run-api-undockerized
@@ -488,3 +490,17 @@ endif
 	fi; \
 	git commit -m "Adding $(MLRUN_VERSION) tag contents" --allow-empty; \
 	git push origin $$BRANCH_NAME
+
+
+.PHONY: release-notes
+release-notes: ## Create release notes
+ifndef MLRUN_VERSION
+	$(error MLRUN_VERSION is undefined)
+endif
+ifndef MLRUN_OLD_VERSION
+	$(error MLRUN_OLD_VERSION is undefined)
+endif
+ifndef MLRUN_RELEASE_BRANCH
+	$(error MLRUN_RELEASE_BRANCH is undefined)
+endif
+	python ./automation/release_notes/generate.py run $(MLRUN_VERSION) $(MLRUN_OLD_VERSION) $(MLRUN_RELEASE_BRANCH)

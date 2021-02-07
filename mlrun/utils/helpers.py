@@ -402,9 +402,9 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def extend_hub_uri(uri):
+def extend_hub_uri_if_needed(uri):
     if not uri.startswith(hub_prefix):
-        return uri
+        return uri, False
     name = uri[len(hub_prefix) :]
     tag = "master"
     if ":" in name:
@@ -414,7 +414,7 @@ def extend_hub_uri(uri):
 
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    return config.hub_url.format(name=name, tag=tag)
+    return config.hub_url.format(name=name, tag=tag), True
 
 
 def gen_md_table(header, rows=None):

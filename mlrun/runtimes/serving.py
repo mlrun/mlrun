@@ -101,6 +101,7 @@ class ServingSpec(NuclioSpec):
         function_refs=None,
         graph_initializer=None,
         error_stream=None,
+        track_models=None,
     ):
 
         super().__init__(
@@ -138,6 +139,7 @@ class ServingSpec(NuclioSpec):
         self.function_refs = function_refs or []
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
+        self.track_models = track_models
 
     @property
     def graph(self) -> Union[RouterState, RootFlowState]:
@@ -216,13 +218,30 @@ class ServingRuntime(RemoteRuntime):
             )
         return self.spec.graph
 
-    def set_tracking(self, stream_path, batch=None, sample=None):
-        """set tracking log stream parameters"""
-        self.spec.parameters["log_stream"] = stream_path
+    def set_tracking(
+        self,
+        stream_path: str = None,
+        batch: int = None,
+        sample: int = None,
+        stream_args: dict = None,
+    ):
+        """set tracking stream parameters:
+
+        :param stream_path:  path/url of the tracking stream e.g. v3io:///users/mike/mystream
+                             you can use the "dummy://" path for test/simulation
+        :param batch:        micro batch size (send micro batches of N records at a time)
+        :param sample:       sample size (send only one of N records)
+        :param stream_args:  stream initialization parameters, e.g. shards, retention_in_hours, ..
+        """
+        self.spec.track_models = True
+        if stream_path:
+            self.spec.parameters["log_stream"] = stream_path
         if batch:
             self.spec.parameters["log_stream_batch"] = batch
         if sample:
             self.spec.parameters["log_stream_sample"] = sample
+        if stream_args:
+            self.spec.parameters["stream_args"] = stream_args
 
     def add_model(
         self,
@@ -363,7 +382,7 @@ class ServingRuntime(RemoteRuntime):
         return super().deploy(dashboard, project, tag, verbose=verbose)
 
     def _get_runtime_env(self):
-
+        env = super()._get_runtime_env()
         function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
         serving_spec = {
             "function_uri": self._function_uri(),
@@ -374,8 +393,10 @@ class ServingRuntime(RemoteRuntime):
             "functions": function_name_uri_map,
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
+            "track_models": self.spec.track_models,
         }
-        return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
+        env["SERVING_SPEC_ENV"] = json.dumps(serving_spec)
+        return env
 
     def to_mock_server(
         self, namespace=None, current_function=None, **kwargs
@@ -393,6 +414,8 @@ class ServingRuntime(RemoteRuntime):
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
+            track_models=self.spec.track_models,
+            function_uri=self._function_uri(),
             **kwargs,
         )
         server.init(None, namespace or get_caller_globals(), logger=logger)

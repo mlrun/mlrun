@@ -10,6 +10,8 @@ import v3io.dataplane
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.config
+import mlrun.db
+import mlrun.datastore
 import mlrun.utils
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import create_session, _init_engine
@@ -33,6 +35,11 @@ def config_test_base():
     environ["MLRUN_log_level"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
+
+    # remove the run db cache so it won't pass between tests
+    mlrun.db._run_db = None
+    mlrun.db._last_db_url = None
+    mlrun.datastore.store_manager._db = None
 
 
 @pytest.fixture

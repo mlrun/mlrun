@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Dict
 from mlrun.model import ModelObj
-from .data_types import ValueType
-from .validators import validator_kinds
 
 
 class TargetTypes:
@@ -25,69 +23,6 @@ class TargetTypes:
     tsdb = "tsdb"
     stream = "stream"
     dataframe = "dataframe"
-
-
-class Entity(ModelObj):
-    """data entity (index)"""
-
-    def __init__(
-        self,
-        name: str = None,
-        value_type: ValueType = None,
-        description: str = None,
-        labels: Optional[Dict[str, str]] = None,
-    ):
-        self.name = name
-        self.description = description
-        self.value_type = value_type
-        if name and not value_type:
-            self.value_type = ValueType.STRING
-        self.labels = labels or {}
-
-
-class Feature(ModelObj):
-    """data feature"""
-
-    _dict_fields = [
-        "name",
-        "description",
-        "value_type",
-        "shape",
-        "default",
-        "labels",
-        "aggregate",
-        "validator",
-    ]
-
-    def __init__(
-        self,
-        value_type: ValueType = None,
-        description=None,
-        aggregate=None,
-        name=None,
-        validator=None,
-        default=None,
-        labels: Dict[str, str] = None,
-    ):
-        self.name = name or ""
-        self.value_type: ValueType = value_type or ""
-        self.shape = None
-        self.description = description
-        self.default = default
-        self.labels = labels or {}
-        self.aggregate = aggregate
-        self._validator = validator
-
-    @property
-    def validator(self):
-        return self._validator
-
-    @validator.setter
-    def validator(self, validator):
-        if isinstance(validator, dict):
-            kind = validator.get("kind")
-            validator = validator_kinds[kind].from_dict(validator)
-        self._validator = validator
 
 
 class FeatureSetProducer(ModelObj):

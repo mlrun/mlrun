@@ -359,7 +359,7 @@ def ingest_with_spark(
     if not targets:
         if not featureset.spec.targets:
             featureset.set_targets()
-            targets = featureset.spec.targets
+        targets = featureset.spec.targets
         targets = [get_target_driver(target, featureset) for target in targets]
 
     for target in targets or []:

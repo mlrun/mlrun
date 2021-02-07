@@ -219,7 +219,7 @@ class ParquetTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
         return {
-            "path": store_path_to_spark(self.path),
+            "path": store_path_to_spark(self._target_path),
             "format": "parquet",
         }
 
@@ -256,7 +256,7 @@ class CSVTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
         return {
-            "path": store_path_to_spark(self.path),
+            "path": store_path_to_spark(self._target_path),
             "format": "csv",
             "header": "true",
         }
@@ -294,7 +294,7 @@ class NoSqlTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
         return {
-            "path": store_path_to_spark(self.path),
+            "path": store_path_to_spark(self._target_path),
             "format": "io.iguaz.v3io.spark.sql.kv",
             "key": key_column,
         }

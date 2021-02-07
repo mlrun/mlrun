@@ -22,10 +22,9 @@ from .ingestion import (
     init_featureset_graph,
     deploy_ingestion_function,
     default_ingestion_function,
-    context_to_ingestion_params,
 )
 from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
-from .targets import get_default_targets
+from .targets import get_default_targets, get_target_driver
 from ..utils import get_caller_globals
 from ..data_types import InferOptions, get_infer_interface
 
@@ -312,7 +311,7 @@ def run_ingestion_task(
     return
 
 
-def spark_ingestion(
+def ingest_with_spark(
     spark,
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
@@ -357,6 +356,12 @@ def spark_ingestion(
 
     key_column = featureset.spec.entities[0].name
     timestamp_key = featureset.spec.timestamp_key
+    if not targets:
+        if not featureset.spec.targets:
+            featureset.set_targets()
+            targets = featureset.spec.targets
+        targets = [get_target_driver(target, featureset) for target in targets]
+
     for target in targets or []:
         df.write.mode("overwrite").save(
             **target.get_spark_options(key_column, timestamp_key)

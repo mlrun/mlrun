@@ -21,10 +21,6 @@ class TestDemo(TestMLRunSystem):
             project=self._demo_project.to_dict(),
         )
 
-    def custom_teardown(self):
-        self._run_db.del_runs(project=self.project_name, labels={"kind": "job"})
-        self._run_db.del_artifacts(tag="*", project=self.project_name)
-
     def create_demo_project(self) -> mlrun.projects.MlrunProject:
         raise NotImplementedError
 

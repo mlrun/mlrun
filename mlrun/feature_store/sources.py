@@ -19,7 +19,9 @@ from ..datastore import store_path_to_spark
 
 
 def get_source_from_dict(source):
-    kind = source["kind"] or ""
+    kind = source.get("kind", "")
+    if not kind:
+        return None
     return source_kind_to_driver[kind].from_dict(source)
 
 

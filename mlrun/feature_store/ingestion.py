@@ -50,6 +50,7 @@ def featureset_initializer(server):
     _add_data_states(
         graph, cache, featureset, targets=targets, source=source,
     )
+    featureset.save()
     server.graph = graph
 
 
@@ -99,6 +100,7 @@ def deploy_ingestion_function(
     function.metadata.project = featureset.metadata.project
     if function.kind == RuntimeKinds.serving:
         # add triggers
+        function.spec.graph = featureset.spec.graph
         function.spec.parameters = parameters
         function.spec.graph_initializer = (
             "mlrun.feature_store.ingestion.featureset_initializer"

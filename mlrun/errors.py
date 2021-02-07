@@ -13,6 +13,11 @@ class MLRunBaseError(Exception):
     pass
 
 
+class MLRunTaskNotReady(MLRunBaseError):
+    """indicate we are trying to read a value which is not ready
+    or need to come from a job which is in progress"""
+
+
 class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
         self, message: str, response: requests.Response = None, status_code: int = None

@@ -14,6 +14,9 @@
 
 import os
 import mlrun
+from base64 import b64encode
+from nuclio.build import mlrun_footer
+
 
 from ..model import ModelObj
 from ..utils import generate_object_uri
@@ -40,7 +43,6 @@ class FunctionReference(ModelObj):
         self.spec = spec
         self.code = code
 
-        self._triggers = {}
         self._function = None
         self._address = None
 
@@ -68,34 +70,56 @@ class FunctionReference(ModelObj):
         kind = self.kind or default_kind
         if self.spec:
             func = mlrun.new_function(self.name, runtime=self.spec)
-        elif (
-            self.url.endswith(".yaml")
-            or self.url.startswith("db://")
-            or self.url.startswith("hub://")
-        ):
-            func = mlrun.import_function(self.url)
-            if self.image:
-                func.spec.image = self.image
-        elif self.url.endswith(".ipynb"):
-            func = mlrun.code_to_function(
-                self.name, filename=self.url, image=self.image, kind=kind
-            )
-        elif self.url.endswith(".py"):
-            # todo: support code text as input (for UI)
-            if not self.image:
-                raise ValueError(
-                    "image must be provided with py code files, "
-                    "use function object for more control/settings"
+        elif self.url:
+            if (
+                self.url.endswith(".yaml")
+                or self.url.startswith("db://")
+                or self.url.startswith("hub://")
+            ):
+                func = mlrun.import_function(self.url)
+                if self.image:
+                    func.spec.image = self.image
+            elif self.url.endswith(".ipynb"):
+                func = mlrun.code_to_function(
+                    self.name, filename=self.url, image=self.image, kind=kind
                 )
-            func = mlrun.code_to_function(
-                self.name, filename=self.url, image=self.image, kind=kind
-            )
+            elif self.url.endswith(".py"):
+                # todo: support code text as input (for UI)
+                if not self.image:
+                    raise ValueError(
+                        "image must be provided with py code files, "
+                        "use function object for more control/settings"
+                    )
+                func = mlrun.code_to_function(
+                    self.name, filename=self.url, image=self.image, kind=kind
+                )
+            else:
+                raise ValueError(
+                    "unsupported function url {} or no spec".format(self.url)
+                )
+        elif self.code is not None:
+            code = self.code
+            if kind == mlrun.runtimes.RuntimeKinds.serving:
+                code = code + mlrun_footer.format(
+                    mlrun.runtimes.serving.serving_subkind
+                )
+            func = mlrun.new_function(self.name, kind=kind, image=self.image)
+            data = b64encode(code.encode("utf-8")).decode("utf-8")
+            func.spec.build.functionSourceCode = data
+            if kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+                func.spec.default_handler = "handler"
         else:
-            raise ValueError("unsupported function url {} or no spec".format(self.url))
+            raise ValueError("url or spec or code must be specified")
+
         if self.requirements:
             func.with_requirements(self.requirements)
         self._function = func
         return func
 
+    @property
+    def address(self):
+        return self._address
+
     def deploy(self, **kwargs):
         self._address = self._function.deploy(**kwargs)
+        return self._address

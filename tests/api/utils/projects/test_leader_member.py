@@ -406,6 +406,33 @@ def test_delete_project(
     _assert_no_projects_in_followers([leader_follower, nop_follower])
 
 
+def test_delete_project_follower_failure(
+    db: sqlalchemy.orm.Session,
+    projects_leader: mlrun.api.utils.projects.leader.Member,
+    nop_follower: mlrun.api.utils.projects.remotes.member.Member,
+    leader_follower: mlrun.api.utils.projects.remotes.member.Member,
+):
+    def mock_failed_delete(*args, **kwargs):
+        raise RuntimeError()
+
+    project_name = "project-name"
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+    )
+    projects_leader.create_project(
+        None, project,
+    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
+
+    nop_follower.delete_project = mock_failed_delete
+
+    with pytest.raises(RuntimeError):
+        projects_leader.delete_project(None, project_name)
+
+    # deletion from leader should happen only after successful deletion from followers so ensure project still in leader
+    _assert_project_in_followers([leader_follower], project)
+
+
 def test_list_projects(
     db: sqlalchemy.orm.Session,
     projects_leader: mlrun.api.utils.projects.leader.Member,

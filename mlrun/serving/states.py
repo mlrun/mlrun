@@ -26,13 +26,14 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import requests
 
-from ..platforms.iguazio import OutputStream
+from ..datastore import get_stream_pusher
 from ..model import ModelObj, ObjectDict
 from ..utils import get_function, get_class
 from ..errors import MLRunInvalidArgumentError
 
 callable_prefix = "_"
 path_splitter = "/"
+previous_step = "$prev"
 
 
 class GraphError(Exception):
@@ -533,7 +534,11 @@ class QueueState(BaseState):
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         if self.path:
-            self._stream = OutputStream(self.path, self.shards, self.retention_in_hours)
+            self._stream = get_stream_pusher(
+                self.path,
+                shards=self.shards,
+                retention_in_hours=self.retention_in_hours,
+            )
         self._set_error_handler()
 
     @property
@@ -953,8 +958,9 @@ class FlowState(BaseState):
     def wait_for_completion(self):
         """wait for completion of run in async flows"""
         if self._controller:
-            self._controller.terminate()
-            self._controller.await_termination()
+            if hasattr(self._controller, "terminate"):
+                self._controller.terminate()
+            return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz"""

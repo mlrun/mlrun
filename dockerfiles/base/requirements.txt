@@ -6,11 +6,12 @@ dask-kubernetes~=0.11.0
 dask-ml~=1.4
 dask[complete]~=2.12
 # see main requirements.txt for reasoning the resrictions
-distributed>=2.5.2, <3
+distributed>=2.23, <3
 kubernetes~=11.0
 lz4~=3.0
 msgpack~=1.0
-numpy~=1.18
+# see main requirements.txt for reasoning the resrictions
+numpy>=1.16.5, <1.20.0
 scikit-learn~=0.23.0
 scikit-plot~=0.3.7
 tornado~=6.0

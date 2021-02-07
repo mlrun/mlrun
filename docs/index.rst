@@ -19,19 +19,19 @@ MLRun offers a convenient abstraction layer to a wide variety of technology stac
 .. image:: _static/images/mlrun-architecture.png
     :alt: MLRun architecture
 
-MLRun comprises of the following layers:
+MLRun comprises the following layers:
 
 - **Feature & Artifact Store** - Handle the ingestion, processing, metadata and storage of data and features across multiple repositories and technologies
 - **Elastic Serverless Runtimes** - Convert simple code to scalable and managed micro-services with
   workload specific runtime engines (Kubernetes jobs, Nuclio, Dask, Spark, Horovod, etc.)  .
-- **ML Pipeline Automation** - Automated data preparation, model training & testing,
-  deployment of production (real-time) pipelines, and end to end monitoring.
-- **Central Management** - Unified portal, UI, CLI, and SDK to manage the entire MLOps workflow which is
+- **ML Pipeline Automation** - Automated data preparation, model training and testing,
+  deployment of production (real-time) pipelines, and end-to-end monitoring.
+- **Central Management** - Unified portal, UI, CLI and SDK to manage the entire MLOps workflow, which is
   accessible from everywhere.
 
 
 
-*Check the different documentation sections to learn about each of the components*
+*Check the different documentation sections to learn about each component*
 
 Key Benefits
 ------------
@@ -40,11 +40,11 @@ MLRun provides the following key benefits:
 
 - **Rapid deployment** of code to production pipelines
 - **Elastic scaling** of batch and real-time workloads
-- **Feature management** – ingestion, preparation, and monitoring
-- **Works anywhere** – your local IDE, multi-cloud, or on-prem
+- **Feature management** – ingestion, preparation and monitoring
+- **Works anywhere** – your local IDE, multi-cloud or on-prem
 
 
-Table Of Content
+Table of Contents
 ----------------
 
 .. toctree::

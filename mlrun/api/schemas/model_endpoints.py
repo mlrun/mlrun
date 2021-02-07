@@ -33,6 +33,9 @@ class ModelEndpoint(BaseModel):
     status: ObjectStatus
     id: Optional[str] = None
 
+    class Config:
+        extra = Extra.allow
+
     def __init__(self, **data: Any):
         super().__init__(**data)
         self.id = self.create_endpoint_id()
@@ -104,5 +107,5 @@ class GrafanaColumn(BaseModel):
 
 class GrafanaTable(BaseModel):
     columns: List[GrafanaColumn]
-    rows: List[List[Union[int, float, str]]]
+    rows: List[List[Optional[Union[int, float, str]]]]
     type: str = "table"

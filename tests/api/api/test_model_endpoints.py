@@ -27,7 +27,7 @@ from mlrun.api.schemas import (
 from mlrun.config import config
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 
-ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_WEBAPI_PORT_8081_TCP", "FRAMESD_PORT_8081_TCP"}
+ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
 
 
 def _build_skip_message():
@@ -249,7 +249,7 @@ def _mock_random_endpoint(state: str = "") -> ModelEndpoint:
 
 def _write_endpoint_to_kv(endpoint: ModelEndpoint):
     client = get_v3io_client(
-        endpoint=config.httdb.v3io_api, access_key=_get_access_key()
+        endpoint=config.v3io_api, access_key=_get_access_key()
     )
     client.kv.put(
         container="projects",
@@ -311,3 +311,45 @@ def cleanup_endpoints(db: Session, client: TestClient):
 
 def _get_access_key() -> Optional[str]:
     return os.environ.get("V3IO_ACCESS_KEY")
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_grafana_proxy_check_status(db: Session, client: TestClient):
+    endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
+
+    for endpoint in endpoints_in:
+        _write_endpoint_to_kv(endpoint)
+
+    response = client.get(
+        url="/api/projects/grafana-proxy/model-endpoints",
+        headers={"X-V3io-Session-Key": _get_access_key()},
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_grafana_proxy_list_endpoints(db: Session, client: TestClient):
+    endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
+    endpoints_in_ids = {endpoint.id for endpoint in endpoints_in}
+
+    for endpoint in endpoints_in:
+        _write_endpoint_to_kv(endpoint)
+
+    response = client.post(
+        url="/api/projects/grafana-proxy/model-endpoints/query",
+        headers={"X-V3io-Session-Key": _get_access_key()},
+        json={"target": "project=test"}
+    )
+
+    response_json = response.json()
+    grafana_response = response_json[0]
+    rows = grafana_response["rows"]
+    endpoints_out_ids = [r[0] for r in rows]
+
+    assert len(endpoints_in_ids) == len(endpoints_out_ids)
+    assert all((e_id in endpoints_in_ids for e_id in endpoints_out_ids))

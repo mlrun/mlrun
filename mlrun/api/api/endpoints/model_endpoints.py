@@ -41,7 +41,6 @@ ENDPOINT_TABLE_ATTRIBUTES = [
     "first_request",
     "last_request",
     "error_count",
-    "alert_count",
     "drift_status",
 ]
 ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES = ENDPOINT_TABLE_ATTRIBUTES + ["features"]
@@ -92,6 +91,12 @@ class TimeMetric:
             raise NotImplementedError(f"Unsupported metric '{name}'")
 
 
+@router.get("/projects/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
+def grafana_list_endpoints(request: Request):
+    _get_access_key(request)
+    return Response(status_code=HTTPStatus.OK.value)
+
+
 @router.post(
     "/projects/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable]
 )
@@ -132,7 +137,6 @@ async def grafana_list_endpoints(request: Request):
         GrafanaColumn(text="last_request", type="time"),
         GrafanaColumn(text="accuracy", type="number"),
         GrafanaColumn(text="error_count", type="number"),
-        GrafanaColumn(text="alert_count", type="number"),
         GrafanaColumn(text="drift_status", type="number"),
     ]
 
@@ -160,7 +164,6 @@ async def grafana_list_endpoints(request: Request):
             endpoint_state.last_request,
             endpoint_state.accuracy,
             endpoint_state.error_count,
-            endpoint_state.alert_count,
             endpoint_state.drift_status,
         ]
 
@@ -173,10 +176,78 @@ async def grafana_list_endpoints(request: Request):
     return [GrafanaTable(columns=columns, rows=rows)]
 
 
-@router.get("/projects/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
-def grafana_list_endpoints(request: Request):
+@router.get(
+    "/projects/grafana-proxy/endpoint-features", status_code=HTTPStatus.OK.value
+)
+def grafana_endpoint_features(request: Request):
     _get_access_key(request)
     return Response(status_code=HTTPStatus.OK.value)
+
+
+@router.post(
+    "/projects/grafana-proxy/endpoint-features/query", response_model=List[GrafanaTable]
+)
+async def grafana_endpoint_features(request: Request):
+    body = await request.json()
+    targets = body.get("targets", [])
+    target = targets[0] if targets else {}
+    target = target.get("target") if target else {}
+
+    if not target:
+        raise Exception(f"target missing in request body:\n {body}")
+
+    parameters = dict(t.split("=") for t in target.split(";"))
+    endpoint_id = parameters.get("endpoint_id")
+
+    start = body.get("rangeRaw", {}).get("start", "now-1h")
+    end = body.get("rangeRaw", {}).get("end", "now")
+
+    client = get_frames_client(
+        token=_get_access_key(request),
+        address=config.v3io_framesd,
+        container=config.model_endpoint_monitoring.container,
+    )
+
+    results = client.read(
+        "tsdb",
+        "test/endpoint-features",
+        filter=f"endpoint_id=='{endpoint_id}'",
+        start=start,
+        end=end,
+    )
+
+    if not results:
+        return []
+
+    results.drop(["endpoint_id", "prediction"], inplace=True, axis=1)
+
+    columns = [
+        GrafanaColumn(text="feature_name", type="string"),
+        GrafanaColumn(text="actual_min", type="number"),
+        GrafanaColumn(text="actual_mean", type="number"),
+        GrafanaColumn(text="actual_max", type="number"),
+        GrafanaColumn(text="expected_min", type="number"),
+        GrafanaColumn(text="expected_mean", type="number"),
+        GrafanaColumn(text="expected_max", type="number"),
+    ]
+
+    rows = []
+    if not results.empty:
+        describes = results.describe().to_dict()
+        for feature, describe in describes.items():
+            rows.append(
+                [
+                    feature,
+                    describe["min"],
+                    describe["mean"],
+                    describe["max"],
+                    -1,
+                    -1,
+                    -1,
+                ]
+            )
+
+    return [GrafanaTable(columns=columns, rows=rows)]
 
 
 @router.post(
@@ -275,7 +346,6 @@ def list_endpoints(
             first_request=endpoint.get("first_request"),
             last_request=endpoint.get("last_request"),
             error_count=endpoint.get("error_count"),
-            alert_count=endpoint.get("alert_count"),
             drift_status=endpoint.get("drift_status"),
             metrics=endpoint_metrics,
         )
@@ -346,7 +416,6 @@ def get_endpoint(
         first_request=endpoint.get("first_request"),
         last_request=endpoint.get("last_request"),
         error_count=endpoint.get("error_count"),
-        alert_count=endpoint.get("alert_count"),
         drift_status=endpoint.get("drift_status"),
         metrics=endpoint_metrics,
         features=endpoint_features,

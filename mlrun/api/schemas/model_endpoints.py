@@ -90,7 +90,6 @@ class ModelEndpointState(BaseModel):
     last_request: Optional[str] = None
     accuracy: Optional[float] = None
     error_count: Optional[int] = None
-    alert_count: Optional[int] = None
     drift_status: Optional[str] = None
     metrics: Dict[str, Metric] = {}
     features: List[Features] = []

@@ -197,17 +197,28 @@ async def grafana_endpoint_features(request: Request):
 
     parameters = dict(t.split("=") for t in target.split(";"))
     endpoint_id = parameters.get("endpoint_id")
+    project = parameters.get("project")
 
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
 
-    client = get_frames_client(
+    frames_client = get_frames_client(
         token=_get_access_key(request),
         address=config.v3io_framesd,
         container=config.model_endpoint_monitoring.container,
     )
 
-    results = client.read(
+    v3io_client = get_v3io_client(endpoint=config.v3io_api)
+    features = v3io_client.kv.get(
+        container="projects",
+        table_path=f"{project}/model-describe",
+        key="endpoint_id"
+    ).output.item
+
+    if features:
+        features = features.get("features", {})
+
+    results = frames_client.read(
         "tsdb",
         "test/endpoint-features",
         filter=f"endpoint_id=='{endpoint_id}'",
@@ -240,9 +251,9 @@ async def grafana_endpoint_features(request: Request):
                     describe["min"],
                     describe["mean"],
                     describe["max"],
-                    -1,
-                    -1,
-                    -1,
+                    features.get(feature, {}).get("min", None),
+                    features.get(feature, {}).get("mean", None),
+                    features.get(feature, {}).get("max", None),
                 ]
             )
 
@@ -520,7 +531,7 @@ def get_endpoint_kv_record_by_id(
     attribute_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
 
-    client = get_v3io_client(endpoint=config.model_endpoint_monitoring.container)
+    client = get_v3io_client(endpoint=config.v3io_api)
 
     endpoint = client.kv.get(
         container=config.model_endpoint_monitoring.container,

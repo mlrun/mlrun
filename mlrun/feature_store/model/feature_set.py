@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from copy import copy, deepcopy
 from typing import List
 
 import mlrun
@@ -345,7 +345,7 @@ class FeatureSet(ModelObj):
         if columns:
             if self.spec.timestamp_key:
                 columns = [self.spec.timestamp_key] + columns
-            columns = list(self.spec.entities.keys()) + columns
+            columns = [list(self.spec.entities.keys())[0]] + columns
         driver = get_offline_target(self, name=target_name)
         if not driver:
             raise mlrun.errors.MLRunNotFoundError(

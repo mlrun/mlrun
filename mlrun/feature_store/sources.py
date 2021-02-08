@@ -63,6 +63,15 @@ class BaseSourceDriver(DataSource):
         raise NotImplementedError()
 
 
+class HTTPSource(BaseSourceDriver):
+    kind = ''
+
+    def __init__(self):
+        super().__init__()
+        self.online = True
+
+
+
 class CSVSource(BaseSourceDriver):
     kind = "csv"
     support_storey = True

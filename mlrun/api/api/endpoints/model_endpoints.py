@@ -43,7 +43,6 @@ ENDPOINT_TABLE_ATTRIBUTES = [
     "error_count",
     "drift_status",
 ]
-ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES = ENDPOINT_TABLE_ATTRIBUTES + ["features"]
 
 
 router = APIRouter()
@@ -375,7 +374,7 @@ def get_endpoint(
     _verify_endpoint(project, endpoint_id)
     access_key = _get_access_key(request)
     endpoint = get_endpoint_kv_record_by_id(
-        access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES,
+        access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES,
     )
 
     if not endpoint:
@@ -393,11 +392,11 @@ def get_endpoint(
             name=metrics,
         )
 
-    endpoint_features = None
-    if features:
-        endpoint_features = _get_endpoint_features(
-            project=project, endpoint_id=endpoint_id, features=endpoint.get("features")
-        )
+    # endpoint_features = None
+    # if features:
+    #     endpoint_features = _get_endpoint_features(
+    #         project=project, endpoint_id=endpoint_id, features=endpoint.get("features")
+    #     )
 
     return ModelEndpointState(
         endpoint=ModelEndpoint(
@@ -418,7 +417,7 @@ def get_endpoint(
         error_count=endpoint.get("error_count"),
         drift_status=endpoint.get("drift_status"),
         metrics=endpoint_metrics,
-        features=endpoint_features,
+        features=[],
     )
 
 

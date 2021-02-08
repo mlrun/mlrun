@@ -208,15 +208,15 @@ async def grafana_endpoint_features(request: Request):
         container=config.model_endpoint_monitoring.container,
     )
 
-    v3io_client = get_v3io_client(endpoint=config.v3io_api)
-    features = v3io_client.kv.get(
-        container="projects",
-        table_path=f"{project}/model-describe",
-        key="endpoint_id"
-    ).output.item
-
-    if features:
-        features = features.get("features", {})
+    # v3io_client = get_v3io_client(endpoint=config.v3io_api)
+    # features = v3io_client.kv.get(
+    #     container="projects",
+    #     table_path=f"{project}/model-describe",
+    #     key="endpoint_id"
+    # ).output.item
+    #
+    # if features:
+    #     features = features.get("features", {})
 
     results = frames_client.read(
         "tsdb",
@@ -251,9 +251,9 @@ async def grafana_endpoint_features(request: Request):
                     describe["min"],
                     describe["mean"],
                     describe["max"],
-                    features.get(feature, {}).get("min", None),
-                    features.get(feature, {}).get("mean", None),
-                    features.get(feature, {}).get("max", None),
+                    None,  # features.get(feature, {}).get("min", None),
+                    None,  # features.get(feature, {}).get("mean", None),
+                    None,  # features.get(feature, {}).get("max", None),
                 ]
             )
 

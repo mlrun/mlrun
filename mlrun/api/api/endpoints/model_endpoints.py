@@ -216,7 +216,7 @@ async def grafana_endpoint_features(request: Request):
         end=end,
     )
 
-    if not results:
+    if results.empty:
         return []
 
     results.drop(["endpoint_id", "prediction"], inplace=True, axis=1)

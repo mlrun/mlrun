@@ -32,6 +32,8 @@ def run_merge_job(
         if not function_ref.url:
             function_ref.code = _default_merger_handler
         function = function_ref.to_function()
+        function.apply(mlrun.platforms.auto_mount())
+
     function.metadata.project = vector.metadata.project
     task = new_task(
         name=name,

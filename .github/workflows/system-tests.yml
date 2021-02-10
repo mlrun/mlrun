@@ -123,6 +123,7 @@ jobs:
           "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
           "${{ secrets.V06_SYSTEM_TEST_MLRUN_DB_PATH }}" \
           "${{ secrets.V06_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          "${{ secrets.V06_SYSTEM_TEST_FRAMESD_URL }}" \
           "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \

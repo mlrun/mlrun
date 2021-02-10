@@ -347,12 +347,12 @@ class VotingEnsemble(BaseModelRouter):
                 # Are we looking at a router level operation?
                 try:
                     operation = OperationTypes(segments[0])
-                    self.log_router = True
-                    return self.name, None, operation
-
                 # Unrecognized operation was given, probably a model name
                 except ValueError:
                     model = segments[0]
+                else:
+                    self.log_router = True
+                    return self.name, None, operation
 
             # Test for `self.url_prefix/<model>/versions/<version>/operation`
             if len(segments) > 2 and segments[1] == "versions":

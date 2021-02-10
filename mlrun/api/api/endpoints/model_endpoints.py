@@ -102,7 +102,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     _verify_endpoint(project, endpoint_id)
 
     logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
-    client = get_v3io_client(endpoint=config.httpdb.v3io_api)
+    client = get_v3io_client(endpoint=config.v3io_api)
     client.kv.delete(
         container=config.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
@@ -143,7 +143,7 @@ def list_endpoints(
     `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
     """
     access_key = _get_access_key(request)
-    client = get_v3io_client(endpoint=config.httpdb.v3io_api)
+    client = get_v3io_client(endpoint=config.v3io_api)
     cursor = client.kv.new_cursor(
         container=config.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
@@ -289,7 +289,7 @@ def _get_endpoint_metrics(
 
     client = get_frames_client(
         token=access_key,
-        address=config.httpdb.v3io_framesd,
+        address=config.v3io_framesd,
         container=config.model_endpoint_monitoring.container,
     )
 

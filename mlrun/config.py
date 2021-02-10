@@ -117,8 +117,6 @@ default_config = {
             "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
         },
-        "v3io_api": "",
-        "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
         "container": "projects",

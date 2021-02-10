@@ -11,18 +11,19 @@ logger = mlrun.utils.create_logger(level="debug", name="automation")
 
 class ReleaseNotesGenerator:
     commit_regex = (
-            r"^"
-            r"(?P<commitId>[a-zA-Z0-9]+)"
-            r" "
-            r"(\[(?P<scope>[^\]]*)\])?"
-            r"( )?"
-            r"(?P<commitMessage>.*)"
-            r" "
-            r"\("
-            r"(?P<pullRequestNumber>#[0-9]+)"
-            r"\)"
-            r"$"
-        )
+        r"^"
+        r"(?P<commitId>[a-zA-Z0-9]+)"
+        r" "
+        r"(\[(?P<scope>[^\]]*)\])?"
+        r"( )?"
+        r"(?P<commitMessage>.*)"
+        r" "
+        r"\("
+        r"(?P<pullRequestNumber>#[0-9]+)"
+        r"\)"
+        r"$"
+    )
+
     def __init__(
         self, release: str, previous_release: str, release_branch: str,
     ):

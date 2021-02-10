@@ -19,10 +19,12 @@ def test_commit_regex_matching():
             "expected_pull_request_number": "#685",
         },
         {
-            "commit_line": "ced0e66 [Builder] Make init container image configurable, set pull policy and pin version (3.13.1) (#696)",
+            "commit_line": "ced0e66 [Builder] Make init container image configurable, set pull policy and pin version ("
+            "3.13.1) (#696)",
             "expected_commit_id": "ced0e66",
             "expected_scope": "Builder",
-            "expected_commit_message": "Make init container image configurable, set pull policy and pin version (3.13.1)",
+            "expected_commit_message": "Make init container image configurable, set pull policy and pin version (3.13.1"
+            ")",
             "expected_pull_request_number": "#696",
         },
         {
@@ -35,9 +37,15 @@ def test_commit_regex_matching():
     ]
 
     for case in cases:
-        match = re.fullmatch(automation.release_notes.generate.ReleaseNotesGenerator.commit_regex, case["commit_line"])
+        match = re.fullmatch(
+            automation.release_notes.generate.ReleaseNotesGenerator.commit_regex,
+            case["commit_line"],
+        )
         assert match is not None, f"Commit did not matched regex. {case['commit_line']}"
         assert case["expected_commit_id"] == match.groupdict()["commitId"]
         assert case["expected_scope"] == match.groupdict()["scope"]
         assert case["expected_commit_message"] == match.groupdict()["commitMessage"]
-        assert case["expected_pull_request_number"] == match.groupdict()["pullRequestNumber"]
+        assert (
+            case["expected_pull_request_number"]
+            == match.groupdict()["pullRequestNumber"]
+        )

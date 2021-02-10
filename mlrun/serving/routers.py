@@ -259,7 +259,7 @@ class VotingEnsemble(BaseModelRouter):
         can then use to apply whatever logic you may need.
 
         If we use this `VotingEnsemble` as an example, the `logic()` function tries to figure
-        out weather you are trying to do a **classification** or a **regression** prediction by
+        out whether you are trying to do a **classification** or a **regression** prediction by
         the prediction type or by the given `vote_type` parameter.  Then we apply the appropriate
         `max_vote()` or `mean_vote()` which calculates the actual prediction result and returns it
         as the VotingEnsemble's prediction.

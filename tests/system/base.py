@@ -119,6 +119,8 @@ class TestMLRunSystem:
 
             if value:
                 os.environ[env_var] = value
+        # reload the config so changes to the env vars will take affect
+        mlrun.config.config.reload()
 
     def _teardown_env(self):
         self._logger.debug("Tearing down test environment")
@@ -126,6 +128,8 @@ class TestMLRunSystem:
             if env_var in os.environ:
                 del os.environ[env_var]
         os.environ.update(self._old_env)
+        # reload the config so changes to the env vars will take affect
+        mlrun.config.config.reload()
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:
         v3io_user = self._test_env["V3IO_USERNAME"]

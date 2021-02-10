@@ -1,12 +1,13 @@
 import os
 import pathlib
-import pytest
 import sys
+
+import pytest
 import yaml
 
+import mlrun.api.schemas
 from mlrun import get_run_db, mlconf, set_environment
 from mlrun.utils import create_logger
-
 
 logger = create_logger(level="debug", name="test")
 
@@ -20,6 +21,7 @@ class TestMLRunSystem:
     mandatory_env_vars = [
         "MLRUN_DBPATH",
         "V3IO_API",
+        "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
     ]
@@ -58,8 +60,12 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        self._run_db.del_runs(project=self.project_name, days_ago=1)
-        self._run_db.del_artifacts(project=self.project_name, tag="*")
+        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
+        self._run_db = mlrun.db.get_run_db()
+        self._run_db.delete_project(
+            self.project_name,
+            deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascade,
+        )
 
         self._teardown_env()
         self._logger.info(
@@ -113,6 +119,8 @@ class TestMLRunSystem:
 
             if value:
                 os.environ[env_var] = value
+        # reload the config so changes to the env vars will take affect
+        mlrun.config.config.reload()
 
     def _teardown_env(self):
         self._logger.debug("Tearing down test environment")
@@ -120,6 +128,8 @@ class TestMLRunSystem:
             if env_var in os.environ:
                 del os.environ[env_var]
         os.environ.update(self._old_env)
+        # reload the config so changes to the env vars will take affect
+        mlrun.config.config.reload()
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:
         v3io_user = self._test_env["V3IO_USERNAME"]

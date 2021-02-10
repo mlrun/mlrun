@@ -1,4 +1,3 @@
-import os
 import pathlib
 
 import mlrun
@@ -26,11 +25,6 @@ class TestHorovodTFv2(TestDemo):
         stores = mlrun.datastore.store_manager.set()
         datastore, subpath = stores.get_or_create_store(
             self._get_v3io_user_store_path(trainer_dest_path)
-        )
-        self._logger.warning(
-            "Fuck me",
-            config_value=mlrun.mlconf.v3io_api,
-            env_value=os.environ.get("V3IO_API"),
         )
         datastore.upload(subpath, trainer_src_path)
 

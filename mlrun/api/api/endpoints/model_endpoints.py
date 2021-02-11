@@ -126,7 +126,7 @@ def list_endpoints(
     labels: List[str] = Query([], alias="label"),
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
-    metrics: bool = Query(default=False),
+    metrics: List[str] = Query([], alias="metric"),
 ):
     """
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
@@ -163,7 +163,7 @@ def list_endpoints(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint.get("id"),
-                name=["predictions", "latency"],
+                name=metrics,
                 start=start,
                 end=end,
             )
@@ -205,7 +205,7 @@ def get_endpoint(
     endpoint_id: str,
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
-    metrics: bool = Query(default=False),
+    metrics: List[str] = Query([], alias="metric"),
     features: bool = Query(default=False),
 ):
     """
@@ -231,7 +231,7 @@ def get_endpoint(
             endpoint_id=endpoint_id,
             start=start,
             end=end,
-            name=["predictions", "latency"],
+            name=metrics,
         )
 
     endpoint_features = None
@@ -271,7 +271,7 @@ def _get_endpoint_metrics(
     name: List[str],
     start: str = "now-1h",
     end: str = "now",
-) -> List[Metric]:
+) -> Dict[str, Metric]:
 
     if not name:
         raise MLRunInvalidArgumentError("Metric names must be provided")
@@ -304,6 +304,7 @@ def _get_endpoint_metrics(
 
     metrics = [time_metric.transform_df_to_metric(data) for time_metric in metrics]
     metrics = [metric for metric in metrics if metric is not None]
+    metrics = {metric.name: metric for metric in metrics}
     return metrics
 
 
@@ -362,7 +363,7 @@ def get_endpoint_kv_record_by_id(
     attribute_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
 
-    client = get_v3io_client(endpoint=config.model_endpoint_monitoring.container)
+    client = get_v3io_client(endpoint=config.v3io_api)
 
     endpoint = client.kv.get(
         container=config.model_endpoint_monitoring.container,

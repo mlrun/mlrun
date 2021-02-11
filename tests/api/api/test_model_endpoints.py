@@ -27,7 +27,7 @@ from mlrun.api.schemas import (
 from mlrun.config import config
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 
-ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_WEBAPI_PORT_8081_TCP", "FRAMESD_PORT_8081_TCP"}
+ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
 
 
 def _build_skip_message():
@@ -218,11 +218,11 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         assert len(metrics) > 0
 
-        first_metric = metrics[0]
+        predictions_per_second = metrics["predictions_per_second"]
 
-        assert first_metric["name"] == "predictions_per_second"
+        assert predictions_per_second["name"] == "predictions_per_second"
 
-        response_total = sum((m[1] for m in first_metric["values"]))
+        response_total = sum((m[1] for m in predictions_per_second["values"]))
 
         assert total == response_total
 
@@ -246,9 +246,7 @@ def _mock_random_endpoint(state: str = "") -> ModelEndpoint:
 
 
 def _write_endpoint_to_kv(endpoint: ModelEndpoint):
-    client = get_v3io_client(
-        endpoint=config.httdb.v3io_api, access_key=_get_access_key()
-    )
+    client = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
     client.kv.put(
         container="projects",
         table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}/",

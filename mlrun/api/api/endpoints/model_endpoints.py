@@ -363,7 +363,7 @@ def get_endpoint_kv_record_by_id(
     attribute_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
 
-    client = get_v3io_client(endpoint=config.model_endpoint_monitoring.container)
+    client = get_v3io_client(endpoint=config.v3io_api)
 
     endpoint = client.kv.get(
         container=config.model_endpoint_monitoring.container,

@@ -167,9 +167,7 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
 )
 def test_get_endpoint_metrics(db: Session, client: TestClient):
     frames = get_frames_client(
-        token=_get_access_key(),
-        container="projects",
-        address=config.v3io_framesd,
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
     )
 
     start = datetime.utcnow()
@@ -248,9 +246,7 @@ def _mock_random_endpoint(state: str = "") -> ModelEndpoint:
 
 
 def _write_endpoint_to_kv(endpoint: ModelEndpoint):
-    client = get_v3io_client(
-        endpoint=config.v3io_api, access_key=_get_access_key()
-    )
+    client = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
     client.kv.put(
         container="projects",
         table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}/",
@@ -269,14 +265,10 @@ def _write_endpoint_to_kv(endpoint: ModelEndpoint):
 
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
-    v3io = get_v3io_client(
-        endpoint=config.v3io_api, access_key=_get_access_key()
-    )
+    v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
     frames = get_frames_client(
-        token=_get_access_key(),
-        container="projects",
-        address=config.v3io_framesd,
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
     )
     try:
         all_records = v3io.kv.new_cursor(

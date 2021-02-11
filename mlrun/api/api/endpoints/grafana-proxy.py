@@ -42,7 +42,9 @@ def _validate_query_parameters(query_parameters: Dict[str, str]):
             f"Expected 'target_endpoint' field in query, found {query_parameters} instead"
         )
     if query_parameters["target_endpoint"] not in DISPATCH:
-        raise Exception(f"{query_parameters['target_endpoint']} unsupported.")
+        raise Exception(
+            f"{query_parameters['target_endpoint']} unsupported. Currently supported: {','.join(DISPATCH.keys())}"
+        )
 
 
 @router.get("/projects/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)

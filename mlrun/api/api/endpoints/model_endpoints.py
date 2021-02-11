@@ -16,8 +16,6 @@ from mlrun.api.schemas import (
     Features,
     Metric,
     ObjectStatus,
-    GrafanaTable,
-    GrafanaColumn,
 )
 from mlrun.config import config
 from mlrun.errors import (
@@ -90,176 +88,6 @@ class TimeMetric:
             raise NotImplementedError(f"Unsupported metric '{name}'")
 
 
-@router.get("/projects/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
-def grafana_list_endpoints(request: Request):
-    _get_access_key(request)
-    return Response(status_code=HTTPStatus.OK.value)
-
-
-@router.post(
-    "/projects/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable]
-)
-async def grafana_list_endpoints(request: Request):
-    body = await request.json()
-    targets = body.get("targets", [])
-    target = targets[0] if targets else {}
-    target = target.get("target") if target else {}
-
-    if not target:
-        raise Exception(f"target missing in request body:\n {body}")
-
-    parameters = dict(t.split("=") for t in target.split(";"))
-    project = parameters.get("project")
-    model = parameters.get("model", None)
-    function = parameters.get("function", None)
-    tag = parameters.get("tag", None)
-    labels = parameters.get("labels", "")
-    labels = labels.split(",") if labels else []
-
-    metrics = parameters.get("metrics", "")
-    metrics = metrics.split(",") if metrics else []
-
-    start = body.get("rangeRaw", {}).get("start", "now-1h")
-    end = body.get("rangeRaw", {}).get("end", "now")
-
-    endpoint_list: ModelEndpointStateList = list_endpoints(
-        request, project, model, function, tag, labels, start, end, metrics,
-    )
-
-    columns = [
-        GrafanaColumn(text="endpoint_id", type="string"),
-        GrafanaColumn(text="endpoint_function", type="string"),
-        GrafanaColumn(text="endpoint_model", type="string"),
-        GrafanaColumn(text="endpoint_model_class", type="string"),
-        GrafanaColumn(text="endpoint_tag", type="string"),
-        GrafanaColumn(text="first_request", type="time"),
-        GrafanaColumn(text="last_request", type="time"),
-        GrafanaColumn(text="accuracy", type="number"),
-        GrafanaColumn(text="error_count", type="number"),
-        GrafanaColumn(text="drift_status", type="number"),
-    ]
-
-    metric_columns = []
-
-    found_metrics = set()
-    for endpoint_state in endpoint_list.endpoints:
-        if endpoint_state.metrics:
-            for key in endpoint_state.metrics.keys():
-                if key not in found_metrics:
-                    found_metrics.add(key)
-                    metric_columns.append(GrafanaColumn(text=key, type="number"))
-
-    columns = columns + metric_columns
-
-    rows = []
-    for endpoint_state in endpoint_list.endpoints:
-        row = [
-            endpoint_state.endpoint.id,
-            endpoint_state.endpoint.spec.function,
-            endpoint_state.endpoint.spec.model,
-            endpoint_state.endpoint.spec.model_class,
-            endpoint_state.endpoint.metadata.tag,
-            endpoint_state.first_request,
-            endpoint_state.last_request,
-            endpoint_state.accuracy,
-            endpoint_state.error_count,
-            endpoint_state.drift_status,
-        ]
-
-        if metric_columns and endpoint_state.metrics:
-            for metric_column in metric_columns:
-                row.append(endpoint_state.metrics[metric_column.text])
-
-        rows.append(row)
-
-    return [GrafanaTable(columns=columns, rows=rows)]
-
-
-@router.get(
-    "/projects/grafana-proxy/endpoint-features", status_code=HTTPStatus.OK.value
-)
-def grafana_endpoint_features(request: Request):
-    _get_access_key(request)
-    return Response(status_code=HTTPStatus.OK.value)
-
-
-@router.post(
-    "/projects/grafana-proxy/endpoint-features/query", response_model=List[GrafanaTable]
-)
-async def grafana_endpoint_features(request: Request):
-    body = await request.json()
-    targets = body.get("targets", [])
-    target = targets[0] if targets else {}
-    target = target.get("target") if target else {}
-
-    if not target:
-        raise Exception(f"target missing in request body:\n {body}")
-
-    parameters = dict(t.split("=") for t in target.split(";"))
-    endpoint_id = parameters.get("endpoint_id")
-    project = parameters.get("project")
-
-    start = body.get("rangeRaw", {}).get("start", "now-1h")
-    end = body.get("rangeRaw", {}).get("end", "now")
-
-    frames_client = get_frames_client(
-        token=_get_access_key(request),
-        address=config.v3io_framesd,
-        container=config.model_endpoint_monitoring.container,
-    )
-
-    # v3io_client = get_v3io_client(endpoint=config.v3io_api)
-    # features = v3io_client.kv.get(
-    #     container="projects",
-    #     table_path=f"{project}/model-describe",
-    #     key="endpoint_id"
-    # ).output.item
-    #
-    # if features:
-    #     features = features.get("features", {})
-
-    results = frames_client.read(
-        "tsdb",
-        "test/endpoint-features",
-        filter=f"endpoint_id=='{endpoint_id}'",
-        start=start,
-        end=end,
-    )
-
-    if results.empty:
-        return []
-
-    results.drop(["endpoint_id", "prediction"], inplace=True, axis=1)
-
-    columns = [
-        GrafanaColumn(text="feature_name", type="string"),
-        GrafanaColumn(text="actual_min", type="number"),
-        GrafanaColumn(text="actual_mean", type="number"),
-        GrafanaColumn(text="actual_max", type="number"),
-        GrafanaColumn(text="expected_min", type="number"),
-        GrafanaColumn(text="expected_mean", type="number"),
-        GrafanaColumn(text="expected_max", type="number"),
-    ]
-
-    rows = []
-    if not results.empty:
-        describes = results.describe().to_dict()
-        for feature, describe in describes.items():
-            rows.append(
-                [
-                    feature,
-                    describe["min"],
-                    describe["mean"],
-                    describe["max"],
-                    None,  # features.get(feature, {}).get("min", None),
-                    None,  # features.get(feature, {}).get("mean", None),
-                    None,  # features.get(feature, {}).get("max", None),
-                ]
-            )
-
-    return [GrafanaTable(columns=columns, rows=rows)]
-
-
 @router.post(
     "/projects/{project}/model-endpoints/{endpoint_id}/clear",
     status_code=HTTPStatus.NO_CONTENT.value,
@@ -277,7 +105,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
         container=config.model_endpoint_monitoring.container,
         table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
         key=endpoint_id,
-        access_key=_get_access_key(request),
+        access_key=get_access_key(request),
     )
     logger.info("Model endpoint table deleted", endpoint_id=endpoint_id)
 
@@ -312,7 +140,7 @@ def list_endpoints(
     Or by using a `,` (comma) seperator:
     `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
     """
-    access_key = _get_access_key(request)
+    access_key = get_access_key(request)
     client = get_v3io_client(endpoint=config.v3io_api)
     cursor = client.kv.new_cursor(
         container=config.model_endpoint_monitoring.container,
@@ -383,7 +211,7 @@ def get_endpoint(
     """
 
     _verify_endpoint(project, endpoint_id)
-    access_key = _get_access_key(request)
+    access_key = get_access_key(request)
     endpoint = get_endpoint_kv_record_by_id(
         access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES,
     )
@@ -552,7 +380,7 @@ def _verify_endpoint(project, endpoint_id):
         )
 
 
-def _get_access_key(_request: Request):
+def get_access_key(_request: Request):
     access_key = _request.headers.get("X-V3io-Session-Key")
     if not access_key:
         raise MLRunBadRequestError(

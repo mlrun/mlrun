@@ -39,7 +39,7 @@ from .model_endpoints import (
     Histogram,
     Metric,
     GrafanaColumn,
-    GrafanaTable
+    GrafanaTable,
 )
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
 from .pipeline import PipelinesPagination, PipelinesOutput

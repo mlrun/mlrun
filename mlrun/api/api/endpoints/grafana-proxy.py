@@ -28,7 +28,8 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
         query_parts = query.split("=")
         if len(query_parts) < 2:
             raise Exception(
-                f"Query must contain both query key and query value. Expected query_key=query_value, found {query} instead."
+                f"Query must contain both query key and query value. Expected query_key=query_value, "
+                f"found {query} instead."
             )
 
     return parameters
@@ -76,7 +77,6 @@ def grafana_endpoint_features(
     request: Request, body: Dict[str, Any], query_parameters: Dict[str, str]
 ):
     endpoint_id = query_parameters.get("endpoint_id")
-    project = query_parameters.get("project")
 
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
@@ -87,6 +87,7 @@ def grafana_endpoint_features(
         container=config.model_endpoint_monitoring.container,
     )
 
+    # project = query_parameters.get("project")
     # v3io_client = get_v3io_client(endpoint=config.v3io_api)
     # features = v3io_client.kv.get(
     #     container="projects",

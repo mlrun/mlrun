@@ -39,10 +39,13 @@ class AzureBlobStore(DataStore):
                     f"Azure adlfs not installed, run pip install adlfs, {e}"
                 )
             return None
-        return fsspec.filesystem(
-            "az",
+        return fsspec.filesystem("az", **self.get_storage_options())
+
+    def get_storage_options(self):
+        return dict(
             account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT"),
             account_key=self._get_secret_or_env("AZURE_STORAGE_KEY"),
+            connection_string=self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
         )
 
     def upload(self, key, src_path):

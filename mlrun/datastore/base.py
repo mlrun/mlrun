@@ -75,7 +75,7 @@ class DataStore:
 
     def get_storage_options(self):
         """get fsspec storage options"""
-        return {}
+        return None
 
     def _join(self, key):
         if self.subpath:

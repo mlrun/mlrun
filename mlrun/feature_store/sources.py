@@ -38,6 +38,10 @@ class BaseSourceDriver(DataSource):
     support_spark = False
     support_storey = False
 
+    def _get_store(self):
+        store, _ = mlrun.store_manager.get_or_create_store(self.path)
+        return store
+
     def to_step(self, key_column=None, time_column=None):
         import storey
 
@@ -98,6 +102,7 @@ class CSVSource(BaseSourceDriver):
             build_dict=True,
             key_field=self.key_column or key_column,
             timestamp_field=self.time_column or time_column,
+            storage_options=self._get_store().get_storage_options(),
             **attributes,
         )
 
@@ -132,8 +137,9 @@ class ParquetSource(BaseSourceDriver):
         attributes = self.attributes or {}
         return storey.ReadParquet(
             paths=self.path,
-            key_column=self.key_column or key_column,
-            time_column=self.time_column or time_column,
+            key_field=self.key_column or key_column,
+            time_field=self.time_column or time_column,
+            storage_options=self._get_store().get_storage_options(),
             **attributes,
         )
 
@@ -157,8 +163,8 @@ class DataFrameSource:
 
         return storey.DataframeSource(
             dfs=self._df,
-            key_column=self.key_column or key_column,
-            time_column=self.time_column or time_column,
+            key_field=self.key_column or key_column,
+            time_field=self.time_column or time_column,
         )
 
     def to_dataframe(self):

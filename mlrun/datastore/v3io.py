@@ -43,10 +43,6 @@ class V3ioStore(DataStore):
         super().__init__(parent, name, schema, endpoint)
         self.endpoint = self.endpoint or environ.get("V3IO_API", "v3io-webapi:8081")
 
-        token = self._secret("V3IO_ACCESS_KEY") or environ.get("V3IO_ACCESS_KEY")
-        username = self._secret("V3IO_USERNAME") or environ.get("V3IO_USERNAME")
-        password = self._secret("V3IO_PASSWORD") or environ.get("V3IO_PASSWORD")
-
         self.headers = None
         self.secure = self.kind == "v3ios"
         if self.endpoint.startswith("https://"):
@@ -55,6 +51,10 @@ class V3ioStore(DataStore):
         elif self.endpoint.startswith("http://"):
             self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
+
+        token = self._get_secret_or_env("V3IO_ACCESS_KEY")
+        username = self._get_secret_or_env("V3IO_USERNAME")
+        password = self._get_secret_or_env("V3IO_PASSWORD")
 
         self.auth = None
         self.token = token
@@ -82,9 +82,10 @@ class V3ioStore(DataStore):
                     f"v3iofs or storey not installed, run pip install storey, {e}"
                 )
             return None
-        return fsspec.filesystem(
-            "v3io", v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"),
-        )
+        return fsspec.filesystem("v3io", **self.get_storage_options())
+
+    def get_storage_options(self):
+        return dict(v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"))
 
     def upload(self, key, src_path):
         http_upload(self.url + self._join(key), src_path, self.headers, None)

@@ -45,8 +45,10 @@ class S3Store(DataStore):
             if not silent:
                 raise ImportError(f"AWS s3fs not installed, run pip install s3fs, {e}")
             return None
-        return fsspec.filesystem(
-            "s3",
+        return fsspec.filesystem("s3", **self.get_storage_options())
+
+    def get_storage_options(self):
+        return dict(
             anon=False,
             key=self._get_secret_or_env("AWS_ACCESS_KEY_ID"),
             secret=self._get_secret_or_env("AWS_SECRET_ACCESS_KEY"),

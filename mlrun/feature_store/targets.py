@@ -127,7 +127,7 @@ class BaseStoreTarget(DataTargetBase):
         self._resource = None
         self._secrets = {}
 
-    def get_store(self):
+    def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self.path)
         return store
 
@@ -196,7 +196,7 @@ class ParquetTarget(BaseStoreTarget):
     support_storey = True
 
     def write_datafreme(self, df, **kwargs):
-        fs = self.get_store().get_filesystem(False)
+        fs = self._get_store().get_filesystem(False)
         with fs.open(self.path, "wb") as f:
             df.to_parquet(f, **kwargs)
 
@@ -215,6 +215,7 @@ class ParquetTarget(BaseStoreTarget):
             path=self._target_path,
             columns=column_list,
             index_cols=key_column,
+            storage_options=self._get_store().get_storage_options(),
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -232,7 +233,7 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     def write_datafreme(self, df, **kwargs):
-        fs = self.get_store().get_filesystem(False)
+        fs = self._get_store().get_filesystem(False)
         with fs.open(self.path, "wb") as f:
             df.to_csv(f, **kwargs)
 
@@ -252,6 +253,7 @@ class CSVTarget(BaseStoreTarget):
             columns=column_list,
             header=True,
             index_cols=key_column,
+            storage_options=self._get_store().get_storage_options(),
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):

@@ -1,5 +1,7 @@
+import re
 import traceback
 import typing
+from hashlib import sha1
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -19,9 +21,6 @@ from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
-
-import re
-from hashlib import sha1
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):

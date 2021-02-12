@@ -15,7 +15,8 @@ lifelines~=0.25.0
 lightgbm~=3.0
 lz4~=3.0
 msgpack~=1.0
-numpy~=1.18
+# see main requirements.txt for reasoning the resrictions
+numpy>=1.16.5, <1.20.0
 plotly~=4.7
 pyarrow~=1.0
 pyod~=0.8.1

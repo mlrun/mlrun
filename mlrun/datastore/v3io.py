@@ -41,7 +41,7 @@ V3IO_LOCAL_ROOT = "v3io"
 class V3ioStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
-        self.endpoint = self.endpoint or environ.get("V3IO_API", "v3io-webapi:8081")
+        self.endpoint = self.endpoint or mlrun.mlconf.v3io_api
 
         self.headers = None
         self.secure = self.kind == "v3ios"

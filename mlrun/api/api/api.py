@@ -18,6 +18,7 @@ from mlrun.api.api.endpoints import (
     feature_sets,
     model_endpoints,
     secrets,
+    grafana_proxy,
 )
 
 api_router = APIRouter()
@@ -66,6 +67,7 @@ api_router.include_router(
     dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(model_endpoints.router, tags=["model_endpoints"])
+api_router.include_router(grafana_proxy.router, tags=["grafana", "model_endpoints"])
 api_router.include_router(
     secrets.router, tags=["secrets"], dependencies=[Depends(deps.AuthVerifier)]
 )

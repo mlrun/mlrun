@@ -62,7 +62,11 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
 )
 async def grafana_proxy_model_endpoints(request: Request) -> List[GrafanaTable]:
     """
+    Query route for model-endpoints grafana proxy API, used for creating an interface between grafana and
+    model-endpoints.
 
+    This implementation requires passing `target_endpoint` query parameter in order to dispatch different
+    model-endpoint monitoring functions.
     """
     body = await request.json()
     query_parameters = _parse_query_parameters(body)

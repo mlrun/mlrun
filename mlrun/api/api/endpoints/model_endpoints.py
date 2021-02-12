@@ -380,8 +380,8 @@ def _verify_endpoint(project, endpoint_id):
         )
 
 
-def get_access_key(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
+def get_access_key(request: Request):
+    access_key = request.headers.get("X-V3io-Session-Key")
     if not access_key:
         raise MLRunBadRequestError(
             "Request header missing 'X-V3io-Session-Key' parameter."

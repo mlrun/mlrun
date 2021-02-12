@@ -70,7 +70,7 @@ api_router.include_router(
     secrets.router, tags=["secrets"], dependencies=[Depends(deps.AuthVerifier)]
 )
 # Since grafana-proxy imitates the path schema that was set for model-endpoints, ordering between the following two
-# router is crucial for functionality of the grafana-proxy router. Keep Grafana related router above endpoints related
-# router.
+# routers is crucial for functionality of the grafana-proxy router.
+# ** Make sure the inclusion of the grafana_proxy.router happens before the inclusion of the model_endpoints.router. **
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model_endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model_endpoints"])

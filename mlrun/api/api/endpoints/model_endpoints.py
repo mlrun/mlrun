@@ -46,6 +46,9 @@ ENDPOINT_TABLE_ATTRIBUTES = [
 router = APIRouter()
 
 
+router = APIRouter()
+
+
 @dataclass
 class TimeMetric:
     tsdb_column: str

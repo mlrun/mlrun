@@ -75,8 +75,10 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
-    "v3io_api": "",
-    "v3io_framesd": "",
+    # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
+    #  configure this values on field systems, for newer system this will be configured correctly
+    "v3io_api": "http://v3io-webapi:8081",
+    "v3io_framesd": "http://framesd:8081",
     # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
@@ -115,10 +117,13 @@ default_config = {
             "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
         },
+        "v3io_api": "",
+        "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
         "container": "projects",
         "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
+        "model_endpoint_monitoring": {"container": "projects"},
     },
     "secret_stores": {
         "vault": {

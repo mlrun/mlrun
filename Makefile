@@ -422,9 +422,17 @@ test-migrations: clean ## Run mlrun db migrations tests
 		--test-alembic \
 		migrations/tests/*
 
-.PHONY: test-system
-test-system: build-test-system ## Run mlrun system tests
+.PHONY: test-system-dockerized
+test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
 	docker run -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
+
+.PHONY: test-system
+test-system: ## Run mlrun system tests
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rf \
+		tests/system
 
 .PHONY: test-package
 test-package: ## Run mlrun package tests

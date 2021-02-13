@@ -84,6 +84,7 @@ class TestMLRunIntegration:
         mlrun.config.config.reload()
 
     def _run_api(self):
+        self._logger.debug("Starting API")
         output = self._run_command(
             "make", args=["run-api"], env={"MLRUN_VERSION": "test-integration"},
         )
@@ -98,6 +99,10 @@ class TestMLRunIntegration:
 
     def _remove_api(self):
         if self.container_id:
+            logs = self._run_command("docker", args=["logs", self.container_id])
+            self._logger.debug(
+                "Removing API container", container_id=self.container_id, logs=logs
+            )
             self._run_command("docker", args=["rm", "--force", self.container_id])
 
     @staticmethod

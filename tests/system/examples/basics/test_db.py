@@ -1,4 +1,4 @@
-from mlrun import get_run_db, run_local, new_task
+from mlrun import run_local, new_task
 
 from tests.system.base import TestMLRunSystem
 

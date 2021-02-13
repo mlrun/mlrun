@@ -8,7 +8,6 @@ from mlrun import (
     new_task,
     run_pipeline,
     wait_for_pipeline_completion,
-    get_run_db,
 )
 from mlrun.platforms.other import mount_v3io
 

@@ -37,11 +37,11 @@ make fmt
 * System tests - see dedicated section below
 
 ## Pull requests
-* Title - our convention for the pull request title (used as the squashed commit message) is to have it starting with 
+* **Title** - our convention for the pull request title (used as the squashed commit message) is to have it starting with 
 [\<scope\>] e.g. "[API] Adding endpoint to list runs"
-* Description - It's much easier to review when there is a detailed description of the changes, and especially the why-s,
+* **Description** - It's much easier to review when there is a detailed description of the changes, and especially the why-s,
 please put effort in writing good description
-* Tests - we care a lot on tests! if your PR will include good test coverage higher chances it will be merged fast
+* **Tests** - we care a lot on tests! if your PR will include good test coverage higher chances it will be merged fast
 
 ## System Tests
 In the `tests/system/` directory exist test suites to run against a running system, in order to test full MLRun flows.
@@ -96,4 +96,4 @@ Currently this can only be done by one of the maintainers, the process is:
 2. Go to the [build action](https://github.com/mlrun/mlrun/actions?query=workflow%3ABuild) and trigger it for the branch 
 (leave all options default)
 3. Go to the [system test action](https://github.com/mlrun/mlrun/actions?query=workflow%3A%22System+Tests%22) and trigger 
-it for for the branch, change "Take tested code from action REF" to `true`   
+it for the branch, change "Take tested code from action REF" to `true`   

@@ -228,6 +228,10 @@ class Config:
             return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
 
+    @kfp_image.setter
+    def kfp_image(self, value):
+        self._kfp_image = value
+
     @staticmethod
     def resolve_ui_url():
         # ui_url is deprecated in favor of the ui.url (we created the ui block)

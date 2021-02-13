@@ -217,11 +217,6 @@ class HTTPRunDB(RunDBInterface):
                 "mpijob_crd_version"
             )
             config.ui.url = config.resolve_ui_url() or server_cfg.get("ui_url")
-            # This is has a default value, therefore config.ui.projects_prefix will always have a value, prioritize the
-            # API value first
-            config.ui.projects_prefix = (
-                server_cfg.get("ui_projects_prefix") or config.ui.projects_prefix
-            )
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
             )
@@ -234,6 +229,14 @@ class HTTPRunDB(RunDBInterface):
             config.httpdb.builder.docker_registry = (
                 config.httpdb.builder.docker_registry
                 or server_cfg.get("docker_registry")
+            )
+            # These have a default value, therefore local config will always have a value, prioritize the
+            # API value first
+            config.ui.projects_prefix = (
+                server_cfg.get("ui_projects_prefix") or config.ui.projects_prefix
+            )
+            config.kfp_image = (
+                    server_cfg.get("kfp_image") or config.kfp_image
             )
         except Exception:
             pass

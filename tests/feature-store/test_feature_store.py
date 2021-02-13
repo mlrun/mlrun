@@ -16,7 +16,7 @@ from mlrun.utils import logger
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
 from mlrun.feature_store import FeatureSet, Entity, run_ingestion_task
-from mlrun.data_types.data_types import DataType
+from mlrun.data_types.data_types import ValueType
 from mlrun.features import MinMaxValidator
 
 
@@ -37,7 +37,7 @@ def test_basic_featureset():
     init_store()
 
     # add feature set without time column (stock ticker metadata)
-    stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", DataType.STRING)])
+    stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
     df = fs.ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
 
     logger.info(f"output df:\n{df}")
@@ -144,7 +144,7 @@ def test_feature_set_db():
     init_store()
 
     name = "stocks_test"
-    stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", DataType.STRING)])
+    stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
     fs.infer_metadata(
         stocks_set, stocks,
     )

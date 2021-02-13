@@ -29,7 +29,7 @@ __all__ = [
 
 from .model import FeatureSet, FeatureVector
 from ..features import Feature, Entity
-from ..data_types import InferOptions, DataType
+from ..data_types import InferOptions, ValueType
 from .api import (
     get_offline_features,
     get_online_feature_service,

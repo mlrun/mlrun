@@ -1,6 +1,6 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .data_types import DataType, pd_schema_to_value_type, InferOptions
+from .data_types import ValueType, pd_schema_to_value_type, InferOptions
 from .infer import DFDataInfer
 
 

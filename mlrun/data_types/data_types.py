@@ -15,7 +15,7 @@
 # this module is WIP
 
 
-class DataType:
+class ValueType:
     """Feature value type. Used to define data types in Feature Tables."""
 
     UNKNOWN = ""
@@ -38,11 +38,11 @@ class DataType:
 
 def pd_schema_to_value_type(value):
     type_map = {
-        "integer": DataType.INT64,
-        "string": DataType.STRING,
-        "number": DataType.DOUBLE,
-        "datetime": DataType.DATETIME,
-        "boolean": DataType.BOOL,
+        "integer": ValueType.INT64,
+        "string": ValueType.STRING,
+        "number": ValueType.DOUBLE,
+        "datetime": ValueType.DATETIME,
+        "boolean": ValueType.BOOL,
     }
     return type_map[value]
 
@@ -50,23 +50,23 @@ def pd_schema_to_value_type(value):
 def python_type_to_value_type(value_type):
     type_name = value_type.__name__
     type_map = {
-        "int": DataType.INT64,
-        "str": DataType.STRING,
-        "float": DataType.DOUBLE,
-        "bytes": DataType.BYTES,
-        "float64": DataType.DOUBLE,
-        "float32": DataType.FLOAT,
-        "int64": DataType.INT64,
-        "uint64": DataType.INT64,
-        "int32": DataType.INT32,
-        "uint32": DataType.INT32,
-        "uint8": DataType.INT32,
-        "int8": DataType.INT32,
-        "bool": DataType.BOOL,
-        "timedelta": DataType.INT64,
-        "datetime64[ns]": DataType.INT64,
-        "datetime64[ns, tz]": DataType.INT64,
-        "category": DataType.STRING,
+        "int": ValueType.INT64,
+        "str": ValueType.STRING,
+        "float": ValueType.DOUBLE,
+        "bytes": ValueType.BYTES,
+        "float64": ValueType.DOUBLE,
+        "float32": ValueType.FLOAT,
+        "int64": ValueType.INT64,
+        "uint64": ValueType.INT64,
+        "int32": ValueType.INT32,
+        "uint32": ValueType.INT32,
+        "uint8": ValueType.INT32,
+        "int8": ValueType.INT32,
+        "bool": ValueType.BOOL,
+        "timedelta": ValueType.INT64,
+        "datetime64[ns]": ValueType.INT64,
+        "datetime64[ns, tz]": ValueType.INT64,
+        "category": ValueType.STRING,
     }
 
     if type_name in type_map:
@@ -75,12 +75,12 @@ def python_type_to_value_type(value_type):
 
 def spark_to_value_type(data_type):
     type_map = {
-        "int": DataType.INT64,
-        "bigint": DataType.INT64,
-        "double": DataType.DOUBLE,
-        "boolean": DataType.BOOL,
-        "timestamp": DataType.DATETIME,
-        "string": DataType.STRING,
+        "int": ValueType.INT64,
+        "bigint": ValueType.INT64,
+        "double": ValueType.DOUBLE,
+        "boolean": ValueType.BOOL,
+        "timestamp": ValueType.DATETIME,
+        "string": ValueType.STRING,
         "array": "list",
         "map": "dict",
     }

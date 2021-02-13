@@ -85,24 +85,11 @@ class TestMLRunIntegration:
 
     def _run_api(self):
         output = self._run_command(
-            "make",
-            args=[
-                "run-api",
-            ],
-            env={
-                'MLRUN_VERSION': 'test-integration',
-            },
+            "make", args=["run-api"], env={"MLRUN_VERSION": "test-integration"},
         )
         container_id = output.strip()
         # retrieve container bind port + host
-        output = self._run_command(
-            "docker",
-            args=[
-                "port",
-                container_id,
-                "8080",
-            ],
-        )
+        output = self._run_command("docker", args=["port", container_id, "8080"])
         host = output.strip()
         url = f"http://{host}"
         self._check_api_is_healthy(url)
@@ -111,14 +98,7 @@ class TestMLRunIntegration:
 
     def _remove_api(self):
         if self.container_id:
-            self._run_command(
-                "docker",
-                args=[
-                    "rm",
-                    "--force",
-                    self.container_id,
-                ]
-            )
+            self._run_command("docker", args=["rm", "--force", self.container_id])
 
     @staticmethod
     def _check_api_is_healthy(url):

@@ -272,11 +272,7 @@ def mlrun_op(
 
         function_name = function.metadata.name
         if function.kind == "dask":
-            image = (
-                image
-                or function.spec.kfp_image
-                or config.dask_kfp_image
-            )
+            image = image or function.spec.kfp_image or config.dask_kfp_image
 
     image = image or config.kfp_image
 

@@ -235,11 +235,9 @@ class HTTPRunDB(RunDBInterface):
             config.ui.projects_prefix = (
                 server_cfg.get("ui_projects_prefix") or config.ui.projects_prefix
             )
-            config.kfp_image = (
-                    server_cfg.get("kfp_image") or config.kfp_image
-            )
+            config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
             config.dask_kfp_image = (
-                    server_cfg.get("dask_kfp_image") or config.dask_kfp_image
+                server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )
         except Exception:
             pass

@@ -443,6 +443,13 @@ test-package: ## Run mlrun package tests
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
 
+.PHONY: run-api
+run-api: api ## Run mlrun api (dockerized)
+	docker run \
+		--detach \
+		--publish 8080 \
+		$(MLRUN_API_IMAGE_NAME_TAGGED)
+
 .PHONY: html-docs
 html-docs: ## Build html docs
 	rm -f docs/external/*.md

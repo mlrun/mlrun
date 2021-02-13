@@ -60,8 +60,6 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
-        self._run_db = mlrun.db.get_run_db()
         self._run_db.delete_project(
             self.project_name,
             deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascade,

@@ -34,7 +34,7 @@ class AzureBlobStore(DataStore):
         if self._filesystem:
             return self._filesystem
         try:
-            import adlfs
+            import adlfs  # noqa
         except ImportError as e:
             if not silent:
                 raise ImportError(
@@ -48,7 +48,9 @@ class AzureBlobStore(DataStore):
         return dict(
             account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
             account_key=self._get_secret_or_env("AZURE_STORAGE_KEY"),
-            connection_string=self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
+            connection_string=self._get_secret_or_env(
+                "AZURE_STORAGE_CONNECTION_STRING"
+            ),
         )
 
     def upload(self, key, src_path):

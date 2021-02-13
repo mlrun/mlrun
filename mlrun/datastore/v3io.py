@@ -14,7 +14,6 @@
 
 from copy import deepcopy
 from datetime import datetime
-from os import environ
 import time
 from urllib.parse import urlparse
 
@@ -77,7 +76,7 @@ class V3ioStore(DataStore):
         if self._filesystem:
             return self._filesystem
         try:
-            import v3iofs
+            import v3iofs  # noqa
         except ImportError as e:
             if not silent:
                 raise ImportError(

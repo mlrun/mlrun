@@ -33,7 +33,9 @@ class FileStore(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
-        return fsspec.filesystem("file")
+        if not self._filesystem:
+            self._filesystem = fsspec.filesystem("file")
+        return self._filesystem
 
     def get(self, key, size=None, offset=0):
         with open(self._join(key), "rb") as fp:

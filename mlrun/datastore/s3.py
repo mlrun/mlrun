@@ -39,13 +39,16 @@ class S3Store(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
+        if self._filesystem:
+            return self._filesystem
         try:
             import s3fs
         except ImportError as e:
             if not silent:
                 raise ImportError(f"AWS s3fs not installed, run pip install s3fs, {e}")
             return None
-        return fsspec.filesystem("s3", **self.get_storage_options())
+        self._filesystem = fsspec.filesystem("s3", **self.get_storage_options())
+        return self._filesystem
 
     def get_storage_options(self):
         return dict(

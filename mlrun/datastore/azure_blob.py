@@ -31,6 +31,8 @@ class AzureBlobStore(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
+        if self._filesystem:
+            return self._filesystem
         try:
             import adlfs
         except ImportError as e:
@@ -39,7 +41,8 @@ class AzureBlobStore(DataStore):
                     f"Azure adlfs not installed, run pip install adlfs, {e}"
                 )
             return None
-        return fsspec.filesystem("az", **self.get_storage_options())
+        self._filesystem = fsspec.filesystem("az", **self.get_storage_options())
+        return self._filesystem
 
     def get_storage_options(self):
         return dict(

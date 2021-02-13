@@ -41,7 +41,7 @@ make fmt
 [\<scope\>] e.g. "[API] Adding endpoint to list runs"
 * **Description** - It's much easier to review when there is a detailed description of the changes, and especially the why-s,
 please put effort in writing good description
-* **Tests** - we care a lot on tests! if your PR will include good test coverage higher chances it will be merged fast
+* **Tests** - we care a lot about tests! if your PR will include good test coverage higher chances it will be merged fast
 
 ## System Tests
 In the `tests/system/` directory exist test suites to run against a running system, in order to test full MLRun flows.

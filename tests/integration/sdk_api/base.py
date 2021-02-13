@@ -88,7 +88,7 @@ class TestMLRunIntegration:
         output = self._run_command(
             "make", args=["run-api"], env={"MLRUN_VERSION": "test-integration"},
         )
-        container_id = output.strip()
+        container_id = output.split("\n")[-2].strip()
         # retrieve container bind port + host
         output = self._run_command("docker", args=["port", container_id, "8080"])
         host = output.strip()

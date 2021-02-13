@@ -9,7 +9,7 @@ import mlrun.api.schemas
 from mlrun import get_run_db, mlconf, set_environment
 from mlrun.utils import create_logger
 
-logger = create_logger(level="debug", name="test")
+logger = create_logger(level="debug", name="test-system")
 
 
 class TestMLRunSystem:

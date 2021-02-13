@@ -927,7 +927,7 @@ class FlowState(BaseState):
             resp = self._controller.emit(
                 event, return_awaitable_result=self._wait_for_result
             )
-            if self._wait_for_result:
+            if self._wait_for_result and resp:
                 return resp.await_result()
             event = copy(event)
             event.body = {"id": event.id}

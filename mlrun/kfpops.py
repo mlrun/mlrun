@@ -275,7 +275,7 @@ def mlrun_op(
             image = (
                 image
                 or function.spec.kfp_image
-                or "mlrun/ml-base:{}".format(config.version)
+                or config.dask_kfp_image
             )
 
     image = image or config.kfp_image

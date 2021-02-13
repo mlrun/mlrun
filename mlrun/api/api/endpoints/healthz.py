@@ -21,4 +21,5 @@ def health():
         "spark_app_image": config.spark_app_image,
         "spark_app_image_tag": config.spark_app_image_tag,
         "kfp_image": config.kfp_image,
+        "dask_kfp_image": config.dask_kfp_image,
     }

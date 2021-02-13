@@ -1,4 +1,4 @@
-from mlrun import get_run_db, run_local, new_task
+from mlrun import run_local, new_task
 
 from tests.system.base import TestMLRunSystem
 
@@ -33,8 +33,6 @@ class TestDB(TestMLRunSystem):
 
     def test_db_commands(self):
 
-        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
-        self._run_db = get_run_db()
         runs = self._run_db.list_runs(project=self.project_name)
         assert len(runs) == 1
 

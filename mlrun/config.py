@@ -50,6 +50,7 @@ default_config = {
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
+    "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
     "igz_version": "",  # the version of the iguazio system the API is running on
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
@@ -228,6 +229,26 @@ class Config:
             return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
 
+    @kfp_image.setter
+    def kfp_image(self, value):
+        self._kfp_image = value
+
+    @property
+    def dask_kfp_image(self):
+        """
+        See kfp_image property docstring for why we're defining this property
+        """
+        if not self._dask_kfp_image:
+            # importing here to avoid circular dependency
+            import mlrun.utils.helpers
+
+            return mlrun.utils.helpers.enrich_image_url("mlrun/ml-base")
+        return self._dask_kfp_image
+
+    @dask_kfp_image.setter
+    def dask_kfp_image(self, value):
+        self._dask_kfp_image = value
+
     @staticmethod
     def resolve_ui_url():
         # ui_url is deprecated in favor of the ui.url (we created the ui block)
@@ -287,10 +308,12 @@ def _do_populate(env=None):
     if data:
         config.update(data)
 
-    # HACK to enable kfp_image property to both have dynamic default and to use the value from dict/env like
-    # other configurations
+    # HACK to enable kfp_image and dask_kfp_image property to both have dynamic default and to use the value from
+    # dict/env like other configurations
     config._cfg["_kfp_image"] = config._cfg["kfp_image"]
     del config._cfg["kfp_image"]
+    config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]
+    del config._cfg["dask_kfp_image"]
 
 
 def _convert_str(value, typ):

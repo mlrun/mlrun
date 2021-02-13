@@ -8,7 +8,6 @@ from mlrun import (
     new_task,
     run_pipeline,
     wait_for_pipeline_completion,
-    get_run_db,
 )
 from mlrun.platforms.other import mount_v3io
 
@@ -78,8 +77,6 @@ class TestJobs(TestMLRunSystem):
 
         wait_for_pipeline_completion(workflow_run_id)
 
-        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
-        self._run_db = get_run_db()
         runs = self._run_db.list_runs(
             project=self.project_name, labels=f"workflow={workflow_run_id}"
         )

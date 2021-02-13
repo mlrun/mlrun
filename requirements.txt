@@ -46,3 +46,4 @@ kubernetes~=11.0
 #  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2
 fastapi~=0.62.0
+storey~=0.3.3

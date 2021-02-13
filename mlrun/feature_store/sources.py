@@ -78,7 +78,7 @@ class DFSourceDriver:
         import storey
 
         return storey.DataframeSource(
-            dfs=self._df, key_column=key_column, time_column=time_column,
+            dfs=self._df, key_field=key_column, time_field=time_column,
         )
 
 

@@ -94,62 +94,31 @@ def _add_data_states(
     graph.set_flow_source(source)
 
 
-def deploy_ingestion_function(
-    name, featureset, source, parameters, function=None, local=False, watch=True,
-):
-    function.metadata.project = featureset.metadata.project
-    if function.kind == RuntimeKinds.serving:
-        # add triggers
-        function.spec.graph = featureset.spec.graph
-        function.spec.parameters = parameters
-        function.spec.graph_initializer = (
-            "mlrun.feature_store.ingestion.featureset_initializer"
-        )
-        function.verbose = True
-        if local:
-            return function.to_mock_server()
-        else:
-            function.deploy()
-    else:
-        return function.run(
-            name=name,
-            params=parameters,
-            schedule=source.schedule,
-            local=local,
-            watch=watch,
-        )
+def default_ingestion_job_function(name, featureset, engine=None, function=None):
+    if not function:
+        function_ref = featureset.spec.function.copy()
+        if not function_ref.to_dict():
+            function_ref = FunctionReference(name=name, kind=RuntimeKinds.job)
+        function_ref.kind = function_ref.kind or RuntimeKinds.job
 
-
-def default_ingestion_function(name, featureset, online, engine=None):
-    name = name or f"{featureset.metadata.name}_ingest"
-    function_ref = featureset.spec.function.copy()
-    if not function_ref.to_dict():
-        runtime_kind = RuntimeKinds.serving if online else RuntimeKinds.job
-        function_ref = FunctionReference(name=name, kind=runtime_kind)
-    if not function_ref.kind:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"function reference is missing kind {function_ref}"
-        )
-
-    if not function_ref.url:
-        code = function_ref.code or ""
-        if function_ref.kind == RuntimeKinds.serving:
-            function_ref.code = code
-        else:
+        if not function_ref.url:
+            code = function_ref.code or ""
+            # todo: use engine until we have spark service runtime
             engine = engine or featureset.spec.engine
             if engine and engine == "spark":
                 function_ref.code = code + _default_spark_handler
             else:
                 function_ref.code = code + _default_job_handler
+        function = function_ref.to_function()
+        function.spec.default_handler = "handler"
 
-    if not function_ref.image:
-        function_ref.image = (
+    if not function.spec.image:
+        function.spec.image = (
             mlrun.mlconf.feature_store.default_spark_image
             if engine == "spark"
             else mlrun.mlconf.feature_store.default_job_image
         )
-    function = function_ref.to_function()
-    return name, function
+    return function
 
 
 _default_job_handler = """

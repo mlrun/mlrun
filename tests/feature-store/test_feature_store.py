@@ -15,7 +15,7 @@ from mlrun.feature_store.targets import CSVTarget
 from mlrun.utils import logger
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
-from mlrun.feature_store import FeatureSet, Entity, run_ingestion_task
+from mlrun.feature_store import FeatureSet, Entity, run_ingestion_job
 from mlrun.data_types.data_types import ValueType
 from mlrun.features import MinMaxValidator
 
@@ -172,7 +172,7 @@ def test_serverless_ingest():
     if os.path.exists(target_path):
         os.remove(target_path)
 
-    run_ingestion_task(
+    run_ingestion_job(
         measurements,
         source,
         targets,

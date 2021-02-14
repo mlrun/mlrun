@@ -9,6 +9,7 @@ from mlrun.serving import V2ModelServer
 from mlrun.serving.server import GraphContext, MockEvent, create_graph_server
 from mlrun.serving.states import RouterState, TaskState
 from mlrun.utils import logger
+from nuclio_sdk import Context as NuclioContext
 
 
 def generate_test_routes(model_class):
@@ -123,9 +124,9 @@ class AsyncModelTestingClass(V2ModelServer):
         return resp
 
 
-def init_ctx(spec=spec):
+def init_ctx(spec=spec, context=None):
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
-    context = GraphContext()
+    context = context or GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
     return context
 
@@ -281,7 +282,7 @@ def test_v2_custom_handler():
 
 
 def test_v2_errors():
-    context = init_ctx()
+    context = init_ctx(context=NuclioContext(logger=logger))
     event = MockEvent('{"test": "ok"}', path="/v2/models/m1/xx")
     resp = context.mlrun_handler(context, event)
     # expected: 400, 'illegal model operation xx, method=None'

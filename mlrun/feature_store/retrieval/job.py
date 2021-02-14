@@ -15,6 +15,7 @@ def run_merge_job(
     watch=None,
     function=None,
     secrets=None,
+    auto_mount=None,
 ):
     name = vector.metadata.name
     if not name:
@@ -32,6 +33,8 @@ def run_merge_job(
         if not function_ref.url:
             function_ref.code = _default_merger_handler
         function = function_ref.to_function()
+
+    if auto_mount:
         function.apply(mlrun.platforms.auto_mount())
 
     function.metadata.project = vector.metadata.project
@@ -93,11 +96,11 @@ def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = Non
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
     if entity_rows:
         entity_rows = entity_rows.as_df()
-        
+
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = LocalFeatureMerger(vector)
     resp = merger.start(entity_rows, entity_timestamp_column, store_target)
-    
+
     context.logger.info("merge task completed, targets:")
     context.logger.info(f"{vector.status.targets.to_dict()}")
     context.log_result('feature_vector', vector.uri)

@@ -21,7 +21,6 @@ from ...features import Feature
 from .base import DataSource, DataTarget, CommonMetadata
 from ..common import parse_feature_string, get_feature_set_by_uri
 from ...model import ModelObj, ObjectList
-from ...artifacts.dataset import upload_dataframe
 from ...config import config as mlconf
 from ...runtimes.function_reference import FunctionReference
 from ...serving.states import RootFlowState

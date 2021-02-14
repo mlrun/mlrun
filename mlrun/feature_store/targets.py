@@ -196,9 +196,8 @@ class ParquetTarget(BaseStoreTarget):
     support_storey = True
 
     def write_datafreme(self, df, **kwargs):
-        fs = self._get_store().get_filesystem(False)
-        with fs.open(self.path, "wb") as f:
-            df.to_parquet(f, **kwargs)
+        with self._get_store().open(self.path, "wb") as fp:
+            df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -233,9 +232,8 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     def write_datafreme(self, df, **kwargs):
-        fs = self._get_store().get_filesystem(False)
-        with fs.open(self.path, "wb") as f:
-            df.to_csv(f, **kwargs)
+        with self._get_store().open(self.path, "wb") as fp:
+            df.to_csv(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

@@ -67,15 +67,6 @@ class BaseSourceDriver(DataSource):
         raise NotImplementedError()
 
 
-class HTTPSource(BaseSourceDriver):
-    kind = ''
-
-    def __init__(self):
-        super().__init__()
-        self.online = True
-
-
-
 class CSVSource(BaseSourceDriver):
     kind = "csv"
     support_storey = True
@@ -171,9 +162,39 @@ class DataFrameSource:
         return self._df
 
 
+class OnlineSource(BaseSourceDriver):
+    """online data source spec"""
+
+    _dict_fields = [
+        "kind",
+        "name",
+        "path",
+        "attributes",
+        "online",
+        "workers",
+    ]
+    kind = ""
+
+    def __init__(
+        self,
+        name: str = None,
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        workers: int = None,
+    ):
+        super().__init__(name, path, attributes)
+        self.online = True
+        self.workers = workers
+
+
+class HttpSource(OnlineSource):
+    kind = "http"
+
+
 # map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
     "": BaseSourceDriver,
     "csv": CSVSource,
     "parquet": ParquetSource,
+    "http": HttpSource,
 }

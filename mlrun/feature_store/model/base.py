@@ -96,8 +96,8 @@ class DataSource(ModelObj):
         "name",
         "path",
         "attributes",
-        "key_column",
-        "time_column",
+        "key_field",
+        "time_field",
         "schedule",
         "online",
         "workers",
@@ -110,16 +110,16 @@ class DataSource(ModelObj):
         name: str = None,
         path: str = None,
         attributes: Dict[str, str] = None,
-        key_column: str = None,
-        time_column: str = None,
+        key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
     ):
         self.name = name
         self.path = str(path)
         self.attributes = attributes
         self.schedule = schedule
-        self.key_column = key_column
-        self.time_column = time_column
+        self.key_field = key_field
+        self.time_field = time_field
 
         self.online = None
         self.max_age = None

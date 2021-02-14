@@ -25,13 +25,13 @@ def get_source_from_dict(source):
     return source_kind_to_driver[kind].from_dict(source)
 
 
-def get_source_step(source, key_column=None, time_column=None):
+def get_source_step(source, key_field=None, time_field=None):
     """initialize the source driver"""
     if hasattr(source, "to_csv"):
         source = DataFrameSource(source)
-    if not key_column and not source.key_column:
+    if not key_field and not source.key_field:
         raise mlrun.errors.MLRunInvalidArgumentError("key column is not defined")
-    return source.to_step(key_column, time_column)
+    return source.to_step(key_field, time_field)
 
 
 class BaseSourceDriver(DataSource):
@@ -42,7 +42,7 @@ class BaseSourceDriver(DataSource):
         store, _ = mlrun.store_manager.get_or_create_store(self.path)
         return store
 
-    def to_step(self, key_column=None, time_column=None):
+    def to_step(self, key_field=None, time_field=None):
         import storey
 
         return storey.Source()
@@ -77,13 +77,13 @@ class CSVSource(BaseSourceDriver):
         name: str = "",
         path: str = None,
         attributes: Dict[str, str] = None,
-        key_column: str = None,
-        time_column: str = None,
+        key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
     ):
-        super().__init__(name, path, attributes, key_column, time_column, schedule)
+        super().__init__(name, path, attributes, key_field, time_field, schedule)
 
-    def to_step(self, key_column=None, time_column=None):
+    def to_step(self, key_field=None, time_field=None):
         import storey
 
         attributes = self.attributes or {}
@@ -91,8 +91,8 @@ class CSVSource(BaseSourceDriver):
             paths=self.path,
             header=True,
             build_dict=True,
-            key_field=self.key_column or key_column,
-            timestamp_field=self.time_column or time_column,
+            key_field=self.key_field or key_field,
+            timestamp_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
             **attributes,
         )
@@ -116,20 +116,20 @@ class ParquetSource(BaseSourceDriver):
         name: str = "",
         path: str = None,
         attributes: Dict[str, str] = None,
-        key_column: str = None,
-        time_column: str = None,
+        key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
     ):
-        super().__init__(name, path, attributes, key_column, time_column, schedule)
+        super().__init__(name, path, attributes, key_field, time_field, schedule)
 
-    def to_step(self, key_column=None, time_column=None):
+    def to_step(self, key_field=None, time_field=None):
         import storey
 
         attributes = self.attributes or {}
         return storey.ReadParquet(
             paths=self.path,
-            key_field=self.key_column or key_column,
-            time_field=self.time_column or time_column,
+            key_field=self.key_field or key_field,
+            time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
             **attributes,
         )
@@ -144,18 +144,18 @@ class ParquetSource(BaseSourceDriver):
 class DataFrameSource:
     support_storey = True
 
-    def __init__(self, df, key_column=None, time_column=None):
+    def __init__(self, df, key_field=None, time_field=None):
         self._df = df
-        self.key_column = key_column
-        self.time_column = time_column
+        self.key_field = key_field
+        self.time_field = time_field
 
-    def to_step(self, key_column=None, time_column=None):
+    def to_step(self, key_field=None, time_field=None):
         import storey
 
         return storey.DataframeSource(
             dfs=self._df,
-            key_field=self.key_column or key_column,
-            time_field=self.time_column or time_column,
+            key_field=self.key_field or key_field,
+            time_field=self.time_field or time_field,
         )
 
     def to_dataframe(self):

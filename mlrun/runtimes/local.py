@@ -89,6 +89,10 @@ class LocalRuntime(BaseRuntime):
             "starting local run: {} # {}".format(self.spec.command, handler or "main")
         )
 
+        if runobj.metadata.labels['kind'] == "sparkclient" and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true":
+            from mlrun.runtimes.sparkclientjob import igz_spark_pre_hook
+            igz_spark_pre_hook() #run(["/bin/bash", "/etc/config/v3io/spark-job-init.sh"])
+
         if handler:
             if self.spec.pythonpath:
                 set_paths(self.spec.pythonpath)

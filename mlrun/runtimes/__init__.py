@@ -22,6 +22,7 @@ __all__ = [
     "ServingRuntime",
     "SparkRuntime",
     "DaskCluster",
+    "SparkClientRuntime",
 ]
 
 
@@ -41,6 +42,7 @@ from .nuclio import nuclio_init_hook
 from .serving import ServingRuntime, new_v2_model_server
 
 # for legacy imports (MLModelServer moved from here to /serving)
+from .sparkclientjob import SparkClientRuntime, SparkClientRuntimeHandler
 from ..serving import MLModelServer, new_v1_model_server  # noqa
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
@@ -91,6 +93,7 @@ class RuntimeKinds(object):
     dask = "dask"
     job = "job"
     spark = "spark"
+    sparkclient = "sparkclient"
     mpijob = "mpijob"
     serving = "serving"
 
@@ -103,6 +106,7 @@ class RuntimeKinds(object):
             RuntimeKinds.dask,
             RuntimeKinds.job,
             RuntimeKinds.spark,
+            RuntimeKinds.sparkclient,
             RuntimeKinds.mpijob,
         ]
 
@@ -112,6 +116,7 @@ class RuntimeKinds(object):
             RuntimeKinds.dask,
             RuntimeKinds.job,
             RuntimeKinds.spark,
+            RuntimeKinds.sparkclient,
             RuntimeKinds.mpijob,
         ]
 
@@ -149,6 +154,7 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
     kind_runtime_handler_map = {
         RuntimeKinds.dask: DaskRuntimeHandler,
         RuntimeKinds.spark: SparkRuntimeHandler,
+        RuntimeKinds.sparkclient: SparkClientRuntimeHandler,
         RuntimeKinds.job: KubeRuntimeHandler,
     }
     runtime_handler_class = kind_runtime_handler_map[kind]
@@ -173,6 +179,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.dask: DaskCluster,
         RuntimeKinds.job: KubejobRuntime,
         RuntimeKinds.spark: SparkRuntime,
+        RuntimeKinds.sparkclient: SparkClientRuntime,
     }
 
     return kind_runtime_map[kind]

@@ -1,0 +1,87 @@
+# Copyright 2021 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import os
+
+from .pod import KubeResourceSpec
+from ..execution import MLClientCtx
+from ..model import RunObject
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from mlrun.runtimes import KubejobRuntime
+
+
+class SparkClientSpec(KubeResourceSpec):
+    def __init__(
+            self,
+            command=None,
+            args=None,
+            image=None,
+            mode=None,
+            volumes=None,
+            volume_mounts=None,
+            env=None,
+            resources=None,
+            default_handler=None,
+            entry_points=None,
+            description=None,
+            workdir=None,
+            replicas=None,
+            image_pull_policy=None,
+            service_account=None,
+            build=None,
+            image_pull_secret=None,
+            igz_spark=None,
+    ):
+        super().__init__(
+            command=command,
+            args=args,
+            image=image,
+            mode=mode,
+            build=build,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            default_handler=default_handler,
+        )
+        self.igz_spark = igz_spark
+
+
+class SparkClientRuntime(KubejobRuntime):
+    kind = "sparkclient"
+
+    @property
+    def spec(self) -> SparkClientSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", SparkClientSpec)
+
+    def with_igz_spark(self, spark_service):
+        self.spec.igz_spark = True
+        self.spec.env.append({
+            "name": "MLRUN_SPARK_CLIENT_IGZ_SPARK",
+            "value": "true",
+        })
+        self.spec.image = os.environ.get("IGZ_DATANODE_REGISTRY_URL") + '/iguazio/shell:' + os.environ.get(
+            "IGZ_VERSION")
+        self.apply(mount_v3io_extended())
+        self.apply(
+            mount_v3iod(
+                namespace="default-tenant",
+                v3io_config_configmap=spark_service + "-submit",
+            )
+        )
+
+    def _run(self, runobj: RunObject, execution: MLClientCtx):
+        super()._run(runobj, execution)

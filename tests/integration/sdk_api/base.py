@@ -1,3 +1,4 @@
+import copy
 import os
 import pathlib
 import subprocess
@@ -86,7 +87,9 @@ class TestMLRunIntegration:
     def _run_api(self):
         self._logger.debug("Starting API")
         output = self._run_command(
-            "make", args=["run-api"], env={"MLRUN_VERSION": "test-integration"},
+            "make",
+            args=["run-api"],
+            env=self._extend_current_env({"MLRUN_VERSION": "test-integration"}),
         )
         container_id = output.split("\n")[-2].strip()
         # retrieve container bind port + host
@@ -104,6 +107,12 @@ class TestMLRunIntegration:
                 "Removing API container", container_id=self.container_id, logs=logs
             )
             self._run_command("docker", args=["rm", "--force", self.container_id])
+
+    @staticmethod
+    def _extend_current_env(env):
+        current_env = copy.deepcopy(os.environ)
+        current_env.update(env)
+        return current_env
 
     @staticmethod
     def _check_api_is_healthy(url):

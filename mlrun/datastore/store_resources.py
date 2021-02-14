@@ -68,7 +68,7 @@ class ResourceCache:
 
         if uri in self._tabels:
             return self._tabels[uri]
-        if uri in [".", ""]:
+        if uri in [".", ""] or uri.startswith("$"):  # $.. indicates in-mem table
             self._tabels[uri] = Table("", Driver())
             return self._tabels[uri]
 

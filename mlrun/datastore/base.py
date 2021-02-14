@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from base64 import b64encode
-from os import remove, path
+from os import remove, path, getenv
 from tempfile import mktemp
 
+import fsspec
 import requests
 import urllib3
 import pandas as pd
@@ -48,6 +49,7 @@ class DataStore:
         self.secret_pfx = ""
         self.options = {}
         self.from_spec = False
+        self._filesystem = None
 
     @property
     def is_structured(self):
@@ -64,6 +66,21 @@ class DataStore:
     @staticmethod
     def uri_to_ipython(endpoint, subpath):
         return ""
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        return None
+
+    def _get_secret_or_env(self, key, default=None):
+        return self._secret(key) or getenv(key, default)
+
+    def get_storage_options(self):
+        """get fsspec storage options"""
+        return None
+
+    def open(self, filepath, mode):
+        fs = self.get_filesystem(False)
+        return fs.open(filepath, mode)
 
     def _join(self, key):
         if self.subpath:
@@ -104,27 +121,28 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def as_df(self, key, columns=None, df_module=None, format="", **kwargs):
+    def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
         df_module = df_module or pd
-        if key.endswith(".csv") or format == "csv":
+        if url.endswith(".csv") or format == "csv":
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
-        elif key.endswith(".parquet") or key.endswith(".pq") or format == "parquet":
+        elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns
             reader = df_module.read_parquet
-        elif key.endswith(".json") or format == "json":
+        elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
 
         else:
-            raise Exception(f"file type unhandled {key}")
+            raise Exception(f"file type unhandled {url}")
 
-        if self.kind == "file":
-            return reader(self._join(key), **kwargs)
+        fs = self.get_filesystem()
+        if fs:
+            return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()
-        self.download(self._join(key), tmp)
+        self.download(self._join(subpath), tmp)
         df = reader(tmp, **kwargs)
         remove(tmp)
         return df
@@ -214,6 +232,10 @@ class DataItem:
         """return FileStats class (size, modified, content_type)"""
         return self._store.stat(self._path)
 
+    def open(self, mode):
+        """return fsspec file handler, if supported"""
+        return self._store.open(self._url, mode)
+
     def listdir(self):
         """return a list of child file names"""
         return self._store.listdir(self._path)
@@ -239,7 +261,12 @@ class DataItem:
         :param format:    file format, if not specified it will be deducted from the suffix
         """
         return self._store.as_df(
-            self._path, columns=columns, df_module=df_module, format=format, **kwargs
+            self._url,
+            self._path,
+            columns=columns,
+            df_module=df_module,
+            format=format,
+            **kwargs,
         )
 
     def __str__(self):
@@ -306,6 +333,12 @@ class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
         self.auth = None
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        if not self._filesystem:
+            self._filesystem = fsspec.filesystem("http")
+        return self._filesystem
 
     def upload(self, key, src_path):
         raise ValueError("unimplemented")

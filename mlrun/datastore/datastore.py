@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
-from .base import DataItem, HttpStore
+from .base import DataItem, HttpStore, DataStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
 from .store_resources import get_store_resource, is_store_uri
@@ -135,7 +135,7 @@ class StoreManager:
             raise OSError("artifact {} not found, {}".format(url, e))
         return resource, resource.get_target_path()
 
-    def object(self, url, key="", project=""):
+    def object(self, url, key="", project="") -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
             artifact_url = url
@@ -144,7 +144,7 @@ class StoreManager:
         store, subpath = self.get_or_create_store(url)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 
-    def get_or_create_store(self, url):
+    def get_or_create_store(self, url) -> (DataStore, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
 

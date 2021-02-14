@@ -86,12 +86,13 @@ class TestMLRunIntegration:
 
     def _run_api(self):
         self._logger.debug("Starting API")
-        output = self._run_command(
+        self._run_command(
             "make",
             args=["run-api"],
             env=self._extend_current_env({"MLRUN_VERSION": "test-integration"}),
         )
-        container_id = output.split("\n")[-2].strip()
+        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
+        container_id = output.strip()
         # retrieve container bind port + host
         output = self._run_command("docker", args=["port", container_id, "8080"])
         host = output.strip()

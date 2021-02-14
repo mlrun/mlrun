@@ -468,6 +468,7 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 .PHONY: run-api
 run-api: api ## Run mlrun api (dockerized)
 	docker run \
+		--name mlrun-api \
 		--detach \
 		--publish 8080 \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)

@@ -399,8 +399,30 @@ test: clean ## Run mlrun tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--ignore=tests/integration \
+		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
 		tests
+
+
+.PHONY: test-integration-dockerized
+test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
+	docker run \
+		-t \
+		--rm \
+		--network='host' \
+		-v /tmp:/tmp \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
+
+.PHONY: test-integration
+test-integration: clean ## Run mlrun integration tests
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rf \
+		tests/integration \
+		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container

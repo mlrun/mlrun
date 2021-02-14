@@ -14,7 +14,6 @@
 
 from copy import deepcopy
 from datetime import datetime
-from os import environ
 import time
 from urllib.parse import urlparse
 
@@ -74,15 +73,18 @@ class V3ioStore(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
+        if self._filesystem:
+            return self._filesystem
         try:
-            import v3iofs
+            import v3iofs  # noqa
         except ImportError as e:
             if not silent:
                 raise ImportError(
                     f"v3iofs or storey not installed, run pip install storey, {e}"
                 )
             return None
-        return fsspec.filesystem("v3io", **self.get_storage_options())
+        self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
+        return self._filesystem
 
     def get_storage_options(self):
         return dict(v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"))

@@ -153,33 +153,14 @@ def default_ingestion_function(name, featureset, online, engine=None):
 
 
 _default_job_handler = """
-from mlrun.feature_store.ingestion import context_to_ingestion_params
 from mlrun.feature_store.api import ingest
 def handler(context):
-    featureset, source, targets, infer_options = context_to_ingestion_params(context)
-    context.logger.info(f"starting ingestion task to {featureset.uri}")
-    ingest(featureset, source, targets, globals(), return_df=False, infer_options=infer_options)
-    context.logger.info("ingestion task completed, targets:")
-    context.logger.info(f"{featureset.status.targets.to_dict()}")
-    context.log_result('featureset', featureset.uri)
+    ingest(mlrun_context=context)
 """
 
 
 _default_spark_handler = """
-from mlrun.feature_store.ingestion import context_to_ingestion_params
-from mlrun.feature_store.api import spark_ingestion, spark_transform_handler
-def spark_job_handler(context):
-    featureset, source, targets, infer_options = context_to_ingestion_params(context)
-    context.logger.info(f"starting ingestion task to {featureset.uri}")
-    if not source:
-        raise ValueError("data source was not specified")
-    from pyspark.sql import SparkSession
-    spark = SparkSession.builder.appName(f"{context.name}-{context.uid}").getOrCreate()
-    handler = globals().get(spark_transform_handler, None)
-    spark_ingestion(spark, featureset, source, targets, infer_options,
-                    mlrun_context=context, transformer=handler)
-    context.logger.info("ingestion task completed, targets:")
-    context.logger.info(f"{featureset.status.targets.to_dict()}")
-    context.log_result('featureset', featureset.uri)
-    spark.stop()
+from mlrun.feature_store.api import ingest_with_spark
+def handler(context):
+    ingest_with_spark(mlrun_context=context)
 """

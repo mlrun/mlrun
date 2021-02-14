@@ -36,6 +36,7 @@ from io import StringIO
 from contextlib import redirect_stdout
 from pathlib import Path
 from nuclio import Event
+from subprocess import run
 
 
 class HandlerRuntime(BaseRuntime):
@@ -103,6 +104,8 @@ class LocalRuntime(BaseRuntime):
             )
             mod.global_mlrun_context = context
             global_context.set(context)
+            if runobj.metadata.labels['kind'] == "sparkclient" and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true":
+                run(["/bin/bash", "/etc/config/v3io/spark-job-init.sh"])
             sout, serr = exec_from_params(fn, runobj, context, self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
             return context.to_dict()

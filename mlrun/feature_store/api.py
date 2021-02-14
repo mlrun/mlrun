@@ -449,7 +449,7 @@ def ingest_with_spark(
     :param transformer:   custom transformation function
     :param namespace:      namespace or module containing graph classes
     """
-    if not mlrun_context and featureset:
+    if not mlrun_context and not featureset:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set must be specified when no mlrun context"
         )

@@ -391,6 +391,6 @@ def _get_target_path(driver, resource):
     if not data_prefix:
         data_prefix = data_prefixes.default
     data_prefix = data_prefix.format(project=project, kind=kind)
-    if version:
-        name = f"{name}-{version}"
+    # todo: handle ver tag changes, may need to copy files?
+    name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

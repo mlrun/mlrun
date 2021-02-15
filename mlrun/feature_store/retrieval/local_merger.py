@@ -91,6 +91,21 @@ class LocalFeatureMerger:
         featureset_df: pd.DataFrame,
     ):
         indexes = list(featureset.spec.entities.keys())
+
+        # Sort left and right keys
+        if type(entity_df.index) != pd.RangeIndex:
+            entity_df = entity_df.reset_index()
+        if type(featureset_df.index) != pd.RangeIndex:
+            featureset_df = featureset_df.reset_index()
+        entity_df[entity_timestamp_column] = pd.to_datetime(
+            entity_df[entity_timestamp_column]
+        )
+        featureset_df[featureset.spec.timestamp_key] = pd.to_datetime(
+            featureset_df[featureset.spec.timestamp_key]
+        )
+        entity_df = entity_df.sort_values(by=entity_timestamp_column)
+        featureset_df = featureset_df.sort_values(by=entity_timestamp_column)
+
         merged_df = pd.merge_asof(
             entity_df,
             featureset_df,
@@ -98,6 +113,14 @@ class LocalFeatureMerger:
             right_on=featureset.spec.timestamp_key,
             by=indexes,
         )
+
+        # Undo indexing tricks for asof merge
+        # to return the correct indexes and not
+        # overload `index` columns
+        try:
+            merged_df = merged_df.drop(columns="index")
+        except:
+            pass
         return merged_df
 
     def _join(

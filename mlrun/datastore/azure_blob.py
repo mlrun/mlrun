@@ -31,18 +31,26 @@ class AzureBlobStore(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
+        if self._filesystem:
+            return self._filesystem
         try:
-            import adlfs
+            import adlfs  # noqa
         except ImportError as e:
             if not silent:
                 raise ImportError(
                     f"Azure adlfs not installed, run pip install adlfs, {e}"
                 )
             return None
-        return fsspec.filesystem(
-            "az",
-            account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT"),
+        self._filesystem = fsspec.filesystem("az", **self.get_storage_options())
+        return self._filesystem
+
+    def get_storage_options(self):
+        return dict(
+            account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
             account_key=self._get_secret_or_env("AZURE_STORAGE_KEY"),
+            connection_string=self._get_secret_or_env(
+                "AZURE_STORAGE_CONNECTION_STRING"
+            ),
         )
 
     def upload(self, key, src_path):

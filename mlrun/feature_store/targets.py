@@ -127,7 +127,7 @@ class BaseStoreTarget(DataTargetBase):
         self._resource = None
         self._secrets = {}
 
-    def get_store(self):
+    def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self.path)
         return store
 
@@ -196,9 +196,8 @@ class ParquetTarget(BaseStoreTarget):
     support_storey = True
 
     def write_datafreme(self, df, **kwargs):
-        fs = self.get_store().get_filesystem(False)
-        with fs.open(self.path, "wb") as f:
-            df.to_parquet(f, **kwargs)
+        with self._get_store().open(self.path, "wb") as fp:
+            df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -215,6 +214,7 @@ class ParquetTarget(BaseStoreTarget):
             path=self._target_path,
             columns=column_list,
             index_cols=key_column,
+            storage_options=self._get_store().get_storage_options(),
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -232,9 +232,8 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     def write_datafreme(self, df, **kwargs):
-        fs = self.get_store().get_filesystem(False)
-        with fs.open(self.path, "wb") as f:
-            df.to_csv(f, **kwargs)
+        with self._get_store().open(self.path, "wb") as fp:
+            df.to_csv(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -252,6 +251,7 @@ class CSVTarget(BaseStoreTarget):
             columns=column_list,
             header=True,
             index_cols=key_column,
+            storage_options=self._get_store().get_storage_options(),
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -391,6 +391,6 @@ def _get_target_path(driver, resource):
     if not data_prefix:
         data_prefix = data_prefixes.default
     data_prefix = data_prefix.format(project=project, kind=kind)
-    if version:
-        name = f"{name}-{version}"
+    # todo: handle ver tag changes, may need to copy files?
+    name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

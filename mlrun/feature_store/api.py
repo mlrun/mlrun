@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import uuid
 from typing import List, Union, Dict
 import mlrun
 import pandas as pd
@@ -20,25 +20,18 @@ from .model.base import DataTargetBase, DataSource
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
 from .ingestion import (
     init_featureset_graph,
-    deploy_ingestion_function,
-    default_ingestion_function,
+    default_ingestion_job_function,
+    context_to_ingestion_params,
 )
 from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
 from .targets import get_default_targets, get_target_driver
-from ..utils import get_caller_globals
+from ..runtimes import RuntimeKinds
+from ..runtimes.function_reference import FunctionReference
+from ..utils import get_caller_globals, logger
 from ..data_types import InferOptions, get_infer_interface
 
 _v3iofs = None
 spark_transform_handler = "transform"
-
-
-# try:
-#     # add v3io:// path prefix support to pandas & dask, todo: move to datastores
-#     from v3iofs import V3ioFS
-#
-#     _v3iofs = V3ioFS()
-# except Exception:
-#     pass
 
 
 def _features_to_vector(features):
@@ -62,9 +55,10 @@ def get_offline_features(
     engine: str = None,
     name: str = None,
     function=None,
-    secrets=None,
     local=None,
     watch=False,
+    auto_mount=True,
+    secrets=None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -94,6 +88,11 @@ def get_offline_features(
     :param engine:       join/merge engine (local, job, spark)
     :param name:         name for the generated feature vector
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
+    :param function:     custom merger function
+    :param local:        run local emulation using mock_server() or run_local()
+    :param watch:        wait for job completion, set to False if you dont want to wait
+    :param auto_mount:   add PVC or v3io volume to the function (using mlrun.platform.auto_mount)
+    :param secrets:      key/value dictionary for secrets (for data credential vars)
     """
     vector = _features_to_vector(features)
     if name:
@@ -109,6 +108,7 @@ def get_offline_features(
             watch=watch,
             function=function,
             secrets=secrets,
+            auto_mount=auto_mount,
         )
 
     merger = LocalFeatureMerger(vector)
@@ -140,12 +140,13 @@ def get_online_feature_service(
 
 
 def ingest(
-    featureset: Union[FeatureSet, str],
-    source,
+    featureset: Union[FeatureSet, str] = None,
+    source=None,
     targets: List[DataTargetBase] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.Null,
+    mlrun_context=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, or URL into the feature store
 
@@ -161,7 +162,25 @@ def ingest(
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
     :param infer_options: schema and stats infer options
+    :param mlrun_context: mlrun context (when running as a job)
     """
+    if not mlrun_context and (not featureset or source is None):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "feature set and source must be specified"
+        )
+    if mlrun_context:
+        if featureset or source is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify mlrun_context with feature set or source"
+            )
+        featureset, source, targets, infer_options = context_to_ingestion_params(
+            mlrun_context
+        )
+        if not source:
+            raise ValueError("data source was not specified")
+        mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
+        return_df = False
+
     namespace = namespace or get_caller_globals()
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -190,6 +209,12 @@ def ingest(
     df = graph.wait_for_completion()
     infer_from_static_df(df, featureset, options=infer_stats)
     featureset.save()
+
+    if mlrun_context:
+        mlrun_context.logger.info("ingestion task completed, targets:")
+        mlrun_context.logger.info(f"{featureset.status.targets.to_dict()}")
+        mlrun_context.log_result("featureset", featureset.uri)
+
     return df
 
 
@@ -248,7 +273,7 @@ def infer_metadata(
     return df
 
 
-def run_ingestion_task(
+def run_ingestion_job(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
@@ -260,12 +285,12 @@ def run_ingestion_task(
     watch=True,
     auto_mount=False,
     engine=None,
+    secrets=None,
+    handler=None,
 ):
-    """Start ingestion task using remote MLRun job, spark or nuclio function
+    """Start batch ingestion task using remote MLRun job or spark function
 
-    Deploy and run batch job or real-time function implementing feature ingestion pipeline
-    the source type and attributes will determine if its batch or real-time
-    HTTP or Streaming sources will deploy real-time functions, offline (csv, parquet, ..)
+    Deploy and run batch job implementing feature ingestion pipeline
     sources will deploy mlrun python or spark jobs (use the `engine` attribute to select spark),
     for scheduled jobs set the schedule attribute in the offline source.
 
@@ -273,7 +298,7 @@ def run_ingestion_task(
 
         source = CSVSource("mycsv", path="measurements.csv")
         targets = [CSVTarget("mycsv", path="./mycsv.csv")]
-        run_ingestion_task(measurements, source, targets, name="tst_ingest")
+        run_ingestion_job(measurements, source, targets, name="tst_ingest")
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -286,6 +311,8 @@ def run_ingestion_task(
     :param watch:         wait for job completion, set to False if you dont want to wait
     :param auto_mount:    add PVC or v3io volume to the function (using mlrun.platform.auto_mount)
     :param engine:        ingestion engine, set to "spark" for using Spark
+    :param secrets:       key/value dictionary for secrets (for data credential vars)
+    :param handler:       run specific handler/method in the function
     """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -294,35 +321,107 @@ def run_ingestion_task(
         featureset, source, targets, parameters, infer_options
     )
 
-    if not function:
-        name, function = default_ingestion_function(
-            name, featureset, source.online, engine
-        )
+    name = name or f"{featureset.metadata.name}_ingest"
+    function = default_ingestion_job_function(name, featureset, engine, function)
     if auto_mount:
         function.apply(mlrun.platforms.auto_mount())
 
-    deploy_ingestion_function(
-        name,
-        featureset,
-        source,
-        parameters,
-        function=function,
-        local=local,
-        watch=watch,
-    )
+    function.metadata.project = featureset.metadata.project
+
+    task = mlrun.new_task(name=name, params=parameters, handler=handler)
+    if secrets:
+        task.with_secrets("inline", secrets)  # todo: replace with vault
+
+    # set run UID and save in the feature set status (linking the features et to the job)
+    task.metadata.uid = uuid.uuid4().hex
+    featureset.status.run_uri = task.metadata.uid
+    featureset.save()
+
+    run = function.run(task, schedule=source.schedule, local=local, watch=watch)
     if watch:
         featureset.reload()
-    return
+    return run
+
+
+def deploy_ingestion_service(
+    featureset: Union[FeatureSet, str],
+    source: DataSource = None,
+    targets: List[DataTargetBase] = None,
+    name: str = None,
+    infer_options: InferOptions = InferOptions.Null,
+    parameters: Dict[str, Union[str, list, dict]] = None,
+    function=None,
+    local=False,
+    auto_mount=False,
+):
+    """Start real-time ingestion service using nuclio function
+
+    Deploy a real-time function implementing feature ingestion pipeline
+    the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
+
+    example::
+
+        source = HTTPSource()
+        func = mlrun.code_to_function("ingest", kind="serving")
+        fs.deploy_ingestion_service(my_set, source, auto_mount=True, function=func)
+
+    :param featureset:    feature set object or uri
+    :param source:        data source object describing the online or offline source
+    :param targets:       list of data target objects
+    :param name:          name name for the job/function
+    :param infer_options: schema and stats infer options
+    :param parameters:    extra parameter dictionary which is passed to the graph context
+    :param function:      custom ingestion function
+    :param local:         run local emulation using mock_server() or run_local()
+    :param auto_mount:    add PVC or v3io volume to the function (using mlrun.platform.auto_mount)
+    """
+    if isinstance(featureset, str):
+        featureset = get_feature_set_by_uri(featureset)
+
+    source, parameters = set_task_params(
+        featureset, source, targets, parameters, infer_options
+    )
+
+    name = name or f"{featureset.metadata.name}_ingest"
+    if not function:
+        function_ref = featureset.spec.function.copy()
+        if not function_ref.to_dict():
+            function_ref = FunctionReference(name=name, kind=RuntimeKinds.serving)
+        function_ref.kind = function_ref.kind or RuntimeKinds.serving
+
+        if not function_ref.url:
+            function_ref.code = function_ref.code or ""
+
+        if not function_ref.image:
+            function_ref.image = mlrun.mlconf.feature_store.default_job_image
+        function = function_ref.to_function()
+
+    if auto_mount:
+        function.apply(mlrun.platforms.auto_mount())
+
+    # todo: add trigger (from source object)
+
+    function.metadata.project = featureset.metadata.project
+    function.spec.graph = featureset.spec.graph
+    function.spec.parameters = parameters
+    function.spec.graph_initializer = (
+        "mlrun.feature_store.ingestion.featureset_initializer"
+    )
+    function.verbose = True
+    if local:
+        return function.to_mock_server()
+    return function.deploy()
 
 
 def ingest_with_spark(
-    spark,
-    featureset: Union[FeatureSet, str],
+    spark=None,
+    featureset: Union[FeatureSet, str] = None,
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
     infer_options: InferOptions = InferOptions.Null,
     mlrun_context=None,
     transformer=None,
+    namespace=None,
 ):
     """Start ingestion task using Spark
 
@@ -348,7 +447,32 @@ def ingest_with_spark(
     :param infer_options: schema and stats infer options
     :param mlrun_context: mlrun context (when running as a job)
     :param transformer:   custom transformation function
+    :param namespace:      namespace or module containing graph classes
     """
+    if not mlrun_context and not featureset:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "feature set must be specified when no mlrun context"
+        )
+    namespace = namespace or get_caller_globals()
+    if mlrun_context:
+        if featureset or source is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify mlrun_context with feature set or source"
+            )
+
+        featureset, source, targets, infer_options = context_to_ingestion_params(
+            mlrun_context
+        )
+        mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
+        if not source:
+            raise ValueError("data source was not specified")
+        from pyspark.sql import SparkSession
+
+        spark = SparkSession.builder.appName(
+            f"{mlrun_context.name}-{mlrun_context.uid}"
+        ).getOrCreate()
+        transformer = transformer or namespace.get(spark_transform_handler, None)
+
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
@@ -367,13 +491,22 @@ def ingest_with_spark(
         targets = [get_target_driver(target, featureset) for target in targets]
 
     for target in targets or []:
+        spark_options = target.get_spark_options(key_column, timestamp_key)
+        logger.info(f'writing to target {target.name}, spark options {spark_options}')
         df.write.mode("overwrite").save(
-            **target.get_spark_options(key_column, timestamp_key)
+            **spark_options
         )
         target.set_resource(featureset)
         target.update_resource_status("ready", is_dir=True)
 
     featureset.save()
+
+    if mlrun_context:
+        mlrun_context.logger.info("ingestion task completed, targets:")
+        mlrun_context.logger.info(f"{featureset.status.targets.to_dict()}")
+        mlrun_context.log_result("featureset", featureset.uri)
+        spark.stop()
+
     return df
 
 

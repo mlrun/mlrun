@@ -49,6 +49,7 @@ class DataStore:
         self.secret_pfx = ""
         self.options = {}
         self.from_spec = False
+        self._filesystem = None
 
     @property
     def is_structured(self):
@@ -75,7 +76,11 @@ class DataStore:
 
     def get_storage_options(self):
         """get fsspec storage options"""
-        return {}
+        return None
+
+    def open(self, filepath, mode):
+        fs = self.get_filesystem(False)
+        return fs.open(filepath, mode)
 
     def _join(self, key):
         if self.subpath:
@@ -227,6 +232,10 @@ class DataItem:
         """return FileStats class (size, modified, content_type)"""
         return self._store.stat(self._path)
 
+    def open(self, mode):
+        """return fsspec file handler, if supported"""
+        return self._store.open(self._url, mode)
+
     def listdir(self):
         """return a list of child file names"""
         return self._store.listdir(self._path)
@@ -327,7 +336,9 @@ class HttpStore(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
-        return fsspec.filesystem("http")
+        if not self._filesystem:
+            self._filesystem = fsspec.filesystem("http")
+        return self._filesystem
 
     def upload(self, key, src_path):
         raise ValueError("unimplemented")

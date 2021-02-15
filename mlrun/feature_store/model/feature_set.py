@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from copy import copy, deepcopy
 from typing import List
 
 import mlrun
@@ -343,9 +342,10 @@ class FeatureSet(ModelObj):
     def to_dataframe(self, columns=None, df_module=None, target_name=None):
         """return featureset (offline) data as dataframe"""
         if columns:
-            if self.spec.timestamp_key:
+            entities = list(self.spec.entities.keys())
+            if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
-            columns = [list(self.spec.entities.keys())[0]] + columns
+            columns = entities + columns
         driver = get_offline_target(self, name=target_name)
         if not driver:
             raise mlrun.errors.MLRunNotFoundError(

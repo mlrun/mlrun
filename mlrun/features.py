@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-from .data_types import DataType
+from .data_types import ValueType
 from .model import ModelObj
 
 
@@ -9,7 +9,7 @@ class Entity(ModelObj):
     def __init__(
         self,
         name: str = None,
-        value_type: DataType = None,
+        value_type: ValueType = None,
         description: str = None,
         labels: Optional[Dict[str, str]] = None,
     ):
@@ -17,7 +17,7 @@ class Entity(ModelObj):
         self.description = description
         self.value_type = value_type
         if name and not value_type:
-            self.value_type = DataType.STRING
+            self.value_type = ValueType.STRING
         self.labels = labels or {}
 
 
@@ -37,7 +37,7 @@ class Feature(ModelObj):
 
     def __init__(
         self,
-        value_type: DataType = None,
+        value_type: ValueType = None,
         description=None,
         aggregate=None,
         name=None,
@@ -46,7 +46,7 @@ class Feature(ModelObj):
         labels: Dict[str, str] = None,
     ):
         self.name = name or ""
-        self.value_type: DataType = value_type or ""
+        self.value_type: ValueType = value_type or ""
         self.dims = None
         self.description = description
         self.default = default

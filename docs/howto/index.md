@@ -1,4 +1,4 @@
-# Howto Guides & Demos
+# How-To Guides and Demos
 
 ```{toctree}
 :maxdepth: 2

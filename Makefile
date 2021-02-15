@@ -399,8 +399,30 @@ test: clean ## Run mlrun tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--ignore=tests/integration \
+		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
 		tests
+
+
+.PHONY: test-integration-dockerized
+test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
+	docker run \
+		-t \
+		--rm \
+		--network='host' \
+		-v /tmp:/tmp \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
+
+.PHONY: test-integration
+test-integration: clean ## Run mlrun integration tests
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rf \
+		tests/integration \
+		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
@@ -422,9 +444,17 @@ test-migrations: clean ## Run mlrun db migrations tests
 		--test-alembic \
 		migrations/tests/*
 
-.PHONY: test-system
-test-system: build-test-system ## Run mlrun system tests
+.PHONY: test-system-dockerized
+test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
 	docker run -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
+
+.PHONY: test-system
+test-system: ## Run mlrun system tests
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rf \
+		tests/system
 
 .PHONY: test-package
 test-package: ## Run mlrun package tests
@@ -434,6 +464,14 @@ test-package: ## Run mlrun package tests
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
+
+.PHONY: run-api
+run-api: api ## Run mlrun api (dockerized)
+	docker run \
+		--name mlrun-api \
+		--detach \
+		--publish 8080 \
+		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: html-docs
 html-docs: ## Build html docs

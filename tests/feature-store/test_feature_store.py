@@ -202,7 +202,7 @@ def prepare_feature_set(name: str, entity: str, data: pd.DataFrame, timestamp_ke
         name, entities=[fs.Entity(entity)], timestamp_key=timestamp_key
     )
     feature_set.set_targets()
-    df = fs.ingest(feature_set, data, infer_options=fs.InferOptions.default())
+    df = fs.ingest(feature_set, df_source, infer_options=fs.InferOptions.default())
     return feature_set, df
 
 
@@ -218,4 +218,41 @@ def test_ordered_pandas_asof_merge():
     features = ["left.*", "right.*"]
     feature_vector = fs.FeatureVector("test_fv", features, "test FV")
     res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_left_not_ordered_pandas_asof_merge():
+    init_store()
+
+    left = trades.sort_values(by="price")
+
+    left_set, left = prepare_feature_set("left", "ticker", left, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", quotes, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_right_not_ordered_pandas_asof_merge():
+    init_store()
+
+    right = quotes.sort_values(by="bid")
+
+    left_set, left = prepare_feature_set("left", "ticker", trades, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", right, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
     assert res.shape[0] == left.shape[0]

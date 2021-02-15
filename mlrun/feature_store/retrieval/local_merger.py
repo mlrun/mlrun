@@ -117,10 +117,13 @@ class LocalFeatureMerger:
         # Undo indexing tricks for asof merge
         # to return the correct indexes and not
         # overload `index` columns
-        try:
+        if (
+            "index" not in indexes
+            and "index" not in entity_df.columns
+            and "index" not in featureset_df.columns
+            and "index" in merged_df.columns
+        ):
             merged_df = merged_df.drop(columns="index")
-        except:
-            pass
         return merged_df
 
     def _join(

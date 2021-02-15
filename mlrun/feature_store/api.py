@@ -27,7 +27,7 @@ from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVector
 from .targets import get_default_targets, get_target_driver
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
-from ..utils import get_caller_globals
+from ..utils import get_caller_globals, logger
 from ..data_types import InferOptions, get_infer_interface
 
 _v3iofs = None
@@ -491,8 +491,10 @@ def ingest_with_spark(
         targets = [get_target_driver(target, featureset) for target in targets]
 
     for target in targets or []:
+        spark_options = target.get_spark_options(key_column, timestamp_key)
+        logger.info(f'writing to target {target.name}, spark options {spark_options}')
         df.write.mode("overwrite").save(
-            **target.get_spark_options(key_column, timestamp_key)
+            **spark_options
         )
         target.set_resource(featureset)
         target.update_resource_status("ready", is_dir=True)

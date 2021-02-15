@@ -91,7 +91,8 @@ class LocalFeatureMerger:
         featureset_df: pd.DataFrame,
     ):
         indexes = list(featureset.spec.entities.keys())
-
+        index_col_not_in_entity = "index" not in entity_df.columns
+        index_col_not_in_featureset = "index" not in featureset_df.columns
         # Sort left and right keys
         if type(entity_df.index) != pd.RangeIndex:
             entity_df = entity_df.reset_index()
@@ -119,8 +120,8 @@ class LocalFeatureMerger:
         # overload `index` columns
         if (
             "index" not in indexes
-            and "index" not in entity_df.columns
-            and "index" not in featureset_df.columns
+            and index_col_not_in_entity
+            and index_col_not_in_featureset
             and "index" in merged_df.columns
         ):
             merged_df = merged_df.drop(columns="index")

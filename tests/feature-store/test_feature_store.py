@@ -2,6 +2,8 @@ import os
 
 import mlrun
 import pytest
+import pandas as pd
+
 
 from tests.conftest import results, tests_root_directory
 
@@ -191,3 +193,29 @@ def test_serverless_ingest():
     assert features == stats, "didnt infer stats for all features"
 
     print(measurements.to_yaml())
+
+
+def prepare_feature_set(name: str, entity: str, data: pd.DataFrame, timestamp_key=None):
+    df_source = fs.sources.DataFrameSource(data, entity, timestamp_key)
+
+    feature_set = fs.FeatureSet(
+        name, entities=[fs.Entity(entity)], timestamp_key=timestamp_key
+    )
+    feature_set.set_targets()
+    df = fs.ingest(feature_set, data, infer_options=fs.InferOptions.default())
+    return feature_set, df
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_ordered_pandas_asof_merge():
+    init_store()
+
+    left_set, left = prepare_feature_set("left", "ticker", trades, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", quotes, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    assert res.shape[0] == left.shape[0]

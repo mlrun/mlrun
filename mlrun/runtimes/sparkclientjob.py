@@ -86,6 +86,17 @@ class SparkClientRuntime(KubejobRuntime):
         )
 
     @property
+    def is_deployed(self):
+        if (
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+            and self.spec.igz_spark
+        ):
+            return True
+        return super().is_deployed
+
+    @property
     def _default_image(self):
         logger.warning()
         if self.spec.igz_spark and config.spark_app_image and config.igz_version:

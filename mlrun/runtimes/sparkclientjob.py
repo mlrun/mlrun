@@ -123,6 +123,6 @@ class SparkClientRuntime(KubejobRuntime):
         )
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
-        if not self.spec.image:
-            self.spec.image = self._default_image
+        #if not self.spec.image:
+        #    self.spec.image = self._default_image
         super()._run(runobj, execution)

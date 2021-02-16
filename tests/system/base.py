@@ -1,6 +1,7 @@
 import os
 import pathlib
 import sys
+import typing
 
 import pytest
 import yaml
@@ -14,19 +15,22 @@ logger = create_logger(level="debug", name="test-system")
 
 class TestMLRunSystem:
 
-    project_name = "system-test-project"
-    root_path = pathlib.Path(__file__).absolute().parent.parent.parent
-    env_file_path = root_path / "tests" / "system" / "env.yml"
-    results_path = root_path / "tests" / "test_results" / "system"
-    mandatory_env_vars = [
+    project_name: str = "system-test-project"
+    root_path: pathlib.Path = pathlib.Path(__file__).absolute().parent.parent.parent
+    env_file_path: pathlib.Path = root_path / "tests" / "system" / "env.yml"
+    results_path: pathlib.Path = root_path / "tests" / "test_results" / "system"
+    enterprise_marker_name: str = "enterprise"
+    mandatory_env_vars: typing.List[str] = [
         "MLRUN_DBPATH",
+    ]
+    mandatory_enterprise_env_vars: typing.List[str] = mandatory_env_vars + [
         "V3IO_API",
         "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
     ]
 
-    def setup_method(self, method):
+    def setup_method(self, method: typing.Callable):
         self._logger = logger
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -52,7 +56,7 @@ class TestMLRunSystem:
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
-    def teardown_method(self, method):
+    def teardown_method(self, method: typing.Callable):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
         )
@@ -77,36 +81,41 @@ class TestMLRunSystem:
         pass
 
     @classmethod
-    def skip_test_if_env_not_configured(cls, test):
+    def skip_test_if_env_not_configured(cls, test: typing.Callable) -> None:
+        mandatory_env_vars = (
+            cls.mandatory_enterprise_env_vars
+            if cls._has_marker(test, cls.enterprise_marker_name)
+            else cls.mandatory_env_vars
+        )
         configured = True
         try:
             env = cls._get_env_from_file()
         except FileNotFoundError:
             configured = False
         else:
-            for env_var in cls.mandatory_env_vars:
+            for env_var in mandatory_env_vars:
                 if env_var not in env or env[env_var] is None:
                     configured = False
 
         return pytest.mark.skipif(
             not configured,
-            reason=f"This is a system test, add the needed environment variables {*cls.mandatory_env_vars,} "
+            reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
             "in tests/system/env.yml to run it",
         )(test)
 
     @property
-    def assets_path(self):
+    def assets_path(self) -> pathlib.Path:
         return (
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
             / "assets"
         )
 
     @classmethod
-    def _get_env_from_file(cls) -> dict:
+    def _get_env_from_file(cls) -> typing.Dict[str, str]:
         with cls.env_file_path.open() as f:
             return yaml.safe_load(f)
 
-    def _setup_env(self, env: dict):
+    def _setup_env(self, env: typing.Dict[str, str]):
         self._logger.debug("Setting up test environment")
         self._test_env.update(env)
 
@@ -140,7 +149,7 @@ class TestMLRunSystem:
 
     def _verify_run_spec(
         self,
-        run_spec,
+        run_spec: typing.Dict[str, str],
         parameters: dict = None,
         inputs: dict = None,
         outputs: list = None,
@@ -170,7 +179,7 @@ class TestMLRunSystem:
 
     def _verify_run_metadata(
         self,
-        run_metadata,
+        run_metadata: typing.Dict[str, str],
         uid: str = None,
         name: str = None,
         project: str = None,
@@ -193,7 +202,7 @@ class TestMLRunSystem:
 
     def _verify_run_outputs(
         self,
-        run_outputs,
+        run_outputs: typing.Dict[str, str],
         uid: str,
         name: str,
         project: str,
@@ -219,3 +228,12 @@ class TestMLRunSystem:
             assert run_outputs["iteration_results"] == str(
                 output_path / "iteration_results.csv"
             )
+
+    @staticmethod
+    def _has_marker(test: typing.Callable, marker_name: str) -> bool:
+        try:
+            return (
+                len([mark for mark in test.pytestmark if mark.name == marker_name]) > 0
+            )
+        except AttributeError:
+            return False

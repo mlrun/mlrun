@@ -456,6 +456,15 @@ test-system: ## Run mlrun system tests
 		-rf \
 		tests/system
 
+.PHONY: test-system-open-source
+test-system-open-source: ## Run mlrun system tests with opensource configuration
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rsf \
+		-m "not enterprise" \
+		tests/system
+
 .PHONY: test-package
 test-package: ## Run mlrun package tests
 	python -m pip install --upgrade pip~=20.2.0

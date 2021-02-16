@@ -45,9 +45,7 @@ class TestBasics(TestMLRunSystem):
             name="demo",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
                 "kind": "",
-                "owner": self._test_env["V3IO_USERNAME"],
                 "framework": "sklearn",
             },
         )

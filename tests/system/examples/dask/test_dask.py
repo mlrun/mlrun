@@ -1,4 +1,5 @@
 import os
+import pytest
 
 import kfp
 import kfp.compiler
@@ -15,6 +16,7 @@ from tests.system.base import TestMLRunSystem
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestDask(TestMLRunSystem):
     def custom_setup(self):
         self._logger.debug("Creating dask function")

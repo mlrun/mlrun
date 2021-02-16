@@ -31,7 +31,7 @@ on:
         default: 'false'
 
 jobs:
-  run-system-tests-ci:
+  run-system-tests-enterprise-ci:
     timeout-minutes: 60
     name: Run System Tests
     runs-on: ubuntu-latest

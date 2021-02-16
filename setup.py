@@ -54,7 +54,7 @@ install_requires = list(load_deps("requirements.txt"))
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
-# NOTE: These are tested in `automation/package_test/test_imports.sh` If
+# NOTE: These are tested in `automation/package_test/test.py` If
 # you modify these, make sure to change the corresponding line there.
 extras_require = {
     # from 1.16.53 it requires botocore<1.20.0,>=1.19.53 which conflicts with s3fs 0.5.2 that has aiobotocore>=1.0.1

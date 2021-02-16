@@ -127,7 +127,7 @@ class PackageTester:
 
     def _run_command(self, command, run_in_venv=False):
         if run_in_venv:
-            command = f"/bin/bash source test-venv/bin/activate && {command}"
+            command = f". test-venv/bin/activate && {command}"
         try:
             process = subprocess.run(
                 command, shell=True, check=True, capture_output=True, encoding="utf-8",

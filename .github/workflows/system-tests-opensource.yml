@@ -134,10 +134,11 @@ jobs:
         github token: ${{ github.token }}
         start args: '--addons registry'
 
-    - name: Get mlrun kit charts
+    - name: Get mlrun kit charts and create namespace
       run: |
         helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
         helm repo update
+        kubectl create namespace ${NAMESPACE}
 
     - name: Override MLRun Registry ConfigMap
       run: |
@@ -154,7 +155,6 @@ jobs:
 
     - name: Install MLRun Kit helm chart
       run: |
-        kubectl create namespace ${NAMESPACE}
         helm --namespace ${NAMESPACE} \
             install mlrun-kit \
             --debug \

@@ -1,4 +1,5 @@
 import os
+import pytest
 from tests.api.runtimes.base import TestRuntimeBase
 from mlrun.runtimes.kubejob import KubejobRuntime
 from fastapi.testclient import TestClient
@@ -13,8 +14,14 @@ from mlrun.config import config as mlconf
 
 
 class TestKubejobRuntime(TestRuntimeBase):
-    def custom_setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(self, db: Session, client: TestClient):
+        # We want this mock for every test, ideally we would have simply put it in the custom_setup
+        # but this function is called by the base class's setup_method which is happening before the fixtures
+        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
         self._mock_create_namespaced_pod()
+
+    def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
         self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
         self.vault_secret_name = "test-secret"

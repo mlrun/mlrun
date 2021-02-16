@@ -35,6 +35,10 @@ on:
         required: true
         default: 'false'
 
+env:
+  NAMESPACE: mlrun
+  MLRUN_API_PORT: 30070
+
 jobs:
   run-system-tests-opensource-ci:
     timeout-minutes: 60

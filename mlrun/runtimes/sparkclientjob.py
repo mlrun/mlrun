@@ -21,6 +21,7 @@ from mlrun.db import get_run_db
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ..utils import logger
 
 
 class SparkClientSpec(KubeResourceSpec):
@@ -86,9 +87,11 @@ class SparkClientRuntime(KubejobRuntime):
 
     @property
     def _default_image(self):
-        if self.spec.igz_spark:
+        logger.warning()
+        if self.spec.igz_spark and config.spark_app_image and config.igz_version:
             app_image = config.spark_app_image
-            re.sub(re.sub('spark-app','shell',app_image))
+            re.sub(re.sub('spark-app', 'shell', app_image))
+            # this is temporary until we get the image name from external config
             return (
                     app_image
                     + ":"

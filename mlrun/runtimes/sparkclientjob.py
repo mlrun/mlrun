@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import re
 
 from .pod import KubeResourceSpec
+from .. import get_run_db
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from mlrun.runtimes import KubejobRuntime
+from mlrun.config import config
 
 
 class SparkClientSpec(KubeResourceSpec):
@@ -73,8 +76,6 @@ class SparkClientRuntime(KubejobRuntime):
             "name": "MLRUN_SPARK_CLIENT_IGZ_SPARK",
             "value": "true",
         })
-        self.spec.image = os.environ.get("IGZ_DATANODE_REGISTRY_URL") + '/iguazio/shell:' + os.environ.get(
-            "IGZ_VERSION")
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
@@ -83,5 +84,32 @@ class SparkClientRuntime(KubejobRuntime):
             )
         )
 
+    @property
+    def _default_image(self):
+        if self.spec.igz_spark:
+            app_image = config.spark_app_image
+            re.sub(re.sub('spark-app','shell',app_image))
+            return (
+                    app_image
+                    + ":"
+                    + config.igz_version
+            )
+        return None
+
+    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+        """deploy function, build container with dependencies"""
+        # connect will populate the config from the server config
+        get_run_db()
+        if not self.spec.build.base_image:
+            self.spec.build.base_image = self._default_image
+        return super().deploy(
+            watch=watch,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
+            is_kfp=is_kfp,
+        )
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        if not self.spec.image:
+            self.spec.image = self._default_image
         super()._run(runobj, execution)

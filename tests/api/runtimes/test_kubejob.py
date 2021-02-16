@@ -1,4 +1,5 @@
 import os
+import pytest
 from tests.api.runtimes.base import TestRuntimeBase
 from mlrun.runtimes.kubejob import KubejobRuntime
 from fastapi.testclient import TestClient
@@ -10,7 +11,6 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.utils.vault import VaultStore
 from kubernetes import client
 from mlrun.config import config as mlconf
-import pytest
 
 
 class TestKubejobRuntime(TestRuntimeBase):

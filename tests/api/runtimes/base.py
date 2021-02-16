@@ -1,5 +1,5 @@
 import unittest.mock
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.utils import create_logger
 from mlrun.runtimes.constants import PodPhases
 from kubernetes import client
@@ -16,7 +16,7 @@ logger = create_logger(level="debug", name="test-runtime")
 class TestRuntimeBase:
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
-        get_k8s().namespace = self.namespace
+        get_k8s_helper().namespace = self.namespace
         self._logger = logger
         self.project = "test-project"
         self.name = "test-function"
@@ -67,14 +67,14 @@ class TestRuntimeBase:
             response_pod.metadata.namespace = namespace
             return response_pod
 
-        get_k8s().v1api.create_namespaced_pod = unittest.mock.Mock(
+        get_k8s_helper().v1api.create_namespaced_pod = unittest.mock.Mock(
             side_effect=_generate_pod
         )
 
     def _execute_run(self, runtime, **kwargs):
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
-        get_k8s().v1api.create_namespaced_pod.reset_mock()
+        get_k8s_helper().v1api.create_namespaced_pod.reset_mock()
 
         runtime.run(
             name=self.name,
@@ -154,7 +154,7 @@ class TestRuntimeBase:
         assert len(expected_variables) == 0
 
     def _assert_v3io_mount_configured(self, v3io_user, v3io_access_key):
-        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
+        args, _ = get_k8s_helper().v1api.create_namespaced_pod.call_args
         pod_spec = args[1].spec
         container_spec = pod_spec.containers[0]
 
@@ -192,7 +192,7 @@ class TestRuntimeBase:
         )
 
     def _assert_pvc_mount_configured(self, pvc_name, pvc_mount_path, volume_name):
-        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
+        args, _ = get_k8s_helper().v1api.create_namespaced_pod.call_args
         pod_spec = args[1].spec
 
         expected_volume = {
@@ -217,7 +217,7 @@ class TestRuntimeBase:
         )
 
     def _assert_secret_mount(self, volume_name, secret_name, default_mode, mount_path):
-        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
+        args, _ = get_k8s_helper().v1api.create_namespaced_pod.call_args
         pod_spec = args[1].spec
 
         expected_volume = {
@@ -252,7 +252,7 @@ class TestRuntimeBase:
         expected_requests=None,
         expected_env={},
     ):
-        create_pod_mock = get_k8s().v1api.create_namespaced_pod
+        create_pod_mock = get_k8s_helper().v1api.create_namespaced_pod
         create_pod_mock.assert_called_once()
         args, _ = create_pod_mock.call_args
         assert args[0] == self.namespace

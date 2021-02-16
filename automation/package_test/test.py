@@ -24,19 +24,19 @@ class PackageTester:
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
-            "api": {
+            "[api]": {
                 "import_test_command": f"{basic_import}; {api_import}",
                 "python_3.6_compatible": False,
             },
-            "complete-api": {
+            "[complete-api]": {
                 "import_test_command": f"{basic_import}; {api_import}; {s3_import}; {azure_blob_storage_import}",
                 "python_3.6_compatible": False,
             },
-            "s3": {"import_test_command": f"{basic_import}; {s3_import}"},
-            "azure-blob-storage": {
+            "[s3]": {"import_test_command": f"{basic_import}; {s3_import}"},
+            "[azure-blob-storage]": {
                 "import_test_command": f"{basic_import}; {azure_blob_storage_import}"
             },
-            "complete": {
+            "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}"
             },
         }
@@ -100,6 +100,9 @@ class PackageTester:
     def _test_requirements_conflicts(self, extra):
         self._logger.debug(
             "Testing requirements conflicts", extra=extra,
+        )
+        self._run_command(
+            "pip install pipdeptree", run_in_venv=True,
         )
         self._run_command(
             "pipdeptree --warn fail", run_in_venv=True,

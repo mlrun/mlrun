@@ -15,22 +15,22 @@ logger = create_logger(level="debug", name="test-system")
 
 class TestMLRunSystem:
 
-    project_name: str = "system-test-project"
-    root_path: pathlib.Path = pathlib.Path(__file__).absolute().parent.parent.parent
-    env_file_path: pathlib.Path = root_path / "tests" / "system" / "env.yml"
-    results_path: pathlib.Path = root_path / "tests" / "test_results" / "system"
-    enterprise_marker_name: str = "enterprise"
-    mandatory_env_vars: typing.List[str] = [
+    project_name = "system-test-project"
+    root_path = pathlib.Path(__file__).absolute().parent.parent.parent
+    env_file_path = root_path / "tests" / "system" / "env.yml"
+    results_path = root_path / "tests" / "test_results" / "system"
+    enterprise_marker_name = "enterprise"
+    mandatory_env_vars = [
         "MLRUN_DBPATH",
     ]
-    mandatory_enterprise_env_vars: typing.List[str] = mandatory_env_vars + [
+    mandatory_enterprise_env_vars = mandatory_env_vars + [
         "V3IO_API",
         "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
     ]
 
-    def setup_method(self, method: typing.Callable):
+    def setup_method(self, method):
         self._logger = logger
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -56,7 +56,7 @@ class TestMLRunSystem:
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
-    def teardown_method(self, method: typing.Callable):
+    def teardown_method(self, method):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
         )
@@ -81,7 +81,7 @@ class TestMLRunSystem:
         pass
 
     @classmethod
-    def skip_test_if_env_not_configured(cls, test: typing.Callable) -> None:
+    def skip_test_if_env_not_configured(cls, test):
         mandatory_env_vars = (
             cls.mandatory_enterprise_env_vars
             if cls._has_marker(test, cls.enterprise_marker_name)
@@ -104,18 +104,18 @@ class TestMLRunSystem:
         )(test)
 
     @property
-    def assets_path(self) -> pathlib.Path:
+    def assets_path(self):
         return (
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
             / "assets"
         )
 
     @classmethod
-    def _get_env_from_file(cls) -> typing.Dict[str, str]:
+    def _get_env_from_file(cls) -> dict:
         with cls.env_file_path.open() as f:
             return yaml.safe_load(f)
 
-    def _setup_env(self, env: typing.Dict[str, str]):
+    def _setup_env(self, env: dict):
         self._logger.debug("Setting up test environment")
         self._test_env.update(env)
 
@@ -149,7 +149,7 @@ class TestMLRunSystem:
 
     def _verify_run_spec(
         self,
-        run_spec: typing.Dict[str, str],
+        run_spec,
         parameters: dict = None,
         inputs: dict = None,
         outputs: list = None,
@@ -179,7 +179,7 @@ class TestMLRunSystem:
 
     def _verify_run_metadata(
         self,
-        run_metadata: typing.Dict[str, str],
+        run_metadata,
         uid: str = None,
         name: str = None,
         project: str = None,
@@ -202,7 +202,7 @@ class TestMLRunSystem:
 
     def _verify_run_outputs(
         self,
-        run_outputs: typing.Dict[str, str],
+        run_outputs,
         uid: str,
         name: str,
         project: str,

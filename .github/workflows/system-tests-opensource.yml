@@ -1,4 +1,4 @@
-name: System Tests
+name: System Tests Open Source
 
 on:
   push:

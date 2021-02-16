@@ -163,7 +163,7 @@ jobs:
             --set mlrun.api.image.repository=${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api \
             --set mlrun.api.image.tag=${{ steps.computed_params.outputs.mlrun_version }} \
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \
-            --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_version }} \
+            --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
             --set mlrun.api.service.type=NodePort \
             --set mlrun.api.service.nodePort=${MLRUN_API_NODE_PORT} \
             v3io-stable/mlrun-kit

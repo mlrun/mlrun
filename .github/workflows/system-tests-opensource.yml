@@ -37,7 +37,7 @@ on:
 
 env:
   NAMESPACE: mlrun
-  MLRUN_API_PORT: 30070
+  MLRUN_API_NODE_PORT: 30070
 
 jobs:
   run-system-tests-opensource-ci:
@@ -148,10 +148,13 @@ jobs:
             --wait \
             --set global.registry.url=localhost:5000 \
             --set mlrun.api.service.type=NodePort \
-            --set mlrun.api.service.nodePort=${MLRUN_API_PORT} \
+            --set mlrun.api.service.nodePort=${MLRUN_API_NODE_PORT} \
             v3io-stable/mlrun-kit
+
+    - name: Prepare system tests env
+      run: |
+        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
 
     - name: Run system tests
       run: |
-        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_PORT}" > tests/system/env.yml
         make test-system-open-source

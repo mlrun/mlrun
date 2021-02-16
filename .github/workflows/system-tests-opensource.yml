@@ -1,6 +1,11 @@
 name: System Tests Open Source
 
 on:
+  pull_request:
+    branches:
+      - development
+      - '.+-system-tests'
+
   push:
     branches:
       - '.+-system-tests'

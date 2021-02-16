@@ -49,7 +49,7 @@ class PackageTester:
             if (
                 sys.version_info[0] == 3
                 and sys.version_info[1] == 6
-                and not extra_tests_data.get("python_3.6_compatible")
+                and not extra_tests_data.get("python_3.6_compatible", True)
             ):
                 continue
             self._create_venv()

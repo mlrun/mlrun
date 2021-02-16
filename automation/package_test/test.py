@@ -65,7 +65,7 @@ class PackageTester:
                 results,
                 "requirements_conflicts_test",
             )
-            # self._clean_venv()
+            self._clean_venv()
 
         failed = False
         for extra_tests_results in results.values():
@@ -133,7 +133,12 @@ class PackageTester:
             command = f". test-venv/bin/activate && {command}"
         try:
             process = subprocess.run(
-                command, shell=True, check=True, capture_output=True, encoding="utf-8",
+                command,
+                shell=True,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding="utf-8",
             )
         except subprocess.CalledProcessError as exc:
             logger.warning(

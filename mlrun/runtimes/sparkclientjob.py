@@ -98,14 +98,14 @@ class SparkClientRuntime(KubejobRuntime):
 
     @property
     def _default_image(self):
-        logger.warning("{} {} {} ".format(self.spec.igz_spark, config.spark_app_image, config.igz_version))
-        if self.spec.igz_spark and config.spark_app_image and config.igz_version:
+        logger.warning("{} {} {} ".format(self.spec.igz_spark, config.spark_app_image, config.spark_app_image_tag))
+        if self.spec.igz_spark and config.spark_app_image and config.spark_app_image_tag:
             app_image = re.sub('spark-app', 'shell', config.spark_app_image)
             # this is temporary until we get the image name from external config
             return (
                     app_image
                     + ":"
-                    + config.igz_version
+                    + config.spark_app_image_tag
             )
         return None
 

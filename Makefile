@@ -456,10 +456,18 @@ test-system: ## Run mlrun system tests
 		-rf \
 		tests/system
 
+.PHONY: test-system-open-source
+test-system-open-source: ## Run mlrun system tests with opensource configuration
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rsf \
+		-m "not enterprise" \
+		tests/system
+
 .PHONY: test-package
 test-package: ## Run mlrun package tests
-	python -m pip install --upgrade pip~=20.2.0
-	PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) bash ./automation/package_test/test_imports.sh
+	python ./automation/package_test/test.py run
 
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)

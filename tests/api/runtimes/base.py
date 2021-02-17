@@ -11,6 +11,7 @@ from mlrun.model import new_task
 import deepdiff
 import pathlib
 import sys
+from base64 import b64encode
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -262,6 +263,7 @@ class TestRuntimeBase:
         expected_secrets=None,
         expected_limits=None,
         expected_requests=None,
+        expected_code=None,
         expected_env={},
     ):
         create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -294,6 +296,8 @@ class TestRuntimeBase:
 
         pod_env = container_spec.env
 
+        expected_code_found = False
+
         expected_env["MLRUN_NAMESPACE"] = self.namespace
         self._assert_pod_env(pod_env, expected_env)
         for env_variable in pod_env:
@@ -306,5 +310,14 @@ class TestRuntimeBase:
                     expected_hyper_params,
                     expected_secrets,
                 )
+
+            if expected_code and env_variable["name"] == "MLRUN_EXEC_CODE":
+                assert env_variable["value"] == b64encode(
+                    expected_code.encode("utf-8")
+                ).decode("utf-8")
+                expected_code_found = True
+
+        if expected_code:
+            assert expected_code_found
 
         assert pod_spec.spec.containers[0].image == self.image_name

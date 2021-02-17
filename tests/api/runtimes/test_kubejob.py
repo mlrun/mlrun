@@ -166,3 +166,15 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_secret_mount(
             "vault-secret", self.vault_secret_name, 420, vault_url
         )
+
+    def test_run_with_code(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        expected_code = """
+def my_func(context):
+    print("Hello cruel world")
+        """
+        runtime.with_code(body=expected_code)
+
+        self._execute_run(runtime)
+        self._assert_pod_create_called(expected_code=expected_code)

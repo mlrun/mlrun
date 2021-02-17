@@ -1,4 +1,4 @@
-name: System Tests
+name: System Tests Enterprise
 
 on:
   push:
@@ -31,9 +31,9 @@ on:
         default: 'false'
 
 jobs:
-  run-system-tests-ci:
+  run-system-tests-enterprise-ci:
     timeout-minutes: 60
-    name: Run System Tests
+    name: Run System Tests Enterprise
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing

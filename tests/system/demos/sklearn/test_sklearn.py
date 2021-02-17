@@ -6,6 +6,7 @@ from tests.system.base import TestMLRunSystem
 from tests.system.demos.base import TestDemo
 
 
+# Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestSKLearn(TestDemo):

@@ -15,6 +15,7 @@ from mlrun.platforms.other import mount_v3io
 from tests.system.base import TestMLRunSystem
 
 
+# Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestJobs(TestMLRunSystem):

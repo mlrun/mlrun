@@ -1,6 +1,11 @@
 name: System Tests Open Source
 
 on:
+  pull_request:
+    branches:
+      - development
+      - '.+-system-tests'
+
   push:
     branches:
       - '.+-system-tests'
@@ -37,7 +42,7 @@ env:
 jobs:
   run-system-tests-opensource-ci:
     timeout-minutes: 60
-    name: Run System Tests
+    name: Run System Tests Open Source
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
@@ -51,6 +56,8 @@ jobs:
         python-version: 3.7
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt && pip install -e .
+
+      # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Extract git branch
@@ -159,8 +166,6 @@ jobs:
             --set mlrun.api.image.tag=${{ steps.computed_params.outputs.mlrun_version }} \
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
-            --set mlrun.api.service.type=NodePort \
-            --set mlrun.api.service.nodePort=${MLRUN_API_NODE_PORT} \
             v3io-stable/mlrun-kit
 
     - name: Prepare system tests env

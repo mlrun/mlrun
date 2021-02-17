@@ -70,6 +70,7 @@ def make_kaniko_pod(
     args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
     if not secret_name:
         args.append("--insecure")
+        args.append("--insecure-pull")
     if verbose:
         args += ["--verbosity", "debug"]
 

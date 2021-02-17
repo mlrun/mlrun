@@ -9,6 +9,8 @@ from mlrun.config import config as mlconf
 import json
 from mlrun.model import new_task
 import deepdiff
+import pathlib
+import sys
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -33,6 +35,16 @@ class TestRuntimeBase:
         self._logger.info(
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
+
+    @property
+    def assets_path(self):
+        return (
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / "assets"
+        )
+
+    def _generate_runtime(self):
+        pass
 
     def custom_setup(self):
         pass

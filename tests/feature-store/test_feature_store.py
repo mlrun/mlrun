@@ -2,6 +2,8 @@ import os
 
 import mlrun
 import pytest
+import pandas as pd
+
 
 from tests.conftest import results, tests_root_directory
 
@@ -191,3 +193,66 @@ def test_serverless_ingest():
     assert features == stats, "didnt infer stats for all features"
 
     print(measurements.to_yaml())
+
+
+def prepare_feature_set(name: str, entity: str, data: pd.DataFrame, timestamp_key=None):
+    df_source = fs.sources.DataFrameSource(data, entity, timestamp_key)
+
+    feature_set = fs.FeatureSet(
+        name, entities=[fs.Entity(entity)], timestamp_key=timestamp_key
+    )
+    feature_set.set_targets()
+    df = fs.ingest(feature_set, df_source, infer_options=fs.InferOptions.default())
+    return feature_set, df
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_ordered_pandas_asof_merge():
+    init_store()
+
+    left_set, left = prepare_feature_set("left", "ticker", trades, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", quotes, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_left_not_ordered_pandas_asof_merge():
+    init_store()
+
+    left = trades.sort_values(by="price")
+
+    left_set, left = prepare_feature_set("left", "ticker", left, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", quotes, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_right_not_ordered_pandas_asof_merge():
+    init_store()
+
+    right = quotes.sort_values(by="bid")
+
+    left_set, left = prepare_feature_set("left", "ticker", trades, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", right, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]

@@ -22,6 +22,7 @@ from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from ..utils import logger
+from subprocess import run
 
 
 class SparkClientSpec(KubeResourceSpec):
@@ -88,10 +89,10 @@ class SparkClientRuntime(KubejobRuntime):
     @property
     def is_deployed(self):
         if (
-            not self.spec.build.source
-            and not self.spec.build.commands
-            and not self.spec.build.extra
-            and self.spec.igz_spark
+                not self.spec.build.source
+                and not self.spec.build.commands
+                and not self.spec.build.extra
+                and self.spec.igz_spark
         ):
             return True
         return super().is_deployed
@@ -123,6 +124,10 @@ class SparkClientRuntime(KubejobRuntime):
         )
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
-        #if not self.spec.image:
+        # if not self.spec.image:
         #    self.spec.image = self._default_image
         super()._run(runobj, execution)
+
+
+def igz_spark_pre_hook():
+    run(["/bin/bash", "/etc/config/v3io/spark-job-init.sh"])

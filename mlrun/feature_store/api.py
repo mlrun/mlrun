@@ -411,7 +411,7 @@ def deploy_ingestion_service(
     )
     function.verbose = True
     if local:
-        return function.to_mock_server()
+        return function.to_mock_server(namespace=get_caller_globals())
     return function.deploy()
 
 

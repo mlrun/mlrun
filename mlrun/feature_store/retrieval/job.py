@@ -19,9 +19,11 @@ def run_merge_job(
 ):
     name = vector.metadata.name
     if not name:
-        raise ValueError("feature vector name must be specified")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "feature vector name must be specified"
+        )
     if not target or not hasattr(target, "to_dict"):
-        raise ValueError("target object must be specified")
+        raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
     name = f"{name}_merger"
     if not function:
         function_ref = vector.spec.function

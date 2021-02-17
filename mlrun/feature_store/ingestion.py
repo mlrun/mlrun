@@ -114,11 +114,22 @@ def default_ingestion_job_function(name, featureset, engine=None, function=None)
 
     if not function.spec.image:
         function.spec.image = (
-            mlrun.mlconf.feature_store.default_spark_image
+            _default_spark_image()
             if engine == "spark"
             else mlrun.mlconf.feature_store.default_job_image
         )
+        if not function.spec.image:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "function image must be specified"
+            )
     return function
+
+
+def _default_spark_image():
+    image = mlrun.mlconf.spark_app_image
+    if mlrun.mlconf.spark_app_image_tag:
+        image += ":" + mlrun.mlconf.spark_app_image_tag
+    return image
 
 
 _default_job_handler = """

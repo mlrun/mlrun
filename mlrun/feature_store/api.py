@@ -179,7 +179,9 @@ def ingest(
             mlrun_context
         )
         if not source:
-            raise ValueError("data source was not specified")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "data source was not specified"
+            )
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
         return_df = False
 
@@ -467,7 +469,9 @@ def ingest_with_spark(
         )
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
         if not source:
-            raise ValueError("data source was not specified")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "data source was not specified"
+            )
         from pyspark.sql import SparkSession
 
         spark = SparkSession.builder.appName(

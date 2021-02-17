@@ -1,4 +1,5 @@
 import os
+import pytest
 
 import kfp
 import kfp.compiler
@@ -14,7 +15,9 @@ from mlrun import (
 from tests.system.base import TestMLRunSystem
 
 
+# Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestDask(TestMLRunSystem):
     def custom_setup(self):
         self._logger.debug("Creating dask function")

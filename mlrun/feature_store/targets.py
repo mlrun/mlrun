@@ -343,14 +343,10 @@ class CustomTarget(BaseStoreTarget):
     support_storey = True
 
     def __init__(
-        self,
-        class_name: str,
-        name: str = "",
-        after_state=None,
-        **attributes,
+        self, class_name: str, name: str = "", after_state=None, **attributes,
     ):
         attributes = attributes or {}
-        attributes['class_name'] = class_name
+        attributes["class_name"] = class_name
         super().__init__(name, "", attributes, after_state=after_state)
 
     def add_writer_state(

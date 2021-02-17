@@ -156,16 +156,14 @@ class CustomSource(BaseSourceDriver):
         **attributes,
     ):
         attributes = attributes or {}
-        attributes['class_name'] = class_name
+        attributes["class_name"] = class_name
         super().__init__(name, "", attributes, schedule=schedule)
 
     def to_step(self, key_field=None, time_field=None):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
         class_object = get_class(class_name)
-        return class_object(
-            **attributes,
-        )
+        return class_object(**attributes,)
 
 
 class DataFrameSource:

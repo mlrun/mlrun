@@ -42,7 +42,9 @@ def _features_to_vector(features):
     elif isinstance(features, FeatureVector):
         vector = features
     else:
-        raise mlrun.errors.MLRunInvalidArgumentError(f"illegal features value/type ({type(features)})")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"illegal features value/type ({type(features)})"
+        )
     return vector
 
 
@@ -145,7 +147,7 @@ def ingest(
     targets: List[DataTargetBase] = None,
     namespace=None,
     return_df: bool = True,
-    infer_options: InferOptions = InferOptions.Null,
+    infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, or URL into the feature store
@@ -278,7 +280,7 @@ def run_ingestion_job(
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
     name: str = None,
-    infer_options: InferOptions = InferOptions.Null,
+    infer_options: InferOptions = InferOptions.default(),
     parameters: Dict[str, Union[str, list, dict]] = None,
     function=None,
     local=False,
@@ -418,7 +420,7 @@ def ingest_with_spark(
     featureset: Union[FeatureSet, str] = None,
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
-    infer_options: InferOptions = InferOptions.Null,
+    infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     transformer=None,
     namespace=None,
@@ -492,10 +494,8 @@ def ingest_with_spark(
 
     for target in targets or []:
         spark_options = target.get_spark_options(key_column, timestamp_key)
-        logger.info(f'writing to target {target.name}, spark options {spark_options}')
-        df.write.mode("overwrite").save(
-            **spark_options
-        )
+        logger.info(f"writing to target {target.name}, spark options {spark_options}")
+        df.write.mode("overwrite").save(**spark_options)
         target.set_resource(featureset)
         target.update_resource_status("ready", is_dir=True)
 
@@ -511,7 +511,7 @@ def ingest_with_spark(
 
 
 def infer_from_static_df(
-    df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
+    df, featureset, entity_columns=None, options: InferOptions = InferOptions.default()
 ):
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):

@@ -127,6 +127,9 @@ class LocalRuntime(BaseRuntime):
                     env = {}
                 env["MLRUN_LOG_LEVEL"] = "DEBUG"
 
+            if runobj.metadata.labels['kind'] == "sparkclient" and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true":
+                run(["/bin/bash", "/etc/config/v3io/spark-job-init.sh"])
+
             sout, serr = run_exec(cmd, self.spec.args, env=env, cwd=self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 

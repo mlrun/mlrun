@@ -49,15 +49,37 @@ In the `tests/system/` directory exist test suites to run against a running syst
 ### Adding More System Tests
 To add more system tests, all that is required is to create a test suite class which inherits the `TestMLRunSystem`
 class from `tests.system.base`. In addition, a special `skip` annotation must be added to the suite, so it won't run 
-if the `env.yml` isn't filled.
+if the `env.yml` isn't filled. If the test can only run on a full iguazio system and not on an MLRun Kit instance, add
+the `enterprise` marker under the `skip` annotation or on the test method itself. If the `enterprise` marker is added
+to a specific test method, the `skip` annotation must be added above it in addition to the annotation over the test 
+suite. This is because enterprise tests and open source tests require different env vars to be set in the `env.yml`.
 
 For example:
 ```python
+import pytest
+from tests.system.base import TestMLRunSystem
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestSomeFunctionality(TestMLRunSystem):
+    def test_the_functionality(self):
+        pass
+```
+
+Example of a suite with two tests, one of them meant for enterprise only
+```python
+import pytest
 from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-    def test_the_functionality(self):
+
+    def test_open_source_features(self):
+        pass
+
+    @TestMLRunSystem.skip_test_if_env_not_configured
+    @pytest.mark.enterprise
+    def test_enterprise_features(self):
         pass
 ```
 

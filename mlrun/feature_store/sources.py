@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import copy
 from typing import Dict
 import mlrun
 
 from .model.base import DataSource
 from ..datastore import store_path_to_spark
+from ..utils import get_class
 
 
 def get_source_from_dict(source):
@@ -141,6 +143,31 @@ class ParquetSource(BaseSourceDriver):
         }
 
 
+class CustomSource(BaseSourceDriver):
+    kind = "custom"
+    support_storey = True
+    support_spark = False
+
+    def __init__(
+        self,
+        class_name: str = None,
+        name: str = "",
+        schedule: str = None,
+        **attributes,
+    ):
+        attributes = attributes or {}
+        attributes['class_name'] = class_name
+        super().__init__(name, "", attributes, schedule=schedule)
+
+    def to_step(self, key_field=None, time_field=None):
+        attributes = copy(self.attributes)
+        class_name = attributes.pop("class_name")
+        class_object = get_class(class_name)
+        return class_object(
+            **attributes,
+        )
+
+
 class DataFrameSource:
     support_storey = True
 
@@ -197,4 +224,5 @@ source_kind_to_driver = {
     "csv": CSVSource,
     "parquet": ParquetSource,
     "http": HttpSource,
+    "custom": CustomSource,
 }

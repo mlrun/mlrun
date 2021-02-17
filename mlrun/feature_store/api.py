@@ -42,7 +42,7 @@ def _features_to_vector(features):
     elif isinstance(features, FeatureVector):
         vector = features
     else:
-        raise mlrun.errors.MLRunInvalidArgumentError("illegal features value/type")
+        raise mlrun.errors.MLRunInvalidArgumentError(f"illegal features value/type ({type(features)})")
     return vector
 
 

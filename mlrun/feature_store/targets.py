@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import copy
 from typing import Dict
 import mlrun
 from mlrun.utils import now_date
@@ -334,6 +335,38 @@ class StreamTarget(BaseStoreTarget):
         raise NotImplementedError()
 
 
+class CustomTarget(BaseStoreTarget):
+    kind = "custom"
+    is_table = False
+    is_online = False
+    support_spark = False
+    support_storey = True
+
+    def __init__(
+        self,
+        class_name: str,
+        name: str = "",
+        after_state=None,
+        **attributes,
+    ):
+        attributes = attributes or {}
+        attributes['class_name'] = class_name
+        super().__init__(name, "", attributes, after_state=after_state)
+
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
+        attributes = copy(self.attributes)
+        class_name = attributes.pop("class_name")
+        graph.add_step(
+            name=self.name,
+            after=after,
+            graph_shape="cylinder",
+            class_name=class_name,
+            **attributes,
+        )
+
+
 class DFTarget(BaseStoreTarget):
     support_storey = True
 
@@ -371,6 +404,7 @@ kind_to_driver = {
     TargetTypes.nosql: NoSqlTarget,
     TargetTypes.dataframe: DFTarget,
     TargetTypes.stream: StreamTarget,
+    TargetTypes.custom: CustomTarget,
 }
 
 

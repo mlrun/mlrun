@@ -23,6 +23,7 @@ class TargetTypes:
     tsdb = "tsdb"
     stream = "stream"
     dataframe = "dataframe"
+    custom = "custom"
 
 
 class FeatureSetProducer(ModelObj):

@@ -178,3 +178,12 @@ def my_func(context):
 
         self._execute_run(runtime)
         self._assert_pod_create_called(expected_code=expected_code)
+
+    def test_set_env(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        env = {"MLRUN_LOG_LEVEL": "DEBUG", "IMAGE_HEIGHT": "128"}
+        for env_variable in env:
+            runtime.set_env(env_variable, env[env_variable])
+
+        self._execute_run(runtime)
+        self._assert_pod_create_called(expected_env=env)

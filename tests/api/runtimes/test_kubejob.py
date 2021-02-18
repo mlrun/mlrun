@@ -184,6 +184,11 @@ def my_func(context):
         env = {"MLRUN_LOG_LEVEL": "DEBUG", "IMAGE_HEIGHT": "128"}
         for env_variable in env:
             runtime.set_env(env_variable, env[env_variable])
-
         self._execute_run(runtime)
         self._assert_pod_create_called(expected_env=env)
+
+        # set the same env key for a different value and check that the updated one is used
+        env2 = {"MLRUN_LOG_LEVEL": "ERROR", "IMAGE_HEIGHT": "128"}
+        runtime.set_env("MLRUN_LOG_LEVEL", "ERROR")
+        self._execute_run(runtime)
+        self._assert_pod_create_called(expected_env=env2)

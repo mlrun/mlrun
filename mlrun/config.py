@@ -24,6 +24,7 @@ mapped to config.httpdb.port. Values should be in JSON format.
 import copy
 import json
 import os
+import base64
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
@@ -117,6 +118,8 @@ default_config = {
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # additional docker build args in json encoded base64 format
+            "build_args": "",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -200,6 +203,15 @@ class Config:
     @classmethod
     def from_dict(cls, dict_):
         return cls(copy.deepcopy(dict_))
+
+    @staticmethod
+    def get_build_args():
+        build_args = {}
+        if config.httpdb.builder.build_args:
+            build_args_json = base64.b64decode(config.httpdb.builder.build_args).decode()
+            build_args = json.loads(build_args_json)
+
+        return build_args
 
     def to_dict(self):
         return copy.copy(self._cfg)

@@ -20,7 +20,6 @@ from mlrun.db import get_run_db
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import logger
 from subprocess import run
 
 

@@ -16,9 +16,6 @@ import re
 from .pod import KubeResourceSpec
 from mlrun.runtimes import KubejobRuntime, KubeRuntimeHandler
 from mlrun.config import config
-from mlrun.db import get_run_db
-from ..execution import MLClientCtx
-from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from subprocess import run
 
@@ -76,7 +73,7 @@ class SparkClientRuntime(KubejobRuntime):
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
-                namespace="default-tenant",
+                namespace=config.namespace,
                 v3io_config_configmap=spark_service + "-submit",
             )
         )
@@ -93,7 +90,7 @@ class SparkClientRuntime(KubejobRuntime):
         return super().is_deployed
 
     @property
-    def _default_image(self):
+    def _resolve_default_base_image(self):
         if (
             self.spec.igz_spark
             and config.spark_app_image
@@ -107,20 +104,14 @@ class SparkClientRuntime(KubejobRuntime):
     def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config
-        get_run_db()
         if not self.spec.build.base_image:
-            self.spec.build.base_image = self._default_image
+            self.spec.build.base_image = self._resolve_default_base_image
         return super().deploy(
             watch=watch,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
         )
-
-    def _run(self, runobj: RunObject, execution: MLClientCtx):
-        # if not self.spec.image:
-        #    self.spec.image = self._default_image
-        super()._run(runobj, execution)
 
 
 class SparkClientRuntimeHandler(KubeRuntimeHandler):

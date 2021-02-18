@@ -2,6 +2,7 @@ from http import HTTPStatus
 from typing import List, Dict, Any, Callable
 
 from fastapi import APIRouter, Response, Request
+from mlrun.errors import MLRunBadRequestError
 
 from mlrun.api.api.endpoints.model_endpoints import get_access_key, list_endpoints
 from mlrun.api.schemas import ModelEndpointStateList, GrafanaTable, GrafanaColumn
@@ -26,8 +27,8 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
 )
 async def grafana_proxy_model_endpoints(request: Request) -> List[GrafanaTable]:
     """
-    Query route for model-endpoints grafana proxy API, used for creating an interface between grafana and
-    model-endpoints.
+    Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
+    model-endpoints logic.
 
     This implementation requires passing `target_function` query parameter in order to dispatch different
     model-endpoint monitoring functions.
@@ -170,21 +171,24 @@ def grafana_list_endpoints(
 
 def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     """
-    Looks for target field Grafana's SimpleJson query json body, parses semi-colon separated (;), key-value
-    queries.
+    This function searches for the `target` field in Grafana's `SimpleJson` json. Once located, the target string is
+    parsed by splitting on semi-colons (;). Each part in the resulting list is then split by an equal sign (=) to be
+    read as key-value pairs.
     """
+
+    # Try to get the `target`
     targets = request_body.get("targets", [])
     target_obj = targets[0] if targets else {}
     target_query = target_obj.get("target") if target_obj else ""
 
     if not target_query:
-        raise Exception(f"target missing in request body:\n {request_body}")
+        raise MLRunBadRequestError(f"target missing in request body:\n {request_body}")
 
     parameters = {}
     for query in target_query.split(";"):
         query_parts = query.split("=")
         if len(query_parts) < 2:
-            raise Exception(
+            raise MLRunBadRequestError(
                 f"Query must contain both query key and query value. Expected query_key=query_value, "
                 f"found {query} instead."
             )
@@ -195,11 +199,11 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
 def _validate_query_parameters(query_parameters: Dict[str, str]):
     """Validates the parameters sent via Grafana's SimpleJson query"""
     if "target_endpoint" not in query_parameters:
-        raise Exception(
+        raise MLRunBadRequestError(
             f"Expected 'target_endpoint' field in query, found {query_parameters} instead"
         )
     if query_parameters["target_endpoint"] not in DISPATCH:
-        raise Exception(
+        raise MLRunBadRequestError(
             f"{query_parameters['target_endpoint']} unsupported. Currently supported: {','.join(DISPATCH.keys())}"
         )
 

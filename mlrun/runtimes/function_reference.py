@@ -96,9 +96,7 @@ class FunctionReference(ModelObj):
                     self.name, filename=self.url, image=self.image, kind=kind
                 )
             else:
-                raise ValueError(
-                    f"unsupported function url {self.url} or no spec"
-                )
+                raise ValueError(f"unsupported function url {self.url} or no spec")
             if self.spec:
                 func = enrich_function_from_dict(func, self.spec)
         elif self.code is not None:

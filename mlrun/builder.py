@@ -33,6 +33,11 @@ def make_dockerfile(
     extra="",
 ):
     dock = "FROM {}\n".format(base_image)
+
+    build_args = config.get_build_args()
+    for build_arg_key, build_arg_value in build_args.items():
+        dock += "ARG {}={}\n".format(build_arg_key, build_arg_value)
+
     if src_dir:
         dock += "RUN mkdir -p {}\n".format(workdir)
         dock += "WORKDIR {}\n".format(workdir)

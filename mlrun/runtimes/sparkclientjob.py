@@ -101,7 +101,7 @@ class SparkClientRuntime(KubejobRuntime):
             and config.spark_app_image
             and config.spark_app_image_tag
         ):
-            app_image = re.sub('spark-app', 'shell', config.spark_app_image)
+            app_image = re.sub("spark-app", "shell", config.spark_app_image)
             # this is temporary until we get the image name from external config
             return app_image + ":" + config.spark_app_image_tag
         return None

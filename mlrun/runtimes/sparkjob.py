@@ -445,7 +445,7 @@ class SparkRuntime(KubejobRuntime):
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
-                namespace="default-tenant",
+                namespace=config.namespace,
                 v3io_config_configmap="spark-operator-v3io-config",
             )
         )

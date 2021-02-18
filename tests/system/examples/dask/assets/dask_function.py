@@ -5,8 +5,8 @@ def inc(x):
 
 # wrapper function, uses the dask client object
 def main(context, x=1, y=2):
-    context.logger.info("params: x={},y={}".format(x, y))
-    print("params: x={},y={}".format(x, y))
+    context.logger.info(f"params: x={x},y={y}")
+    print(f"params: x={x},y={y}")
     x = context.dask_client.submit(inc, x)
     print(x)
     print(x.result())

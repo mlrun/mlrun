@@ -20,7 +20,7 @@ from mlrun import code_to_function, new_model_server
 
 def test_job_nb():
     fn = code_to_function(
-        filename="{}/mlrun_jobs.ipynb".format(examples_path), kind="job"
+        filename=f"{examples_path}/mlrun_jobs.ipynb", kind="job"
     )
     assert fn.kind == "job", "kind not set, test failed"
     assert fn.spec.build.functionSourceCode, "code not embedded"
@@ -29,7 +29,7 @@ def test_job_nb():
 def test_nuclio_nb():
     fn = new_model_server(
         "iris-srv",
-        filename="{}/xgb_serving.ipynb".format(examples_path),
+        filename=f"{examples_path}/xgb_serving.ipynb",
         models={"iris_v1": "xyz"},
         model_class="XGBoostModel",
     )
@@ -46,13 +46,13 @@ def test_nuclio_nb_serving():
 
 
 def test_job_file():
-    fn = code_to_function(filename="{}/training.py".format(examples_path), kind="job")
+    fn = code_to_function(filename=f"{examples_path}/training.py", kind="job")
     assert fn.kind == "job", "kind not set, test failed"
     assert fn.spec.build.functionSourceCode, "code not embedded"
 
 
 def test_job_file_noembed():
-    name = "{}/training.py".format(examples_path)
+    name = f"{examples_path}/training.py"
     fn = code_to_function(filename=name, kind="job", embed_code=False)
     assert fn.kind == "job", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
@@ -60,7 +60,7 @@ def test_job_file_noembed():
 
 
 def test_local_file_noembed():
-    name = "{}/training.py".format(examples_path)
+    name = f"{examples_path}/training.py"
     fn = code_to_function(filename=name, kind="local", embed_code=False)
     assert fn.kind == "local", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
@@ -70,8 +70,8 @@ def test_local_file_noembed():
 
 
 def test_job_file_codeout():
-    name = "{}/mlrun_jobs.ipynb".format(examples_path)
-    out = "{}/ctf_tst.py".format(results)
+    name = f"{examples_path}/mlrun_jobs.ipynb"
+    out = f"{results}/ctf_tst.py"
     fn = code_to_function(filename=name, kind="job", code_output=out, embed_code=False)
     assert fn.kind == "job", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
@@ -80,8 +80,8 @@ def test_job_file_codeout():
 
 
 def test_local_file_codeout():
-    name = "{}/mlrun_jobs.ipynb".format(examples_path)
-    out = "{}/ctf_tst.py".format(results)
+    name = f"{examples_path}/mlrun_jobs.ipynb"
+    out = f"{results}/ctf_tst.py"
     fn = code_to_function(
         filename=name, kind="local", code_output=out, embed_code=False
     )

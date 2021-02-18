@@ -39,7 +39,7 @@ def my_func(context, p1=1, p2="a-string"):
     context.log_result("accuracy", x.result())
     context.log_metric("loss", 7)
     context.log_artifact("chart", body="abc")
-    return "tst-me-{}".format(context.iteration)
+    return f"tst-me-{context.iteration}"
 
 
 @pytest.mark.skipif(not has_dask, reason="missing dask")

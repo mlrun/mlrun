@@ -188,7 +188,7 @@ class DaskCluster(KubejobRuntime):
             db = self._get_db()
             if not self.is_deployed:
                 raise RunError(
-                    "function image is not built/ready, use .build()"
+                    "function image is not built/ready, use .deploy()"
                     " method first, or set base dask image (daskdev/dask:latest)"
                 )
 

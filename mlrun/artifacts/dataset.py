@@ -222,11 +222,10 @@ def update_dataset_meta(
     if hasattr(artifact, "artifact_url"):
         artifact = artifact.artifact_url
 
-    stores = store_manager
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
     elif is_store_uri(artifact):
-        artifact_spec, _ = stores.get_store_artifact(artifact)
+        artifact_spec, _ = store_manager.get_store_artifact(artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
@@ -259,7 +258,7 @@ def update_dataset_meta(
                 item = item.target_path
             artifact_spec.extra_data[key] = item
 
-    stores._get_db().store_artifact(
+    mlrun.get_run_db().store_artifact(
         artifact_spec.db_key,
         artifact_spec.to_dict(),
         artifact_spec.tree,
@@ -294,23 +293,33 @@ def upload_dataframe(df, target_path, format, src_path=None, meta_setter=None, *
             target_path = target_path + "." + format
         writer_string = "to_{}".format(format)
         saving_func = getattr(df, writer_string, None)
-        target = target_path
-        to_upload = False
-        if "://" in target:
-            target = mktemp()
-            to_upload = True
-        else:
-            dir = os.path.dirname(target)
-            if dir:
-                os.makedirs(dir, exist_ok=True)
 
-        saving_func(target, **kw)
-        if to_upload:
-            store_manager.object(url=target_path).upload(target)
-        if meta_setter:
-            meta_setter(target)
-        if to_upload:
-            os.remove(target)
+        store, _ = store_manager.get_or_create_store(target_path)
+        fs = store.get_filesystem()
+        if fs:
+            # use fsspec for upload if supported
+            with fs.open(target_path, 'wb') as fp:
+                saving_func(fp, **kw)
+            if meta_setter and store.kind == "file":
+                meta_setter(target_path)
+
+        else:
+            target = target_path
+            to_upload = False
+            if "://" in target_path:
+                target = mktemp()
+                to_upload = True
+            else:
+                dir = os.path.dirname(target_path)
+                if dir:
+                    os.makedirs(dir, exist_ok=True)
+
+            saving_func(target, **kw)
+            if to_upload:
+                store_manager.object(url=target_path).upload(target)
+                if meta_setter:
+                    meta_setter(target)
+                os.remove(target)
         return
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

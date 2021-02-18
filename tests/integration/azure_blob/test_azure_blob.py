@@ -15,7 +15,7 @@ with open(test_filename, "r") as f:
     test_string = f.read()
 
 blob_dir = "test_mlrun_azure_blob"
-blob_file = "file_{0}.txt".format(random.randint(0, 1000))
+blob_file = f"file_{random.randint(0, 1000)}.txt"
 
 
 def azure_connection_configured():

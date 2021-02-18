@@ -1715,7 +1715,7 @@ def clone_git(url, context, secrets, clone):
         if refs.startswith("refs/"):
             branch = refs[refs.rfind("/") + 1 :]
         else:
-            url = url.replace("#" + refs, "#refs/heads/{}".format(refs))
+            url = url.replace("#" + refs, f"#refs/heads/{refs}")
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
     return url, repo
@@ -1744,7 +1744,7 @@ def _get_repo_url(repo):
     url = remotes[0]
     url = url.replace("https://", "git://")
     try:
-        url = "{}#refs/heads/{}".format(url, repo.active_branch.name)
+        url = f"{url}#refs/heads/{repo.active_branch.name}"
     except Exception:
         pass
 

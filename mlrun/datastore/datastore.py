@@ -156,12 +156,12 @@ class StoreManager:
             if endpoint in self._stores.keys():
                 return self._stores[endpoint], subpath
             else:
-                raise ValueError(f"no such store ({endpoint})".format())
+                raise ValueError(f"no such store ({endpoint})")
 
-        storekey = f"{schema}://{endpoint}"
-        if storekey in self._stores.keys():
-            return self._stores[storekey], subpath
+        store_key = f"{schema}://{endpoint}"
+        if store_key in self._stores.keys():
+            return self._stores[store_key], subpath
 
-        store = schema_to_store(schema)(self, schema, storekey, endpoint)
-        self._stores[storekey] = store
+        store = schema_to_store(schema)(self, schema, store_key, endpoint)
+        self._stores[store_key] = store
         return store, subpath

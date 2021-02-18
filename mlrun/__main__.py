@@ -541,7 +541,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         df = runs.to_df()[
             ["name", "uid", "iter", "start", "state", "parameters", "results"]
         ]
-        # df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
+        # df['uid'] = df['uid'].apply(lambda x: f'..{x[-6:]}')
         df["start"] = df["start"].apply(time_str)
         df["parameters"] = df["parameters"].apply(dict_to_str)
         df["results"] = df["results"].apply(dict_to_str)
@@ -911,7 +911,7 @@ def func_url_to_runtime(func_url):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
     except Exception as e:
-        logger.error("function {} not found, {}".format(func_url, e))
+        logger.error(f"function {func_url} not found, {e}")
         return None
 
     if not runtime:

@@ -190,13 +190,13 @@ class VaultStore:
         url = "v1/sys/policies/acl/" + policy_name
 
         policy_str = (
-            'path "secret/data/mlrun/projects/{0}" {{\n'
+            f'path "secret/data/mlrun/projects/{project}" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
             + "}}\n"
-            + 'path "secret/data/mlrun/projects/{0}/*" {{\n'
+            + f'path "secret/data/mlrun/projects/{project}/*" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
             + "}}"
-        ).format(project)
+        )
 
         data_object = {"policy": policy_str}
 

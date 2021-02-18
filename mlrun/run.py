@@ -299,8 +299,9 @@ def get_or_create_ctx(
         # access input metadata, values, files, and secrets (passwords)
         print(f'Run: {context.name} (uid={context.uid})')
         print(f'Params: p1={p1}, p2={p2}')
-        print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-        print('file: {}'.format(context.get_input('infile.txt').get()))
+        print(f'accesskey = {context.get_secret("ACCESS_KEY")}')
+        input_str = context.get_input('infile.txt').get()
+        print(f'file: {input_str}')
 
         # RUN some useful code e.g. ML training, data prep, etc.
 

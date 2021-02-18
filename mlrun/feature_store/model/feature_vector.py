@@ -24,7 +24,7 @@ from ...model import ModelObj, ObjectList
 from ...config import config as mlconf
 from ...runtimes.function_reference import FunctionReference
 from ...serving.states import RootFlowState
-from ..targets import get_offline_target, ParquetTarget, CSVTarget
+from mlrun.datastore.targets import get_offline_target, ParquetTarget, CSVTarget
 from ...datastore import get_store_uri
 from ...utils import StorePrefix
 
@@ -337,8 +337,8 @@ class OfflineVectorResponse:
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        ParquetTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)
+        return ParquetTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        CSVTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)
+        return CSVTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)

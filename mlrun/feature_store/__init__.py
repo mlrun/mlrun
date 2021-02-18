@@ -39,4 +39,4 @@ from .api import (
     run_ingestion_job,
     deploy_ingestion_service,
 )
-from .targets import TargetTypes
+from ..datastore.targets import TargetTypes

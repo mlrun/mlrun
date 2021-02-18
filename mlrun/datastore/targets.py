@@ -11,18 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from copy import copy
 from typing import Dict
 import mlrun
 from mlrun.utils import now_date
 
-from .model.base import (
+from mlrun.feature_store.model.base import (
     DataTargetBase,
     TargetTypes,
     DataTarget,
 )
 from mlrun.datastore.v3io import parse_v3io_path
-from ..datastore import store_path_to_spark
+from mlrun.datastore import store_path_to_spark
 
 
 def default_target_names():
@@ -132,7 +133,26 @@ class BaseStoreTarget(DataTargetBase):
         store, _ = mlrun.store_manager.get_or_create_store(self.path)
         return store
 
-    def write_datafreme(self, df, **kwargs):
+    def write_datafreme(self, df, key_column=None, timestamp_key=None, **kwargs):
+        if hasattr(df, "rdd"):
+            options = self.get_spark_options(key_column, timestamp_key)
+            options.update(kwargs)
+            df.write.mode("overwrite").save(**options)
+        else:
+            fs = self._get_store().get_filesystem(False)
+            if fs.protocol == "file":
+                dir = os.path.dirname(self.path)
+                if dir:
+                    os.makedirs(dir, exist_ok=True)
+            with fs.open(self.path, 'wb') as fp:
+                self._write_datafreme(df, fp, **kwargs)
+            try:
+                return fs.size(self.path)
+            except Exception:
+                return None
+
+    @staticmethod
+    def _write_datafreme(df, target, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -196,9 +216,9 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
 
-    def write_datafreme(self, df, **kwargs):
-        with self._get_store().open(self.path, "wb") as fp:
-            df.to_parquet(fp, **kwargs)
+    @staticmethod
+    def _write_datafreme(df, target, **kwargs):
+        df.to_parquet(target, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -232,9 +252,9 @@ class CSVTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
 
-    def write_datafreme(self, df, **kwargs):
-        with self._get_store().open(self.path, "wb") as fp:
-            df.to_csv(fp, **kwargs)
+    @staticmethod
+    def _write_datafreme(df, target, **kwargs):
+        df.to_csv(target, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

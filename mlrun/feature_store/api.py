@@ -24,7 +24,7 @@ from .ingestion import (
     context_to_ingestion_params,
 )
 from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
-from .targets import get_default_targets, get_target_driver
+from mlrun.datastore.targets import get_default_targets, get_target_driver
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger

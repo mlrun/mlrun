@@ -131,12 +131,11 @@ class DatasetArtifact(Artifact):
         self._kw = kwargs
 
     def upload(self):
-        upload_dataframe(
+        self.size = upload_dataframe(
             self._df,
             self.target_path,
             format=self.format,
             src_path=self.src_path,
-            meta_setter=self._set_meta,
             **self._kw,
         )
 
@@ -267,7 +266,7 @@ def update_dataset_meta(
     )
 
 
-def upload_dataframe(df, target_path, format, src_path=None, meta_setter=None, **kw):
+def upload_dataframe(df, target_path, format, src_path=None, **kw):
     suffix = pathlib.Path(target_path).suffix
     if not format:
         if suffix and suffix in [".csv", ".parquet", ".pq"]:
@@ -277,49 +276,19 @@ def upload_dataframe(df, target_path, format, src_path=None, meta_setter=None, *
 
     if src_path and os.path.isfile(src_path):
         store_manager.object(url=target_path).upload(src_path)
-        if meta_setter:
-            meta_setter(src_path)
-        return
+        return os.stat(src_path).st_size
 
     if df is None:
-        return
+        return None
 
     if target_path.startswith("memory://"):
         store_manager.object(target_path).put(df)
-        return
+        return None
 
     if format in ["csv", "parquet"]:
         if not suffix:
             target_path = target_path + "." + format
-        writer_string = "to_{}".format(format)
-        saving_func = getattr(df, writer_string, None)
-
-        store, _ = store_manager.get_or_create_store(target_path)
-        fs = store.get_filesystem()
-        if fs:
-            # use fsspec for upload if supported
-            with fs.open(target_path, 'wb') as fp:
-                saving_func(fp, **kw)
-            if meta_setter and store.kind == "file":
-                meta_setter(target_path)
-
-        else:
-            target = target_path
-            to_upload = False
-            if "://" in target_path:
-                target = mktemp()
-                to_upload = True
-            else:
-                dir = os.path.dirname(target_path)
-                if dir:
-                    os.makedirs(dir, exist_ok=True)
-
-            saving_func(target, **kw)
-            if to_upload:
-                store_manager.object(url=target_path).upload(target)
-                if meta_setter:
-                    meta_setter(target)
-                os.remove(target)
-        return
+        target_class = mlrun.feature_store.targets.kind_to_driver[format]
+        return target_class(path=target_path).write_datafreme(df, **kw)
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

@@ -82,7 +82,7 @@ class FileRunDB(RunDBInterface):
 
     def _run_path(self, uid, iter):
         if iter:
-            return "{}-{}".format(uid, iter)
+            return f"{uid}-{iter}"
         return uid
 
     def store_run(self, struct, uid, project="", iter=0):
@@ -200,7 +200,7 @@ class FileRunDB(RunDBInterface):
             artifact["updated"] = datetime.now(timezone.utc).isoformat()
         data = self._dumps(artifact)
         if iter:
-            key = "{}-{}".format(iter, key)
+            key = f"{iter}-{key}"
         filepath = self._filepath(artifacts_dir, project, key, uid) + self.format
         self._datastore.put(filepath, data)
         filepath = (
@@ -211,7 +211,7 @@ class FileRunDB(RunDBInterface):
     def read_artifact(self, key, tag="", iter=None, project=""):
         tag = tag or "latest"
         if iter:
-            key = "{}-{}".format(iter, key)
+            key = f"{iter}-{key}"
         filepath = self._filepath(artifacts_dir, project, key, tag) + self.format
 
         if not pathlib.Path(filepath).is_file():
@@ -286,9 +286,10 @@ class FileRunDB(RunDBInterface):
         filepath = (
             path.join(
                 self.dirpath,
-                "{}/{}/{}/{}".format(
-                    functions_dir, project or config.default_project, name, tag
-                ),
+                functions_dir,
+                project or config.default_project,
+                name,
+                tag,
             )
             + self.format
         )
@@ -303,9 +304,10 @@ class FileRunDB(RunDBInterface):
             filepath = (
                 path.join(
                     self.dirpath,
-                    "{}/{}/{}/{}".format(
-                        functions_dir, project or config.default_project, name, hash_key
-                    ),
+                    functions_dir,
+                    project or config.default_project,
+                    name,
+                    hash_key,
                 )
                 + self.format
             )
@@ -319,9 +321,10 @@ class FileRunDB(RunDBInterface):
         filepath = (
             path.join(
                 self.dirpath,
-                "{}/{}/{}/{}".format(
-                    functions_dir, project or config.default_project, name, file_name
-                ),
+                functions_dir,
+                project or config.default_project,
+                name,
+                file_name,
             )
             + self.format
         )
@@ -343,8 +346,10 @@ class FileRunDB(RunDBInterface):
         logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")
         filepath = path.join(
             self.dirpath,
-            "{}/{}/".format(functions_dir, project or config.default_project),
+            functions_dir,
+            project or config.default_project,
         )
+        filepath += "/"
 
         # function name -> tag name -> function dict
         functions_with_tag_filename = {}
@@ -356,7 +361,7 @@ class FileRunDB(RunDBInterface):
             labels = labels.split(",")
         mask = "**/*"
         if name:
-            filepath = "{}{}/".format(filepath, name)
+            filepath = f"{filepath}{name}/"
             mask = "*"
         for func, fullname in self._load_list(filepath, mask):
             if match_labels(get_in(func, "metadata.labels", {}), labels):
@@ -410,7 +415,7 @@ class FileRunDB(RunDBInterface):
         if tag:
             key = "/" + key
         project = project or config.default_project
-        return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
+        return path.join(self.dirpath, table, project, tag, key)
 
     def list_projects(
         self,
@@ -463,12 +468,12 @@ class FileRunDB(RunDBInterface):
 
     def store_schedule(self, data):
         sched_id = 1 + sum(1 for _ in scandir(self.schedules_dir))
-        fname = path.join(self.schedules_dir, "{}{}".format(sched_id, self.format),)
+        fname = path.join(self.schedules_dir, f"{sched_id}{self.format}")
         with open(fname, "w") as out:
             out.write(self._dumps(data))
 
     def list_schedules(self):
-        pattern = "*{}".format(self.format)
+        pattern = f"*{self.format}"
         for p in pathlib.Path(self.schedules_dir).glob(pattern):
             with p.open() as fp:
                 yield self._loads(fp.read())

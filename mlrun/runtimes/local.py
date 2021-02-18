@@ -85,8 +85,9 @@ class LocalRuntime(BaseRuntime):
             environ["MLRUN_DBPATH"] = self.spec.rundb
 
         handler = runobj.spec.handler
+        handler_str = handler or "main"
         logger.debug(
-            "starting local run: {} # {}".format(self.spec.command, handler or "main")
+            f"starting local run: {self.spec.command} # {handler_str}"
         )
 
         if handler:
@@ -117,7 +118,7 @@ class LocalRuntime(BaseRuntime):
             if self.spec.pythonpath:
                 pypath = self.spec.pythonpath
                 if "PYTHONPATH" in environ:
-                    pypath = "{}:{}".format(environ["PYTHONPATH"], pypath)
+                    pypath = f"{environ['PYTHONPATH']}:{pypath}"
                 env = {"PYTHONPATH": pypath}
             if runobj.spec.verbose:
                 if not env:
@@ -163,7 +164,7 @@ def load_module(file_name, handler):
     try:
         fn = getattr(mod, handler)  # Will raise if name not found
     except AttributeError:
-        raise RunError("handler {} not found in {}".format(handler, file_name))
+        raise RunError(f"handler {handler} not found in {file_name}")
 
     return mod, fn
 

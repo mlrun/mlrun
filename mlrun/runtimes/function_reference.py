@@ -69,7 +69,7 @@ class FunctionReference(ModelObj):
         """generate a function object from the ref definitions"""
         if self.url and "://" not in self.url:
             if not os.path.isfile(self.url):
-                raise OSError("{} not found".format(self.url))
+                raise OSError(f"{self.url} not found")
 
         kind = self.kind or default_kind
         if self.url:
@@ -97,7 +97,7 @@ class FunctionReference(ModelObj):
                 )
             else:
                 raise ValueError(
-                    "unsupported function url {} or no spec".format(self.url)
+                    f"unsupported function url {self.url} or no spec"
                 )
             if self.spec:
                 func = enrich_function_from_dict(func, self.spec)

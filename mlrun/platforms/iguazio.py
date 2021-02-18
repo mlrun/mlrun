@@ -403,10 +403,10 @@ def create_control_session(url, username, password):
     try:
         auth = session.post(f"{url}/api/sessions", verify=False)
     except OSError as e:
-        raise OSError("error: cannot connect to {}: {}".format(url, e))
+        raise OSError(f"error: cannot connect to {url}: {e}")
 
     if not auth.ok:
-        raise OSError("failed to create session: {}, {}".format(url, auth.text))
+        raise OSError(f"failed to create session: {url}, {auth.text}")
 
     return auth.json()["data"]["id"]
 

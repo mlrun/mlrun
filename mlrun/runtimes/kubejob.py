@@ -124,7 +124,7 @@ class KubejobRuntime(KubeResource):
         if self._is_remote_api() and not is_kfp:
             db = self._get_db()
             logger.info(
-                "starting remote build, image: {}".format(self.spec.build.image)
+                f"starting remote build, image: {self.spec.build.image}"
             )
             data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
             self.status = data["data"].get("status", None)
@@ -188,12 +188,12 @@ class KubejobRuntime(KubeResource):
                 if status in ["failed", "error"]:
                     self.status.state = status
                     logger.error(
-                        " build {}, watch the build pod logs: {}".format(status, pod)
+                        f" build {status}, watch the build pod logs: {pod}"
                     )
                     return status
 
                 logger.info(
-                    "builder status is: {}, wait for it to complete".format(status)
+                    f"builder status is: {status}, wait for it to complete"
                 )
             return None
 
@@ -206,8 +206,8 @@ class KubejobRuntime(KubeResource):
         with_mlrun=True,
         skip_deployed=False,
     ):
-
-        name = "deploy_{}".format(self.metadata.name or "function")
+        function_name = self.metadata.name or "function"
+        name = f"deploy_{function_name}"
         return build_op(
             name,
             self,
@@ -232,7 +232,7 @@ class KubejobRuntime(KubeResource):
         )
         if project_vault_secret_name is None:
             logger.info(
-                "No vault secret associated with project {}".format(project_name)
+                f"No vault secret associated with project {project_name}"
             )
             return
 
@@ -252,7 +252,7 @@ class KubejobRuntime(KubeResource):
         self.spec.env.append(
             {
                 "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
-                "value": "project:{}".format(project_name),
+                "value": f"project:{project_name}",
             }
         )
         # In case remote URL is different than local URL, use it. Else, use the local URL
@@ -294,7 +294,7 @@ class KubejobRuntime(KubeResource):
             if status in ["failed", "error"]:
                 raise RunError(f"pod exited with {status}, check logs")
         else:
-            txt = "Job is running in the background, pod: {}".format(pod_name)
+            txt = f"Job is running in the background, pod: {pod_name}"
             logger.info(txt)
             runobj.status.status_text = txt
 

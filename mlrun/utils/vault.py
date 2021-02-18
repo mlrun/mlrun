@@ -50,7 +50,7 @@ class VaultStore:
         config_role = mlconf.secret_stores.vault.role
         if config_role != "":
             role_type, role_val = config_role.split(":", 1)
-            vault_role = "mlrun-role-{}-{}".format(role_type, role_val)
+            vault_role = f"mlrun-role-{role_type}-{role_val}"
             self._safe_login_with_jwt_token(vault_role)
 
         if self._token is None:
@@ -71,11 +71,10 @@ class VaultStore:
                 "Both user and project were provided for Vault operations"
             )
 
-        full_path = prefix + "/mlrun/{}/{}"
         if user:
-            return full_path.format(user_prefix, user)
+            return prefix + f"/mlrun/{user_prefix}/{user}"
         elif project:
-            return full_path.format(project_prefix, project)
+            return prefix + f"/mlrun/{project_prefix}/{project}"
         else:
             raise MLRunInvalidArgumentError(
                 "To generate a vault secret path, either user or project must be specified"
@@ -186,7 +185,7 @@ class VaultStore:
             )
 
     def create_project_policy(self, project):
-        policy_name = "mlrun-project-{}".format(project)
+        policy_name = f"mlrun-project-{project}"
         # TODO - need to make sure name is escaped properly and invalid chars are stripped
         url = "v1/sys/policies/acl/" + policy_name
 
@@ -204,14 +203,13 @@ class VaultStore:
         response = self._api_call("PUT", url, data_object)
         if not response:
             raise MLRunInvalidArgumentError(
-                "Vault failed the API call to create a policy. Response code: ({}) - {}".format(
-                    response.status_code, response.reason
-                )
+                f"Vault failed the API call to create a policy. "
+                f"Response code: ({response.status_code}) - {response.reason}"
             )
         return policy_name
 
     def create_project_role(self, project, sa, policy, namespace="default-tenant"):
-        role_name = "mlrun-role-project-{}".format(project)
+        role_name = f"mlrun-role-project-{project}"
         # TODO - need to make sure name is escaped properly and invalid chars are stripped
         url = "v1/auth/kubernetes/role/" + role_name
 
@@ -225,9 +223,8 @@ class VaultStore:
         response = self._api_call("POST", url, role_object)
         if not response:
             raise MLRunInvalidArgumentError(
-                "Vault failed the API call to create a secret. Response code: ({}) - {}".format(
-                    response.status_code, response.reason
-                )
+                f"Vault failed the API call to create a secret. "
+                f"Response code: ({response.status_code}) - {response.reason}"
             )
         return role_name
 

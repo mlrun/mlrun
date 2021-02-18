@@ -111,16 +111,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         pass
 
     def _pretty_print_jobs(self, items: typing.List):
-        print("{:10} {:20} {:21} {}".format("status", "name", "start", "end"))
+        print(f"{'status':10} {'name':20} {'start':21} end")
         for i in items:
-            print(
-                "{:10} {:20} {:21} {}".format(
-                    self._get_job_launcher_status(i),
-                    get_in(i, "metadata.name", ""),
-                    get_in(i, "status.startTime", ""),
-                    get_in(i, "status.completionTime", ""),
-                )
-            )
+            status = self._get_job_launcher_status(i)
+            name = get_in(i, "metadata.name", "")
+            start_time = get_in(i, "status.startTime", "")
+            end_time = get_in(i, "status.completionTime", "")
+            print(f"{status:10} {name:20} {start_time:21} {end_time}")
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
 
@@ -143,7 +140,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             time.sleep(1)
 
         if resp:
-            logger.info("MpiJob {} state={}".format(meta.name, state or "unknown"))
+            logger.info(f"MpiJob {meta.name} state={state or 'unknown'}")
             if state:
                 state = state.lower()
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
@@ -154,28 +151,21 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                     status = self._get_k8s().watch(
                         launcher, meta.namespace, writer=writer
                     )
-                    logger.info(
-                        "MpiJob {} finished with state {}".format(meta.name, status)
-                    )
+                    logger.info(f"MpiJob {meta.name} finished with state {status}")
                     if status == "succeeded":
                         execution.set_state("completed")
                     else:
                         execution.set_state(
                             "error",
-                            "MpiJob {} finished with state {}".format(
-                                meta.name, status
-                            ),
+                            f"MpiJob {meta.name} finished with state {status}",
                         )
                 else:
-                    txt = "MpiJob {} launcher pod {} state {}".format(
-                        meta.name, launcher, state
-                    )
+                    txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
                     logger.info(txt)
                     runobj.status.status_text = txt
             else:
-                txt = "MpiJob status unknown or failed, check pods: {}".format(
-                    self.get_pods(meta.name, meta.namespace)
-                )
+                pods_phases = self.get_pods(meta.name, meta.namespace)
+                txt = f"MpiJob status unknown or failed, check pods: {pods_phases}"
                 logger.warning(txt)
                 runobj.status.status_text = txt
                 if self.kfp:
@@ -197,11 +187,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 body=job,
             )
             name = get_in(resp, "metadata.name", "unknown")
-            logger.info("MpiJob {} created".format(name))
+            logger.info(f"MpiJob {name} created")
             return resp
         except client.rest.ApiException as e:
-            logger.error("Exception when creating MPIJob: %s" % e)
-            raise RunError("Exception when creating MPIJob: %s" % e)
+            logger.error(f"Exception when creating MPIJob: {e}")
+            raise RunError(f"Exception when creating MPIJob: {e}")
 
     def delete_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
@@ -213,9 +203,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.delete_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name, body
             )
-            logger.info("del status: {}".format(get_in(resp, "status", "unknown")))
+            deletion_status = get_in(resp, "status", "unknown")
+            logger.info(f"del status: {deletion_status}")
         except client.rest.ApiException as e:
-            print("Exception when deleting MPIJob: %s" % e)
+            print(f"Exception when deleting MPIJob: {e}")
 
     def list_jobs(self, namespace=None, selector="", show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()

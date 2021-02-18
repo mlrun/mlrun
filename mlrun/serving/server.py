@@ -298,8 +298,9 @@ class Response(object):
     def __repr__(self):
         cls = self.__class__.__name__
         items = self.__dict__.items()
-        args = ("{}={!r}".format(key, value) for key, value in items)
-        return "{}({})".format(cls, ", ".join(args))
+        args = (f"{key}={repr(value)}" for key, value in items)
+        args_str = ", ".join(args)
+        return f"{cls}({args_str})"
 
 
 class GraphContext:

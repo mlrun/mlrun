@@ -178,7 +178,7 @@ class DaskCluster(KubejobRuntime):
             if db_func and "status" in db_func:
                 self.status = db_func["status"]
                 if self.kfp:
-                    logger.info("dask status: {}".format(db_func["status"]))
+                    logger.info(f"dask status: {db_func['status']}")
                 return "scheduler_address" in db_func["status"]
 
         return False
@@ -249,14 +249,10 @@ class DaskCluster(KubejobRuntime):
         dash = ""
         if config.remote_host:
             if self.spec.service_type == "NodePort" and self.use_remote:
-                addr = "{}:{}".format(
-                    config.remote_host, self.status.node_ports.get("scheduler")
-                )
+                addr = f"{config.remote_host}:{self.status.node_ports.get('scheduler')}"
 
             if self.spec.service_type == "NodePort":
-                dash = "{}:{}".format(
-                    config.remote_host, self.status.node_ports.get("dashboard")
-                )
+                dash = f"{config.remote_host}:{self.status.node_ports.get('dashboard')}"
             else:
                 logger.info("to get a dashboard link, use NodePort service_type")
 
@@ -272,14 +268,12 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
-            logger.info("trying dask client at: {}".format(addr))
+            logger.info(f"trying dask client at: {addr}")
             try:
                 client = Client(addr)
             except OSError as e:
                 logger.warning(
-                    "remote scheduler at {} not ready, will try to restart {}".format(
-                        addr, e
-                    )
+                    f"remote scheduler at {addr} not ready, will try to restart {e}"
                 )
 
                 # todo: figure out if test is needed
@@ -293,15 +287,12 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
 
             logger.info(
-                "using remote dask scheduler ({}) at: {}".format(
-                    self.status.cluster_name, addr
-                )
+                f"using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
             )
             if dash:
-                url = '<a href="http://{}/status" target="_blank" >{} {}</a>'
                 ipython_display(
-                    url.format(dash, "dashboard link:", dash),
-                    alt_text="remote dashboard: {}".format(dash),
+                    f'<a href="http://{dash}/status" target="_blank" >dashboard link: {dash}</a>',
+                    alt_text=f"remote dashboard: {dash}",
                 )
 
             return client
@@ -426,7 +417,7 @@ def deploy_function(function: DaskCluster, secrets=None):
     )
 
     logger.info(
-        "cluster {} started at {}".format(cluster.name, cluster.scheduler_address)
+        f"cluster {cluster.name} started at {cluster.scheduler_address}"
     )
 
     function.status.scheduler_address = cluster.scheduler_address
@@ -458,15 +449,11 @@ def get_obj_status(selector=[], namespace=None):
         if status == "running":
             cluster = pod.metadata.labels.get("dask.org/cluster-name")
             logger.info(
-                "found running dask function {}, cluster={}".format(
-                    pod.metadata.name, cluster
-                )
+                f"found running dask function {pod.metadata.name}, cluster={cluster}"
             )
             return status
         logger.info(
-            "found dask function {} in non ready state ({})".format(
-                pod.metadata.name, status
-            )
+            f"found dask function {pod.metadata.name} in non ready state ({status})"
         )
     return status
 

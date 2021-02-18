@@ -216,7 +216,10 @@ def get_endpoint(
     _verify_endpoint(project, endpoint_id)
     access_key = _get_access_key(request)
     endpoint = get_endpoint_kv_record_by_id(
-        access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES,
+        access_key,
+        project,
+        endpoint_id,
+        ENDPOINT_TABLE_ATTRIBUTES_WITH_FEATURES,
     )
 
     if not endpoint:

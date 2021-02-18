@@ -477,7 +477,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # It means that monitoring runtime resources state doesn't say anything about the run state.
     # Therefore dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
-        self, db: DBInterface, db_session: Session,
+        self,
+        db: DBInterface,
+        db_session: Session,
     ):
         return
 

@@ -16,8 +16,8 @@ import mlrun.api.utils.singletons.k8s
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch) -> kfp.Client:
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
+    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
+        unittest.mock.Mock(return_value=True)
     )
     kfp_client_mock = unittest.mock.Mock()
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
@@ -209,6 +209,10 @@ def _assert_list_pipelines_response(
 ):
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        deepdiff.DeepDiff(expected_response.dict(), response.json(), ignore_order=True,)
+        deepdiff.DeepDiff(
+            expected_response.dict(),
+            response.json(),
+            ignore_order=True,
+        )
         == {}
     )

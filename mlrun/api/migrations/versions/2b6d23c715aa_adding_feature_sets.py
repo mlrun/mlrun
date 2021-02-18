@@ -37,7 +37,10 @@ def upgrade():
         sa.Column("feature_set_id", sa.Integer(), nullable=True),
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("value_type", sa.String(), nullable=True),
-        sa.ForeignKeyConstraint(["feature_set_id"], ["feature_sets.id"],),
+        sa.ForeignKeyConstraint(
+            ["feature_set_id"],
+            ["feature_sets.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -46,7 +49,10 @@ def upgrade():
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("value", sa.String(), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["feature_sets.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["feature_sets.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_feature_sets_labels_uc"),
     )
@@ -57,8 +63,14 @@ def upgrade():
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("obj_id", sa.Integer(), nullable=True),
         sa.Column("obj_name", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["obj_id"], ["feature_sets.id"],),
-        sa.ForeignKeyConstraint(["obj_name"], ["feature_sets.name"],),
+        sa.ForeignKeyConstraint(
+            ["obj_id"],
+            ["feature_sets.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["obj_name"],
+            ["feature_sets.name"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "project", "name", "obj_name", name="_feature_sets_tags_uc"
@@ -70,7 +82,10 @@ def upgrade():
         sa.Column("feature_set_id", sa.Integer(), nullable=True),
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("value_type", sa.String(), nullable=True),
-        sa.ForeignKeyConstraint(["feature_set_id"], ["feature_sets.id"],),
+        sa.ForeignKeyConstraint(
+            ["feature_set_id"],
+            ["feature_sets.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     # ### end Alembic commands ###

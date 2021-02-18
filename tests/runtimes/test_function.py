@@ -52,4 +52,11 @@ def test_generate_nuclio_volumes():
     ]
     function = mlrun.new_function(runtime=runtime)
     nuclio_volumes = function.spec.generate_nuclio_volumes()
-    assert DeepDiff(expected_nuclio_volumes, nuclio_volumes, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            expected_nuclio_volumes,
+            nuclio_volumes,
+            ignore_order=True,
+        )
+        == {}
+    )

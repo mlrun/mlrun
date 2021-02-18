@@ -91,7 +91,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @abc.abstractmethod
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 

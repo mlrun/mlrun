@@ -175,8 +175,10 @@ class Scheduler:
         Enforce no more then one job per min_allowed_interval
         """
         logger.debug("Validating cron trigger")
-        apscheduler_cron_trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
-            cron_trigger
+        apscheduler_cron_trigger = (
+            self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+                cron_trigger
+            )
         )
         now = now or datetime.now(apscheduler_cron_trigger.timezone)
         next_run_time = None
@@ -373,7 +375,10 @@ class Scheduler:
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
         get_db().update_schedule(
-            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
+            db_session,
+            run_metadata["project"],
+            schedule_name,
+            last_run_uri=run_uri,
         )
 
         close_session(db_session)

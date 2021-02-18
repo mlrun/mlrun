@@ -98,7 +98,14 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
         response["data"]["metadata"]["uid"] for response in [response_1, response_2]
     ]
     db_uids = [run["metadata"]["uid"] for run in runs]
-    assert DeepDiff(response_uids, db_uids, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            response_uids,
+            db_uids,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     schedule = scheduler.get_schedule(db, project, schedule_name, include_last_run=True)
     assert schedule.last_run is not None
@@ -475,7 +482,10 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update labels
     scheduler.update_schedule(
-        db, project, schedule_name, labels=labels_2,
+        db,
+        project,
+        schedule_name,
+        labels=labels_2,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -491,7 +501,9 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update nothing
     scheduler.update_schedule(
-        db, project, schedule_name,
+        db,
+        project,
+        schedule_name,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -507,7 +519,10 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update labels to empty dict
     scheduler.update_schedule(
-        db, project, schedule_name, labels={},
+        db,
+        project,
+        schedule_name,
+        labels={},
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -527,10 +542,15 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     now_plus_2_second = now + timedelta(seconds=2)
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second,
+        second="*/1",
+        start_date=now_plus_1_second,
+        end_date=now_plus_2_second,
     )
     scheduler.update_schedule(
-        db, project, schedule_name, cron_trigger=cron_trigger,
+        db,
+        project,
+        schedule_name,
+        cron_trigger=cron_trigger,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 

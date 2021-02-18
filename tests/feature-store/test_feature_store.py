@@ -146,7 +146,8 @@ def test_feature_set_db():
     name = "stocks_test"
     stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
     fs.infer_metadata(
-        stocks_set, stocks,
+        stocks_set,
+        stocks,
     )
     stocks_set.save()
     db = mlrun.get_run_db()

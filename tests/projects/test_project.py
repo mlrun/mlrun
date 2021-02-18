@@ -76,24 +76,44 @@ def test_create_project_from_file_with_legacy_structure():
     # assert accessible from the project as well
     assert project.description == description
     assert project.spec.artifact_path == artifact_path
-    assert deepdiff.DeepDiff(params, project.spec.params, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            params,
+            project.spec.params,
+            ignore_order=True,
+        )
+        == {}
+    )
     # assert accessible from the project as well
-    assert deepdiff.DeepDiff(params, project.params, ignore_order=True,) == {}
     assert (
         deepdiff.DeepDiff(
-            legacy_project.functions, project.functions, ignore_order=True,
+            params,
+            project.params,
+            ignore_order=True,
         )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            legacy_project.workflows, project.workflows, ignore_order=True,
+            legacy_project.functions,
+            project.functions,
+            ignore_order=True,
         )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            legacy_project.artifacts, project.artifacts, ignore_order=True,
+            legacy_project.workflows,
+            project.workflows,
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            legacy_project.artifacts,
+            project.artifacts,
+            ignore_order=True,
         )
         == {}
     )

@@ -497,7 +497,7 @@ class SparkRuntime(KubejobRuntime):
         submission_retry_interval=20,
     ):
         """set restart policy
-           restart_type=OnFailure/Never/Always"""
+        restart_type=OnFailure/Never/Always"""
         update_in(self.spec.restart_policy, "type", restart_type)
         update_in(self.spec.restart_policy, "retries", retries)
         update_in(self.spec.restart_policy, "retry_interval", retry_interval)

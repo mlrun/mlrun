@@ -18,7 +18,9 @@ async def api_url() -> str:
 
 
 @pytest.fixture()
-async def nuclio_client(api_url: str,) -> mlrun.api.utils.clients.nuclio.Client:
+async def nuclio_client(
+    api_url: str,
+) -> mlrun.api.utils.clients.nuclio.Client:
     client = mlrun.api.utils.clients.nuclio.Client()
     # force running init again so the configured api url will be used
     client.__init__()
@@ -50,12 +52,18 @@ def test_get_project(
     assert project.metadata.name == project_name
     assert project.spec.description == project_description
     assert (
-        deepdiff.DeepDiff(project_labels, project.metadata.labels, ignore_order=True,)
+        deepdiff.DeepDiff(
+            project_labels,
+            project.metadata.labels,
+            ignore_order=True,
+        )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            project_annotations, project.metadata.annotations, ignore_order=True,
+            project_annotations,
+            project.metadata.annotations,
+            ignore_order=True,
         )
         == {}
     )
@@ -297,7 +305,12 @@ def test_patch_project(
         expected_body["metadata"]["labels"].update(project_labels)
         expected_body["metadata"]["annotations"].update(project_annotations)
         assert (
-            deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
+            deepdiff.DeepDiff(
+                expected_body,
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
@@ -325,7 +338,8 @@ def test_patch_project_only_labels(
         "some-label": "some-label-value",
     }
     mocked_project_body = _generate_project_body(
-        project_name, labels={"label-key": "label-value"},
+        project_name,
+        labels={"label-key": "label-value"},
     )
 
     def verify_patch(request, context):
@@ -333,7 +347,12 @@ def test_patch_project_only_labels(
         expected_body = mocked_project_body
         expected_body["metadata"]["labels"].update(project_labels)
         assert (
-            deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
+            deepdiff.DeepDiff(
+                expected_body,
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
@@ -342,7 +361,9 @@ def test_patch_project_only_labels(
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
-        None, project_name, {"metadata": {"labels": project_labels}},
+        None,
+        project_name,
+        {"metadata": {"labels": project_labels}},
     )
 
 

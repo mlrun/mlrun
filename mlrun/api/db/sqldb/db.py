@@ -367,7 +367,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         update_in(function, "metadata.updated", updated)
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
-            fn = Function(name=name, project=project, uid=uid,)
+            fn = Function(
+                name=name,
+                project=project,
+                uid=uid,
+            )
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
@@ -630,7 +634,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
             query = (
-                self._query(session, artifact.Tag, project=project, name=name,)
+                self._query(
+                    session,
+                    artifact.Tag,
+                    project=project,
+                    name=name,
+                )
                 .join(Artifact)
                 .filter(Artifact.key == artifact.key)
             )
@@ -813,7 +822,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # If a bad kind value was passed, it will fail here (return 422 to caller)
         project = schemas.Project(**project_record_full_object)
         self.store_project(
-            session, name, project,
+            session,
+            name,
+            project,
         )
 
         project_record.full_object = project_record_full_object
@@ -892,7 +903,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             )
 
     def _get_record_by_name_tag_and_uid(
-        self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        cls,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         query = self._query(session, cls, name=name, project=project)
         computed_tag = tag or "latest"
@@ -909,7 +926,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return computed_tag, object_tag_uid, query.one_or_none()
 
     def _get_feature_set(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         (
             computed_tag,
@@ -929,7 +951,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             return None
 
     def get_feature_set(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ) -> schemas.FeatureSet:
         feature_set = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set:
@@ -980,7 +1007,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return schemas.FeatureSetDigestOutput(
             metadata=feature_set.metadata,
             spec=schemas.FeatureSetDigestSpec(
-                entities=feature_set.spec.entities, features=feature_set.spec.features,
+                entities=feature_set.spec.entities,
+                features=feature_set.spec.features,
             ),
         )
 
@@ -1232,7 +1260,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     @staticmethod
     def _common_object_validate_and_perform_uid_change(
-        object_dict: dict, tag, versioned, existing_uid=None,
+        object_dict: dict,
+        tag,
+        versioned,
+        existing_uid=None,
     ):
         uid = fill_object_hash(object_dict, "uid", tag)
         if not versioned:
@@ -1248,7 +1279,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     @staticmethod
     def _update_db_record_from_object_dict(
-        db_object, common_object_dict: dict, uid,
+        db_object,
+        common_object_dict: dict,
+        uid,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
@@ -1430,7 +1463,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return uid
 
     def _get_feature_vector(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         (
             computed_tag,
@@ -1761,7 +1799,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 Artifact.key,
                 func.max(Artifact.updated),
             )
-            .group_by(Artifact.project, Artifact.key.label("key"),)
+            .group_by(
+                Artifact.project,
+                Artifact.key.label("key"),
+            )
             .subquery("max_key")
         )
 
@@ -1960,7 +2001,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     @staticmethod
     def _transform_feature_set_model_to_schema(
-        feature_set_record: FeatureSet, tag=None,
+        feature_set_record: FeatureSet,
+        tag=None,
     ) -> schemas.FeatureSet:
         feature_set_full_dict = feature_set_record.full_object
         feature_set_resp = schemas.FeatureSet(**feature_set_full_dict)
@@ -1970,7 +2012,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     @staticmethod
     def _transform_feature_vector_model_to_schema(
-        feature_vector_record: FeatureVector, tag=None,
+        feature_vector_record: FeatureVector,
+        tag=None,
     ) -> schemas.FeatureVector:
         feature_vector_full_dict = feature_vector_record.full_object
         feature_vector_resp = schemas.FeatureVector(**feature_vector_full_dict)
@@ -1985,13 +2028,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not project_record.full_object:
             project = schemas.Project(
                 metadata=schemas.ProjectMetadata(
-                    name=project_record.name, created=project_record.created,
+                    name=project_record.name,
+                    created=project_record.created,
                 ),
                 spec=schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
                 ),
-                status=schemas.ObjectStatus(state=project_record.state,),
+                status=schemas.ObjectStatus(
+                    state=project_record.state,
+                ),
             )
             self.store_project(session, project_record.name, project)
             return project

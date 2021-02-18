@@ -577,7 +577,12 @@ class FlowState(BaseState):
     ]
 
     def __init__(
-        self, name=None, states=None, after: list = None, engine=None, final_state=None,
+        self,
+        name=None,
+        states=None,
+        after: list = None,
+        engine=None,
+        final_state=None,
     ):
         super().__init__(name, after)
         self._states = None
@@ -1048,7 +1053,10 @@ def _add_graphviz_router(graph, state, source=None, **kwargs):
 
 
 def _add_graphviz_flow(
-    graph, state, source=None, targets=None,
+    graph,
+    state,
+    source=None,
+    targets=None,
 ):
     start_states, default_final_state, responders = state.check_and_process_graph(
         allow_empty=True
@@ -1085,7 +1093,13 @@ def _add_graphviz_flow(
 
 
 def _generate_graphviz(
-    state, renderer, filename=None, format=None, source=None, targets=None, **kw,
+    state,
+    renderer,
+    filename=None,
+    format=None,
+    source=None,
+    targets=None,
+    **kw,
 ):
     try:
         from graphviz import Digraph

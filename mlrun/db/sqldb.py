@@ -188,7 +188,9 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project,
+        self,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -201,7 +203,8 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project,
+        self,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -254,14 +257,29 @@ class SQLDB(RunDBInterface):
         labels: List[str] = None,
     ):
         return self._transform_db_error(
-            self.db.list_features, self.session, project, name, tag, entities, labels,
+            self.db.list_features,
+            self.session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
         )
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ):
         return self._transform_db_error(
-            self.db.list_entities, self.session, project, name, tag, labels,
+            self.db.list_entities,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
         )
 
     def list_feature_sets(
@@ -333,7 +351,12 @@ class SQLDB(RunDBInterface):
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
         return self._transform_db_error(
-            self.db.get_feature_vector, self.session, project, name, tag, uid,
+            self.db.get_feature_vector,
+            self.session,
+            project,
+            name,
+            tag,
+            uid,
         )
 
     def list_feature_vectors(
@@ -355,7 +378,13 @@ class SQLDB(RunDBInterface):
         )
 
     def store_feature_vector(
-        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+        self,
+        feature_vector,
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
         return self._transform_db_error(
             self.db.store_feature_vector,
@@ -390,7 +419,10 @@ class SQLDB(RunDBInterface):
 
     def delete_feature_vector(self, name, project=""):
         return self._transform_db_error(
-            self.db.delete_feature_vector, self.session, project, name,
+            self.db.delete_feature_vector,
+            self.session,
+            project,
+            name,
         )
 
     def list_pipelines(

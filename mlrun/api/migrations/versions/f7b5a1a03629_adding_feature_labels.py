@@ -24,7 +24,10 @@ def upgrade():
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("value", sa.String(), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["entities.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["entities.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_entities_labels_uc"),
     )
@@ -34,7 +37,10 @@ def upgrade():
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("value", sa.String(), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["features.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["features.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_features_labels_uc"),
     )

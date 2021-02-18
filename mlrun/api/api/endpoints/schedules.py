@@ -76,7 +76,9 @@ def get_schedule(
 
 @router.post("/projects/{project}/schedules/{name}/invoke")
 async def invoke_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     return await get_scheduler().invoke_schedule(db_session, project, name)
 
@@ -85,7 +87,9 @@ async def invoke_schedule(
     "/projects/{project}/schedules/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 def delete_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().delete_schedule(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

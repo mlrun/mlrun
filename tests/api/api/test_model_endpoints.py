@@ -39,7 +39,8 @@ def _is_env_params_dont_exist() -> bool:
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_clear_endpoint(db: Session, client: TestClient):
     access_key = _get_access_key()
@@ -67,7 +68,8 @@ def test_clear_endpoint(db: Session, client: TestClient):
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
@@ -92,7 +94,8 @@ def test_list_endpoints(db: Session, client: TestClient):
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_list_endpoints_filter(db: Session, client: TestClient):
     access_key = _get_access_key()
@@ -163,11 +166,14 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_get_endpoint_metrics(db: Session, client: TestClient):
     frames = get_frames_client(
-        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+        token=_get_access_key(),
+        container="projects",
+        address=config.v3io_framesd,
     )
 
     start = datetime.utcnow()
@@ -268,7 +274,9 @@ def cleanup_endpoints(db: Session, client: TestClient):
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
     frames = get_frames_client(
-        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+        token=_get_access_key(),
+        container="projects",
+        address=config.v3io_framesd,
     )
     try:
         all_records = v3io.kv.new_cursor(

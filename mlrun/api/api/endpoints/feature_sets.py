@@ -49,7 +49,12 @@ def store_feature_set(
         db_session, project, name, feature_set, tag, uid, versioned
     )
 
-    return get_db().get_feature_set(db_session, project, name, uid=uid,)
+    return get_db().get_feature_set(
+        db_session,
+        project,
+        name,
+        uid=uid,
+    )
 
 
 @router.patch("/projects/{project}/feature-sets/{name}/references/{reference}")
@@ -87,7 +92,9 @@ def get_feature_set(
 
 @router.delete("/projects/{project}/feature-sets/{name}")
 def delete_feature_set(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     get_db().delete_feature_set(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
@@ -209,7 +216,12 @@ def store_feature_vector(
         db_session, project, name, feature_vector, tag, uid, versioned
     )
 
-    return get_db().get_feature_vector(db_session, project, name, uid=uid,)
+    return get_db().get_feature_vector(
+        db_session,
+        project,
+        name,
+        uid=uid,
+    )
 
 
 @router.patch("/projects/{project}/feature-vectors/{name}/references/{reference}")
@@ -232,7 +244,9 @@ def patch_feature_vector(
 
 @router.delete("/projects/{project}/feature-vectors/{name}")
 def delete_feature_vector(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     get_db().delete_feature_vector(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

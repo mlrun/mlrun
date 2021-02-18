@@ -114,8 +114,8 @@ class NuclioSpec(KubeResourceSpec):
                 {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
             )
 
-        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(
-            self._volumes.keys()
+        volumes_without_volume_mounts = (
+            volume_with_volume_mounts_names.symmetric_difference(self._volumes.keys())
         )
         if volumes_without_volume_mounts:
             raise ValueError(
@@ -233,7 +233,12 @@ class RemoteRuntime(KubeResource):
         return self
 
     def add_v3io_stream_trigger(
-        self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
+        self,
+        stream_path,
+        name="stream",
+        group="serving",
+        seek_to="earliest",
+        shards=1,
     ):
         """add v3io stream trigger to the function"""
         container, path = split_path(stream_path)
@@ -252,7 +257,11 @@ class RemoteRuntime(KubeResource):
         self.spec.max_replicas = shards
 
     def deploy(
-        self, dashboard="", project="", tag="", verbose=False,
+        self,
+        dashboard="",
+        project="",
+        tag="",
+        verbose=False,
     ):
         verbose = verbose or self.verbose
         if verbose:
@@ -486,7 +495,11 @@ class RemoteRuntime(KubeResource):
             for run in runs:
                 self.store_run(run)
                 run.spec.secret_sources = secrets or []
-                tasks.append(asyncio.ensure_future(submit(session, url, run, headers),))
+                tasks.append(
+                    asyncio.ensure_future(
+                        submit(session, url, run, headers),
+                    )
+                )
 
             for status, resp, logs, run in await asyncio.gather(*tasks):
 

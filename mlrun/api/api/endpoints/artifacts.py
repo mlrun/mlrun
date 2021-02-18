@@ -98,7 +98,13 @@ def list_artifacts(
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = get_db().list_artifacts(
-        db_session, name, project, tag, labels, kind=kind, category=category,
+        db_session,
+        name,
+        project,
+        tag,
+        labels,
+        kind=kind,
+        category=category,
     )
     return {
         "artifacts": artifacts,

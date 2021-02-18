@@ -92,7 +92,8 @@ def test_database_exists_unknown_revision_failed_downgrade(
     mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name, from_scratch
 ):
     mock_database(
-        current_revision=Constants.unknown_revision, db_backup_exists=False,
+        current_revision=Constants.unknown_revision,
+        db_backup_exists=False,
     )
     alembic_util = mlrun.api.utils.alembic.AlembicUtil(pathlib.Path(""))
     with pytest.raises(

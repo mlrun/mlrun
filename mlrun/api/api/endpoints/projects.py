@@ -14,7 +14,8 @@ router = APIRouter()
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
 @router.post("/projects", response_model=schemas.Project)
 def create_project(
-    project: schemas.Project, db_session: Session = Depends(deps.get_db_session),
+    project: schemas.Project,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     return get_project_member().create_project(db_session, project)
 

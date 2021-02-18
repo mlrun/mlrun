@@ -84,7 +84,10 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_runtime_handler_list_resources(
-        runtime_kind, expected_crds=None, expected_pods=None, expected_services=None,
+        runtime_kind,
+        expected_crds=None,
+        expected_pods=None,
+        expected_services=None,
     ):
         runtime_handler = get_runtime_handler(runtime_kind)
         resources = runtime_handler.list_resources()
@@ -287,7 +290,8 @@ class TestRuntimeHandlerBase:
     ):
         if logger_pod_name is not None:
             get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
-                name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
+                name=logger_pod_name,
+                namespace=get_k8s().resolve_namespace(),
             )
         _, log = crud.Logs.get_logs(db, project, uid, source=LogSources.PERSISTENCY)
         assert log == expected_log.encode()

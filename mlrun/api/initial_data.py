@@ -119,7 +119,8 @@ def _fix_datasets_large_previews(
                     )
         except Exception as exc:
             logger.warning(
-                "Failed fixing dataset artifact large preview. Continuing", exc=exc,
+                "Failed fixing dataset artifact large preview. Continuing",
+                exc=exc,
             )
 
 

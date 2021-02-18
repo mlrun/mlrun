@@ -11,6 +11,7 @@ router = fastapi.APIRouter()
     response_model=mlrun.api.schemas.BackgroundTask,
 )
 def get_background_task(
-    project: str, name: str,
+    project: str,
+    name: str,
 ):
     return mlrun.api.utils.background_tasks.Handler().get_background_task(project, name)

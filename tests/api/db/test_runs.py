@@ -24,13 +24,19 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     run_uid_3 = "run_uid_3"
 
     db.store_run(
-        db_session, run_1, run_uid_1,
+        db_session,
+        run_1,
+        run_uid_1,
     )
     db.store_run(
-        db_session, run_2, run_uid_2,
+        db_session,
+        run_2,
+        run_uid_2,
     )
     db.store_run(
-        db_session, run_3, run_uid_3,
+        db_session,
+        run_3,
+        run_uid_3,
     )
     runs = db.list_runs(db_session)
     assert len(runs) == 3
@@ -55,7 +61,9 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     run_without_state_uid = "run_without_state_uid"
     run_without_state = {"metadata": {"uid": run_without_state_uid}, "bla": "blabla"}
     db.store_run(
-        db_session, run_without_state, run_without_state_uid,
+        db_session,
+        run_without_state,
+        run_without_state_uid,
     )
 
     run_with_json_state_state = "some_json_state"

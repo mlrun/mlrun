@@ -14,7 +14,8 @@ router = APIRouter()
 
 @router.post("/projects/{project}/secrets", status_code=HTTPStatus.CREATED.value)
 def initialize_project_secrets(
-    project: str, secrets: schemas.SecretsData,
+    project: str,
+    secrets: schemas.SecretsData,
 ):
     if secrets.provider != schemas.SecretProviderName.vault:
         return Response(
@@ -52,7 +53,9 @@ def get_secrets(
 
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)
-def add_user_secrets(secrets: schemas.UserSecretCreationRequest,):
+def add_user_secrets(
+    secrets: schemas.UserSecretCreationRequest,
+):
     if secrets.provider != schemas.SecretProviderName.vault:
         return Response(
             status_code=HTTPStatus.BAD_REQUEST.vault,

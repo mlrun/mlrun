@@ -109,7 +109,9 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     )
     assert (
         deepdiff.DeepDiff(
-            response.json()["metadata"]["labels"], labels_1, ignore_order=True,
+            response.json()["metadata"]["labels"],
+            labels_1,
+            ignore_order=True,
         )
         == {}
     )
@@ -170,7 +172,10 @@ def _list_project_names_and_assert(
     params = params or {}
     params["format"] = mlrun.api.schemas.Format.name_only
     # list - names only - filter by state
-    response = client.get("/api/projects", params=params,)
+    response = client.get(
+        "/api/projects",
+        params=params,
+    )
     assert expected_names == response.json()["projects"]
 
 

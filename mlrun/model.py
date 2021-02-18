@@ -665,8 +665,7 @@ def NewTask(
     secrets=None,
     base=None,
 ):
-    """Creates a new task - see new_task
-    """
+    """Creates a new task - see new_task"""
     warnings.warn(
         "NewTask will be deprecated in 0.7.0, and will be removed in 0.9.0, use new_task instead",
         # TODO: In 0.7.0 and replace NewTask to new_task in examples & demos

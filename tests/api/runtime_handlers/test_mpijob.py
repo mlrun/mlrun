@@ -20,13 +20,19 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # initializing them here to save space in tests
         self.active_crd_dict = self._generate_mpijob_crd(
-            self.project, self.run_uid, self._get_active_crd_status(),
+            self.project,
+            self.run_uid,
+            self._get_active_crd_status(),
         )
         self.succeeded_crd_dict = self._generate_mpijob_crd(
-            self.project, self.run_uid, self._get_succeeded_crd_status(),
+            self.project,
+            self.run_uid,
+            self._get_succeeded_crd_status(),
         )
         self.failed_crd_dict = self._generate_mpijob_crd(
-            self.project, self.run_uid, self._get_failed_crd_status(),
+            self.project,
+            self.run_uid,
+            self._get_failed_crd_status(),
         )
 
         # there's currently a bug (fix was merged but not released https://github.com/kubeflow/mpi-operator/pull/271)
@@ -53,7 +59,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.succeeded_crd_dict["metadata"]["namespace"],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -70,10 +77,12 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # nothing removed cause crd is active
         self._assert_delete_namespaced_custom_objects(
-            self.runtime_handler, [],
+            self.runtime_handler,
+            [],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
 
     def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
@@ -91,10 +100,12 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # nothing removed cause grace period didn't pass
         self._assert_delete_namespaced_custom_objects(
-            self.runtime_handler, [],
+            self.runtime_handler,
+            [],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
 
     def test_delete_resources_with_force(self, db: Session, client: TestClient):
@@ -110,7 +121,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.active_crd_dict["metadata"]["namespace"],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
@@ -130,7 +142,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, expected_number_of_list_crds_calls,
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -150,7 +163,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, expected_number_of_list_crds_calls,
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(db, self.project, self.run_uid, "")

@@ -138,7 +138,10 @@ class FileRunDB(RunDBInterface):
                 and match_value(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
                 and match_times(
-                    start_time_from, start_time_to, run, "status.start_time",
+                    start_time_from,
+                    start_time_to,
+                    run,
+                    "status.start_time",
                 )
                 and match_times(
                     last_update_time_from,
@@ -440,7 +443,9 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project,
+        self,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -453,7 +458,8 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project,
+        self,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -463,7 +469,10 @@ class FileRunDB(RunDBInterface):
 
     def store_schedule(self, data):
         sched_id = 1 + sum(1 for _ in scandir(self.schedules_dir))
-        fname = path.join(self.schedules_dir, "{}{}".format(sched_id, self.format),)
+        fname = path.join(
+            self.schedules_dir,
+            "{}{}".format(sched_id, self.format),
+        )
         with open(fname, "w") as out:
             out.write(self._dumps(data))
 
@@ -531,7 +540,11 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ):
         raise NotImplementedError()
 
@@ -553,7 +566,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def patch_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
+        self,
+        name,
+        feature_set,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
     ):
         raise NotImplementedError()
 
@@ -579,7 +598,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_feature_vector(
-        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+        self,
+        feature_vector,
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
         raise NotImplementedError()
 

@@ -245,7 +245,8 @@ class Member(
                     try:
                         self._enrich_and_validate_before_creation(project)
                         self._followers[missing_follower].create_project(
-                            session, project,
+                            session,
+                            project,
                         )
                     except Exception as exc:
                         logger.warning(

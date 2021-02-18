@@ -32,7 +32,12 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
     # init targets (and table)
     targets = targets or []
     _add_data_states(
-        graph, cache, featureset, targets=targets, source=source, return_df=return_df,
+        graph,
+        cache,
+        featureset,
+        targets=targets,
+        source=source,
+        return_df=return_df,
     )
 
     server = create_graph_server(graph=graph, parameters={})
@@ -57,13 +62,22 @@ def featureset_initializer(server):
 
     graph = featureset.spec.graph.copy()
     _add_data_states(
-        graph, cache, featureset, targets=targets, source=source,
+        graph,
+        cache,
+        featureset,
+        targets=targets,
+        source=source,
     )
     server.graph = graph
 
 
 def _add_data_states(
-    graph, cache, featureset, targets, source, return_df=False,
+    graph,
+    cache,
+    featureset,
+    targets,
+    source,
+    return_df=False,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
     cache.cache_resource(featureset.uri, featureset, True)
@@ -77,7 +91,9 @@ def _add_data_states(
     key_column = entity_columns[0] if entity_columns else None
     if source is not None:
         source = get_source_step(
-            source, key_column=key_column, time_column=featureset.spec.timestamp_key,
+            source,
+            key_column=key_column,
+            time_column=featureset.spec.timestamp_key,
         )
     graph.set_flow_source(source)
 

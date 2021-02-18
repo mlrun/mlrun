@@ -112,10 +112,14 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         last_update_time_to=timestamp5,
     )
     assert_time_range_request(
-        client, [normal_run_1_uid, normal_run_2_uid], last_update_time_from=timestamp1,
+        client,
+        [normal_run_1_uid, normal_run_2_uid],
+        last_update_time_from=timestamp1,
     )
     assert_time_range_request(
-        client, [normal_run_1_uid, normal_run_2_uid], last_update_time_to=timestamp5,
+        client,
+        [normal_run_1_uid, normal_run_2_uid],
+        last_update_time_to=timestamp5,
     )
 
     # catch only first
@@ -126,7 +130,9 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         start_time_to=timestamp2,
     )
     assert_time_range_request(
-        client, [normal_run_1_uid], start_time_to=timestamp2,
+        client,
+        [normal_run_1_uid],
+        start_time_to=timestamp2,
     )
     assert_time_range_request(
         client,

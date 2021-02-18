@@ -72,7 +72,10 @@ class LocalFeatureMerger:
                 merge_func = self._join
 
             merged_df = merge_func(
-                merged_df, entity_timestamp_column, featureset, featureset_df,
+                merged_df,
+                entity_timestamp_column,
+                featureset,
+                featureset_df,
             )
 
         self._result_df = merged_df

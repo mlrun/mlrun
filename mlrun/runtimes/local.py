@@ -89,8 +89,12 @@ class LocalRuntime(BaseRuntime):
             "starting local run: {} # {}".format(self.spec.command, handler or "main")
         )
 
-        if runobj.metadata.labels['kind'] == "sparkclient" and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true":
+        if (
+            runobj.metadata.labels["kind"] == "sparkclient"
+            and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
+        ):
             from mlrun.runtimes.sparkclientjob import igz_spark_pre_hook
+
             igz_spark_pre_hook()
 
         if handler:

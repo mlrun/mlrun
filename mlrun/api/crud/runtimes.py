@@ -12,7 +12,9 @@ import mlrun.runtimes
 import mlrun.utils.singleton
 
 
-class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
+class Runtimes(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def list_runtimes(self, label_selector: str = None):
         runtimes = []
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():

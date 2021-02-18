@@ -20,7 +20,9 @@ from ..targets import get_online_target
 
 
 def _build_feature_vector_graph(
-    vector, feature_set_fields, feature_set_objects,
+    vector,
+    feature_set_fields,
+    feature_set_objects,
 ):
     graph = vector.spec.graph.copy()
     start_states, default_final_state, responders = graph.check_and_process_graph(

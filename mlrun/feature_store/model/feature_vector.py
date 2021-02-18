@@ -315,5 +315,9 @@ class OfflineVectorResponse:
 
     def _upload(self, target_path, format="parquet", src_path=None, **kw):
         upload_dataframe(
-            self._merger.get_df(), target_path, format=format, src_path=src_path, **kw,
+            self._merger.get_df(),
+            target_path,
+            format=format,
+            src_path=src_path,
+            **kw,
         )

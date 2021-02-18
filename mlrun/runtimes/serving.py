@@ -174,7 +174,12 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def set_topology(
-        self, topology=None, class_name=None, engine=None, exist_ok=False, **class_args,
+        self,
+        topology=None,
+        class_name=None,
+        engine=None,
+        exist_ok=False,
+        **class_args,
     ) -> Union[RootFlowState, RouterState]:
         """set the serving graph topology (router/flow) and root class or params
 

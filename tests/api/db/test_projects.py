@@ -39,8 +39,8 @@ def test_delete_project_with_resources(
     project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, db_session, project_to_keep)
     _create_resources_of_all_kinds(db, db_session, project_to_remove)
-    project_to_keep_table_name_records_count_map_before_project_removal = _assert_resources_in_project(
-        db, db_session, project_to_keep
+    project_to_keep_table_name_records_count_map_before_project_removal = (
+        _assert_resources_in_project(db, db_session, project_to_keep)
     )
     _assert_resources_in_project(db, db_session, project_to_remove)
     # deletion strategy - restrict - should fail because there are resources
@@ -53,8 +53,8 @@ def test_delete_project_with_resources(
         db_session, project_to_remove, mlrun.api.schemas.DeletionStrategy.cascade
     )
 
-    project_to_keep_table_name_records_count_map_after_project_removal = _assert_resources_in_project(
-        db, db_session, project_to_keep
+    project_to_keep_table_name_records_count_map_after_project_removal = (
+        _assert_resources_in_project(db, db_session, project_to_keep)
     )
     _assert_resources_in_project(
         db, db_session, project_to_remove, assert_no_resources=True
@@ -79,7 +79,8 @@ def test_delete_project_with_resources(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_get_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -101,7 +102,9 @@ def test_get_project(
     assert project_output.spec.description == project_description
     assert (
         deepdiff.DeepDiff(
-            project_labels, project_output.metadata.labels, ignore_order=True,
+            project_labels,
+            project_output.metadata.labels,
+            ignore_order=True,
         )
         == {}
     )
@@ -112,7 +115,8 @@ def test_get_project(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_get_project_with_pre_060_record(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project_name"
     _generate_and_insert_pre_060_record(db_session, project_name)
@@ -120,7 +124,10 @@ def test_get_project_with_pre_060_record(
         db_session.query(Project).filter(Project.name == project_name).one()
     )
     assert pre_060_record.full_object is None
-    project = db.get_project(db_session, project_name,)
+    project = db.get_project(
+        db_session,
+        project_name,
+    )
     assert project.metadata.name == project_name
     updated_record = (
         db_session.query(Project).filter(Project.name == project_name).one()
@@ -134,7 +141,8 @@ def test_get_project_with_pre_060_record(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_data_migration_fill_project_state(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     for i in range(10):
         project_name = f"project-name-{i}"
@@ -168,7 +176,8 @@ def _generate_and_insert_pre_060_record(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_list_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     expected_projects = [
         {"name": "project-name-1"},
@@ -211,7 +220,8 @@ def test_list_project(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_create_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -224,7 +234,9 @@ def test_create_project(
         db_session,
         mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created, labels=project_labels,
+                name=project_name,
+                created=project_created,
+                labels=project_labels,
             ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
@@ -237,7 +249,9 @@ def test_create_project(
     assert project_output.metadata.created != project_created
     assert (
         deepdiff.DeepDiff(
-            project_labels, project_output.metadata.labels, ignore_order=True,
+            project_labels,
+            project_output.metadata.labels,
+            ignore_order=True,
         )
         == {}
     )
@@ -248,7 +262,8 @@ def test_create_project(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_store_project_creation(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -261,7 +276,9 @@ def test_store_project_creation(
         project_name,
         mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created, labels=project_labels,
+                name=project_name,
+                created=project_created,
+                labels=project_labels,
             ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
@@ -273,7 +290,9 @@ def test_store_project_creation(
     assert project_output.metadata.created != project_created
     assert (
         deepdiff.DeepDiff(
-            project_labels, project_output.metadata.labels, ignore_order=True,
+            project_labels,
+            project_output.metadata.labels,
+            ignore_order=True,
         )
         == {}
     )
@@ -284,7 +303,8 @@ def test_store_project_creation(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_store_project_update(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -296,7 +316,9 @@ def test_store_project_update(
         db_session,
         mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created, labels=project_labels,
+                name=project_name,
+                created=project_created,
+                labels=project_labels,
             ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
@@ -322,7 +344,8 @@ def test_store_project_update(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_patch_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -354,7 +377,9 @@ def test_patch_project(
     assert project_output.metadata.created != project_created
     assert (
         deepdiff.DeepDiff(
-            patched_project_labels, project_output.metadata.labels, ignore_order=True,
+            patched_project_labels,
+            project_output.metadata.labels,
+            ignore_order=True,
         )
         == {}
     )
@@ -365,7 +390,8 @@ def test_patch_project(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_delete_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"

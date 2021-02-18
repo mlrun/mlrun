@@ -22,7 +22,6 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def custom_setup(self):
         self.image_name = "test/image:latest"
-        self.code_filename = str(self.assets_path / "sample_function.py")
         self.code_handler = "test_func"
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"

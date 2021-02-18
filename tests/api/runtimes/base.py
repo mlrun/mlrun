@@ -27,6 +27,7 @@ class TestRuntimeBase:
         self.run_uid = "test_run_uid"
         self.image_name = "mlrun/mlrun:latest"
         self.artifact_path = "/tmp"
+        self.code_filename = str(self.assets_path / "sample_function.py")
 
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"

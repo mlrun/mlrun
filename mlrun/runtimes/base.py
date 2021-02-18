@@ -703,6 +703,11 @@ class BaseRuntime(ModelObj):
 
         :return: function object
         """
+        if body and from_file:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must provide either body or from_file argument. not both"
+            )
+
         if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
 

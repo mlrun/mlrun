@@ -1,6 +1,7 @@
 import os
 import pytest
 from tests.api.runtimes.base import TestRuntimeBase
+import mlrun.errors
 from mlrun.runtimes.kubejob import KubejobRuntime
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -192,3 +193,32 @@ def my_func(context):
         runtime.set_env("MLRUN_LOG_LEVEL", "ERROR")
         self._execute_run(runtime)
         self._assert_pod_create_called(expected_env=env2)
+
+    def test_run_with_code_with_file(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        runtime.with_code(from_file=self.code_filename)
+
+        self._execute_run(runtime)
+        self._assert_pod_create_called(expected_code=open(self.code_filename).read())
+
+    def test_run_with_code_and_file(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        expected_code = """
+        def my_func(context):
+            print("Hello cruel world")
+                """
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+            runtime.with_code(from_file=self.code_filename, body=expected_code)
+        assert "must provide either body or from_file argument. not both" in str(
+            excinfo.value
+        )
+
+    def test_run_with_code_empty(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        with pytest.raises(ValueError) as excinfo:
+            runtime.with_code()
+        assert "please specify" in str(excinfo.value)

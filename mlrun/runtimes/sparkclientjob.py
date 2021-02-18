@@ -15,7 +15,7 @@ import os
 import re
 
 from .pod import KubeResourceSpec
-from mlrun.runtimes import KubejobRuntime
+from mlrun.runtimes import KubejobRuntime, KubeRuntimeHandler
 from mlrun.config import config
 from mlrun.db import get_run_db
 from ..execution import MLClientCtx
@@ -127,6 +127,20 @@ class SparkClientRuntime(KubejobRuntime):
         # if not self.spec.image:
         #    self.spec.image = self._default_image
         super()._run(runobj, execution)
+
+
+class SparkClientRuntimeHandler(KubeRuntimeHandler):
+    @staticmethod
+    def _consider_run_on_resources_deletion() -> bool:
+        return True
+
+    @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f"mlrun/uid={object_id}"
+
+    @staticmethod
+    def _get_default_label_selector() -> str:
+        return "mlrun/class in (build, job)"
 
 
 def igz_spark_pre_hook():

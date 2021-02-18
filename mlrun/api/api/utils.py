@@ -103,7 +103,7 @@ def _parse_submit_run_body(db_session: Session, data):
             if not function_record:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,
-                    reason="runtime error: function {} not found".format(function_url),
+                    reason=f"runtime error: function {function_url} not found",
                 )
             function = new_function(runtime=function_record)
 
@@ -174,7 +174,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
+            HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}"
         )
 
     logger.info("Run submission succeeded", response=response)

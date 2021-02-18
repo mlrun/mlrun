@@ -5,8 +5,8 @@ def my_func(context, p1: int = 1, p2="a-string"):
     :param p2  2nd param
     """
     # access input metadata, values, files, and secrets (passwords)
-    print("Run: {} (uid={})".format(context.name, context.uid))
-    print("Params: p1={}, p2={}".format(p1, p2))
+    print(f"Run: {context.name} (uid={context.uid})")
+    print(f"Params: p1={p1}, p2={p2}")
     context.logger.info("running function")
 
     # RUN some useful code e.g. ML training, data prep, etc.

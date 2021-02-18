@@ -140,7 +140,7 @@ class SparkClientRuntimeHandler(KubeRuntimeHandler):
 
     @staticmethod
     def _get_default_label_selector() -> str:
-        return "mlrun/class in (build, job)"
+        return "mlrun/class=sparkclient"
 
 
 def igz_spark_pre_hook():

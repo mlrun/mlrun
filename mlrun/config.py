@@ -208,7 +208,9 @@ class Config:
     def get_build_args():
         build_args = {}
         if config.httpdb.builder.build_args:
-            build_args_json = base64.b64decode(config.httpdb.builder.build_args).decode()
+            build_args_json = base64.b64decode(
+                config.httpdb.builder.build_args
+            ).decode()
             build_args = json.loads(build_args_json)
 
         return build_args

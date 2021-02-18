@@ -3,6 +3,8 @@ import os
 import mlrun
 import pytest
 import pandas as pd
+
+
 from tests.conftest import results, tests_root_directory
 
 from mlrun.feature_store.sources import CSVSource
@@ -15,8 +17,8 @@ from mlrun.feature_store.targets import CSVTarget
 from mlrun.utils import logger
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
-from mlrun.feature_store import FeatureSet, Entity, run_ingestion_task
-from mlrun.data_types import ValueType
+from mlrun.feature_store import FeatureSet, Entity, run_ingestion_job
+from mlrun.data_types.data_types import ValueType
 from mlrun.features import MinMaxValidator
 
 
@@ -155,36 +157,102 @@ def test_feature_set_db():
     assert len(sets) == 1, "bad number of results"
 
     feature_set = db.get_feature_set(name)
-    assert feature_set.metadata.name == name, "bas feature set response"
+    assert feature_set.metadata.name == name, "bad feature set response"
 
 
 @pytest.mark.skipif(not has_db(), reason="no db access")
 def test_serverless_ingest():
     init_store()
+    key = "patient_id"
 
-    measurements = fs.FeatureSet("measurements", entities=[Entity("patient_id")])
-    src_df = pd.read_csv(local_dir + "testdata.csv")
-    df = fs.infer_metadata(
-        measurements,
-        src_df,
-        timestamp_key="timestamp",
-        options=fs.InferOptions.default(),
+    measurements = fs.FeatureSet(
+        "measurements", entities=[Entity(key)], timestamp_key="timestamp"
     )
-    print(df.head(5))
     target_path = os.path.relpath(results_dir + "mycsv.csv")
     source = CSVSource("mycsv", path=os.path.relpath(local_dir + "testdata.csv"))
     targets = [CSVTarget("mycsv", path=target_path)]
     if os.path.exists(target_path):
         os.remove(target_path)
 
-    run_ingestion_task(
+    run_ingestion_job(
         measurements,
         source,
         targets,
         name="test_ingest",
-        infer_options=fs.InferOptions.Null,
+        infer_options=fs.InferOptions.schema() + fs.InferOptions.Stats,
         parameters={},
         function=None,
         local=True,
     )
     assert os.path.exists(target_path), "result file was not generated"
+    features = sorted(measurements.spec.features.keys())
+    stats = sorted(measurements.status.stats.keys())
+    print(features)
+    print(stats)
+    stats.remove("timestamp")
+    assert features == stats, "didnt infer stats for all features"
+
+    print(measurements.to_yaml())
+
+
+def prepare_feature_set(name: str, entity: str, data: pd.DataFrame, timestamp_key=None):
+    df_source = fs.sources.DataFrameSource(data, entity, timestamp_key)
+
+    feature_set = fs.FeatureSet(
+        name, entities=[fs.Entity(entity)], timestamp_key=timestamp_key
+    )
+    feature_set.set_targets()
+    df = fs.ingest(feature_set, df_source, infer_options=fs.InferOptions.default())
+    return feature_set, df
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_ordered_pandas_asof_merge():
+    init_store()
+
+    left_set, left = prepare_feature_set("left", "ticker", trades, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", quotes, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_left_not_ordered_pandas_asof_merge():
+    init_store()
+
+    left = trades.sort_values(by="price")
+
+    left_set, left = prepare_feature_set("left", "ticker", left, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", quotes, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_right_not_ordered_pandas_asof_merge():
+    init_store()
+
+    right = quotes.sort_values(by="bid")
+
+    left_set, left = prepare_feature_set("left", "ticker", trades, timestamp_key="time")
+    right_set, right = prepare_feature_set(
+        "right", "ticker", right, timestamp_key="time"
+    )
+
+    features = ["left.*", "right.*"]
+    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
+    res = res.to_dataframe()
+    assert res.shape[0] == left.shape[0]

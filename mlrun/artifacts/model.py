@@ -17,7 +17,8 @@ from typing import List
 
 import yaml
 import mlrun
-from ..features import infer_schema_from_df, Feature, InferOptions, get_df_stats
+from ..features import Feature
+from ..data_types import InferOptions, get_infer_interface
 from ..model import ObjectList
 from ..datastore import store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
@@ -98,15 +99,16 @@ class ModelArtifact(Artifact):
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
         """infer inputs, outputs, and stats from provided df (training set)"""
         subset = df
+        inferer = get_infer_interface(subset)
         if label_columns:
             subset = df.drop(columns=label_columns)
-        infer_schema_from_df(subset, self.inputs, {}, options=InferOptions.Features)
+        inferer.infer_schema(subset, self.inputs, {}, options=InferOptions.Features)
         if label_columns:
-            infer_schema_from_df(
+            inferer.infer_schema(
                 df[label_columns], self.outputs, {}, options=InferOptions.Features
             )
         if with_stats:
-            self.feature_stats = get_df_stats(
+            self.feature_stats = inferer.get_stats(
                 df, options=InferOptions.Histogram, num_bins=num_bins
             )
 

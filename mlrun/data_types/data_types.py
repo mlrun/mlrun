@@ -71,3 +71,54 @@ def python_type_to_value_type(value_type):
 
     if type_name in type_map:
         return type_map[type_name]
+
+
+def spark_to_value_type(data_type):
+    type_map = {
+        "int": ValueType.INT64,
+        "bigint": ValueType.INT64,
+        "double": ValueType.DOUBLE,
+        "boolean": ValueType.BOOL,
+        "timestamp": ValueType.DATETIME,
+        "string": ValueType.STRING,
+        "array": "list",
+        "map": "dict",
+    }
+    if data_type in type_map:
+        return type_map[data_type]
+    return data_type
+
+
+class InferOptions:
+    Null = 0
+    Entities = 1
+    Features = 2
+    Index = 4
+    Stats = 8
+    Histogram = 16
+    Preview = 32
+
+    @staticmethod
+    def schema():
+        return InferOptions.Entities + InferOptions.Features + InferOptions.Index
+
+    @staticmethod
+    def all_stats():
+        return InferOptions.Stats + InferOptions.Histogram + InferOptions.Preview
+
+    @staticmethod
+    def all():
+        return (
+            InferOptions.schema()
+            + InferOptions.Stats
+            + InferOptions.Histogram
+            + InferOptions.Preview
+        )
+
+    @staticmethod
+    def default():
+        return InferOptions.all()
+
+    @staticmethod
+    def get_common_options(one, two):
+        return one & two

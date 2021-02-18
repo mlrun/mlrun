@@ -23,6 +23,7 @@ class TargetTypes:
     tsdb = "tsdb"
     stream = "stream"
     dataframe = "dataframe"
+    custom = "custom"
 
 
 class FeatureSetProducer(ModelObj):
@@ -64,10 +65,10 @@ class DataTargetBase(ModelObj):
 class DataTarget(DataTargetBase):
     """data target with extra status information (used in the feature-set/vector status)"""
 
-    _dict_fields = ["name", "kind", "path", "start_time", "online", "status"]
+    _dict_fields = ["name", "kind", "path", "start_time", "online", "status", "is_dir"]
 
     def __init__(
-        self, kind: TargetTypes = None, name: str = "", path=None, online=None
+        self, kind: TargetTypes = None, name: str = "", path=None, online=None,
     ):
         super().__init__(kind, name, path)
         self.status = ""
@@ -75,6 +76,7 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
+        self.is_dir = None
         self._producer = None
         self.producer = {}
 
@@ -95,8 +97,8 @@ class DataSource(ModelObj):
         "name",
         "path",
         "attributes",
-        "key_column",
-        "time_column",
+        "key_field",
+        "time_field",
         "schedule",
         "online",
         "workers",
@@ -109,20 +111,24 @@ class DataSource(ModelObj):
         name: str = None,
         path: str = None,
         attributes: Dict[str, str] = None,
-        key_column: str = None,
-        time_column: str = None,
+        key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
     ):
         self.name = name
-        self.path = path
+        self.path = str(path)
         self.attributes = attributes
         self.schedule = schedule
-        self.key_column = key_column
-        self.time_column = time_column
+        self.key_field = key_field
+        self.time_field = time_field
 
         self.online = None
         self.max_age = None
         self.workers = None
+        self._secrets = {}
+
+    def set_secrets(self, secrets):
+        self._secrets = secrets
 
 
 class FeatureAggregation(ModelObj):

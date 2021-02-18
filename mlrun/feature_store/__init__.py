@@ -19,7 +19,8 @@ __all__ = [
     "get_online_feature_service",
     "ingest",
     "infer_metadata",
-    "run_ingestion_task",
+    "run_ingestion_job",
+    "deploy_ingestion_service",
     "Feature",
     "Entity",
     "FeatureSet",
@@ -28,12 +29,14 @@ __all__ = [
 
 
 from .model import FeatureSet, FeatureVector
-from ..features import Feature, Entity, InferOptions
+from ..features import Feature, Entity
+from ..data_types import InferOptions, ValueType
 from .api import (
     get_offline_features,
     get_online_feature_service,
     ingest,
     infer_metadata,
-    run_ingestion_task,
+    run_ingestion_job,
+    deploy_ingestion_service,
 )
 from .targets import TargetTypes

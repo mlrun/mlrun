@@ -1,5 +1,5 @@
-from mlrun.feature_store.api import _infer_from_df
-from mlrun.features import InferOptions
+from mlrun.feature_store.api import infer_from_static_df
+from mlrun.data_types import InferOptions
 from tests.conftest import tests_root_directory
 import pandas as pd
 import mlrun.feature_store as fs
@@ -31,7 +31,7 @@ def test_infer_from_df():
     df = pd.read_csv(this_dir + "testdata.csv")
     df.set_index(key, inplace=True)
     featureset = fs.FeatureSet("testdata")
-    _infer_from_df(df, featureset, options=InferOptions.all())
+    infer_from_static_df(df, featureset, options=InferOptions.all())
     # print(featureset.to_yaml())
 
     # test entity infer

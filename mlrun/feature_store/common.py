@@ -40,7 +40,7 @@ def parse_feature_string(feature):
     return feature_set.strip(), feature_name.strip(), None
 
 
-def get_feature_set_by_uri(uri, project):
+def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     default_project = project or config.default_project

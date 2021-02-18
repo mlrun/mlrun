@@ -12,6 +12,7 @@ import deepdiff
 import pathlib
 import sys
 from base64 import b64encode
+from kubernetes.client import V1EnvVar
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -157,6 +158,8 @@ class TestRuntimeBase:
     @staticmethod
     def _assert_pod_env(pod_env, expected_variables):
         for env_variable in pod_env:
+            if isinstance(env_variable, V1EnvVar):
+                env_variable = dict(name=env_variable.name, value=env_variable.value)
             name = env_variable["name"]
             if name in expected_variables:
                 if expected_variables[name]:
@@ -301,6 +304,8 @@ class TestRuntimeBase:
         expected_env["MLRUN_NAMESPACE"] = self.namespace
         self._assert_pod_env(pod_env, expected_env)
         for env_variable in pod_env:
+            if isinstance(env_variable, V1EnvVar):
+                env_variable = dict(name=env_variable.name, value=env_variable.value)
             if env_variable["name"] == "MLRUN_EXEC_CONFIG":
                 function_config = json.loads(env_variable["value"])
                 self._assert_function_config(

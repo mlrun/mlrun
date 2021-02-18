@@ -26,25 +26,25 @@ from subprocess import run
 
 class SparkClientSpec(KubeResourceSpec):
     def __init__(
-            self,
-            command=None,
-            args=None,
-            image=None,
-            mode=None,
-            volumes=None,
-            volume_mounts=None,
-            env=None,
-            resources=None,
-            default_handler=None,
-            entry_points=None,
-            description=None,
-            workdir=None,
-            replicas=None,
-            image_pull_policy=None,
-            service_account=None,
-            build=None,
-            image_pull_secret=None,
-            igz_spark=None,
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        default_handler=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        replicas=None,
+        image_pull_policy=None,
+        service_account=None,
+        build=None,
+        image_pull_secret=None,
+        igz_spark=None,
     ):
         super().__init__(
             command=command,
@@ -73,10 +73,12 @@ class SparkClientRuntime(KubejobRuntime):
 
     def with_igz_spark(self, spark_service):
         self.spec.igz_spark = True
-        self.spec.env.append({
-            "name": "MLRUN_SPARK_CLIENT_IGZ_SPARK",
-            "value": "true",
-        })
+        self.spec.env.append(
+            {
+                "name": "MLRUN_SPARK_CLIENT_IGZ_SPARK",
+                "value": "true",
+            }
+        )
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
@@ -88,25 +90,29 @@ class SparkClientRuntime(KubejobRuntime):
     @property
     def is_deployed(self):
         if (
-                not self.spec.build.source
-                and not self.spec.build.commands
-                and not self.spec.build.extra
-                and self.spec.igz_spark
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+            and self.spec.igz_spark
         ):
             return True
         return super().is_deployed
 
     @property
     def _default_image(self):
-        logger.warning("{} {} {} ".format(self.spec.igz_spark, config.spark_app_image, config.spark_app_image_tag))
-        if self.spec.igz_spark and config.spark_app_image and config.spark_app_image_tag:
-            app_image = re.sub('spark-app', 'shell', config.spark_app_image)
-            # this is temporary until we get the image name from external config
-            return (
-                    app_image
-                    + ":"
-                    + config.spark_app_image_tag
+        logger.warning(
+            "{} {} {} ".format(
+                self.spec.igz_spark, config.spark_app_image, config.spark_app_image_tag
             )
+        )
+        if (
+            self.spec.igz_spark
+            and config.spark_app_image
+            and config.spark_app_image_tag
+        ):
+            app_image = re.sub("spark-app", "shell", config.spark_app_image)
+            # this is temporary until we get the image name from external config
+            return app_image + ":" + config.spark_app_image_tag
         return None
 
     def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):

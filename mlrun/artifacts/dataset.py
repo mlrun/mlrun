@@ -14,7 +14,6 @@
 import os
 import pathlib
 from io import StringIO
-from tempfile import mktemp
 
 import mlrun
 import numpy as np

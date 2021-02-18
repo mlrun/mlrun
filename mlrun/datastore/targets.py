@@ -144,7 +144,7 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(self.path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            with fs.open(self.path, 'wb') as fp:
+            with fs.open(self.path, "wb") as fp:
                 self._write_datafreme(df, fp, **kwargs)
             try:
                 return fs.size(self.path)

@@ -122,11 +122,11 @@ def load_project(
                 url = f"{url}-{user}"
             project = _load_project_from_db(url, secrets)
         else:
-            raise ValueError("unsupported code archive {}".format(url))
+            raise ValueError(f"unsupported code archive {url}")
 
     else:
         if not path.isdir(context):
-            raise ValueError("context {} is not an existing dir path".format(context))
+            raise ValueError(f"context {context} is not an existing dir path")
         try:
             repo = Repo(context)
             url = _get_repo_url(repo)
@@ -179,7 +179,7 @@ def _load_project_file(url, name="", secrets=None):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as e:
-        raise FileNotFoundError("cant find project file at {}, {}".format(url, e))
+        raise FileNotFoundError(f"cant find project file at {url}, {e}")
     struct = yaml.load(obj, Loader=yaml.FullLoader)
     return _project_instance_from_struct(struct, name)
 
@@ -895,7 +895,7 @@ class MlrunProject(ModelObj):
         :returns: function object
         """
         if key not in self.spec._function_definitions:
-            raise KeyError("function {} not found".format(key))
+            raise KeyError(f"function {key} not found")
         if sync or not self._initialized or key not in self.spec._function_objects:
             self.sync_functions()
         return self.spec._function_objects[key]
@@ -929,7 +929,7 @@ class MlrunProject(ModelObj):
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         try:
-            url = "{}#refs/heads/{}".format(url, self.spec.repo.active_branch.name)
+            url = f"{url}#refs/heads/{self.spec.repo.active_branch.name}"
         except Exception:
             pass
         self.spec._source = self.spec.source or url
@@ -975,7 +975,7 @@ class MlrunProject(ModelObj):
         for name in names:
             f = self.spec._function_definitions.get(name)
             if not f:
-                raise ValueError("function named {} not found".format(name))
+                raise ValueError(f"function named {name} not found")
             if hasattr(f, "to_dict"):
                 name, func = _init_function_from_obj(f, self)
             else:
@@ -1118,10 +1118,10 @@ class MlrunProject(ModelObj):
         code = None
         if not workflow_path:
             if name not in self.spec._workflows:
-                raise ValueError("workflow {} not found".format(name))
+                raise ValueError(f"workflow {name} not found")
             workflow_path, code, arguments = self.spec._get_wf_cfg(name, arguments)
 
-        name = "{}-{}".format(self.metadata.name, name) if name else self.metadata.name
+        name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path
         run = _run_pipeline(
             self,
@@ -1151,7 +1151,7 @@ class MlrunProject(ModelObj):
         :param ttl:    pipeline ttl in secs (after that the pods will be removed)
         """
         if not name or name not in self.workflows:
-            raise ValueError("workflow {} not found".format(name))
+            raise ValueError(f"workflow {name} not found")
 
         workflow_path, code, _ = self.spec._get_wf_cfg(name)
         pipeline = _create_pipeline(
@@ -1495,7 +1495,7 @@ def _init_function_from_dict(f, project):
             url = path.join(project.spec.context, url)
             in_context = True
         if not path.isfile(url):
-            raise OSError("{} not found".format(url))
+            raise OSError(f"{url} not found")
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -1516,7 +1516,7 @@ def _init_function_from_dict(f, project):
         else:
             func = code_to_function(name, filename=url, image=image, kind=kind or "job")
     else:
-        raise ValueError("unsupported function url {} or no spec".format(url))
+        raise ValueError(f"unsupported function url {url} or no spec")
 
     if with_repo:
         func.spec.build.source = "./"
@@ -1560,7 +1560,7 @@ def _init_function_from_dict_legacy(f, project):
             url = path.join(project.context, url)
             in_context = True
         if not path.isfile(url):
-            raise OSError("{} not found".format(url))
+            raise OSError(f"{url} not found")
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -1581,7 +1581,7 @@ def _init_function_from_dict_legacy(f, project):
         else:
             func = code_to_function(name, filename=url, image=image, kind=kind or "job")
     else:
-        raise ValueError("unsupported function url {} or no spec".format(url))
+        raise ValueError(f"unsupported function url {url} or no spec")
 
     if with_repo:
         func.spec.build.source = "./"
@@ -1622,7 +1622,7 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
 
     spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:
-        raise ImportError("cannot import workflow {}".format(pipeline))
+        raise ImportError(f"cannot import workflow {pipeline}")
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
@@ -1700,14 +1700,14 @@ def clone_git(url, context, secrets, clone):
 
     host = url_obj.hostname or "github.com"
     if url_obj.port:
-        host += ":{}".format(url_obj.port)
+        host += f":{url_obj.port}"
 
     token = url_obj.username or secrets.get("GITHUB_TOKEN") or secrets.get("git_user")
     password = url_obj.password or secrets.get("git_password") or "x-oauth-basic"
     if token:
-        clone_path = "https://{}:{}@{}{}".format(token, password, host, url_obj.path)
+        clone_path = f"https://{token}:{password}@{host}{url_obj.path}"
     else:
-        clone_path = "https://{}{}".format(host, url_obj.path)
+        clone_path = f"https://{host}{url_obj.path}"
 
     branch = None
     if url_obj.fragment:
@@ -1715,7 +1715,7 @@ def clone_git(url, context, secrets, clone):
         if refs.startswith("refs/"):
             branch = refs[refs.rfind("/") + 1 :]
         else:
-            url = url.replace("#" + refs, "#refs/heads/{}".format(refs))
+            url = url.replace("#" + refs, f"#refs/heads/{refs}")
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
     return url, repo
@@ -1744,7 +1744,7 @@ def _get_repo_url(repo):
     url = remotes[0]
     url = url.replace("https://", "git://")
     try:
-        url = "{}#refs/heads/{}".format(url, repo.active_branch.name)
+        url = f"{url}#refs/heads/{repo.active_branch.name}"
     except Exception:
         pass
 

@@ -24,6 +24,7 @@ mapped to config.httpdb.port. Values should be in JSON format.
 import copy
 import json
 import os
+import base64
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
@@ -32,7 +33,7 @@ from threading import Lock
 import yaml
 
 env_prefix = "MLRUN_"
-env_file_key = "{}CONIFG_FILE".format(env_prefix)
+env_file_key = f"{env_prefix}CONIFG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
 
@@ -117,6 +118,8 @@ default_config = {
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # additional docker build args in json encoded base64 format
+            "build_args": "",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -201,6 +204,17 @@ class Config:
     @classmethod
     def from_dict(cls, dict_):
         return cls(copy.deepcopy(dict_))
+
+    @staticmethod
+    def get_build_args():
+        build_args = {}
+        if config.httpdb.builder.build_args:
+            build_args_json = base64.b64decode(
+                config.httpdb.builder.build_args
+            ).decode()
+            build_args = json.loads(build_args_json)
+
+        return build_args
 
     def to_dict(self):
         return copy.copy(self._cfg)
@@ -354,9 +368,8 @@ def read_env(env=None, prefix=env_prefix):
     # the existence of config.httpdb.api_url tell that we're running in an API context so no need to set the dbpath
     svc = env.get("MLRUN_API_PORT")
     if svc and not config.get("dbpath") and not config.get("httpdb", {}).get("api_url"):
-        config["dbpath"] = "http://mlrun-api:{}".format(
-            default_config["httpdb"]["port"] or 8080
-        )
+        port = default_config["httpdb"]["port"] or 8080
+        config["dbpath"] = f"http://mlrun-api:{port}"
 
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API)
@@ -398,7 +411,7 @@ def read_env(env=None, prefix=env_prefix):
 
     if uisvc and not config.get("ui_url"):
         if igz_domain:
-            config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
+            config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
     if config.get("log_level"):
         import mlrun.utils.logger

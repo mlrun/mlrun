@@ -79,7 +79,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), label_selector=selector
             )
         except ApiException as e:
-            logger.error("failed to list pods: {}".format(e))
+            logger.error(f"failed to list pods: {e}")
             raise e
 
         items = []
@@ -102,8 +102,8 @@ class K8sHelper:
         try:
             resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
         except ApiException as e:
-            logger.error("spec:\n{}".format(pod.spec))
-            logger.error("failed to create pod: {}".format(e))
+            logger.error(f"spec:\n{pod.spec}")
+            logger.error(f"failed to create pod: {e}")
             raise e
 
         logger.info(f"Pod {resp.metadata.name} created")
@@ -121,7 +121,7 @@ class K8sHelper:
         except ApiException as e:
             # ignore error if pod is already removed
             if e.status != 404:
-                logger.error("failed to delete pod: {}".format(e))
+                logger.error(f"failed to delete pod: {e}")
             raise e
 
     def get_pod(self, name, namespace=None):
@@ -132,7 +132,7 @@ class K8sHelper:
             return api_response
         except ApiException as e:
             if e.status != 404:
-                logger.error("failed to get pod: {}".format(e))
+                logger.error(f"failed to get pod: {e}")
                 raise e
             return None
 
@@ -145,7 +145,7 @@ class K8sHelper:
                 name=name, namespace=self.resolve_namespace(namespace)
             )
         except ApiException as e:
-            logger.error("failed to get pod logs: {}".format(e))
+            logger.error(f"failed to get pod logs: {e}")
             raise e
 
         return resp
@@ -179,7 +179,7 @@ class K8sHelper:
                 if status != "pending":
                     logger.warning(f"pod state in loop is {status}")
             except ApiException as e:
-                logger.error("failed waiting for pod: {}\n".format(str(e)))
+                logger.error(f"failed waiting for pod: {str(e)}\n")
                 return "error"
         outputs = self.v1api.read_namespaced_pod_log(
             name=pod_name, namespace=namespace, follow=True, _preload_content=False
@@ -217,7 +217,7 @@ class K8sHelper:
         try:
             resp = self.v1api.create_namespaced_config_map(namespace, body)
         except ApiException as e:
-            logger.error("failed to create configmap: {}".format(e))
+            logger.error(f"failed to create configmap: {e}")
             raise e
 
         logger.info(f"ConfigMap {resp.metadata.name} created")
@@ -236,7 +236,7 @@ class K8sHelper:
         except ApiException as e:
             # ignore error if ConfigMap is already removed
             if e.status != 404:
-                logger.error("failed to delete ConfigMap: {}".format(e))
+                logger.error(f"failed to delete ConfigMap: {e}")
             raise e
 
     def list_cfgmap(self, namespace=None, selector=""):
@@ -245,7 +245,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), watch=False, label_selector=selector
             )
         except ApiException as e:
-            logger.error("failed to list ConfigMaps: {}".format(e))
+            logger.error(f"failed to list ConfigMaps: {e}")
             raise e
 
         items = []
@@ -291,7 +291,7 @@ class K8sHelper:
             )
             return api_response
         except ApiException as e:
-            logger.error("failed to create service account: {}".format(e))
+            logger.error(f"failed to create service account: {e}")
             raise e
 
     def get_project_vault_secret_name(
@@ -306,7 +306,7 @@ class K8sHelper:
         except ApiException as e:
             # It's valid for the service account to not exist. Simply return None
             if e.status != 404:
-                logger.error("failed to retrieve service accounts: {}".format(e))
+                logger.error(f"failed to retrieve service accounts: {e}")
                 raise e
             return None
 
@@ -451,6 +451,6 @@ class BasePod:
 def format_labels(labels):
     """ Convert a dictionary of labels into a comma separated string """
     if labels:
-        return ",".join(["{}={}".format(k, v) for k, v in labels.items()])
+        return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:
         return ""

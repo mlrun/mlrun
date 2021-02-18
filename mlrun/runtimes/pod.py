@@ -198,7 +198,7 @@ class KubeResource(BaseRuntime):
         new_meta = client.V1ObjectMeta(namespace=namespace, labels=labels)
 
         name = runobj.metadata.name or "mlrun"
-        norm_name = "{}-".format(normalize_name(name))
+        norm_name = f"{normalize_name(name)}-"
         if unique:
             norm_name += uuid.uuid4().hex[:8]
             new_meta.name = norm_name

@@ -109,9 +109,7 @@ class DatasetArtifact(Artifact):
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in supported_formats:
             raise ValueError(
-                "unsupported format {} use one of {}".format(
-                    format, "|".join(supported_formats)
-                )
+                f"unsupported format {format} use one of {'|'.join(supported_formats)}"
             )
 
         if format == "pq":
@@ -228,7 +226,7 @@ def update_dataset_meta(
         raise ValueError("model path must be a model store object/URL/DataItem")
 
     if not artifact_spec or artifact_spec.kind != "dataset":
-        raise ValueError("store artifact ({}) is not dataset kind".format(artifact))
+        raise ValueError(f"store artifact ({artifact}) is not dataset kind")
 
     if from_df is not None:
         DatasetArtifact.update_preview_fields_from_df(

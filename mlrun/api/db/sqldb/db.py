@@ -228,7 +228,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not updated:
             updated = artifact["updated"] = datetime.now(timezone.utc)
         if iter:
-            key = "{}-{}".format(iter, key)
+            key = f"{iter}-{key}"
         art = self._get_artifact(session, uid, project, key)
         labels = artifact.get("labels", {})
         if not art:
@@ -244,7 +244,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project = project or config.default_project
         uids = self._resolve_tag(session, Artifact, project, tag)
         if iter:
-            key = "{}-{}".format(iter, key)
+            key = f"{iter}-{key}"
 
         query = self._query(session, Artifact, key=key, project=project)
 

@@ -51,7 +51,7 @@ def new_v1_model_server(
 
     if models:
         for k, v in models.items():
-            f.set_env("SERVING_MODEL_{}".format(k), v)
+            f.set_env(f"SERVING_MODEL_{k}", v)
 
     if protocol:
         f.set_env("TRANSPORT_PROTOCOL", protocol)
@@ -157,11 +157,6 @@ def nuclio_serving_init(context, data):
     setattr(context, "router", router)
 
 
-err_string = (
-    "Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}"
-)
-
-
 def nuclio_serving_handler(context, event):
 
     # check if valid route & model
@@ -175,15 +170,10 @@ def nuclio_serving_handler(context, event):
             model_name, route = event.path.strip("/").split("/")
         route = context.router[route]
     except Exception:
-        return context.Response(
-            body=err_string.format(
-                event.path,
-                "|".join(context.router.keys()),
-                "|".join(context.models.keys()),
-            ),
-            content_type="text/plain",
-            status_code=404,
-        )
+        actions = "|".join(context.router.keys())
+        models = "|".join(context.models.keys())
+        body = f"Got path: {event.path} \n Path must be <model-name>/<action> \nactions: {actions} \nmodels: {models}"
+        return context.Response(body=body, content_type="text/plain", status_code=404,)
 
     return route(context, model_name, event)
 
@@ -314,7 +304,7 @@ class PredictHandler(HTTPHandler):
             )
 
         model = self.get_model_class(name)
-        context.logger.debug("event: {}".format(type(event.body)))
+        context.logger.debug(f"event: {type(event.body)}")
         start = datetime.now()
         body = self.parse_event(event)
         request = model.preprocess(body)

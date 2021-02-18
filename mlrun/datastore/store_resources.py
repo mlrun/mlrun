@@ -137,7 +137,7 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
                 iteration = int(uri[loc + 1 :])
             except ValueError:
                 raise ValueError(
-                    "illegal store path {}, iteration must be integer value".format(uri)
+                    f"illegal store path {uri}, iteration must be integer value"
                 )
 
         resource = db.read_artifact(

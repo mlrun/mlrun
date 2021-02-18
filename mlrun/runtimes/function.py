@@ -162,7 +162,7 @@ class RemoteRuntime(KubeResource):
     def add_trigger(self, name, spec):
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
-        self.spec.config["spec.triggers.{}".format(name)] = spec
+        self.spec.config[f"spec.triggers.{name}"] = spec
         return self
 
     def with_v3io(self, local="", remote=""):
@@ -189,15 +189,13 @@ class RemoteRuntime(KubeResource):
             model = "/User/" + "/".join(model_path.split("/")[5:])
         else:
             model = model_path
-        self.set_env("SERVING_MODEL_{}".format(name), model)
+        self.set_env(f"SERVING_MODEL_{name}", model)
         return self
 
     def from_image(self, image):
         config = nuclio.config.new_config()
         update_in(
-            config,
-            "spec.handler",
-            self.spec.function_handler or "main:{}".format("handler"),
+            config, "spec.handler", self.spec.function_handler or "main:handler",
         )
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")
@@ -217,7 +215,7 @@ class RemoteRuntime(KubeResource):
 
         if models:
             for k, v in models.items():
-                self.set_env("SERVING_MODEL_{}".format(k), v)
+                self.set_env(f"SERVING_MODEL_{k}", v)
 
         if protocol:
             self.set_env("TRANSPORT_PROTOCOL", protocol)
@@ -288,7 +286,7 @@ class RemoteRuntime(KubeResource):
                 raise RunError(f"cannot deploy {text}")
 
             if self.status.address:
-                self.spec.command = "http://{}".format(self.status.address)
+                self.spec.command = f"http://{self.status.address}"
                 self.save(versioned=False)
 
         else:
@@ -296,7 +294,7 @@ class RemoteRuntime(KubeResource):
             self._ensure_run_db()
             address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
             if address:
-                self.spec.command = "http://{}".format(address)
+                self.spec.command = f"http://{address}"
                 self.status.state = "ready"
                 self.status.address = address
                 self.save(versioned=False)
@@ -324,7 +322,7 @@ class RemoteRuntime(KubeResource):
             self.status.nuclio_name = name
             if address:
                 self.status.address = address
-                self.spec.command = "http://{}".format(address)
+                self.spec.command = f"http://{address}"
             return state, text, last_log_timestamp
 
         try:
@@ -357,7 +355,8 @@ class RemoteRuntime(KubeResource):
         use_function_from_db=True,
     ):
         models = {} if models is None else models
-        name = "deploy_{}".format(self.metadata.name or "function")
+        function_name = self.metadata.name or "function"
+        name = f"deploy_{function_name}"
         project = project or self.metadata.project
         if models and isinstance(models, dict):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
@@ -436,16 +435,16 @@ class RemoteRuntime(KubeResource):
         log_level = execution.log_level
         command = self.spec.command
         if runobj.spec.handler:
-            command = "{}/{}".format(command, runobj.spec.handler_name)
+            command = f"{command}/{runobj.spec.handler_name}"
         headers = {"x-nuclio-log-level": log_level}
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
-            logger.error("error invoking function: {}".format(err))
-            raise OSError("error: cannot run function at url {}".format(command))
+            logger.error(f"error invoking function: {err}")
+            raise OSError(f"error: cannot run function at url {command}")
 
         if not resp.ok:
-            logger.error("bad function resp!!\n{}".format(resp.text))
+            logger.error(f"bad function resp!!\n{resp.text}")
             raise RunError("bad function response")
 
         logs = resp.headers.get("X-Nuclio-Logs")
@@ -462,7 +461,7 @@ class RemoteRuntime(KubeResource):
 
         command = self.spec.command
         if runobj.spec.handler:
-            command = "{}/{}".format(command, runobj.spec.handler_name)
+            command = f"{command}/{runobj.spec.handler_name}"
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
             self._invoke_async(tasks, command, headers, secrets)
@@ -491,7 +490,7 @@ class RemoteRuntime(KubeResource):
             for status, resp, logs, run in await asyncio.gather(*tasks):
 
                 if status != 200:
-                    logger.error("failed to access {} - {}".format(url, resp))
+                    logger.error(f"failed to access {url} - {resp}")
                 else:
                     results.append(self._update_state(json.loads(resp)))
 
@@ -508,12 +507,12 @@ def parse_logs(logs):
         extra = []
         for k, v in line.items():
             if k not in ["time", "level", "name", "message"]:
-                extra.append("{}={}".format(k, v))
-        line["extra"] = ", ".join(extra)
-        line["time"] = datetime.fromtimestamp(float(line["time"]) / 1000).strftime(
+                extra.append("=".join([k, v]))
+        extra = ", ".join(extra)
+        time = datetime.fromtimestamp(float(line["time"]) / 1000).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )
-        lines += "{time}  {level:<6} {message}  {extra}\n".format(**line)
+        lines += f"{time}  {line['level']:<6} {line['message']}  {extra}\n"
 
     return lines
 
@@ -531,15 +530,15 @@ def fake_nuclio_context(body, headers=None):
 
 def _fullname(project, name):
     if project:
-        return "{}-{}".format(project, name)
+        return f"{project}-{name}"
     return name
 
 
 def get_fullname(name, project, tag):
     if project:
-        name = "{}-{}".format(project, name)
+        name = f"{project}-{name}"
     if tag:
-        name = "{}-{}".format(name, tag)
+        name = f"{name}-{tag}"
     return name
 
 

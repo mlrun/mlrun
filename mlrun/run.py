@@ -242,10 +242,10 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):
-                raise OSError("command file {} not found".format(command))
+                raise OSError(f"command file {command} not found")
 
         else:
-            raise RuntimeError("cannot run, command={}".format(command))
+            raise RuntimeError(f"cannot run, command={command}")
 
     elif command == "":
         pass
@@ -262,7 +262,7 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
             command = fpath
 
     else:
-        raise ValueError("unsupported suffix: {}".format(suffix))
+        raise ValueError(f"unsupported suffix: {suffix}")
 
     return command, runtime
 
@@ -299,8 +299,9 @@ def get_or_create_ctx(
         # access input metadata, values, files, and secrets (passwords)
         print(f'Run: {context.name} (uid={context.uid})')
         print(f'Params: p1={p1}, p2={p2}')
-        print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-        print('file: {}'.format(context.get_input('infile.txt').get()))
+        print(f'accesskey = {context.get_secret("ACCESS_KEY")}')
+        input_str = context.get_input('infile.txt').get()
+        print(f'file: {input_str}')
 
         # RUN some useful code e.g. ML training, data prep, etc.
 
@@ -347,7 +348,7 @@ def get_or_create_ctx(
     out = rundb or mlconf.dbpath or environ.get("MLRUN_DBPATH")
     if out:
         autocommit = True
-        logger.info("logging run results to: {}".format(out))
+        logger.info(f"logging run results to: {out}")
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
@@ -386,7 +387,7 @@ def import_function(url="", secrets=None, db="", project=None):
         db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, _project, tag, hash_key)
         if not runtime:
-            raise KeyError("function {}:{} not found in the DB".format(name, tag))
+            raise KeyError(f"function {name}:{tag} not found in the DB")
     else:
         url, is_hub_uri = extend_hub_uri_if_needed(url)
         runtime = import_function_to_dict(url, secrets)
@@ -433,12 +434,9 @@ def import_function_to_dict(url, secrets=None):
                 slash = url.rfind("/")
                 if slash >= 0 and path.isfile(url[: url.rfind("/") + 1] + code_file):
                     raise ValueError(
-                        "exec file spec.command={}".format(code_file)
-                        + " is relative, change working dir"
+                        f"exec file spec.command={code_file} is relative, change working dir"
                     )
-                raise ValueError(
-                    "no file in exec path (spec.command={})".format(code_file)
-                )
+                raise ValueError(f"no file in exec path (spec.command={code_file})")
         else:
             raise ValueError("command or code not specified in function spec")
 
@@ -497,11 +495,9 @@ def new_function(
         elif kind in RuntimeKinds.all():
             runner = get_runtime_class(kind).from_dict(runtime)
         else:
+            supported_runtimes = ",".join(RuntimeKinds.all() + ["local"])
             raise Exception(
-                "unsupported runtime ({}) or missing command, ".format(kind)
-                + "supported runtimes: {}".format(
-                    ",".join(RuntimeKinds.all() + ["local"])
-                )
+                f"unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
             )
 
     if not name:
@@ -621,7 +617,7 @@ def code_to_function(
         name = filename or (name + ".ipynb")
         if not origin:
             return name
-        return "{}:{}".format(origin, name)
+        return f"{origin}:{name}"
 
     def update_meta(fn):
         fn.spec.description = description
@@ -708,7 +704,7 @@ def code_to_function(
     elif kind in RuntimeKinds.all():
         r = get_runtime_class(kind)()
     else:
-        raise ValueError("unsupported runtime ({})".format(kind))
+        raise ValueError(f"unsupported runtime ({kind})")
 
     name, spec, code = build_file(filename, name=name)
 
@@ -832,7 +828,7 @@ def run_pipeline(
             )
 
         id = run_result.run_id
-    logger.info("Pipeline run id={}, check UI or DB for progress".format(id))
+    logger.info(f"Pipeline run id={id}, check UI or DB for progress")
     return id
 
 

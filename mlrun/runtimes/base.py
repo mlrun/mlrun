@@ -24,6 +24,7 @@ from os import environ
 from typing import Dict, List, Tuple, Union, Optional
 
 from kubernetes.client.rest import ApiException
+from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
 import mlrun.errors
@@ -707,9 +708,15 @@ class BaseRuntime(ModelObj):
 
             _, _, body = build_file(from_file)
 
-        if from_file:
-            with open(from_file) as fp:
-                body = fp.read()
+        else:
+            if from_file:
+                with open(from_file) as fp:
+                    body = fp.read()
+            if self.kind == mlrun.runtimes.RuntimeKinds.serving:
+                body = body + mlrun_footer.format(
+                    mlrun.runtimes.serving.serving_subkind
+                )
+
         self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
             "utf-8"
         )

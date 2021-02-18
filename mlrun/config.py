@@ -149,6 +149,7 @@ default_config = {
             "nosql": "v3io:///projects/{project}/fs/{kind}",
         },
         "default_targets": "parquet,nosql",
+        "default_job_image": "mlrun/mlrun",
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import List
 
 import mlrun
@@ -52,6 +51,7 @@ class FeatureSetSpec(ModelObj):
         graph=None,
         function=None,
         analysis=None,
+        engine=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -73,6 +73,7 @@ class FeatureSetSpec(ModelObj):
         self.label_column = label_column
         self.function = function
         self.analysis = analysis or {}
+        self.engine = engine
 
     @property
     def entities(self) -> List[Entity]:
@@ -210,8 +211,12 @@ class FeatureSet(ModelObj):
     @property
     def uri(self):
         """fully qualified feature set uri"""
-        uri = f'{self._metadata.project or ""}/{self._metadata.name}:{self._metadata.tag or "latest"}'
+        uri = (
+            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
+        )
         uri = get_store_uri(StorePrefix.FeatureSet, uri)
+        if self._metadata.tag:
+            uri += ":" + self._metadata.tag
         return uri
 
     def get_target_path(self, name=None):
@@ -229,7 +234,7 @@ class FeatureSet(ModelObj):
         if with_defaults:
             targets.extend(default_target_names())
         for target in targets:
-            if not isinstance(target, DataTargetBase):
+            if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
 
@@ -337,9 +342,10 @@ class FeatureSet(ModelObj):
     def to_dataframe(self, columns=None, df_module=None, target_name=None):
         """return featureset (offline) data as dataframe"""
         if columns:
-            if self.spec.timestamp_key:
+            entities = list(self.spec.entities.keys())
+            if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
-            columns = list(self.spec.entities.keys()) + columns
+            columns = entities + columns
         driver = get_offline_target(self, name=target_name)
         if not driver:
             raise mlrun.errors.MLRunNotFoundError(
@@ -357,3 +363,12 @@ class FeatureSet(ModelObj):
             "features", []
         )  # bypass DB bug
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
+
+    def reload(self, update_spec=True):
+        """reload/sync the feature vector status and spec from the DB"""
+        from_db = mlrun.get_run_db().get_feature_set(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
+        self.status = from_db.status
+        if update_spec:
+            self.spec = from_db.spec

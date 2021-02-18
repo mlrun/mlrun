@@ -21,6 +21,7 @@ from sys import stderr
 import pandas as pd
 from kubernetes import client
 
+import mlrun
 from mlrun.db import get_run_db
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
@@ -401,3 +402,35 @@ class k8s_resource:
         items = self.list_objects(namespace, selector, states)
         for item in items:
             self.del_object(item.metadata.name, item.metadata.namespace)
+
+
+def enrich_function_from_dict(function, function_dict):
+    override_function = mlrun.new_function(runtime=function_dict, kind=function.kind)
+    for attribute in [
+        "volumes",
+        "volume_mounts",
+        "env",
+        "resources",
+        "image_pull_policy",
+        "replicas",
+    ]:
+        override_value = getattr(override_function.spec, attribute, None)
+        if override_value:
+            if attribute == "env":
+                for env_dict in override_value:
+                    function.set_env(env_dict["name"], env_dict["value"])
+            elif attribute == "volumes":
+                function.spec.update_vols_and_mounts(override_value, [])
+            elif attribute == "volume_mounts":
+                # volume mounts don't have a well defined identifier (like name for volume) so we can't merge,
+                # only override
+                function.spec.volume_mounts = override_value
+            elif attribute == "resources":
+                # don't override it there are limits and requests but both are empty
+                if override_value.get("limits", {}) or override_value.get(
+                    "requests", {}
+                ):
+                    setattr(function.spec, attribute, override_value)
+            else:
+                setattr(function.spec, attribute, override_value)
+    return function

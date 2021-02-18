@@ -332,7 +332,7 @@ class ServingRuntime(RemoteRuntime):
                 group = stream.options.get("group", "serving")
 
                 child_function = self._spec.function_refs[function_name]
-                child_function.function_object().add_stream_trigger(
+                child_function.function_object().add_v3io_stream_trigger(
                     stream.path, group=group, shards=stream.shards
                 )
 

@@ -207,7 +207,7 @@ def v2_serving_init(context, namespace=None):
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "root", server.graph)
-    setattr(context, "verbose", server.verbose)
+    setattr(context, "server_context", server.context)
     context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())
@@ -220,10 +220,10 @@ def v2_serving_handler(context, event, get_body=False):
         response = context.root.run(event)
     except Exception as e:
         message = str(e)
-        if context.verbose:
+        if context.server_context.verbose:
             message += "\n" + str(traceback.format_exc())
         context.logger.error(f"run error, {traceback.format_exc()}")
-        context.push_error(event, message, source="_handler")
+        context.server_context.push_error(event, message, source="_handler")
         return context.Response(
             body=message, content_type="text/plain", status_code=400
         )

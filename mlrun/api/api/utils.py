@@ -19,6 +19,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
+from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 
@@ -110,34 +111,7 @@ def _parse_submit_run_body(db_session: Session, data):
             # The purpose of the function dict is to enable the user to override configurations of the existing function
             # without modifying it - to do that we're creating a function object from the request function dict and
             # assign values from it to the main function object
-            override_function = new_function(runtime=function_dict, kind=function.kind)
-            for attribute in [
-                "volumes",
-                "volume_mounts",
-                "env",
-                "resources",
-                "image_pull_policy",
-                "replicas",
-            ]:
-                override_value = getattr(override_function.spec, attribute, None)
-                if override_value:
-                    if attribute == "env":
-                        for env_dict in override_value:
-                            function.set_env(env_dict["name"], env_dict["value"])
-                    elif attribute == "volumes":
-                        function.spec.update_vols_and_mounts(override_value, [])
-                    elif attribute == "volume_mounts":
-                        # volume mounts don't have a well defined identifier (like name for volume) so we can't merge,
-                        # only override
-                        function.spec.volume_mounts = override_value
-                    elif attribute == "resources":
-                        # don't override it there are limits and requests but both are empty
-                        if override_value.get("limits", {}) or override_value.get(
-                            "requests", {}
-                        ):
-                            setattr(function.spec, attribute, override_value)
-                    else:
-                        setattr(function.spec, attribute, override_value)
+            function = enrich_function_from_dict(function, function_dict)
 
     return function, task
 

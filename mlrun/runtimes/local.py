@@ -86,9 +86,7 @@ class LocalRuntime(BaseRuntime):
 
         handler = runobj.spec.handler
         handler_str = handler or "main"
-        logger.debug(
-            f"starting local run: {self.spec.command} # {handler_str}"
-        )
+        logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
 
         if handler:
             if self.spec.pythonpath:

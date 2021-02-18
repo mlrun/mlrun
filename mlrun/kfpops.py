@@ -545,7 +545,8 @@ def build_op(
     if "IGZ_NAMESPACE_DOMAIN" in environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="IGZ_NAMESPACE_DOMAIN", value=os.environ.get("IGZ_NAMESPACE_DOMAIN")
+                name="IGZ_NAMESPACE_DOMAIN",
+                value=os.environ.get("IGZ_NAMESPACE_DOMAIN"),
             )
         )
 

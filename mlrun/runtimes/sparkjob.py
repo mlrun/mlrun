@@ -340,8 +340,7 @@ class SparkRuntime(KubejobRuntime):
         if state == "FAILED":
             logger.error(f"SparkJob {meta.name} state={state}")
             execution.set_state(
-                "error",
-                f"SparkJob {meta.name} finished with state {state}",
+                "error", f"SparkJob {meta.name} finished with state {state}",
             )
 
         if resp:
@@ -353,9 +352,7 @@ class SparkRuntime(KubejobRuntime):
                 execution.set_state(state.lower())
                 if self.kfp:
                     status = self._get_k8s().watch(driver, meta.namespace)
-                    logger.info(
-                        f"SparkJob {meta.name} finished with state {status}",
-                    )
+                    logger.info(f"SparkJob {meta.name} finished with state {status}",)
                     if status == "succeeded":
                         execution.set_state("completed")
                     else:
@@ -381,8 +378,7 @@ class SparkRuntime(KubejobRuntime):
                     f"SparkJob status unknown or failed, check pods: {pods_phase}",
                 )
                 execution.set_state(
-                    "error",
-                    f"SparkJob {meta.name} finished with unknown state",
+                    "error", f"SparkJob {meta.name} finished with unknown state",
                 )
 
         return None

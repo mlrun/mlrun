@@ -123,9 +123,7 @@ class KubejobRuntime(KubeResource):
 
         if self._is_remote_api() and not is_kfp:
             db = self._get_db()
-            logger.info(
-                f"starting remote build, image: {self.spec.build.image}"
-            )
+            logger.info(f"starting remote build, image: {self.spec.build.image}")
             data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
@@ -187,14 +185,10 @@ class KubejobRuntime(KubeResource):
                     return "ready"
                 if status in ["failed", "error"]:
                     self.status.state = status
-                    logger.error(
-                        f" build {status}, watch the build pod logs: {pod}"
-                    )
+                    logger.error(f" build {status}, watch the build pod logs: {pod}")
                     return status
 
-                logger.info(
-                    f"builder status is: {status}, wait for it to complete"
-                )
+                logger.info(f"builder status is: {status}, wait for it to complete")
             return None
 
     def deploy_step(
@@ -231,9 +225,7 @@ class KubejobRuntime(KubeResource):
             project_name, service_account_name
         )
         if project_vault_secret_name is None:
-            logger.info(
-                f"No vault secret associated with project {project_name}"
-            )
+            logger.info(f"No vault secret associated with project {project_name}")
             return
 
         volumes = [

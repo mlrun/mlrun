@@ -345,9 +345,7 @@ class FileRunDB(RunDBInterface):
         labels = labels or []
         logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")
         filepath = path.join(
-            self.dirpath,
-            functions_dir,
-            project or config.default_project,
+            self.dirpath, functions_dir, project or config.default_project,
         )
         filepath += "/"
 

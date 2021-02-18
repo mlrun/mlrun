@@ -268,8 +268,7 @@ class BaseRuntime(ModelObj):
                 runspec = literal_eval(runspec)
             if not isinstance(runspec, (dict, RunTemplate, RunObject)):
                 raise ValueError(
-                    "task/runspec is not a valid task object,"
-                    f" type={type(runspec)}"
+                    "task/runspec is not a valid task object," f" type={type(runspec)}"
                 )
 
         if isinstance(runspec, RunTemplate):
@@ -350,9 +349,7 @@ class BaseRuntime(ModelObj):
 
         if not self.is_child:
             db_str = "self" if self._is_api_server else self.spec.rundb
-            logger.info(
-                f"starting run {meta.name} uid={meta.uid} DB={db_str}"
-            )
+            logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
             meta.labels["kind"] = self.kind
             if "owner" not in meta.labels:
                 meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()

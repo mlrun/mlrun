@@ -210,9 +210,7 @@ def get_model(model_dir, suffix=""):
                     model_file = path.join(model_dir, file)
                     break
     if not model_file:
-        raise ValueError(
-            f"cant resolve model file for {model_dir} suffix{suffix}"
-        )
+        raise ValueError(f"cant resolve model file for {model_dir} suffix{suffix}")
 
     obj = store_manager.object(url=model_file)
     if obj.kind == "file":

@@ -172,14 +172,8 @@ def nuclio_serving_handler(context, event):
     except Exception:
         actions = "|".join(context.router.keys())
         models = "|".join(context.models.keys())
-        body = (
-            f"Got path: {event.path} \n Path must be <model-name>/<action> \nactions: {actions} \nmodels: {models}"
-        )
-        return context.Response(
-            body=body,
-            content_type="text/plain",
-            status_code=404,
-        )
+        body = f"Got path: {event.path} \n Path must be <model-name>/<action> \nactions: {actions} \nmodels: {models}"
+        return context.Response(body=body, content_type="text/plain", status_code=404,)
 
     return route(context, model_name, event)
 

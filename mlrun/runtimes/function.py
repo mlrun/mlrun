@@ -195,9 +195,7 @@ class RemoteRuntime(KubeResource):
     def from_image(self, image):
         config = nuclio.config.new_config()
         update_in(
-            config,
-            "spec.handler",
-            self.spec.function_handler or "main:handler",
+            config, "spec.handler", self.spec.function_handler or "main:handler",
         )
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")

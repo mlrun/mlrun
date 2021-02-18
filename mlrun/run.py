@@ -436,9 +436,7 @@ def import_function_to_dict(url, secrets=None):
                     raise ValueError(
                         f"exec file spec.command={code_file} is relative, change working dir"
                     )
-                raise ValueError(
-                    f"no file in exec path (spec.command={code_file})"
-                )
+                raise ValueError(f"no file in exec path (spec.command={code_file})")
         else:
             raise ValueError("command or code not specified in function spec")
 

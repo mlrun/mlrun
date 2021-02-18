@@ -549,7 +549,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 
     elif kind.startswith("art"):
         run_db = get_run_db()
-        artifacts = run_db.list_artifacts(name, project=project, tag=tag, labels=selector)
+        artifacts = run_db.list_artifacts(
+            name, project=project, tag=tag, labels=selector
+        )
         df = artifacts.to_df()[
             ["tree", "key", "iter", "kind", "path", "hash", "updated"]
         ]

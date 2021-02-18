@@ -327,9 +327,7 @@ def dict_to_yaml(struct):
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as e:
-        raise ValueError(
-            f"error: data result cannot be serialized to YAML, {e} "
-        )
+        raise ValueError(f"error: data result cannot be serialized to YAML, {e} ")
     return data
 
 
@@ -667,8 +665,10 @@ class RunNotifications:
             for r in runs:
                 meta = r["metadata"]
                 if config.resolve_ui_url():
-                    url = f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/" \
-                               f"{meta.get('project')}/jobs/{meta.get('uid')}/info"
+                    url = (
+                        f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/"
+                        f"{meta.get('project')}/jobs/{meta.get('uid')}/info"
+                    )
 
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:

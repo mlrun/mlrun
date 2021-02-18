@@ -292,9 +292,7 @@ def _build_function(db_session, function, with_mlrun, mlrun_version_specifier):
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}"
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
     return fn, ready
 
 
@@ -335,9 +333,7 @@ def _start_function(function):
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:
             logger.error(traceback.format_exc())
-            log_and_raise(
-                HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}"
-            )
+            log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
     finally:
         mlrun.api.db.session.close_session(db_session)
 
@@ -365,6 +361,4 @@ def _get_function_status(data):
         logger.info("status: %s", resp)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}"
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")

@@ -1106,9 +1106,7 @@ class HTTPRunDB(RunDBInterface):
             query = ""
             if namespace:
                 query = f"namespace={namespace}"
-            resp = self.api_call(
-                "GET", f"pipelines/{run_id}?{query}", timeout=timeout
-            )
+            resp = self.api_call("GET", f"pipelines/{run_id}?{query}", timeout=timeout)
         except OSError as err:
             logger.error(f"error cannot get pipeline: {err}")
             raise OSError(f"error: cannot get pipeline, {err}")

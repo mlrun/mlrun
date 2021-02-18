@@ -349,9 +349,7 @@ def runs_to_html(df, display=True, classes=None, short=False):
             axis=1,
         )
     else:
-        df["uid"] = df["uid"].apply(
-            lambda x: f'<div title="{x}">...{x[-6:]}</div>'
-        )
+        df["uid"] = df["uid"].apply(lambda x: f'<div title="{x}">...{x[-6:]}</div>')
 
     if short:
         df.drop("project", axis=1, inplace=True)

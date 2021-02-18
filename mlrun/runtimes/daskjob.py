@@ -416,9 +416,7 @@ def deploy_function(function: DaskCluster, secrets=None):
         idle_timeout=spec.scheduler_timeout,
     )
 
-    logger.info(
-        f"cluster {cluster.name} started at {cluster.scheduler_address}"
-    )
+    logger.info(f"cluster {cluster.name} started at {cluster.scheduler_address}")
 
     function.status.scheduler_address = cluster.scheduler_address
     function.status.cluster_name = cluster.name

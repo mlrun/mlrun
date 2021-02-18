@@ -173,9 +173,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
         raise
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}"
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
 
     logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

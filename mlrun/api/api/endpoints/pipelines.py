@@ -103,8 +103,7 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
         ctype = ".zip"
     else:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason=f"unsupported pipeline type {ctype}",
+            HTTPStatus.BAD_REQUEST.value, reason=f"unsupported pipeline type {ctype}",
         )
 
     logger.info(f"writing file {ctype}")

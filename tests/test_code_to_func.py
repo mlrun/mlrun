@@ -19,9 +19,7 @@ from mlrun import code_to_function, new_model_server
 
 
 def test_job_nb():
-    fn = code_to_function(
-        filename=f"{examples_path}/mlrun_jobs.ipynb", kind="job"
-    )
+    fn = code_to_function(filename=f"{examples_path}/mlrun_jobs.ipynb", kind="job")
     assert fn.kind == "job", "kind not set, test failed"
     assert fn.spec.build.functionSourceCode, "code not embedded"
 

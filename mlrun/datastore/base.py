@@ -84,7 +84,7 @@ class DataStore:
 
     def _join(self, key):
         if self.subpath:
-            return "{}/{}".format(self.subpath, key)
+            return f"{self.subpath}/{key}"
         return key
 
     def _secret(self, key):
@@ -92,7 +92,7 @@ class DataStore:
 
     @property
     def url(self):
-        return "{}://{}".format(self.kind, self.endpoint)
+        return f"{self.kind}://{self.endpoint}"
 
     def get(self, key, size=None, offset=0):
         pass
@@ -150,7 +150,7 @@ class DataStore:
     def to_dict(self):
         return {
             "name": self.name,
-            "url": "{}://{}/{}".format(self.kind, self.endpoint, self.subpath),
+            "url": f"{self.kind}://{self.endpoint}/{self.subpath}",
             "secret_pfx": self.secret_pfx,
             "options": self.options,
         }
@@ -249,7 +249,7 @@ class DataItem:
 
         dot = self._path.rfind(".")
         self._local_path = mktemp() if dot == -1 else mktemp(self._path[dot:])
-        logger.info("downloading {} to local tmp".format(self.url))
+        logger.info(f"downloading {self.url} to local tmp")
         self.download(self._local_path)
         return self._local_path
 
@@ -273,13 +273,13 @@ class DataItem:
         return self.url
 
     def __repr__(self):
-        return "'{}'".format(self.url)
+        return f"'{self.url}'"
 
 
 def get_range(size, offset):
-    byterange = "bytes={}-".format(offset)
+    byterange = f"bytes={offset}-"
     if size:
-        byterange = range + "{}".format(offset + size)
+        byterange += str(offset + size)
     return byterange
 
 
@@ -295,7 +295,7 @@ def http_get(url, headers=None, auth=None):
     try:
         response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
-        raise OSError("error: cannot connect to {}: {}".format(url, e))
+        raise OSError(f"error: cannot connect to {url}: {e}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -306,7 +306,7 @@ def http_head(url, headers=None, auth=None):
     try:
         response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
-        raise OSError("error: cannot connect to {}: {}".format(url, e))
+        raise OSError(f"error: cannot connect to {url}: {e}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -319,7 +319,7 @@ def http_put(url, data, headers=None, auth=None):
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as e:
-        raise OSError("error: cannot connect to {}: {}".format(url, e))
+        raise OSError(f"error: cannot connect to {url}: {e}")
 
     mlrun.errors.raise_for_status(response)
 

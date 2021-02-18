@@ -200,14 +200,14 @@ def run(
                 with open(url) as fp:
                     body = fp.read()
                 based = b64encode(body.encode("utf-8")).decode("utf-8")
-                logger.info("packing code at {}".format(url))
+                logger.info(f"packing code at {url}")
                 update_in(runtime, "spec.build.functionSourceCode", based)
                 url = ""
                 update_in(runtime, "spec.command", "")
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
-            print("runtime parameter must be a dict, not {}".format(type(runtime)))
+            print(f"runtime parameter must be a dict, not {type(runtime)}")
             exit(1)
     else:
         runtime = {}
@@ -218,7 +218,7 @@ def run(
     if from_env and code:
         code = b64decode(code).decode("utf-8")
         if kfp:
-            print("code:\n{}\n".format(code))
+            print(f"code:\n{code}\n")
         with open("main.py", "w") as fp:
             fp.write(code)
         url = url or "main.py"
@@ -247,7 +247,7 @@ def run(
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
 
     if kfp or runobj.spec.verbose or verbose:
-        print("MLRun version: {}".format(str(Version().get())))
+        print(f"MLRun version: {str(Version().get())}")
         print("Runtime:")
         pprint(runtime)
         print("Run:")
@@ -263,7 +263,7 @@ def run(
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
-        print("runtime error: {}".format(err))
+        print(f"runtime error: {err}")
         exit(1)
 
 
@@ -322,7 +322,7 @@ def build(
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
-            print("runtime parameter must be a dict, not {}".format(type(runtime)))
+            print(f"runtime parameter must be a dict, not {type(runtime)}")
             exit(1)
         if kfp:
             print("Runtime:")
@@ -352,12 +352,12 @@ def build(
 
     if source.endswith(".py"):
         if not path.isfile(source):
-            print("source file doesnt exist ({})".format(source))
+            print(f"source file doesnt exist ({source})")
             exit(1)
         with open(source) as fp:
             body = fp.read()
         based = b64encode(body.encode("utf-8")).decode("utf-8")
-        logger.info("packing code at {}".format(source))
+        logger.info(f"packing code at {source}")
         b.functionSourceCode = based
         func.spec.command = ""
     else:
@@ -367,11 +367,9 @@ def build(
     archive = archive or mlconf.default_archive
     if archive:
         src = b.source or "./"
-        logger.info("uploading data from {} to {}".format(src, archive))
+        logger.info(f"uploading data from {src} to {archive}")
         target = archive if archive.endswith("/") else archive + "/"
-        target += "src-{}-{}-{}.tar.gz".format(
-            meta.project, meta.name, meta.tag or "latest"
-        )
+        target += f"src-{meta.project}-{meta.name}-{meta.tag or 'latest'}.tar.gz"
         upload_tarball(src, target)
         # todo: replace function.yaml inside the tar
         b.source = target
@@ -383,7 +381,7 @@ def build(
                 with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
             )
         except Exception as err:
-            print("deploy error, {}".format(err))
+            print(f"deploy error, {err}")
             exit(1)
 
         state = func.status.state
@@ -398,7 +396,7 @@ def build(
                 fp.write(full_image)
             print("full image path = ", full_image)
 
-        print("function built, state={} image={}".format(state, image))
+        print(f"function built, state={state} image={image}")
     else:
         print("function does not have a deploy() method")
         exit(1)
@@ -431,7 +429,7 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
     else:
         runtime = {}
     if not isinstance(runtime, dict):
-        print("runtime parameter must be a dict, not {}".format(type(runtime)))
+        print(f"runtime parameter must be a dict, not {type(runtime)}")
         exit(1)
 
     if verbose:
@@ -466,10 +464,10 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
     try:
         addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
-        print("deploy error: {}".format(err))
+        print(f"deploy error: {err}")
         exit(1)
 
-    print("function deployed, address={}".format(addr))
+    print(f"function deployed, address={addr}")
     with open("/tmp/output", "w") as fp:
         fp.write(addr)
     with open("/tmp/name", "w") as fp:
@@ -486,7 +484,7 @@ def watch(pod, namespace, timeout):
     """Read current or previous task (pod) logs."""
     k8s = K8sHelper(namespace)
     status = k8s.watch(pod, namespace, timeout)
-    print("Pod {} last status is: {}".format(pod, status))
+    print(f"Pod {pod} last status is: {status}")
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -513,7 +511,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             return
 
         items = k8s.list_pods(namespace, selector)
-        print("{:10} {:16} {:8} {}".format("state", "started", "type", "name"))
+        print(f"{'state':10} {'started':16} {'type':8} name")
         for i in items:
             task = i.metadata.labels.get("mlrun/class", "")
             if task:
@@ -522,60 +520,62 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                 start = ""
                 if i.status.start_time:
                     start = i.status.start_time.strftime("%b %d %H:%M:%S")
-                print("{:10} {:16} {:8} {}".format(state, start, task, name))
+                print(f"{state:10} {start:16} {task:8} {name}")
     elif kind.startswith("runtime"):
-        mldb = get_run_db(db or mlconf.dbpath)
+        run_db = get_run_db(db or mlconf.dbpath)
         if name:
             # the runtime identifier is its kind
-            runtime = mldb.get_runtime(kind=name, label_selector=selector)
+            runtime = run_db.get_runtime(kind=name, label_selector=selector)
             print(dict_to_yaml(runtime))
             return
-        runtimes = mldb.list_runtimes(label_selector=selector)
+        runtimes = run_db.list_runtimes(label_selector=selector)
         print(dict_to_yaml(runtimes))
     elif kind.startswith("run"):
-        mldb = get_run_db()
+        run_db = get_run_db()
         if name:
-            run = mldb.read_run(name, project=project)
+            run = run_db.read_run(name, project=project)
             print(dict_to_yaml(run))
             return
 
-        runs = mldb.list_runs(uid=uid, project=project, labels=selector)
+        runs = run_db.list_runs(uid=uid, project=project, labels=selector)
         df = runs.to_df()[
             ["name", "uid", "iter", "start", "state", "parameters", "results"]
         ]
-        # df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
+        # df['uid'] = df['uid'].apply(lambda x: f'..{x[-6:]}')
         df["start"] = df["start"].apply(time_str)
         df["parameters"] = df["parameters"].apply(dict_to_str)
         df["results"] = df["results"].apply(dict_to_str)
         print(tabulate(df, headers="keys"))
 
     elif kind.startswith("art"):
-        mldb = get_run_db()
-        artifacts = mldb.list_artifacts(name, project=project, tag=tag, labels=selector)
+        run_db = get_run_db()
+        artifacts = run_db.list_artifacts(
+            name, project=project, tag=tag, labels=selector
+        )
         df = artifacts.to_df()[
             ["tree", "key", "iter", "kind", "path", "hash", "updated"]
         ]
-        df["tree"] = df["tree"].apply(lambda x: "..{}".format(x[-8:]))
-        df["hash"] = df["hash"].apply(lambda x: "..{}".format(x[-6:]))
+        df["tree"] = df["tree"].apply(lambda x: f"..{x[-8:]}")
+        df["hash"] = df["hash"].apply(lambda x: f"..{x[-6:]}")
         print(tabulate(df, headers="keys"))
 
     elif kind.startswith("func"):
-        mldb = get_run_db()
+        run_db = get_run_db()
         if name:
-            f = mldb.get_function(name, project=project, tag=tag)
+            f = run_db.get_function(name, project=project, tag=tag)
             print(dict_to_yaml(f))
             return
 
-        functions = mldb.list_functions(name, project=project, labels=selector)
+        functions = run_db.list_functions(name, project=project, labels=selector)
         lines = []
         headers = ["kind", "state", "name:tag", "hash"]
         for f in functions:
+            name = get_in(f, "metadata.name")
+            tag = get_in(f, "metadata.tag", "")
             line = [
                 get_in(f, "kind", ""),
                 get_in(f, "status.state", ""),
-                "{}:{}".format(
-                    get_in(f, "metadata.name"), get_in(f, "metadata.tag", "")
-                ),
+                f"{name}:{tag}",
                 get_in(f, "metadata.hash", ""),
             ]
             lines.append(line)
@@ -607,7 +607,7 @@ def db(port, dirpath):
 @main.command()
 def version():
     """get mlrun version"""
-    print("MLRun version: {}".format(str(Version().get())))
+    print(f"MLRun version: {str(Version().get())}")
 
 
 @main.command()
@@ -627,7 +627,7 @@ def logs(uid, project, offset, db, watch):
             print(text.decode())
 
     if state:
-        print("final state: {}".format(state))
+        print(f"final state: {state}")
 
 
 @main.command()
@@ -692,11 +692,8 @@ def project(
         mlconf.dbpath = db
 
     proj = load_project(context, url, name, init_git=init_git, clone=clone)
-    print(
-        "Loading project {}{} into {}:\n".format(
-            proj.name, " from " + url if url else "", context
-        )
-    )
+    url_str = " from " + url if url else ""
+    print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
     if artifact_path and not ("://" in artifact_path or artifact_path.startswith("/")):
         artifact_path = path.abspath(artifact_path)
@@ -721,7 +718,7 @@ def project(
         if arguments:
             args = fill_params(arguments)
 
-        print("running workflow {} file: {}".format(run, workflow_path))
+        print(f"running workflow {run} file: {workflow_path}")
         message = run = ""
         had_error = False
         try:
@@ -736,23 +733,23 @@ def project(
             )
         except Exception as e:
             print(traceback.format_exc())
-            message = "failed to run pipeline, {}".format(e)
+            message = f"failed to run pipeline, {e}"
             had_error = True
             print(message)
-        print("run id: {}".format(run))
+        print(f"run id: {run}")
 
         gitops = git_repo and git_issue
         if gitops:
             if not had_error:
-                message = "Pipeline started id={}".format(run)
+                message = f"Pipeline started id={run}"
                 if proj.params and "commit" in proj.params:
-                    message += ", commit={}".format(proj.params["commit"])
+                    message += f", commit={proj.params['commit']}"
                 if mlconf.resolve_ui_url():
-                    temp = (
+                    message_template = (
                         '<div><a href="{}/{}/{}/jobs" target='
                         + ' "_blank">click here to check progress</a></div>'
                     )
-                    message += temp.format(
+                    message += message_template.format(
                         mlconf.resolve_ui_url(), mlconf.ui.projects_prefix, proj.name
                     )
             pr_comment(
@@ -857,7 +854,7 @@ def fill_params(params, params_dict=None):
             continue
         key, value = param[:i].strip(), param[i + 1 :].strip()
         if key is None:
-            raise ValueError("cannot find param key in line ({})".format(param))
+            raise ValueError(f"cannot find param key in line ({param})")
         params_dict[key] = py_eval(value)
     return params_dict
 
@@ -883,10 +880,10 @@ def line2keylist(lines: list, keyname="key", valname="path"):
     for line in lines:
         i = line.find("=")
         if i == -1:
-            raise ValueError('cannot find "=" in line ({}={})'.format(keyname, valname))
+            raise ValueError(f'cannot find "=" in line ({keyname}={valname})')
         key, value = line[:i].strip(), line[i + 1 :].strip()
         if key is None:
-            raise ValueError("cannot find key in line ({}={})".format(keyname, valname))
+            raise ValueError(f"cannot find key in line ({keyname}={valname})")
         value = path.expandvars(value)
         out += [{keyname: key, valname: value}]
     return out
@@ -902,25 +899,25 @@ def time_str(x):
 def dict_to_str(struct: dict):
     if not struct:
         return []
-    return ",".join(["{}={}".format(k, v) for k, v in struct.items()])
+    return ",".join([f"{k}={v}" for k, v in struct.items()])
 
 
 def func_url_to_runtime(func_url):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]
-            project, name, tag, hash_key = parse_versioned_object_uri(func_url)
-            mldb = get_run_db(mlconf.dbpath)
-            runtime = mldb.get_function(name, project, tag, hash_key)
+            project_instance, name, tag, hash_key = parse_versioned_object_uri(func_url)
+            run_db = get_run_db(mlconf.dbpath)
+            runtime = run_db.get_function(name, project_instance, tag, hash_key)
         else:
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
     except Exception as e:
-        logger.error("function {} not found, {}".format(func_url, e))
+        logger.error(f"function {func_url} not found, {e}")
         return None
 
     if not runtime:
-        logger.error("function {} not found or is null".format(func_url))
+        logger.error(f"function {func_url} not found or is null")
         return None
 
     return runtime

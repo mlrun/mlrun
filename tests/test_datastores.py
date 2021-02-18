@@ -71,7 +71,7 @@ def test_file():
 
         expected = ["test1.txt", "x.txt", "k2.csv"]
         for a in expected:
-            assert a in alist, "artifact {} was not generated".format(a)
+            assert a in alist, f"artifact {a} was not generated"
 
         new_fd = mlrun.run.get_dataitem(tmpdir + "/k2.csv").as_df()
 

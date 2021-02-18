@@ -159,7 +159,7 @@ class HTTPRunDB(RunDBInterface):
                 method, url, timeout=timeout, verify=False, **kw
             )
         except requests.RequestException as err:
-            error = error or "{} {}, error: {}".format(method, url, err)
+            error = error or f"{method} {url}, error: {err}"
             raise RunDBError(error) from err
 
         if not resp.ok:
@@ -170,13 +170,13 @@ class HTTPRunDB(RunDBInterface):
                 except Exception:
                     reason = ""
             if reason:
-                error = error or "{} {}, error: {}".format(method, url, reason)
+                error = error or f"{method} {url}, error: {reason}"
                 raise RunDBError(error)
 
             try:
                 resp.raise_for_status()
             except requests.RequestException as err:
-                error = error or "{} {}, error: {}".format(method, url, err)
+                error = error or f"{method} {url}, error: {err}"
                 raise RunDBError(error) from err
 
         return resp
@@ -206,9 +206,7 @@ class HTTPRunDB(RunDBInterface):
                 and server_cfg["namespace"] != config.namespace
             ):
                 logger.warning(
-                    "warning!, server ({}) and client ({}) namespace dont match".format(
-                        server_cfg["namespace"], config.namespace
-                    )
+                    f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace}) namespace dont match"
                 )
 
             # get defaults from remote server
@@ -477,7 +475,7 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or default_project
         tag = tag or "latest"
-        path = "projects/{}/artifact/{}?tag={}".format(project, key, tag)
+        path = f"projects/{project}/artifact/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
         params = {"iter": str(iter)} if iter else {}
         resp = self.api_call("GET", path, error, params=params)
@@ -829,11 +827,11 @@ class HTTPRunDB(RunDBInterface):
                 req["mlrun_version_specifier"] = mlrun_version_specifier
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
-            logger.error("error submitting build task: {}".format(err))
-            raise OSError("error: cannot submit build, {}".format(err))
+            logger.error(f"error submitting build task: {err}")
+            raise OSError(f"error: cannot submit build, {err}")
 
         if not resp.ok:
-            logger.error("bad resp!!\n{}".format(resp.text))
+            logger.error(f"bad resp!!\n{resp.text}")
             raise ValueError("bad function run response")
 
         return resp.json()
@@ -869,11 +867,11 @@ class HTTPRunDB(RunDBInterface):
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
-            logger.error("error getting build status: {}".format(err))
-            raise OSError("error: cannot get build status, {}".format(err))
+            logger.error(f"error getting build status: {err}")
+            raise OSError(f"error: cannot get build status, {err}")
 
         if not resp.ok:
-            logger.warning("failed resp, {}".format(resp.text))
+            logger.warning(f"failed resp, {resp.text}")
             raise RunDBError("bad function build response")
 
         if resp.headers:
@@ -909,11 +907,11 @@ class HTTPRunDB(RunDBInterface):
                 timeout=int(config.submit_timeout) or 60,
             )
         except OSError as err:
-            logger.error("error starting function: {}".format(err))
-            raise OSError("error: cannot start function, {}".format(err))
+            logger.error(f"error starting function: {err}")
+            raise OSError(f"error: cannot start function, {err}")
 
         if not resp.ok:
-            logger.error("bad resp!!\n{}".format(resp.text))
+            logger.error(f"bad resp!!\n{resp.text}")
             raise ValueError("bad function start response")
 
         return schemas.BackgroundTask(**resp.json())
@@ -940,11 +938,11 @@ class HTTPRunDB(RunDBInterface):
             req = {"kind": kind, "selector": selector}
             resp = self.api_call("POST", "status/function", json=req)
         except OSError as err:
-            logger.error("error starting function: {}".format(err))
-            raise OSError("error: cannot start function, {}".format(err))
+            logger.error(f"error starting function: {err}")
+            raise OSError(f"error: cannot start function, {err}")
 
         if not resp.ok:
-            logger.error("bad resp!!\n{}".format(resp.text))
+            logger.error(f"bad resp!!\n{resp.text}")
             raise ValueError("bad function status response")
 
         return resp.json()["data"]
@@ -968,12 +966,12 @@ class HTTPRunDB(RunDBInterface):
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
         except OSError as err:
-            logger.error("error submitting task: {}".format(err))
-            raise OSError("error: cannot submit task, {}".format(err))
+            logger.error(f"error submitting task: {err}")
+            raise OSError(f"error: cannot submit task, {err}")
 
         if not resp.ok:
-            logger.error("bad resp!!\n{}".format(resp.text))
-            raise ValueError("bad function run response, {}".format(resp.text))
+            logger.error(f"bad resp!!\n{resp.text}")
+            raise ValueError(f"bad function run response, {resp.text}")
 
         resp = resp.json()
         return resp["data"]
@@ -1022,7 +1020,7 @@ class HTTPRunDB(RunDBInterface):
             headers["pipeline-arguments"] = str(arguments)
 
         if not path.isfile(pipe_file):
-            raise OSError("file {} doesnt exist".format(pipe_file))
+            raise OSError(f"file {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
         if not isinstance(pipeline, str):
@@ -1039,15 +1037,15 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error("error cannot submit pipeline: {}".format(err))
-            raise OSError("error: cannot cannot submit pipeline, {}".format(err))
+            logger.error(f"error cannot submit pipeline: {err}")
+            raise OSError(f"error: cannot cannot submit pipeline, {err}")
 
         if not resp.ok:
-            logger.error("bad resp!!\n{}".format(resp.text))
-            raise ValueError("bad submit pipeline response, {}".format(resp.text))
+            logger.error(f"bad resp!!\n{resp.text}")
+            raise ValueError(f"bad submit pipeline response, {resp.text}")
 
         resp = resp.json()
-        logger.info("submitted pipeline {} id={}".format(resp["name"], resp["id"]))
+        logger.info(f"submitted pipeline {resp['name']} id={resp['id']}")
         return resp["id"]
 
     def list_pipelines(
@@ -1107,17 +1105,15 @@ class HTTPRunDB(RunDBInterface):
         try:
             query = ""
             if namespace:
-                query = "namespace={}".format(namespace)
-            resp = self.api_call(
-                "GET", "pipelines/{}?{}".format(run_id, query), timeout=timeout
-            )
+                query = f"namespace={namespace}"
+            resp = self.api_call("GET", f"pipelines/{run_id}?{query}", timeout=timeout)
         except OSError as err:
-            logger.error("error cannot get pipeline: {}".format(err))
-            raise OSError("error: cannot get pipeline, {}".format(err))
+            logger.error(f"error cannot get pipeline: {err}")
+            raise OSError(f"error: cannot get pipeline, {err}")
 
         if not resp.ok:
-            logger.error("bad resp!!\n{}".format(resp.text))
-            raise ValueError("bad get pipeline response, {}".format(resp.text))
+            logger.error(f"bad resp!!\n{resp.text}")
+            raise ValueError(f"bad get pipeline response, {resp.text}")
 
         return resp.json()
 

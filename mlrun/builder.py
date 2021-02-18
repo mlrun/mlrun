@@ -32,21 +32,21 @@ def make_dockerfile(
     workdir="/mlrun",
     extra="",
 ):
-    dock = "FROM {}\n".format(base_image)
+    dock = f"FROM {base_image}\n"
 
     build_args = config.get_build_args()
     for build_arg_key, build_arg_value in build_args.items():
-        dock += "ARG {}={}\n".format(build_arg_key, build_arg_value)
+        dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
     if src_dir:
-        dock += "RUN mkdir -p {}\n".format(workdir)
-        dock += "WORKDIR {}\n".format(workdir)
-        dock += "ADD {} {}\n".format(src_dir, workdir)
-        dock += "ENV PYTHONPATH {}\n".format(workdir)
+        dock += f"RUN mkdir -p {workdir}\n"
+        dock += f"WORKDIR {workdir}\n"
+        dock += "ADD {src_dir} {workdir}\n"
+        dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
-        dock += "RUN pip install -r {}\n".format(requirements)
+        dock += f"RUN pip install -r {requirements}\n"
     if commands:
-        dock += "".join(["RUN {}\n".format(b) for b in commands])
+        dock += "".join([f"RUN {command}\n" for command in commands])
     if extra:
         dock += extra
     print(dock)
@@ -150,7 +150,7 @@ def build_image(
 ):
 
     if registry:
-        dest = "{}/{}".format(registry, dest)
+        dest = "/".join([registry, dest])
     elif dest.startswith("."):
         dest = dest[1:]
         registry, _ = get_parsed_docker_registry()
@@ -160,7 +160,7 @@ def build_image(
                 "Default docker registry is not defined, set "
                 "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
             )
-        dest = "{}/{}".format(registry, dest)
+        dest = "/".join([registry, dest])
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -233,10 +233,8 @@ def build_image(
         return k8s.run_job(kpod)
     else:
         pod, ns = k8s.create_pod(kpod)
-        logger.info(
-            'started build, to watch build logs use "mlrun watch {} {}"'.format(pod, ns)
-        )
-        return "build:{}".format(pod)
+        logger.info(f'started build, to watch build logs use "mlrun watch {pod} {ns}"')
+        return f"build:{pod}"
 
 
 def _resolve_mlrun_install_command(mlrun_version_specifier):
@@ -267,7 +265,7 @@ def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=Fals
         )
     logger.info(f"building image ({build.image})")
 
-    name = normalize_name("mlrun-build-{}".format(runtime.metadata.name))
+    name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
     base_image = enrich_image_url(build.base_image or "mlrun/mlrun")
     if not build.base_image:
         with_mlrun = False
@@ -298,9 +296,9 @@ def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=Fals
         runtime.status.build_pod = status[6:]
         return False
 
-    logger.info("build completed with {}".format(status))
+    logger.info(f"build completed with {status}")
     if status in ["failed", "error"]:
-        raise ValueError(" build {}!".format(status))
+        raise ValueError(f" build {status}!")
 
     local = "" if build.secret or build.image.startswith(".") else "."
     runtime.spec.image = local + build.image

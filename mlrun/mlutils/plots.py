@@ -196,7 +196,7 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
         x = np.linspace(0.01, 1)
         y = f_score * x / (2 * x - f_score)
         (l,) = plt.plot(x[y >= 0], y[y >= 0], color="gray", alpha=0.2)
-        plt.annotate("f1={0:0.1f}".format(f_score), xy=(0.9, y[45] + 0.02))
+        plt.annotate(f"f1={f_score:0.1f}", xy=(0.9, y[45] + 0.02))
 
     lines.append(l)
     labels.append("iso-f1 curves")
@@ -262,7 +262,7 @@ def roc_multi(ytest_b, yprob, labels):
     plt.plot(
         fpr["micro"],
         tpr["micro"],
-        label="micro-average ROC curve (area = {0:0.2f})" "".format(roc_auc["micro"]),
+        label=f"micro-average ROC curve (area = {roc_auc['micro']:0.2f})",
         color="deeppink",
         linestyle=":",
         linewidth=4,
@@ -271,7 +271,7 @@ def roc_multi(ytest_b, yprob, labels):
     plt.plot(
         fpr["macro"],
         tpr["macro"],
-        label="macro-average ROC curve (area = {0:0.2f})" "".format(roc_auc["macro"]),
+        label=f"macro-average ROC curve (area = {roc_auc['macro']:0.2f})",
         color="navy",
         linestyle=":",
         linewidth=4,
@@ -284,7 +284,7 @@ def roc_multi(ytest_b, yprob, labels):
             tpr[i],
             color=color,
             lw=2,
-            label="ROC curve of class {0} (area = {1:0.2f})" "".format(i, roc_auc[i]),
+            label=f"ROC curve of class {i} (area = {roc_auc[i]:0.2f})",
         )
 
     plt.plot([0, 1], [0, 1], "k--", lw=2)
@@ -476,7 +476,7 @@ def eval_class_model(
             x = np.linspace(0.01, 1)
             y = f_score * x / (2 * x - f_score)
             (l,) = plt.plot(x[y >= 0], y[y >= 0], color="gray", alpha=0.2)
-            plt.annotate("f1={0:0.1f}".format(f_score), xy=(0.9, y[45] + 0.02))
+            plt.annotate(f"f1={f_score:0.1f}", xy=(0.9, y[45] + 0.02))
 
         lines.append(l)
         labels.append("iso-f1 curves")
@@ -537,8 +537,7 @@ def eval_class_model(
         plt.plot(
             fpr["micro"],
             tpr["micro"],
-            label="micro-average ROC curve (area = {0:0.2f})"
-            "".format(roc_auc["micro"]),
+            label=f"micro-average ROC curve (area = {roc_auc['micro']:0.2f})",
             color="deeppink",
             linestyle=":",
             linewidth=4,
@@ -547,8 +546,7 @@ def eval_class_model(
         plt.plot(
             fpr["macro"],
             tpr["macro"],
-            label="macro-average ROC curve (area = {0:0.2f})"
-            "".format(roc_auc["macro"]),
+            label=f"macro-average ROC curve (area = {roc_auc['macro']:0.2f})",
             color="navy",
             linestyle=":",
             linewidth=4,
@@ -561,8 +559,7 @@ def eval_class_model(
                 tpr[i],
                 color=color,
                 lw=2,
-                label="ROC curve of class {0} (area = {1:0.2f})"
-                "".format(i, roc_auc[i]),
+                label=f"ROC curve of class {i} (area = {roc_auc[i]:0.2f})",
             )
 
         plt.plot([0, 1], [0, 1], "k--", lw=2)

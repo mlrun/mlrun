@@ -108,7 +108,7 @@ async def build_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.info("build_function:\n{}".format(data))
+    logger.info(f"build_function:\n{data}")
     function = data.get("function")
     with_mlrun = strtobool(data.get("with_mlrun", "on"))
     mlrun_version_specifier = data.get("mlrun_version_specifier")
@@ -237,15 +237,15 @@ def build_status(
             },
         )
 
-    logger.info("get pod {} status".format(pod))
+    logger.info(f"get pod {pod} status")
     state = get_k8s().get_pod_status(pod)
-    logger.info("pod state={}".format(state))
+    logger.info(f"pod state={state}")
 
     if state == "succeeded":
         logger.info("build completed successfully")
         state = "ready"
     if state in ["failed", "error"]:
-        logger.error("build {}, watch the build pod logs: {}".format(state, pod))
+        logger.error(f"build {state}, watch the build pod logs: {pod}")
 
     if logs and state != "pending":
         resp = get_k8s().logs(pod)
@@ -292,9 +292,7 @@ def _build_function(db_session, function, with_mlrun, mlrun_version_specifier):
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
     return fn, ready
 
 
@@ -311,7 +309,7 @@ def _parse_start_function_body(db_session, data):
     if not runtime:
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: function {} not found".format(url),
+            reason=f"runtime error: function {url} not found",
         )
 
     return new_function(runtime=runtime)
@@ -335,15 +333,13 @@ def _start_function(function):
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:
             logger.error(traceback.format_exc())
-            log_and_raise(
-                HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
-            )
+            log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
     finally:
         mlrun.api.db.session.close_session(db_session)
 
 
 def _get_function_status(data):
-    logger.info("function_status:\n{}".format(data))
+    logger.info(f"function_status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
@@ -365,6 +361,4 @@ def _get_function_status(data):
         logger.info("status: %s", resp)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")

@@ -28,7 +28,7 @@ def create_or_update_version_file(mlrun_version):
     try:
         out = _run_command("git", args=["rev-parse", "HEAD"])
         git_commit = out.strip()
-        logger.debug(f"Found git commit: {git_commit}")
+        logger.debug("Found git commit: {}".format(git_commit))
 
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
@@ -44,7 +44,7 @@ def create_or_update_version_file(mlrun_version):
     version_file_path = os.path.join(
         repo_root, "mlrun", "utils", "version", "version.json"
     )
-    logger.info(f"Writing version info to file: {str(version_info)}")
+    logger.info("Writing version info to file: {}".format(str(version_info)))
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 

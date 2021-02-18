@@ -413,7 +413,7 @@ class FileRunDB(RunDBInterface):
         if tag:
             key = "/" + key
         project = project or config.default_project
-        return path.join(self.dirpath, table, project, tag, key)
+        return path.join(self.dirpath, table, project, tag + key)
 
     def list_projects(
         self,

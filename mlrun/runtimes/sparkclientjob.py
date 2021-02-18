@@ -72,9 +72,7 @@ class SparkClientRuntime(KubejobRuntime):
 
     def with_igz_spark(self, spark_service):
         self.spec.igz_spark = True
-        self.spec.env.append(
-            {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
-        )
+        self.spec.env.append({"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"})
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(

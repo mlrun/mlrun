@@ -11,42 +11,6 @@ from mlrun.utils.v3io_clients import get_frames_client
 router = APIRouter()
 
 
-def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Looks for target field Grafana's SimpleJson query json body, parses semi-colon separated (;), key-value
-    queries.
-    """
-    targets = request_body.get("targets", [])
-    target_obj = targets[0] if targets else {}
-    target_query = target_obj.get("target") if target_obj else ""
-
-    if not target_query:
-        raise Exception(f"target missing in request body:\n {request_body}")
-
-    parameters = {}
-    for query in target_query.split(";"):
-        query_parts = query.split("=")
-        if len(query_parts) < 2:
-            raise Exception(
-                f"Query must contain both query key and query value. Expected query_key=query_value, "
-                f"found {query} instead."
-            )
-
-    return parameters
-
-
-def _validate_query_parameters(query_parameters: Dict[str, str]):
-    """Validates the parameters sent via Grafana's SimpleJson query"""
-    if "target_endpoint" not in query_parameters:
-        raise Exception(
-            f"Expected 'target_endpoint' field in query, found {query_parameters} instead"
-        )
-    if query_parameters["target_endpoint"] not in DISPATCH:
-        raise Exception(
-            f"{query_parameters['target_endpoint']} unsupported. Currently supported: {','.join(DISPATCH.keys())}"
-        )
-
-
 @router.get("/projects/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
 def grafana_proxy_model_endpoints_check_connection(request: Request):
     """
@@ -92,17 +56,6 @@ def grafana_endpoint_features(
         address=config.v3io_framesd,
         container=config.model_endpoint_monitoring.container,
     )
-
-    # project = query_parameters.get("project")
-    # v3io_client = get_v3io_client(endpoint=config.v3io_api)
-    # features = v3io_client.kv.get(
-    #     container="projects",
-    #     table_path=f"{project}/model-describe",
-    #     key="endpoint_id"
-    # ).output.item
-    #
-    # if features:
-    #     features = features.get("features", {})
 
     results = frames_client.read(
         "tsdb",
@@ -213,6 +166,42 @@ def grafana_list_endpoints(
         rows.append(row)
 
     return [GrafanaTable(columns=columns, rows=rows)]
+
+
+def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Looks for target field Grafana's SimpleJson query json body, parses semi-colon separated (;), key-value
+    queries.
+    """
+    targets = request_body.get("targets", [])
+    target_obj = targets[0] if targets else {}
+    target_query = target_obj.get("target") if target_obj else ""
+
+    if not target_query:
+        raise Exception(f"target missing in request body:\n {request_body}")
+
+    parameters = {}
+    for query in target_query.split(";"):
+        query_parts = query.split("=")
+        if len(query_parts) < 2:
+            raise Exception(
+                f"Query must contain both query key and query value. Expected query_key=query_value, "
+                f"found {query} instead."
+            )
+
+    return parameters
+
+
+def _validate_query_parameters(query_parameters: Dict[str, str]):
+    """Validates the parameters sent via Grafana's SimpleJson query"""
+    if "target_endpoint" not in query_parameters:
+        raise Exception(
+            f"Expected 'target_endpoint' field in query, found {query_parameters} instead"
+        )
+    if query_parameters["target_endpoint"] not in DISPATCH:
+        raise Exception(
+            f"{query_parameters['target_endpoint']} unsupported. Currently supported: {','.join(DISPATCH.keys())}"
+        )
 
 
 DISPATCH: Dict[

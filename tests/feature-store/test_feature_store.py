@@ -13,7 +13,7 @@ from mlrun.feature_store.steps import FeaturesetValidator
 from data_sample import quotes, stocks, trades
 from storey import MapClass
 
-from mlrun.datastore.targets import CSVTarget
+from mlrun.targets import CSVTarget
 from mlrun.utils import logger
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf

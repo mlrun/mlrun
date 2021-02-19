@@ -24,7 +24,7 @@ from ...model import ModelObj, ObjectList
 from ...config import config as mlconf
 from ...runtimes.function_reference import FunctionReference
 from ...serving.states import RootFlowState
-from mlrun.datastore.targets import get_offline_target, ParquetTarget, CSVTarget
+from mlrun.targets import get_offline_target, ParquetTarget, CSVTarget
 from ...datastore import get_store_uri
 from ...utils import StorePrefix
 

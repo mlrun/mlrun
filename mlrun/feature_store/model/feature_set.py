@@ -24,7 +24,7 @@ from .base import (
     DataTargetBase,
     CommonMetadata,
 )
-from mlrun.datastore.targets import get_offline_target, default_target_names
+from ...targets import get_offline_target, default_target_names
 from ...model import ModelObj, ObjectList
 from ...runtimes.function_reference import FunctionReference
 from ...serving.states import BaseState, RootFlowState, previous_step

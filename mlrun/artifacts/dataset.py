@@ -23,6 +23,7 @@ from pandas.io.json import build_table_schema
 
 from .base import Artifact
 from ..datastore import store_manager, is_store_uri
+from ..datastore.targets import kind_to_driver
 
 default_preview_rows_length = 20
 max_preview_columns = 100
@@ -285,7 +286,7 @@ def upload_dataframe(df, target_path, format, src_path=None, **kw):
     if format in ["csv", "parquet"]:
         if not suffix:
             target_path = target_path + "." + format
-        target_class = mlrun.feature_store.targets.kind_to_driver[format]
+        target_class = kind_to_driver[format]
         return target_class(path=target_path).write_datafreme(df, **kw)
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

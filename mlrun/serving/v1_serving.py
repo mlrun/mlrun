@@ -234,13 +234,13 @@ class HTTPHandler:
             else:
                 parsed_event = body
 
-        except Exception as e:
+        except Exception as exc:
             if event.content_type.startswith("image/"):
                 sample = BytesIO(event.body)
                 parsed_event["instances"].append(sample)
                 parsed_event["content_type"] = event.content_type
             else:
-                raise Exception("Unrecognized request format: %s" % e)
+                raise Exception(f"Unrecognized request format: {exc}")
 
         return parsed_event
 
@@ -332,9 +332,9 @@ class ExplainHandler(HTTPHandler):
         model = self.get_model_class(name)
         try:
             body = json.loads(event.body)
-        except json.decoder.JSONDecodeError as e:
+        except json.decoder.JSONDecodeError as exc:
             return context.Response(
-                body="Unrecognized request format: %s" % e,
+                body=f"Unrecognized request format: {exc}",
                 content_type="text/plain",
                 status_code=400,
             )

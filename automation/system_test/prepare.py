@@ -139,11 +139,11 @@ class SystemTestPreparer:
                 stdout, stderr, exit_status = self._run_command_remotely(
                     command, args, workdir, stdin, live, suppress_errors
                 )
-        except (paramiko.SSHException, RuntimeError) as e:
+        except (paramiko.SSHException, RuntimeError) as exc:
             self._logger.error(
                 f"Failed running command {log_command_location}",
                 command=command,
-                error=e,
+                error=exc,
                 stdout=stdout,
                 stderr=stderr,
                 exit_status=exit_status,

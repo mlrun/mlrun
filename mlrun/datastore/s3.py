@@ -43,9 +43,11 @@ class S3Store(DataStore):
             return self._filesystem
         try:
             import s3fs  # noqa
-        except ImportError as e:
+        except ImportError as exc:
             if not silent:
-                raise ImportError(f"AWS s3fs not installed, run pip install s3fs, {e}")
+                raise ImportError(
+                    f"AWS s3fs not installed, run pip install s3fs, {exc}"
+                )
             return None
         self._filesystem = fsspec.filesystem("s3", **self.get_storage_options())
         return self._filesystem

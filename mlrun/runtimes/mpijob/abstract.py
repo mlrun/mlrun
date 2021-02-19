@@ -188,9 +188,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             name = get_in(resp, "metadata.name", "unknown")
             logger.info(f"MpiJob {name} created")
             return resp
-        except client.rest.ApiException as e:
-            logger.error(f"Exception when creating MPIJob: {e}")
-            raise RunError(f"Exception when creating MPIJob: {e}")
+        except client.rest.ApiException as exc:
+            logger.error(f"Exception when creating MPIJob: {exc}")
+            raise RunError(f"Exception when creating MPIJob: {exc}")
 
     def delete_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
@@ -204,8 +204,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             )
             deletion_status = get_in(resp, "status", "unknown")
             logger.info(f"del status: {deletion_status}")
-        except client.rest.ApiException as e:
-            print(f"Exception when deleting MPIJob: {e}")
+        except client.rest.ApiException as exc:
+            print(f"Exception when deleting MPIJob: {exc}")
 
     def list_jobs(self, namespace=None, selector="", show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
@@ -220,8 +220,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 watch=False,
                 label_selector=selector,
             )
-        except client.rest.ApiException as e:
-            print("Exception when reading MPIJob: %s" % e)
+        except client.rest.ApiException as exc:
+            print(f"Exception when reading MPIJob: {exc}")
 
         items = []
         if resp:
@@ -238,8 +238,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.get_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name
             )
-        except client.rest.ApiException as e:
-            print("Exception when reading MPIJob: %s" % e)
+        except client.rest.ApiException as exc:
+            print(f"Exception when reading MPIJob: {exc}")
         return resp
 
     def get_pods(self, name=None, namespace=None, launcher=False):

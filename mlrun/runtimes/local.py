@@ -215,8 +215,8 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                 os.chdir(cwd)
             val = handler(*args_list)
             context.set_state("completed", commit=False)
-        except Exception as e:
-            err = str(e)
+        except Exception as exc:
+            err = str(exc)
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)

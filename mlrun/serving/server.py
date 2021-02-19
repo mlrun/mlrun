@@ -218,8 +218,8 @@ def v2_serving_handler(context, event, get_body=False):
 
     try:
         response = context.root.run(event)
-    except Exception as e:
-        message = str(e)
+    except Exception as exc:
+        message = str(exc)
         if context.server_context.verbose:
             message += "\n" + str(traceback.format_exc())
         context.logger.error(f"run error, {traceback.format_exc()}")

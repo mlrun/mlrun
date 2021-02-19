@@ -650,8 +650,8 @@ def eval_model_v2(
         try:
             ytest = ytest.values
             unique_labels = np.unique(ytest)
-        except Exception as e:
-            raise Exception(f"unrecognized data type for ytest {e}")
+        except Exception as exc:
+            raise Exception(f"unrecognized data type for ytest {exc}")
 
     n_classes = len(unique_labels)
     is_multiclass = True if n_classes > 2 else False

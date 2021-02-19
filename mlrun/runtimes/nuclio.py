@@ -79,7 +79,7 @@ def nuclio_jobs_handler(context, event):
         val = fhandler(*args)
         if val:
             ctx.log_result("return", val)
-    except Exception as e:
-        err = str(e)
+    except Exception as exc:
+        err = str(exc)
         ctx.set_state(error=err)
     return ctx.to_json()

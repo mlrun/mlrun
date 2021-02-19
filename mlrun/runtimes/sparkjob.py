@@ -397,10 +397,10 @@ class SparkRuntime(KubejobRuntime):
             name = get_in(resp, "metadata.name", "unknown")
             logger.info(f"SparkJob {name} created")
             return resp
-        except ApiException as e:
+        except ApiException as exc:
             crd = f"{SparkRuntime.group}/{SparkRuntime.version}/{SparkRuntime.plural}"
-            logger.error(f"Exception when creating SparkJob ({crd}): {e}")
-            raise RunError("Exception when creating SparkJob: %s" % e)
+            logger.error(f"Exception when creating SparkJob ({crd}): {exc}")
+            raise RunError(f"Exception when creating SparkJob: {exc}")
 
     def get_job(self, name, namespace=None):
         k8s = self._get_k8s()
@@ -413,8 +413,8 @@ class SparkRuntime(KubejobRuntime):
                 SparkRuntime.plural,
                 name,
             )
-        except ApiException as e:
-            print("Exception when reading SparkJob: %s" % e)
+        except ApiException as exc:
+            print(f"Exception when reading SparkJob: {exc}")
         return resp
 
     def _update_igz_jars(self, deps=igz_deps):

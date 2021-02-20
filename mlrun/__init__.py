@@ -95,7 +95,7 @@ def set_environment(
     """
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:
-        raise ValueError("DB/API path was not detected, please specify its address")
+        raise ValueError("DB/API path not detected. Please specify one of the addresses")
 
     # check connectivity and load remote defaults
     get_run_db()
@@ -112,7 +112,7 @@ def set_environment(
     mlconf.default_project = project or mlconf.default_project
 
     if not mlconf.artifact_path and not artifact_path:
-        raise ValueError("please specify a valid artifact_path")
+        raise ValueError("Artifact path no detected. Please specify a valid artifact_path")
 
     if artifact_path:
         if artifact_path.startswith("./"):

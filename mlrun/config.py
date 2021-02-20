@@ -158,9 +158,15 @@ default_config = {
 
 
 class Config:
+    """
+    The main configuration object for MLRun
+    """
     _missing = object()
 
     def __init__(self, cfg=None):
+        self._kfp_image = None
+        self._dask_kfp_image = None
+        self._dbpath = None
         cfg = {} if cfg is None else cfg
 
         # Can't use self._cfg = cfg → infinite recursion

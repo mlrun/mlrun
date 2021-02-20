@@ -118,7 +118,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
 @router.get(
     "/projects/{project}/model-endpoints", response_model=ModelEndpointStateList
 )
-def list_endpoints(
+def list_endpoints_endpoint(
     request: Request,
     project: str,
     model: Optional[str] = Query(None),
@@ -129,6 +129,23 @@ def list_endpoints(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
 ):
+    access_key = get_access_key(request)
+    return list_endpoints(
+        access_key, project, model, function, tag, labels, start, end, metrics
+    )
+
+
+def list_endpoints(
+    access_key: str,
+    project: str,
+    model: Optional[str] = Query(None),
+    function: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+    labels: List[str] = Query([], alias="label"),
+    start: str = Query(default="now-1h"),
+    end: str = Query(default="now"),
+    metrics: List[str] = Query([], alias="metric"),
+) -> ModelEndpointStateList:
     """
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
     Lables can be used to filter on the existance of a label:
@@ -143,7 +160,6 @@ def list_endpoints(
     Or by using a `,` (comma) seperator:
     `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
     """
-    access_key = get_access_key(request)
     client = get_v3io_client(endpoint=config.v3io_api)
     cursor = client.kv.new_cursor(
         container=config.model_endpoint_monitoring.container,
@@ -199,7 +215,7 @@ def list_endpoints(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     response_model=ModelEndpointState,
 )
-def get_endpoint(
+def get_endpoint_endpoint(
     request: Request,
     project: str,
     endpoint_id: str,
@@ -208,13 +224,25 @@ def get_endpoint(
     metrics: List[str] = Query([], alias="metric"),
     features: bool = Query(default=False),
 ):
+    access_key = get_access_key(request)
+    _verify_endpoint(project, endpoint_id)
+    return get_endpoint(access_key, project, endpoint_id, start, end, metrics, features)
+
+
+def get_endpoint(
+    access_key: str,
+    project: str,
+    endpoint_id: str,
+    start: str = Query(default="now-1h"),
+    end: str = Query(default="now"),
+    metrics: List[str] = Query([], alias="metric"),
+    features: bool = Query(default=False),
+) -> ModelEndpointState:
     """
     Return the current state of an endpoint, meaning all additional data the is relevant to a specified endpoint.
     This function also takes into account the start and end times and uses the same time-querying as v3io-frames.
     """
 
-    _verify_endpoint(project, endpoint_id)
-    access_key = get_access_key(request)
     endpoint = get_endpoint_kv_record_by_id(
         access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES,
     )
@@ -233,12 +261,6 @@ def get_endpoint(
             end=end,
             name=metrics,
         )
-
-    # endpoint_features = None
-    # if features:
-    #     endpoint_features = _get_endpoint_features(
-    #         project=project, endpoint_id=endpoint_id, features=endpoint.get("features")
-    #     )
 
     return ModelEndpointState(
         endpoint=ModelEndpoint(

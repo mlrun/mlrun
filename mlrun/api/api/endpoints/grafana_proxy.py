@@ -2,11 +2,11 @@ from http import HTTPStatus
 from typing import List, Dict, Any, Callable
 
 from fastapi import APIRouter, Response, Request
-from mlrun.errors import MLRunBadRequestError
 
 from mlrun.api.api.endpoints.model_endpoints import get_access_key, list_endpoints
 from mlrun.api.schemas import ModelEndpointStateList, GrafanaTable, GrafanaColumn
 from mlrun.config import config
+from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client
 
 router = APIRouter()
@@ -33,91 +33,39 @@ async def grafana_proxy_model_endpoints(request: Request) -> List[GrafanaTable]:
     This implementation requires passing `target_function` query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
+    access_key = get_access_key(request)
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
     _validate_query_parameters(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
-    # checks
-    target_function = query_parameters["target_function"]
-    result = DISPATCH[target_function](request, body, query_parameters)
+    # checks again.
+    target_function = query_parameters["target_endpoint"]
+    result = DISPATCH[target_function](body, query_parameters, access_key)
     return result
 
 
-def grafana_endpoint_features(
-    request: Request, body: Dict[str, Any], query_parameters: Dict[str, str]
-):
-    endpoint_id = query_parameters.get("endpoint_id")
-
-    start = body.get("rangeRaw", {}).get("start", "now-1h")
-    end = body.get("rangeRaw", {}).get("end", "now")
-
-    frames_client = get_frames_client(
-        token=get_access_key(request),
-        address=config.v3io_framesd,
-        container=config.model_endpoint_monitoring.container,
-    )
-
-    results = frames_client.read(
-        "tsdb",
-        "test/endpoint-features",
-        filter=f"endpoint_id=='{endpoint_id}'",
-        start=start,
-        end=end,
-    )
-
-    if results.empty:
-        return []
-
-    results.drop(["endpoint_id", "prediction"], inplace=True, axis=1)
-
-    columns = [
-        GrafanaColumn(text="feature_name", type="string"),
-        GrafanaColumn(text="actual_min", type="number"),
-        GrafanaColumn(text="actual_mean", type="number"),
-        GrafanaColumn(text="actual_max", type="number"),
-        GrafanaColumn(text="expected_min", type="number"),
-        GrafanaColumn(text="expected_mean", type="number"),
-        GrafanaColumn(text="expected_max", type="number"),
-    ]
-
-    rows = []
-    if not results.empty:
-        describes = results.describe().to_dict()
-        for feature, describe in describes.items():
-            rows.append(
-                [
-                    feature,
-                    describe["min"],
-                    describe["mean"],
-                    describe["max"],
-                    None,  # features.get(feature, {}).get("min", None),
-                    None,  # features.get(feature, {}).get("mean", None),
-                    None,  # features.get(feature, {}).get("max", None),
-                ]
-            )
-
-    return [GrafanaTable(columns=columns, rows=rows)]
-
-
 def grafana_list_endpoints(
-    request: Request, body: Dict[str, Any], query_parameters: Dict[str, str]
+    body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ) -> List[GrafanaTable]:
     project = query_parameters.get("project")
+
+    # Filters
     model = query_parameters.get("model", None)
     function = query_parameters.get("function", None)
     tag = query_parameters.get("tag", None)
     labels = query_parameters.get("labels", "")
     labels = labels.split(",") if labels else []
 
+    # Metrics to include
     metrics = query_parameters.get("metrics", "")
     metrics = metrics.split(",") if metrics else []
-
+    # Time range for metrics
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
 
     endpoint_list: ModelEndpointStateList = list_endpoints(
-        request, project, model, function, tag, labels, start, end, metrics,
+        access_key, project, model, function, tag, labels, start, end, metrics,
     )
 
     columns = [
@@ -169,6 +117,62 @@ def grafana_list_endpoints(
     return [GrafanaTable(columns=columns, rows=rows)]
 
 
+def grafana_endpoint_features(
+    body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
+):
+    endpoint_id = query_parameters.get("endpoint_id")
+
+    start = body.get("rangeRaw", {}).get("start", "now-1h")
+    end = body.get("rangeRaw", {}).get("end", "now")
+
+    frames_client = get_frames_client(
+        token=access_key,
+        address=config.v3io_framesd,
+        container=config.model_endpoint_monitoring.container,
+    )
+
+    results = frames_client.read(
+        "tsdb",
+        "test/endpoint-features",
+        filter=f"endpoint_id=='{endpoint_id}'",
+        start=start,
+        end=end,
+    )
+
+    if results.empty:
+        return []
+
+    results.drop(["endpoint_id", "prediction"], inplace=True, axis=1)
+
+    columns = [
+        GrafanaColumn(text="feature_name", type="string"),
+        GrafanaColumn(text="actual_min", type="number"),
+        GrafanaColumn(text="actual_mean", type="number"),
+        GrafanaColumn(text="actual_max", type="number"),
+        GrafanaColumn(text="expected_min", type="number"),
+        GrafanaColumn(text="expected_mean", type="number"),
+        GrafanaColumn(text="expected_max", type="number"),
+    ]
+
+    rows = []
+    if not results.empty:
+        describes = results.describe().to_dict()
+        for feature, describe in describes.items():
+            rows.append(
+                [
+                    feature,
+                    describe["min"],
+                    describe["mean"],
+                    describe["max"],
+                    None,  # features.get(feature, {}).get("min", None), TODO: Will be updated once
+                    None,  # features.get(feature, {}).get("mean", None),
+                    None,  # features.get(feature, {}).get("max", None),
+                ]
+            )
+
+    return [GrafanaTable(columns=columns, rows=rows)]
+
+
 def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     """
     This function searches for the `target` field in Grafana's `SimpleJson` json. Once located, the target string is
@@ -182,7 +186,7 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     target_query = target_obj.get("target") if target_obj else ""
 
     if not target_query:
-        raise MLRunBadRequestError(f"target missing in request body:\n {request_body}")
+        raise MLRunBadRequestError(f"Target missing in request body:\n {request_body}")
 
     parameters = {}
     for query in target_query.split(";"):
@@ -192,6 +196,7 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
                 f"Query must contain both query key and query value. Expected query_key=query_value, "
                 f"found {query} instead."
             )
+        parameters[query_parts[0]] = query_parts[1]
 
     return parameters
 
@@ -204,12 +209,13 @@ def _validate_query_parameters(query_parameters: Dict[str, str]):
         )
     if query_parameters["target_endpoint"] not in DISPATCH:
         raise MLRunBadRequestError(
-            f"{query_parameters['target_endpoint']} unsupported. Currently supported: {','.join(DISPATCH.keys())}"
+            f"{query_parameters['target_endpoint']} unsupported in query parameters: {query_parameters}. "
+            f"Currently supports: {','.join(DISPATCH.keys())}"
         )
 
 
 DISPATCH: Dict[
-    str, Callable[[Request, Dict[str, Any], Dict[str, str]], List[GrafanaTable]]
+    str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
 ] = {
     "list_endpoints": grafana_list_endpoints,
     "endpoint_features": grafana_endpoint_features,

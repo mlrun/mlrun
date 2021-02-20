@@ -287,7 +287,7 @@ def list2dict(lines: list):
 def dict_to_list(struct: dict):
     if not struct:
         return []
-    return ["=".join([k, v]) for k, v in struct.items()]
+    return ["=".join([k, str(v)]) for k, v in struct.items()]
 
 
 def dict_to_str(struct: dict, sep=","):

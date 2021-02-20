@@ -48,14 +48,16 @@ class MLCtxValueError(Exception):
 class MLClientCtx(object):
     """ML Execution Client Context
 
-    the context is generated using the ``function.run()`` or manually ``using get_or_create_ctx`` call (see its doc)
+    the context is generated and injected to the function using the ``function.run()``
+    or manually using the :py:func:`~mlrun.run.get_or_create_ctx` call
     and provides an interface to use run params, metadata, inputs, and outputs
 
     base metadata include: uid, name, project, and iteration (for hyper params)
-    users can set labels and annotations using ``set_labels()``, ``set_annotation()``
-    access parameters and secrets using ``get_param()``, ``get_secret()``
-    access input data objects using ``get_input()``
-    store results, artifacts, and real-time metrics using log_xx methods
+    users can set labels and annotations using :py:func:`~set_label`, :py:func:`~set_annotation`
+    access parameters and secrets using :py:func:`~get_param`, :py:func:`~get_secret`
+    access input data objects using :py:func:`~get_input`
+    store results, artifacts, and real-time metrics using the :py:func:`~log_result`,
+    :py:func:`~log_artifact`, :py:func:`~log_dataset` and :py:func:`~log_model` methods
 
     see doc for the individual params and methods
     """
@@ -96,61 +98,102 @@ class MLClientCtx(object):
         self._start_time = now_date()
         self._last_update = now_date()
         self._iteration_results = None
-        self._child = []
-        self._updated_child = False
+        self._children = []
+        self._parent = None
 
-    def get_child(self, **params):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if exc_value:
+            self.set_state(error=exc_value, commit=False)
+        self.commit(completed=exc_value is None)
+
+    def get_child(self, with_parent_params=False, **params):
         """get child context (iteration)
 
         allow sub experiments (epochs, hyper-param, ..) under a parent
         will create a new iteration, log_xx will update the child only
         use commit_children() to save all the children and specify the best run
 
+        example::
+
+            def handler(context: mlrun.MLClientCtx):
+                for i in range(5):
+                    with context.get_child(myparam=i*2) as child:
+                        print(f"  Child {i}: {child.name} (uid={child.uid})")
+                        child.log_result('my_result', i*5)
+                        if i == 2:
+                            # mark child number 2 as the best result
+                            child.mark_as_best()
+
         :param params:  extra (or override) params to parent context
+        :param with_parent_params:  child will copy the parent parameters and add to them
 
         :return: child context
         """
         if self.iteration != 0:
             raise ValueError("cannot create child from a child iteration!")
         ctx = deepcopy(self.to_dict())
+        if not with_parent_params:
+            update_in(ctx, ["spec", "parameters"], {})
         if params:
             for key, val in params.items():
                 update_in(ctx, ["spec", "parameters", key], val)
 
-        update_in(ctx, ["metadata", "iteration"], len(self._child) + 1)
+        update_in(ctx, ["metadata", "iteration"], len(self._children) + 1)
         ctx["status"] = {}
         ctx = MLClientCtx.from_dict(
             ctx, self._rundb, self._autocommit, log_stream=self._logger
         )
-        self._child.append(ctx)
+        ctx._parent = self
+        self._children.append(ctx)
         return ctx
+
+    def update_child_iterations(self, best_run=0, commit_children=False):
+        """update children results in the parent, and optionally mark the best
+
+        :param best_run:  marks the child iteration number (starts from 1)
+        :param commit_children:  commit all child runs to the db
+        """
+        if not self._children:
+            return
+        if commit_children:
+            for c in self._children:
+                c.commit()
+        results = [c.to_dict() for c in self._children]
+        summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
+        task = results[best_run - 1] if best_run else None
+        self.log_iteration_results(best_run, summary, task)
+
+    def mark_as_best(self):
+        """mark a child as the best iteration result, see .get_child()"""
+        if not self._parent or not self._iteration:
+            raise ValueError('can only mark a child run as best iteration')
+        self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
     def get_store_resource(self, url):
         """get mlrun data resource (feature set/vector, artifact, item) from url
 
+        example::
+
+            feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
+            dataset = context.get_store_resource("store://artifacts/default/mydata")
+
         :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
-                       types: artifact | feature-set | feature-vector
+                       types: artifacts | feature-sets | feature-vectors
         """
         return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
 
     def get_dataitem(self, url):
-        """get mlrun dataitem from url"""
-        return self._data_stores.object(url=url)
+        """get mlrun dataitem from url
 
-    def commit_children(self, best_run=0):
-        """update/commit all children, and optionally mark the best
-        note: best_run marks the child iteration number (starts from 1)
+        example::
+
+            data = context.get_dataitem("s3://my-bucket/file.csv").as_df()
+
         """
-        results = []
-        if not self._child or best_run > len(self._child):
-            raise ValueError("cannot commit without child or if best_run > len(child)")
-        for c in self._child:
-            c.commit()
-            results.append(c.to_dict())
-        summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
-        task = results[best_run - 1] if best_run else None
-        self.log_iteration_results(best_run, summary, task)
-        self._updated_child = True
+        return self._data_stores.object(url=url)
 
     def set_logger_stream(self, stream):
         self._logger.replace_handler_stream("default", stream)
@@ -248,7 +291,13 @@ class MLClientCtx(object):
 
     @property
     def logger(self):
-        """built-in logger interface"""
+        """built-in logger interface
+
+        example::
+
+            context.logger.info("started experiment..", param=5)
+
+        """
         return self._logger
 
     @property
@@ -294,7 +343,13 @@ class MLClientCtx(object):
         return self.artifact_path
 
     def artifact_subpath(self, *subpaths):
-        """subpaths under output path artifacts path"""
+        """subpaths under output path artifacts path
+
+        example::
+
+            data_path=context.artifact_subpath('data')
+
+        """
         return os.path.join(self.artifact_path, *subpaths)
 
     @property
@@ -303,7 +358,13 @@ class MLClientCtx(object):
         return deepcopy(self._labels)
 
     def set_label(self, key: str, value, replace: bool = True):
-        """set/record a specific label"""
+        """set/record a specific label
+
+        example::
+
+            context.set_label("framework", "sklearn")
+
+        """
         if replace or not self._labels.get(key):
             self._labels[key] = str(value)
 
@@ -313,12 +374,23 @@ class MLClientCtx(object):
         return deepcopy(self._annotations)
 
     def set_annotation(self, key: str, value, replace: bool = True):
-        """set/record a specific annotation"""
+        """set/record a specific annotation
+
+        example::
+
+            context.set_annotation("comment", "some text")
+
+        """
         if replace or not self._annotations.get(key):
             self._annotations[key] = str(value)
 
     def get_param(self, key: str, default=None):
-        """get a run parameter, or use the provided default if not set"""
+        """get a run parameter, or use the provided default if not set
+
+        example::
+
+            p1 = context.get_param("p1", 0)
+        """
         if key not in self._parameters:
             self._parameters[key] = default
             if default:
@@ -328,7 +400,11 @@ class MLClientCtx(object):
 
     def get_secret(self, key: str):
         """get a key based secret e.g. DB password from the context
-        secrets can be specified when invoking a run through files, env, ..
+        secrets can be specified when invoking a run through vault, files, env, ..
+
+        example::
+
+            access_key = context.get_secret("ACCESS_KEY")
         """
         if self._secrets_manager:
             return self._secrets_manager.get(key)
@@ -346,8 +422,13 @@ class MLClientCtx(object):
         return obj
 
     def get_input(self, key: str, url: str = ""):
-        """get an input data object, data objects have methods such as
-        .get(), .download(), .url, .. to access the actual data"""
+        """get an input :py:class:`~mlrun.DataItem` object, data objects have methods such as
+        .get(), .download(), .url, .. to access the actual data
+
+        example::
+
+            data = context.get_input("my_data").get()
+        """
         if key not in self._inputs:
             return self._set_input(key, url)
         else:
@@ -355,6 +436,10 @@ class MLClientCtx(object):
 
     def log_result(self, key: str, value, commit=False):
         """log a scalar result value
+
+        example::
+
+            context.log_result('accuracy', 0.85)
 
         :param key:    result key
         :param value:  result value
@@ -365,6 +450,10 @@ class MLClientCtx(object):
 
     def log_results(self, results: dict, commit=False):
         """log a set of scalar result values
+
+        example::
+
+            context.log_results({'accuracy': 0.85, 'loss': 0.2})
 
         :param results:  key/value dict or results
         :param commit:   commit (write to DB now vs wait for the end of the run)
@@ -395,7 +484,8 @@ class MLClientCtx(object):
                     link_iteration=best,
                 )
 
-        self._iteration_results = summary
+        if summary is not None:
+            self._iteration_results = summary
         if commit:
             self._update_db(commit=True)
 
@@ -432,6 +522,16 @@ class MLClientCtx(object):
         **kwargs,
     ):
         """log an output artifact and optionally upload it to datastore
+
+        example::
+
+            context.log_artifact(
+                "some-data",
+                body=b"abc is 123",
+                local_path="model.txt",
+                labels={"framework": "xgboost"},
+            )
+
 
         :param item:          artifact key or artifact class ()
         :param body:          will use the body as the artifact content
@@ -488,6 +588,17 @@ class MLClientCtx(object):
         **kwargs,
     ):
         """log a dataset artifact and optionally upload it to datastore
+
+        example::
+
+            raw_data = {
+                "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+                "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+                "age": [42, 52, 36, 24, 73],
+                "testScore": [25, 94, 57, 62, 70],
+            }
+            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            context.log_dataset("mydf", df=df, stats=True)
 
         :param key:           artifact key
         :param df:            dataframe object
@@ -558,6 +669,16 @@ class MLClientCtx(object):
     ):
         """log a model artifact and optionally upload it to datastore
 
+        example::
+
+            context.log_model("model", body=dumps(model),
+                              model_file="model.pkl",
+                              metrics=context.results,
+                              training_set=training_df,
+                              label_column='label',
+                              feature_vector=feature_vector_uri,
+                              labels={"app": "fraud"})
+
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
         :param model_file:      path to the local model file we upload (seel also model_dir)
@@ -620,12 +741,24 @@ class MLClientCtx(object):
         self._update_db()
         return item
 
-    def commit(self, message: str = ""):
-        """save run state and add a commit message"""
+    def commit(self, message: str = "", completed=False):
+        """save run state and optionally add a commit message
+
+        :param message:   commit message to save in the run
+        :param completed: mark run as completed
+        """
         if message:
             self._annotations["message"] = message
-        if self._child and not self._updated_child:
-            self.commit_children()
+        if completed:
+            self._state = 'completed'
+
+        if self._parent:
+            self._parent.update_child_iterations()
+            self._parent._last_update = now_date()
+            self._parent._update_db(commit=True, message=message)
+
+        if self._children:
+            self.update_child_iterations(commit_children=True)
         self._last_update = now_date()
         self._update_db(commit=True, message=message)
 
@@ -654,7 +787,7 @@ class MLClientCtx(object):
             )
 
     def set_hostname(self, host: str):
-        """update the hostname"""
+        """update the hostname, for internal use"""
         self._host = host
         if self._rundb:
             updates = {"status.host": host}

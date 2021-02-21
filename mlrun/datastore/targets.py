@@ -33,7 +33,7 @@ class TargetTypes:
 
     @staticmethod
     def all():
-        [
+        return [
             TargetTypes.csv,
             TargetTypes.parquet,
             TargetTypes.nosql,
@@ -151,7 +151,7 @@ class BaseStoreTarget(DataTargetBase):
         store, _ = mlrun.store_manager.get_or_create_store(self.path)
         return store
 
-    def write_datafreme(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -163,14 +163,14 @@ class BaseStoreTarget(DataTargetBase):
                 if dir:
                     os.makedirs(dir, exist_ok=True)
             with fs.open(self.path, "wb") as fp:
-                self._write_datafreme(df, fp, **kwargs)
+                self._write_dataframe(df, fp, **kwargs)
             try:
                 return fs.size(self.path)
             except Exception:
                 return None
 
     @staticmethod
-    def _write_datafreme(df, target, **kwargs):
+    def _write_dataframe(df, target, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -235,7 +235,7 @@ class ParquetTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_datafreme(df, target, **kwargs):
+    def _write_dataframe(df, target, **kwargs):
         df.to_parquet(target, **kwargs)
 
     def add_writer_state(
@@ -271,7 +271,7 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_datafreme(df, target, **kwargs):
+    def _write_dataframe(df, target, **kwargs):
         df.to_csv(target, **kwargs)
 
     def add_writer_state(

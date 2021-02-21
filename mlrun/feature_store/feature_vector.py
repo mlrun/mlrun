@@ -337,10 +337,10 @@ class OfflineVectorResponse:
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        return ParquetTarget(path=target_path).write_datafreme(
+        return ParquetTarget(path=target_path).write_dataframe(
             self._merger.get_df(), **kw
         )
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return CSVTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)
+        return CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)

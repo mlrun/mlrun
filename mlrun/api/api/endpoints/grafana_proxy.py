@@ -3,13 +3,21 @@ from typing import List, Dict, Any, Callable
 
 from fastapi import APIRouter, Response, Request
 
-from mlrun.api.api.endpoints.model_endpoints import get_access_key, list_endpoints
-from mlrun.api.schemas import ModelEndpointStateList, GrafanaTable, GrafanaColumn
+from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
+from mlrun.api.schemas import (
+    GrafanaTable,
+    GrafanaColumn,
+    ModelEndpointState,
+)
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
+from mlrun.utils.logger import create_logger
 from mlrun.utils.v3io_clients import get_frames_client
 
 router = APIRouter()
+
+
+logger = create_logger(level="debug", name="grafana_proxy")
 
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
@@ -23,7 +31,7 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
 
 
 @router.post("/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable])
-async def grafana_proxy_model_endpoints(request: Request) -> List[GrafanaTable]:
+async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaTable]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -58,12 +66,21 @@ def grafana_list_endpoints(
     # Metrics to include
     metrics = query_parameters.get("metrics", "")
     metrics = metrics.split(",") if metrics else []
+
     # Time range for metrics
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
 
-    endpoint_list: ModelEndpointStateList = list_endpoints(
-        access_key, project, model, function, tag, labels, start, end, metrics,
+    endpoint_list: List[ModelEndpointState] = ModelEndpoints.list_endpoints(
+        access_key=access_key,
+        project=project,
+        model=model,
+        function=function,
+        tag=tag,
+        labels=labels,
+        metrics=metrics,
+        start=start,
+        end=end,
     )
 
     columns = [
@@ -82,7 +99,7 @@ def grafana_list_endpoints(
     metric_columns = []
 
     found_metrics = set()
-    for endpoint_state in endpoint_list.endpoints:
+    for endpoint_state in endpoint_list:
         if endpoint_state.metrics:
             for key in endpoint_state.metrics.keys():
                 if key not in found_metrics:
@@ -92,7 +109,7 @@ def grafana_list_endpoints(
     columns = columns + metric_columns
 
     rows = []
-    for endpoint_state in endpoint_list.endpoints:
+    for endpoint_state in endpoint_list:
         row = [
             endpoint_state.endpoint.id,
             endpoint_state.endpoint.spec.function,
@@ -162,7 +179,7 @@ def grafana_endpoint_features(
                     describe["min"],
                     describe["mean"],
                     describe["max"],
-                    None,  # features.get(feature, {}).get("min", None), TODO: Will be updated once
+                    None,  # features.get(feature, {}).get("min", None),
                     None,  # features.get(feature, {}).get("mean", None),
                     None,  # features.get(feature, {}).get("max", None),
                 ]
@@ -180,6 +197,13 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
 
     # Try to get the `target`
     targets = request_body.get("targets", [])
+
+    if len(targets) > 1:
+        logger.warn(
+            f"The 'targets' list contains more then one element ({len(targets)}), all targets except the first one are "
+            f"ignored."
+        )
+
     target_obj = targets[0] if targets else {}
     target_query = target_obj.get("target") if target_obj else ""
 

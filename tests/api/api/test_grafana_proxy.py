@@ -13,7 +13,7 @@ from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
     _validate_query_parameters,
 )
-from mlrun.api.api.endpoints.model_endpoints import (
+from mlrun.api.crud.model_endpoints import (
     ENDPOINTS_TABLE_PATH,
     ENDPOINT_EVENTS_TABLE_PATH,
 )

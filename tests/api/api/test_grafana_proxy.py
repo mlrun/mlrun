@@ -100,7 +100,7 @@ def test_parse_query_parameters_should_fail():
         _parse_query_parameters({"targets": [{"target": "test"}]})
 
 
-def test_parse_query_parameters_should_not_fail():
+def test_parse_query_parameters_success():
     # Target query separated by equals ('=') char
     params = _parse_query_parameters({"targets": [{"target": "test=some_test"}]})
     assert params["test"] == "some_test"

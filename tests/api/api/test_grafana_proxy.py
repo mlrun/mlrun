@@ -36,15 +36,12 @@ def _is_env_params_dont_exist() -> bool:
     return not all((os.environ.get(r, False) for r in ENV_PARAMS))
 
 
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
 def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
     response = client.get(
         url="/api/grafana-proxy/model-endpoints",
-        headers={"X-V3io-Session-Key": _get_access_key()},
+        headers={"X-V3io-Session-Key": "fake-access-key"},
     )
     assert response.status_code == 200
 

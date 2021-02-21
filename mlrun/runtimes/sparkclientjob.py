@@ -47,11 +47,19 @@ class SparkClientSpec(KubeResourceSpec):
             args=args,
             image=image,
             mode=mode,
-            build=build,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+            env=env,
+            resources=resources,
+            default_handler=default_handler,
             entry_points=entry_points,
             description=description,
             workdir=workdir,
-            default_handler=default_handler,
+            replicas=replicas,
+            image_pull_policy=image_pull_policy,
+            service_account=service_account,
+            build=build,
+            image_pull_secret=image_pull_secret,
         )
         self.igz_spark = igz_spark
 
@@ -84,7 +92,6 @@ class SparkClientRuntime(KubejobRuntime):
             not self.spec.build.source
             and not self.spec.build.commands
             and not self.spec.build.extra
-            and self.spec.igz_spark
         ):
             return True
         return super().is_deployed

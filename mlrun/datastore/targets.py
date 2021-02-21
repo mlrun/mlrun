@@ -31,6 +31,18 @@ class TargetTypes:
     dataframe = "dataframe"
     custom = "custom"
 
+    @staticmethod
+    def all():
+        [
+            TargetTypes.csv,
+            TargetTypes.parquet,
+            TargetTypes.nosql,
+            TargetTypes.tsdb,
+            TargetTypes.stream,
+            TargetTypes.dataframe,
+            TargetTypes.custom,
+        ]
+
 
 def default_target_names():
     targets = mlrun.mlconf.feature_store.default_targets

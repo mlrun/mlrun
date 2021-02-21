@@ -18,7 +18,7 @@ import pandas as pd
 
 from ..features import Feature, Entity
 from ..model import VersionedObjMetadata
-from ..datastore.targets import get_offline_target, default_target_names
+from ..datastore.targets import get_offline_target, default_target_names, TargetTypes
 from ..model import ModelObj, ObjectList, DataSource, DataTarget, DataTargetBase
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseState, RootFlowState, previous_step
@@ -227,20 +227,31 @@ class FeatureSet(ModelObj):
         return uri
 
     def get_target_path(self, name=None):
+        """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
             return target.path
 
     def set_targets(self, targets=None, with_defaults=True):
-        """set the desired target list"""
+        """set the desired target list or defaults
+
+        :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
+                         CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
+        :param with_defaults: add the default targets (as defined in the central config)
+        """
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "targets can only be None or a list of kinds/DataTargetBase"
+                "targets can only be None or a list of kinds or DataTargetBase derivatives"
             )
         targets = targets or []
         if with_defaults:
             targets.extend(default_target_names())
         for target in targets:
+            kind = target.kind if hasattr(target, "kind") else target
+            if kind not in TargetTypes.all():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"target kind is not supported, use one of: {','.join(TargetTypes.all())}"
+                )
             if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)

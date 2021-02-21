@@ -17,13 +17,19 @@ from typing import Dict
 import mlrun
 from mlrun.utils import now_date
 
-from mlrun.feature_store.model.base import (
-    DataTargetBase,
-    TargetTypes,
-    DataTarget,
-)
-from mlrun.datastore.v3io import parse_v3io_path
-from mlrun.datastore import store_path_to_spark
+from mlrun.model import DataTargetBase, DataTarget
+from .v3io import parse_v3io_path
+from .utils import store_path_to_spark
+
+
+class TargetTypes:
+    csv = "csv"
+    parquet = "parquet"
+    nosql = "nosql"
+    tsdb = "tsdb"
+    stream = "stream"
+    dataframe = "dataframe"
+    custom = "custom"
 
 
 def default_target_names():

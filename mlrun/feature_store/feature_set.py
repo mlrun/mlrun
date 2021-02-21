@@ -16,23 +16,30 @@ from typing import List
 import mlrun
 import pandas as pd
 
-from ...features import Feature, Entity
-from .base import (
-    FeatureAggregation,
-    DataTarget,
-    DataSource,
-    DataTargetBase,
-    CommonMetadata,
-)
-from ...targets import get_offline_target, default_target_names
-from ...model import ModelObj, ObjectList
-from ...runtimes.function_reference import FunctionReference
-from ...serving.states import BaseState, RootFlowState, previous_step
-from ...config import config as mlconf
-from ...utils import StorePrefix
-from ...datastore import get_store_uri
+from ..features import Feature, Entity
+from ..model import VersionedObjMetadata
+from ..datastore.targets import get_offline_target, default_target_names
+from ..model import ModelObj, ObjectList, DataSource, DataTarget, DataTargetBase
+from ..runtimes.function_reference import FunctionReference
+from ..serving.states import BaseState, RootFlowState, previous_step
+from ..config import config as mlconf
+from ..utils import StorePrefix
+from ..datastore import get_store_uri
 
 aggregates_step = "Aggregates"
+
+
+class FeatureAggregation(ModelObj):
+    """feature aggregation requirements"""
+
+    def __init__(
+        self, name=None, column=None, operations=None, windows=None, period=None
+    ):
+        self.name = name
+        self.column = column
+        self.operations = operations or []
+        self.windows = windows or []
+        self.period = period
 
 
 class FeatureSetSpec(ModelObj):
@@ -180,7 +187,7 @@ class FeatureSet(ModelObj):
         self.spec = FeatureSetSpec(
             description=description, entities=entities, timestamp_key=timestamp_key
         )
-        self.metadata = CommonMetadata(name=name)
+        self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
 
@@ -193,12 +200,12 @@ class FeatureSet(ModelObj):
         self._spec = self._verify_dict(spec, "spec", FeatureSetSpec)
 
     @property
-    def metadata(self) -> CommonMetadata:
+    def metadata(self) -> VersionedObjMetadata:
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", CommonMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureSetStatus:

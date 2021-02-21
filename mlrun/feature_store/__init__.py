@@ -28,7 +28,8 @@ __all__ = [
 ]
 
 
-from .model import FeatureSet, FeatureVector
+from .feature_set import FeatureSet
+from .feature_vector import FeatureVector
 from ..features import Feature, Entity
 from ..data_types import InferOptions, ValueType
 from .api import (

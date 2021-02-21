@@ -15,8 +15,8 @@ from copy import copy
 from typing import Dict
 import mlrun
 
-from mlrun.feature_store.model.base import DataSource
-from mlrun.datastore import store_path_to_spark
+from mlrun.model import DataSource
+from mlrun.datastore.utils import store_path_to_spark
 from mlrun.utils import get_class
 
 

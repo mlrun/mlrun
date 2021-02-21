@@ -26,12 +26,6 @@ from ..utils import logger
 store_manager = StoreManager()
 
 
-def store_path_to_spark(path):
-    if path.startswith("v3io:///"):
-        path = "v3io:" + path[len("v3io:/") :]
-    return path
-
-
 def set_in_memory_item(key, value):
     item = store_manager.object(f"memory://{key}")
     item.put(value)

@@ -15,8 +15,8 @@
 import mlrun
 from ..runtimes import RuntimeKinds
 
-from .sources import get_source_step, get_source_from_dict
-from mlrun.targets import add_target_states, get_target_driver
+from mlrun.datastore.sources import get_source_step, get_source_from_dict
+from mlrun.datastore.targets import add_target_states, get_target_driver
 from ..datastore.store_resources import ResourceCache
 from ..serving.server import create_graph_server
 from ..data_types import InferOptions

@@ -16,15 +16,16 @@ from typing import List, Union, Dict
 import mlrun
 import pandas as pd
 from .common import get_feature_vector_by_uri, get_feature_set_by_uri
-from .model.base import DataTargetBase, DataSource
+from ..model import DataTargetBase, DataSource
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
 from .ingestion import (
     init_featureset_graph,
     default_ingestion_job_function,
     context_to_ingestion_params,
 )
-from .model import FeatureVector, FeatureSet, OnlineVectorService, OfflineVectorResponse
-from mlrun.targets import get_default_targets, get_target_driver
+from .feature_set import FeatureSet
+from .feature_vector import FeatureVector, OnlineVectorService, OfflineVectorResponse
+from ..datastore.targets import get_default_targets, get_target_driver
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger

@@ -49,10 +49,6 @@ def test_grafana_proxy_model_endpoints_check_connection(
     assert response.status_code == 200
 
 
-def test_grafana_list_endpoints():
-    pass
-
-
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )

@@ -81,9 +81,9 @@ def get_pipeline(run_id, namespace: str = Query(config.namespace)):
         run = client.get_run(run_id)
         if run:
             run = run.to_dict()
-    except Exception as e:
+    except Exception as exc:
         log_and_raise(
-            HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {e}"
+            HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {exc}"
         )
 
     return run
@@ -118,9 +118,9 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
         client = kfclient(namespace=namespace)
         experiment = client.create_experiment(name=experiment_name)
         run = client.run_pipeline(experiment.id, run_name, pipe_tmp, params=arguments)
-    except Exception as e:
+    except Exception as exc:
         remove(pipe_tmp)
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"kfp err: {e}")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"kfp err: {exc}")
 
     remove(pipe_tmp)
 

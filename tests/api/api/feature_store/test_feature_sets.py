@@ -440,13 +440,13 @@ def test_entities_list(db: Session, client: TestClient) -> None:
     name = "feature_set"
     count = 5
     colors = ["red", "blue"]
-    for i in range(count):
-        feature_set = _generate_feature_set(f"{name}_{i}")
+    for idx in range(count):
+        feature_set = _generate_feature_set(f"{name}_{idx}")
         feature_set["spec"]["entities"] = [
             {
-                "name": f"entity_{i}",
+                "name": f"entity_{idx}",
                 "value_type": "str",
-                "labels": {"color": colors[i % 2], "id": f"id_{i}"},
+                "labels": {"color": colors[idx % 2], "id": f"id_{idx}"},
             },
         ]
 
@@ -463,12 +463,12 @@ def test_entities_list(db: Session, client: TestClient) -> None:
 
     # set a new tag
     tag = "my-new-tag"
-    query = {"feature_sets": {"name": f"{name}_{i}"}}
+    query = {"feature_sets": {"name": f"{name}_{idx}"}}
     resp = client.post(f"/api/{project_name}/tag/{tag}", json=query)
     assert resp.status_code == HTTPStatus.OK.value
     # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
     entities_response = _list_and_assert_objects(
-        client, "entities", project_name, f"name=entity_{i}", 2
+        client, "entities", project_name, f"name=entity_{idx}", 2
     )
     assert (
         entities_response["entities"][0]["feature_set_digest"]["metadata"]["tag"]

@@ -178,8 +178,8 @@ def _load_project_from_db(url, secrets):
 def _load_project_file(url, name="", secrets=None):
     try:
         obj = get_object(url, secrets)
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"cant find project file at {url}, {e}")
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"cant find project file at {url}, {exc}")
     struct = yaml.load(obj, Loader=yaml.FullLoader)
     return _project_instance_from_struct(struct, name)
 

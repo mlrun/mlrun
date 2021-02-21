@@ -294,8 +294,8 @@ def basic_auth_header(user, password):
 def http_get(url, headers=None, auth=None):
     try:
         response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
-    except OSError as e:
-        raise OSError(f"error: cannot connect to {url}: {e}")
+    except OSError as exc:
+        raise OSError(f"error: cannot connect to {url}: {exc}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -305,8 +305,8 @@ def http_get(url, headers=None, auth=None):
 def http_head(url, headers=None, auth=None):
     try:
         response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
-    except OSError as e:
-        raise OSError(f"error: cannot connect to {url}: {e}")
+    except OSError as exc:
+        raise OSError(f"error: cannot connect to {url}: {exc}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -318,8 +318,8 @@ def http_put(url, data, headers=None, auth=None):
         response = requests.put(
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
-    except OSError as e:
-        raise OSError(f"error: cannot connect to {url}: {e}")
+    except OSError as exc:
+        raise OSError(f"error: cannot connect to {url}: {exc}")
 
     mlrun.errors.raise_for_status(response)
 

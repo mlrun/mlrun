@@ -326,8 +326,8 @@ yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
 def dict_to_yaml(struct):
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
-    except RepresenterError as e:
-        raise ValueError(f"error: data result cannot be serialized to YAML, {e} ")
+    except RepresenterError as exc:
+        raise ValueError(f"error: data result cannot be serialized to YAML, {exc}")
     return data
 
 
@@ -607,8 +607,8 @@ class RunNotifications:
         for h in self._hooks:
             try:
                 h(message, runs)
-            except Exception as e:
-                logger.warning(f"failed to push notification, {e}")
+            except Exception as exc:
+                logger.warning(f"failed to push notification, {exc}")
         if self.with_ipython and is_ipython:
             import IPython
 
@@ -768,8 +768,8 @@ def get_class(class_name, namespace):
 
     try:
         class_object = create_class(class_name)
-    except (ImportError, ValueError) as e:
-        raise ImportError(f"state init failed, class {class_name} not found, {e}")
+    except (ImportError, ValueError) as exc:
+        raise ImportError(f"state init failed, class {class_name} not found, {exc}")
     return class_object
 
 
@@ -789,8 +789,8 @@ def get_function(function, namespace):
 
     try:
         function_object = create_function(function)
-    except (ImportError, ValueError) as e:
-        raise ImportError(f"state init failed, function {function} not found, {e}")
+    except (ImportError, ValueError) as exc:
+        raise ImportError(f"state init failed, function {function} not found, {exc}")
     return function_object
 
 

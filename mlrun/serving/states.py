@@ -328,9 +328,9 @@ class TaskState(BaseState):
 
             try:
                 self._object = self._class_object(**class_args)
-            except TypeError as e:
+            except TypeError as exc:
                 raise TypeError(
-                    f"failed to init state {self.name}, {e}\n args={self.class_args}"
+                    f"failed to init state {self.name}, {exc}\n args={self.class_args}"
                 )
 
             # determine the right class handler to use
@@ -399,11 +399,11 @@ class TaskState(BaseState):
             if self.full_event:
                 return self._handler(event, *args, **kwargs)
             event.body = self._handler(event.body, *args, **kwargs)
-        except Exception as e:
-            self._log_error(event, e)
-            handled = self._call_error_handler(event, e)
+        except Exception as exc:
+            self._log_error(event, exc)
+            handled = self._call_error_handler(event, exc)
             if not handled:
-                raise e
+                raise exc
             event.terminated = True
         return event
 
@@ -937,11 +937,11 @@ class FlowState(BaseState):
         while next_obj:
             try:
                 event = next_obj.run(event, *args, **kwargs)
-            except Exception as e:
-                self._log_error(event, e, failed_state=next_obj.name)
-                handled = self._call_error_handler(event, e)
+            except Exception as exc:
+                self._log_error(event, exc, failed_state=next_obj.name)
+                handled = self._call_error_handler(event, exc)
                 if not handled:
-                    raise e
+                    raise exc
                 event.terminated = True
                 return event
 

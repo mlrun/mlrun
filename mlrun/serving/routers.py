@@ -64,14 +64,14 @@ class BaseModelRouter:
             else:
                 parsed_event = body
 
-        except Exception as e:
+        except Exception as exc:
             #  if images convert to bytes
             content_type = getattr(event, "content_type") or ""
             if content_type.startswith("image/"):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
             else:
-                raise ValueError("Unrecognized request format: %s" % e)
+                raise ValueError(f"Unrecognized request format: {exc}")
 
         return parsed_event
 
@@ -600,7 +600,7 @@ class VotingEnsemble(BaseModelRouter):
                     try:
                         results.append(future.result())
                     except Exception as exc:
-                        print("%r generated an exception: %s" % (future.fullname, exc))
+                        print(f"{future.fullname} generated an exception: {exc}")
                 results = [
                     self.extract_results_from_response(event.body["outputs"])
                     for event in results

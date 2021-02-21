@@ -30,7 +30,7 @@ MLRun is composed of the following layers:
     automates data preparation, model training and testing, deployment of real-time production pipelines, and end-to-end monitoring.
 - **Central Management** –
     provides a unified portal for managing the entire MLOps workflow.
-   The portal includes a UI, a CLI, and an SDK, which are accessible from anywhere.
+    The portal includes a UI, a CLI, and an SDK, which are accessible from anywhere.
 
 Review the relevant documentation sections to learn about each component.
 

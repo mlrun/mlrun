@@ -78,9 +78,9 @@ class K8sHelper:
             resp = self.v1api.list_namespaced_pod(
                 self.resolve_namespace(namespace), label_selector=selector
             )
-        except ApiException as e:
-            logger.error(f"failed to list pods: {e}")
-            raise e
+        except ApiException as exc:
+            logger.error(f"failed to list pods: {exc}")
+            raise exc
 
         items = []
         for i in resp.items:
@@ -101,10 +101,10 @@ class K8sHelper:
         pod.metadata.namespace = self.resolve_namespace(pod.metadata.namespace)
         try:
             resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
-        except ApiException as e:
+        except ApiException as exc:
             logger.error(f"spec:\n{pod.spec}")
-            logger.error(f"failed to create pod: {e}")
-            raise e
+            logger.error(f"failed to create pod: {exc}")
+            raise exc
 
         logger.info(f"Pod {resp.metadata.name} created")
         return resp.metadata.name, resp.metadata.namespace
@@ -118,11 +118,11 @@ class K8sHelper:
                 propagation_policy="Background",
             )
             return api_response
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if pod is already removed
-            if e.status != 404:
-                logger.error(f"failed to delete pod: {e}")
-            raise e
+            if exc.status != 404:
+                logger.error(f"failed to delete pod: {exc}")
+            raise exc
 
     def get_pod(self, name, namespace=None):
         try:
@@ -130,10 +130,10 @@ class K8sHelper:
                 name=name, namespace=self.resolve_namespace(namespace)
             )
             return api_response
-        except ApiException as e:
-            if e.status != 404:
-                logger.error(f"failed to get pod: {e}")
-                raise e
+        except ApiException as exc:
+            if exc.status != 404:
+                logger.error(f"failed to get pod: {exc}")
+                raise exc
             return None
 
     def get_pod_status(self, name, namespace=None):
@@ -144,9 +144,9 @@ class K8sHelper:
             resp = self.v1api.read_namespaced_pod_log(
                 name=name, namespace=self.resolve_namespace(namespace)
             )
-        except ApiException as e:
-            logger.error(f"failed to get pod logs: {e}")
-            raise e
+        except ApiException as exc:
+            logger.error(f"failed to get pod logs: {exc}")
+            raise exc
 
         return resp
 
@@ -178,8 +178,8 @@ class K8sHelper:
                 stdout.write(".")
                 if status != "pending":
                     logger.warning(f"pod state in loop is {status}")
-            except ApiException as e:
-                logger.error(f"failed waiting for pod: {str(e)}\n")
+            except ApiException as exc:
+                logger.error(f"failed waiting for pod: {str(exc)}\n")
                 return "error"
         outputs = self.v1api.read_namespaced_pod_log(
             name=pod_name, namespace=namespace, follow=True, _preload_content=False
@@ -216,9 +216,9 @@ class K8sHelper:
             )
         try:
             resp = self.v1api.create_namespaced_config_map(namespace, body)
-        except ApiException as e:
-            logger.error(f"failed to create configmap: {e}")
-            raise e
+        except ApiException as exc:
+            logger.error(f"failed to create configmap: {exc}")
+            raise exc
 
         logger.info(f"ConfigMap {resp.metadata.name} created")
         return resp.metadata.name
@@ -233,20 +233,20 @@ class K8sHelper:
             )
 
             return api_response
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if ConfigMap is already removed
-            if e.status != 404:
-                logger.error(f"failed to delete ConfigMap: {e}")
-            raise e
+            if exc.status != 404:
+                logger.error(f"failed to delete ConfigMap: {exc}")
+            raise exc
 
     def list_cfgmap(self, namespace=None, selector=""):
         try:
             resp = self.v1api.list_namespaced_config_map(
                 self.resolve_namespace(namespace), watch=False, label_selector=selector
             )
-        except ApiException as e:
-            logger.error(f"failed to list ConfigMaps: {e}")
-            raise e
+        except ApiException as exc:
+            logger.error(f"failed to list ConfigMaps: {exc}")
+            raise exc
 
         items = []
         for i in resp.items:
@@ -290,9 +290,9 @@ class K8sHelper:
                 namespace, k8s_service_account,
             )
             return api_response
-        except ApiException as e:
-            logger.error(f"failed to create service account: {e}")
-            raise e
+        except ApiException as exc:
+            logger.error(f"failed to create service account: {exc}")
+            raise exc
 
     def get_project_vault_secret_name(
         self, project, service_account_name, namespace=""
@@ -303,11 +303,11 @@ class K8sHelper:
             service_account = self.v1api.read_namespaced_service_account(
                 service_account_name, namespace
             )
-        except ApiException as e:
+        except ApiException as exc:
             # It's valid for the service account to not exist. Simply return None
-            if e.status != 404:
-                logger.error(f"failed to retrieve service accounts: {e}")
-                raise e
+            if exc.status != 404:
+                logger.error(f"failed to retrieve service accounts: {exc}")
+                raise exc
             return None
 
         if len(service_account.secrets) > 1:

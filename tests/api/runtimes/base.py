@@ -27,6 +27,7 @@ class TestRuntimeBase:
         self.run_uid = "test_run_uid"
         self.image_name = "mlrun/mlrun:latest"
         self.artifact_path = "/tmp"
+        self.function_name_label = "mlrun/name"
         self.code_filename = str(self.assets_path / "sample_function.py")
 
         self._logger.info(
@@ -37,6 +38,17 @@ class TestRuntimeBase:
 
         self._logger.info(
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
+        )
+
+    def teardown_method(self, method):
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+
+        self.custom_teardown()
+
+        self._logger.info(
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )
 
     @property
@@ -50,6 +62,9 @@ class TestRuntimeBase:
         pass
 
     def custom_setup(self):
+        pass
+
+    def custom_teardown(self):
         pass
 
     def _generate_task(self):
@@ -101,7 +116,7 @@ class TestRuntimeBase:
     def _assert_labels(self, labels: dict, expected_class_name):
         expected_labels = {
             "mlrun/class": expected_class_name,
-            "mlrun/name": self.name,
+            self.function_name_label: self.name,
             "mlrun/project": self.project,
             "mlrun/tag": "latest",
         }
@@ -116,6 +131,7 @@ class TestRuntimeBase:
         expected_inputs,
         expected_hyper_params,
         expected_secrets,
+        expected_labels,
     ):
         function_metadata = config["metadata"]
         assert function_metadata["name"] == self.name
@@ -155,6 +171,13 @@ class TestRuntimeBase:
                 )
                 == {}
             )
+        if expected_labels:
+            diff_result = deepdiff.DeepDiff(
+                function_metadata["labels"], expected_labels, ignore_order=True,
+            )
+            # We just care that the values we look for are fully there.
+            diff_result.pop("dictionary_item_removed", None)
+            assert diff_result == {}
 
     @staticmethod
     def _assert_pod_env(pod_env, expected_variables):
@@ -170,9 +193,17 @@ class TestRuntimeBase:
         # Make sure all variables were accounted for
         assert len(expected_variables) == 0
 
-    def _assert_v3io_mount_configured(self, v3io_user, v3io_access_key):
+    def _get_pod_creation_args(self):
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
-        pod_spec = args[1].spec
+        return args[1]
+
+    def _get_namespace_arg(self):
+        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
+        return args[0]
+
+    def _assert_v3io_mount_configured(self, v3io_user, v3io_access_key):
+        args = self._get_pod_creation_args()
+        pod_spec = args.spec
         container_spec = pod_spec.containers[0]
 
         pod_env = container_spec.env
@@ -209,8 +240,8 @@ class TestRuntimeBase:
         )
 
     def _assert_pvc_mount_configured(self, pvc_name, pvc_mount_path, volume_name):
-        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
-        pod_spec = args[1].spec
+        args = self._get_pod_creation_args()
+        pod_spec = args.spec
 
         expected_volume = {
             "name": volume_name,
@@ -234,8 +265,8 @@ class TestRuntimeBase:
         )
 
     def _assert_secret_mount(self, volume_name, secret_name, default_mode, mount_path):
-        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
-        pod_spec = args[1].spec
+        args = self._get_pod_creation_args()
+        pod_spec = args.spec
 
         expected_volume = {
             "name": volume_name,
@@ -258,7 +289,7 @@ class TestRuntimeBase:
             == {}
         )
 
-    def _assert_pod_create_called(
+    def _assert_pod_creation_config(
         self,
         expected_runtime_class_name="job",
         expected_params=None,
@@ -269,12 +300,17 @@ class TestRuntimeBase:
         expected_requests=None,
         expected_code=None,
         expected_env={},
+        assert_create_pod_called=True,
+        assert_namespace_env_variable=True,
+        expected_labels=None,
     ):
-        create_pod_mock = get_k8s().v1api.create_namespaced_pod
-        create_pod_mock.assert_called_once()
-        args, _ = create_pod_mock.call_args
-        assert args[0] == self.namespace
-        pod_spec = args[1]
+        if assert_create_pod_called:
+            create_pod_mock = get_k8s().v1api.create_namespaced_pod
+            create_pod_mock.assert_called_once()
+
+        assert self._get_namespace_arg() == self.namespace
+
+        pod_spec = self._get_pod_creation_args()
         self._assert_labels(pod_spec.metadata.labels, expected_runtime_class_name)
 
         container_spec = pod_spec.spec.containers[0]
@@ -302,7 +338,9 @@ class TestRuntimeBase:
 
         expected_code_found = False
 
-        expected_env["MLRUN_NAMESPACE"] = self.namespace
+        if assert_namespace_env_variable:
+            expected_env["MLRUN_NAMESPACE"] = self.namespace
+
         self._assert_pod_env(pod_env, expected_env)
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
@@ -315,6 +353,7 @@ class TestRuntimeBase:
                     expected_inputs,
                     expected_hyper_params,
                     expected_secrets,
+                    expected_labels,
                 )
 
             if expected_code and env_variable["name"] == "MLRUN_EXEC_CODE":

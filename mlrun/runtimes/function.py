@@ -505,9 +505,9 @@ def parse_logs(logs):
     lines = ""
     for line in logs:
         extra = []
-        for k, v in line.items():
-            if k not in ["time", "level", "name", "message"]:
-                extra.append("=".join([k, v]))
+        for key, value in line.items():
+            if key not in ["time", "level", "name", "message"]:
+                extra.append(f"{key}={value}")
         extra = ", ".join(extra)
         time = datetime.fromtimestamp(float(line["time"]) / 1000).strftime(
             "%Y-%m-%d %H:%M:%S.%f"

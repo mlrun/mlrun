@@ -271,9 +271,9 @@ class DaskCluster(KubejobRuntime):
             logger.info(f"trying dask client at: {addr}")
             try:
                 client = Client(addr)
-            except OSError as e:
+            except OSError as exc:
                 logger.warning(
-                    f"remote scheduler at {addr} not ready, will try to restart {e}"
+                    f"remote scheduler at {addr} not ready, will try to restart {exc}"
                 )
 
                 # todo: figure out if test is needed
@@ -341,13 +341,13 @@ def deploy_function(function: DaskCluster, secrets=None):
         from dask.distributed import Client, default_client  # noqa: F401
         from kubernetes_asyncio import client
         import dask
-    except ImportError as e:
+    except ImportError as exc:
         print(
             "missing dask or dask_kubernetes, please run "
             '"pip install dask distributed dask_kubernetes", %s',
-            e,
+            exc,
         )
-        raise e
+        raise exc
 
     spec = function.spec
     meta = function.metadata
@@ -527,7 +527,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
                         service.metadata.name, namespace
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")
-            except ApiException as e:
+            except ApiException as exc:
                 # ignore error if service is already removed
-                if e.status != 404:
+                if exc.status != 404:
                     raise

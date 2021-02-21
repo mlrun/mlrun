@@ -86,7 +86,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     assert len(response_json["rows"]) == 5
 
 
-def test_parse_query_parameters_should_fail():
+def test_parse_query_parameters_failure():
     # No 'targets' in body
     with pytest.raises(MLRunBadRequestError):
         _parse_query_parameters({})

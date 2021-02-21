@@ -15,9 +15,9 @@ from copy import copy
 from typing import Dict
 import mlrun
 
-from mlrun.model import DataSource
-from mlrun.datastore.utils import store_path_to_spark
-from mlrun.utils import get_class
+from ..model import DataSource
+from .utils import store_path_to_spark
+from ..utils import get_class
 
 
 def get_source_from_dict(source):

@@ -15,7 +15,7 @@
 from typing import List
 import pandas as pd
 
-from mlrun.feature_store.feature_vector import OfflineVectorResponse
+from ..feature_vector import OfflineVectorResponse
 from ...utils import logger
 
 

@@ -1,4 +1,3 @@
-import json
 import os
 from typing import Optional
 
@@ -63,23 +62,32 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     for endpoint in endpoints_in:
         _write_endpoint_to_kv(endpoint)
 
-    response = client.get(
+    response = client.post(
         url="/api/projects/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
-        json=json.dumps({"project": "test"}),
+        json={"targets": [{"target": "project=test;target_endpoint=list_endpoints"}]},
     )
 
-    # TODO: Fix weird pathing issue
-    pass
-    # endpoints_out = [
-    #     ModelEndpoint(**e["endpoint"]) for e in response.json()["endpoints"]
-    # ]
-    #
-    # endpoints_in_set = {json.dumps(e.dict(), sort_keys=True) for e in endpoints_in}
-    # endpoints_out_set = {json.dumps(e.dict(), sort_keys=True) for e in endpoints_out}
-    # endpoints_intersect = endpoints_in_set.intersection(endpoints_out_set)
-    #
-    # assert len(endpoints_intersect) == 5
+    response_json = response.json()
+    if not response_json:
+        fail(f"Empty response, expected list of dictionaries. {response_json}")
+
+    response_json = response_json[0]
+    if not response_json:
+        fail(
+            f"Empty dictionary, expected dictionary with 'columns', 'rows' and 'type' fields. {response_json}"
+        )
+
+    if "columns" not in response_json:
+        fail(f"Missing 'columns' key in response dictionary. {response_json}")
+
+    if "rows" not in response_json:
+        fail(f"Missing 'rows' key in response dictionary. {response_json}")
+
+    if "type" not in response_json:
+        fail(f"Missing 'type' key in response dictionary. {response_json}")
+
+    assert len(response_json["rows"]) == 5
 
 
 def test_parse_query_parameters_should_fail():

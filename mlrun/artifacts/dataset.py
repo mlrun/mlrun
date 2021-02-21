@@ -285,7 +285,7 @@ def upload_dataframe(df, target_path, format, src_path=None, **kw):
     if format in ["csv", "parquet"]:
         if not suffix:
             target_path = target_path + "." + format
-        target_class = mlrun.targets.kind_to_driver[format]
+        target_class = mlrun.datastore.targets.kind_to_driver[format]
         return target_class(path=target_path).write_datafreme(df, **kw)
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

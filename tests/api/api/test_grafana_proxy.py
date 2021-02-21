@@ -43,7 +43,7 @@ def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
     response = client.get(
-        url="/api/projects/grafana-proxy/model-endpoints",
+        url="/api/grafana-proxy/model-endpoints",
         headers={"X-V3io-Session-Key": _get_access_key()},
     )
     assert response.status_code == 200
@@ -59,7 +59,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
         _write_endpoint_to_kv(endpoint)
 
     response = client.post(
-        url="/api/projects/grafana-proxy/model-endpoints/query",
+        url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={"targets": [{"target": "project=test;target_endpoint=list_endpoints"}]},
     )
@@ -131,6 +131,9 @@ def _get_access_key() -> Optional[str]:
     return os.environ.get("V3IO_ACCESS_KEY")
 
 
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())

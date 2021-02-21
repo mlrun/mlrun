@@ -12,7 +12,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 router = APIRouter()
 
 
-@router.get("/projects/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
+@router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
 def grafana_proxy_model_endpoints_check_connection(request: Request):
     """
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
@@ -23,7 +23,7 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
 
 
 @router.post(
-    "/projects/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable]
+    "/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable]
 )
 async def grafana_proxy_model_endpoints(request: Request) -> List[GrafanaTable]:
     """

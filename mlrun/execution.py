@@ -118,14 +118,19 @@ class MLClientCtx(object):
 
         example::
 
-            def handler(context: mlrun.MLClientCtx):
-                for i in range(5):
-                    with context.get_child(myparam=i*2) as child:
-                        print(f"  Child {i}: {child.name} (uid={child.uid})")
-                        child.log_result('my_result', i*5)
-                        if i == 2:
-                            # mark child number 2 as the best result
+            def handler(context: mlrun.MLClientCtx, data: mlrun.DataItem):
+                df = data.as_df()
+                best_accuracy = accuracy_sum = 0
+                for param in param_list:
+                    with context.get_child(myparam=param) as child:
+                        accuracy = child_handler(child, df, **child.parameters)
+                        accuracy_sum += accuracy
+                        child.log_result('accuracy', accuracy)
+                        if accuracy > best_accuracy:
                             child.mark_as_best()
+                            best_accuracy = accuracy
+
+                context.log_result('avg_accuracy', accuracy_sum / len(param_list))
 
         :param params:  extra (or override) params to parent context
         :param with_parent_params:  child will copy the parent parameters and add to them

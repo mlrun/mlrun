@@ -47,7 +47,9 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_function = query_parameters["target_endpoint"]
-    result = DISPATCH[target_function](body, query_parameters, access_key)
+    result = NAME_TO_FUNCTION_DICTIONARY[target_function](
+        body, query_parameters, access_key
+    )
     return result
 
 
@@ -229,14 +231,14 @@ def _validate_query_parameters(query_parameters: Dict[str, str]):
         raise MLRunBadRequestError(
             f"Expected 'target_endpoint' field in query, found {query_parameters} instead"
         )
-    if query_parameters["target_endpoint"] not in DISPATCH:
+    if query_parameters["target_endpoint"] not in NAME_TO_FUNCTION_DICTIONARY:
         raise MLRunBadRequestError(
             f"{query_parameters['target_endpoint']} unsupported in query parameters: {query_parameters}. "
-            f"Currently supports: {','.join(DISPATCH.keys())}"
+            f"Currently supports: {','.join(NAME_TO_FUNCTION_DICTIONARY.keys())}"
         )
 
 
-DISPATCH: Dict[
+NAME_TO_FUNCTION_DICTIONARY: Dict[
     str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
 ] = {
     "list_endpoints": grafana_list_endpoints,

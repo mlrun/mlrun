@@ -368,7 +368,7 @@ used to track the progress or you can use the hyperlinks
    Note: The same command can be issued through CLI commands:
    ``mlrun project my-proj/ -r main -p "v3io:///users/admin/mlrun/kfp/{{workflow.uid}}/"``
 
-The dirty flag allow us to run a project with uncommited changes (when
+The dirty flag allow us to run a project with uncommitted changes (when
 the notebook is in the same git dir it will always be dirty)
 
 .. code:: ipython3

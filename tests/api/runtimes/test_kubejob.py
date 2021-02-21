@@ -222,3 +222,12 @@ def my_func(context):
         with pytest.raises(ValueError) as excinfo:
             runtime.with_code()
         assert "please specify" in str(excinfo.value)
+
+    def test_set_label(self, db: Session, client: TestClient):
+        task = self._generate_task()
+        task.set_label("category", "test")
+        labels = {"category": "test"}
+
+        runtime = self._generate_runtime()
+        self._execute_run(runtime, runspec=task)
+        self._assert_pod_create_called(expected_labels=labels)

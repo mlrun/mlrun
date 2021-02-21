@@ -113,7 +113,7 @@ def test_parse_query_parameters_should_not_fail():
     assert params["another_test"] == "some_other_test"
 
 
-def test_validate_query_parameters_should_fail():
+def test_validate_query_parameters_failure():
     # No 'target_endpoint' in query parameters
     with pytest.raises(MLRunBadRequestError):
         _validate_query_parameters({})
@@ -123,7 +123,7 @@ def test_validate_query_parameters_should_fail():
         _validate_query_parameters({"target_endpoint": "unsupported_endpoint"})
 
 
-def test_validate_query_parameters_should_not_fail():
+def test_validate_query_parameters_success():
     _validate_query_parameters({"target_endpoint": "list_endpoints"})
 
 

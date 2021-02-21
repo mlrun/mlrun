@@ -87,7 +87,7 @@ class ModelObj:
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
-        return "{}".format(self.to_dict())
+        return self.__str__()
 
     def __str__(self):
         return str(self.to_dict())
@@ -171,7 +171,7 @@ class ObjectDict:
         return dict_to_json(self.to_dict())
 
     def to_str(self):
-        return "{}".format(self.to_dict())
+        return self.__str__()
 
     def __str__(self):
         return str(self.to_dict())
@@ -602,7 +602,7 @@ class RunObject(RunTemplate):
                 print(text.decode())
 
         if state:
-            print("final state: {}".format(state))
+            print(f"final state: {state}")
         return state
 
     @staticmethod

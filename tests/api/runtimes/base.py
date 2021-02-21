@@ -12,6 +12,7 @@ import deepdiff
 import pathlib
 import sys
 from base64 import b64encode
+from kubernetes.client import V1EnvVar
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -27,6 +28,7 @@ class TestRuntimeBase:
         self.image_name = "mlrun/mlrun:latest"
         self.artifact_path = "/tmp"
         self.function_name_label = "mlrun/name"
+        self.code_filename = str(self.assets_path / "sample_function.py")
 
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -129,6 +131,7 @@ class TestRuntimeBase:
         expected_inputs,
         expected_hyper_params,
         expected_secrets,
+        expected_labels,
     ):
         function_metadata = config["metadata"]
         assert function_metadata["name"] == self.name
@@ -168,10 +171,19 @@ class TestRuntimeBase:
                 )
                 == {}
             )
+        if expected_labels:
+            diff_result = deepdiff.DeepDiff(
+                function_metadata["labels"], expected_labels, ignore_order=True,
+            )
+            # We just care that the values we look for are fully there.
+            diff_result.pop("dictionary_item_removed", None)
+            assert diff_result == {}
 
     @staticmethod
     def _assert_pod_env(pod_env, expected_variables):
         for env_variable in pod_env:
+            if isinstance(env_variable, V1EnvVar):
+                env_variable = dict(name=env_variable.name, value=env_variable.value)
             name = env_variable["name"]
             if name in expected_variables:
                 if expected_variables[name]:
@@ -290,6 +302,7 @@ class TestRuntimeBase:
         expected_env={},
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
+        expected_labels=None,
     ):
         if assert_create_pod_called:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -330,6 +343,8 @@ class TestRuntimeBase:
 
         self._assert_pod_env(pod_env, expected_env)
         for env_variable in pod_env:
+            if isinstance(env_variable, V1EnvVar):
+                env_variable = dict(name=env_variable.name, value=env_variable.value)
             if env_variable["name"] == "MLRUN_EXEC_CONFIG":
                 function_config = json.loads(env_variable["value"])
                 self._assert_function_config(
@@ -338,6 +353,7 @@ class TestRuntimeBase:
                     expected_inputs,
                     expected_hyper_params,
                     expected_secrets,
+                    expected_labels,
                 )
 
             if expected_code and env_variable["name"] == "MLRUN_EXEC_CODE":

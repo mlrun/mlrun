@@ -218,8 +218,8 @@ def v2_serving_handler(context, event, get_body=False):
 
     try:
         response = context.root.run(event)
-    except Exception as e:
-        message = str(e)
+    except Exception as exc:
+        message = str(exc)
         if context.server_context.verbose:
             message += "\n" + str(traceback.format_exc())
         context.logger.error(f"run error, {traceback.format_exc()}")
@@ -298,8 +298,9 @@ class Response(object):
     def __repr__(self):
         cls = self.__class__.__name__
         items = self.__dict__.items()
-        args = ("{}={!r}".format(key, value) for key, value in items)
-        return "{}({})".format(cls, ", ".join(args))
+        args = (f"{key}={repr(value)}" for key, value in items)
+        args_str = ", ".join(args)
+        return f"{cls}({args_str})"
 
 
 class GraphContext:

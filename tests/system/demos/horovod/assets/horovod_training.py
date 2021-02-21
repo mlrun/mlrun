@@ -53,13 +53,11 @@ else:
 
 if hvd.rank() == 0:
     mlctx.logger.info(
-        "Validating paths:\nData_path:\t{D}\nModel_dir:\t{M}\n".format(
-            D=DATA_PATH, M=MODEL_DIR
-        )
+        f"Validating paths:\nData_path:\t{DATA_PATH}\nModel_dir:\t{MODEL_DIR}\n"
     )
-    mlctx.logger.info("Categories map:{cm}".format(cm=categories_map))
-    mlctx.logger.info("Got {d} files in {D}".format(d=df.shape[0], D=DATA_PATH))
-    mlctx.logger.info("Training data has {s} samples".format(s=df.size))
+    mlctx.logger.info(f"Categories map:{categories_map}")
+    mlctx.logger.info(f"Got {df.shape[0]} files in {DATA_PATH}")
+    mlctx.logger.info(f"Training data has {df.size} samples")
     mlctx.logger.info(df.category.value_counts())
 
 # artifact folders (deprecate these)

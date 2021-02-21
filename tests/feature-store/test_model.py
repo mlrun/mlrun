@@ -39,7 +39,7 @@ def test_features_parser():
     for case in cases:
         try:
             result = parse_feature_string(case["feature"])
-        except Exception as e:
-            assert case.get("error", False), f"got unexpected error {e}"
+        except Exception as exc:
+            assert case.get("error", False), f"got unexpected error {exc}"
             continue
         assert result == case["result"]

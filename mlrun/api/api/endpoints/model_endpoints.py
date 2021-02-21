@@ -278,8 +278,8 @@ def _get_endpoint_metrics(
 
     try:
         metrics = [TimeMetric.from_string(n) for n in name]
-    except NotImplementedError as e:
-        raise MLRunInvalidArgumentError(str(e))
+    except NotImplementedError as exc:
+        raise MLRunInvalidArgumentError(str(exc))
 
     # Columns must have at least an endpoint_id attribute for frames' filter expression
     columns = ["endpoint_id"]

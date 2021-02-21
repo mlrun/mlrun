@@ -7,7 +7,7 @@
     git clone git@github.com:<your username>/mlrun.git
     cd mlrun
     ```
-2. Set up a virtualenv for running tests (we use venv, but you can pick which ever tool you prefer)
+2. Set up a virtualenv for running tests (we recommend using venv)
     ```shell script
     python -m venv venv
     source venv/bin/activate
@@ -18,14 +18,14 @@
     pip install -e '.[complete]'
     ```
    
-## Format
+## Formatting
 We use [black](https://github.com/psf/black) as our formatter, you can basically write your code 
 how ever you want, and when you finish black will simply format it for you by running 
 ```shell script
 make fmt
 ```
 
-## Tests
+## Testing
 * Lint
     ```shell script
     make lint
@@ -46,8 +46,8 @@ please put effort in writing good description
 ## System Tests
 In the `tests/system/` directory exist test suites to run against a running system, in order to test full MLRun flows.
 
-### Adding More System Tests
-To add more system tests, all that is required is to create a test suite class which inherits the `TestMLRunSystem`
+### Adding System Tests
+To add new system tests, all that is required is to create a test suite class which inherits the `TestMLRunSystem`
 class from `tests.system.base`. In addition, a special `skip` annotation must be added to the suite, so it won't run 
 if the `env.yml` isn't filled. If the test can only run on a full iguazio system and not on an MLRun Kit instance, add
 the `enterprise` marker under the `skip` annotation or on the test method itself. If the `enterprise` marker is added
@@ -104,16 +104,16 @@ From here, just use the MLRun sdk within the setup/teardown functions and the te
 functionality. The MLRun SDK will work against the live system you configured, and you can write the tests as you would
 any other pytest test.
 
-#### Running The System Tests Locally
-Note - running them locally is helpful only when you're adding new tests (not when you want to check regression on new 
-code changes, for that see the section below)
+#### Running System Tests Locally
+>**Note** - Running system tests locally is helpful only when adding new tests, and not when testing
+> regression on new code changes. For that, see the section below.
 1. Ensure you have a running system which is accessible via HTTPS from where you are running the tests.
 2. Fill the `tests/system/env.yml` with the `MLRUN_DBPATH`, `V3IO_API`, `V3IO_FRAMESD`, `V3IO_USERNAME` and 
    `V3IO_ACCESS_KEY` (at this moment, `V3IO_PASSWORD` isn't required).
 3. Run the system tests by running `make test-system`.
 
 ### Checking system test regression on new code
-Currently this can only be done by one of the maintainers, the process is:
+Currently, this can only be done by one of the maintainers, the process is:
 1. Push your changes to a branch in the upstream repo
 2. Go to the [build action](https://github.com/mlrun/mlrun/actions?query=workflow%3ABuild) and trigger it for the branch 
 (leave all options default)

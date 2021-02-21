@@ -69,7 +69,7 @@ class V3ioStore(DataStore):
     @property
     def url(self):
         schema = "https" if self.secure else "http"
-        return "{}://{}".format(schema, self.endpoint)
+        return f"{schema}://{self.endpoint}"
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
@@ -77,10 +77,10 @@ class V3ioStore(DataStore):
             return self._filesystem
         try:
             import v3iofs  # noqa
-        except ImportError as e:
+        except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"v3iofs or storey not installed, run pip install storey, {e}"
+                    f"v3iofs or storey not installed, run pip install storey, {exc}"
                 )
             return None
         self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
@@ -151,7 +151,7 @@ def parse_v3io_path(url):
     endpoint = parsed_url.hostname
     if endpoint:
         if parsed_url.port:
-            endpoint += ":{}".format(parsed_url.port)
+            endpoint += f":{parsed_url.port}"
         prefix = "https" if scheme == "v3ios" else "http"
         endpoint = f"{prefix}://{endpoint}"
     else:

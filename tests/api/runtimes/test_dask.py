@@ -12,7 +12,7 @@ from mlrun.runtimes.utils import generate_resources
 
 class TestDaskRuntime(TestRuntimeBase):
     def _mock_dask_cluster(self):
-        patcher = unittest.mock.patch('dask_kubernetes.KubeCluster')
+        patcher = unittest.mock.patch("dask_kubernetes.KubeCluster")
         self.kube_cluster_mock = patcher.start()
         self.kube_cluster_mock.return_value.name = self.name
         self.kube_cluster_mock.return_value.scheduler_address = self.scheduler_address
@@ -22,7 +22,10 @@ class TestDaskRuntime(TestRuntimeBase):
                 self.node_port = port
 
         # 1st port is client port, 2nd port is dashboard port, both apply to the ingress
-        self.kube_cluster_mock.return_value.scheduler.service.spec.ports = [MockPort(1234), MockPort(5678)]
+        self.kube_cluster_mock.return_value.scheduler.service.spec.ports = [
+            MockPort(1234),
+            MockPort(5678),
+        ]
 
         distributed.Client = unittest.mock.Mock()
 
@@ -53,11 +56,13 @@ class TestDaskRuntime(TestRuntimeBase):
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
 
-        mlrun.set_environment(project=self.project,
-                              access_key=self.v3io_access_key,
-                              artifact_path=self.artifact_path)
+        mlrun.set_environment(
+            project=self.project,
+            access_key=self.v3io_access_key,
+            artifact_path=self.artifact_path,
+        )
         dask_cluster = mlrun.new_function(
-            self.name, project=self.project, kind='dask', image=self.image_name
+            self.name, project=self.project, kind="dask", image=self.image_name
         )
 
         dask_cluster.apply(auto_mount())
@@ -88,4 +93,3 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_requests=expected_requests,
         )
         self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
-

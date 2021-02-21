@@ -1,6 +1,7 @@
 import os
 import pytest
 from tests.api.runtimes.base import TestRuntimeBase
+import mlrun.errors
 from mlrun.runtimes.kubejob import KubejobRuntime
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -178,3 +179,55 @@ def my_func(context):
 
         self._execute_run(runtime)
         self._assert_pod_create_called(expected_code=expected_code)
+
+    def test_set_env(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        env = {"MLRUN_LOG_LEVEL": "DEBUG", "IMAGE_HEIGHT": "128"}
+        for env_variable in env:
+            runtime.set_env(env_variable, env[env_variable])
+        self._execute_run(runtime)
+        self._assert_pod_create_called(expected_env=env)
+
+        # set the same env key for a different value and check that the updated one is used
+        env2 = {"MLRUN_LOG_LEVEL": "ERROR", "IMAGE_HEIGHT": "128"}
+        runtime.set_env("MLRUN_LOG_LEVEL", "ERROR")
+        self._execute_run(runtime)
+        self._assert_pod_create_called(expected_env=env2)
+
+    def test_run_with_code_with_file(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        runtime.with_code(from_file=self.code_filename)
+
+        self._execute_run(runtime)
+        self._assert_pod_create_called(expected_code=open(self.code_filename).read())
+
+    def test_run_with_code_and_file(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        expected_code = """
+        def my_func(context):
+            print("Hello cruel world")
+                """
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+            runtime.with_code(from_file=self.code_filename, body=expected_code)
+        assert "must provide either body or from_file argument. not both" in str(
+            excinfo.value
+        )
+
+    def test_run_with_code_empty(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        with pytest.raises(ValueError) as excinfo:
+            runtime.with_code()
+        assert "please specify" in str(excinfo.value)
+
+    def test_set_label(self, db: Session, client: TestClient):
+        task = self._generate_task()
+        task.set_label("category", "test")
+        labels = {"category": "test"}
+
+        runtime = self._generate_runtime()
+        self._execute_run(runtime, runspec=task)
+        self._assert_pod_create_called(expected_labels=labels)

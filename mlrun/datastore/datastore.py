@@ -42,7 +42,7 @@ def parse_url(url):
             hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
         ]
     if parsed_url.port:
-        endpoint += ":{}".format(parsed_url.port)
+        endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url
 
 
@@ -73,7 +73,7 @@ def schema_to_store(schema):
     elif schema in ["http", "https"]:
         return HttpStore
     else:
-        raise ValueError("unsupported store scheme ({})".format(schema))
+        raise ValueError(f"unsupported store scheme ({schema})")
 
 
 def uri_to_ipython(link):
@@ -131,8 +131,8 @@ class StoreManager:
             resource = get_store_resource(
                 url, db=self._get_db(), secrets=self._secrets, project=project
             )
-        except Exception as e:
-            raise OSError("artifact {} not found, {}".format(url, e))
+        except Exception as exc:
+            raise OSError(f"artifact {url} not found, {exc}")
         return resource, resource.get_target_path()
 
     def object(self, url, key="", project="") -> DataItem:
@@ -156,12 +156,12 @@ class StoreManager:
             if endpoint in self._stores.keys():
                 return self._stores[endpoint], subpath
             else:
-                raise ValueError("no such store ({})".format(endpoint))
+                raise ValueError(f"no such store ({endpoint})")
 
-        storekey = "{}://{}".format(schema, endpoint)
-        if storekey in self._stores.keys():
-            return self._stores[storekey], subpath
+        store_key = f"{schema}://{endpoint}"
+        if store_key in self._stores.keys():
+            return self._stores[store_key], subpath
 
-        store = schema_to_store(schema)(self, schema, storekey, endpoint)
-        self._stores[storekey] = store
+        store = schema_to_store(schema)(self, schema, store_key, endpoint)
+        self._stores[store_key] = store
         return store, subpath

@@ -131,42 +131,40 @@ def _get_access_key() -> Optional[str]:
     return os.environ.get("V3IO_ACCESS_KEY")
 
 
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
-    v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
+    if not _is_env_params_dont_exist():
+        v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
-    frames = get_frames_client(
-        token=_get_access_key(), container="projects", address=config.v3io_framesd,
-    )
-    try:
-        all_records = v3io.kv.new_cursor(
-            container="projects",
-            table_path=f"test/{ENDPOINTS_TABLE_PATH}",
-            raise_for_status=RaiseForStatus.never,
-        ).all()
-
-        all_records = [r["__name"] for r in all_records]
-
-        # Cleanup KV
-        for record in all_records:
-            v3io.kv.delete(
+        frames = get_frames_client(
+            token=_get_access_key(), container="projects", address=config.v3io_framesd,
+        )
+        try:
+            all_records = v3io.kv.new_cursor(
                 container="projects",
                 table_path=f"test/{ENDPOINTS_TABLE_PATH}",
-                key=record,
                 raise_for_status=RaiseForStatus.never,
-            )
-    except RuntimeError:
-        pass
+            ).all()
 
-    try:
-        # Cleanup TSDB
-        frames.delete(
-            backend="tsdb",
-            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
-            if_missing=fpb2.IGNORE,
-        )
-    except CreateError:
-        pass
+            all_records = [r["__name"] for r in all_records]
+
+            # Cleanup KV
+            for record in all_records:
+                v3io.kv.delete(
+                    container="projects",
+                    table_path=f"test/{ENDPOINTS_TABLE_PATH}",
+                    key=record,
+                    raise_for_status=RaiseForStatus.never,
+                )
+        except RuntimeError:
+            pass
+
+        try:
+            # Cleanup TSDB
+            frames.delete(
+                backend="tsdb",
+                table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+                if_missing=fpb2.IGNORE,
+            )
+        except CreateError:
+            pass

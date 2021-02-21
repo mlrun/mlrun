@@ -13,10 +13,10 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
-from mlrun.api.api.endpoints.model_endpoints import (
+from mlrun.api.crud.model_endpoints import (
     get_endpoint_kv_record_by_id,
-    ENDPOINTS_TABLE_PATH,
     ENDPOINT_EVENTS_TABLE_PATH,
+    ENDPOINTS_TABLE_PATH,
 )
 from mlrun.api.schemas import (
     ModelEndpointMetadata,
@@ -207,7 +207,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
         )
 
         response = client.get(
-            url=f"/api/projects/test/model-endpoints/{endpoint.id}?metrics=true&name=predictions",
+            url=f"/api/projects/test/model-endpoints/{endpoint.id}?metric=predictions",
             headers={"X-V3io-Session-Key": _get_access_key()},
         )
         response = json.loads(response.content)

@@ -30,7 +30,8 @@ from mlrun import new_task, get_run_db, new_function
 def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}\n")
-    print("file\n{}\n".format(context.get_input(input_name).get()))
+    input_str = context.get_input(input_name).get()
+    print(f"file\n{input_str}\n")
 
     context.log_result("accuracy", p1 * 2)
     context.logger.info("some info")
@@ -134,7 +135,7 @@ def test_handler_hyper():
 
 def test_handler_hyperlist():
     run_spec = tag_test(base_spec, "test_handler_hyperlist")
-    run_spec.spec.param_file = "{}/param_file.csv".format(tests_root_directory)
+    run_spec.spec.param_file = f"{tests_root_directory}/param_file.csv"
     result = new_function().run(run_spec, handler=my_func)
     print(result)
     assert len(result.status.iterations) == 3 + 1, "hyper parameters test failed"
@@ -143,20 +144,20 @@ def test_handler_hyperlist():
 
 def test_local_runtime():
     spec = tag_test(base_spec, "test_local_runtime")
-    result = new_function(command="{}/training.py".format(examples_path)).run(spec)
+    result = new_function(command=f"{examples_path}/training.py").run(spec)
     verify_state(result)
 
 
 def test_local_runtime_hyper():
     spec = tag_test(base_spec, "test_local_runtime_hyper")
     spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
-    result = new_function(command="{}/training.py".format(examples_path)).run(spec)
+    result = new_function(command=f"{examples_path}/training.py").run(spec)
     verify_state(result)
 
 
 def test_local_handler():
     spec = tag_test(base_spec, "test_local_runtime")
-    result = new_function(command="{}/handler.py".format(examples_path)).run(
+    result = new_function(command=f"{examples_path}/handler.py").run(
         spec, handler="my_func"
     )
     verify_state(result)
@@ -166,7 +167,7 @@ def test_local_no_context():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
     result = new_function(
-        command="{}/no_ctx.py".format(tests_root_directory), mode="noctx"
+        command=f"{tests_root_directory}/no_ctx.py", mode="noctx"
     ).run(spec)
     verify_state(result)
 

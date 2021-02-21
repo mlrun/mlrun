@@ -34,8 +34,6 @@ class TestDemo(TestMLRunSystem):
             watch=True,
         )
 
-        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
-        self._run_db = mlrun.db.get_run_db()
         runs = self._run_db.list_runs(
             project=self.project_name, labels=f"workflow={run_id}"
         )

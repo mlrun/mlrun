@@ -211,7 +211,8 @@ class MLClientCtx(object):
             self._data_stores.from_dict(spec)
             if inputs and isinstance(inputs, dict):
                 for k, v in inputs.items():
-                    self._set_input(k, v)
+                    if v:
+                        self._set_input(k, v)
 
         if host:
             self.set_label("host", host)
@@ -334,6 +335,8 @@ class MLClientCtx(object):
         return None
 
     def _set_input(self, key, url=""):
+        if url is None:
+            return
         if not url:
             url = key
         if self.in_path and not (url.startswith("/") or "://" in url):

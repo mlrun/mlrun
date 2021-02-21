@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.data_types import ValueType
+from mlrun.data_types.data_types import ValueType
 from mlrun.feature_store.common import parse_feature_string
 from mlrun.feature_store import FeatureSet, Feature, Entity
 
@@ -39,7 +39,7 @@ def test_features_parser():
     for case in cases:
         try:
             result = parse_feature_string(case["feature"])
-        except Exception as e:
-            assert case.get("error", False), f"got unexpected error {e}"
+        except Exception as exc:
+            assert case.get("error", False), f"got unexpected error {exc}"
             continue
         assert result == case["result"]

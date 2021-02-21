@@ -18,7 +18,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from os import environ
 import re
-import typing
+from typing import Tuple, Dict
 import mlrun
 
 from .config import config
@@ -87,7 +87,7 @@ class ModelObj:
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
-        return "{}".format(self.to_dict())
+        return self.__str__()
 
     def __str__(self):
         return str(self.to_dict())
@@ -171,7 +171,7 @@ class ObjectDict:
         return dict_to_json(self.to_dict())
 
     def to_str(self):
-        return "{}".format(self.to_dict())
+        return self.__str__()
 
     def __str__(self):
         return str(self.to_dict())
@@ -495,15 +495,15 @@ class RunTemplate(ModelObj):
 
         read secrets from a source provider to be used in workflows, example::
 
-            proj.with_secrets('file', 'file.txt')
-            proj.with_secrets('inline', {'key': 'val'})
-            proj.with_secrets('env', 'ENV1,ENV2')
-            proj.with_secrets('vault', ['secret1', 'secret2'...])
+            task.with_secrets('file', 'file.txt')
+            task.with_secrets('inline', {'key': 'val'})
+            task.with_secrets('env', 'ENV1,ENV2')
+            task.with_secrets('vault', ['secret1', 'secret2'...])
 
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)
 
-        :returns: project object
+        :returns: The RunTemplate object
         """
 
         if kind == "vault" and isinstance(source, list):
@@ -602,7 +602,7 @@ class RunObject(RunTemplate):
                 print(text.decode())
 
         if state:
-            print("final state: {}".format(state))
+            print(f"final state: {state}")
         return state
 
     @staticmethod
@@ -612,7 +612,7 @@ class RunObject(RunTemplate):
         return f"{project}@{uid}#{iteration}{tag}"
 
     @staticmethod
-    def parse_uri(uri: str) -> typing.Tuple[str, str, str, str]:
+    def parse_uri(uri: str) -> Tuple[str, str, str, str]:
         uri_pattern = (
             r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
         )
@@ -751,3 +751,123 @@ def new_task(
     run.spec.output_path = artifact_path or out_path or run.spec.output_path
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run
+
+
+class DataSource(ModelObj):
+    """online or offline data source spec"""
+
+    _dict_fields = [
+        "kind",
+        "name",
+        "path",
+        "attributes",
+        "key_field",
+        "time_field",
+        "schedule",
+        "online",
+        "workers",
+        "max_age",
+    ]
+    kind = None
+
+    def __init__(
+        self,
+        name: str = None,
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+    ):
+        self.name = name
+        self.path = str(path)
+        self.attributes = attributes
+        self.schedule = schedule
+        self.key_field = key_field
+        self.time_field = time_field
+
+        self.online = None
+        self.max_age = None
+        self.workers = None
+        self._secrets = {}
+
+    def set_secrets(self, secrets):
+        self._secrets = secrets
+
+
+class DataTargetBase(ModelObj):
+    """data target spec, specify a destination for the feature set data"""
+
+    _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
+
+    def __init__(
+        self,
+        kind: str = None,
+        name: str = "",
+        path=None,
+        attributes: Dict[str, str] = None,
+        after_state=None,
+    ):
+        self.name = name
+        self.kind: str = kind
+        self.path = path
+        self.after_state = after_state
+        self.attributes = attributes or {}
+
+
+class FeatureSetProducer(ModelObj):
+    """information about the task/job which produced the feature set data"""
+
+    def __init__(self, kind=None, name=None, uri=None, owner=None, sources=None):
+        self.kind = kind
+        self.name = name
+        self.owner = owner
+        self.uri = uri
+        self.sources = sources or {}
+
+
+class DataTarget(DataTargetBase):
+    """data target with extra status information (used in the feature-set/vector status)"""
+
+    _dict_fields = ["name", "kind", "path", "start_time", "online", "status", "is_dir"]
+
+    def __init__(
+        self, kind: str = None, name: str = "", path=None, online=None,
+    ):
+        super().__init__(kind, name, path)
+        self.status = ""
+        self.updated = None
+        self.online = online
+        self.max_age = None
+        self.start_time = None
+        self.is_dir = None
+        self._producer = None
+        self.producer = {}
+
+    @property
+    def producer(self) -> FeatureSetProducer:
+        return self._producer
+
+    @producer.setter
+    def producer(self, producer):
+        self._producer = self._verify_dict(producer, "producer", FeatureSetProducer)
+
+
+class VersionedObjMetadata(ModelObj):
+    def __init__(
+        self,
+        name: str = None,
+        tag: str = None,
+        uid: str = None,
+        project: str = None,
+        labels: Dict[str, str] = None,
+        annotations: Dict[str, str] = None,
+        updated=None,
+    ):
+        self.name = name
+        self.tag = tag
+        self.uid = uid
+        self.project = project
+        self.labels = labels or {}
+        self.annotations = annotations or {}
+        self.updated = updated

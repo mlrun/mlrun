@@ -14,7 +14,6 @@
 import os
 import pathlib
 from io import StringIO
-from tempfile import mktemp
 
 import mlrun
 import numpy as np
@@ -110,9 +109,7 @@ class DatasetArtifact(Artifact):
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in supported_formats:
             raise ValueError(
-                "unsupported format {} use one of {}".format(
-                    format, "|".join(supported_formats)
-                )
+                f"unsupported format {format} use one of {'|'.join(supported_formats)}"
             )
 
         if format == "pq":
@@ -131,12 +128,11 @@ class DatasetArtifact(Artifact):
         self._kw = kwargs
 
     def upload(self):
-        upload_dataframe(
+        self.size = upload_dataframe(
             self._df,
             self.target_path,
             format=self.format,
             src_path=self.src_path,
-            meta_setter=self._set_meta,
             **self._kw,
         )
 
@@ -222,16 +218,15 @@ def update_dataset_meta(
     if hasattr(artifact, "artifact_url"):
         artifact = artifact.artifact_url
 
-    stores = store_manager
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
     elif is_store_uri(artifact):
-        artifact_spec, _ = stores.get_store_artifact(artifact)
+        artifact_spec, _ = store_manager.get_store_artifact(artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
     if not artifact_spec or artifact_spec.kind != "dataset":
-        raise ValueError("store artifact ({}) is not dataset kind".format(artifact))
+        raise ValueError(f"store artifact ({artifact}) is not dataset kind")
 
     if from_df is not None:
         DatasetArtifact.update_preview_fields_from_df(
@@ -259,7 +254,7 @@ def update_dataset_meta(
                 item = item.target_path
             artifact_spec.extra_data[key] = item
 
-    stores._get_db().store_artifact(
+    mlrun.get_run_db().store_artifact(
         artifact_spec.db_key,
         artifact_spec.to_dict(),
         artifact_spec.tree,
@@ -268,7 +263,7 @@ def update_dataset_meta(
     )
 
 
-def upload_dataframe(df, target_path, format, src_path=None, meta_setter=None, **kw):
+def upload_dataframe(df, target_path, format, src_path=None, **kw):
     suffix = pathlib.Path(target_path).suffix
     if not format:
         if suffix and suffix in [".csv", ".parquet", ".pq"]:
@@ -278,39 +273,19 @@ def upload_dataframe(df, target_path, format, src_path=None, meta_setter=None, *
 
     if src_path and os.path.isfile(src_path):
         store_manager.object(url=target_path).upload(src_path)
-        if meta_setter:
-            meta_setter(src_path)
-        return
+        return os.stat(src_path).st_size
 
     if df is None:
-        return
+        return None
 
     if target_path.startswith("memory://"):
         store_manager.object(target_path).put(df)
-        return
+        return None
 
     if format in ["csv", "parquet"]:
         if not suffix:
             target_path = target_path + "." + format
-        writer_string = "to_{}".format(format)
-        saving_func = getattr(df, writer_string, None)
-        target = target_path
-        to_upload = False
-        if "://" in target:
-            target = mktemp()
-            to_upload = True
-        else:
-            dir = os.path.dirname(target)
-            if dir:
-                os.makedirs(dir, exist_ok=True)
-
-        saving_func(target, **kw)
-        if to_upload:
-            store_manager.object(url=target_path).upload(target)
-        if meta_setter:
-            meta_setter(target)
-        if to_upload:
-            os.remove(target)
-        return
+        target_class = mlrun.datastore.targets.kind_to_driver[format]
+        return target_class(path=target_path).write_dataframe(df, **kw)
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

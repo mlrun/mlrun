@@ -101,7 +101,8 @@ class Artifact(ModelObj):
         return self.target_path
 
     def get_store_url(self, with_tag=True, project=None):
-        uri = "{}/{}".format(project or self.project, self.db_key)
+        uri_project = project or self.project
+        uri = "/".join([uri_project, self.db_key])
         if with_tag:
             uri += "#" + self.tree
         return get_store_uri(StorePrefix.Artifact, uri)
@@ -143,13 +144,10 @@ class Artifact(ModelObj):
         store_manager.object(url=target or self.target_path).put(body)
 
     def _upload_file(self, src, target=None):
-        self._set_meta(src)
-        store_manager.object(url=target or self.target_path).upload(src)
-
-    def _set_meta(self, src):
         if calc_hash:
             self.hash = file_hash(src)
         self.size = os.stat(src).st_size
+        store_manager.object(url=target or self.target_path).upload(src)
 
 
 class DirArtifact(Artifact):
@@ -177,7 +175,7 @@ class DirArtifact(Artifact):
         for f in files:
             file_path = os.path.join(self.src_path, f)
             if not os.path.isfile(file_path):
-                raise ValueError("file {} not found, cant upload".format(file_path))
+                raise ValueError(f"file {file_path} not found, cant upload")
             target = os.path.join(self.target_path, f)
             store_manager.object(url=target).upload(file_path)
 
@@ -241,7 +239,7 @@ def upload_extra_data(
                 else item
             )
             if not os.path.isfile(src_path):
-                raise ValueError("extra data file {} not found".format(src_path))
+                raise ValueError(f"extra data file {src_path} not found")
             target = os.path.join(target_path, item)
             store_manager.object(url=target).upload(src_path)
 
@@ -270,7 +268,7 @@ def get_artifact_meta(artifact):
         artifact_spec = mlrun.artifacts.dict_to_artifact(spec)
 
     else:
-        raise ValueError("cant resolve artifact file for {}".format(artifact))
+        raise ValueError(f"cant resolve artifact file for {artifact}")
 
     extra_dataitems = {}
     for k, v in artifact_spec.extra_data.items():

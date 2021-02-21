@@ -48,9 +48,7 @@ base_spec = new_task(params={"p1": 8}, out_path=out_path)
 
 def verify_state(result: RunObject):
     state = result.status.state
-    assert state == "completed", "wrong state ({}) {}".format(
-        state, result.status.error
-    )
+    assert state == "completed", f"wrong state ({state}) {result.status.error}"
 
 
 def test_simple_function():

@@ -54,11 +54,15 @@ install_requires = list(load_deps("requirements.txt"))
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
-# NOTE: These are tested in `automation/package_test/test_imports.sh` If
+# NOTE: These are tested in `automation/package_test/test.py` If
 # you modify these, make sure to change the corresponding line there.
 extras_require = {
-    "s3": ["boto3~=1.9"],
-    "azure-blob-storage": ["azure-storage-blob~=12.0"],
+    # from 1.16.53 it requires botocore<1.20.0,>=1.19.53 which conflicts with s3fs 0.5.2 that has aiobotocore>=1.0.1
+    # which resolves to 1.2.1 which has botocore >=1.19.52,<1.19.53
+    # boto3 1.16.53 has botocore<1.20.0, >=1.19.53, so we must add botocore explictly
+    "s3": ["boto3~=1.9, <1.16.53", "botocore>=1.19.52, <1.19.53", "s3fs~=0.5"],
+    # <12.7.0 from adlfs 0.6.3
+    "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.6"],
 }
 extras_require["complete"] = sorted(
     {
@@ -96,8 +100,8 @@ setup(
         "mlrun.utils",
         "mlrun.utils.version",
         "mlrun.datastore",
+        "mlrun.data_types",
         "mlrun.feature_store",
-        "mlrun.feature_store.model",
         "mlrun.feature_store.retrieval",
         "mlrun.api",
         "mlrun.api.api",

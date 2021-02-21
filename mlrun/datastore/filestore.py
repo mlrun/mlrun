@@ -15,6 +15,8 @@
 from os import path, makedirs, listdir, stat
 from shutil import copyfile
 
+import fsspec
+
 from .base import DataStore, FileStats
 
 
@@ -28,6 +30,12 @@ class FileStore(DataStore):
 
     def _join(self, key):
         return path.join(self.subpath, key)
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        if not self._filesystem:
+            self._filesystem = fsspec.filesystem("file")
+        return self._filesystem
 
     def get(self, key, size=None, offset=0):
         with open(self._join(key), "rb") as fp:

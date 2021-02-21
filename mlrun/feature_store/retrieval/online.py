@@ -16,7 +16,7 @@ import mlrun
 
 from mlrun.datastore.store_resources import ResourceCache
 from mlrun.serving.server import create_graph_server
-from ..targets import get_online_target
+from mlrun.datastore.targets import get_online_target
 
 
 def _build_feature_vector_graph(
@@ -60,8 +60,8 @@ def _build_feature_vector_graph(
 def init_feature_vector_graph(vector):
     try:
         from storey import Source
-    except ImportError as e:
-        raise ImportError(f"storey not installed, use pip install storey, {e}")
+    except ImportError as exc:
+        raise ImportError(f"storey not installed, use pip install storey, {exc}")
 
     feature_set_objects, feature_set_fields = vector.parse_features()
     graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)

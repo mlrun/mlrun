@@ -1,6 +1,7 @@
 import os
 import pathlib
 import sys
+import typing
 
 import pytest
 import yaml
@@ -9,7 +10,7 @@ import mlrun.api.schemas
 from mlrun import get_run_db, mlconf, set_environment
 from mlrun.utils import create_logger
 
-logger = create_logger(level="debug", name="test")
+logger = create_logger(level="debug", name="test-system")
 
 
 class TestMLRunSystem:
@@ -18,8 +19,11 @@ class TestMLRunSystem:
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
+    enterprise_marker_name = "enterprise"
     mandatory_env_vars = [
         "MLRUN_DBPATH",
+    ]
+    mandatory_enterprise_env_vars = mandatory_env_vars + [
         "V3IO_API",
         "V3IO_FRAMESD",
         "V3IO_USERNAME",
@@ -60,8 +64,6 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
-        self._run_db = mlrun.db.get_run_db()
         self._run_db.delete_project(
             self.project_name,
             deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascade,
@@ -80,19 +82,24 @@ class TestMLRunSystem:
 
     @classmethod
     def skip_test_if_env_not_configured(cls, test):
+        mandatory_env_vars = (
+            cls.mandatory_enterprise_env_vars
+            if cls._has_marker(test, cls.enterprise_marker_name)
+            else cls.mandatory_env_vars
+        )
         configured = True
         try:
             env = cls._get_env_from_file()
         except FileNotFoundError:
             configured = False
         else:
-            for env_var in cls.mandatory_env_vars:
+            for env_var in mandatory_env_vars:
                 if env_var not in env or env[env_var] is None:
                     configured = False
 
         return pytest.mark.skipif(
             not configured,
-            reason=f"This is a system test, add the needed environment variables {*cls.mandatory_env_vars,} "
+            reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
             "in tests/system/env.yml to run it",
         )(test)
 
@@ -221,3 +228,12 @@ class TestMLRunSystem:
             assert run_outputs["iteration_results"] == str(
                 output_path / "iteration_results.csv"
             )
+
+    @staticmethod
+    def _has_marker(test: typing.Callable, marker_name: str) -> bool:
+        try:
+            return (
+                len([mark for mark in test.pytestmark if mark.name == marker_name]) > 0
+            )
+        except AttributeError:
+            return False

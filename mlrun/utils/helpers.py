@@ -76,13 +76,8 @@ class StorePrefix:
 def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     if kind in ["dataset", "model"] and item.get("db_key"):
-        return "{}://{}/{}/{}:{}".format(
-            DB_SCHEMA,
-            StorePrefix.Artifact,
-            project or item.get("project"),
-            item.get("db_key"),
-            item.get("tree"),
-        )
+        project_str = project or item.get("project")
+        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{item.get('db_key')}:{item.get('tree')}"
     return item.get("target_path")
 
 
@@ -223,7 +218,7 @@ def match_labels(labels, conditions):
     def splitter(verb, text):
         items = text.split(verb)
         if len(items) != 2:
-            raise ValueError("illegal condition - {}".format(text))
+            raise ValueError(f"illegal condition - {text}")
         return labels.get(items[0].strip(), ""), items[1].strip()
 
     for condition in conditions:
@@ -292,7 +287,7 @@ def list2dict(lines: list):
 def dict_to_list(struct: dict):
     if not struct:
         return []
-    return ["{}={}".format(k, v) for k, v in struct.items()]
+    return [f"{k}={v}" for k, v in struct.items()]
 
 
 def dict_to_str(struct: dict, sep=","):
@@ -331,10 +326,8 @@ yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
 def dict_to_yaml(struct):
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
-    except RepresenterError as e:
-        raise ValueError(
-            "error: data result cannot be serialized to YAML" ", {} ".format(e)
-        )
+    except RepresenterError as exc:
+        raise ValueError(f"error: data result cannot be serialized to YAML, {exc}")
     return data
 
 
@@ -368,7 +361,8 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
 
     if base and not base.endswith("/"):
         base += "/"
-    return "{}{}".format(base or "", local_path)
+    base_str = base or ""
+    return f"{base_str}{local_path}"
 
 
 def parse_versioned_object_uri(uri, default_project=""):
@@ -392,13 +386,13 @@ def parse_versioned_object_uri(uri, default_project=""):
 
 
 def generate_object_uri(project, name, tag=None, hash_key=None):
-    uri = "{}/{}".format(project, name)
+    uri = f"{project}/{name}"
 
     # prioritize hash key over tag
     if hash_key:
-        uri += "@{}".format(hash_key)
+        uri += f"@{hash_key}"
     elif tag:
-        uri += ":{}".format(tag)
+        uri += f":{tag}"
     return uri
 
 
@@ -424,7 +418,7 @@ def gen_md_table(header, rows=None):
         items = [] if items is None else items
         out = "|"
         for i in items:
-            out += " {} |".format(i)
+            out += f" {i} |"
         return out
 
     out = gen_list(header) + "\n" + gen_list(len(header) * ["---"]) + "\n"
@@ -448,7 +442,7 @@ def gen_html_table(header, rows=None):
         items = [] if items is None else items
         out = ""
         for item in items:
-            out += "<{}>{}</{}>".format(tag, item, tag)
+            out += f"<{tag}>{item}</{tag}>"
         return out
 
     out = "<tr>" + gen_list(header, "th") + "</tr>\n"
@@ -613,8 +607,8 @@ class RunNotifications:
         for h in self._hooks:
             try:
                 h(message, runs)
-            except Exception as e:
-                logger.warning(f"failed to push notification, {e}")
+            except Exception as exc:
+                logger.warning(f"failed to push notification, {exc}")
         if self.with_ipython and is_ipython:
             import IPython
 
@@ -659,9 +653,6 @@ class RunNotifications:
 
     def slack(self, webhook=""):
         emoji = {"completed": ":smiley:", "running": ":man-running:", "error": ":x:"}
-
-        template = "{}/{}/{}/jobs/{}/info"
-
         webhook = webhook or environ.get("SLACK_WEBHOOK")
         if not webhook:
             raise ValueError("Slack webhook is not set")
@@ -674,12 +665,11 @@ class RunNotifications:
             for r in runs:
                 meta = r["metadata"]
                 if config.resolve_ui_url():
-                    url = template.format(
-                        config.resolve_ui_url(),
-                        config.ui.projects_prefix,
-                        meta.get("project"),
-                        meta.get("uid"),
+                    url = (
+                        f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/"
+                        f"{meta.get('project')}/jobs/{meta.get('uid')}/info"
                     )
+
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:
                     line = meta.get("name")
@@ -688,7 +678,8 @@ class RunNotifications:
 
                 fields.append(row(line))
                 if state == "error":
-                    result = "*{}*".format(r["status"].get("error", ""))
+                    error_status = r["status"].get("error", "")
+                    result = f"*{error_status}*"
                 else:
                     result = dict_to_str(r["status"].get("results", {}), ", ")
                 fields.append(row(result or "None"))
@@ -777,8 +768,8 @@ def get_class(class_name, namespace):
 
     try:
         class_object = create_class(class_name)
-    except (ImportError, ValueError) as e:
-        raise ImportError(f"state init failed, class {class_name} not found, {e}")
+    except (ImportError, ValueError) as exc:
+        raise ImportError(f"state init failed, class {class_name} not found, {exc}")
     return class_object
 
 
@@ -798,8 +789,8 @@ def get_function(function, namespace):
 
     try:
         function_object = create_function(function)
-    except (ImportError, ValueError) as e:
-        raise ImportError(f"state init failed, function {function} not found, {e}")
+    except (ImportError, ValueError) as exc:
+        raise ImportError(f"state init failed, function {function} not found, {exc}")
     return function_object
 
 

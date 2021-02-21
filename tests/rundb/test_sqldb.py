@@ -78,9 +78,9 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
 
 
 def test_list_projects(db: SQLDB, db_session: Session):
-    for i in range(10):
+    for idx in range(10):
         run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
-        db.store_run(db_session, run, "u7", project=f"prj{i % 3}", iter=i)
+        db.store_run(db_session, run, "u7", project=f"prj{idx % 3}", iter=idx)
 
     projects_output = db.list_projects(db_session)
 
@@ -146,10 +146,10 @@ def test_tags(db: SQLDB, db_session: Session, cls):
 def _tag_objs(db: SQLDB, db_session: Session, count, project, tags):
     tagged = [tagged_model for tagged_model in _tagged if tagged_model != Run]
     by_tag = defaultdict(list)
-    for i in range(count):
-        cls = tagged[i % len(tagged)]
+    for idx in range(count):
+        cls = tagged[idx % len(tagged)]
         obj = cls()
-        by_tag[tags[i % len(tags)]].append(obj)
+        by_tag[tags[idx % len(tags)]].append(obj)
         db_session.add(obj)
     db_session.commit()
     for tag, objs in by_tag.items():

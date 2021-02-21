@@ -68,7 +68,7 @@ class ResourceCache:
 
         if uri in self._tabels:
             return self._tabels[uri]
-        if uri in [".", ""]:
+        if uri in [".", ""] or uri.startswith("$"):  # $.. indicates in-mem table
             self._tabels[uri] = Table("", Driver())
             return self._tabels[uri]
 
@@ -137,7 +137,7 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
                 iteration = int(uri[loc + 1 :])
             except ValueError:
                 raise ValueError(
-                    "illegal store path {}, iteration must be integer value".format(uri)
+                    f"illegal store path {uri}, iteration must be integer value"
                 )
 
         resource = db.read_artifact(

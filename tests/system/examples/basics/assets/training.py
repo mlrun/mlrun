@@ -11,8 +11,9 @@ def my_job(context, p1=1, p2="x"):
     # access input metadata, values, files, and secrets (passwords)
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}")
-    print("accesskey = {}".format(context.get_secret("ACCESS_KEY")))
-    print("file\n{}\n".format(context.get_input("infile.txt", "infile.txt").get()))
+    print(f"accesskey = {context.get_secret('ACCESS_KEY')}")
+    input_str = context.get_input("infile.txt", "infile.txt").get()
+    print(f"file\n{input_str}\n")
 
     # Run some useful code e.g. ML training, data prep, etc.
 

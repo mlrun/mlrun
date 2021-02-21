@@ -144,13 +144,10 @@ class Artifact(ModelObj):
         store_manager.object(url=target or self.target_path).put(body)
 
     def _upload_file(self, src, target=None):
-        self._set_meta(src)
-        store_manager.object(url=target or self.target_path).upload(src)
-
-    def _set_meta(self, src):
         if calc_hash:
             self.hash = file_hash(src)
         self.size = os.stat(src).st_size
+        store_manager.object(url=target or self.target_path).upload(src)
 
 
 class DirArtifact(Artifact):

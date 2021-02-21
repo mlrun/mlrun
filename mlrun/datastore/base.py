@@ -236,6 +236,10 @@ class DataItem:
         """return fsspec file handler, if supported"""
         return self._store.open(self._url, mode)
 
+    def ls(self):
+        """return a list of child file names"""
+        return self._store.listdir(self._path)
+
     def listdir(self):
         """return a list of child file names"""
         return self._store.listdir(self._path)

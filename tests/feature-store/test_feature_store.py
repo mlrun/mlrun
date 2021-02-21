@@ -7,13 +7,13 @@ import pandas as pd
 
 from tests.conftest import results, tests_root_directory
 
-from mlrun.feature_store.sources import CSVSource
+from mlrun.datastore.sources import CSVSource
 from mlrun.feature_store.steps import FeaturesetValidator
 
 from data_sample import quotes, stocks, trades
 from storey import MapClass
 
-from mlrun.feature_store.targets import CSVTarget
+from mlrun.datastore.targets import CSVTarget
 from mlrun.utils import logger
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
@@ -196,7 +196,7 @@ def test_serverless_ingest():
 
 
 def prepare_feature_set(name: str, entity: str, data: pd.DataFrame, timestamp_key=None):
-    df_source = fs.sources.DataFrameSource(data, entity, timestamp_key)
+    df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
 
     feature_set = fs.FeatureSet(
         name, entities=[fs.Entity(entity)], timestamp_key=timestamp_key

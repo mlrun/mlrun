@@ -338,7 +338,7 @@ class BaseRuntime(ModelObj):
 
         if not self.is_deployed:
             raise RunError(
-                "function image is not built/ready, use .build() method first"
+                "function image is not built/ready, use .deploy() method first"
             )
 
         if self.verbose:

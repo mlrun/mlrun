@@ -17,16 +17,16 @@ import mlrun
 import pandas as pd
 
 
-from ...features import Feature
-from .base import DataSource, DataTarget, CommonMetadata
-from ..common import parse_feature_string, get_feature_set_by_uri
-from ...model import ModelObj, ObjectList
-from ...config import config as mlconf
-from ...runtimes.function_reference import FunctionReference
-from ...serving.states import RootFlowState
-from ..targets import get_offline_target, ParquetTarget, CSVTarget
-from ...datastore import get_store_uri
-from ...utils import StorePrefix
+from ..features import Feature
+from ..model import VersionedObjMetadata
+from ..feature_store.common import parse_feature_string, get_feature_set_by_uri
+from ..model import ModelObj, ObjectList, DataSource, DataTarget
+from ..config import config as mlconf
+from ..runtimes.function_reference import FunctionReference
+from ..serving.states import RootFlowState
+from ..datastore.targets import get_offline_target, ParquetTarget, CSVTarget
+from ..datastore import get_store_uri
+from ..utils import StorePrefix
 
 
 class FeatureVectorSpec(ModelObj):
@@ -149,7 +149,7 @@ class FeatureVector(ModelObj):
         self._status = None
 
         self.spec = FeatureVectorSpec(description=description, features=features)
-        self.metadata = CommonMetadata(name=name)
+        self.metadata = VersionedObjMetadata(name=name)
         self.status = None
 
         self._entity_df = None
@@ -165,12 +165,12 @@ class FeatureVector(ModelObj):
         self._spec = self._verify_dict(spec, "spec", FeatureVectorSpec)
 
     @property
-    def metadata(self) -> CommonMetadata:
+    def metadata(self) -> VersionedObjMetadata:
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", CommonMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureVectorStatus:
@@ -337,8 +337,10 @@ class OfflineVectorResponse:
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        ParquetTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)
+        return ParquetTarget(path=target_path).write_dataframe(
+            self._merger.get_df(), **kw
+        )
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        CSVTarget(path=target_path).write_datafreme(self._merger.get_df(), **kw)
+        return CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)

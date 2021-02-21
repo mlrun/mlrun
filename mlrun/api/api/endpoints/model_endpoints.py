@@ -118,7 +118,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
 @router.get(
     "/projects/{project}/model-endpoints", response_model=ModelEndpointStateList
 )
-def list_endpoints_endpoint(
+def _list_endpoints(
     request: Request,
     project: str,
     model: Optional[str] = Query(None),
@@ -215,7 +215,7 @@ def list_endpoints(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     response_model=ModelEndpointState,
 )
-def get_endpoint_endpoint(
+def _get_endpoint(
     request: Request,
     project: str,
     endpoint_id: str,

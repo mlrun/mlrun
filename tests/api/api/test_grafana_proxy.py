@@ -88,55 +88,39 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
 
 def test_parse_query_parameters_should_fail():
     # No 'targets' in body
-    try:
+    with pytest.raises(MLRunBadRequestError):
         _parse_query_parameters({})
-        fail("Request body did not contain 'targets' key, but did not throw exception")
-    except MLRunBadRequestError:
-        pass
 
     # No 'target' list in 'targets' dictionary
-    try:
+    with pytest.raises(MLRunBadRequestError):
         _parse_query_parameters({"targets": []})
-        fail("Request body did not contain 'target' key, but did not throw exception")
-    except MLRunBadRequestError:
-        pass
 
     # Target query not separated by equals ('=') char
-    try:
+    with pytest.raises(MLRunBadRequestError):
         _parse_query_parameters({"targets": [{"target": "test"}]})
-        fail("Target query does not contain key values separated by '=' char")
-    except MLRunBadRequestError:
-        pass
-
-    # Target query not separated by equals ('=') char
-    params = _parse_query_parameters({"targets": [{"target": "test=sometest"}]})
-    assert params["test"] == "sometest"
 
 
 def test_parse_query_parameters_should_not_fail():
-    # Target query not separated by equals ('=') char
-    params = _parse_query_parameters({"targets": [{"target": "test=sometest"}]})
-    assert params["test"] == "sometest"
+    # Target query separated by equals ('=') char
+    params = _parse_query_parameters({"targets": [{"target": "test=some_test"}]})
+    assert params["test"] == "some_test"
+
+    # Target query separated by equals ('=') char (multiple queries)
+    params = _parse_query_parameters(
+        {"targets": [{"target": "test=some_test;another_test=some_other_test"}]}
+    )
+    assert params["test"] == "some_test"
+    assert params["another_test"] == "some_other_test"
 
 
 def test_validate_query_parameters_should_fail():
     # No 'target_endpoint' in query parameters
-    try:
+    with pytest.raises(MLRunBadRequestError):
         _validate_query_parameters({})
-        fail(
-            "Query parameters do not contain 'target_endpoint', but did not throw exception"
-        )
-    except MLRunBadRequestError:
-        pass
 
     # target_endpoint unsupported
-    try:
+    with pytest.raises(MLRunBadRequestError):
         _validate_query_parameters({"target_endpoint": "unsupported_endpoint"})
-        fail(
-            "Query parameters contains unsupported 'target_endpoint', but did not throw exception"
-        )
-    except MLRunBadRequestError:
-        pass
 
 
 def test_validate_query_parameters_should_not_fail():

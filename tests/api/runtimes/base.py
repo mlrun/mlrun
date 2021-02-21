@@ -116,6 +116,7 @@ class TestRuntimeBase:
         expected_inputs,
         expected_hyper_params,
         expected_secrets,
+        expected_labels,
     ):
         function_metadata = config["metadata"]
         assert function_metadata["name"] == self.name
@@ -155,6 +156,13 @@ class TestRuntimeBase:
                 )
                 == {}
             )
+        if expected_labels:
+            diff_result = deepdiff.DeepDiff(
+                function_metadata["labels"], expected_labels, ignore_order=True,
+            )
+            # We just care that the values we look for are fully there.
+            diff_result.pop("dictionary_item_removed", None)
+            assert diff_result == {}
 
     @staticmethod
     def _assert_pod_env(pod_env, expected_variables):
@@ -269,6 +277,7 @@ class TestRuntimeBase:
         expected_requests=None,
         expected_code=None,
         expected_env={},
+        expected_labels=None,
     ):
         create_pod_mock = get_k8s().v1api.create_namespaced_pod
         create_pod_mock.assert_called_once()
@@ -315,6 +324,7 @@ class TestRuntimeBase:
                     expected_inputs,
                     expected_hyper_params,
                     expected_secrets,
+                    expected_labels,
                 )
 
             if expected_code and env_variable["name"] == "MLRUN_EXEC_CODE":

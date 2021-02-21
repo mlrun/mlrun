@@ -289,7 +289,7 @@ class TestRuntimeBase:
             == {}
         )
 
-    def _assert_pod_create_called(
+    def _assert_pod_creation_config(
         self,
         expected_runtime_class_name="job",
         expected_params=None,

@@ -86,7 +86,7 @@ class TestDaskRuntime(TestRuntimeBase):
 
         self.kube_cluster_mock.assert_called_once()
 
-        self._assert_pod_create_called(
+        self._assert_pod_creation_config(
             expected_runtime_class_name="dask",
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,

@@ -35,13 +35,13 @@ class TestKubejobRuntime(TestRuntimeBase):
     def test_run_without_runspec(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         self._execute_run(runtime)
-        self._assert_pod_create_called()
+        self._assert_pod_creation_config()
 
         params = {"p1": "v1", "p2": 20}
         inputs = {"input1": f"{self.artifact_path}/input1.txt"}
 
         self._execute_run(runtime, params=params, inputs=inputs)
-        self._assert_pod_create_called(expected_params=params, expected_inputs=inputs)
+        self._assert_pod_creation_config(expected_params=params, expected_inputs=inputs)
 
     def test_run_with_runspec(self, db: Session, client: TestClient):
         task = self._generate_task()
@@ -63,7 +63,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         runtime = self._generate_runtime()
         self._execute_run(runtime, runspec=task)
-        self._assert_pod_create_called(
+        self._assert_pod_creation_config(
             expected_params=params,
             expected_inputs=inputs,
             expected_hyper_params=hyper_params,
@@ -90,7 +90,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
 
         self._execute_run(runtime)
-        self._assert_pod_create_called(
+        self._assert_pod_creation_config(
             expected_limits=expected_limits, expected_requests=expected_requests
         )
 
@@ -105,7 +105,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.apply(auto_mount())
 
         self._execute_run(runtime)
-        self._assert_pod_create_called()
+        self._assert_pod_creation_config()
         self._assert_v3io_mount_configured(v3io_user, v3io_access_key)
 
         # Mount a PVC. Create a new runtime so we don't have both v3io and the PVC mounted
@@ -116,7 +116,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.apply(auto_mount(pvc_name, pvc_mount_path, volume_name))
 
         self._execute_run(runtime)
-        self._assert_pod_create_called()
+        self._assert_pod_creation_config()
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
 
     # For now Vault is only supported in KubeJob, so it's here. Once it's relevant to other runtimes, this can
@@ -156,7 +156,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         self._execute_run(runtime, runspec=task)
 
-        self._assert_pod_create_called(
+        self._assert_pod_creation_config(
             expected_secrets=secret_source,
             expected_env={
                 "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
@@ -178,7 +178,7 @@ def my_func(context):
         runtime.with_code(body=expected_code)
 
         self._execute_run(runtime)
-        self._assert_pod_create_called(expected_code=expected_code)
+        self._assert_pod_creation_config(expected_code=expected_code)
 
     def test_set_env(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -186,13 +186,13 @@ def my_func(context):
         for env_variable in env:
             runtime.set_env(env_variable, env[env_variable])
         self._execute_run(runtime)
-        self._assert_pod_create_called(expected_env=env)
+        self._assert_pod_creation_config(expected_env=env)
 
         # set the same env key for a different value and check that the updated one is used
         env2 = {"MLRUN_LOG_LEVEL": "ERROR", "IMAGE_HEIGHT": "128"}
         runtime.set_env("MLRUN_LOG_LEVEL", "ERROR")
         self._execute_run(runtime)
-        self._assert_pod_create_called(expected_env=env2)
+        self._assert_pod_creation_config(expected_env=env2)
 
     def test_run_with_code_with_file(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -200,7 +200,7 @@ def my_func(context):
         runtime.with_code(from_file=self.code_filename)
 
         self._execute_run(runtime)
-        self._assert_pod_create_called(expected_code=open(self.code_filename).read())
+        self._assert_pod_creation_config(expected_code=open(self.code_filename).read())
 
     def test_run_with_code_and_file(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -230,4 +230,4 @@ def my_func(context):
 
         runtime = self._generate_runtime()
         self._execute_run(runtime, runspec=task)
-        self._assert_pod_create_called(expected_labels=labels)
+        self._assert_pod_creation_config(expected_labels=labels)

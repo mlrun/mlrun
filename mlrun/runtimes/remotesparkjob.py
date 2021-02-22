@@ -76,6 +76,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         self._spec = self._verify_dict(spec, "spec", RemoteSparkSpec)
 
     def with_igz_spark(self, spark_service):
+        """Attach specific Iguazio spark service to function"""
         self.spec.igz_spark = True
         self.spec.env.append({"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"})
         self.apply(mount_v3io_extended())

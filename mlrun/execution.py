@@ -109,7 +109,7 @@ class MLClientCtx(object):
             self.set_state(error=exc_value, commit=False)
         self.commit(completed=exc_value is None)
 
-    def get_child(self, with_parent_params=False, **params):
+    def get_child_context(self, with_parent_params=False, **params):
         """get child context (iteration)
 
         allow sub experiments (epochs, hyper-param, ..) under a parent
@@ -122,7 +122,7 @@ class MLClientCtx(object):
                 df = data.as_df()
                 best_accuracy = accuracy_sum = 0
                 for param in param_list:
-                    with context.get_child(myparam=param) as child:
+                    with context.get_child_context(myparam=param) as child:
                         accuracy = child_handler(child, df, **child.parameters)
                         accuracy_sum += accuracy
                         child.log_result('accuracy', accuracy)
@@ -172,9 +172,9 @@ class MLClientCtx(object):
         self.log_iteration_results(best_run, summary, task)
 
     def mark_as_best(self):
-        """mark a child as the best iteration result, see .get_child()"""
+        """mark a child as the best iteration result, see .get_child_context()"""
         if not self._parent or not self._iteration:
-            raise ValueError('can only mark a child run as best iteration')
+            raise ValueError("can only mark a child run as best iteration")
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
     def get_store_resource(self, url):
@@ -755,7 +755,7 @@ class MLClientCtx(object):
         if message:
             self._annotations["message"] = message
         if completed:
-            self._state = 'completed'
+            self._state = "completed"
 
         if self._parent:
             self._parent.update_child_iterations()

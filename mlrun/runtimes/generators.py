@@ -17,7 +17,7 @@ import pandas as pd
 import sys
 from copy import deepcopy
 from ..model import RunObject
-from ..utils import get_in, logger
+from ..utils import get_in
 
 
 hyper_types = ["list", "grid", "random"]
@@ -155,8 +155,10 @@ def parse_selector(criteria):
         op = criteria[:idx]
         field = criteria[idx + 1 :]
     if op not in ["min", "max"]:
-        raise ValueError(f"illegal iteration selector {criteria}, "
-                         "selector format [min|max.]<result-name> e.g. max.accuracy")
+        raise ValueError(
+            f"illegal iteration selector {criteria}, "
+            "selector format [min|max.]<result-name> e.g. max.accuracy"
+        )
     return op, field
 
 

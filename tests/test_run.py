@@ -195,7 +195,7 @@ def test_hyper_random():
 def custom_hyper_func(context: mlrun.MLClientCtx):
     best_accuracy = 0
     for param in [1, 2, 4, 3]:
-        with context.get_child(myparam=param) as child:
+        with context.get_child_context(myparam=param) as child:
             accuracy = child.get_param("myparam")
             child.log_result("accuracy", accuracy)
             if accuracy > best_accuracy:

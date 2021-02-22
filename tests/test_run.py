@@ -24,6 +24,7 @@ from tests.conftest import (
     verify_state,
 )
 from unittest.mock import Mock
+import mlrun
 from mlrun import new_task, get_run_db, new_function
 
 
@@ -49,6 +50,11 @@ def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
         raw_data, columns=["first_name", "last_name", "age", "postTestScore"]
     )
     context.log_dataset("mydf", df=df)
+
+
+def hyper_func(context, p1, p2, p3):
+    print(f"p2={p2}, p3={p3}")
+    context.log_result("r1", p2 * p3)
 
 
 base_spec = new_task(params={"p1": 8}, out_path=out_path)
@@ -140,6 +146,72 @@ def test_handler_hyperlist():
     print(result)
     assert len(result.status.iterations) == 3 + 1, "hyper parameters test failed"
     verify_state(result)
+
+
+def test_hyper_grid():
+    grid_params = '{"p2": [2,1,3], "p3": [10,20]}'
+    mlrun.datastore.set_in_memory_item("params.json", grid_params)
+
+    run_spec = tag_test(base_spec, "test_hyper_grid")
+    run_spec.with_param_file("memory://params.json", selector="r1", strategy="grid")
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    # 3 x p2, 2 x p3 = 6 iterations
+    assert len(run.status.iterations) == 1 + 2 * 3, "wrong number of iterations"
+
+    results = [line[5] for line in run.status.iterations[1:]]
+    assert results == [20, 10, 30, 40, 20, 60], "unexpected results"
+    assert run.output("best_iteration") == 6, "wrong best iteration"
+
+
+def test_hyper_list():
+    list_params = '{"p2": [2,3,1], "p3": [10,30,20]}'
+    mlrun.datastore.set_in_memory_item("params.json", list_params)
+
+    run_spec = tag_test(base_spec, "test_hyper_list")
+    run_spec.with_param_file("memory://params.json", selector="r1", strategy="list")
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    assert len(run.status.iterations) == 1 + 3, "wrong number of iterations"
+
+    results = [line[5] for line in run.status.iterations[1:]]
+    assert results == [20, 90, 20], "unexpected results"
+    assert run.output("best_iteration") == 2, "wrong best iteration"
+
+
+def test_hyper_random():
+    grid_params = {"p2": [2, 1, 3], "p3": [10, 20, 30]}
+    run_spec = tag_test(base_spec, "test_hyper_random")
+    run_spec.with_hyper_params(grid_params, selector="r1", strategy="random")
+    run_spec.spec.parameters["MAX_RANDOM_EVALS"] = 5
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    assert len(run.status.iterations) == 1 + 5, "wrong number of iterations"
+
+
+def custom_hyper_func(context: mlrun.MLClientCtx):
+    best_accuracy = 0
+    for param in [1, 2, 4, 3]:
+        with context.get_child(myparam=param) as child:
+            accuracy = child.get_param("myparam")
+            child.log_result("accuracy", accuracy)
+            if accuracy > best_accuracy:
+                child.mark_as_best()
+                best_accuracy = accuracy
+
+
+def test_hyper_custom():
+    run_spec = tag_test(base_spec, "test_hyper_custom")
+    run = new_function().run(run_spec, handler=custom_hyper_func)
+    verify_state(run)
+    assert len(run.status.iterations) == 1 + 4, "wrong number of iterations"
+
+    results = [line[3] for line in run.status.iterations[1:]]
+    print(results)
+    assert run.output("best_iteration") == 3, "wrong best iteration"
 
 
 def test_local_runtime():

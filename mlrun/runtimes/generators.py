@@ -36,6 +36,9 @@ def get_generator(spec, execution):
     if spec.param_file and hyperparams:
         raise ValueError("hyperparams and param_file cannot be used together")
 
+    if spec.selector:
+        parse_selector(spec.selector)
+
     obj = None
     if spec.param_file:
         obj = execution.get_dataitem(spec.param_file)
@@ -45,10 +48,10 @@ def get_generator(spec, execution):
             hyperparams = json.loads(obj.get())
 
     if not tuning_strategy or tuning_strategy == "grid":
-        return GridGenerator(hyperparams)
+        return GridGenerator(hyperparams, spec.parameters)
 
     if tuning_strategy == "random":
-        return RandomGenerator(hyperparams)
+        return RandomGenerator(hyperparams, spec.parameters)
 
     if obj:
         df = obj.as_df()
@@ -63,7 +66,7 @@ class TaskGenerator:
 
 
 class GridGenerator(TaskGenerator):
-    def __init__(self, hyperparams):
+    def __init__(self, hyperparams, params: dict = None):
         self.hyperparams = hyperparams
 
     def generate(self, run: RunObject):
@@ -99,11 +102,11 @@ class GridGenerator(TaskGenerator):
 
 
 class RandomGenerator(TaskGenerator):
-    def __init__(self, hyperparams: dict):
+    def __init__(self, hyperparams: dict, params: dict = None):
         self.hyperparams = hyperparams
         self.max_evals = default_max_evals
-        if "MAX_EVALS" in hyperparams:
-            self.max_evals = hyperparams.pop("MAX_EVALS")
+        if "MAX_RANDOM_EVALS" in params:
+            self.max_evals = params.pop("MAX_RANDOM_EVALS")
 
     def generate(self, run: RunObject):
         i = 0
@@ -143,26 +146,31 @@ class ListGenerator(TaskGenerator):
             yield newrun
 
 
-def selector(results: list, criteria):
-    if not criteria:
-        return 0, 0
-
+def parse_selector(criteria):
     idx = criteria.find(".")
+    field = criteria
     if idx < 0:
         op = "max"
     else:
         op = criteria[:idx]
-        criteria = criteria[idx + 1 :]
+        field = criteria[idx + 1 :]
+    if op not in ["min", "max"]:
+        raise ValueError(f"illegal iteration selector {criteria}, "
+                         "selector format [min|max.]<result-name> e.g. max.accuracy")
+    return op, field
 
+
+def selector(results: list, criteria):
+    if not criteria:
+        return 0, 0
+
+    op, criteria = parse_selector(criteria)
     best_id = 0
     best_item = 0
     if op == "max":
         best_val = sys.float_info.min
     elif op == "min":
         best_val = sys.float_info.max
-    else:
-        logger.error(f"unsupported selector {op}.{criteria}")
-        return 0, 0
 
     i = 0
     for task in results:

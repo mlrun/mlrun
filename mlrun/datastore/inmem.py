@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pandas as pd
+from io import StringIO, BytesIO
 from .base import DataStore, FileStats
 
 
@@ -52,5 +54,27 @@ class InMemoryStore(DataStore):
     def listdir(self, key):
         return []
 
-    def as_df(self, key, columns=None, df_module=None, format="", **kwargs):
-        return self._get_item(key)
+    def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
+        item = self._get_item(subpath)
+        if hasattr(item, "read_csv"):
+            return item
+        if isinstance(item, str):
+            item = StringIO(item)
+        else:
+            item = BytesIO(item)
+
+        df_module = df_module or pd
+        if url.endswith(".csv") or format == "csv":
+            if columns:
+                kwargs["usecols"] = columns
+            reader = df_module.read_csv
+        elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
+            if columns:
+                kwargs["columns"] = columns
+            reader = df_module.read_parquet
+        elif url.endswith(".json") or format == "json":
+            reader = df_module.read_json
+        else:
+            raise ValueError(f"file type unhandled {url}")
+
+        return reader(item, **kwargs)

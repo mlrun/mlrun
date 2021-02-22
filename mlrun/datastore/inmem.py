@@ -14,6 +14,8 @@
 
 import pandas as pd
 from io import StringIO, BytesIO
+
+import mlrun
 from .base import DataStore, FileStats
 
 
@@ -75,6 +77,6 @@ class InMemoryStore(DataStore):
         elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
         else:
-            raise ValueError(f"file type unhandled {url}")
+            raise mlrun.errors.MLRunInvalidArgumentError(f"file type unhandled {url}")
 
         return reader(item, **kwargs)

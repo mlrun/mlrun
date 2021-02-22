@@ -138,7 +138,7 @@ class MLClientCtx(object):
         :return: child context
         """
         if self.iteration != 0:
-            raise ValueError("cannot create child from a child iteration!")
+            raise MLCtxValueError("cannot create child from a child iteration!")
         ctx = deepcopy(self.to_dict())
         if not with_parent_params:
             update_in(ctx, ["spec", "parameters"], {})
@@ -174,7 +174,7 @@ class MLClientCtx(object):
     def mark_as_best(self):
         """mark a child as the best iteration result, see .get_child_context()"""
         if not self._parent or not self._iteration:
-            raise ValueError("can only mark a child run as best iteration")
+            raise MLCtxValueError("can only mark a child run as best iteration")
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
     def get_store_resource(self, url):
@@ -713,7 +713,7 @@ class MLClientCtx(object):
         """
 
         if training_set is not None and inputs:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise MLCtxValueError(
                 "cannot specify inputs and training set together"
             )
 

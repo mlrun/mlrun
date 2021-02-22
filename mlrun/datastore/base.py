@@ -34,6 +34,7 @@ class FileStats:
     """
     Represents file statistics
     """
+
     def __init__(self, size, modified, content_type=None):
         self.size = size
         self.modified = modified
@@ -161,9 +162,8 @@ class DataStore:
 
 
 class DataItem:
-    """
-    Data input/output class abstracting access to various local/remote data sources
-    """
+    """Data input/output class abstracting access to various local/remote data sources"""
+
     def __init__(
         self,
         key: str,
@@ -269,6 +269,7 @@ class DataItem:
     def open(self, mode):
         """
         return fsspec file handler, if supported
+        :param mode: str - file open mode
         """
         return self._store.open(self._url, mode)
 
@@ -283,7 +284,10 @@ class DataItem:
         return self._store.listdir(self._path)
 
     def local(self):
-        """get the local path of the file, download to tmp first if its a remote object"""
+        """
+        get the local path of the file, if remote object - download to tmp first
+        :return file path str
+        """
         if self.kind == "file":
             return self._path
         if self._local_path:
@@ -296,7 +300,8 @@ class DataItem:
         return self._local_path
 
     def as_df(self, columns=None, df_module=None, format="", **kwargs):
-        """return a dataframe object (generated from the dataitem).
+        """
+        return a dataframe generated from the DataItem.
 
         :param columns:   optional, list of columns to select
         :param df_module: optional, dataframe class (e.g. pd, dd, cudf, ..)

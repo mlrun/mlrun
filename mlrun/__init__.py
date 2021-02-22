@@ -70,7 +70,7 @@ def set_environment(
     access_key: str = None,
     user_project=False,
 ):
-    """set and test default config for: api path, artifact_path and project
+    """set and test default config for: api path, artifact_path, project, access_key and user_project
 
     this function will try and read the configuration from the environment/api
     and merge it with the user provided project name, artifacts path or api path/access_key.

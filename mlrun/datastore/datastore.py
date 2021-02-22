@@ -39,7 +39,7 @@ def parse_url(url):
         lower_netloc = netloc.lower()
         hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
         endpoint = netloc[
-            hostname_index_in_netloc: hostname_index_in_netloc + len(lower_hostname)
+            hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
         ]
     if parsed_url.port:
         endpoint += f":{parsed_url.port}"

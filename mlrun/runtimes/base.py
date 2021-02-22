@@ -338,7 +338,7 @@ class BaseRuntime(ModelObj):
 
         if not self.is_deployed:
             raise RunError(
-                "function image is not built/ready, use .build() method first"
+                "function image is not built/ready, use .deploy() method first"
             )
 
         if self.verbose:
@@ -1037,9 +1037,9 @@ class BaseRuntimeHandler(ABC):
                     crd_plural,
                     label_selector=label_selector,
                 )
-            except ApiException as e:
+            except ApiException as exc:
                 # ignore error if crd is not defined
-                if e.status != 404:
+                if exc.status != 404:
                     raise
             else:
                 crd_objects = crd_objects["items"]
@@ -1132,9 +1132,9 @@ class BaseRuntimeHandler(ABC):
                 crd_plural,
                 label_selector=label_selector,
             )
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if crd is not defined
-            if e.status != 404:
+            if exc.status != 404:
                 raise
         else:
             for crd_object in crd_objects["items"]:
@@ -1435,9 +1435,9 @@ class BaseRuntimeHandler(ABC):
                 namespace=namespace,
                 crd_plural=crd_plural,
             )
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if crd object is already removed
-            if e.status != 404:
+            if exc.status != 404:
                 raise
 
     @staticmethod
@@ -1446,9 +1446,9 @@ class BaseRuntimeHandler(ABC):
         try:
             k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
             logger.info("Deleted pod", pod=pod.metadata.name)
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if pod is already removed
-            if e.status != 404:
+            if exc.status != 404:
                 raise
 
     @staticmethod

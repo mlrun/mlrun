@@ -15,7 +15,7 @@
 from typing import List
 import pandas as pd
 
-from ..model.feature_vector import OfflineVectorResponse
+from ..feature_vector import OfflineVectorResponse
 from ...utils import logger
 
 
@@ -49,7 +49,7 @@ class LocalFeatureMerger:
 
         if target:
             logger.info(f"writing target: {target.path}")
-            target.write_datafreme(self._result_df)
+            target.write_dataframe(self._result_df)
             if self.vector.metadata.name:
                 target.set_resource(self.vector)
                 target.update_resource_status("ready")

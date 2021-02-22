@@ -131,8 +131,8 @@ class StoreManager:
             resource = get_store_resource(
                 url, db=self._get_db(), secrets=self._secrets, project=project
             )
-        except Exception as e:
-            raise OSError(f"artifact {url} not found, {e}")
+        except Exception as exc:
+            raise OSError(f"artifact {url} not found, {exc}")
         return resource, resource.get_target_path()
 
     def object(self, url, key="", project="") -> DataItem:

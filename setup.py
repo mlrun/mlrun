@@ -102,7 +102,6 @@ setup(
         "mlrun.datastore",
         "mlrun.data_types",
         "mlrun.feature_store",
-        "mlrun.feature_store.model",
         "mlrun.feature_store.retrieval",
         "mlrun.api",
         "mlrun.api.api",

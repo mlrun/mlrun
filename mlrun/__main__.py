@@ -731,9 +731,9 @@ def project(
                 sync=sync,
                 dirty=dirty,
             )
-        except Exception as e:
+        except Exception as exc:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {e}"
+            message = f"failed to run pipeline, {exc}"
             had_error = True
             print(message)
         print(f"run id: {run}")
@@ -912,8 +912,8 @@ def func_url_to_runtime(func_url):
         else:
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
-    except Exception as e:
-        logger.error(f"function {func_url} not found, {e}")
+    except Exception as exc:
+        logger.error(f"function {func_url} not found, {exc}")
         return None
 
     if not runtime:

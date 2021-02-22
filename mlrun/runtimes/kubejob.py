@@ -276,8 +276,8 @@ class KubejobRuntime(KubeResource):
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace = k8s.create_pod(pod)
-        except ApiException as e:
-            raise RunError(str(e))
+        except ApiException as exc:
+            raise RunError(str(exc))
 
         if pod_name and self.kfp:
             writer = AsyncLogWriter(self._db_conn, runobj)

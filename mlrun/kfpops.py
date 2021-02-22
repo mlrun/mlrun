@@ -322,15 +322,15 @@ def mlrun_op(
     if func_url:
         cmd += ["-f", func_url]
     for secret in secrets:
-        cmd += ["-s", "=".join([secret["kind"], secret["source"]])]
+        cmd += ["-s", f"{secret['kind']}={secret['source']}"]
     for param, val in params.items():
-        cmd += ["-p", "=".join([param, val])]
+        cmd += ["-p", f"{param}={val}"]
     for xpram, val in hyperparams.items():
-        cmd += ["-x", "=".join([xpram, val])]
+        cmd += ["-x", f"{xpram}={val}"]
     for input_param, val in inputs.items():
-        cmd += ["-i", "=".join([input_param, val])]
+        cmd += ["-i", f"{input_param}={val}"]
     for label, val in labels.items():
-        cmd += ["--label", "=".join([label, val])]
+        cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
         file_outputs[output.replace(".", "_")] = os.path.join("/tmp", output)
@@ -446,11 +446,11 @@ def deploy_op(
             if function.kind == mlrun.runtimes.RuntimeKinds.serving:
                 cmd += ["-m", json.dumps(m)]
             else:
-                cmd += ["-m", "=".join([m["key"], m["model_path"]])]
+                cmd += ["-m", f"{m['key']}={m['model_path']}"]
 
     if env:
         for key, val in env.items():
-            cmd += ["--env", "=".join([key, val])]
+            cmd += ["--env", f"{key}={val}"]
 
     if func_url:
         cmd += ["-f", func_url]

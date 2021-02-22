@@ -713,9 +713,7 @@ class MLClientCtx(object):
         """
 
         if training_set is not None and inputs:
-            raise MLCtxValueError(
-                "cannot specify inputs and training set together"
-            )
+            raise MLCtxValueError("cannot specify inputs and training set together")
 
         model = ModelArtifact(
             key,

@@ -23,9 +23,55 @@ from mlrun.api.db.base import DBInterface
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
-from mlrun.runtimes.constants import MPIJobCRDVersions
-from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
+from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1CleanPodPolicies
+from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime, MPIResourceSpec
 from mlrun.utils import update_in, get_in
+
+
+class MPIV1ResourceSpec(MPIResourceSpec):
+    def __init__(
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        default_handler=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        replicas=None,
+        image_pull_policy=None,
+        service_account=None,
+        build=None,
+        image_pull_secret=None,
+        mpi_args=None,
+        clean_pod_policy=None,
+    ):
+        super().__init__(
+            command=command,
+            image=image,
+            mode=mode,
+            build=build,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            default_handler=default_handler,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+            env=env,
+            resources=resources,
+            replicas=replicas,
+            image_pull_policy=image_pull_policy,
+            service_account=service_account,
+            image_pull_secret=image_pull_secret,
+            args=args,
+            mpi_args=mpi_args,
+        )
+        self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 
 
 class MpiRuntimeV1(AbstractMPIJobRuntime):
@@ -50,6 +96,14 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
     crd_group = "kubeflow.org"
     crd_version = MPIJobCRDVersions.v1
     crd_plural = "mpijobs"
+
+    @property
+    def spec(self) -> MPIV1ResourceSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", MPIV1ResourceSpec)
 
     def _generate_mpi_job_template(self, launcher_pod_template, worker_pod_template):
         return {
@@ -148,6 +202,10 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         # update the replicas only for workers
         update_in(
             job, "spec.mpiReplicaSpecs.Worker.replicas", self.spec.replicas or 1,
+        )
+
+        update_in(
+            job, "spec.cleanPodPolicy", self.spec.clean_pod_policy,
         )
 
         if execution.get_param("slots_per_worker"):

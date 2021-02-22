@@ -45,10 +45,10 @@ class V3ioStore(DataStore):
         self.headers = None
         self.secure = self.kind == "v3ios"
         if self.endpoint.startswith("https://"):
-            self.endpoint = self.endpoint[len("https://") :]
+            self.endpoint = self.endpoint[len("https://"):]
             self.secure = True
         elif self.endpoint.startswith("http://"):
-            self.endpoint = self.endpoint[len("http://") :]
+            self.endpoint = self.endpoint[len("http://"):]
             self.secure = False
 
         token = self._get_secret_or_env("V3IO_ACCESS_KEY")

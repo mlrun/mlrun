@@ -161,9 +161,10 @@ class Config:
     """
     The main configuration object for MLRun
     """
+
     _missing = object()
 
-    def __init__(self, cfg=None):
+    def __init__(self, cfg=None) -> None:
         self._kfp_image = None
         self._dask_kfp_image = None
         self._dbpath = None
@@ -204,10 +205,18 @@ class Config:
                     setattr(self, key, value)
 
     def dump_yaml(self, stream=None):
+        """
+        Serialize the configuration into YAML stream or string
+        :param stream: IO stream object
+        :return: None or string
+        """
         return yaml.dump(self._cfg, stream, default_flow_style=False)
 
     @classmethod
-    def from_dict(cls, dict_):
+    def from_dict(cls, dict_: dict):
+        """
+        Build Config object from given dict
+        """
         return cls(copy.deepcopy(dict_))
 
     @staticmethod
@@ -222,14 +231,25 @@ class Config:
         return build_args
 
     def to_dict(self):
+        """
+        Dumping a copy of the underlying configuration into a dict
+        :return: dict
+        """
         return copy.copy(self._cfg)
 
     @staticmethod
     def reload():
+        """
+        Reload (re-populate) the configuration object from env file or env vars
+        """
         _populate()
 
     @property
     def version(self):
+        """
+        Return the MLRun version
+        :return: version string
+        """
         # importing here to avoid circular dependency
         from mlrun.utils.version import Version
 
@@ -269,13 +289,6 @@ class Config:
     def dask_kfp_image(self, value):
         self._dask_kfp_image = value
 
-    @staticmethod
-    def resolve_ui_url():
-        # ui_url is deprecated in favor of the ui.url (we created the ui block)
-        # since the config class is used in a "recursive" way, we can't use property like we used in other places
-        # since the property will need to be url, which exists in other structs as well
-        return config.ui.url or config.ui_url
-
     @property
     def dbpath(self):
         return self._dbpath
@@ -289,6 +302,17 @@ class Config:
 
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value)
+
+    @staticmethod
+    def resolve_ui_url():
+        """
+        Returns the MLRun UI URL.
+        Note: config.ui_url is deprecated in favor of the ui.url
+        :return: str - resolved URL
+        """
+        # since the config class is used in a "recursive" way, we can't use a property like we used in other places
+        # since the property will need to be url, which exists in other structs as well
+        return config.ui.url or config.ui_url
 
 
 # Global configuration

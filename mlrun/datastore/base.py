@@ -15,6 +15,7 @@
 from base64 import b64encode
 from os import remove, path, getenv
 from tempfile import mktemp
+import typing
 
 import fsspec
 import requests
@@ -30,6 +31,9 @@ if not verify_ssl:
 
 
 class FileStats:
+    """
+    Represents file statistics
+    """
     def __init__(self, size, modified, content_type=None):
         self.size = size
         self.modified = modified
@@ -157,8 +161,9 @@ class DataStore:
 
 
 class DataItem:
-    """Data input/output class abstracting access to various local/remote data sources"""
-
+    """
+    Data input/output class abstracting access to various local/remote data sources
+    """
     def __init__(
         self,
         key: str,
@@ -178,62 +183,93 @@ class DataItem:
 
     @property
     def key(self):
-        """DataItem key"""
+        """
+        DataItem key
+        """
         return self._key
 
     @property
     def suffix(self):
-        """DataItem suffix (file extension) e.g. '.png'"""
+        """
+        DataItem suffix (file extension) e.g. '.png'
+        """
         _, file_ext = path.splitext(self._path)
         return file_ext
 
     @property
     def store(self):
-        """DataItem store object"""
+        """
+        DataItem store object
+        """
         return self._store
 
     @property
     def kind(self):
-        """DataItem store kind (file, s3, v3io, ..)"""
+        """
+        DataItem store kind (file, s3, v3io, ..)
+        """
         return self._store.kind
 
     @property
     def meta(self):
-        """Artifact Metadata, when the DataItem is read from the artifacts store"""
+        """
+        Artifact Metadata, when the DataItem is read from the artifacts store
+        """
         return self._meta
 
     @property
     def artifact_url(self):
-        """DataItem artifact url (when its an artifact) or url for simple dataitems"""
+        """
+        DataItem artifact url (when its an artifact) or url for simple dataitems
+        """
         return self._artifact_url or self._url
 
     @property
     def url(self):
-        """DataItem url e.g. /dir/path, s3://bucket/path"""
+        """
+        DataItem url e.g. /dir/path, s3://bucket/path
+        """
         return self._url
 
     def get(self, size=None, offset=0):
-        """read all or a range and return thge content"""
+        """
+        get/read an object (all of it or a range) and return the contents
+        """
         return self._store.get(self._path, size=size, offset=offset)
 
     def download(self, target_path):
-        """download to the target dir/path"""
+        """
+        download the DataItem to the provided target dir/path
+        :param target_path: str - file path
+        """
         self._store.download(self._path, target_path)
 
     def put(self, data, append=False):
-        """write/upload the data, append is only supported by some datastores"""
+        """
+        write/upload the data to the underlying DataStore
+        :param data: data to store
+        :param append: is only supported by some data stores
+        """
         self._store.put(self._path, data, append=append)
 
     def upload(self, src_path):
-        """upload the source file (src_path) """
+        """
+        upload the source file
+        :param src_path: str - file path for the source file
+        """
         self._store.upload(self._path, src_path)
 
-    def stat(self):
-        """return FileStats class (size, modified, content_type)"""
+    def stat(self) -> typing.Optional[FileStats]:
+        """
+        get file statistics for the DataItem
+        :return FileStats class (size, modified, content_type)
+        """
         return self._store.stat(self._path)
 
     def open(self, mode):
-        """return fsspec file handler, if supported"""
+        """
+        return fsspec file handler, if supported
+        """
         return self._store.open(self._url, mode)
 
     def ls(self):
@@ -241,7 +277,9 @@ class DataItem:
         return self._store.listdir(self._path)
 
     def listdir(self):
-        """return a list of child file names"""
+        """
+        return a list of child file names
+        """
         return self._store.listdir(self._path)
 
     def local(self):

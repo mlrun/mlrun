@@ -39,7 +39,7 @@ def parse_url(url):
         lower_netloc = netloc.lower()
         hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
         endpoint = netloc[
-            hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
+            hostname_index_in_netloc: hostname_index_in_netloc + len(lower_hostname)
         ]
     if parsed_url.port:
         endpoint += f":{parsed_url.port}"
@@ -84,7 +84,7 @@ def uri_to_ipython(link):
 
 
 class StoreManager:
-    def __init__(self, secrets=None, db=None):
+    def __init__(self, secrets=None, db=None) -> None:
         self._stores = {}
         self._secrets = secrets or {}
         self._db = db
@@ -103,16 +103,18 @@ class StoreManager:
         return self._db
 
     def from_dict(self, struct: dict):
-        stor_list = struct.get(run_keys.data_stores)
-        if stor_list and isinstance(stor_list, list):
-            for stor in stor_list:
-                schema, endpoint, parsed_url = parse_url(stor.get("url"))
-                new_stor = schema_to_store(schema)(self, schema, stor["name"], endpoint)
-                new_stor.subpath = parsed_url.path
-                new_stor.secret_pfx = stor.get("secret_pfx")
-                new_stor.options = stor.get("options", {})
-                new_stor.from_spec = True
-                self._stores[stor["name"]] = new_stor
+        store_list = struct.get(run_keys.data_stores)
+        if store_list and isinstance(store_list, list):
+            for store in store_list:
+                schema, endpoint, parsed_url = parse_url(store.get("url"))
+                new_store = schema_to_store(schema)(
+                    self, schema, store["name"], endpoint
+                )
+                new_store.subpath = parsed_url.path
+                new_store.secret_pfx = store.get("secret_pfx")
+                new_store.options = store.get("options", {})
+                new_store.from_spec = True
+                self._stores[store["name"]] = new_store
 
     def to_dict(self, struct):
         struct[run_keys.data_stores] = [

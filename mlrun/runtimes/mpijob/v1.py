@@ -58,6 +58,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             "metadata": {"name": "", "namespace": "default-tenant"},
             "spec": {
                 "slotsPerWorker": 1,
+                "cleanPodPolicy": "All",
                 "mpiReplicaSpecs": {
                     "Launcher": {"template": launcher_pod_template},
                     "Worker": {"replicas": 1, "template": worker_pod_template},

@@ -14,13 +14,13 @@
 import re
 
 from .pod import KubeResourceSpec
-from mlrun.runtimes import KubejobRuntime, KubeRuntimeHandler
+from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from mlrun.config import config
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from subprocess import run
 
 
-class SparkClientSpec(KubeResourceSpec):
+class RemoteSparkSpec(KubeResourceSpec):
     def __init__(
         self,
         command=None,
@@ -64,16 +64,16 @@ class SparkClientSpec(KubeResourceSpec):
         self.igz_spark = igz_spark
 
 
-class SparkClientRuntime(KubejobRuntime):
-    kind = "sparkclient"
+class RemoteSparkRuntime(KubejobRuntime):
+    kind = "remote-spark"
 
     @property
-    def spec(self) -> SparkClientSpec:
+    def spec(self) -> RemoteSparkSpec:
         return self._spec
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, "spec", SparkClientSpec)
+        self._spec = self._verify_dict(spec, "spec", RemoteSparkSpec)
 
     def with_igz_spark(self, spark_service):
         self.spec.igz_spark = True
@@ -111,7 +111,7 @@ class SparkClientRuntime(KubejobRuntime):
         )
 
 
-class SparkClientRuntimeHandler(KubeRuntimeHandler):
+class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:
         return True
@@ -122,7 +122,7 @@ class SparkClientRuntimeHandler(KubeRuntimeHandler):
 
     @staticmethod
     def _get_default_label_selector() -> str:
-        return "mlrun/class=sparkclient"
+        return "mlrun/class=remote-spark"
 
 
 def igz_spark_pre_hook():

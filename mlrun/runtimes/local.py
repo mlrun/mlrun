@@ -37,6 +37,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from nuclio import Event
 
+from .remotesparkjob import RemoteSparkRuntime
+
 
 class HandlerRuntime(BaseRuntime):
     kind = "handler"
@@ -90,10 +92,10 @@ class LocalRuntime(BaseRuntime):
         )
 
         if (
-            runobj.metadata.labels["kind"] == "sparkclient"
+            runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
-            from mlrun.runtimes.sparkclientjob import igz_spark_pre_hook
+            from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
 
             igz_spark_pre_hook()
 

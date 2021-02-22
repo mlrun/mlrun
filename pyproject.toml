@@ -1,9 +1,13 @@
 # please keep this to a minimum - defaults are good
 [tool.black]
+include = '\.pyi?$'
 exclude = '''
-/(
-    \.git
-  | \.venv
-  | \venv
-)/
+(
+   /(   # exclude a few common directories in the root
+      \.git
+     | \.venv
+     | venv
+     | docs/_build
+   )/
+)
 '''

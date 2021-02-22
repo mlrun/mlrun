@@ -23,6 +23,7 @@ import os
 import mlrun
 from mlrun.artifacts import ModelArtifact
 
+from mlrun.errors import MLRunInvalidArgumentError
 from .artifacts import ArtifactManager, DatasetArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from .datastore import store_manager
@@ -39,10 +40,6 @@ from .utils import (
     to_date_str,
     update_in,
 )
-
-
-class MLCtxValueError(Exception):
-    pass
 
 
 class MLClientCtx(object):
@@ -138,7 +135,9 @@ class MLClientCtx(object):
         :return: child context
         """
         if self.iteration != 0:
-            raise MLCtxValueError("cannot create child from a child iteration!")
+            raise MLRunInvalidArgumentError(
+                "cannot create child from a child iteration!"
+            )
         ctx = deepcopy(self.to_dict())
         if not with_parent_params:
             update_in(ctx, ["spec", "parameters"], {})
@@ -164,9 +163,9 @@ class MLClientCtx(object):
         if not self._children:
             return
         if commit_children:
-            for c in self._children:
-                c.commit()
-        results = [c.to_dict() for c in self._children]
+            for child in self._children:
+                child.commit()
+        results = [child.to_dict() for child in self._children]
         summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
         task = results[best_run - 1] if best_run else None
         self.log_iteration_results(best_run, summary, task)
@@ -174,7 +173,9 @@ class MLClientCtx(object):
     def mark_as_best(self):
         """mark a child as the best iteration result, see .get_child_context()"""
         if not self._parent or not self._iteration:
-            raise MLCtxValueError("can only mark a child run as best iteration")
+            raise MLRunInvalidArgumentError(
+                "can only mark a child run as best iteration"
+            )
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
     def get_store_resource(self, url):
@@ -464,7 +465,9 @@ class MLClientCtx(object):
         :param commit:   commit (write to DB now vs wait for the end of the run)
         """
         if not isinstance(results, dict):
-            raise MLCtxValueError("(multiple) results must be in the form of dict")
+            raise MLRunInvalidArgumentError(
+                "(multiple) results must be in the form of dict"
+            )
 
         for p in results.keys():
             self._results[str(p)] = _cast_result(results[p])
@@ -713,7 +716,9 @@ class MLClientCtx(object):
         """
 
         if training_set is not None and inputs:
-            raise MLCtxValueError("cannot specify inputs and training set together")
+            raise MLRunInvalidArgumentError(
+                "cannot specify inputs and training set together"
+            )
 
         model = ModelArtifact(
             key,

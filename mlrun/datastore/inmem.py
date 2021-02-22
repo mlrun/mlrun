@@ -58,7 +58,7 @@ class InMemoryStore(DataStore):
 
     def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
         item = self._get_item(subpath)
-        if hasattr(item, "read_csv"):
+        if hasattr(item, "to_csv"):  # detect if it is a dataframe type
             return item
         if isinstance(item, str):
             item = StringIO(item)

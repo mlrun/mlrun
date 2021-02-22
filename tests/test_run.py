@@ -157,7 +157,7 @@ def test_hyper_grid():
     run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)
-    # 3 x p2, 2 x p3 = 6 iterations
+    # 3 x p2, 2 x p3 = 6 iterations + 1 header line
     assert len(run.status.iterations) == 1 + 2 * 3, "wrong number of iterations"
 
     results = [line[5] for line in run.status.iterations[1:]]

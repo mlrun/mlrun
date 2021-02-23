@@ -440,13 +440,13 @@ def test_entities_list(db: Session, client: TestClient) -> None:
     name = "feature_set"
     count = 5
     colors = ["red", "blue"]
-    for i in range(count):
-        feature_set = _generate_feature_set(f"{name}_{i}")
+    for idx in range(count):
+        feature_set = _generate_feature_set(f"{name}_{idx}")
         feature_set["spec"]["entities"] = [
             {
-                "name": f"entity_{i}",
+                "name": f"entity_{idx}",
                 "value_type": "str",
-                "labels": {"color": colors[i % 2], "id": f"id_{i}"},
+                "labels": {"color": colors[idx % 2], "id": f"id_{idx}"},
             },
         ]
 
@@ -463,12 +463,12 @@ def test_entities_list(db: Session, client: TestClient) -> None:
 
     # set a new tag
     tag = "my-new-tag"
-    query = {"feature_sets": {"name": f"{name}_{i}"}}
+    query = {"feature_sets": {"name": f"{name}_{idx}"}}
     resp = client.post(f"/api/{project_name}/tag/{tag}", json=query)
     assert resp.status_code == HTTPStatus.OK.value
     # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
     entities_response = _list_and_assert_objects(
-        client, "entities", project_name, f"name=entity_{i}", 2
+        client, "entities", project_name, f"name=entity_{idx}", 2
     )
     assert (
         entities_response["entities"][0]["feature_set_digest"]["metadata"]["tag"]
@@ -610,3 +610,60 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
 
     # Verify we still have just 1 object in the DB
     _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 1)
+
+
+def test_multi_label_query(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    total_objects = 5
+    for i in range(total_objects):
+        name = f"feature_set_{i}"
+        feature_set = _generate_feature_set(name)
+        feature_set["metadata"]["labels"]["serial_number"] = str(i)
+        feature_set["metadata"]["labels"]["another"] = "label"
+        _feature_set_create_and_assert(
+            client, project_name, feature_set, versioned=False
+        )
+
+    _list_and_assert_objects(
+        client,
+        "feature_sets",
+        project_name,
+        "label=owner=saarc&label=group=dev",
+        total_objects,
+    )
+
+    for i in range(total_objects):
+        _list_and_assert_objects(
+            client, "feature_sets", project_name, f"label=serial_number={i}", 1
+        )
+        _list_and_assert_objects(
+            client,
+            "feature_sets",
+            project_name,
+            f"label=owner=saarc&label=another&label=serial_number={i}",
+            1,
+        )
+
+    _list_and_assert_objects(
+        client,
+        "feature_sets",
+        project_name,
+        "label=owner=saarc&label=another",
+        total_objects,
+    )
+
+    _list_and_assert_objects(
+        client,
+        "feature_sets",
+        project_name,
+        "label=owner&label=owner=saarc",
+        total_objects,
+    )
+    _list_and_assert_objects(
+        client,
+        "feature_sets",
+        project_name,
+        "label=serial_number=0&label=serial_number=1",
+        0,
+    )

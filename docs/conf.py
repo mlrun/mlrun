@@ -21,7 +21,7 @@ sys.path.insert(0, "..")
 
 def current_version():
     root = path.dirname(path.dirname(path.abspath(__file__)))
-    with open("{}/mlrun/__init__.py".format(root)) as fp:
+    with open(f"{root}/mlrun/__init__.py") as fp:
         for line in fp:
 
             # __version__ = '0.4.6'

@@ -24,6 +24,7 @@ mapped to config.httpdb.port. Values should be in JSON format.
 import copy
 import json
 import os
+import base64
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
@@ -32,7 +33,7 @@ from threading import Lock
 import yaml
 
 env_prefix = "MLRUN_"
-env_file_key = "{}CONIFG_FILE".format(env_prefix)
+env_file_key = f"{env_prefix}CONIFG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
 
@@ -50,6 +51,7 @@ default_config = {
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
+    "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
     "igz_version": "",  # the version of the iguazio system the API is running on
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
@@ -75,6 +77,10 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
+    #  configure this values on field systems, for newer system this will be configured correctly
+    "v3io_api": "http://v3io-webapi:8081",
+    "v3io_framesd": "http://framesd:8081",
     # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
@@ -112,11 +118,16 @@ default_config = {
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # additional docker build args in json encoded base64 format
+            "build_args": "",
         },
+        "v3io_api": "",
+        "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
         "container": "projects",
         "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
+        "model_endpoint_monitoring": {"container": "projects"},
     },
     "secret_stores": {
         "vault": {
@@ -138,6 +149,7 @@ default_config = {
             "nosql": "v3io:///projects/{project}/fs/{kind}",
         },
         "default_targets": "parquet,nosql",
+        "default_job_image": "mlrun/mlrun",
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -193,6 +205,17 @@ class Config:
     def from_dict(cls, dict_):
         return cls(copy.deepcopy(dict_))
 
+    @staticmethod
+    def get_build_args():
+        build_args = {}
+        if config.httpdb.builder.build_args:
+            build_args_json = base64.b64decode(
+                config.httpdb.builder.build_args
+            ).decode()
+            build_args = json.loads(build_args_json)
+
+        return build_args
+
     def to_dict(self):
         return copy.copy(self._cfg)
 
@@ -220,6 +243,26 @@ class Config:
 
             return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
+
+    @kfp_image.setter
+    def kfp_image(self, value):
+        self._kfp_image = value
+
+    @property
+    def dask_kfp_image(self):
+        """
+        See kfp_image property docstring for why we're defining this property
+        """
+        if not self._dask_kfp_image:
+            # importing here to avoid circular dependency
+            import mlrun.utils.helpers
+
+            return mlrun.utils.helpers.enrich_image_url("mlrun/ml-base")
+        return self._dask_kfp_image
+
+    @dask_kfp_image.setter
+    def dask_kfp_image(self, value):
+        self._dask_kfp_image = value
 
     @staticmethod
     def resolve_ui_url():
@@ -280,10 +323,12 @@ def _do_populate(env=None):
     if data:
         config.update(data)
 
-    # HACK to enable kfp_image property to both have dynamic default and to use the value from dict/env like
-    # other configurations
+    # HACK to enable kfp_image and dask_kfp_image property to both have dynamic default and to use the value from
+    # dict/env like other configurations
     config._cfg["_kfp_image"] = config._cfg["kfp_image"]
     del config._cfg["kfp_image"]
+    config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]
+    del config._cfg["dask_kfp_image"]
 
 
 def _convert_str(value, typ):
@@ -323,9 +368,20 @@ def read_env(env=None, prefix=env_prefix):
     # the existence of config.httpdb.api_url tell that we're running in an API context so no need to set the dbpath
     svc = env.get("MLRUN_API_PORT")
     if svc and not config.get("dbpath") and not config.get("httpdb", {}).get("api_url"):
-        config["dbpath"] = "http://mlrun-api:{}".format(
-            default_config["httpdb"]["port"] or 8080
-        )
+        port = default_config["httpdb"]["port"] or 8080
+        config["dbpath"] = f"http://mlrun-api:{port}"
+
+    # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
+    # of MLRUN_V3IO_API)
+    v3io_api = env.get("V3IO_API")
+    if v3io_api:
+        config["v3io_api"] = v3io_api
+
+    # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
+    # of MLRUN_V3IO_FRAMESD)
+    v3io_framesd = env.get("V3IO_FRAMESD")
+    if v3io_framesd:
+        config["v3io_framesd"] = v3io_framesd
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
@@ -355,7 +411,7 @@ def read_env(env=None, prefix=env_prefix):
 
     if uisvc and not config.get("ui_url"):
         if igz_domain:
-            config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
+            config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
     if config.get("log_level"):
         import mlrun.utils.logger

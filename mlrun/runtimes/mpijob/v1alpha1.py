@@ -107,7 +107,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     def _generate_pods_selector(name: str, launcher: bool) -> str:
         selector = "mlrun/class=mpijob"
         if name:
-            selector += ",mpi_job_name={}".format(name)
+            selector += f",mpi_job_name={name}"
         if launcher:
             selector += ",mpi_role_type=launcher"
 
@@ -126,6 +126,9 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
+        """
+        https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1alpha1/types.go#L115
+        """
         launcher_status = crd_object.get("status", {}).get("launcherStatus", "")
         in_terminal_state = launcher_status in MPIJobV1Alpha1States.terminal_states()
         desired_run_state = MPIJobV1Alpha1States.mpijob_state_to_run_state(

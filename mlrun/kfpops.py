@@ -14,15 +14,17 @@
 import getpass
 import json
 from copy import deepcopy
-from os import environ
+import os
+import os.path
+
 
 import mlrun
 from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
 
-KFPMETA_DIR = environ.get("KFPMETA_OUT_DIR", "")
-KFP_ARTIFACTS_DIR = environ.get("KFP_ARTIFACTS_DIR", "/tmp")
+KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
+KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 
 
 def is_num(v):
@@ -51,7 +53,7 @@ def write_kfpmeta(struct):
         project,
     )
 
-    results["run_id"] = results.get("run_id", "{}/{}".format(project, uid))
+    results["run_id"] = results.get("run_id", "/".join([project, uid]))
     for key in struct["spec"].get(run_keys.outputs, []):
         val = "None"
         if key in out_dict:
@@ -59,7 +61,7 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            path = f"{KFP_ARTIFACTS_DIR}/{key}"
+            path = "/".join([KFP_ARTIFACTS_DIR, key])
             logger.info("writing artifact output", path=path, val=val)
             with open(path, "w") as fp:
                 fp.write(str(val))
@@ -93,7 +95,7 @@ def get_kfp_outputs(artifacts, labels, project):
         if target.startswith("v3io:///"):
             target = target.replace("v3io:///", "http://v3io-webapi:8081/")
 
-        user = labels.get("v3io_user", "") or environ.get("V3IO_USERNAME", "")
+        user = labels.get("v3io_user", "") or os.environ.get("V3IO_USERNAME", "")
         if target.startswith("/User/"):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]
@@ -119,7 +121,7 @@ def get_kfp_outputs(artifacts, labels, project):
             preview = output.get("preview")
             if preview:
                 tbl_md = gen_md_table(header, preview)
-                text = "## Dataset: {}  \n\n".format(key) + tbl_md
+                text = f"## Dataset: {key}  \n\n" + tbl_md
                 del output["preview"]
 
                 meta = {"type": "markdown", "storage": "inline", "source": text}
@@ -266,17 +268,13 @@ def mlrun_op(
                 more_args = more_args or function.spec.args
                 mode = mode or function.spec.mode
                 rundb = rundb or function.spec.rundb
-                code_env = "{}".format(function.spec.build.functionSourceCode)
+                code_env = str(function.spec.build.functionSourceCode)
             else:
-                runtime = "{}".format(function.to_dict())
+                runtime = str(function.to_dict())
 
         function_name = function.metadata.name
         if function.kind == "dask":
-            image = (
-                image
-                or function.spec.kfp_image
-                or "mlrun/ml-base:{}".format(config.version)
-            )
+            image = image or function.spec.kfp_image or config.dask_kfp_image
 
     image = image or config.kfp_image
 
@@ -315,27 +313,27 @@ def mlrun_op(
     secrets = secrets or []
 
     if "V3IO_USERNAME" in environ and "v3io_user" not in labels:
-        labels["v3io_user"] = environ.get("V3IO_USERNAME")
+        labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
     if "owner" not in labels:
-        labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
+        labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
 
     if name:
         cmd += ["--name", name]
     if func_url:
         cmd += ["-f", func_url]
     for secret in secrets:
-        cmd += ["-s", "{}={}".format(secret["kind"], secret["source"])]
+        cmd += ["-s", f"{secret['kind']}={secret['source']}"]
     for param, val in params.items():
-        cmd += ["-p", "{}={}".format(param, val)]
+        cmd += ["-p", f"{param}={val}"]
     for xpram, val in hyperparams.items():
-        cmd += ["-x", "{}={}".format(xpram, val)]
+        cmd += ["-x", f"{xpram}={val}"]
     for input_param, val in inputs.items():
-        cmd += ["-i", "{}={}".format(input_param, val)]
+        cmd += ["-i", f"{input_param}={val}"]
     for label, val in labels.items():
-        cmd += ["--label", "{}={}".format(label, val)]
-    for o in outputs:
-        cmd += ["-o", "{}".format(o)]
-        file_outputs[o.replace(".", "_")] = "/tmp/{}".format(o)
+        cmd += ["--label", f"{label}={val}"]
+    for output in outputs:
+        cmd += ["-o", str(output)]
+        file_outputs[output.replace(".", "_")] = os.path.join("/tmp", output)
     if project:
         cmd += ["--project", project]
     if handler:
@@ -366,7 +364,7 @@ def mlrun_op(
     registry = get_default_reg()
     if image and image.startswith("."):
         if registry:
-            image = "{}/{}".format(registry, image[1:])
+            image = f"{registry}/{image[1:]}"
         else:
             raise ValueError("local image registry env not found")
 
@@ -448,11 +446,11 @@ def deploy_op(
             if function.kind == mlrun.runtimes.RuntimeKinds.serving:
                 cmd += ["-m", json.dumps(m)]
             else:
-                cmd += ["-m", "{}={}".format(m["key"], m["model_path"])]
+                cmd += ["-m", f"{m['key']}={m['model_path']}"]
 
     if env:
         for key, val in env.items():
-            cmd += ["--env", "{}={}".format(key, val)]
+            cmd += ["--env", f"{key}={val}"]
 
     if func_url:
         cmd += ["-f", func_url]
@@ -510,7 +508,7 @@ def build_op(
     if function:
         if not hasattr(function, "to_dict"):
             raise ValueError("function must specify a function runtime object")
-        cmd += ["-r", "{}".format(function.to_dict())]
+        cmd += ["-r", str(function.to_dict())]
     elif not func_url:
         raise ValueError("function object or func_url must be specified")
 
@@ -547,7 +545,8 @@ def build_op(
     if "IGZ_NAMESPACE_DOMAIN" in environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="IGZ_NAMESPACE_DOMAIN", value=environ.get("IGZ_NAMESPACE_DOMAIN")
+                name="IGZ_NAMESPACE_DOMAIN",
+                value=os.environ.get("IGZ_NAMESPACE_DOMAIN"),
             )
         )
 
@@ -557,7 +556,7 @@ def build_op(
     if "V3IO_ACCESS_KEY" in environ and is_v3io:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="V3IO_ACCESS_KEY", value=environ.get("V3IO_ACCESS_KEY")
+                name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
             )
         )
 
@@ -577,6 +576,7 @@ def build_op(
 def get_default_reg():
     if config.httpdb.builder.docker_registry:
         return config.httpdb.builder.docker_registry
-    if "IGZ_NAMESPACE_DOMAIN" in environ:
-        return "docker-registry.{}:80".format(environ.get("IGZ_NAMESPACE_DOMAIN"))
+    namespace_domain = os.environ.get("IGZ_NAMESPACE_DOMAIN", None)
+    if namespace_domain is not None:
+        return f"docker-registry.{namespace_domain}:80"
     return ""

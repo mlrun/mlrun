@@ -6,7 +6,7 @@
 MLRun Package Documentation
 ============================
 
-*The Open-Source MLOps Orchestration Framework.*
+*The Open-Source MLOps Orchestration Framework*
 
 Introduction
 ************
@@ -14,24 +14,25 @@ Introduction
 MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
 MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
 
-**MLRun Architecture**
+The MLRun Architecture
+----------------------
 
 .. image:: _static/images/mlrun-architecture.png
     :alt: MLRun architecture
 
-MLRun comprises of the following layers:
+MLRun is composed of the following layers:
 
-- **Feature & Artifact Store** - Handle the ingestion, processing, metadata and storage of data and features across multiple repositories and technologies
-- **Elastic Serverless Runtimes** - Convert simple code to scalable and managed micro-services with
-  workload specific runtime engines (Kubernetes jobs, Nuclio, Dask, Spark, Horovod, etc.)  .
-- **ML Pipeline Automation** - Automated data preparation, model training & testing,
-  deployment of production (real-time) pipelines, and end to end monitoring.
-- **Central Management** - Unified portal, UI, CLI, and SDK to manage the entire MLOps workflow which is
-  accessible from everywhere.
+- **Feature and Artifact Store** – 
+    handles the ingestion, processing, metadata, and storage of data and features across multiple repositories and technologies.
+- **Elastic Serverless Runtimes** –
+    converts simple code to scalable and managed microservices with workload-specific runtime engines (such as Kubernetes jobs, Nuclio, Dask, Spark, and Horovod).
+- **ML Pipeline Automation** –
+    automates data preparation, model training and testing, deployment of real-time production pipelines, and end-to-end monitoring.
+- **Central Management** –
+    provides a unified portal for managing the entire MLOps workflow.
+    The portal includes a UI, a CLI, and an SDK, which are accessible from anywhere.
 
-
-
-*Check the different documentation sections to learn about each of the components*
+Review the relevant documentation sections to learn about each component.
 
 Key Benefits
 ------------
@@ -42,7 +43,6 @@ MLRun provides the following key benefits:
 - **Elastic scaling** of batch and real-time workloads
 - **Feature management** – ingestion, preparation, and monitoring
 - **Works anywhere** – your local IDE, multi-cloud, or on-prem
-
 
 Table Of Content
 ----------------

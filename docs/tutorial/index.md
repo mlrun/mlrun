@@ -1,5 +1,5 @@
 (tutorial)=
-# Getting Started Tutorial
+# Getting-Started Tutorial
 
 This tutorial provides a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 

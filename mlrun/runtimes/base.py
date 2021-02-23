@@ -24,6 +24,7 @@ from os import environ
 from typing import Dict, List, Tuple, Union, Optional
 
 from kubernetes.client.rest import ApiException
+from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
 import mlrun.errors
@@ -267,8 +268,7 @@ class BaseRuntime(ModelObj):
                 runspec = literal_eval(runspec)
             if not isinstance(runspec, (dict, RunTemplate, RunObject)):
                 raise ValueError(
-                    "task/runspec is not a valid task object,"
-                    " type={}".format(type(runspec))
+                    "task/runspec is not a valid task object," f" type={type(runspec)}"
                 )
 
         if isinstance(runspec, RunTemplate):
@@ -308,7 +308,7 @@ class BaseRuntime(ModelObj):
         if self.spec.mode and self.spec.mode == "noctx":
             params = spec.parameters or {}
             for k, v in params.items():
-                self.spec.args += ["--{}".format(k), str(v)]
+                self.spec.args += [f"--{k}", str(v)]
 
         if spec.secret_sources:
             self._secrets = SecretsStore.from_list(spec.secret_sources)
@@ -338,20 +338,18 @@ class BaseRuntime(ModelObj):
 
         if not self.is_deployed:
             raise RunError(
-                "function image is not built/ready, use .build() method first"
+                "function image is not built/ready, use .deploy() method first"
             )
 
         if self.verbose:
-            logger.info("runspec:\n{}".format(runspec.to_yaml()))
+            logger.info(f"runspec:\n{runspec.to_yaml()}")
 
         if "V3IO_USERNAME" in environ and "v3io_user" not in meta.labels:
             meta.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
-            dbstr = "self" if self._is_api_server else self.spec.rundb
-            logger.info(
-                "starting run {} uid={} DB={}".format(meta.name, meta.uid, dbstr)
-            )
+            db_str = "self" if self._is_api_server else self.spec.rundb
+            logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
             meta.labels["kind"] = self.kind
             if "owner" not in meta.labels:
                 meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -374,7 +372,7 @@ class BaseRuntime(ModelObj):
             try:
                 resp = db.submit_job(runspec, schedule=schedule)
                 if schedule:
-                    logger.info("task scheduled, {}".format(resp))
+                    logger.info(f"task scheduled, {resp}")
                     return
 
                 if resp:
@@ -385,7 +383,7 @@ class BaseRuntime(ModelObj):
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:
-                logger.error("got remote run err, {}".format(err))
+                logger.error(f"got remote run err, {err}")
                 result = None
                 # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
                 # but there's no run in case of schedule)
@@ -423,7 +421,7 @@ class BaseRuntime(ModelObj):
                 if watch and self.kind not in ["", "handler", "local"]:
                     state = runspec.logs(True, self._get_db())
                     if state != "succeeded":
-                        logger.warning("run ended with state {}".format(state))
+                        logger.warning(f"run ended with state {state}")
                 result = self._post_run(resp, task=runspec)
             except RunError as err:
                 last_err = err
@@ -453,21 +451,21 @@ class BaseRuntime(ModelObj):
 
             uid = runspec.metadata.uid
             proj = (
-                "--project {}".format(runspec.metadata.project)
+                f"--project {runspec.metadata.project}"
                 if runspec.metadata.project
                 else ""
             )
             print(
                 "to track results use .show() or .logs() or in CLI: \n"
-                "!mlrun get run {} {} , !mlrun logs {} {}".format(uid, proj, uid, proj)
+                f"!mlrun get run {uid} {proj} , !mlrun logs {uid} {proj}"
             )
 
         if result:
             run = RunObject.from_dict(result)
-            logger.info("run executed, status={}".format(run.status.state))
+            logger.info(f"run executed, status={run.status.state}")
             if run.status.state == "error":
                 if self._is_remote and not self.is_child:
-                    print("runtime error: {}".format(run.status.error))
+                    print(f"runtime error: {run.status.error}")
                 raise RunError(run.status.error)
             return run
 
@@ -572,7 +570,7 @@ class BaseRuntime(ModelObj):
             return None
 
         if not isinstance(resp, dict):
-            raise ValueError("post_run called with type {}".format(type(resp)))
+            raise ValueError(f"post_run called with type {type(resp)}")
 
         updates = None
         last_state = get_in(resp, "status.state", "")
@@ -600,7 +598,7 @@ class BaseRuntime(ModelObj):
 
     def _force_handler(self, handler):
         if not handler:
-            raise RunError("handler must be provided for {} runtime".format(self.kind))
+            raise RunError(f"handler must be provided for {self.kind} runtime")
 
     def full_image_path(self, image=None):
         image = image or self.spec.image or ""
@@ -610,11 +608,10 @@ class BaseRuntime(ModelObj):
             return image
         registry, _ = get_parsed_docker_registry()
         if registry:
-            return "{}/{}".format(registry, image[1:])
-        if "IGZ_NAMESPACE_DOMAIN" in environ:
-            return "docker-registry.{}:80/{}".format(
-                environ.get("IGZ_NAMESPACE_DOMAIN"), image[1:]
-            )
+            return f"{registry}/{image[1:]}"
+        namespace_domain = environ.get("IGZ_NAMESPACE_DOMAIN", None)
+        if namespace_domain is not None:
+            return f"docker-registry.{namespace_domain}:80/{image[1:]}"
         raise RunError("local container registry is not defined")
 
     def as_step(
@@ -702,14 +699,25 @@ class BaseRuntime(ModelObj):
 
         :return: function object
         """
+        if body and from_file:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must provide either body or from_file argument. not both"
+            )
+
         if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
 
             _, _, body = build_file(from_file)
 
-        if from_file:
-            with open(from_file) as fp:
-                body = fp.read()
+        else:
+            if from_file:
+                with open(from_file) as fp:
+                    body = fp.read()
+            if self.kind == mlrun.runtimes.RuntimeKinds.serving:
+                body = body + mlrun_footer.format(
+                    mlrun.runtimes.serving.serving_subkind
+                )
+
         self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
             "utf-8"
         )
@@ -750,7 +758,7 @@ class BaseRuntime(ModelObj):
         target = target or "function.yaml"
         datastore, subpath = stores.get_or_create_store(target)
         datastore.put(subpath, data)
-        logger.info("function spec saved to path: {}".format(target))
+        logger.info(f"function spec saved to path: {target}")
         return self
 
     def save(self, tag="", versioned=False, refresh=False):
@@ -777,7 +785,7 @@ class BaseRuntime(ModelObj):
         tag = tag or self.metadata.tag
 
         obj = self.to_dict()
-        logger.debug("saving function: {}, tag: {}".format(self.metadata.name, tag))
+        logger.debug(f"saving function: {self.metadata.name}, tag: {tag}")
         hash_key = db.store_function(
             obj, self.metadata.name, self.metadata.project, tag, versioned
         )
@@ -798,16 +806,16 @@ class BaseRuntime(ModelObj):
         if self.spec.entry_points:
             print("entry points:")
             for name, entry in self.spec.entry_points.items():
-                print("  {}: {}".format(name, entry.get("doc", "")))
+                print(f"  {name}: {entry.get('doc', '')}")
                 params = entry.get("parameters")
                 if params:
                     for p in params:
                         line = p["name"]
                         if "type" in p:
-                            line += "({})".format(p["type"])
+                            line += f"({p['type']})"
                         line += "  - " + p.get("doc", "")
                         if "default" in p:
-                            line += ", default={}".format(p["default"])
+                            line += f", default={p['default']}"
                         print("    " + line)
 
 
@@ -1029,9 +1037,9 @@ class BaseRuntimeHandler(ABC):
                     crd_plural,
                     label_selector=label_selector,
                 )
-            except ApiException as e:
+            except ApiException as exc:
                 # ignore error if crd is not defined
-                if e.status != 404:
+                if exc.status != 404:
                     raise
             else:
                 crd_objects = crd_objects["items"]
@@ -1124,9 +1132,9 @@ class BaseRuntimeHandler(ABC):
                 crd_plural,
                 label_selector=label_selector,
             )
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if crd is not defined
-            if e.status != 404:
+            if exc.status != 404:
                 raise
         else:
             for crd_object in crd_objects["items"]:
@@ -1427,9 +1435,9 @@ class BaseRuntimeHandler(ABC):
                 namespace=namespace,
                 crd_plural=crd_plural,
             )
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if crd object is already removed
-            if e.status != 404:
+            if exc.status != 404:
                 raise
 
     @staticmethod
@@ -1438,9 +1446,9 @@ class BaseRuntimeHandler(ABC):
         try:
             k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
             logger.info("Deleted pod", pod=pod.metadata.name)
-        except ApiException as e:
+        except ApiException as exc:
             # ignore error if pod is already removed
-            if e.status != 404:
+            if exc.status != 404:
                 raise
 
     @staticmethod

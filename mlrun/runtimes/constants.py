@@ -173,3 +173,18 @@ class MPIJobV1Alpha1States:
             SparkApplicationStates.failed: RunStates.error,
             MPIJobV1Alpha1States.active: RunStates.running,
         }[mpijob_state]
+
+
+class MPIJobV1CleanPodPolicies:
+    """
+    https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L137
+    """
+
+    all = "All"
+    running = "Running"
+    none = "None"
+    undefined = ""
+
+    @staticmethod
+    def default():
+        return MPIJobV1CleanPodPolicies.all

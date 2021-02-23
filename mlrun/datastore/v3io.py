@@ -14,10 +14,10 @@
 
 from copy import deepcopy
 from datetime import datetime
-from os import environ
 import time
 from urllib.parse import urlparse
 
+import fsspec
 import v3io.dataplane
 
 import mlrun
@@ -40,11 +40,7 @@ V3IO_LOCAL_ROOT = "v3io"
 class V3ioStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
-        self.endpoint = self.endpoint or environ.get("V3IO_API", "v3io-webapi:8081")
-
-        token = self._secret("V3IO_ACCESS_KEY") or environ.get("V3IO_ACCESS_KEY")
-        username = self._secret("V3IO_USERNAME") or environ.get("V3IO_USERNAME")
-        password = self._secret("V3IO_PASSWORD") or environ.get("V3IO_PASSWORD")
+        self.endpoint = self.endpoint or mlrun.mlconf.v3io_api
 
         self.headers = None
         self.secure = self.kind == "v3ios"
@@ -54,6 +50,10 @@ class V3ioStore(DataStore):
         elif self.endpoint.startswith("http://"):
             self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
+
+        token = self._get_secret_or_env("V3IO_ACCESS_KEY")
+        username = self._get_secret_or_env("V3IO_USERNAME")
+        password = self._get_secret_or_env("V3IO_PASSWORD")
 
         self.auth = None
         self.token = token
@@ -69,7 +69,25 @@ class V3ioStore(DataStore):
     @property
     def url(self):
         schema = "https" if self.secure else "http"
-        return "{}://{}".format(schema, self.endpoint)
+        return f"{schema}://{self.endpoint}"
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        if self._filesystem:
+            return self._filesystem
+        try:
+            import v3iofs  # noqa
+        except ImportError as exc:
+            if not silent:
+                raise ImportError(
+                    f"v3iofs or storey not installed, run pip install storey, {exc}"
+                )
+            return None
+        self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
+        return self._filesystem
+
+    def get_storage_options(self):
+        return dict(v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"))
 
     def upload(self, key, src_path):
         http_upload(self.url + self._join(key), src_path, self.headers, None)
@@ -133,7 +151,7 @@ def parse_v3io_path(url):
     endpoint = parsed_url.hostname
     if endpoint:
         if parsed_url.port:
-            endpoint += ":{}".format(parsed_url.port)
+            endpoint += f":{parsed_url.port}"
         prefix = "https" if scheme == "v3ios" else "http"
         endpoint = f"{prefix}://{endpoint}"
     else:

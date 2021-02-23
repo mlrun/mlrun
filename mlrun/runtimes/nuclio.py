@@ -45,7 +45,7 @@ def nuclio_jobs_handler(context, event):
 
     if not paths or paths[0] not in context.globals:
         return context.Response(
-            body="function name {} does not exist".format(paths[0]),
+            body=f"function name {paths[0]} does not exist",
             content_type="text/plain",
             status_code=400,
         )
@@ -53,14 +53,14 @@ def nuclio_jobs_handler(context, event):
     fhandler = context.globals[paths[0]]
     if not inspect.isfunction(fhandler) or paths[0].startswith("_"):
         return context.Response(
-            body="{} is not a public function handler".format(paths[0]),
+            body=f"{paths[0]} is not a public function handler",
             content_type="text/plain",
             status_code=400,
         )
 
     out = get_or_set_dburl()
     if out:
-        context.logger.info("logging run results to: {}".format(out))
+        context.logger.info(f"logging run results to: {out}")
 
     newspec = event.body
     if newspec and not isinstance(newspec, dict):
@@ -79,7 +79,7 @@ def nuclio_jobs_handler(context, event):
         val = fhandler(*args)
         if val:
             ctx.log_result("return", val)
-    except Exception as e:
-        err = str(e)
+    except Exception as exc:
+        err = str(exc)
         ctx.set_state(error=err)
     return ctx.to_json()

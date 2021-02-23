@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from base64 import b64encode
-from os import remove, path
+from os import remove, path, getenv
 from tempfile import mktemp
 
+import fsspec
 import requests
 import urllib3
 import pandas as pd
@@ -48,6 +49,7 @@ class DataStore:
         self.secret_pfx = ""
         self.options = {}
         self.from_spec = False
+        self._filesystem = None
 
     @property
     def is_structured(self):
@@ -65,9 +67,24 @@ class DataStore:
     def uri_to_ipython(endpoint, subpath):
         return ""
 
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        return None
+
+    def _get_secret_or_env(self, key, default=None):
+        return self._secret(key) or getenv(key, default)
+
+    def get_storage_options(self):
+        """get fsspec storage options"""
+        return None
+
+    def open(self, filepath, mode):
+        fs = self.get_filesystem(False)
+        return fs.open(filepath, mode)
+
     def _join(self, key):
         if self.subpath:
-            return "{}/{}".format(self.subpath, key)
+            return f"{self.subpath}/{key}"
         return key
 
     def _secret(self, key):
@@ -75,7 +92,7 @@ class DataStore:
 
     @property
     def url(self):
-        return "{}://{}".format(self.kind, self.endpoint)
+        return f"{self.kind}://{self.endpoint}"
 
     def get(self, key, size=None, offset=0):
         pass
@@ -104,27 +121,28 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def as_df(self, key, columns=None, df_module=None, format="", **kwargs):
+    def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
         df_module = df_module or pd
-        if key.endswith(".csv") or format == "csv":
+        if url.endswith(".csv") or format == "csv":
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
-        elif key.endswith(".parquet") or key.endswith(".pq") or format == "parquet":
+        elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns
             reader = df_module.read_parquet
-        elif key.endswith(".json") or format == "json":
+        elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
 
         else:
-            raise Exception(f"file type unhandled {key}")
+            raise Exception(f"file type unhandled {url}")
 
-        if self.kind == "file":
-            return reader(self._join(key), **kwargs)
+        fs = self.get_filesystem()
+        if fs:
+            return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()
-        self.download(self._join(key), tmp)
+        self.download(self._join(subpath), tmp)
         df = reader(tmp, **kwargs)
         remove(tmp)
         return df
@@ -132,7 +150,7 @@ class DataStore:
     def to_dict(self):
         return {
             "name": self.name,
-            "url": "{}://{}/{}".format(self.kind, self.endpoint, self.subpath),
+            "url": f"{self.kind}://{self.endpoint}/{self.subpath}",
             "secret_pfx": self.secret_pfx,
             "options": self.options,
         }
@@ -214,6 +232,14 @@ class DataItem:
         """return FileStats class (size, modified, content_type)"""
         return self._store.stat(self._path)
 
+    def open(self, mode):
+        """return fsspec file handler, if supported"""
+        return self._store.open(self._url, mode)
+
+    def ls(self):
+        """return a list of child file names"""
+        return self._store.listdir(self._path)
+
     def listdir(self):
         """return a list of child file names"""
         return self._store.listdir(self._path)
@@ -227,7 +253,7 @@ class DataItem:
 
         dot = self._path.rfind(".")
         self._local_path = mktemp() if dot == -1 else mktemp(self._path[dot:])
-        logger.info("downloading {} to local tmp".format(self.url))
+        logger.info(f"downloading {self.url} to local tmp")
         self.download(self._local_path)
         return self._local_path
 
@@ -239,20 +265,25 @@ class DataItem:
         :param format:    file format, if not specified it will be deducted from the suffix
         """
         return self._store.as_df(
-            self._path, columns=columns, df_module=df_module, format=format, **kwargs
+            self._url,
+            self._path,
+            columns=columns,
+            df_module=df_module,
+            format=format,
+            **kwargs,
         )
 
     def __str__(self):
         return self.url
 
     def __repr__(self):
-        return "'{}'".format(self.url)
+        return f"'{self.url}'"
 
 
 def get_range(size, offset):
-    byterange = "bytes={}-".format(offset)
+    byterange = f"bytes={offset}-"
     if size:
-        byterange = range + "{}".format(offset + size)
+        byterange += str(offset + size)
     return byterange
 
 
@@ -267,8 +298,8 @@ def basic_auth_header(user, password):
 def http_get(url, headers=None, auth=None):
     try:
         response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
-    except OSError as e:
-        raise OSError("error: cannot connect to {}: {}".format(url, e))
+    except OSError as exc:
+        raise OSError(f"error: cannot connect to {url}: {exc}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -278,8 +309,8 @@ def http_get(url, headers=None, auth=None):
 def http_head(url, headers=None, auth=None):
     try:
         response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
-    except OSError as e:
-        raise OSError("error: cannot connect to {}: {}".format(url, e))
+    except OSError as exc:
+        raise OSError(f"error: cannot connect to {url}: {exc}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -291,8 +322,8 @@ def http_put(url, data, headers=None, auth=None):
         response = requests.put(
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
-    except OSError as e:
-        raise OSError("error: cannot connect to {}: {}".format(url, e))
+    except OSError as exc:
+        raise OSError(f"error: cannot connect to {url}: {exc}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -306,6 +337,12 @@ class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
         self.auth = None
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        if not self._filesystem:
+            self._filesystem = fsspec.filesystem("http")
+        return self._filesystem
 
     def upload(self, key, src_path):
         raise ValueError("unimplemented")

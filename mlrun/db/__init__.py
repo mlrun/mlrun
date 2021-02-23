@@ -78,7 +78,7 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
         )
         endpoint = parsed_url.hostname
         if parsed_url.port:
-            endpoint += ":{}".format(parsed_url.port)
+            endpoint += f":{parsed_url.port}"
         url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
     else:
         cls = SQLDB

@@ -110,15 +110,15 @@ class ArtifactManager:
         item.src_path = src_path
         if src_path and ("://" in src_path or src_path.startswith("/")):
             raise ValueError(
-                "local/source path ({}) must be a relative path, "
+                f"local/source path ({src_path}) must be a relative path, "
                 "cannot be remote or absolute path, "
-                "use target_path for absolute paths".format(src_path)
+                "use target_path for absolute paths"
             )
 
         if target_path:
             if not (target_path.startswith("/") or "://" in target_path):
                 raise ValueError(
-                    "target_path ({}) param cannot be relative".format(target_path)
+                    f"target_path ({target_path}) param cannot be relative"
                 )
         else:
             target_path = uxjoin(
@@ -157,13 +157,9 @@ class ArtifactManager:
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or "?"
+        db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
-            "log artifact {} at {}, size: {}, db: {}".format(
-                key,
-                item.target_path,
-                size,
-                "Y" if (self.artifact_db and db_key) else "N",
-            )
+            f"log artifact {key} at {item.target_path}, size: {size}, db: {db_str}"
         )
         return item
 
@@ -212,4 +208,4 @@ class ArtifactManager:
 def filename(key, format):
     if not format:
         return key
-    return "{}.{}".format(key, format)
+    return f"{key}.{format}"

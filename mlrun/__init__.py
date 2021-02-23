@@ -58,7 +58,7 @@ def get_version():
 
 if "IGZ_NAMESPACE_DOMAIN" in environ:
     igz_domain = environ["IGZ_NAMESPACE_DOMAIN"]
-    kfp_ep = "https://dashboard.{}/pipelines".format(igz_domain)
+    kfp_ep = f"https://dashboard.{igz_domain}/pipelines"
     environ["KF_PIPELINES_UI_ENDPOINT"] = kfp_ep
     mlconf.remote_host = mlconf.remote_host or igz_domain
 

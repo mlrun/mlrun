@@ -76,9 +76,7 @@ def has_secrets():
 
 def verify_state(result: RunObject):
     state = result.status.state
-    assert state == "completed", "wrong state ({}) {}".format(
-        state, result.status.error
-    )
+    assert state == "completed", f"wrong state ({state}) {result.status.error}"
 
 
 def wait_for_server(url, timeout_sec):

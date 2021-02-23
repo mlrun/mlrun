@@ -1,4 +1,5 @@
-from typing import Optional, List, Tuple
+from hashlib import md5
+from typing import Optional, List, Tuple, Any, Dict, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
@@ -30,6 +31,27 @@ class ModelEndpoint(BaseModel):
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
     status: ObjectStatus
+    id: Optional[str] = None
+
+    class Config:
+        extra = Extra.allow
+
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+        self.id = self.create_endpoint_id()
+
+    def create_endpoint_id(self):
+        if not self.spec.function or not self.spec.model or not self.metadata.tag:
+            raise ValueError(
+                "ModelEndpoint.spec.function, ModelEndpoint.spec.model "
+                "and ModelEndpoint.metadata.tag must be initalized"
+            )
+
+        endpoint_unique_string = (
+            f"{self.spec.function}_{self.spec.model}_{self.metadata.tag}"
+        )
+        md5_str = md5(endpoint_unique_string.encode("utf-8")).hexdigest()
+        return f"{self.metadata.project}.{md5_str}"
 
 
 class Histogram(BaseModel):
@@ -64,15 +86,25 @@ class Features(BaseModel):
 
 class ModelEndpointState(BaseModel):
     endpoint: ModelEndpoint
-    first_request: Optional[str]
-    last_request: Optional[str]
+    first_request: Optional[str] = None
+    last_request: Optional[str] = None
     accuracy: Optional[float] = None
-    error_count: Optional[int]
-    alert_count: Optional[int]
-    drift_status: Optional[str]
-    metrics: Optional[List[Metric]] = None
-    features: Optional[List[Features]] = None
+    error_count: Optional[int] = None
+    drift_status: Optional[str] = None
+    metrics: Dict[str, Metric] = {}
+    features: List[Features] = []
 
 
 class ModelEndpointStateList(BaseModel):
     endpoints: List[ModelEndpointState]
+
+
+class GrafanaColumn(BaseModel):
+    text: str
+    type: str
+
+
+class GrafanaTable(BaseModel):
+    columns: List[GrafanaColumn]
+    rows: List[List[Optional[Union[int, float, str]]]]
+    type: str = "table"

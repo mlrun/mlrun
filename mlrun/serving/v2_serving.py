@@ -86,10 +86,10 @@ class V2ModelServer:
     def _load_and_update_state(self):
         try:
             self.load()
-        except Exception as e:
-            self.error = e
+        except Exception as exc:
+            self.error = exc
             self.context.logger.error(traceback.format_exc())
-            raise RuntimeError(f"failed to load model {self.name}, {e}")
+            raise RuntimeError(f"failed to load model {self.name}, {exc}")
         self.ready = True
         self.context.logger.info(f"model {self.name} was loaded")
 
@@ -186,10 +186,10 @@ class V2ModelServer:
             request = self._pre_event_processing_actions(event, op)
             try:
                 outputs = self.predict(request)
-            except Exception as e:
+            except Exception as exc:
                 if self._model_logger:
-                    self._model_logger.push(start, request, op=op, error=e)
-                raise e
+                    self._model_logger.push(start, request, op=op, error=exc)
+                raise exc
 
             response = {
                 "id": request["id"],
@@ -229,10 +229,10 @@ class V2ModelServer:
             request = self._pre_event_processing_actions(event, op)
             try:
                 outputs = self.explain(request)
-            except Exception as e:
+            except Exception as exc:
                 if self._model_logger:
-                    self._model_logger.push(start, request, op=op, error=e)
-                raise e
+                    self._model_logger.push(start, request, op=op, error=exc)
+                raise exc
 
             response = {
                 "id": request["id"],

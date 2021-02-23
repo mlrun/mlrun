@@ -108,7 +108,11 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
         client, "feature_vectors", project_name, "name=ooga", ooga_name_count
     )
     _list_and_assert_objects(
-        client, "feature_vectors", project_name, "label=color=blue", blue_lables_count
+        client,
+        "feature_vectors",
+        project_name,
+        "label=color=blue&label=owner",
+        blue_lables_count,
     )
     _list_and_assert_objects(
         client, "feature_vectors", project_name, "label=owner", count

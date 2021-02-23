@@ -37,6 +37,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from nuclio import Event
 
+from .remotesparkjob import RemoteSparkRuntime
+
 
 class HandlerRuntime(BaseRuntime):
     kind = "handler"
@@ -85,9 +87,16 @@ class LocalRuntime(BaseRuntime):
             environ["MLRUN_DBPATH"] = self.spec.rundb
 
         handler = runobj.spec.handler
-        logger.debug(
-            "starting local run: {} # {}".format(self.spec.command, handler or "main")
-        )
+        handler_str = handler or "main"
+        logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
+
+        if (
+            runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
+            and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
+        ):
+            from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
+
+            igz_spark_pre_hook()
 
         if handler:
             if self.spec.pythonpath:
@@ -117,7 +126,7 @@ class LocalRuntime(BaseRuntime):
             if self.spec.pythonpath:
                 pypath = self.spec.pythonpath
                 if "PYTHONPATH" in environ:
-                    pypath = "{}:{}".format(environ["PYTHONPATH"], pypath)
+                    pypath = f"{environ['PYTHONPATH']}:{pypath}"
                 env = {"PYTHONPATH": pypath}
             if runobj.spec.verbose:
                 if not env:
@@ -163,7 +172,7 @@ def load_module(file_name, handler):
     try:
         fn = getattr(mod, handler)  # Will raise if name not found
     except AttributeError:
-        raise RunError("handler {} not found in {}".format(handler, file_name))
+        raise RunError(f"handler {handler} not found in {file_name}")
 
     return mod, fn
 
@@ -216,8 +225,8 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                 os.chdir(cwd)
             val = handler(*args_list)
             context.set_state("completed", commit=False)
-        except Exception as e:
-            err = str(e)
+        except Exception as exc:
+            err = str(exc)
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)

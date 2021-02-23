@@ -39,7 +39,7 @@ def test_save_get_function(db: FileRunDB):
     assert db_func == func, "wrong func"
 
 
-def test_list_fuctions(db: FileRunDB):
+def test_list_functions(db: FileRunDB):
     proj = "p4"
     count = 5
     for i in range(count):

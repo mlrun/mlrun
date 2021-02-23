@@ -207,7 +207,7 @@ def v2_serving_init(context, namespace=None):
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "root", server.graph)
-    setattr(context, "verbose", server.verbose)
+    setattr(context, "server_context", server.context)
     context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())
@@ -218,12 +218,12 @@ def v2_serving_handler(context, event, get_body=False):
 
     try:
         response = context.root.run(event)
-    except Exception as e:
-        message = str(e)
-        if context.verbose:
+    except Exception as exc:
+        message = str(exc)
+        if context.server_context.verbose:
             message += "\n" + str(traceback.format_exc())
         context.logger.error(f"run error, {traceback.format_exc()}")
-        context.push_error(event, message, source="_handler")
+        context.server_context.push_error(event, message, source="_handler")
         return context.Response(
             body=message, content_type="text/plain", status_code=400
         )
@@ -298,8 +298,9 @@ class Response(object):
     def __repr__(self):
         cls = self.__class__.__name__
         items = self.__dict__.items()
-        args = ("{}={!r}".format(key, value) for key, value in items)
-        return "{}({})".format(cls, ", ".join(args))
+        args = (f"{key}={repr(value)}" for key, value in items)
+        args_str = ", ".join(args)
+        return f"{cls}({args_str})"
 
 
 class GraphContext:

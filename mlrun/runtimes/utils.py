@@ -21,6 +21,7 @@ from sys import stderr
 import pandas as pd
 from kubernetes import client
 
+import mlrun
 from mlrun.db import get_run_db
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
@@ -125,11 +126,11 @@ def calc_hash(func, tag=""):
 
 
 def log_std(db, runobj, out, err="", skip=False, show=True):
-    line = "> " + "-" * 15 + " Iteration: ({}) " + "-" * 15 + "\n"
     if out:
-        iter = runobj.metadata.iteration
-        if iter:
-            out = line.format(iter) + out
+        iteration = runobj.metadata.iteration
+        if iteration:
+            line = "> " + "-" * 15 + f" Iteration: ({iteration}) " + "-" * 15 + "\n"
+            out = line + out
         if show:
             print(out)
         if db and not skip:
@@ -137,7 +138,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True):
             project = runobj.metadata.project or ""
             db.store_log(uid, project, out.encode(), append=True)
     if err:
-        logger.error("exec error - {}".format(err))
+        logger.error(f"exec error - {err}")
         print(err, file=stderr)
         raise RunError(err)
 
@@ -180,7 +181,7 @@ def add_code_metadata(path=""):
         repo = Repo(path, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
-            return "{}#{}".format(remotes[0], repo.head.commit.hexsha)
+            return f"{remotes[0]}#{repo.head.commit.hexsha}"
     except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):
         pass
     return None
@@ -212,7 +213,7 @@ def results_to_iter(results, runspec, execution):
             if state == "error":
                 failed += 1
                 err = get_in(task, ["status", "error"], "")
-                logger.error("error in task  {}:{} - {}".format(execution.uid, id, err))
+                logger.error(f"error in task  {execution.uid}:{id} - {err}")
             elif state != "completed":
                 running += 1
 
@@ -256,9 +257,7 @@ def results_to_iter(results, runspec, execution):
     )
     if failed:
         execution.set_state(
-            error="{} or {} tasks failed, check logs in db for details".format(
-                failed, len(results)
-            ),
+            error=f"{failed} or {len(results)} tasks failed, check logs in db for details",
             commit=False,
         )
     elif running == 0:
@@ -329,8 +328,8 @@ def get_resource_labels(function, run=None, scrape_metrics=False):
     labels = deepcopy(function.metadata.labels)
     labels[mlrun_key + "class"] = function.kind
     labels[mlrun_key + "project"] = run_project or function.metadata.project
-    labels[mlrun_key + "function"] = "{}".format(function.metadata.name)
-    labels[mlrun_key + "tag"] = "{}".format(function.metadata.tag or "latest")
+    labels[mlrun_key + "function"] = str(function.metadata.name)
+    labels[mlrun_key + "tag"] = str(function.metadata.tag or "latest")
     labels[mlrun_key + "scrape-metrics"] = str(scrape_metrics)
 
     if run_uid:
@@ -358,10 +357,10 @@ def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu")
 
 
 def get_func_selector(project, name=None, tag=None):
-    s = ["{}project={}".format(mlrun_key, project)]
+    s = [f"{mlrun_key}project={project}"]
     if name:
-        s.append("{}function={}".format(mlrun_key, name))
-        s.append("{}tag={}".format(mlrun_key, tag or "latest"))
+        s.append(f"{mlrun_key}function={name}")
+        s.append(f"{mlrun_key}tag={tag or 'latest'}")
     return s
 
 
@@ -401,3 +400,35 @@ class k8s_resource:
         items = self.list_objects(namespace, selector, states)
         for item in items:
             self.del_object(item.metadata.name, item.metadata.namespace)
+
+
+def enrich_function_from_dict(function, function_dict):
+    override_function = mlrun.new_function(runtime=function_dict, kind=function.kind)
+    for attribute in [
+        "volumes",
+        "volume_mounts",
+        "env",
+        "resources",
+        "image_pull_policy",
+        "replicas",
+    ]:
+        override_value = getattr(override_function.spec, attribute, None)
+        if override_value:
+            if attribute == "env":
+                for env_dict in override_value:
+                    function.set_env(env_dict["name"], env_dict["value"])
+            elif attribute == "volumes":
+                function.spec.update_vols_and_mounts(override_value, [])
+            elif attribute == "volume_mounts":
+                # volume mounts don't have a well defined identifier (like name for volume) so we can't merge,
+                # only override
+                function.spec.volume_mounts = override_value
+            elif attribute == "resources":
+                # don't override it there are limits and requests but both are empty
+                if override_value.get("limits", {}) or override_value.get(
+                    "requests", {}
+                ):
+                    setattr(function.spec, attribute, override_value)
+            else:
+                setattr(function.spec, attribute, override_value)
+    return function

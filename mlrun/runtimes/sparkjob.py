@@ -331,46 +331,38 @@ class SparkRuntime(KubejobRuntime):
         # name = get_in(resp, 'metadata.name', 'unknown')
 
         state = get_in(resp, "status.applicationState.state", "SUBMITTED")
-        logger.info("SparkJob {} state={}".format(meta.name, "STARTING"))
+        logger.info(f"SparkJob {meta.name} state=STARTING")
         while state not in ["RUNNING", "COMPLETED", "FAILED"]:
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, "status.applicationState.state")
             time.sleep(1)
 
         if state == "FAILED":
-            logger.error("SparkJob {} state={}".format(meta.name, state or "unknown"))
+            logger.error(f"SparkJob {meta.name} state={state}")
             execution.set_state(
-                "error",
-                "SparkJob {} finished with state {}".format(
-                    meta.name, state or "unknown"
-                ),
+                "error", f"SparkJob {meta.name} finished with state {state}",
             )
 
         if resp:
-            logger.info("SparkJob {} state={}".format(meta.name, state or "unknown"))
+            logged_state = state or "unknown"
+            logger.info(f"SparkJob {meta.name} state={logged_state}")
             if state:
                 driver, status = self._get_driver(meta.name, meta.namespace)
                 execution.set_hostname(driver)
                 execution.set_state(state.lower())
                 if self.kfp:
                     status = self._get_k8s().watch(driver, meta.namespace)
-                    logger.info(
-                        "SparkJob {} finished with state {}".format(meta.name, status)
-                    )
+                    logger.info(f"SparkJob {meta.name} finished with state {status}",)
                     if status == "succeeded":
                         execution.set_state("completed")
                     else:
                         execution.set_state(
                             "error",
-                            "SparkJob {} finished with state {}".format(
-                                meta.name, status
-                            ),
+                            f"SparkJob {meta.name} finished with state {status}",
                         )
                 else:
                     logger.info(
-                        "SparkJob {} driver pod {} state {}".format(
-                            meta.name, driver, status
-                        )
+                        f"SparkJob {meta.name} driver pod {driver} state {status}",
                     )
                     resp = self.get_job(meta.name, meta.namespace)
                     ui_ingress = (
@@ -381,13 +373,12 @@ class SparkRuntime(KubejobRuntime):
                     if ui_ingress:
                         runobj.status.status_text = f"UI is available while the job is running: http://{ui_ingress}"
             else:
+                pods_phase = self.get_pods(meta.name, meta.namespace)
                 logger.error(
-                    "SparkJob status unknown or failed, check pods: {}".format(
-                        self.get_pods(meta.name, meta.namespace)
-                    )
+                    f"SparkJob status unknown or failed, check pods: {pods_phase}",
                 )
                 execution.set_state(
-                    "error", "SparkJob {} finished with unknown state".format(meta.name)
+                    "error", f"SparkJob {meta.name} finished with unknown state",
                 )
 
         return None
@@ -404,14 +395,12 @@ class SparkRuntime(KubejobRuntime):
                 body=job,
             )
             name = get_in(resp, "metadata.name", "unknown")
-            logger.info("SparkJob {} created".format(name))
+            logger.info(f"SparkJob {name} created")
             return resp
-        except ApiException as e:
-            crd = "{}/{}/{}".format(
-                SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural
-            )
-            logger.error("Exception when creating SparkJob ({}): {}".format(crd, e))
-            raise RunError("Exception when creating SparkJob: %s" % e)
+        except ApiException as exc:
+            crd = f"{SparkRuntime.group}/{SparkRuntime.version}/{SparkRuntime.plural}"
+            logger.error(f"Exception when creating SparkJob ({crd}): {exc}")
+            raise RunError(f"Exception when creating SparkJob: {exc}")
 
     def get_job(self, name, namespace=None):
         k8s = self._get_k8s()
@@ -424,8 +413,8 @@ class SparkRuntime(KubejobRuntime):
                 SparkRuntime.plural,
                 name,
             )
-        except ApiException as e:
-            print("Exception when reading SparkJob: %s" % e)
+        except ApiException as exc:
+            print(f"Exception when reading SparkJob: {exc}")
         return resp
 
     def _update_igz_jars(self, deps=igz_deps):
@@ -445,7 +434,7 @@ class SparkRuntime(KubejobRuntime):
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
-                namespace="default-tenant",
+                namespace=config.namespace,
                 v3io_config_configmap="spark-operator-v3io-config",
             )
         )
@@ -513,7 +502,7 @@ class SparkRuntime(KubejobRuntime):
         namespace = k8s.resolve_namespace(namespace)
         selector = "mlrun/class=spark"
         if name:
-            selector += ",sparkoperator.k8s.io/app-name={}".format(name)
+            selector += f",sparkoperator.k8s.io/app-name={name}"
         if driver:
             selector += ",spark-role=driver"
         pods = k8s.list_pods(selector=selector, namespace=namespace)

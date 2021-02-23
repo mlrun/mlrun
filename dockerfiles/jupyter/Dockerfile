@@ -11,6 +11,8 @@ USER root
 WORKDIR $HOME
 
 COPY ./README.md $HOME
+COPY ./docs/quick-start.ipynb $HOME
+COPY ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
 COPY ./examples $HOME/examples/
 
 ARG MLRUN_CACHE_DATE=initial

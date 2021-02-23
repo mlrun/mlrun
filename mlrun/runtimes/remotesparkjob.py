@@ -40,7 +40,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
-        igz_spark=None,
+        provider=None,
     ):
         super().__init__(
             command=command,
@@ -61,7 +61,11 @@ class RemoteSparkSpec(KubeResourceSpec):
             build=build,
             image_pull_secret=image_pull_secret,
         )
-        self.igz_spark = igz_spark
+        self.provider = provider
+
+
+class RemoteSparkProviders(object):
+    iguazio = "iguazio"
 
 
 class RemoteSparkRuntime(KubejobRuntime):
@@ -75,21 +79,25 @@ class RemoteSparkRuntime(KubejobRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", RemoteSparkSpec)
 
-    def with_igz_spark(self, spark_service):
-        self.spec.igz_spark = True
-        self.spec.env.append({"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"})
-        self.apply(mount_v3io_extended())
-        self.apply(
-            mount_v3iod(
-                namespace=config.namespace,
-                v3io_config_configmap=spark_service + "-submit",
+    def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
+        """Attach spark service to function"""
+        self.spec.provider = provider
+        if provider == RemoteSparkProviders.iguazio:
+            self.spec.env.append(
+                {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
             )
-        )
+            self.apply(mount_v3io_extended())
+            self.apply(
+                mount_v3iod(
+                    namespace=config.namespace,
+                    v3io_config_configmap=spark_service + "-submit",
+                )
+            )
 
     @property
     def _resolve_default_base_image(self):
         if (
-            self.spec.igz_spark
+            self.spec.provider == RemoteSparkProviders.iguazio
             and config.spark_app_image
             and config.spark_app_image_tag
         ):

@@ -554,6 +554,13 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             )
         return in_terminal_state, completion_time, desired_run_state
 
+    def _resolve_error_message_from_failed_crd_object(self, crd_object):
+        return (
+            crd_object.get("status", {})
+            .get("applicationState", {})
+            .get("errorMessage", "")
+        )
+
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:
         return True

@@ -61,10 +61,12 @@ class RemoteSparkSpec(KubeResourceSpec):
             build=build,
             image_pull_secret=image_pull_secret,
         )
-        self.provider=provider
+        self.provider = provider
+
 
 class RemoteSparkProviders(object):
     iguazio = "iguazio"
+
 
 class RemoteSparkRuntime(KubejobRuntime):
     kind = "remote-spark"
@@ -81,7 +83,9 @@ class RemoteSparkRuntime(KubejobRuntime):
         """Attach spark service to function"""
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:
-            self.spec.env.append({"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"})
+            self.spec.env.append(
+                {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
+            )
             self.apply(mount_v3io_extended())
             self.apply(
                 mount_v3iod(

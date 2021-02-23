@@ -1,6 +1,5 @@
-from mlrun import run_local, new_task
 import mlrun.runtimes
-
+from mlrun import run_local, new_task
 from tests.system.base import TestMLRunSystem
 
 

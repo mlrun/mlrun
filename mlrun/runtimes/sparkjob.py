@@ -461,7 +461,9 @@ class SparkRuntime(KubejobRuntime):
 
     def with_executor_limits(self, cpu=None):
         """set executor pod cpu limits"""
-        update_in(self.spec.executor_resources, "limits", generate_resources(cpu=cpu))
+        update_in(
+            self.spec.executor_resources, "limits", generate_resources(cpu=str(cpu))
+        )
 
     def with_driver_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
@@ -475,7 +477,9 @@ class SparkRuntime(KubejobRuntime):
 
     def with_driver_limits(self, cpu=None):
         """set driver pod cpu limits"""
-        update_in(self.spec.driver_resources, "limits", generate_resources(cpu=cpu))
+        update_in(
+            self.spec.driver_resources, "limits", generate_resources(cpu=str(cpu))
+        )
 
     def with_restart_policy(
         self,

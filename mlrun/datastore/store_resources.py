@@ -84,12 +84,12 @@ class ResourceCache:
                 mlrun.api.schemas.ObjectKind.feature_set.value,
                 mlrun.api.schemas.ObjectKind.feature_vector.value,
             ]:
-                driver = get_online_target(resource)
-                if not driver:
+                target = get_online_target(resource)
+                if not target:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"resource {uri} does not have an online data source"
                     )
-                self._tabels[uri] = driver.get_table_object()
+                self._tabels[uri] = target.get_table_object()
                 return self._tabels[uri]
 
         raise mlrun.errors.MLRunInvalidArgumentError(f"table {uri} not found in cache")

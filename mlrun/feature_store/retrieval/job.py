@@ -108,5 +108,5 @@ def merge_handler(context, vector_uri, target, entity_rows=None, timestamp_colum
     context.logger.info("merge task completed, targets:")
     context.logger.info(f"{vector.status.targets.to_dict()}")
     context.log_result('feature_vector', vector.uri)
-    context.log_result('target_uri', store_target.path)
+    context.log_result('target_uri', store_target._target_path)
 """

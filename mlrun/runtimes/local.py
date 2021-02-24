@@ -37,6 +37,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from nuclio import Event
 
+from .remotesparkjob import RemoteSparkRuntime
+
 
 class HandlerRuntime(BaseRuntime):
     kind = "handler"
@@ -87,6 +89,14 @@ class LocalRuntime(BaseRuntime):
         handler = runobj.spec.handler
         handler_str = handler or "main"
         logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
+
+        if (
+            runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
+            and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
+        ):
+            from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
+
+            igz_spark_pre_hook()
 
         if handler:
             if self.spec.pythonpath:

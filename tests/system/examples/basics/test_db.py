@@ -1,5 +1,5 @@
+import mlrun.runtimes
 from mlrun import run_local, new_task
-
 from tests.system.base import TestMLRunSystem
 
 
@@ -64,8 +64,8 @@ class TestDB(TestMLRunSystem):
             assert artifact_exists
 
         runtimes = self._run_db.list_runtimes()
-        assert len(runtimes) == 4
-        for runtime_kind in ["dask", "job", "spark", "mpijob"]:
+        assert len(runtimes) == len(mlrun.runtimes.RuntimeKinds.runtime_with_handlers())
+        for runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_exists = False
             for runtime in runtimes:
                 if runtime["kind"] == runtime_kind:

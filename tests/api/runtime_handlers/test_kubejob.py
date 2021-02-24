@@ -17,7 +17,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.job)
 
         labels = {
-            "mlrun/class": "job",
+            "mlrun/class": self._get_class_name(),
             "mlrun/function": "my-trainer",
             "mlrun/name": "my-training",
             "mlrun/project": self.project,
@@ -32,6 +32,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.running_pod = self._generate_pod(pod_name, labels, PodPhases.running)
         self.completed_pod = self._generate_pod(pod_name, labels, PodPhases.succeeded)
         self.failed_pod = self._generate_pod(pod_name, labels, PodPhases.failed)
+
+    def _get_class_name(self):
+        return "job"
 
     def test_list_resources(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()

@@ -102,10 +102,8 @@ class VaultStore:
 
         headers = {"X-Vault-Token": self._token}
         full_url = self.url + "/" + url
-        if data:
-            data = json.dumps(data)
 
-        response = requests.request(method, full_url, headers=headers, data=data)
+        response = requests.request(method, full_url, headers=headers, json=data)
 
         if not response:
             logger.error(
@@ -145,6 +143,7 @@ class VaultStore:
     def get_secrets(self, keys, user=None, project=None):
         secret_path = VaultStore._generate_path(user=user, project=project)
         secrets = {}
+
         response = self._api_call("GET", secret_path)
 
         if not response:
@@ -192,10 +191,10 @@ class VaultStore:
         policy_str = (
             f'path "secret/data/mlrun/projects/{project}" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
-            + "}}\n"
+            + '}\n'
             + f'path "secret/data/mlrun/projects/{project}/*" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
-            + "}}"
+            + '}'
         )
 
         data_object = {"policy": policy_str}

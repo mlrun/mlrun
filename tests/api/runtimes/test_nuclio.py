@@ -23,12 +23,13 @@ class TestNuclioRuntime(TestRuntimeBase):
     def custom_setup(self):
         self.image_name = "test/image:latest"
         self.code_handler = "test_func"
+
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
     @staticmethod
     def _mock_nuclio_deploy_config():
-        nuclio.deploy.deploy_config = unittest.mock.Mock()
+        nuclio.deploy.deploy_config = unittest.mock.Mock(return_value="some-server")
 
     @staticmethod
     def _get_expected_struct_for_http_trigger(parameters):
@@ -84,7 +85,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         return runtime
 
-    def _assert_deploy_called_basic_config(self):
+    def _assert_deploy_called_basic_config(self, expected_class="remote"):
         deploy_mock = nuclio.deploy.deploy_config
         deploy_mock.assert_called_once()
 
@@ -98,14 +99,19 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_config = args[0]
         function_metadata = deploy_config["metadata"]
         assert function_metadata["name"] == full_function_name
-        expected_labels = {"mlrun/class": "remote"}
+        expected_labels = {"mlrun/class": expected_class}
         assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
 
-        code_base64 = base64.b64encode(open(self.code_filename, "rb").read()).decode(
+        build_info = deploy_config["spec"]["build"]
+
+        # Nuclio source code in some cases adds a suffix to the code, initializing nuclio context.
+        # We just verify that the code provided starts with our code.
+        original_source_code = open(self.code_filename, "r").read()
+        spec_source_code = base64.b64decode(build_info["functionSourceCode"]).decode(
             "utf-8"
         )
-        build_info = deploy_config["spec"]["build"]
-        assert build_info["functionSourceCode"] == code_base64
+        assert spec_source_code.startswith(original_source_code)
+
         assert build_info["baseImage"] == self.image_name
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):

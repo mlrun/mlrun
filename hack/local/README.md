@@ -119,9 +119,17 @@ Vault needs to be installed in your environment. This document does not cover th
 refer to [**Vault documentation**](https://www.vaultproject.io/docs/install) for instructions.
 
 Once Vault is running locally, you need to enable Kubernetes authentication for vault. Follow the instructions in [**Kubernetes auth method**](https://www.vaultproject.io/docs/auth/kubernetes) to enable it. 
-This involves setting up a service account with `TokenReview` permissions - the page linked above explains how to configure that properly.
+This involves setting up a service account with `TokenReview` permissions - follow the instructions in
+[**Vault Agent with Kubernetes**](https://learn.hashicorp.com/tutorials/vault/agent-kubernetes) - follow
+the steps for service-account creation and configuring Vault to use it.
 
 #### Configuring MLRun API service to work with Vault
+
+> **Note:**
+> By default, the MLRun API uses a service-account that does not have permissions to perform list of serviceaccounts. 
+> This permission is required for the Vault functionality, so you'll need to manually edit the `mlrun-api` role and
+> add `serviceaccounts` to the list of APIs that are permitted.
+
 The MLRun API service needs to have permissions to manipulate Vault k8s roles, Vault policies and of course handle secrets. The Vault authentication
 method within MLRun uses a JWT token to authenticate using k8s mode. The JWT token can be placed in one of two locations:
 

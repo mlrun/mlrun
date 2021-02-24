@@ -213,49 +213,6 @@ class KubejobRuntime(KubeResource):
             skip_deployed=skip_deployed,
         )
 
-    def _add_vault_params_to_spec(self, runobj):
-        from ..config import config as mlconf
-
-        project_name = runobj.metadata.project
-        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
-            project=project_name
-        )
-
-        project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(
-            project_name, service_account_name
-        )
-        if project_vault_secret_name is None:
-            logger.info(f"No vault secret associated with project {project_name}")
-            return
-
-        volumes = [
-            {
-                "name": "vault-secret",
-                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
-            }
-        ]
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
-
-        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
-
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-        self.spec.env.append(
-            {
-                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
-                "value": f"project:{project_name}",
-            }
-        )
-        # In case remote URL is different than local URL, use it. Else, use the local URL
-        vault_url = mlconf.secret_stores.vault.remote_url
-        if vault_url == "":
-            vault_url = mlconf.secret_stores.vault.url
-
-        self.spec.env.append(
-            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
-        )
-
     def _run(self, runobj: RunObject, execution):
 
         with_mlrun = (not self.spec.mode) or (self.spec.mode != "pass")

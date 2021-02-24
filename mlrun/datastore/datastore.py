@@ -136,7 +136,7 @@ class StoreManager:
         target = resource.get_target_path()
         if not target:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f'resource {url} does not have a valid/persistent offline target'
+                f"resource {url} does not have a valid/persistent offline target"
             )
         return resource, target
 

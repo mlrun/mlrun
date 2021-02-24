@@ -117,7 +117,12 @@ def get_offline_features(
         )
 
     merger = LocalFeatureMerger(vector)
-    return merger.start(entity_rows, entity_timestamp_column, target=store_target, drop_columns=drop_columns)
+    return merger.start(
+        entity_rows,
+        entity_timestamp_column,
+        target=store_target,
+        drop_columns=drop_columns,
+    )
 
 
 def get_online_feature_service(

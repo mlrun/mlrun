@@ -25,7 +25,13 @@ class LocalFeatureMerger:
         self._result_df = None
         self.vector = vector
 
-    def start(self, entity_rows=None, entity_timestamp_column=None, target=None, drop_columns=None):
+    def start(
+        self,
+        entity_rows=None,
+        entity_timestamp_column=None,
+        target=None,
+        drop_columns=None,
+    ):
         feature_set_objects, feature_set_fields = self.vector.parse_features()
         if self.vector.metadata.name:
             self.vector.save()

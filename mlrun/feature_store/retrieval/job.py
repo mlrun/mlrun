@@ -87,7 +87,7 @@ class RemoteVectorResponse:
     def target_uri(self):
         """return path of the results file"""
         self._is_ready()
-        return self.run.output("target")['path']
+        return self.run.output("target")["path"]
 
 
 _default_merger_handler = """
@@ -105,9 +105,6 @@ def merge_handler(context, vector_uri, target, entity_rows=None, timestamp_colum
     merger = LocalFeatureMerger(vector)
     resp = merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns)
     target = vector.status.targets[store_target.name].to_dict()
-
-    context.logger.info("merge task completed, targets:")
-    context.logger.info(f"{target}")
     context.log_result('feature_vector', vector.uri)
     context.log_result('target', target)
 """

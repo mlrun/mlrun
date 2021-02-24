@@ -94,8 +94,7 @@ _default_merger_handler = """
 import mlrun
 from mlrun.feature_store.retrieval import LocalFeatureMerger
 from mlrun.feature_store.targets import get_target_driver
-def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = None, 
-                  timestamp_column=None, drop_columns=None):
+def merge_handler(context, vector_uri, target, entity_rows=None, timestamp_column=None, drop_columns=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field

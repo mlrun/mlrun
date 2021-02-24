@@ -64,8 +64,8 @@ def test_dataset_upload_parquet():
 def test_dataset_upload_csv():
     """
     This test fails when we use pandas<1.2 and is here to reproduce the scenario that didn't work
-    which caused us to upbound numpy to 1.20
-    see https://github.com/pandas-dev/pandas/pull/35129
+    which caused us to downbound pandas to 1.2
+    see https://pandas.pydata.org/docs/whatsnew/v1.2.0.html#support-for-binary-file-handles-in-to-csv
     """
     artifact = _generate_dataset_artifact(format_="csv")
     artifact.upload()

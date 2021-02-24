@@ -163,7 +163,7 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            with fs.open(target_path, "w") as fp:
+            with fs.open(target_path, "wb") as fp:
                 self._write_dataframe(df, fp, **kwargs)
             try:
                 return fs.size(target_path)

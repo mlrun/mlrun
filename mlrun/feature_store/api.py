@@ -55,6 +55,7 @@ def get_offline_features(
     entity_timestamp_column: str = None,
     batch: bool = False,
     store_target: DataTargetBase = None,
+    drop_columns: List[str] = None,
     engine: str = None,
     name: str = None,
     function=None,
@@ -88,6 +89,7 @@ def get_offline_features(
     :param entity_rows:  dataframe with entity rows to join with
     :param batch:        run as a remote (cluster) batch job
     :param store_target: where to write the results to
+    :param drop_columns: list of columns to drop from the final result
     :param engine:       join/merge engine (local, job, spark)
     :param name:         name for the generated feature vector
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
@@ -109,13 +111,19 @@ def get_offline_features(
             timestamp_column=entity_timestamp_column,
             local=local,
             watch=watch,
+            drop_columns=drop_columns,
             function=function,
             secrets=secrets,
             auto_mount=auto_mount,
         )
 
     merger = LocalFeatureMerger(vector)
-    return merger.start(entity_rows, entity_timestamp_column, store_target)
+    return merger.start(
+        entity_rows,
+        entity_timestamp_column,
+        target=store_target,
+        drop_columns=drop_columns,
+    )
 
 
 def get_online_feature_service(

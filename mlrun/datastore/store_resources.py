@@ -17,6 +17,7 @@
 import mlrun
 from mlrun.config import config
 from mlrun.utils.helpers import parse_versioned_object_uri
+from .targets import get_online_target
 from .v3io import parse_v3io_path
 from ..utils import DB_SCHEMA, StorePrefix
 
@@ -77,9 +78,21 @@ class ResourceCache:
             self._tabels[uri] = Table(uri, V3ioDriver(webapi=endpoint))
             return self._tabels[uri]
 
-        # todo: map store:// uri's to Table objects
+        if is_store_uri(uri):
+            resource = get_store_resource(uri)
+            if resource.kind in [
+                mlrun.api.schemas.ObjectKind.feature_set.value,
+                mlrun.api.schemas.ObjectKind.feature_vector.value,
+            ]:
+                target = get_online_target(resource)
+                if not target:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"resource {uri} does not have an online data source"
+                    )
+                self._tabels[uri] = target.get_table_object()
+                return self._tabels[uri]
 
-        raise ValueError(f"table {uri} not found in cache")
+        raise mlrun.errors.MLRunInvalidArgumentError(f"table {uri} not found in cache")
 
     def cache_resource(self, uri, value, default=False):
         """cache store resource (artifact/feature-set/feature-vector)"""

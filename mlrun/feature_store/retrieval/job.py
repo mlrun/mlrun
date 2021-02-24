@@ -13,6 +13,7 @@ def run_merge_job(
     timestamp_column=None,
     local=None,
     watch=None,
+    drop_columns=None,
     function=None,
     secrets=None,
     auto_mount=None,
@@ -46,6 +47,7 @@ def run_merge_job(
             "vector_uri": vector.uri,
             "target": target.to_dict(),
             "timestamp_column": timestamp_column,
+            "drop_columns": drop_columns,
         },
         inputs={"entity_rows": entity_rows},
     )
@@ -85,14 +87,14 @@ class RemoteVectorResponse:
     def target_uri(self):
         """return path of the results file"""
         self._is_ready()
-        return self.run.output("target_uri")
+        return self.run.output("target")["path"]
 
 
 _default_merger_handler = """
 import mlrun
 from mlrun.feature_store.retrieval import LocalFeatureMerger
-from mlrun.feature_store.targets import get_target_driver
-def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = None, timestamp_column=None):
+from mlrun.datastore.targets import get_target_driver
+def merge_handler(context, vector_uri, target, entity_rows=None, timestamp_column=None, drop_columns=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
@@ -101,10 +103,8 @@ def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = Non
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = LocalFeatureMerger(vector)
-    resp = merger.start(entity_rows, entity_timestamp_column, store_target)
-
-    context.logger.info("merge task completed, targets:")
-    context.logger.info(f"{vector.status.targets.to_dict()}")
+    resp = merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns)
+    target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)
-    context.log_result('target_uri', store_target.path)
+    context.log_result('target', target)
 """

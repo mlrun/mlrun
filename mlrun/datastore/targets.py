@@ -103,13 +103,13 @@ def get_offline_target(featureset, start_time=None, name=None):
     return None
 
 
-def get_online_target(featureset):
+def get_online_target(resource):
     """return an optimal online feature set target"""
     # todo: take lookup order into account
-    for target in featureset.status.targets:
+    for target in resource.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_online:
-            return get_target_driver(target, featureset)
+            return get_target_driver(target, resource)
     return None
 
 
@@ -139,7 +139,7 @@ class BaseStoreTarget(DataTargetBase):
         after_state=None,
     ):
         self.name = name
-        self.path = str(path)
+        self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
 
@@ -148,7 +148,7 @@ class BaseStoreTarget(DataTargetBase):
         self._secrets = {}
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.path)
+        store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
 
     def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
@@ -157,15 +157,16 @@ class BaseStoreTarget(DataTargetBase):
             options.update(kwargs)
             df.write.mode("overwrite").save(**options)
         else:
+            target_path = self._target_path
             fs = self._get_store().get_filesystem(False)
             if fs.protocol == "file":
-                dir = os.path.dirname(self.path)
+                dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            with fs.open(self.path, "wb") as fp:
+            with fs.open(target_path, "wb") as fp:
                 self._write_dataframe(df, fp, **kwargs)
             try:
-                return fs.size(self.path)
+                return fs.size(target_path)
             except Exception:
                 return None
 
@@ -198,7 +199,7 @@ class BaseStoreTarget(DataTargetBase):
         """return the actual/computed target path"""
         return self.path or _get_target_path(self, self._resource)
 
-    def update_resource_status(self, status="", producer=None, is_dir=None):
+    def update_resource_status(self, status="", producer=None, is_dir=None, size=None):
         """update the data target status"""
         self._target = self._target or DataTarget(
             self.kind, self.name, self._target_path
@@ -207,8 +208,10 @@ class BaseStoreTarget(DataTargetBase):
         target.is_dir = is_dir
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
+        target.size = size
         target.producer = producer or target.producer
         self._resource.status.update_target(target)
+        return target
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

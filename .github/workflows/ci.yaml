@@ -39,8 +39,11 @@ jobs:
       run: make lint
 
   tests:
-    name: Run Dockerized Tests
+    name: Run Dockerized Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
     steps:
     - uses: actions/checkout@v2
     # TODO: re-use the next 2 actions instead of duplicating
@@ -55,7 +58,7 @@ jobs:
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "::set-output name=tag::$(echo $unstable_tag)"
     - name: Run Dockerized tests
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
 
   integration-tests:
     name: Run Dockerized Integration Tests

@@ -139,7 +139,7 @@ class BaseStoreTarget(DataTargetBase):
         after_state=None,
     ):
         self.name = name
-        self.path = str(path)
+        self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
 
@@ -148,7 +148,7 @@ class BaseStoreTarget(DataTargetBase):
         self._secrets = {}
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.path)
+        store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
 
     def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):

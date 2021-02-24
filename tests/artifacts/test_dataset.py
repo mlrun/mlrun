@@ -51,15 +51,30 @@ def test_dataset_preview_size_limit():
     assert artifact.stats is None
 
 
-def test_dataset_upload():
+def test_dataset_upload_parquet():
     """
     This test fails when we use numpy>=1.20 and is here to reproduce the scenario that didn't work
     which caused us to upbound numpy to 1.20
     see https://github.com/Azure/MachineLearningNotebooks/issues/1314
     """
+    artifact = _generate_dataset_artifact(format_="parquet")
+    artifact.upload()
+
+
+def test_dataset_upload_csv():
+    """
+    This test fails when we use pandas<1.2 and is here to reproduce the scenario that didn't work
+    which caused us to upbound numpy to 1.20
+    see https://github.com/pandas-dev/pandas/pull/35129
+    """
+    artifact = _generate_dataset_artifact(format_="csv")
+    artifact.upload()
+
+
+def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"
     artifact = mlrun.artifacts.dataset.DatasetArtifact(
-        df=data_frame, target_path=str(target_path)
+        df=data_frame, target_path=str(target_path), format=format_,
     )
-    artifact.upload()
+    return artifact

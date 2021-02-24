@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import sys
 from copy import copy
 from typing import Dict
 import mlrun
@@ -163,15 +164,14 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            with fs.open(target_path, "wb") as fp:
-                self._write_dataframe(df, fp, **kwargs)
+            self._write_dataframe(df, fs, target_path, **kwargs)
             try:
                 return fs.size(target_path)
             except Exception:
                 return None
 
     @staticmethod
-    def _write_dataframe(df, target, **kwargs):
+    def _write_dataframe(df, fs, target_path, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -238,8 +238,9 @@ class ParquetTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, target, **kwargs):
-        df.to_parquet(target, **kwargs)
+    def _write_dataframe(df, fs, target_path, **kwargs):
+        with fs.open(target_path, "wb") as fp:
+            df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -274,8 +275,15 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, target, **kwargs):
-        df.to_csv(target, **kwargs)
+    def _write_dataframe(df, fs, target_path, **kwargs):
+        mode = "wb"
+        # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
+        # with such files until version 1.2.0, in this version they dropped support for python 3.6.
+        # So only for python 3.6 we're using text mode which might prevent some features
+        if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+            mode = "wt"
+        with fs.open(target_path, mode) as fp:
+            df.to_csv(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

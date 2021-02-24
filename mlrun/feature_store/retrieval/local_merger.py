@@ -57,10 +57,10 @@ class LocalFeatureMerger:
                     "target path was not specified"
                 )
             target.name = target.name or target.kind
-            target.write_dataframe(self._result_df)
+            target.set_resource(self.vector)
+            size = target.write_dataframe(self._result_df)
             if is_persistent_vector:
-                target.set_resource(self.vector)
-                target_status = target.update_resource_status("ready")
+                target_status = target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
         return OfflineVectorResponse(self)

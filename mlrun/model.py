@@ -829,7 +829,7 @@ class FeatureSetProducer(ModelObj):
 class DataTarget(DataTargetBase):
     """data target with extra status information (used in the feature-set/vector status)"""
 
-    _dict_fields = ["name", "kind", "path", "start_time", "online", "status", "is_dir"]
+    _dict_fields = ["name", "kind", "path", "start_time", "online", "status", "is_dir", "updated", "size"]
 
     def __init__(
         self, kind: str = None, name: str = "", path=None, online=None,
@@ -837,6 +837,7 @@ class DataTarget(DataTargetBase):
         super().__init__(kind, name, path)
         self.status = ""
         self.updated = None
+        self.size = None
         self.online = online
         self.max_age = None
         self.start_time = None

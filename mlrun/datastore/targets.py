@@ -199,7 +199,7 @@ class BaseStoreTarget(DataTargetBase):
         """return the actual/computed target path"""
         return self.path or _get_target_path(self, self._resource)
 
-    def update_resource_status(self, status="", producer=None, is_dir=None):
+    def update_resource_status(self, status="", producer=None, is_dir=None, size=None):
         """update the data target status"""
         self._target = self._target or DataTarget(
             self.kind, self.name, self._target_path
@@ -208,6 +208,7 @@ class BaseStoreTarget(DataTargetBase):
         target.is_dir = is_dir
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
+        target.size = size
         target.producer = producer or target.producer
         self._resource.status.update_target(target)
         return target

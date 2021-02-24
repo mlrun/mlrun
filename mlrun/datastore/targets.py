@@ -103,13 +103,13 @@ def get_offline_target(featureset, start_time=None, name=None):
     return None
 
 
-def get_online_target(featureset):
+def get_online_target(resource):
     """return an optimal online feature set target"""
     # todo: take lookup order into account
-    for target in featureset.status.targets:
+    for target in resource.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_online:
-            return get_target_driver(target, featureset)
+            return get_target_driver(target, resource)
     return None
 
 

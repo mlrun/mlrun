@@ -13,6 +13,7 @@ def run_merge_job(
     timestamp_column=None,
     local=None,
     watch=None,
+    drop_columns=None,
     function=None,
     secrets=None,
     auto_mount=None,
@@ -46,6 +47,7 @@ def run_merge_job(
             "vector_uri": vector.uri,
             "target": target.to_dict(),
             "timestamp_column": timestamp_column,
+            "drop_columns": drop_columns,
         },
         inputs={"entity_rows": entity_rows},
     )
@@ -92,7 +94,8 @@ _default_merger_handler = """
 import mlrun
 from mlrun.feature_store.retrieval import LocalFeatureMerger
 from mlrun.feature_store.targets import get_target_driver
-def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = None, timestamp_column=None):
+def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = None, 
+                  timestamp_column=None, drop_columns=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
@@ -101,7 +104,7 @@ def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = Non
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = LocalFeatureMerger(vector)
-    resp = merger.start(entity_rows, entity_timestamp_column, store_target)
+    resp = merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns)
 
     context.logger.info("merge task completed, targets:")
     context.logger.info(f"{vector.status.targets.to_dict()}")

@@ -111,6 +111,7 @@ def get_offline_features(
             timestamp_column=entity_timestamp_column,
             local=local,
             watch=watch,
+            drop_columns=drop_columns,
             function=function,
             secrets=secrets,
             auto_mount=auto_mount,

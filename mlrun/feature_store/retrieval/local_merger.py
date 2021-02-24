@@ -15,6 +15,7 @@
 from typing import List
 import pandas as pd
 
+import mlrun
 from ..feature_vector import OfflineVectorResponse
 from ...utils import logger
 
@@ -24,7 +25,7 @@ class LocalFeatureMerger:
         self._result_df = None
         self.vector = vector
 
-    def start(self, entity_rows=None, entity_timestamp_column=None, target=None):
+    def start(self, entity_rows=None, entity_timestamp_column=None, target=None, drop_columns=None):
         feature_set_objects, feature_set_fields = self.vector.parse_features()
         if self.vector.metadata.name:
             self.vector.save()
@@ -46,13 +47,21 @@ class LocalFeatureMerger:
             dfs.append(df)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+        if drop_columns:
+            self._result_df.drop(columns=drop_columns, inplace=True)
 
         if target:
-            logger.info(f"writing target: {target.path}")
+            is_persistent_vector = self.vector.metadata.name is not None
+            if not target.path and not is_persistent_vector:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "target path was not specified"
+                )
+            target.name = target.name or target.kind
             target.write_dataframe(self._result_df)
-            if self.vector.metadata.name:
+            if is_persistent_vector:
                 target.set_resource(self.vector)
-                target.update_resource_status("ready")
+                target_status = target.update_resource_status("ready")
+                logger.info(f"wrote target: {target_status}")
                 self.vector.save()
         return OfflineVectorResponse(self)
 

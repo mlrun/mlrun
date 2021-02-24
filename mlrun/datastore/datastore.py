@@ -133,7 +133,12 @@ class StoreManager:
             )
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")
-        return resource, resource.get_target_path()
+        target = resource.get_target_path()
+        if not target:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f'resource {url} does not have a valid/persistent offline target'
+            )
+        return resource, target
 
     def object(self, url, key="", project="") -> DataItem:
         meta = artifact_url = None

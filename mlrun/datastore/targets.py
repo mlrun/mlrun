@@ -157,15 +157,16 @@ class BaseStoreTarget(DataTargetBase):
             options.update(kwargs)
             df.write.mode("overwrite").save(**options)
         else:
+            target_path = self._target_path
             fs = self._get_store().get_filesystem(False)
             if fs.protocol == "file":
-                dir = os.path.dirname(self.path)
+                dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            with fs.open(self.path, "wb") as fp:
+            with fs.open(target_path, "wb") as fp:
                 self._write_dataframe(df, fp, **kwargs)
             try:
-                return fs.size(self.path)
+                return fs.size(target_path)
             except Exception:
                 return None
 
@@ -209,6 +210,7 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.producer = producer or target.producer
         self._resource.status.update_target(target)
+        return target
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

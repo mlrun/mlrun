@@ -733,7 +733,7 @@ class MLClientCtx(object):
             feature_weights=feature_weights,
             extra_data=extra_data,
         )
-        if training_set:
+        if training_set is not None:
             model.infer_from_df(training_set, label_column)
 
         item = self._artifacts_manager.log_artifact(

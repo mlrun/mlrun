@@ -151,7 +151,7 @@ def grafana_endpoint_features(
 
     results = frames_client.read(
         "tsdb",
-        "{project}/endpoint-features",
+        f"{project}/endpoint-features",
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,
         end=end,

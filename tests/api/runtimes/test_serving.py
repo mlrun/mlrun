@@ -11,6 +11,7 @@ import nuclio
 
 # Needed for the serving test
 from .assets.serving_functions import *  # noqa
+from .assets.serving_child_functions import *  # noqa
 
 
 class TestServingRuntime(TestNuclioRuntime):
@@ -42,55 +43,52 @@ class TestServingRuntime(TestNuclioRuntime):
         return function
 
     def _assert_deploy_spec_has_secrets_config(self, expected_secret_sources):
-        args, _ = nuclio.deploy.deploy_config.call_args
-        deploy_spec = args[0]["spec"]
+        call_args_list = nuclio.deploy.deploy_config.call_args_list
+        for single_call_args in call_args_list:
+            args, _ = single_call_args
+            deploy_spec = args[0]["spec"]
 
-        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
-        expected_volumes = [
-            {
-                "volume": {
-                    "name": "vault-secret",
-                    "secret": {
-                        "defaultMode": 420,
-                        "secretName": self.vault_secret_name,
+            token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
+            expected_volumes = [
+                {
+                    "volume": {
+                        "name": "vault-secret",
+                        "secret": {
+                            "defaultMode": 420,
+                            "secretName": self.vault_secret_name,
+                        },
                     },
-                },
-                "volumeMount": {"name": "vault-secret", "mountPath": token_path},
-            }
-        ]
-        assert (
-            deepdiff.DeepDiff(
-                deploy_spec["volumes"], expected_volumes, ignore_order=True
-            )
-            == {}
-        )
-
-        expected_env = {
-            "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
-            "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
-            # For now, just checking the variable exists, later we check specific contents
-            "SERVING_SPEC_ENV": None,
-        }
-        self._assert_pod_env(deploy_spec["env"], expected_env)
-
-        for env_variable in deploy_spec["env"]:
-            if env_variable["name"] == "SERVING_SPEC_ENV":
-                serving_spec = json.loads(env_variable["value"])
-                assert (
-                    deepdiff.DeepDiff(
-                        serving_spec["secret_sources"],
-                        expected_secret_sources,
-                        ignore_order=True,
-                    )
-                    == {}
+                    "volumeMount": {"name": "vault-secret", "mountPath": token_path},
+                }
+            ]
+            assert (
+                deepdiff.DeepDiff(
+                    deploy_spec["volumes"], expected_volumes, ignore_order=True
                 )
+                == {}
+            )
 
-    def test_remote_deploy_with_secrets(self, db: Session, client: TestClient):
-        function = self._create_serving_function()
+            expected_env = {
+                "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
+                "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
+                # For now, just checking the variable exists, later we check specific contents
+                "SERVING_SPEC_ENV": None,
+            }
+            self._assert_pod_env(deploy_spec["env"], expected_env)
 
-        function.deploy(dashboard="dashboard", verbose=True)
-        self._assert_deploy_called_basic_config(expected_class="serving")
+            for env_variable in deploy_spec["env"]:
+                if env_variable["name"] == "SERVING_SPEC_ENV":
+                    serving_spec = json.loads(env_variable["value"])
+                    assert (
+                        deepdiff.DeepDiff(
+                            serving_spec["secret_sources"],
+                            expected_secret_sources,
+                            ignore_order=True,
+                        )
+                        == {}
+                    )
 
+    def _generate_expected_secret_sources(self):
         full_inline_secrets = self.inline_secrets.copy()
         full_inline_secrets["ENV_SECRET1"] = os.environ["ENV_SECRET1"]
         expected_secret_sources = [
@@ -100,8 +98,16 @@ class TestServingRuntime(TestNuclioRuntime):
                 "source": {"project": self.project, "secrets": self.vault_secrets},
             },
         ]
+        return expected_secret_sources
+
+    def test_remote_deploy_with_secrets(self, db: Session, client: TestClient):
+        function = self._create_serving_function()
+
+        function.deploy(dashboard="dashboard", verbose=True)
+        self._assert_deploy_called_basic_config(expected_class="serving")
+
         self._assert_deploy_spec_has_secrets_config(
-            expected_secret_sources=expected_secret_sources
+            expected_secret_sources=self._generate_expected_secret_sources()
         )
 
     def test_mock_server_secrets(self, db: Session, client: TestClient):
@@ -142,3 +148,48 @@ class TestServingRuntime(TestNuclioRuntime):
         assert response.status_code == HTTPStatus.OK.value
 
         self._assert_deploy_called_basic_config(expected_class="serving")
+
+    def test_child_functions_with_secrets(self, db: Session, client: TestClient):
+        function = self._create_serving_function()
+        graph = function.spec.graph
+        graph.add_step(
+            name="s4",
+            class_name="ChildChain",
+            after="s3",
+            function="child_function",
+            secret="inline_secret2",
+        )
+        graph.add_step(
+            name="s5",
+            class_name="ChildChain",
+            after="s4",
+            function="child_function",
+            secret="AWS_KEY",
+        )
+        child_function_path = str(self.assets_path / "serving_child_functions.py")
+        function.add_child_function(
+            "child_function", child_function_path, self.image_name
+        )
+
+        function.deploy(dashboard="dashboard", verbose=True)
+        # Child function is deployed before main function
+        expected_deploy_params = [
+            {
+                "function_name": f"{self.project}-{self.name}-child_function",
+                "file_name": child_function_path,
+            },
+            {
+                "function_name": f"{self.project}-{self.name}",
+                "file_name": self.code_filename,
+            },
+        ]
+
+        self._assert_deploy_called_basic_config(
+            expected_class="serving",
+            call_count=2,
+            expected_params=expected_deploy_params,
+        )
+
+        self._assert_deploy_spec_has_secrets_config(
+            expected_secret_sources=self._generate_expected_secret_sources()
+        )

@@ -339,7 +339,7 @@ class ServingRuntime(RemoteRuntime):
                     stream.path, group=group, shards=stream.shards
                 )
 
-    def _deploy_function_refs(self):
+    def _deploy_function_refs(self, dashboard=""):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -353,7 +353,7 @@ class ServingRuntime(RemoteRuntime):
             function_ref.db_uri = function_object._function_uri()
             function_object.verbose = self.verbose
             function_object.spec.secret_sources = self.spec.secret_sources
-            function_object.deploy()
+            function_object.deploy(dashboard)
 
     def remove_states(self, keys: list):
         """remove one, multiple, or all states/models from the spec (blank list for all)"""
@@ -415,7 +415,7 @@ class ServingRuntime(RemoteRuntime):
         if self._spec.function_refs:
             # deploy child functions
             self._add_ref_triggers()
-            self._deploy_function_refs()
+            self._deploy_function_refs(dashboard)
             logger.info(f"deploy root function {self.metadata.name} ...")
 
         return super().deploy(dashboard, project, tag, verbose=verbose)

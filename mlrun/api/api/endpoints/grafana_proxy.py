@@ -138,6 +138,7 @@ def grafana_endpoint_features(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
+    project = query_parameters.get("project")
 
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
@@ -150,7 +151,7 @@ def grafana_endpoint_features(
 
     results = frames_client.read(
         "tsdb",
-        "test/endpoint-features",
+        "{project}/endpoint-features",
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,
         end=end,

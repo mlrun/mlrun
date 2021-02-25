@@ -145,7 +145,7 @@ We will use the 1st approach here - to configure the MLRun API pod, perform the 
 For example, If using Minikube on Mac and you're running Vault on your local laptop then it 
 should be set to `http://docker.for.mac.localhost:8200`. If you're running Vault on another
 pod then the URL should just be the DNS name of that pod.
-2. Set the Vault role for the pod to be `user:mlrun-api`. The role is specified through the `MLRUN__SECRET_STORES__VAULT__ROLE` environment variable
+2. Set the Vault role for the pod to be `user:mlrun-api`. The role is specified through the `MLRUN_SECRET_STORES__VAULT__ROLE` environment variable
 (which maps to the MLRun config parameter `secret_stores.vault.role`).
 3. Set a service-account name for the MLRun API pod. By default the service account used is `mlrun-api`, and this is 
 the value used in the rest of this example. If you modify the service account name, make sure you modify the rest of the steps accordingly.

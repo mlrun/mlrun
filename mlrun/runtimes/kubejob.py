@@ -121,7 +121,7 @@ class KubejobRuntime(KubeResource):
         )
         self.status.state = ""
 
-        if self._is_remote_api() and not is_kfp:
+        if self._is_remote_api():
             db = self._get_db()
             logger.info(f"starting remote build, image: {self.spec.build.image}")
             data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
@@ -135,7 +135,7 @@ class KubejobRuntime(KubeResource):
         else:
             self.save(versioned=False)
             ready = build_runtime(
-                self, with_mlrun, mlrun_version_specifier, watch or is_kfp
+                self, with_mlrun, mlrun_version_specifier, watch
             )
             self.save(versioned=False)
 

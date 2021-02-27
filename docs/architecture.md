@@ -64,12 +64,12 @@ MLRun has the following main components that are used throughout the system:
 - <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity.
     Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration.
 
-- <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment)
+- <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment).
 
-- <a id="def-run"></a>**Run** &mdash; an object that contains information about an executed function;
-    The run object is created as a result of running a function, and contains the function attributes (such as arguments, inputs, and outputs), as well the execution status and results (including links to output artifacts)
+- <a id="def-run"></a>**Run** &mdash; an object that contains information about an executed function.
+    The run object is created as a result of running a function, and contains the function attributes (such as arguments, inputs, and outputs), as well the execution status and results (including links to output artifacts).
 
-- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) that are produced or consumed by functions, runs, and workflows
+- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) that are produced or consumed by functions, runs, and workflows.
 
 - <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/).
   or MLRun [Real-time Serving Graphs](./serving/serving-graph.md)

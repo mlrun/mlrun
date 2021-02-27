@@ -401,6 +401,12 @@ def mlrun_op(
             ),
         )
     )
+    if config.httpdb.api_url:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="MLRUN_DBPATH", value=config.httpdb.api_url
+            )
+        )
 
     if config.mpijob_crd_version:
         cop.container.add_env_variable(

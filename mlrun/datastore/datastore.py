@@ -84,7 +84,7 @@ def uri_to_ipython(link):
 
 
 class StoreManager:
-    def __init__(self, secrets=None, db=None) -> None:
+    def __init__(self, secrets=None, db=None):
         self._stores = {}
         self._secrets = secrets or {}
         self._db = db

@@ -165,12 +165,9 @@ class Config:
     _missing = object()
 
     def __init__(self, cfg=None) -> None:
-        self._kfp_image = None
-        self._dask_kfp_image = None
-        self._dbpath = None
-        cfg = {} if cfg is None else cfg
 
-        # Can't use self._cfg = cfg → infinite recursion
+        # Can't use normal assignment [e.g. self._cfg = cfg] → infinite recursion
+        cfg = {} if cfg is None else cfg
         object.__setattr__(self, "_cfg", cfg)
 
     def __getattr__(self, attr):

@@ -21,7 +21,7 @@ This leads to constant development and DevOps/MLOps work.
 
 Furthermore, as your project scales, you need greater computation power or GPUs, and you need to access large-scale data sets.
 This cannot work on laptops.
-You need a way to seamlessly run your code on a remote cluster and automatically scale it.
+You need a way to seamlessly run your code on a remote cluster and automatically scale it out.
 
 <a id="why-mlrun"></a>
 ## Why MLRun?

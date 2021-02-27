@@ -228,10 +228,7 @@ class HTTPRunDB(RunDBInterface):
                 config.httpdb.builder.docker_registry
                 or server_cfg.get("docker_registry")
             )
-            config.httpdb.api_url = (
-                    config.httpdb.api_url
-                    or server_cfg.get("api_url")
-            )
+            config.httpdb.api_url = config.httpdb.api_url or server_cfg.get("api_url")
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (

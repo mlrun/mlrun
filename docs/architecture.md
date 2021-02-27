@@ -44,14 +44,17 @@ In addition, imagine a marketplace of ML functions that includes both open-sourc
 
 <img src="_static/images/mlrun-architecture.png" alt="mlrun-architecture" width="800"/>
 
-MLRun comprises the following layers:
-* **Feature & Artifact Store** - Handle the ingestion, processing, metadata and storage of data and features across multiple repositories and technologies
-* **Elastic Serverless Runtimes** - Convert simple code to scalable and managed micro-services with 
-  workload specific runtime engines (Kubernetes jobs, Nuclio, Dask, Spark, Horovod, etc.)  
-* **ML Pipeline Automation** - Automated data preparation, model training & testing, 
-  deployment of production (real-time) pipelines, and end-to-end monitoring
-* **Central Management** - Unified portal, UI, CLI, and SDK to manage the entire MLOps workflow which is 
-  accessible everywhere
+MLRun is composed of the following layers:
+
+- **Feature and Artifact Store** – 
+    handles the ingestion, processing, metadata, and storage of data and features across multiple repositories and technologies.
+- **Elastic Serverless Runtimes** –
+    converts simple code to scalable and managed microservices with workload-specific runtime engines (such as Kubernetes jobs, Nuclio, Dask, Spark, and Horovod).
+- **ML Pipeline Automation** –
+    automates data preparation, model training and testing, deployment of real-time production pipelines, and end-to-end monitoring.
+- **Central Management** –
+    provides a unified portal for managing the entire MLOps workflow.
+    The portal includes a UI, a CLI, and an SDK, which are accessible from anywhere.
 
 <a id="basic-components"></a>
 ## Basic Components

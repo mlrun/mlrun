@@ -134,9 +134,7 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(
-                self, with_mlrun, mlrun_version_specifier, watch
-            )
+            ready = build_runtime(self, with_mlrun, mlrun_version_specifier, watch)
             self.save(versioned=False)
 
         return ready

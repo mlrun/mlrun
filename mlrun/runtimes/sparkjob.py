@@ -176,12 +176,12 @@ class SparkRuntime(KubejobRuntime):
         return None
 
     def deploy(
-            self,
-            watch=True,
-            with_mlrun=True,
-            skip_deployed=False,
-            is_kfp=False,
-            mlrun_version_specifier=None,
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
     ):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config

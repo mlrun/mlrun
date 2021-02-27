@@ -61,8 +61,8 @@ MLRun is composed of the following layers:
 
 MLRun has the following main components that are used throughout the system:
 
-- <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity;
-    Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration
+- <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity.
+    Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration.
 
 - <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment)
 

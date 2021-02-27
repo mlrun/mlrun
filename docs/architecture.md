@@ -38,7 +38,7 @@ A world of easily developed, published, or consumed data or ML "functions" that 
 
 In addition, imagine a marketplace of ML functions that includes both open-source templates and your internally developed functions, to support code for reuse across projects and companies and thus further accelerate your work.
 
-<b>This is the goal of MLRun - Simplify & Accelerate Time To Production.</b>
+<b>This is the goal of MLRun &mdash; simplify & accelerate time to production.</b>
 
 ## Architecture 
 

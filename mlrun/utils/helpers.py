@@ -550,6 +550,7 @@ def retry_until_successful(
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
+
     :param interval: int/float that will be used as interval
     :param timeout: pass None if timeout is not wanted, number of seconds if it is
     :param logger: a logger so we can log the failures
@@ -557,7 +558,8 @@ def retry_until_successful(
     :param _function: function to run
     :param args: functions args
     :param kwargs: functions kwargs
-    :return: function result
+
+    :return: A function result
     """
     start_time = time.time()
     last_exception = None

@@ -31,11 +31,12 @@ import mlrun.errors
 import mlrun.api.schemas
 from .config import config as mlconf
 from .datastore import store_manager
-from .db import get_or_set_dburl, get_run_db
+from .db import get_or_set_db_url, get_run_db
 from .execution import MLClientCtx
 from .k8s_utils import get_k8s_helper
 from .model import RunObject, BaseMetadata, RunTemplate
 from .runtimes import (
+    BaseRuntime,
     HandlerRuntime,
     LocalRuntime,
     RemoteRuntime,
@@ -356,8 +357,11 @@ def get_or_create_ctx(
     return ctx
 
 
-def import_function(url="", secrets=None, db="", project=None):
-    """Create function object from DB or local/remote YAML file
+def import_function(
+    url: str = "", secrets: dict = None, db: str = "", project: str = None
+) -> BaseRuntime:
+    """
+    Create function object from DB or local/remote YAML file
 
     Function can be imported from function repositories (mlrun marketplace or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
@@ -373,18 +377,18 @@ def import_function(url="", secrets=None, db="", project=None):
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
-    :param url: path/url to marketplace, db or function YAML file
-    :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
-    :param db: optional, mlrun api/db path
-    :param project: optional, target project for the function
+    :param url: Path/url to marketplace, db or function YAML file
+    :param secrets: Optional, credentials dict for DB or URL (s3, v3io, ...)
+    :param db: Optional, mlrun api/db path
+    :param project: Optional, target project name for the function
 
-    :returns: function object
+    :returns: A function runtime object
     """
     is_hub_uri = False
     if url.startswith("db://"):
         url = url[5:]
         _project, name, tag, hash_key = parse_versioned_object_uri(url)
-        db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
+        db = get_run_db(db or get_or_set_db_url(), secrets=secrets)
         runtime = db.get_function(name, _project, tag, hash_key)
         if not runtime:
             raise KeyError(f"function {name}:{tag} not found in the DB")
@@ -454,7 +458,7 @@ def new_function(
     runtime=None,
     mode=None,
     kfp=None,
-):
+) -> BaseRuntime:
     """Create a new ML function from base properties
 
     example::
@@ -478,7 +482,7 @@ def new_function(
     :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
-    :return: function object
+    :return: A function runtime object
     """
     # don't override given dict
     if runtime and isinstance(runtime, dict):
@@ -576,12 +580,13 @@ def code_to_function(
     categories: list = None,
     labels: dict = None,
     with_doc=True,
-):
-    """convert code or notebook to function object with embedded code
-    code stored in the function spec and can be refreshed using .with_code()
-    eliminate the need to build container images every time we edit the code
+) -> BaseRuntime:
+    """
+    Converts code or notebook to function object with embedded code.
+    The code stored in the function spec and can be refreshed using .with_code()
+    Eliminates the need to build container images every time we edit the code
 
-    if `filename=` is not specified it will try and grab the code from the current notebook
+    Note: If `filename=` is not specified it will try and grab the code from the current notebook
 
     example::
 
@@ -593,25 +598,24 @@ def code_to_function(
                                     categories = ['fileutils'],
                                     labels = {'author': 'me'})
 
-    :param name:         function name
-    :param project:      function project (none for default)
-    :param tag:          function tag (none for 'latest')
-    :param filename:     blank for current notebook, or path to .py/.ipynb file
-    :param handler:      name of function handler (if not main)
-    :param kind:          optional, runtime type local, job, dask, mpijob, ..
-    :param image:        optional, container image
-    :param code_output:  save the generated code (from notebook) in that path
-    :param embed_code:   embed the source code into the function spec
-    :param description:  function description
-    :param requirements: python requirements file path or list of packages
-    :param categories:   list of categories (for function marketplace)
-    :param labels:       dict of label names and values to tag the function
-    :param with_doc:     document the function parameters
+    :param name:         Function name
+    :param project:      Function project (none for default)
+    :param tag:          Function tag (none for 'latest')
+    :param filename:     Omit to pick up current notebook, or provide path to .py/.ipynb file
+    :param handler:      Name of function handler (if not main)
+    :param kind:         Optional, runtime type local, job, dask, mpijob, ..
+    :param image:        Optional, container image
+    :param code_output:  Save the generated code (from notebook) in that path
+    :param embed_code:   Embed the source code into the function spec
+    :param description:  Function description
+    :param requirements: Python requirements file path or list of packages
+    :param categories:   List of categories (for function marketplace)
+    :param labels:       Dict of label names and values to tag the function
+    :param with_doc:     Document the function parameters
 
-    :return:
-           function object
+    :return: A function runtime object
     """
-    filebase, _ = path.splitext(path.basename(filename))
+    file_basename, _ = path.splitext(path.basename(filename))
 
     def add_name(origin, name=""):
         name = filename or (name + ".ipynb")
@@ -626,13 +630,13 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels
 
-    def resolve_nuclio_subkind(kind):
+    def resolve_nuclio_sub_kind(kind):
         is_nuclio = kind.startswith("nuclio")
-        subkind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
+        sub_kind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
         if kind == RuntimeKinds.serving:
             is_nuclio = True
-            subkind = serving_subkind
-        return is_nuclio, subkind
+            sub_kind = serving_subkind
+        return is_nuclio, sub_kind
 
     if (
         not embed_code
@@ -644,7 +648,7 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
-    is_nuclio, subkind = resolve_nuclio_subkind(kind)
+    is_nuclio, subkind = resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(
@@ -655,7 +659,7 @@ def code_to_function(
         kind = spec_kind.lower()
 
         # if its a nuclio subkind, redo nb parsing
-        is_nuclio, subkind = resolve_nuclio_subkind(kind)
+        is_nuclio, subkind = resolve_nuclio_sub_kind(kind)
         if is_nuclio:
             name, spec, code = build_file(
                 filename, name=name, handler=handler or "handler", kind=subkind
@@ -757,7 +761,7 @@ def run_pipeline(
     ops=None,
     url=None,
     ttl=None,
-):
+) -> str:
     """remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
@@ -939,13 +943,13 @@ def get_pipeline(run_id, namespace=None):
 
 
 def list_pipelines(
-    full=False,
-    page_token="",
-    page_size=None,
-    sort_by="",
-    filter_="",
-    namespace=None,
-    project="*",
+    full: bool = False,
+    page_token: str = "",
+    page_size: Optional[int] = None,
+    sort_by: str = "",
+    filter_: str = "",
+    namespace: str = None,
+    project: str = "*",
     format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.metadata_only,
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
@@ -963,6 +967,8 @@ def list_pipelines(
     :param project:    Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that
                        filtering by project can't be used together with pagination, sorting, or custom filter.
     :param format_:    Control what will be returned (full/metadata_only/name_only)
+
+    :return: Tuple of (total_size, next_page_token, runs)
     """
     if full:
         format_ = mlrun.api.schemas.Format.full
@@ -974,7 +980,9 @@ def list_pipelines(
 
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):
-    """get mlrun dataitem body (from path/url)"""
+    """
+    Get mlrun dataitem body (from path/url)
+    """
     stores = store_manager.set(secrets, db=db)
     return stores.object(url=url).get(size, offset)
 

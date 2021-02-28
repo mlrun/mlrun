@@ -1,69 +1,26 @@
-from typing import Optional, Dict
+import typing
 from .data_types import ValueType
 from .model import ModelObj
 
 
 class Entity(ModelObj):
-    """data entity (index)"""
+    """
+    Data entity (index)
+    """
 
     def __init__(
         self,
         name: str = None,
         value_type: ValueType = None,
         description: str = None,
-        labels: Optional[Dict[str, str]] = None,
-    ):
+        labels: typing.Optional[typing.Dict[str, str]] = None,
+    ) -> None:
         self.name = name
         self.description = description
         self.value_type = value_type
         if name and not value_type:
             self.value_type = ValueType.STRING
         self.labels = labels or {}
-
-
-class Feature(ModelObj):
-    """data feature"""
-
-    _dict_fields = [
-        "name",
-        "description",
-        "value_type",
-        "dims",
-        "default",
-        "labels",
-        "aggregate",
-        "validator",
-    ]
-
-    def __init__(
-        self,
-        value_type: ValueType = None,
-        description=None,
-        aggregate=None,
-        name=None,
-        validator=None,
-        default=None,
-        labels: Dict[str, str] = None,
-    ):
-        self.name = name or ""
-        self.value_type: ValueType = value_type or ""
-        self.dims = None
-        self.description = description
-        self.default = default
-        self.labels = labels or {}
-        self.aggregate = aggregate
-        self._validator = validator
-
-    @property
-    def validator(self):
-        return self._validator
-
-    @validator.setter
-    def validator(self, validator):
-        if isinstance(validator, dict):
-            kind = validator.get("kind")
-            validator = validator_kinds[kind].from_dict(validator)
-        self._validator = validator
 
 
 class Validator(ModelObj):
@@ -125,3 +82,48 @@ validator_kinds = {
     "": Validator,
     "minmax": MinMaxValidator,
 }
+
+
+class Feature(ModelObj):
+    """Data feature"""
+
+    _dict_fields = [
+        "name",
+        "description",
+        "value_type",
+        "dims",
+        "default",
+        "labels",
+        "aggregate",
+        "validator",
+    ]
+
+    def __init__(
+        self,
+        value_type: ValueType = None,
+        description: typing.Optional[str] = None,
+        aggregate: typing.Optional[bool] = None,
+        name: typing.Optional[str] = None,
+        validator: typing.Optional[Validator] = None,
+        default: typing.Optional[typing.Any] = None,
+        labels: typing.Dict[str, str] = None,
+    ) -> None:
+        self.name = name or ""
+        self.value_type: ValueType = value_type or ""
+        self.dims = None
+        self.description = description
+        self.default = default
+        self.labels = labels or {}
+        self.aggregate = aggregate
+        self._validator = validator
+
+    @property
+    def validator(self):
+        return self._validator
+
+    @validator.setter
+    def validator(self, validator):
+        if isinstance(validator, dict):
+            kind = validator.get("kind")
+            validator = validator_kinds[kind].from_dict(validator)
+        self._validator = validator

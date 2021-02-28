@@ -19,7 +19,7 @@ import os.path
 
 
 import mlrun
-from .db import get_or_set_dburl
+from .db import get_or_set_db_url
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
 
@@ -243,7 +243,7 @@ def mlrun_op(
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
 
-    rundb = rundb or get_or_set_dburl()
+    rundb = rundb or get_or_set_db_url()
     cmd = [
         "python",
         "-m",

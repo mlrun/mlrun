@@ -186,7 +186,8 @@ class HTTPRunDB(RunDBInterface):
         return f"{prefix}/{project}/{uid}"
 
     def connect(self, secrets=None):
-        """ Connect to the MLRun API server. Must be called prior to executing any other method.
+        """
+        Connect to the MLRun API server. Must be called prior to executing any other method.
         The code utilizes the URL for the API server from the configuration - ``mlconf.dbpath``.
 
         For example::

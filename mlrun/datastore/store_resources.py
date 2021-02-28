@@ -13,8 +13,11 @@
 # limitations under the License.
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+import typing
 
 import mlrun
+from .base import DataItem
+from ..db.base import RunDBInterface
 from mlrun.config import config
 from mlrun.utils.helpers import parse_versioned_object_uri
 from .targets import get_online_target
@@ -22,7 +25,7 @@ from .v3io import parse_v3io_path
 from ..utils import DB_SCHEMA, StorePrefix
 
 
-def is_store_uri(url):
+def is_store_uri(url: str) -> bool:
     """detect if the uri starts with the store schema prefix"""
     return url.startswith(DB_SCHEMA + "://")
 
@@ -121,9 +124,17 @@ class ResourceCache:
         return _get_store_resource
 
 
-def get_store_resource(uri, db=None, secrets=None, project=None):
-    """get store resource object by uri"""
+def get_store_resource(
+    uri: str, db: RunDBInterface = None, secrets: dict = None, project: str = None
+) -> typing.Union[dict, DataItem, StorePrefix.Artifact, StorePrefix.FeatureSet, StorePrefix.FeatureVector]:
+    """
+    Get store resource object by uri
 
+    :param uri: Store URI
+    :param db: DB instance (optional)
+    :param secrets: DB connection secrets dict (optional)
+    :param project: Project name (optional)
+    """
     db = db or mlrun.get_run_db(secrets=secrets)
     kind, uri = parse_store_uri(uri)
     if kind == StorePrefix.FeatureSet:
@@ -162,7 +173,8 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
                 name, tag=tag, iter=resource.get("link_iteration", 0), project=project,
             )
         if resource:
-            return mlrun.artifacts.dict_to_artifact(resource)
+            from ..artifacts import dict_to_artifact
+            return dict_to_artifact(resource)
 
     else:
         stores = mlrun.store_manager.set(secrets, db=db)

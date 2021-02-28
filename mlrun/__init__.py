@@ -19,9 +19,9 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 import getpass
 from os import environ, path
 
+from .db import get_run_db, RunDBInterface
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
-from .db import get_run_db
 from .execution import MLClientCtx
 from .model import RunTemplate, NewTask, new_task, RunObject
 from .platforms import (
@@ -51,8 +51,10 @@ from .utils.version import Version
 __version__ = Version().get()["version"]
 
 
-def get_version():
-    """get current mlrun version"""
+def get_version() -> str:
+    """
+    Get current mlrun version
+    """
     return __version__
 
 
@@ -70,7 +72,8 @@ def set_environment(
     access_key: str = None,
     user_project=False,
 ):
-    """set and test default config for: api path, artifact_path, project, access_key and user_project
+    """
+    Set and test default config for: api path, artifact_path, project, access_key and user_project
 
     this function will try and read the configuration from the environment/api
     and merge it with the user provided project name, artifacts path or api path/access_key.

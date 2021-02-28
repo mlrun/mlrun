@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+import typing
 
-import mlrun
+import mlrun.errors
+import mlrun.api.schemas
 import pandas as pd
 
+from ..db import get_run_db
 from ..features import Feature, Entity
 from ..model import VersionedObjMetadata
-from ..datastore.targets import get_offline_target, default_target_names, TargetTypes
+from ..datastore.targets import get_offline_target, default_target_names, TargetTypes, BaseStoreTarget
 from ..model import ModelObj, ObjectList, DataSource, DataTarget, DataTargetBase
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseState, RootFlowState, previous_step
@@ -30,11 +32,25 @@ aggregates_step = "Aggregates"
 
 
 class FeatureAggregation(ModelObj):
-    """feature aggregation requirements"""
+    """
+    Feature aggregation requirements
+    """
 
     def __init__(
-        self, name=None, column=None, operations=None, windows=None, period=None
-    ):
+        self,
+            name: typing.Optional[str] = None,
+            column: typing.Optional[str] = None,
+            operations: typing.Optional[typing.List[str]] = None,
+            windows: typing.Optional[typing.List[str]] = None,
+            period: typing.Optional[str] = None,
+    ) -> None:
+        """
+        :param name:       Aggregation name/prefix
+        :param column:     Name of column/field aggregate
+        :param operations: Aggregation operations, e.g. ['sum', 'std']
+        :param windows:    List of time windows, e.g. ['1h', '6h', '1d']
+        :param period:     Optional, sliding window granularity, e.g. '10m'
+        """
         self.name = name
         self.column = column
         self.operations = operations or []
@@ -43,23 +59,43 @@ class FeatureAggregation(ModelObj):
 
 
 class FeatureSetSpec(ModelObj):
+    """
+    Spec for FeatureSet
+    """
     def __init__(
         self,
-        owner=None,
-        description=None,
-        entities=None,
-        features=None,
-        partition_keys=None,
-        timestamp_key=None,
-        label_column=None,
-        relations=None,
-        source=None,
-        targets=None,
-        graph=None,
-        function=None,
-        analysis=None,
-        engine=None,
+        owner: typing.Optional[str] = None,
+        description: typing.Optional[str] = None,
+        entities: typing.Optional[typing.List[Entity]] = None,
+        features: typing.Optional[typing.List[Feature]] = None,
+        partition_keys: typing.Optional[typing.List[str]] = None,
+        timestamp_key: typing.Optional[str] = None,
+        label_column: typing.Optional[str] = None,
+        relations: typing.Optional[dict] = None,
+        source: typing.Optional[typing.Union[dict, DataSource]] = None,
+        targets: typing.Optional[typing.List[DataTargetBase]] = None,
+        graph: typing.Optional[typing.Union[dict, RootFlowState]] = None,
+        function: typing.Optional[typing.Union[dict, FunctionReference]] = None,
+        analysis: typing.Optional[dict] = None,
+        engine: typing.Optional[str] = None,
     ):
+        """
+
+        :param owner: Optional, owner of the feature set
+        :param description: Optional, description
+        :param entities: Optional, list data entities
+        :param features: Optional, list of features
+        :param partition_keys: Optional, list of partition keys
+        :param timestamp_key: Optional, timestamp_key
+        :param label_column: Optional, Which column in the is the label (target) column
+        :param relations: Optional, relationships
+        :param source: Optional, specify data source
+        :param targets: Optional, specify data targets
+        :param graph: Optional, provide graph (root state)
+        :param function: Optional, template graph processing function reference
+        :param analysis: Optional, linked artifacts/files for analysis
+        :param engine: Optional, Specify graph engine (defaults to "async")
+        """
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
@@ -69,8 +105,8 @@ class FeatureSetSpec(ModelObj):
 
         self.owner = owner
         self.description = description
-        self.entities: List[Entity] = entities or []
-        self.features: List[Feature] = features or []
+        self.entities: typing.List[Entity] = entities or []
+        self.features: typing.List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.relations = relations or {}
@@ -83,73 +119,131 @@ class FeatureSetSpec(ModelObj):
         self.engine = engine
 
     @property
-    def entities(self) -> List[Entity]:
-        """feature set entities (indexes)"""
+    def entities(self) -> ObjectList:
+        """
+        Feature set entities (indexes)
+
+        :return: object list of entities
+        """
         return self._entities
 
     @entities.setter
-    def entities(self, entities: List[Entity]):
+    def entities(self, entities: typing.List[Entity]):
+        """
+        Set feature set entities (indexes)
+
+        :param entities: entities to set
+        """
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
-    def features(self) -> List[Feature]:
-        """feature set features list"""
+    def features(self) -> ObjectList:
+        """
+        Feature set features list
+
+        :return: object list of features
+        """
         return self._features
 
     @features.setter
-    def features(self, features: List[Feature]):
+    def features(self, features: typing.List[Feature]):
+        """
+        Set the feature set list
+        :param features: list of Feature objects
+        """
         self._features = ObjectList.from_list(Feature, features)
 
     @property
-    def targets(self) -> List[DataTargetBase]:
-        """list of desired targets (material storage)"""
+    def targets(self) -> ObjectList:
+        """
+        Get list object of desired targets (material storage)
+
+        :return object list of targets
+        """
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTargetBase]):
+    def targets(self, targets: typing.List[DataTargetBase]):
+        """
+        Set targets list
+
+        :param targets: list of DataTarget objects
+        """
         self._targets = ObjectList.from_list(DataTargetBase, targets)
 
     @property
     def graph(self) -> RootFlowState:
-        """feature set transformation graph/DAG"""
+        """
+        Get feature set transformation graph/DAG
+        """
         return self._graph
 
     @graph.setter
-    def graph(self, graph):
+    def graph(self, graph: typing.Union[dict, RootFlowState]):
+        """
+        Set the transformation graph for the feature set
+
+        :param graph: graph dict or root state object
+        """
         self._graph = self._verify_dict(graph, "graph", RootFlowState)
         self._graph.engine = "async"
 
     @property
     def function(self) -> FunctionReference:
-        """reference to template graph processing function"""
+        """
+        Get template graph processing function reference
+
+        :return: function reference
+        """
         return self._function
 
     @function.setter
-    def function(self, function):
+    def function(self, function: typing.Union[dict, FunctionReference]):
+        """
+        Set function reference for template graph processing
+
+        :param function: function reference object
+        """
         self._function = self._verify_dict(function, "function", FunctionReference)
 
     @property
     def source(self) -> DataSource:
-        """feature set data source definitions"""
+        """
+        Get feature set data source definitions
+
+        :return: data source
+        """
         return self._source
 
     @source.setter
-    def source(self, source: DataSource):
+    def source(self, source: typing.Union[dict, DataSource]):
+        """
+        Set source definition for feature set
+
+        :param source: source definition
+        """
         self._source = self._verify_dict(source, "source", DataSource)
 
-    def require_processing(self):
+    def require_processing(self) -> bool:
+        """
+        Is processing required on this feature set
+        :return: bool (true if there are any graph states)
+        """
         return len(self._graph.states) > 0
 
 
 class FeatureSetStatus(ModelObj):
+    """
+    Status for FeatureSet
+    """
     def __init__(
         self,
-        state=None,
-        targets=None,
-        stats=None,
-        preview=None,
-        function_uri=None,
-        run_uri=None,
+        state: typing.Optional[str] = None,
+        targets: typing.Optional[typing.List[DataTarget]] = None,
+        stats: typing.Optional[dict] = None,
+        preview: typing.Optional[list] = None,
+        function_uri: typing.Optional[str] = None,
+        run_uri: typing.Optional[str] = None,
     ):
         self.state = state or "created"
         self._targets: ObjectList = None
@@ -160,29 +254,48 @@ class FeatureSetStatus(ModelObj):
         self.run_uri = run_uri
 
     @property
-    def targets(self) -> List[DataTarget]:
-        """list of material storage targets + their status/path"""
+    def targets(self) -> ObjectList:
+        """
+        list of material storage targets + their status/path
+
+        :return: Object list of DataTarget
+        """
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTarget]):
+    def targets(self, targets: typing.List[DataTarget]):
         self._targets = ObjectList.from_list(DataTarget, targets)
 
     def update_target(self, target: DataTarget):
+        """
+        Update targets with given target
+
+        :param target: data target object to update
+        """
         self._targets.update(target)
 
 
 class FeatureSet(ModelObj):
-    """Feature set object, defines a set of features and their data pipeline"""
-
+    """
+    Feature set object, defines a set of features and their data pipeline
+    """
     kind = mlrun.api.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, description=None, entities=None, timestamp_key=None):
+    def __init__(self,
+                 name: str = None,
+                 description: str = None,
+                 entities: typing.Optional[typing.List[Entity]] = None,
+                 timestamp_key: typing.Optional[str] = None):
+        """
+        :param name: Optional, name
+        :param description: Optional, description
+        :param entities: Optional, list of data entities
+        :param timestamp_key: Optional, key of the timestamp feature
+        """
         self._spec: FeatureSetSpec = None
-        self._metadata = None
-        self._status = None
-        self._api_client = None
+        self._metadata: VersionedObjMetadata = None
+        self._status: FeatureSetStatus = None
 
         self.spec = FeatureSetSpec(
             description=description, entities=entities, timestamp_key=timestamp_key
@@ -193,31 +306,64 @@ class FeatureSet(ModelObj):
 
     @property
     def spec(self) -> FeatureSetSpec:
+        """
+        Get the feature set spec
+
+        :return: Feature set spec
+        """
         return self._spec
 
     @spec.setter
-    def spec(self, spec):
+    def spec(self, spec: typing.Union[dict, FeatureSetSpec]):
+        """
+        Set feature set spec
+
+        :param spec: Feature set spec to set
+        """
         self._spec = self._verify_dict(spec, "spec", FeatureSetSpec)
 
     @property
     def metadata(self) -> VersionedObjMetadata:
+        """
+        Get feature set metadata
+
+        :return: Feature set metadata
+        """
         return self._metadata
 
     @metadata.setter
-    def metadata(self, metadata):
+    def metadata(self, metadata: typing.Union[dict, VersionedObjMetadata]):
+        """
+        Set feature set metadata
+
+        :param metadata: Feature set metadata
+        """
         self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureSetStatus:
+        """
+        Get feature set status
+
+        :return: feature set status
+        """
         return self._status
 
     @status.setter
-    def status(self, status):
+    def status(self, status: typing.Union[dict, FeatureSetStatus]):
+        """
+        Set feature set status
+        :param status: Status to set
+        """
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
     @property
-    def uri(self):
-        """fully qualified feature set uri"""
+    def uri(self) -> str:
+        """
+        Get the fully qualified feature set uri
+
+        :return: uri
+        """
         uri = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -226,18 +372,26 @@ class FeatureSet(ModelObj):
             uri += ":" + self._metadata.tag
         return uri
 
-    def get_target_path(self, name=None):
-        """get the url/path for an offline or specified data target"""
+    def get_target_path(self, name: typing.Optional[str] = None) -> str:
+        """
+        Get the url/path for an offline or specified data target
+
+        :param name: Optional, name of specific data target
+        :return Target path
+        """
         target = get_offline_target(self, name=name)
         if target:
             return target.path
 
-    def set_targets(self, targets=None, with_defaults=True):
-        """set the desired target list or defaults
+    def set_targets(self,
+                    targets: typing.Optional[typing.List[typing.Union[str, BaseStoreTarget]]] = None,
+                    with_defaults: bool = True):
+        """
+        Set the desired target list or defaults
 
-        :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
+        :param targets:  List of target type names ('csv', 'nosql', ..) or target objects
                          CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
-        :param with_defaults: add the default targets (as defined in the central config)
+        :param with_defaults: Whether to add the default targets (as defined in the central config)
         """
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -256,48 +410,66 @@ class FeatureSet(ModelObj):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
 
-    def add_entity(self, entity, name=None):
-        """add/set an entity"""
+    def add_entity(self, entity: Entity, name: typing.Optional[str] = None):
+        """
+        Add/set an entity
+
+        :param entity: Entity to add
+        :param name: Optional name to set on the entity
+        """
         self._spec.entities.update(entity, name)
 
-    def add_feature(self, feature, name=None):
-        """add/set a feature"""
+    def add_feature(self, feature: Feature, name: typing.Optional[str] = None):
+        """
+        Add/set a feature
+
+        :param feature: Feature to add
+        :param name: Optional name to set on the feature
+        """
         self._spec.features.update(feature, name)
 
-    def link_analysis(self, name, uri):
-        """add a linked file/artifact (chart, data, ..)"""
+    def link_analysis(self, name: str, uri: str):
+        """
+        Add a linked file/artifact (chart, data, ..)
+
+        :param name: artifact name
+        :param uri: artifact full uri
+        """
         self._spec.analysis[name] = uri
 
     @property
-    def graph(self):
-        """feature set transformation graph/DAG"""
+    def graph(self) -> RootFlowState:
+        """
+        Get feature set transformation graph/DAG
+        """
         return self.spec.graph
 
     def add_aggregation(
         self,
-        name,
-        column,
-        operations,
-        windows,
-        period=None,
-        state_name=None,
-        after=None,
-        before=None,
+        name: str,
+        column: str,
+        operations: typing.List[str],
+        windows: typing.List[str],
+        period: typing.Optional[str] = None,
+        state_name: typing.Optional[str] = None,
+        after: typing.Optional[str] = None,
+        before: typing.Optional[str] = None,
     ):
-        """add feature aggregation rule
+        """
+        Add feature aggregation rule
 
         example::
 
             myset.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
 
-        :param name:       aggregation name/prefix
-        :param column:     name of column/field aggregate
-        :param operations: aggregation operations, e.g. ['sum', 'std']
-        :param windows:    list of time windows, e.g. ['1h', '6h', '1d']
-        :param period:     optional, sliding window granularity, e.g. '10m'
-        :param state_name: optional, graph state name
-        :param after:      optional, after which graph state it runs
-        :param before:     optional, comes before graph state
+        :param name:       Aggregation name/prefix
+        :param column:     Name of column/field aggregate
+        :param operations: Aggregation operations, e.g. ['sum', 'std']
+        :param windows:    List of time windows, e.g. ['1h', '6h', '1d']
+        :param period:     Optional, sliding window granularity, e.g. '10m'
+        :param state_name: Optional, graph state name
+        :param after:      Optional, after which graph state it runs
+        :param before:     Optional, comes before graph state
         """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -330,8 +502,12 @@ class FeatureSet(ModelObj):
             for window in windows:
                 upsert_feature(f"{name}_{operation}_{window}")
 
-    def get_stats_table(self):
-        """get feature statistics table (as dataframe)"""
+    def get_stats_table(self) -> pd.DataFrame:
+        """
+        Get feature statistics table (as dataframe)
+
+        :return: New statistics DataFrame object
+        """
         if self.status.stats:
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
 
@@ -341,8 +517,20 @@ class FeatureSet(ModelObj):
     def __setitem__(self, key, item):
         self._spec.features.update(item, key)
 
-    def plot(self, filename=None, format=None, with_targets=False, **kw):
-        """generate graphviz plot"""
+    def plot(self,
+             filename: typing.Optional[str] = None,
+             format: typing.Optional[str] = None,
+             with_targets: bool = False,
+             **kw):
+        """
+        Generate graphviz plot
+
+        :param filename: Filename for saving the source of the graphviz graph
+        :param format: file extension/format
+        :param with_targets: Whether to plot all targets as well
+
+        :return: The generated graph object (graphviz must be installed)
+        """
         graph = self.spec.graph
         _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
@@ -357,8 +545,19 @@ class FeatureSet(ModelObj):
             ]
         return graph.plot(filename, format, targets=targets, **kw)
 
-    def to_dataframe(self, columns=None, df_module=None, target_name=None):
-        """return featureset (offline) data as dataframe"""
+    def to_dataframe(self,
+                     columns: typing.Optional[typing.List[str]] = None,
+                     df_module:  typing.Optional[typing.Any] = None,
+                     target_name: typing.Optional[str] = None) -> typing.Union[pd.DataFrame, typing.Any]:
+        """
+        Return featureset (offline) data as dataframe
+
+        :param columns:   Optional, list of columns to select
+        :param df_module: Optional, dataframe class (e.g. pd, dd, cudf, ..)
+        :param target_name: Optional, name of the target to take featureset from
+
+        :return: Dataframe object (possibly of the df_module, of pandas by default)
+        """
         if columns:
             entities = list(self.spec.entities.keys())
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
@@ -371,9 +570,15 @@ class FeatureSet(ModelObj):
             )
         return driver.as_df(columns=columns, df_module=df_module)
 
-    def save(self, tag="", versioned=False):
-        """save to mlrun db"""
-        db = mlrun.get_run_db()
+    def save(self, tag: str = "", versioned: bool = False):
+        """
+        Save the feature set to mlrun db
+
+        :param tag: The ``tag`` of the object to set in the DB, for example ``latest``.
+        :param versioned: Whether to maintain versions for this feature set. All versions of a versioned object
+            will be kept in the DB and can be retrieved until explicitly deleted.
+        """
+        db = get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag
         as_dict = self.to_dict()
@@ -382,11 +587,15 @@ class FeatureSet(ModelObj):
         )  # bypass DB bug
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
-    def reload(self, update_spec=True):
-        """reload/sync the feature vector status and spec from the DB"""
-        from_db = mlrun.get_run_db().get_feature_set(
+    def reload(self, update_spec: bool = True):
+        """
+        Reload/sync the feature set status and spec from the MLRun DB
+
+        :param update_spec: Whether to update the spec (and not only the status) from DB
+        """
+        feature_set = get_run_db().get_feature_set(
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
-        self.status = from_db.status
+        self.status = feature_set.status
         if update_spec:
-            self.spec = from_db.spec
+            self.spec = feature_set.spec

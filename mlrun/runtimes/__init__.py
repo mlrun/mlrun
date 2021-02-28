@@ -93,7 +93,7 @@ class RuntimeKinds(object):
     dask = "dask"
     job = "job"
     spark = "spark"
-    remotespark = "remote-spark"
+    remote_spark = "remote-spark"
     mpijob = "mpijob"
     serving = "serving"
 
@@ -106,7 +106,7 @@ class RuntimeKinds(object):
             RuntimeKinds.dask,
             RuntimeKinds.job,
             RuntimeKinds.spark,
-            RuntimeKinds.remotespark,
+            RuntimeKinds.remote_spark,
             RuntimeKinds.mpijob,
         ]
 
@@ -116,7 +116,7 @@ class RuntimeKinds(object):
             RuntimeKinds.dask,
             RuntimeKinds.job,
             RuntimeKinds.spark,
-            RuntimeKinds.remotespark,
+            RuntimeKinds.remote_spark,
             RuntimeKinds.mpijob,
         ]
 
@@ -154,7 +154,7 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
     kind_runtime_handler_map = {
         RuntimeKinds.dask: DaskRuntimeHandler,
         RuntimeKinds.spark: SparkRuntimeHandler,
-        RuntimeKinds.remotespark: RemoteSparkRuntimeHandler,
+        RuntimeKinds.remote_spark: RemoteSparkRuntimeHandler,
         RuntimeKinds.job: KubeRuntimeHandler,
     }
     runtime_handler_class = kind_runtime_handler_map[kind]
@@ -179,7 +179,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.dask: DaskCluster,
         RuntimeKinds.job: KubejobRuntime,
         RuntimeKinds.spark: SparkRuntime,
-        RuntimeKinds.remotespark: RemoteSparkRuntime,
+        RuntimeKinds.remote_spark: RemoteSparkRuntime,
     }
 
     return kind_runtime_map[kind]

@@ -162,7 +162,9 @@ class DataStore:
 
 
 class DataItem:
-    """Data input/output class abstracting access to various local/remote data sources"""
+    """
+    Data input/output class abstracting access to various local/remote data sources
+    """
 
     def __init__(
         self,
@@ -171,7 +173,7 @@ class DataItem:
         subpath: str,
         url: str = "",
         meta=None,
-        artifact_url=None,
+        artifact_url: str = None,
     ):
         self._store = store
         self._key = key
@@ -218,14 +220,14 @@ class DataItem:
         return self._meta
 
     @property
-    def artifact_url(self):
+    def artifact_url(self) -> str:
         """
         DataItem artifact url (when its an artifact) or url for simple dataitems
         """
         return self._artifact_url or self._url
 
     @property
-    def url(self):
+    def url(self) -> str:
         """
         DataItem url e.g. /dir/path, s3://bucket/path
         """
@@ -233,60 +235,62 @@ class DataItem:
 
     def get(self, size=None, offset=0):
         """
-        get/read an object (all of it or a range) and return the contents
+        Get/read an object (all of it or a range) and return the contents
         """
         return self._store.get(self._path, size=size, offset=offset)
 
-    def download(self, target_path):
+    def download(self, target_path: str):
         """
-        download the DataItem to the provided target dir/path
-        :param target_path: str - file path
+        Download the DataItem to the provided target dir/path
+        :param target_path: file path
         """
         self._store.download(self._path, target_path)
 
-    def put(self, data, append=False):
+    def put(self, data, append: bool = False):
         """
-        write/upload the data to the underlying DataStore
+        Write/upload the data to the underlying DataStore
         :param data: data to store
         :param append: is only supported by some data stores
         """
         self._store.put(self._path, data, append=append)
 
-    def upload(self, src_path):
+    def upload(self, src_path: str):
         """
-        upload the source file
+        Upload the source file
         :param src_path: str - file path for the source file
         """
         self._store.upload(self._path, src_path)
 
     def stat(self) -> typing.Optional[FileStats]:
         """
-        get file statistics for the DataItem
-        :return FileStats class (size, modified, content_type)
+        Get file statistics for the DataItem
+        :return: FileStats class (size, modified, content_type)
         """
         return self._store.stat(self._path)
 
-    def open(self, mode):
+    def open(self, mode: str):
         """
         return fsspec file handler, if supported
-        :param mode: str - file open mode
+        :param mode: File open mode
         """
         return self._store.open(self._url, mode)
 
     def ls(self):
-        """return a list of child file names"""
-        return self._store.listdir(self._path)
-
-    def listdir(self):
         """
-        return a list of child file names
+        Get a list of child file names
         """
         return self._store.listdir(self._path)
 
-    def local(self):
+    def listdir(self) -> typing.List[str]:
         """
-        get the local path of the file, if remote object - download to tmp first
-        :return file path str
+        Get a list of child file names
+        """
+        return self._store.listdir(self._path)
+
+    def local(self) -> str:
+        """
+        Get the local path of the file, if remote object - download to tmp first
+        :return: File path
         """
         if self.kind == "file":
             return self._path
@@ -299,9 +303,11 @@ class DataItem:
         self.download(self._local_path)
         return self._local_path
 
-    def as_df(self, columns=None, df_module=None, format="", **kwargs):
+    def as_df(
+        self, columns=None, df_module=None, format: str = "", **kwargs
+    ) -> pd.DataFrame:
         """
-        return a dataframe generated from the DataItem.
+        Return a dataframe generated from the DataItem.
 
         :param columns:   optional, list of columns to select
         :param df_module: optional, dataframe class (e.g. pd, dd, cudf, ..)

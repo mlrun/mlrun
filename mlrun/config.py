@@ -29,6 +29,7 @@ from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
+import typing
 
 import yaml
 
@@ -193,31 +194,45 @@ class Config:
         name = self.__class__.__name__
         return f"{name}({self._cfg!r})"
 
-    def update(self, cfg):
-        for key, value in cfg.items():
+    def update(self, config_dict: dict):
+        """
+        Update a set of configuration keys from a given dictionary
+
+        :param config_dict: Dictionary from which to update key/values
+        """
+        for key, value in config_dict.items():
             if hasattr(self, key):
                 if isinstance(value, dict):
                     getattr(self, key).update(value)
                 else:
                     setattr(self, key, value)
 
-    def dump_yaml(self, stream=None):
+    def dump_yaml(self, stream=None) -> typing.Optional[str]:
         """
         Serialize the configuration into YAML stream or string
+
         :param stream: IO stream object
         :return: None or string
         """
         return yaml.dump(self._cfg, stream, default_flow_style=False)
 
     @classmethod
-    def from_dict(cls, dict_: dict):
+    def from_dict(cls, from_dict: dict):
         """
         Build Config object from given dict
+
+        :param from_dict: Input dict
+        :return: New Config object
         """
-        return cls(copy.deepcopy(dict_))
+        return cls(copy.deepcopy(from_dict))
 
     @staticmethod
-    def get_build_args():
+    def get_build_args() -> dict:
+        """
+        Retrieve the build args from config.httpdb.builder
+
+        :return: build args dictionary
+        """
         build_args = {}
         if config.httpdb.builder.build_args:
             build_args_json = base64.b64decode(
@@ -227,10 +242,11 @@ class Config:
 
         return build_args
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """
         Dumping a copy of the underlying configuration into a dict
-        :return: dict
+
+        :return: A New dict representation of the configuration object
         """
         return copy.copy(self._cfg)
 
@@ -242,9 +258,10 @@ class Config:
         _populate()
 
     @property
-    def version(self):
+    def version(self) -> str:
         """
         Return the MLRun version
+
         :return: version string
         """
         # importing here to avoid circular dependency
@@ -253,12 +270,16 @@ class Config:
         return Version().get()["version"]
 
     @property
-    def kfp_image(self):
+    def kfp_image(self) -> str:
         """
-        When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the enrich_image method.
-        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must import the
-        module inside this function (and not on initialization), and then calculate this property value here.
+        Get the kfp image URL.
+        Note that if not specifically configured it will default to mlrun/mlrun
         """
+
+        # When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the
+        # enrich_image method. The mlrun.utils.helpers module is importing the config (this) module, so we must
+        # import this module dynamically inside this function (and not on initialization), and then calculate
+        # this property value here.
         if not self._kfp_image:
             # importing here to avoid circular dependency
             import mlrun.utils.helpers
@@ -267,12 +288,18 @@ class Config:
         return self._kfp_image
 
     @kfp_image.setter
-    def kfp_image(self, value):
+    def kfp_image(self, value: str):
+        """
+        Set the kfp image
+
+        :param value: kfp image URL
+        """
         self._kfp_image = value
 
     @property
-    def dask_kfp_image(self):
+    def dask_kfp_image(self) -> str:
         """
+        Set the dask kfp image URL.
         See kfp_image property docstring for why we're defining this property
         """
         if not self._dask_kfp_image:
@@ -283,15 +310,26 @@ class Config:
         return self._dask_kfp_image
 
     @dask_kfp_image.setter
-    def dask_kfp_image(self, value):
+    def dask_kfp_image(self, value: str):
+        """
+        Set the dask kfp image
+
+        :param value: Dask kfp image full URL
+        """
         self._dask_kfp_image = value
 
     @property
-    def dbpath(self):
+    def dbpath(self) -> str:
+        """
+        Get the db path
+        """
         return self._dbpath
 
     @dbpath.setter
-    def dbpath(self, value):
+    def dbpath(self, value: str):
+        """
+        Set the db path
+        """
         self._dbpath = value
         if value:
             # importing here to avoid circular dependency
@@ -305,6 +343,7 @@ class Config:
         """
         Returns the MLRun UI URL.
         Note: config.ui_url is deprecated in favor of the ui.url
+
         :return: str - resolved URL
         """
         # since the config class is used in a "recursive" way, we can't use a property like we used in other places

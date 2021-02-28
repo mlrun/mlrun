@@ -567,7 +567,9 @@ class QueueState(BaseState):
 
 
 class FlowState(BaseState):
-    """flow state, represent a workflow or DAG"""
+    """
+    Flow state, represent a workflow or DAG
+    """
 
     kind = "flow"
     _dict_fields = BaseState._dict_fields + [

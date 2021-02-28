@@ -40,7 +40,7 @@ from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
 from ..config import config
 from ..datastore import store_manager
-from ..db import get_run_db, get_or_set_dburl, RunDBError
+from ..db import get_run_db, get_or_set_db_url, RunDBError
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import write_kfpmeta, mlrun_op
@@ -111,7 +111,7 @@ class BaseRuntime(ModelObj):
     _is_remote = False
     _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
 
-    def __init__(self, metadata=None, spec=None):
+    def __init__(self, metadata=None, spec=None) -> None:
         self._metadata = None
         self.metadata = metadata
         self.kfp = None
@@ -192,7 +192,7 @@ class BaseRuntime(ModelObj):
         )
 
     def _ensure_run_db(self):
-        self.spec.rundb = self.spec.rundb or get_or_set_dburl()
+        self.spec.rundb = self.spec.rundb or get_or_set_db_url()
 
     def _get_db(self):
         self._ensure_run_db()
@@ -214,29 +214,29 @@ class BaseRuntime(ModelObj):
         artifact_path: str = "",
         watch: bool = True,
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
-        verbose=None,
-        scrape_metrics=False,
-        local=False,
-        local_code_path=None,
+        verbose: bool = None,
+        scrape_metrics: bool = False,
+        local: bool = False,
+        local_code_path: str = None,
     ):
         """Run a local or remote task.
 
-        :param runspec:        run template object or dict (see RunTemplate)
-        :param handler:        pointer or name of a function handler
-        :param name:           execution name
-        :param project:        project name
-        :param params:         input parameters (dict)
-        :param inputs:         input objects (dict of key: path)
-        :param out_path:       default artifact output path
-        :param artifact_path:  default artifact output path (will replace out_path)
-        :param workdir:        default input artifacts path
-        :param watch:          watch/follow run log
+        :param runspec:        Run template object or dict (see RunTemplate)
+        :param handler:        Pointer or name of a function handler
+        :param name:           Execution name
+        :param project:        Project name
+        :param params:         Input parameters (dict)
+        :param inputs:         Input objects (dict of key: path)
+        :param out_path:       Default artifact output path
+        :param artifact_path:  Default artifact output path (will replace out_path)
+        :param workdir:        Default input artifacts path
+        :param watch:          Watch/follow run log
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string (which
         will be converted to the class using its `from_crontab` constructor. see this link for help:
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param verbose:        add verbose prints/logs
-        :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
-        :param local:      run the function locally vs on the runtime/cluster
+        :param verbose:        Add verbose prints/logs
+        :param scrape_metrics: Whether to add the `mlrun/scrape-metrics` label to this run's resources
+        :param local:          Run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
 
         :return: run context object (dict) with run metadata, results and
@@ -431,10 +431,10 @@ class BaseRuntime(ModelObj):
 
     def _wrap_run_result(
         self, result: dict, runspec: RunObject, schedule=None, err=None
-    ):
+    ) -> Optional[RunObject]:
         # if the purpose was to schedule (and not to run) nothing to wrap
         if schedule:
-            return
+            return None
 
         if result and self.kfp and err is None:
             write_kfpmeta(result)
@@ -697,7 +697,7 @@ class BaseRuntime(ModelObj):
         :param body:        will use the body as the function code
         :param with_doc:    update the document of the function parameters
 
-        :return: function object
+        :return: A function object
         """
         if body and from_file:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -730,7 +730,7 @@ class BaseRuntime(ModelObj):
 
         :param requirements:  python requirements file path or list of packages
 
-        :return: function object
+        :return: A function object
         """
         if isinstance(requirements, str):
             with open(requirements, "r") as fp:

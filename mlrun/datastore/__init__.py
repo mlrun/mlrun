@@ -37,7 +37,8 @@ def get_in_memory_items():
 
 
 def get_stream_pusher(stream_path: str, **kwargs):
-    """get a stream pusher object from URL, currently only support v3io stream
+    """
+    Get a stream pusher object from URL, currently only support v3io stream
 
     common kwargs::
 

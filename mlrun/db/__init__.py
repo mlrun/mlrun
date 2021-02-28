@@ -21,7 +21,7 @@ from .sqldb import SQLDB
 from os import environ
 
 
-def get_or_set_dburl(default=""):
+def get_or_set_db_url(default=""):
     if not config.dbpath and default:
         config.dbpath = default
         environ["MLRUN_DBPATH"] = default
@@ -47,12 +47,22 @@ _run_db = None
 _last_db_url = None
 
 
-def get_run_db(url="", secrets=None, force_reconnect=False):
-    """Returns the runtime database"""
+def get_run_db(
+    url: str = "", secrets: dict = None, force_reconnect: bool = False
+) -> RunDBInterface:
+    """
+    Returns the runtime database
+
+    :param url: optional db URL
+    :param secrets: Optional secrets dict
+    :param force_reconnect: Optional, force reconnection
+
+    :return: The run DB
+    """
     global _run_db, _last_db_url
 
     if not url:
-        url = get_or_set_dburl("./")
+        url = get_or_set_db_url("./")
 
     if (
         _last_db_url is not None

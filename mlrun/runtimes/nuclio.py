@@ -16,7 +16,7 @@ import json
 import socket
 
 from .serving import serving_subkind
-from ..db import get_or_set_dburl
+from ..db import get_or_set_db_url
 from ..model import RunTemplate
 from ..execution import MLClientCtx
 from ..serving.v1_serving import nuclio_serving_init
@@ -58,7 +58,7 @@ def nuclio_jobs_handler(context, event):
             status_code=400,
         )
 
-    out = get_or_set_dburl()
+    out = get_or_set_db_url()
     if out:
         context.logger.info(f"logging run results to: {out}")
 

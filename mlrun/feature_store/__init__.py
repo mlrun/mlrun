@@ -27,11 +27,9 @@ __all__ = [
     "FeatureVector",
 ]
 
-
+from ..features import Feature, Entity
 from .feature_set import FeatureSet
 from .feature_vector import FeatureVector
-from ..features import Feature, Entity
-from ..data_types import InferOptions, ValueType
 from .api import (
     get_offline_features,
     get_online_feature_service,

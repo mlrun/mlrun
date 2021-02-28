@@ -13,14 +13,14 @@
 # limitations under the License.
 from os import path
 from tempfile import mktemp
-from typing import List
+import typing
 
 import yaml
 import mlrun
 from ..features import Feature
 from ..data_types import InferOptions, get_infer_interface
 from ..model import ObjectList
-from ..datastore import store_manager, is_store_uri
+from ..datastore import DataItem, store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
@@ -64,14 +64,14 @@ class ModelArtifact(Artifact):
     ):
 
         super().__init__(key, body, format=format, target_path=target_path)
-        self._inputs: ObjectList = None
-        self._outputs: ObjectList = None
+        self._inputs: typing.Optional[ObjectList] = None
+        self._outputs: typing.Optional[ObjectList] = None
 
         self.model_file = model_file
         self.parameters = parameters or {}
         self.metrics = metrics or {}
-        self.inputs: List[Feature] = inputs or []
-        self.outputs: List[Feature] = outputs or []
+        self.inputs: typing.List[Feature] = inputs or []
+        self.outputs: typing.List[Feature] = outputs or []
         self.extra_data = extra_data or {}
         self.framework = framework
         self.feature_vector = feature_vector
@@ -79,25 +79,39 @@ class ModelArtifact(Artifact):
         self.feature_stats = None
 
     @property
-    def inputs(self) -> List[Feature]:
-        """input feature list"""
+    def inputs(self) -> typing.Optional[ObjectList]:
+        """
+        Get inputs feature list
+        """
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: List[Feature]):
+    def inputs(self, inputs: typing.List[Feature]):
+        """
+        Set inputs feature list
+        :param inputs: list of features
+        """
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> List[Feature]:
-        """output feature list"""
+    def outputs(self) -> typing.Optional[ObjectList]:
+        """
+        Get outputs feature list
+        """
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: List[Feature]):
+    def outputs(self, outputs: typing.List[Feature]):
+        """
+        Set outputs feature list
+        :param outputs: list of features
+        """
         self._outputs = ObjectList.from_list(Feature, outputs)
 
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
-        """infer inputs, outputs, and stats from provided df (training set)"""
+        """
+        Infer inputs, outputs, and stats from provided df (training set)
+        """
         subset = df
         inferer = get_infer_interface(subset)
         if label_columns:
@@ -151,8 +165,11 @@ def _get_src_path(model_spec: ModelArtifact, filename):
     return filename
 
 
-def get_model(model_dir, suffix=""):
-    """return model file, model spec object, and list of extra data items
+def get_model(
+    model_dir: typing.Optional[typing.Union[str, DataItem]], suffix: str = ""
+) -> (str, typing.Union[dict, DataItem], dict):
+    """
+    Get model file, model spec object, and list of extra data items
 
     this function will get the model file, metadata, and extra data
     the returned model file is always local, when using remote urls
@@ -167,11 +184,10 @@ def get_model(model_dir, suffix=""):
         model = load(open(model_file, "rb"))
         categories = extra_data['categories'].as_df()
 
-    :param model_dir:       model dir or artifact path (store://..) or DataItem
-    :param suffix:          model filename suffix (when using a dir)
+    :param model_dir:       Model dir or artifact path (store://..) or DataItem
+    :param suffix:          Model filename suffix (when using a dir)
 
     :returns: model filename, model artifact object, extra data dict
-
     """
     model_file = ""
     model_spec = None
@@ -235,49 +251,51 @@ def _get_file_path(base_path: str, name: str, isdir=False):
     return path.join(base_path, name).replace("\\", "/")
 
 
-def _get_extra(target, extra_data, is_dir=False):
-    extra_dataitems = {}
+def _get_extra(target, extra_data, is_dir=False) -> dict:
+    extra_data_items = {}
     for k, v in extra_data.items():
-        extra_dataitems[k] = store_manager.object(
+        extra_data_items[k] = store_manager.object(
             url=_get_file_path(target, v, isdir=is_dir), key=k
         )
-    return extra_dataitems
+    return extra_data_items
 
 
 def update_model(
-    model_artifact,
+    model_artifact: typing.Union[DataItem, ModelArtifact, str],
     parameters: dict = None,
     metrics: dict = None,
     extra_data: dict = None,
-    inputs: List[Feature] = None,
-    outputs: List[Feature] = None,
+    inputs: typing.List[Feature] = None,
+    outputs: typing.List[Feature] = None,
     feature_vector: str = None,
     feature_weights: list = None,
     key_prefix: str = "",
     labels: dict = None,
-    write_spec_copy=True,
-):
-    """Update model object attributes
+    write_spec_copy: bool = True,
+) -> Artifact:
+    """
+    Update model object attributes
 
-    this method will edit or add attributes to a model object
+    This method will edit or add attributes to a model object
 
     example::
 
         update_model(model_path, metrics={'speed': 100},
                      extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
 
-    :param model_artifact:  model artifact object or path (store://..) or DataItem
-    :param parameters:      parameters dict
-    :param metrics:         model metrics e.g. accuracy
-    :param extra_data:      extra data items key, value dict
-                            (value can be: path string | bytes | artifact)
-    :param inputs:          list of input features (feature vector schema)
-    :param outputs:         list of output features (output vector schema)
-    :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
-    :param feature_weights: list of feature weights, one per input column
-    :param key_prefix:      key prefix to add to metrics and extra data items
-    :param labels:          metadata labels
-    :param write_spec_copy: write a YAML copy of the spec to the target dir
+    :param model_artifact:  Model artifact object or path (store://..) or DataItem
+    :param parameters:      Parameters dict
+    :param metrics:         Model metrics e.g. accuracy
+    :param extra_data:      Extra data items key, value dict (value can be: path string | bytes | artifact)
+    :param inputs:          List of input features (feature vector schema)
+    :param outputs:         List of output features (output vector schema)
+    :param feature_vector:  Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+    :param feature_weights: List of feature weights, one per input column
+    :param key_prefix:      Key prefix to add to metrics and extra data items
+    :param labels:          Metadata labels
+    :param write_spec_copy: Write a YAML copy of the spec to the target dir
+
+    :return Artifact object
     """
 
     if hasattr(model_artifact, "artifact_url"):

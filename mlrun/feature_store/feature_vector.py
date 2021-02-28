@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
-from typing import List
-import mlrun
+import typing
+
 import pandas as pd
 
 
+import mlrun.errors
+import mlrun.api.schemas
 from ..features import Feature
 from ..model import VersionedObjMetadata
 from ..feature_store.common import parse_feature_string, get_feature_set_by_uri
@@ -30,6 +32,9 @@ from ..utils import StorePrefix
 
 
 class FeatureVectorSpec(ModelObj):
+    """
+    Spec for FeatureVector
+    """
     def __init__(
         self,
         features=None,
@@ -48,7 +53,7 @@ class FeatureVectorSpec(ModelObj):
         self._function: FunctionReference = None
 
         self.description = description
-        self.features: List[str] = features or []
+        self.features: typing.List[str] = features or []
         self.entity_source = entity_source
         self.entity_fields = entity_fields or []
         self.graph = graph
@@ -67,12 +72,12 @@ class FeatureVectorSpec(ModelObj):
         self._entity_source = self._verify_dict(source, "entity_source", DataSource)
 
     @property
-    def entity_fields(self) -> List[Feature]:
+    def entity_fields(self) -> ObjectList:
         """the schema/metadata for the entity source fields"""
         return self._entity_fields
 
     @entity_fields.setter
-    def entity_fields(self, entity_fields: List[Feature]):
+    def entity_fields(self, entity_fields: typing.List[Feature]):
         self._entity_fields = ObjectList.from_list(Feature, entity_fields)
 
     @property
@@ -112,38 +117,43 @@ class FeatureVectorStatus(ModelObj):
         self.targets = targets
         self.stats = stats or {}
         self.preview = preview or []
-        self.features: List[Feature] = features or []
+        self.features: typing.List[Feature] = features or []
         self.run_uri = run_uri
 
     @property
-    def targets(self) -> List[DataTarget]:
+    def targets(self) -> ObjectList:
         """list of material storage targets + their status/path"""
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTarget]):
+    def targets(self, targets: typing.List[DataTarget]):
         self._targets = ObjectList.from_list(DataTarget, targets)
 
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
     @property
-    def features(self) -> List[Feature]:
+    def features(self) -> typing.List[Feature]:
         """list of features (result of joining features from the source feature sets)"""
         return self._features
 
     @features.setter
-    def features(self, features: List[Feature]):
+    def features(self, features: typing.List[Feature]):
         self._features = ObjectList.from_list(Feature, features)
 
 
 class FeatureVector(ModelObj):
-    """Feature vector, specify selected features, their metadata and material views"""
+    """
+    Feature vector, specifies selected features, their metadata and material views
+    """
 
-    kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
+    kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, features=None, description=None):
+    def __init__(self,
+                 name: typing.Optional[str] = None,
+                 features: typing.Optional[typing.List[str]] = None,
+                 description: typing.Optional[str] = None) -> None:
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
@@ -158,31 +168,65 @@ class FeatureVector(ModelObj):
 
     @property
     def spec(self) -> FeatureVectorSpec:
+        """
+        Get the feature vector spec
+
+        :return: Feature vector spec
+        """
         return self._spec
 
     @spec.setter
-    def spec(self, spec):
+    def spec(self, spec: typing.Union[dict, FeatureVectorSpec]):
+        """
+        Set the feature vector spec
+
+        :param spec: spec dict or object
+        """
         self._spec = self._verify_dict(spec, "spec", FeatureVectorSpec)
 
     @property
     def metadata(self) -> VersionedObjMetadata:
+        """
+        Get feature vector metadata
+
+        :return: metadata object
+        """
         return self._metadata
 
     @metadata.setter
-    def metadata(self, metadata):
+    def metadata(self, metadata: typing.Union[dict, VersionedObjMetadata]):
+        """
+        Set feature vector metadata from dict or object
+
+        :param metadata: dict or object representing metadata
+        """
         self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureVectorStatus:
+        """
+        Get the feature vector status
+
+        :return: Feature vector status object
+        """
         return self._status
 
     @status.setter
-    def status(self, status):
+    def status(self, status: typing.Union[dict, FeatureVectorStatus]):
+        """
+        Set feature vector status from dict or status object
+
+        :param status: status as dict or object
+        """
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
 
     @property
-    def uri(self):
-        """fully qualified feature vector uri"""
+    def uri(self) -> str:
+        """
+        Get the fully qualified feature vector uri
+
+        :return: uri
+        """
         uri = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -192,21 +236,43 @@ class FeatureVector(ModelObj):
         return uri
 
     def link_analysis(self, name, uri):
-        """add a linked file/artifact (chart, data, ..)"""
+        """
+        Add a linked file/artifact (chart, data, ..)
+
+        :param name: artifact name
+        :param uri: artifact full uri
+        """
         self._spec.analysis[name] = uri
 
-    def get_stats_table(self):
-        """get feature statistics table (as dataframe)"""
+    def get_stats_table(self) -> pd.DataFrame:
+        """
+        Get feature vector statistics table (as dataframe)
+
+        :return: New statistics DataFrame object
+        """
         if self.status.stats:
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
 
-    def get_target_path(self, name=None):
+    def get_target_path(self, name: typing.Optional[str] = None):
+        """
+        Get the url/path for an offline or specified data target
+
+        :param name: Optional, name of specific data target
+        :return Target path
+        """
         target = get_offline_target(self, name=name)
         if target:
             return target.path
 
-    def to_dataframe(self, df_module=None, target_name=None):
-        """return feature vector (offline) data as dataframe"""
+    def to_dataframe(self, df_module=None, target_name=None) -> typing.Union[pd.DataFrame, typing.Any]:
+        """
+        Return feature vector (offline) data as dataframe
+
+        :param df_module: Optional, dataframe class (e.g. pd, dd, cudf, ..)
+        :param target_name: Optional, name of the target to take feature vector from
+
+        :return: Dataframe object (possibly of the df_module, of pandas by default)
+        """
         driver = get_offline_target(self, name=target_name)
         if not driver:
             raise mlrun.errors.MLRunNotFoundError(
@@ -214,8 +280,14 @@ class FeatureVector(ModelObj):
             )
         return driver.as_df(df_module=df_module)
 
-    def save(self, tag="", versioned=False):
-        """save to mlrun db"""
+    def save(self, tag: str = "", versioned: bool = False):
+        """
+        Save the feature vector to mlrun db
+
+        :param tag: The ``tag`` of the object to set in the DB, for example ``latest``.
+        :param versioned: Whether to maintain versions for this feature vector. All versions of a versioned object
+            will be kept in the DB and can be retrieved until explicitly deleted.
+        """
         db = mlrun.get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag
@@ -223,7 +295,11 @@ class FeatureVector(ModelObj):
         db.store_feature_vector(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):
-        """reload/sync the feature set status and spec from the DB"""
+        """
+        Reload/sync the feature vector status and spec from the MLRun DB
+
+        :param update_spec: Whether to update the spec (and not only the status) from DB
+        """
         from_db = mlrun.get_run_db().get_feature_vector(
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
@@ -232,7 +308,8 @@ class FeatureVector(ModelObj):
             self.spec = from_db.spec
 
     def parse_features(self):
-        """parse and validate feature list (from vector) and add metadata from feature sets
+        """
+        Parse and validate feature list (from vector) and add metadata from feature sets
 
         :returns
             feature_set_objects: cache of used feature set objects
@@ -242,16 +319,16 @@ class FeatureVector(ModelObj):
         feature_set_objects = {}
         feature_set_fields = collections.defaultdict(list)
 
-        def add_feature(name, alias, feature_set_object):
+        def add_feature(_name, _alias, _feature_set_object):
             if alias in processed_features.keys():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature name/alias {alias} already specified,"
                     " use another alias (feature-set:name[@alias])"
                 )
-            feature = feature_set_object[name]
-            processed_features[alias or name] = (feature_set_object, feature)
-            featureset_name = feature_set_object.metadata.name
-            feature_set_fields[featureset_name].append((name, alias))
+            _feature = _feature_set_object[_name]
+            processed_features[_alias or name] = (_feature_set_object, _feature)
+            _feature_set_name = _feature_set_object.metadata.name
+            feature_set_fields[_feature_set_name].append((_name, _alias))
 
         for feature in self.spec.features:
             feature_set, feature_name, alias = parse_feature_string(feature)
@@ -289,19 +366,27 @@ class FeatureVector(ModelObj):
 
 
 class OnlineVectorService:
-    """get_online_feature_service response object"""
+    """
+    get_online_feature_service response object
+    """
 
-    def __init__(self, vector, graph):
+    def __init__(self, vector, graph) -> None:
         self.vector = vector
         self._controller = graph.controller
 
     @property
-    def status(self):
-        """vector prep function status (ready, running, error)"""
+    def status(self) -> str:
+        """
+        Get vector prep function status.
+
+        :return: Status - One of [ready, running, error]
+        """
         return "ready"
 
-    def get(self, entity_rows: List[dict]):
-        """get feature vector given the provided entity inputs"""
+    def get(self, entity_rows: typing.List[dict]) -> typing.List[typing.Any]:
+        """
+        Get feature vector given the provided entity inputs
+        """
         results = []
         futures = []
         for row in entity_rows:
@@ -313,7 +398,9 @@ class OnlineVectorService:
         return results
 
     def close(self):
-        """terminate the async loop"""
+        """
+        Terminate the async loop
+        """
         self._controller.terminate()
 
 

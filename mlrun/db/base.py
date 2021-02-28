@@ -169,7 +169,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    ) -> schemas.FeatureSet:
         pass
 
     @abstractmethod
@@ -242,7 +242,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    ) -> schemas.FeatureVector:
         pass
 
     @abstractmethod

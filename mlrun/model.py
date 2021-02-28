@@ -344,8 +344,8 @@ class RunSpec(ModelObj):
         secret_sources=None,
         data_stores=None,
         tuning_strategy=None,
-        verbose=None,
-        scrape_metrics=False,
+        verbose: bool = None,
+        scrape_metrics: bool = False,
     ):
 
         self.parameters = parameters or {}

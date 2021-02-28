@@ -15,12 +15,13 @@ import os
 import pathlib
 from io import StringIO
 
-import mlrun
 import numpy as np
 import pandas as pd
-
 from pandas.io.json import build_table_schema
 
+import mlrun
+import mlrun.errors
+import mlrun.datastore.targets
 from .base import Artifact
 from ..datastore import store_manager, is_store_uri
 

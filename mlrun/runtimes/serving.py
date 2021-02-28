@@ -200,7 +200,7 @@ class ServingRuntime(RemoteRuntime):
         :param exist_ok:     - allow overriding existing topology
         :param class_args:   - optional, router/flow class init args
 
-        :return graph object (fn.spec.graph)
+        :return: graph object (fn.spec.graph)
         """
         topology = topology or StateKinds.router
         if self.spec.graph and not exist_ok:
@@ -301,19 +301,20 @@ class ServingRuntime(RemoteRuntime):
     def add_child_function(
         self, name, url=None, image=None, requirements=None, kind=None
     ):
-        """in a multi-function pipeline add child function
+        """
+        Add a child function in a multi-function pipeline
 
         example::
 
             fn.add_child_function('enrich', './enrich.ipynb', 'mlrun/mlrun')
 
-        :param name:   child function name
-        :param url:    function/code url, support .py, .ipynb, .yaml extensions
-        :param image:  base docker image for the function
+        :param name:   Child function name
+        :param url:    Function/code url, support .py, .ipynb, .yaml extensions
+        :param image:  Base docker image for the function
         :param requirements: py package requirements file path OR list of packages
-        :param kind:   mlrun function/runtime kind
+        :param kind:   MLRun function/runtime kind
 
-        :return function object
+        :return: Function object
         """
         function_reference = FunctionReference(
             url, image, requirements=requirements, kind=kind or "serving"
@@ -357,7 +358,7 @@ class ServingRuntime(RemoteRuntime):
             self.spec.graph.clear_children(keys)
 
     def deploy(self, dashboard="", project="", tag="", verbose=False):
-        """deploy model serving function to a local/remote cluster
+        """Deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
         :param project:   optional, overide function specified project name

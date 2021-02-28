@@ -95,7 +95,9 @@ online_lookup_order = [TargetTypes.nosql]
 
 
 def get_offline_target(featureset, start_time=None, name=None):
-    """return an optimal offline feature set target"""
+    """
+    Return an optimal offline feature set target
+    """
     # todo: take status, start_time and lookup order into account
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]

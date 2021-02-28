@@ -55,17 +55,17 @@ def _features_to_vector(features):
 def get_offline_features(
     features: typing.Union[str, typing.List[str], FeatureVector],
     entity_rows=None,
-    entity_timestamp_column: str = None,
+    entity_timestamp_column: typing.Optional[str] = None,
     batch: bool = False,
-    store_target: DataTargetBase = None,
+    store_target: typing.Optional[DataTargetBase] = None,
     drop_columns: typing.List[str] = None,
-    engine: str = None,
-    name: str = None,
-    function=None,
-    local=None,
-    watch=False,
-    auto_mount=True,
-    secrets=None,
+    engine: typing.Optional[str] = None,
+    name: typing.Optional[str] = None,
+    function: typing.Optional[BaseRuntime] = None,
+    local: typing.Optional[bool] = None,
+    watch: bool = False,
+    auto_mount: bool = True,
+    secrets: typing.Optional[dict] = None,
 ) -> OfflineVectorResponse:
     """
     Retrieve offline feature vector results

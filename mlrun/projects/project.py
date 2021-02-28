@@ -11,9 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from os import path, remove, environ
 import getpass
 import shutil
 import warnings
+import typing
+
+import yaml
 
 from ..db import get_run_db
 from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
@@ -23,8 +27,6 @@ import tarfile
 from tempfile import mktemp
 from git import Repo
 
-import yaml
-from os import path, remove, environ
 
 from ..datastore import store_manager
 from ..config import config
@@ -54,95 +56,6 @@ import mlrun.api.utils.projects.leader
 
 class ProjectError(Exception):
     pass
-
-
-def new_project(name, context=None, init_git=False, user_project=False):
-    """Create a new MLRun project
-
-    :param name:         project name
-    :param context:      project local directory path
-    :param init_git:     if True, will git init the context dir
-    :param user_project: add the current user name to the provided project name (making it unique per user)
-
-    :returns: project object
-    """
-    if user_project:
-        user = environ.get("V3IO_USERNAME") or getpass.getuser()
-        name = f"{name}-{user}"
-
-    project = MlrunProject(name=name)
-    project.spec.context = context
-
-    if init_git:
-        repo = Repo.init(context)
-        project.spec.repo = repo
-
-    return project
-
-
-def load_project(
-    context,
-    url=None,
-    name=None,
-    secrets=None,
-    init_git=False,
-    subpath="",
-    clone=False,
-    user_project=False,
-):
-    """Load an MLRun project from git or tar or dir
-
-    :param context:      project local directory path
-    :param url:          git or tar.gz sources archive path e.g.:
-                         git://github.com/mlrun/demo-xgb-project.git
-                         db://<project-name>
-    :param name:         project name
-    :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will git init the context dir
-    :param subpath:      project subpath (within the archive)
-    :param clone:        if True, always clone (delete any existing content)
-    :param user_project: add the current user name to the project name (for db:// prefixes)
-
-    :returns: project object
-    """
-
-    secrets = secrets or {}
-    repo = None
-    project = None
-    if url:
-        if url.endswith(".yaml"):
-            project = _load_project_file(url, name, secrets)
-        elif url.startswith("git://"):
-            url, repo = clone_git(url, context, secrets, clone)
-        elif url.endswith(".tar.gz"):
-            clone_tgz(url, context, secrets)
-        elif url.startswith("db://"):
-            if user_project:
-                user = environ.get("V3IO_USERNAME") or getpass.getuser()
-                url = f"{url}-{user}"
-            project = _load_project_from_db(url, secrets)
-        else:
-            raise ValueError(f"unsupported code archive {url}")
-
-    else:
-        if not path.isdir(context):
-            raise ValueError(f"context {context} is not an existing dir path")
-        try:
-            repo = Repo(context)
-            url = _get_repo_url(repo)
-        except Exception:
-            if init_git:
-                repo = Repo.init(context)
-
-    if not project:
-        project = _load_project_dir(context, name, subpath)
-    project.spec.source = url
-    project.spec.repo = repo
-    if repo:
-        project.spec.branch = repo.active_branch.name
-    project.spec.origin_url = url
-    project.register_artifacts()
-    return project
 
 
 def _load_project_dir(context, name="", subpath=""):
@@ -463,18 +376,26 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
-        name=None,
-        description=None,
-        params=None,
-        functions=None,
-        workflows=None,
-        artifacts=None,
-        artifact_path=None,
-        conda=None,
+        name: typing.Optional[str] = None,
+        description: typing.Optional[str] = None,
+        params: typing.Optional[dict] = None,
+        functions: typing.Optional[list] = None,
+        workflows: typing.Optional[list] = None,
+        artifacts: typing.Optional[list] = None,
+        artifact_path: typing.Optional[str] = None,
+        conda: typing.Optional[dict] = None,
         # all except these 2 are for backwards compatibility with MlrunProjectLegacy
-        metadata=None,
-        spec=None,
-    ):
+        metadata: typing.Optional[typing.Union[dict, ProjectMetadata]] = None,
+        spec: typing.Optional[typing.Union[dict, ProjectMetadata]] = None,
+    ) -> None:
+        """
+        MLRun project
+
+        :param metadata: Optional, metadata dict or object
+        :param spec: Optional, spec dict or object
+
+        :return A new MlrunProject object
+        """
         self._metadata = None
         self.metadata = metadata
         self._spec = None
@@ -498,26 +419,56 @@ class MlrunProject(ModelObj):
 
     @property
     def metadata(self) -> ProjectMetadata:
+        """
+        Get project metadata
+
+        :return: metadata
+        """
         return self._metadata
 
     @metadata.setter
-    def metadata(self, metadata):
+    def metadata(self, metadata: typing.Union[dict, ProjectMetadata]):
+        """
+        Set project metadata
+
+        :param metadata: dict or project metadata
+        """
         self._metadata = self._verify_dict(metadata, "metadata", ProjectMetadata)
 
     @property
     def spec(self) -> ProjectSpec:
+        """
+        Get project spec
+
+        :return: Project spec object
+        """
         return self._spec
 
     @spec.setter
-    def spec(self, spec):
+    def spec(self, spec: typing.Union[dict, ProjectSpec]):
+        """
+        Set project spec
+
+        :param spec: dict or project spec
+        """
         self._spec = self._verify_dict(spec, "spec", ProjectSpec)
 
     @property
     def status(self) -> ProjectStatus:
+        """
+        Get project status
+
+        :return: Project status object
+        """
         return self._status
 
     @status.setter
-    def status(self, status):
+    def status(self, status: typing.Union[dict, ProjectStatus]):
+        """
+        Set project status
+
+        :param status: Project status object
+        """
         self._status = self._verify_dict(status, "status", ProjectStatus)
 
     @property
@@ -1474,6 +1425,99 @@ class MlrunProjectLegacy(ModelObj):
         filepath = filepath or path.join(self.context, self.subpath, "project.yaml")
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
+
+
+def new_project(name: str,
+                context: typing.Optional[str] = None,
+                init_git: bool = False,
+                user_project: bool = False) -> MlrunProject:
+    """Create a new MLRun project
+
+    :param name:         project name
+    :param context:      project local directory path
+    :param init_git:     if True, will git init the context dir
+    :param user_project: add the current user name to the provided project name (making it unique per user)
+
+    :returns: project object
+    """
+    if user_project:
+        user = environ.get("V3IO_USERNAME") or getpass.getuser()
+        name = f"{name}-{user}"
+
+    project = MlrunProject(name=name)
+    project.spec.context = context
+
+    if init_git:
+        repo = Repo.init(context)
+        project.spec.repo = repo
+
+    return project
+
+
+def load_project(
+    context: typing.Optional[str],
+    url: typing.Optional[str] = None,
+    name: typing.Optional[str] = None,
+    secrets: typing.Optional[dict] = None,
+    init_git: bool = False,
+    subpath: str = "",
+    clone: bool = False,
+    user_project: bool = False,
+) -> MlrunProject:
+    """
+    Load an MLRun project from git or tar or dir
+
+    :param context:      project local directory path
+    :param url:          git or tar.gz sources archive path e.g.:
+                         git://github.com/mlrun/demo-xgb-project.git
+                         db://<project-name>
+    :param name:         project name
+    :param secrets:      key:secret dict or SecretsStore used to download sources
+    :param init_git:     if True, will git init the context dir
+    :param subpath:      project subpath (within the archive)
+    :param clone:        if True, always clone (delete any existing content)
+    :param user_project: add the current user name to the project name (for db:// prefixes)
+
+    :returns: project object
+    """
+
+    secrets = secrets or {}
+    repo = None
+    project = None
+    if url:
+        if url.endswith(".yaml"):
+            project = _load_project_file(url, name, secrets)
+        elif url.startswith("git://"):
+            url, repo = clone_git(url, context, secrets, clone)
+        elif url.endswith(".tar.gz"):
+            clone_tgz(url, context, secrets)
+        elif url.startswith("db://"):
+            if user_project:
+                user = environ.get("V3IO_USERNAME") or getpass.getuser()
+                url = f"{url}-{user}"
+            project = _load_project_from_db(url, secrets)
+        else:
+            raise ValueError(f"unsupported code archive {url}")
+
+    else:
+        if not path.isdir(context):
+            raise ValueError(f"context {context} is not an existing dir path")
+        try:
+            repo = Repo(context)
+            url = _get_repo_url(repo)
+        except Exception:
+            if init_git:
+                repo = Repo.init(context)
+
+    if not project:
+        project = _load_project_dir(context, name, subpath)
+    project.spec.source = url
+    project.spec.repo = repo
+    if repo:
+        project.spec.branch = repo.active_branch.name
+    project.spec.origin_url = url
+    project.register_artifacts()
+    return project
 
 
 def _init_function_from_dict(f, project):

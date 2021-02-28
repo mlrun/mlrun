@@ -37,16 +37,27 @@ class FeatureVectorSpec(ModelObj):
     """
     def __init__(
         self,
-        features=None,
-        description=None,
-        entity_source=None,
-        entity_fields=None,
-        timestamp_field=None,
-        graph=None,
-        label_column=None,
-        function=None,
-        analysis=None,
+        features: typing.Optional[typing.List[str]] = None,
+        description: typing.Optional[str] = None,
+        entity_source: typing.Optional[typing.Union[dict, DataSource]] = None,
+        entity_fields: typing.Optional[typing.List[Feature]] = None,
+        timestamp_field: typing.Optional[str] = None,
+        graph: typing.Optional[typing.Union[dict, RootFlowState]] = None,
+        label_column: typing.Optional[str] = None,
+        function: typing.Optional[typing.Union[dict, FunctionReference]] = None,
+        analysis: typing.Optional[dict] = None,
     ):
+        """
+        :param features: Optional, list of features
+        :param description: Optional, description
+        :param entity_source: Optional, name of data source for features
+        :param entity_fields: Optional, the features in the vector
+        :param timestamp_field: Optional, timestamp_field
+        :param graph: Optional, provide graph (root state)
+        :param label_column: Optional, Which column in the is the label (target) column
+        :param function: Optional, template graph processing function reference
+        :param analysis: Optional, linked artifacts/files for analysis
+        """
         self._graph: RootFlowState = None
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
@@ -68,7 +79,12 @@ class FeatureVectorSpec(ModelObj):
         return self._entity_source
 
     @entity_source.setter
-    def entity_source(self, source: DataSource):
+    def entity_source(self, source: typing.Union[dict, DataSource]):
+        """
+        Set entity data source
+        :param source: datasource as dic or DataSource object
+        :return:
+        """
         self._entity_source = self._verify_dict(source, "entity_source", DataSource)
 
     @property
@@ -103,12 +119,12 @@ class FeatureVectorSpec(ModelObj):
 class FeatureVectorStatus(ModelObj):
     def __init__(
         self,
-        state=None,
-        targets=None,
-        features=None,
-        stats=None,
-        preview=None,
-        run_uri=None,
+        state: typing.Optional[str] = None,
+        targets: typing.Optional[typing.List[DataTarget]] = None,
+        features: typing.Optional[typing.List[Feature]] = None,
+        stats: typing.Optional[dict] = None,
+        preview: typing.Optional[list] = None,
+        run_uri: typing.Optional[str] = None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -133,7 +149,7 @@ class FeatureVectorStatus(ModelObj):
         self._targets.update(target)
 
     @property
-    def features(self) -> typing.List[Feature]:
+    def features(self) -> ObjectList:
         """list of features (result of joining features from the source feature sets)"""
         return self._features
 
@@ -154,6 +170,12 @@ class FeatureVector(ModelObj):
                  name: typing.Optional[str] = None,
                  features: typing.Optional[typing.List[str]] = None,
                  description: typing.Optional[str] = None) -> None:
+        """
+
+        :param name: Optional, name for the vector
+        :param features: Optional, list of features (strings)
+        :param description: Optional, description of the vector
+        """
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None

@@ -539,8 +539,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         last_run_uri: str = None,
     ):
         get_project_member().ensure_project(session, project)
-        query = self._query(session, Schedule, project=project, name=name)
-        schedule = query.one_or_none()
+        schedule = self._get_schedule_record(session, project, name)
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
         if scheduled_object is not None:
@@ -590,14 +589,20 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self, session: Session, project: str, name: str
     ) -> schemas.ScheduleRecord:
         logger.debug("Getting schedule from db", project=project, name=name)
+        schedule_record = self._get_schedule_record(session, project, name)
+        schedule = self._transform_schedule_model_to_scheme(schedule_record)
+        return schedule
+
+    def _get_schedule_record(
+        self, session: Session, project: str, name: str
+    ) -> schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
-        db_schedule = query.one_or_none()
-        if not db_schedule:
+        schedule_record = query.one_or_none()
+        if not schedule_record:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Schedule not found: project={project}, name={name}"
             )
-        schedule = self._transform_schedule_model_to_scheme(db_schedule)
-        return schedule
+        return schedule_record
 
     def delete_schedule(self, session: Session, project: str, name: str):
         logger.debug("Removing schedule from db", project=project, name=name)

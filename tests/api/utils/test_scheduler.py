@@ -9,6 +9,7 @@ from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.errors
 import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
@@ -339,6 +340,17 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         year_datetime,
         labels_2,
     )
+
+
+@pytest.mark.asyncio
+async def test_get_schedule_failure_not_found(
+    db: Session, scheduler: Scheduler
+):
+    schedule_name = "schedule-name"
+    project = config.default_project
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.get_schedule(db, project, schedule_name)
+    assert "Schedule not found" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

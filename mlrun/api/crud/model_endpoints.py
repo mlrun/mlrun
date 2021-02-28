@@ -38,6 +38,9 @@ ENDPOINT_TABLE_ATTRIBUTES = [
     "last_request",
     "error_count",
     "drift_status",
+    "base_stats",
+    "current_stats",
+    "drift_measurements"
 ]
 
 

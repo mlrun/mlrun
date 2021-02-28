@@ -1427,10 +1427,12 @@ class MlrunProjectLegacy(ModelObj):
             fp.write(self.to_yaml())
 
 
-def new_project(name: str,
-                context: typing.Optional[str] = None,
-                init_git: bool = False,
-                user_project: bool = False) -> MlrunProject:
+def new_project(
+    name: str,
+    context: typing.Optional[str] = None,
+    init_git: bool = False,
+    user_project: bool = False,
+) -> MlrunProject:
     """Create a new MLRun project
 
     :param name:         project name

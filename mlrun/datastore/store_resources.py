@@ -126,7 +126,13 @@ class ResourceCache:
 
 def get_store_resource(
     uri: str, db: RunDBInterface = None, secrets: dict = None, project: str = None
-) -> typing.Union[dict, DataItem, StorePrefix.Artifact, StorePrefix.FeatureSet, StorePrefix.FeatureVector]:
+) -> typing.Union[
+    dict,
+    DataItem,
+    StorePrefix.Artifact,
+    StorePrefix.FeatureSet,
+    StorePrefix.FeatureVector,
+]:
     """
     Get store resource object by uri
 
@@ -174,6 +180,7 @@ def get_store_resource(
             )
         if resource:
             from ..artifacts import dict_to_artifact
+
             return dict_to_artifact(resource)
 
     else:

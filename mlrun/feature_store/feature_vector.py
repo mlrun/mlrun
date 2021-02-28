@@ -35,6 +35,7 @@ class FeatureVectorSpec(ModelObj):
     """
     Spec for FeatureVector
     """
+
     def __init__(
         self,
         features: typing.Optional[typing.List[str]] = None,
@@ -166,10 +167,12 @@ class FeatureVector(ModelObj):
     kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self,
-                 name: typing.Optional[str] = None,
-                 features: typing.Optional[typing.List[str]] = None,
-                 description: typing.Optional[str] = None) -> None:
+    def __init__(
+        self,
+        name: typing.Optional[str] = None,
+        features: typing.Optional[typing.List[str]] = None,
+        description: typing.Optional[str] = None,
+    ) -> None:
         """
 
         :param name: Optional, name for the vector
@@ -286,7 +289,9 @@ class FeatureVector(ModelObj):
         if target:
             return target.path
 
-    def to_dataframe(self, df_module=None, target_name=None) -> typing.Union[pd.DataFrame, typing.Any]:
+    def to_dataframe(
+        self, df_module=None, target_name=None
+    ) -> typing.Union[pd.DataFrame, typing.Any]:
         """
         Return feature vector (offline) data as dataframe
 

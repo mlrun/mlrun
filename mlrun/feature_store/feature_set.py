@@ -20,7 +20,12 @@ import pandas as pd
 from ..db import get_run_db
 from ..features import Feature, Entity
 from ..model import VersionedObjMetadata
-from ..datastore.targets import get_offline_target, default_target_names, TargetTypes, BaseStoreTarget
+from ..datastore.targets import (
+    get_offline_target,
+    default_target_names,
+    TargetTypes,
+    BaseStoreTarget,
+)
 from ..model import ModelObj, ObjectList, DataSource, DataTarget, DataTargetBase
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseState, RootFlowState, previous_step
@@ -38,11 +43,11 @@ class FeatureAggregation(ModelObj):
 
     def __init__(
         self,
-            name: typing.Optional[str] = None,
-            column: typing.Optional[str] = None,
-            operations: typing.Optional[typing.List[str]] = None,
-            windows: typing.Optional[typing.List[str]] = None,
-            period: typing.Optional[str] = None,
+        name: typing.Optional[str] = None,
+        column: typing.Optional[str] = None,
+        operations: typing.Optional[typing.List[str]] = None,
+        windows: typing.Optional[typing.List[str]] = None,
+        period: typing.Optional[str] = None,
     ) -> None:
         """
         :param name:       Aggregation name/prefix
@@ -62,6 +67,7 @@ class FeatureSetSpec(ModelObj):
     """
     Spec for FeatureSet
     """
+
     def __init__(
         self,
         owner: typing.Optional[str] = None,
@@ -236,6 +242,7 @@ class FeatureSetStatus(ModelObj):
     """
     Status for FeatureSet
     """
+
     def __init__(
         self,
         state: typing.Optional[str] = None,
@@ -279,14 +286,17 @@ class FeatureSet(ModelObj):
     """
     Feature set object, defines a set of features and their data pipeline
     """
+
     kind = mlrun.api.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self,
-                 name: str = None,
-                 description: str = None,
-                 entities: typing.Optional[typing.List[Entity]] = None,
-                 timestamp_key: typing.Optional[str] = None):
+    def __init__(
+        self,
+        name: str = None,
+        description: str = None,
+        entities: typing.Optional[typing.List[Entity]] = None,
+        timestamp_key: typing.Optional[str] = None,
+    ):
         """
         :param name: Optional, name
         :param description: Optional, description
@@ -383,9 +393,13 @@ class FeatureSet(ModelObj):
         if target:
             return target.path
 
-    def set_targets(self,
-                    targets: typing.Optional[typing.List[typing.Union[str, BaseStoreTarget]]] = None,
-                    with_defaults: bool = True):
+    def set_targets(
+        self,
+        targets: typing.Optional[
+            typing.List[typing.Union[str, BaseStoreTarget]]
+        ] = None,
+        with_defaults: bool = True,
+    ):
         """
         Set the desired target list or defaults
 
@@ -517,11 +531,13 @@ class FeatureSet(ModelObj):
     def __setitem__(self, key, item):
         self._spec.features.update(item, key)
 
-    def plot(self,
-             filename: typing.Optional[str] = None,
-             format: typing.Optional[str] = None,
-             with_targets: bool = False,
-             **kw):
+    def plot(
+        self,
+        filename: typing.Optional[str] = None,
+        format: typing.Optional[str] = None,
+        with_targets: bool = False,
+        **kw,
+    ):
         """
         Generate graphviz plot
 
@@ -545,10 +561,12 @@ class FeatureSet(ModelObj):
             ]
         return graph.plot(filename, format, targets=targets, **kw)
 
-    def to_dataframe(self,
-                     columns: typing.Optional[typing.List[str]] = None,
-                     df_module:  typing.Optional[typing.Any] = None,
-                     target_name: typing.Optional[str] = None) -> typing.Union[pd.DataFrame, typing.Any]:
+    def to_dataframe(
+        self,
+        columns: typing.Optional[typing.List[str]] = None,
+        df_module: typing.Optional[typing.Any] = None,
+        target_name: typing.Optional[str] = None,
+    ) -> typing.Union[pd.DataFrame, typing.Any]:
         """
         Return featureset (offline) data as dataframe
 

@@ -951,8 +951,9 @@ def list_pipelines(
     namespace: str = None,
     project: str = "*",
     format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.metadata_only,
-) -> Tuple[int, Optional[int], List[dict]]:
-    """List pipelines
+) -> Tuple[int, Optional[str], List[dict]]:
+    """
+    List pipelines
 
     :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
     :param page_token: A page token to request the next page of results. The token is acquried from the nextPageToken
@@ -968,7 +969,9 @@ def list_pipelines(
                        filtering by project can't be used together with pagination, sorting, or custom filter.
     :param format_:    Control what will be returned (full/metadata_only/name_only)
 
-    :return: Tuple of (total_size, next_page_token, runs)
+    :return total_size: Number of runs in the pipeline
+    :return next_page_token: A page token to request the next page of results (kfp)
+    :return runs: List of runs
     """
     if full:
         format_ = mlrun.api.schemas.Format.full

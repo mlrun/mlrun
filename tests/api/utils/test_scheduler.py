@@ -200,7 +200,9 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_failure_already_exists(db: Session, scheduler: Scheduler):
+async def test_create_schedule_failure_already_exists(
+    db: Session, scheduler: Scheduler
+):
     cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project = config.default_project

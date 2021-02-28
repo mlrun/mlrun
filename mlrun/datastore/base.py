@@ -174,7 +174,15 @@ class DataItem:
         url: str = "",
         meta=None,
         artifact_url: str = None,
-    ):
+    ) -> None:
+        """
+        :param key: DataItem key
+        :param store: Data store
+        :param subpath: subpath of the item in the store
+        :param url: DataItem url e.g. /dir/path, s3://bucket/path
+        :param meta: Metadata for the DataItem, when reading it from the store
+        :param artifact_url: DataItem artifact url (when its an artifact) or url for simple dataitems
+        """
         self._store = store
         self._key = key
         self._url = url

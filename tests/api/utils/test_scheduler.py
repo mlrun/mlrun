@@ -413,6 +413,9 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
     schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 0
 
+    # verify another delete pass successfully
+    scheduler.delete_schedule(db, project, schedule_name)
+
 
 @pytest.mark.asyncio
 async def test_rescheduling(db: Session, scheduler: Scheduler):

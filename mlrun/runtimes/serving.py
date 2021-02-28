@@ -339,7 +339,7 @@ class ServingRuntime(RemoteRuntime):
                     stream.path, group=group, shards=stream.shards
                 )
 
-    def _deploy_function_refs(self, dashboard=""):
+    def _deploy_function_refs(self):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -353,7 +353,7 @@ class ServingRuntime(RemoteRuntime):
             function_ref.db_uri = function_object._function_uri()
             function_object.verbose = self.verbose
             function_object.spec.secret_sources = self.spec.secret_sources
-            function_object.deploy(dashboard)
+            function_object.deploy()
 
     def remove_states(self, keys: list):
         """remove one, multiple, or all states/models from the spec (blank list for all)"""
@@ -373,7 +373,7 @@ class ServingRuntime(RemoteRuntime):
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)
 
-        :returns: The RunTemplate object
+        :returns: The Runtime (function) object
         """
 
         if kind == "vault" and isinstance(source, list):
@@ -381,6 +381,12 @@ class ServingRuntime(RemoteRuntime):
 
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
+
+    def add_vault_config_to_spec(self):
+        if self.spec.secret_sources:
+            self._secrets = SecretsStore.from_list(self.spec.secret_sources)
+            if self._secrets.has_vault_source():
+                self._add_vault_params_to_spec(project=self.metadata.project)
 
     def deploy(self, dashboard="", project="", tag="", verbose=False):
         """deploy model serving function to a local/remote cluster
@@ -407,15 +413,11 @@ class ServingRuntime(RemoteRuntime):
             # and stored as inline secrets. Otherwise, they will not be available to the builder.
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
             self.spec.secret_sources = self._secrets.to_serial()
-            # Add vault configurations to pod spec, if vault secret source was added.
-            if self._secrets.has_vault_source():
-                project_name = project or self.metadata.project
-                self._add_vault_params_to_spec(project=project_name)
 
         if self._spec.function_refs:
             # deploy child functions
             self._add_ref_triggers()
-            self._deploy_function_refs(dashboard)
+            self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
         return super().deploy(dashboard, project, tag, verbose=verbose)

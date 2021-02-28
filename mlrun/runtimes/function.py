@@ -249,6 +249,10 @@ class RemoteRuntime(KubeResource):
         self.spec.min_replicas = shards
         self.spec.max_replicas = shards
 
+    def add_vault_config_to_spec(self):
+        # Currently secrets are only handled in Serving runtime.
+        pass
+
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,
     ):
@@ -544,6 +548,11 @@ def get_fullname(name, project, tag):
 
 def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     function.set_config("metadata.labels.mlrun/class", function.kind)
+
+    # Add vault configurations to function's pod spec, if vault secret source was added.
+    # Needs to be here, since it adds env params, which are handled in the next lines.
+    function.add_vault_config_to_spec()
+
     env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
     for key, value in function._get_runtime_env().items():
         env_dict[key] = value

@@ -1,7 +1,10 @@
 import json
 import os
+import unittest
 from http import HTTPStatus
 
+from mlrun.db import SQLDB
+from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
 from .test_nuclio import TestNuclioRuntime
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -26,6 +29,29 @@ class TestServingRuntime(TestNuclioRuntime):
         self.code_filename = str(self.assets_path / "serving_functions.py")
 
         self._mock_vault_functionality()
+        # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
+        # and instead just call the deploy_nuclio_function() API which actually performs the
+        # deployment in this case. This will keep the tests' code mostly client-side oriented, but validations
+        # will be performed against the Nuclio spec created on the server side.
+        self._mock_db_remote_deploy_functions()
+
+    @staticmethod
+    def _mock_db_remote_deploy_functions():
+        def _remote_db_mock_function(func, with_mlrun):
+            deploy_nuclio_function(func)
+            return {
+                "data": {
+                    "status": NuclioStatus(
+                        state="ready",
+                        nuclio_name=f"nuclio-{func.metadata.name}",
+                        address="http://127.0.0.1:1234",
+                    )
+                }
+            }
+
+        # Since we're in a test, the RunDB is of type SQLDB, not HTTPDB as it would usually be.
+        SQLDB.remote_builder = unittest.mock.Mock(side_effect=_remote_db_mock_function)
+        SQLDB.get_builder_status = unittest.mock.Mock(return_value=("text", "last_log"))
 
     def _create_serving_function(self):
         function = self._generate_runtime("serving")
@@ -103,7 +129,7 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_remote_deploy_with_secrets(self, db: Session, client: TestClient):
         function = self._create_serving_function()
 
-        function.deploy(dashboard="dashboard", verbose=True)
+        function.deploy(verbose=True)
         self._assert_deploy_called_basic_config(expected_class="serving")
 
         self._assert_deploy_spec_has_secrets_config(
@@ -171,7 +197,7 @@ class TestServingRuntime(TestNuclioRuntime):
             "child_function", child_function_path, self.image_name
         )
 
-        function.deploy(dashboard="dashboard", verbose=True)
+        function.deploy(verbose=True)
         # Child function is deployed before main function
         expected_deploy_params = [
             {

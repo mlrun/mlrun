@@ -573,6 +573,15 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     assert runs[0]["status"]["state"] == RunStates.completed
 
 
+@pytest.mark.asyncio
+async def test_update_schedule_failure_not_found(db: Session, scheduler: Scheduler):
+    schedule_name = "schedule-name"
+    project = config.default_project
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.update_schedule(db, project, schedule_name)
+    assert "Schedule not found" in str(excinfo.value)
+
+
 def _assert_schedule(
     schedule: schemas.ScheduleOutput,
     project,

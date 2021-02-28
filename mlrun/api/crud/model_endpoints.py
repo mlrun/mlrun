@@ -25,8 +25,8 @@ from mlrun.errors import (
 from mlrun.utils.helpers import logger
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 
-ENDPOINTS_TABLE_PATH = "model-endpoints"
-ENDPOINT_EVENTS_TABLE_PATH = "endpoint-events"
+ENDPOINTS_TABLE_PATH = "model-endpoints/endpoints"
+ENDPOINT_EVENTS_TABLE_PATH = "model-endpoints/events"
 ENDPOINT_TABLE_ATTRIBUTES = [
     "project",
     "model",

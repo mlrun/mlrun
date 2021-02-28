@@ -9,6 +9,7 @@ from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.errors
 import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
@@ -196,6 +197,32 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
                 cron_trigger,
             )
         assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_failure_already_exists(db: Session, scheduler: Scheduler):
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
+
+    with pytest.raises(mlrun.errors.MLRunConflictError) as excinfo:
+        scheduler.create_schedule(
+            db,
+            project,
+            schedule_name,
+            schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+        )
+    assert "Conflict - Schedule already exists" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

@@ -592,6 +592,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug("Getting schedule from db", project=project, name=name)
         query = self._query(session, Schedule, project=project, name=name)
         db_schedule = query.one_or_none()
+        if not db_schedule:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Schedule not found: project={project}, name={name}"
+            )
         schedule = self._transform_schedule_model_to_scheme(db_schedule)
         return schedule
 

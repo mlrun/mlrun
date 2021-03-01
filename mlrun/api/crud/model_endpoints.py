@@ -301,6 +301,8 @@ class ModelEndpoints:
                         project=endpoint.get("project"),
                         tag=endpoint.get("tag"),
                         labels=json.loads(endpoint.get("labels")),
+                        model_artifact=endpoint.get("model_artifact"),
+                        stream_path=endpoint.get("stream_path")
                     ),
                     spec=ModelEndpointSpec(
                         model=endpoint.get("model"),
@@ -308,6 +310,7 @@ class ModelEndpoints:
                         model_class=endpoint.get("model_class"),
                     ),
                     status=ObjectStatus(state="active"),
+                    active=endpoint.get("active")
                 ),
                 first_request=endpoint.get("first_request"),
                 last_request=endpoint.get("last_request"),

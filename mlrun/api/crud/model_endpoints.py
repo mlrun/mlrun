@@ -156,7 +156,7 @@ class ModelEndpoints:
                 "status": model_endpoint.status.state,
                 "active": model_endpoint.active,
                 "endpoint_id": model_endpoint.id,
-                "base_stats": feature_stats
+                "base_stats": json.dumps(feature_stats)
             },
         )
 

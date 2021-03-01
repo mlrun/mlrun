@@ -171,7 +171,6 @@ def get_model(
     """
     Get model file, model spec object, and list of extra data items
 
-    this function will get the model file, metadata, and extra data
     the returned model file is always local, when using remote urls
     (such as v3io://, s3://, store://, ..) it will be copied locally.
 

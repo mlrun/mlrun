@@ -106,5 +106,8 @@ class GrafanaColumn(BaseModel):
 
 class GrafanaTable(BaseModel):
     columns: List[GrafanaColumn]
-    rows: List[List[Optional[Union[int, float, str]]]]
+    rows: List[List[Optional[Union[int, float, str]]]] = []
     type: str = "table"
+
+    def add_row(self, *args):
+        self.rows.append(list(args))

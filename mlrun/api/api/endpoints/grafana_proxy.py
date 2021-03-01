@@ -1,20 +1,22 @@
+import json
 from http import HTTPStatus
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, Optional
 
 from fastapi import APIRouter, Response, Request
 
-from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key, get_endpoint_kv_record_by_id, \
-    ENDPOINT_TABLE_ATTRIBUTES
+from mlrun.api.crud.model_endpoints import (
+    ModelEndpoints,
+    get_access_key,
+    get_endpoint_kv_record_by_id,
+    ENDPOINT_TABLE_ATTRIBUTES,
+)
 from mlrun.api.schemas import (
     GrafanaTable,
     GrafanaColumn,
     ModelEndpointState,
 )
-from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.logger import create_logger
-from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
-import json
 
 router = APIRouter()
 
@@ -111,8 +113,8 @@ def grafana_list_endpoints(
                     metric_columns.append(GrafanaColumn(text=key, type="number"))
 
     columns = columns + metric_columns
+    table = GrafanaTable(columns=columns)
 
-    rows = []
     for endpoint_state in endpoint_list:
         row = [
             endpoint_state.endpoint.id,
@@ -131,9 +133,9 @@ def grafana_list_endpoints(
             for metric_column in metric_columns:
                 row.append(endpoint_state.metrics[metric_column.text])
 
-        rows.append(row)
+        table.add_row(*row)
 
-    return [GrafanaTable(columns=columns, rows=rows)]
+    return [table]
 
 
 def grafana_endpoint_features(
@@ -146,49 +148,47 @@ def grafana_endpoint_features(
         access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES,
     )
 
-    base_stats = endpoint["base_stats"]
-    current_stats = endpoint["current_stats"]
-    drift_measurements = endpoint["drift_measurements"]
+    # Load JSON data from KV, make sure not to fail if a field is missing
+    base_stats = _json_loads_or_default(endpoint.get("base_stats"), {})
+    current_stats = _json_loads_or_default(endpoint.get("current_stats"), {})
+    drift_measurements = _json_loads_or_default(endpoint.get("drift_measurements"), {})
 
-    base_stats = json.loads(base_stats)
-    current_stats = json.loads(current_stats)
-    drift_measurements = json.loads(drift_measurements)
+    base_stats = base_stats["feature_stats"] if base_stats else base_stats
+    current_stats = current_stats["feature_stats"] if current_stats else current_stats
 
-    base_stats = base_stats["feature_stats"]
-    current_stats = current_stats["feature_stats"]
+    table = GrafanaTable(
+        columns=[
+            GrafanaColumn(text="feature_name", type="string"),
+            GrafanaColumn(text="actual_min", type="number"),
+            GrafanaColumn(text="actual_mean", type="number"),
+            GrafanaColumn(text="actual_max", type="number"),
+            GrafanaColumn(text="expected_min", type="number"),
+            GrafanaColumn(text="expected_mean", type="number"),
+            GrafanaColumn(text="expected_max", type="number"),
+            GrafanaColumn(text="tvd", type="number"),
+            GrafanaColumn(text="hellinger", type="number"),
+            GrafanaColumn(text="kld", type="number"),
+        ]
+    )
 
-    columns = [
-        GrafanaColumn(text="feature_name", type="string"),
-        GrafanaColumn(text="actual_min", type="number"),
-        GrafanaColumn(text="actual_mean", type="number"),
-        GrafanaColumn(text="actual_max", type="number"),
-        GrafanaColumn(text="expected_min", type="number"),
-        GrafanaColumn(text="expected_mean", type="number"),
-        GrafanaColumn(text="expected_max", type="number"),
-        GrafanaColumn(text="tvd", type="number"),
-        GrafanaColumn(text="hellinger", type="number"),
-        GrafanaColumn(text="kld", type="number"),
-    ]
+    for feature, base_stat in base_stats.items():
+        current_stat = current_stats.get(feature, {})
+        drift_measure = drift_measurements.get(feature, {})
 
-    rows = []
-    for feature, base_stat in base_stats.item():
-        current_stat = current_stats[feature]
-        rows.append(
-            [
-                feature,
-                current_stat["min"],
-                current_stat["mean"],
-                current_stat["max"],
-                base_stats["min"],
-                base_stats["mean"],
-                base_stats["max"],
-                drift_measurements[feature]["tvd"],
-                drift_measurements[feature]["hellinger"],
-                drift_measurements[feature]["kld"],
-            ]
+        table.add_row(
+            feature,
+            current_stat.get("min"),
+            current_stat.get("mean"),
+            current_stat.get("max"),
+            base_stat.get("min"),
+            base_stat.get("mean"),
+            base_stat.get("max"),
+            drift_measure.get("tvd"),
+            drift_measure.get("hellinger"),
+            drift_measure.get("kld"),
         )
 
-    return [GrafanaTable(columns=columns, rows=rows)]
+    return [table]
 
 
 def grafana_endpoint_drift_measures(
@@ -273,6 +273,15 @@ def _validate_query_parameters(query_parameters: Dict[str, str]):
             f"{query_parameters['target_endpoint']} unsupported in query parameters: {query_parameters}. "
             f"Currently supports: {','.join(NAME_TO_FUNCTION_DICTIONARY.keys())}"
         )
+
+
+def _json_loads_or_default(string: Optional[str], default: Any):
+    if string is None:
+        return default
+    obj = json.loads(string)
+    if not obj:
+        return default
+    return obj
 
 
 NAME_TO_FUNCTION_DICTIONARY: Dict[

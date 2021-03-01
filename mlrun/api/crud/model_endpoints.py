@@ -25,6 +25,7 @@ from mlrun.errors import (
 )
 from mlrun.utils.helpers import logger
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
+from mlrun.artifacts import get_model
 
 ENDPOINTS_TABLE_PATH = "model-endpoints/endpoints"
 ENDPOINT_EVENTS_TABLE_PATH = "model-endpoints/events"
@@ -129,8 +130,13 @@ class ModelEndpoints:
             status=ObjectStatus(state="registered"),
             active=active,
         )
+        logger.info("Getting model feature data...")
 
-        logger.info("Registering model endpoint", endpoint_id=model_endpoint.id)
+        model_obj = get_model(model_artifact)
+        feature_stats = model_obj[1].feature_stats
+        feature_stats = {_clean_feature_name(k): v for k, v in feature_stats.items()}
+
+        logger.info("Registering model endpoint...", endpoint_id=model_endpoint.id)
 
         client = get_v3io_client(endpoint=config.v3io_api)
 
@@ -150,6 +156,7 @@ class ModelEndpoints:
                 "status": model_endpoint.status.state,
                 "active": model_endpoint.active,
                 "endpoint_id": model_endpoint.id,
+                "base_stats": feature_stats
             },
         )
 
@@ -374,6 +381,10 @@ class ModelEndpoints:
             drift_status=endpoint.get("drift_status"),
             metrics=endpoint_metrics,
         )
+
+
+def _clean_feature_name(feature_name):
+    return feature_name.replace(" ", "_").replace("(", "").replace(")", "")
 
 
 def _get_endpoint_metrics(

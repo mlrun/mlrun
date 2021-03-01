@@ -89,29 +89,73 @@ class TimeMetric:
 
 class ModelEndpoints:
     @staticmethod
-    def register_endpoint_record(access_key: str, model_endpoint: ModelEndpoint):
+    def register_endpoint_record(
+        access_key: str,
+        project: str,
+        model: str,
+        function: str,
+        model_class: str,
+        model_artifact: str,
+        stream_path: str,
+        tag: str = "latest",
+        labels: Optional[dict] = None,
+        active: bool = True,
+    ):
         """
         Writes endpoint data to KV, a prerequisite for initializing the monitoring process
 
         :param access_key: V3IO access key for managing user permissions
-        :param model_endpoint: Endpoint specification with bare minimum for registration
+        :param project: The name of the project
+        :param model: The name of the model
+        :param function: The function that
+        :param model_class:
+        :param model_artifact:
+        :param stream_path:
+        :param tag:
+        :param labels:
+        :param active:
         """
-        verify_endpoint(model_endpoint.metadata.project, model_endpoint.id)
-        attributes = model_endpoint.registration_dict()
-        attributes["state"] = "registered"
+        model_endpoint = ModelEndpoint(
+            metadata=ModelEndpointMetadata(
+                project=project,
+                tag=tag,
+                labels=labels or {},
+                model_artifact=model_artifact,
+                stream_path=stream_path,
+            ),
+            spec=ModelEndpointSpec(
+                model=model, function=function, model_class=model_class,
+            ),
+            status=ObjectStatus(state="registered"),
+            active=active,
+        )
 
         logger.info("Registering model endpoint", endpoint_id=model_endpoint.id)
+
         client = get_v3io_client(endpoint=config.v3io_api)
 
         client.kv.put(
             container=config.model_endpoint_monitoring.container,
-            table_path=f"{model_endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}",
+            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
             key=model_endpoint.id,
             access_key=access_key,
-            attributes=attributes,
+            attributes={
+                "project": model_endpoint.metadata.project,
+                "tag": model_endpoint.metadata.tag,
+                "model_artifact": model_endpoint.metadata.model_artifact,
+                "stream_path": model_endpoint.metadata.stream_path,
+                "model": model_endpoint.spec.model,
+                "function": model_endpoint.spec.function,
+                "model_class": model_endpoint.spec.model_class,
+                "status": model_endpoint.status.state,
+                "active": model_endpoint.active,
+                "endpoint_id": model_endpoint.id,
+            }
         )
 
         logger.info("Model endpoint registered", endpoint_id=model_endpoint.id)
+
+        return model_endpoint
 
     @staticmethod
     def clear_endpoint_record(access_key: str, project: str, endpoint_id: str):

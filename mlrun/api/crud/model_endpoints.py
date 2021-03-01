@@ -89,6 +89,31 @@ class TimeMetric:
 
 class ModelEndpoints:
     @staticmethod
+    def register_endpoint_record(access_key: str, model_endpoint: ModelEndpoint):
+        """
+        Writes endpoint data to KV, a prerequisite for initializing the monitoring process
+
+        :param access_key: V3IO access key for managing user permissions
+        :param model_endpoint: Endpoint specification with bare minimum for registration
+        """
+        verify_endpoint(model_endpoint.metadata.project, model_endpoint.id)
+        attributes = model_endpoint.registration_dict()
+        attributes["state"] = "registered"
+
+        logger.info("Registering model endpoint", endpoint_id=model_endpoint.id)
+        client = get_v3io_client(endpoint=config.v3io_api)
+
+        client.kv.put(
+            container=config.model_endpoint_monitoring.container,
+            table_path=f"{model_endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}",
+            key=model_endpoint.id,
+            access_key=access_key,
+            attributes=attributes,
+        )
+
+        logger.info("Model endpoint registered", endpoint_id=model_endpoint.id)
+
+    @staticmethod
     def clear_endpoint_record(access_key: str, project: str, endpoint_id: str):
         """
         Clears the KV data of a given model endpoint

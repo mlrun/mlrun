@@ -93,27 +93,3 @@ def get_endpoint(
         end=end,
         features=features,
     )
-
-
-@router.post(
-    "/projects/{project}/model-endpoints/{endpoint_id}/update",
-    response_model=ModelEndpointUpdatePayload,
-)
-def update_endpoint(
-    request: Request,
-    project: str,
-    endpoint_id: str,
-    payload: ModelEndpointUpdatePayload,
-):
-    access_key = get_access_key(request)
-    try:
-        ModelEndpoints.update_endpoint_record(
-            access_key=access_key,
-            project=project,
-            endpoint_id=endpoint_id,
-            payload=payload,
-        )
-    except MLRunInvalidArgumentError as e:
-        raise MLRunBadRequestError(str(e))
-
-    return payload

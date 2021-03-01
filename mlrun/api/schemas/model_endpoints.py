@@ -33,6 +33,7 @@ class ModelEndpoint(BaseModel):
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
     status: ObjectStatus
+    active: bool = True
     id: Optional[str] = None
 
     class Config:
@@ -54,6 +55,32 @@ class ModelEndpoint(BaseModel):
         )
         md5_str = md5(endpoint_unique_string.encode("utf-8")).hexdigest()
         return f"{self.metadata.project}.{md5_str}"
+
+    def registration_dict(self):
+        return {
+            "project": self.metadata.project,
+            "tag": self.metadata.tag,
+            "model_artifact": self.metadata.model_artifact,
+            "stream_path": self.metadata.stream_path,
+            "model": self.spec.model,
+            "function": self.spec.function,
+            "model_class": self.spec.model_class,
+            "status": self.status.state,
+            "active": self.active,
+            "endpoint_id": self.id
+        }
+
+
+class ModelEndpointUpdatePayload(BaseModel):
+    model_artifact: Optional[str] = None
+    stream_path: Optional[str] = None
+    status: Optional[str] = None
+    active: Optional[str] = None
+
+    def as_dict(self):
+        return {k: v for k, v in self.dict().items() if v is not None}
+
+
 
 
 class Histogram(BaseModel):
@@ -99,15 +126,6 @@ class ModelEndpointState(BaseModel):
 
 class ModelEndpointStateList(BaseModel):
     endpoints: List[ModelEndpointState]
-
-
-class ModelEndpointUpdatePayload(BaseModel):
-    model_artifact: Optional[str] = None
-    stream_path: Optional[str] = None
-    status: Optional[str] = None
-
-    def as_dict(self):
-        return {k: v for k, v in self.dict().items() if v is not None}
 
 
 class GrafanaColumn(BaseModel):

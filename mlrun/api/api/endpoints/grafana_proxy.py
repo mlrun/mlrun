@@ -153,9 +153,6 @@ def grafana_endpoint_features(
     current_stats = _json_loads_or_default(endpoint.get("current_stats"), {})
     drift_measurements = _json_loads_or_default(endpoint.get("drift_measurements"), {})
 
-    base_stats = base_stats["feature_stats"] if base_stats else base_stats
-    current_stats = current_stats["feature_stats"] if current_stats else current_stats
-
     table = GrafanaTable(
         columns=[
             GrafanaColumn(text="feature_name", type="string"),

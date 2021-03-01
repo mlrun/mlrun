@@ -16,12 +16,9 @@ from mlrun.api.schemas import (
     ModelEndpointState,
 )
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils.logger import create_logger
+from mlrun.utils import logger
 
 router = APIRouter()
-
-
-logger = create_logger(level="debug", name="grafana_proxy")
 
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
@@ -51,6 +48,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
+    logger.info(f"Querying grafana-proxy", **query_parameters)
     result = NAME_TO_FUNCTION_DICTIONARY[target_endpoint](
         body, query_parameters, access_key
     )

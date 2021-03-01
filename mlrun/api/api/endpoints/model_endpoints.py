@@ -108,7 +108,10 @@ def update_endpoint(
     access_key = get_access_key(request)
     try:
         ModelEndpoints.update_endpoint_record(
-            access_key=access_key, project=project, endpoint_id=endpoint_id, payload=payload
+            access_key=access_key,
+            project=project,
+            endpoint_id=endpoint_id,
+            payload=payload,
         )
     except MLRunInvalidArgumentError as e:
         raise MLRunBadRequestError(str(e))

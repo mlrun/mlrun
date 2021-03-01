@@ -145,9 +145,7 @@ class ModelEndpoints:
                 access_key=access_key,
             )
         except RuntimeError:
-            raise MLRunInvalidArgumentError(
-                f"Endpoint: {endpoint_id} not found"
-            )
+            raise MLRunInvalidArgumentError(f"Endpoint: {endpoint_id} not found")
 
         client.kv.update(
             container=config.model_endpoint_monitoring.container,

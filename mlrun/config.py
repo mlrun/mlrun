@@ -151,7 +151,7 @@ default_config = {
         "default_job_image": "mlrun/mlrun",
     },
     "ui": {
-        "projects_prefix": "projects",  # The UI link prefix for projects
+        "projects_prefix": "projects",
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
 }

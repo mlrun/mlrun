@@ -11,6 +11,7 @@ from mlrun.api.schemas import (
     ModelEndpointSpec,
     ModelEndpoint,
     ModelEndpointState,
+    ModelEndpointUpdatePayload,
     Features,
     Metric,
     ObjectStatus,
@@ -40,7 +41,7 @@ ENDPOINT_TABLE_ATTRIBUTES = [
     "drift_status",
     "base_stats",
     "current_stats",
-    "drift_measurements"
+    "drift_measurements",
 ]
 
 
@@ -108,6 +109,54 @@ class ModelEndpoints:
         )
 
         logger.info("Model endpoint table deleted", endpoint_id=endpoint_id)
+
+    @staticmethod
+    def update_endpoint_record(
+        access_key: str,
+        project: str,
+        endpoint_id: str,
+        payload: ModelEndpointUpdatePayload,
+    ):
+        """
+        Updates the KV data of a given model endpoint
+
+        :param access_key: V3IO access key for managing user permissions
+        :param project: The name of the project
+        :param endpoint_id: The id of the endpoint
+        :param payload: The parameters that are available for update
+        """
+        verify_endpoint(project, endpoint_id)
+
+        payload_dict = payload.as_dict()
+
+        if not payload_dict:
+            raise MLRunInvalidArgumentError(
+                "Update payload must contain at least one field to update"
+            )
+
+        logger.info("Updating model endpoint table", endpoint_id=endpoint_id)
+        client = get_v3io_client(endpoint=config.v3io_api)
+
+        try:
+            client.kv.get(
+                container=config.model_endpoint_monitoring.container,
+                table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+                key=endpoint_id,
+                access_key=access_key,
+            )
+        except RuntimeError:
+            raise MLRunInvalidArgumentError(
+                f"Endpoint: {endpoint_id} not found"
+            )
+
+        client.kv.update(
+            container=config.model_endpoint_monitoring.container,
+            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+            key=endpoint_id,
+            access_key=access_key,
+            attributes=payload_dict,
+        )
+        logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
     @staticmethod
     def list_endpoints(

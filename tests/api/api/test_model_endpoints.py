@@ -23,6 +23,7 @@ from mlrun.api.schemas import (
     ModelEndpointSpec,
     ModelEndpoint,
     ObjectStatus,
+    ModelEndpointUpdatePayload,
 )
 from mlrun.config import config
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
@@ -64,6 +65,74 @@ def test_clear_endpoint(db: Session, client: TestClient):
     )
 
     assert not kv_record
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_update_endpoint(db: Session, client: TestClient):
+    access_key = _get_access_key()
+    endpoint = _mock_random_endpoint()
+    _write_endpoint_to_kv(endpoint)
+
+    kv_record_before_update = get_endpoint_kv_record_by_id(
+        access_key, endpoint.metadata.project, endpoint.id
+    )
+
+    assert kv_record_before_update["status"] == ""
+
+    response = client.post(
+        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.id}/update",
+        headers={"X-V3io-Session-Key": access_key},
+        json=ModelEndpointUpdatePayload(status="testing...testing...1 2 1 2").as_dict(),
+    )
+
+    assert response.status_code == 200
+
+    kv_record_after_update = get_endpoint_kv_record_by_id(
+        access_key, endpoint.metadata.project, endpoint.id
+    )
+
+    assert kv_record_after_update["status"] == "testing...testing...1 2 1 2"
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_update_endpoint_doesnt_exists(db: Session, client: TestClient):
+    access_key = _get_access_key()
+    endpoint = _mock_random_endpoint()
+
+    response = client.post(
+        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.id}/update",
+        headers={"X-V3io-Session-Key": access_key},
+        json=ModelEndpointUpdatePayload(status="testing...testing...1 2 1 2").as_dict(),
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_update_endpoint_missing_payload_fields(db: Session, client: TestClient):
+    access_key = _get_access_key()
+    endpoint = _mock_random_endpoint()
+    _write_endpoint_to_kv(endpoint)
+
+    kv_record_before_update = get_endpoint_kv_record_by_id(
+        access_key, endpoint.metadata.project, endpoint.id
+    )
+
+    assert kv_record_before_update
+
+    response = client.post(
+        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.id}/update",
+        headers={"X-V3io-Session-Key": access_key},
+        json=ModelEndpointUpdatePayload().as_dict(),
+    )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.skipif(
@@ -257,7 +326,10 @@ def _write_endpoint_to_kv(endpoint: ModelEndpoint):
             "model": endpoint.spec.model,
             "tag": endpoint.metadata.tag,
             "model_class": endpoint.spec.model_class,
+            "model_artifact": endpoint.metadata.model_artifact,
+            "stream_path": endpoint.metadata.stream_path,
             "labels": json.dumps(endpoint.metadata.labels),
+            "status": endpoint.status.state,
             **{f"_{k}": v for k, v in endpoint.metadata.labels.items()},
         },
     )

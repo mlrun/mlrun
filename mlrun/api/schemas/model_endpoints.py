@@ -15,6 +15,8 @@ class ModelEndpointMetadata(BaseModel):
     project: Optional[str]
     tag: Optional[str]
     labels: Optional[dict]
+    model_artifact: Optional[str] = ""
+    stream_path: Optional[str] = ""
 
     class Config:
         extra = Extra.allow
@@ -97,6 +99,15 @@ class ModelEndpointState(BaseModel):
 
 class ModelEndpointStateList(BaseModel):
     endpoints: List[ModelEndpointState]
+
+
+class ModelEndpointUpdatePayload(BaseModel):
+    model_artifact: Optional[str] = None
+    stream_path: Optional[str] = None
+    status: Optional[str] = None
+
+    def as_dict(self):
+        return {k: v for k, v in self.dict().items() if v is not None}
 
 
 class GrafanaColumn(BaseModel):

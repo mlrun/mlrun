@@ -34,6 +34,7 @@ from .model_endpoints import (
     ModelEndpoint,
     ModelEndpointStateList,
     ModelEndpointState,
+    ModelEndpointUpdatePayload,
     Features,
     FeatureValues,
     Histogram,

@@ -20,12 +20,10 @@ def test_with_limits_regex_validation():
                 function.with_limits(
                     case.get("memory"), case.get("cpu"), case.get("gpus")
                 )
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                function.with_requests(
-                    case.get("memory"), case.get("cpu"), case.get("gpus")
-                )
+            if not case.get("gpus"):
+                with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                    function.with_requests(case.get("memory"), case.get("cpu"))
         else:
             function.with_limits(case.get("memory"), case.get("cpu"), case.get("gpus"))
-            function.with_requests(
-                case.get("memory"), case.get("cpu"), case.get("gpus")
-            )
+            if not case.get("gpus"):
+                function.with_requests(case.get("memory"), case.get("cpu"))

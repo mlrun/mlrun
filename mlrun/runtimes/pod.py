@@ -206,7 +206,7 @@ class KubeResource(BaseRuntime):
             generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
         )
 
-    def with_requests(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
         if mem:
             verify_field_regex(
@@ -220,16 +220,8 @@ class KubeResource(BaseRuntime):
                 cpu,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
-        if gpus:
-            verify_field_regex(
-                "function.requests.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
         update_in(
-            self.spec.resources,
-            "requests",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+            self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
         )
 
     def _get_meta(self, runobj, unique=False):

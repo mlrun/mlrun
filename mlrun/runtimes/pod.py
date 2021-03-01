@@ -18,6 +18,7 @@ from copy import deepcopy
 from kubernetes import client
 from kfp.dsl import ContainerOp
 
+import mlrun.utils.regex
 from .utils import (
     apply_kfp,
     set_named_item,
@@ -25,7 +26,7 @@ from .utils import (
     get_resource_labels,
     generate_resources,
 )
-from ..utils import normalize_name, update_in
+from ..utils import normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec
 
 
@@ -181,15 +182,39 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
+        if mem:
+            verify_field_regex(
+                "function.limits.memory", mem, mlrun.utils.regex.k8s_resource_quantity_regex
+            )
+        if cpu:
+            verify_field_regex(
+                "function.limits.cpu", cpu, mlrun.utils.regex.k8s_resource_quantity_regex
+            )
+        if gpus:
+            verify_field_regex(
+                "function.limits.gpus", gpus, mlrun.utils.regex.k8s_resource_quantity_regex
+            )
         update_in(
             self.spec.resources,
             "limits",
             generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
         )
 
-    def with_requests(self, mem=None, cpu=None):
+    def with_requests(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set requested (desired) pod cpu/memory/gpu resources"""
-        update_in(self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu))
+        if mem:
+            verify_field_regex(
+                "function.requests.memory", mem, mlrun.utils.regex.k8s_resource_quantity_regex
+            )
+        if cpu:
+            verify_field_regex(
+                "function.requests.cpu", cpu, mlrun.utils.regex.k8s_resource_quantity_regex
+            )
+        if gpus:
+            verify_field_regex(
+                "function.requests.gpus", gpus, mlrun.utils.regex.k8s_resource_quantity_regex
+            )
+        update_in(self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type))
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()

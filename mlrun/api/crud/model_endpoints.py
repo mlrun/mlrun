@@ -89,7 +89,7 @@ class TimeMetric:
 
 class ModelEndpoints:
     @staticmethod
-    def register_endpoint_record(
+    def register_endpoint(
         access_key: str,
         project: str,
         model: str,
@@ -150,7 +150,7 @@ class ModelEndpoints:
                 "status": model_endpoint.status.state,
                 "active": model_endpoint.active,
                 "endpoint_id": model_endpoint.id,
-            }
+            },
         )
 
         logger.info("Model endpoint registered", endpoint_id=model_endpoint.id)

@@ -7,9 +7,7 @@ from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import (
     ModelEndpointStateList,
     ModelEndpointState,
-    ModelEndpointUpdatePayload,
 )
-from mlrun.errors import MLRunInvalidArgumentError, MLRunBadRequestError
 
 router = APIRouter()
 

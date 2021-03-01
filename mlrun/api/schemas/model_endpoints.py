@@ -67,7 +67,7 @@ class ModelEndpoint(BaseModel):
             "model_class": self.spec.model_class,
             "status": self.status.state,
             "active": self.active,
-            "endpoint_id": self.id
+            "endpoint_id": self.id,
         }
 
 
@@ -79,8 +79,6 @@ class ModelEndpointUpdatePayload(BaseModel):
 
     def as_dict(self):
         return {k: v for k, v in self.dict().items() if v is not None}
-
-
 
 
 class Histogram(BaseModel):

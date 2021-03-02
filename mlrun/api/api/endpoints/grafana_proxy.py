@@ -44,6 +44,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
     _validate_query_parameters(query_parameters)
+    query_parameters = _drop_grafana_escape_chars(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
@@ -142,9 +143,7 @@ def grafana_endpoint_features(
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = get_endpoint_kv_record_by_id(
-        access_key, endpoint_id,
-    )
+    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id,)
 
     # Load JSON data from KV, make sure not to fail if a field is missing
     feature_stats = _json_loads_or_default(endpoint.get("feature_stats"), {})
@@ -255,6 +254,14 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
         parameters[query_parts[0]] = query_parts[1]
 
     return parameters
+
+
+def _drop_grafana_escape_chars(query_parameters: Dict[str, str]):
+    query_parameters = dict(query_parameters)
+    endpoint_id = query_parameters.get("endpoint_id")
+    if endpoint_id is not None:
+        query_parameters["endpoint_id"] = endpoint_id.replace("\\", "")
+    return query_parameters
 
 
 def _validate_query_parameters(query_parameters: Dict[str, str]):

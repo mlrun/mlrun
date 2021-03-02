@@ -76,7 +76,7 @@ class ModelEndpoint(BaseModel):
         stream_path: Optional[str] = None,
         feature_stats: Optional[dict] = None,
         state: Optional[str] = None,
-        active: bool = True
+        active: bool = True,
     ) -> "ModelEndpoint":
         """
         A constructor method for better usability
@@ -105,7 +105,7 @@ class ModelEndpoint(BaseModel):
                 labels=labels or {},
                 model_artifact=model_artifact,
                 stream_path=stream_path,
-                feature_stats=feature_stats
+                feature_stats=feature_stats,
             ),
             spec=ModelEndpointSpec(
                 model=model, function=function, model_class=model_class,

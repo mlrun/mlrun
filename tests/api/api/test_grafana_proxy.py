@@ -198,9 +198,7 @@ def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-def test_grafana_overall_feature_analysis(
-    db: Session, client: TestClient
-):
+def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
     endpoint_data = {
         "timestamp": "2021-02-28 21:02:58.642108",
         "project": "test",
@@ -278,7 +276,6 @@ def test_parse_query_parameters_success():
 
     params = _parse_query_parameters(
         {"targets": [{"target": "test=some_test;another_test=some_other_test;"}]}
-
     )
     assert params["test"] == "some_test"
     assert params["another_test"] == "some_other_test"

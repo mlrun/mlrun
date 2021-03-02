@@ -8,12 +8,12 @@ from mlrun.api.crud.model_endpoints import (
     ModelEndpoints,
     get_access_key,
     get_endpoint_kv_record_by_id,
-    ENDPOINT_TABLE_ATTRIBUTES,
 )
 from mlrun.api.schemas import (
     GrafanaTable,
     GrafanaColumn,
-    ModelEndpointState, GrafanaNumberColumn,
+    ModelEndpointState,
+    GrafanaNumberColumn,
 )
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import logger
@@ -193,30 +193,30 @@ def grafana_overall_feature_analysis(
 
     endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
 
-    drift_measurements = endpoint["drift_measurements"]
-    drift_measurements = json.loads(drift_measurements)
-
-    columns = [
-        GrafanaNumberColumn(text="tvd_sum"),
-        GrafanaNumberColumn(text="tvd_mean"),
-        GrafanaNumberColumn(text="hellinger_sum"),
-        GrafanaNumberColumn(text="hellinger_mean"),
-        GrafanaNumberColumn(text="kld_sum"),
-        GrafanaNumberColumn(text="kld_mean"),
-    ]
-
-    rows = [
-        [
-            drift_measurements["tvd_sum"],
-            drift_measurements["tvd_mean"],
-            drift_measurements["hellinger_sum"],
-            drift_measurements["hellinger_mean"],
-            drift_measurements["kld_sum"],
-            drift_measurements["kld_mean"],
+    table = GrafanaTable(
+        columns=[
+            GrafanaNumberColumn(text="tvd_sum"),
+            GrafanaNumberColumn(text="tvd_mean"),
+            GrafanaNumberColumn(text="hellinger_sum"),
+            GrafanaNumberColumn(text="hellinger_mean"),
+            GrafanaNumberColumn(text="kld_sum"),
+            GrafanaNumberColumn(text="kld_mean"),
         ]
-    ]
+    )
 
-    return [GrafanaTable(columns=columns, rows=rows)]
+    drift_measurements = endpoint.get("drift_measurements")
+    if drift_measurements:
+        drift_measurements = json.loads(drift_measurements)
+        table.add_row(
+            drift_measurements.get("tvd_sum"),
+            drift_measurements.get("tvd_mean"),
+            drift_measurements.get("hellinger_sum"),
+            drift_measurements.get("hellinger_mean"),
+            drift_measurements.get("kld_sum"),
+            drift_measurements.get("kld_mean"),
+        )
+
+    return [table]
 
 
 def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
@@ -289,5 +289,5 @@ NAME_TO_FUNCTION_DICTIONARY: Dict[
 ] = {
     "list_endpoints": grafana_list_endpoints,
     "individual_feature_analysis": grafana_individual_feature_analysis,
-    "overall_feature_analysis": grafana_overall_feature_analysis
+    "overall_feature_analysis": grafana_overall_feature_analysis,
 }

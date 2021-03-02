@@ -385,6 +385,33 @@ def parse_versioned_object_uri(uri, default_project=""):
     return project, uri, tag, hash_key
 
 
+def parse_artifact_uri(uri, default_project=""):
+    uri_pattern = (
+        r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    )
+    match = re.match(uri_pattern, uri)
+    if not match:
+        raise ValueError(
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+        )
+    group_dict = match.groupdict()
+    iteration = group_dict["iteration"]
+    if iteration is not None:
+        try:
+            iteration = int(iteration)
+        except ValueError:
+            raise ValueError(
+                f"illegal store path {uri}, iteration must be integer value"
+            )
+    return (
+        group_dict["project"] or default_project,
+        group_dict["key"],
+        iteration,
+        group_dict["tag"],
+        group_dict["uid"],
+    )
+
+
 def generate_object_uri(project, name, tag=None, hash_key=None):
     uri = f"{project}/{name}"
 

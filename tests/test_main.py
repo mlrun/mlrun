@@ -17,7 +17,6 @@ from subprocess import run, PIPE
 from tests.conftest import (
     tests_root_directory,
     examples_path,
-    root_path,
 )
 
 

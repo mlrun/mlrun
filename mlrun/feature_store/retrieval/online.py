@@ -63,14 +63,19 @@ def init_feature_vector_graph(vector):
     except ImportError as exc:
         raise ImportError(f"storey not installed, use pip install storey, {exc}")
 
-    feature_set_objects, feature_set_fields = vector.parse_features()
+    feature_set_objects, feature_set_fields = vector.parse_features(False)
     graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)
     graph.set_flow_source(Source())
     server = create_graph_server(graph=graph, parameters={})
 
     cache = ResourceCache()
+    index_columns = []
     for featureset in feature_set_objects.values():
         driver = get_online_target(featureset)
         cache.cache_table(featureset.uri, driver.get_table_object())
+        for key in featureset.spec.entities.keys():
+            if not vector.spec.with_indexes and key not in index_columns:
+                index_columns.append(key)
+
     server.init(None, None, cache)
-    return graph
+    return graph, index_columns

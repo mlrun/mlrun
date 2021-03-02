@@ -155,7 +155,7 @@ class ModelEndpoints:
             stream_path=stream_path,
             feature_stats=feature_stats,
             active=active,
-            status="registered",
+            state="registered",
         )
 
         logger.info("Registering model endpoint", endpoint_id=endpoint.id)

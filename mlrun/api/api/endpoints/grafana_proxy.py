@@ -143,11 +143,11 @@ def grafana_endpoint_features(
     project = query_parameters.get("project")
 
     endpoint = get_endpoint_kv_record_by_id(
-        access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES,
+        access_key, endpoint_id,
     )
 
     # Load JSON data from KV, make sure not to fail if a field is missing
-    base_stats = _json_loads_or_default(endpoint.get("base_stats"), {})
+    feature_stats = _json_loads_or_default(endpoint.get("feature_stats"), {})
     current_stats = _json_loads_or_default(endpoint.get("current_stats"), {})
     drift_measurements = _json_loads_or_default(endpoint.get("drift_measurements"), {})
 
@@ -166,7 +166,7 @@ def grafana_endpoint_features(
         ]
     )
 
-    for feature, base_stat in base_stats.items():
+    for feature, base_stat in feature_stats.items():
         current_stat = current_stats.get(feature, {})
         drift_measure = drift_measurements.get(feature, {})
 

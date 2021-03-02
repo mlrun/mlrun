@@ -8,6 +8,7 @@ from mlrun.api.schemas import (
     ModelEndpointStateList,
     ModelEndpointState,
 )
+from mlrun.errors import MLRunConflictError
 
 router = APIRouter()
 
@@ -20,8 +21,9 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     """
     Clears endpoint record from KV by endpoint_id
     """
+    verify_endpoint(project, endpoint_id)
     access_key = get_access_key(request)
-    ModelEndpoints.clear_endpoint_record(access_key, project, endpoint_id)
+    ModelEndpoints.clear_endpoint_record(access_key, endpoint_id)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -81,6 +83,7 @@ def get_endpoint(
     metrics: List[str] = Query([], alias="metric"),
     features: bool = Query(default=False),
 ):
+    verify_endpoint(project, endpoint_id)
     access_key = get_access_key(request)
     return ModelEndpoints.get_endpoint(
         access_key=access_key,
@@ -91,3 +94,27 @@ def get_endpoint(
         end=end,
         features=features,
     )
+
+
+@router.post(
+    "/projects/{project}/model-endpoints/{endpoint_id}/update",
+    status_code=HTTPStatus.NO_CONTENT.value,
+)
+async def update_endpoint(
+    request: Request, project: str, endpoint_id: str,
+):
+    verify_endpoint(project, endpoint_id)
+    access_key = get_access_key(request)
+    payload = await request.json()
+    ModelEndpoints.update_endpoint_record(
+        access_key=access_key, endpoint_id=endpoint_id, payload=payload
+    )
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
+def verify_endpoint(project, endpoint_id):
+    endpoint_id_project, _ = endpoint_id.split(".")
+    if endpoint_id_project != project:
+        raise MLRunConflictError(
+            f"project: {project} and endpoint_id: {endpoint_id} mismatch."
+        )

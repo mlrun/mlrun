@@ -15,8 +15,9 @@ class ModelEndpointMetadata(BaseModel):
     project: Optional[str]
     tag: Optional[str]
     labels: Optional[dict]
-    model_artifact: Optional[str] = ""
-    stream_path: Optional[str] = ""
+    model_artifact: Optional[str]
+    stream_path: Optional[str]
+    feature_stats: Optional[dict]
 
     class Config:
         extra = Extra.allow
@@ -28,12 +29,18 @@ class ModelEndpointSpec(ObjectSpec):
     model_class: Optional[str]
 
 
+class ModelEndpointStatus(ObjectStatus):
+    active: bool = True
+
+    class Config:
+        extra = Extra.allow
+
+
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
-    status: ObjectStatus
-    active: bool = True
+    status: ModelEndpointStatus
     id: Optional[str] = None
 
     class Config:
@@ -56,15 +63,55 @@ class ModelEndpoint(BaseModel):
         md5_str = md5(endpoint_unique_string.encode("utf-8")).hexdigest()
         return f"{self.metadata.project}.{md5_str}"
 
+    @classmethod
+    def new(
+        cls,
+        project: str,
+        model: str,
+        function: str,
+        tag: str = "latest",
+        model_class: Optional[str] = None,
+        labels: Optional[dict] = None,
+        model_artifact: Optional[str] = None,
+        stream_path: Optional[str] = None,
+        feature_stats: Optional[dict] = None,
+        state: Optional[str] = None,
+        active: bool = True
+    ) -> "ModelEndpoint":
+        """
+        A constructor method for better usability
 
-class ModelEndpointUpdatePayload(BaseModel):
-    model_artifact: Optional[str] = None
-    stream_path: Optional[str] = None
-    status: Optional[str] = None
-    active: Optional[str] = None
+        Parameters for ModelEndpointMetadata
+        :param project: The name of the project of which this endpoint belongs to (used for creating endpoint.id)
+        :param tag: The tag/version of the model/function (used for creating endpoint.id)
+        :param labels: key value pairs of user defined labels
+        :param model_artifact: The path to the model artifact containing metadata about the features of the model
+        :param stream_path: The path to the output stream of the model server
+        :param feature_stats: A dictionary describing the model's features
 
-    def as_dict(self):
-        return {k: v for k, v in self.dict().items() if v is not None}
+        Parameters for ModelEndpointSpec
+        :param model: The name of the model that is used in the serving function (used for creating endpoint.id)
+        :param function: The name of the function that servers the model (used for creating endpoint.id)
+        :param model_class: The class of the model
+
+        Parameters for ModelEndpointStatus
+        :param state: The current state of the endpoint
+        :param active: The "activation" status of the endpoint - True for active / False for not active (default True)
+        """
+        return ModelEndpoint(
+            metadata=ModelEndpointMetadata(
+                project=project,
+                tag=tag,
+                labels=labels or {},
+                model_artifact=model_artifact,
+                stream_path=stream_path,
+                feature_stats=feature_stats
+            ),
+            spec=ModelEndpointSpec(
+                model=model, function=function, model_class=model_class,
+            ),
+            status=ModelEndpointStatus(state=state, active=active),
+        )
 
 
 class Histogram(BaseModel):

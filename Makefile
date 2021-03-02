@@ -507,7 +507,7 @@ lint: flake8 fmt-check ## Run lint on the code
 fmt-check: ## Format and check the code (using black)
 	@echo "Running black+isort fmt check..."
 	python -m black --check --diff .
-	python -m isort --check .
+	python -m isort --check --diff .
 
 .PHONY: flake8
 flake8: ## Run flake8 lint

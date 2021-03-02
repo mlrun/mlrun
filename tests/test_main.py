@@ -25,7 +25,7 @@ def exec_main(op, args):
     cmd = [executable, "-m", "mlrun", op]
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=root_path)
+    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=examples_path)
     if out.returncode != 0:
         print(out.stderr.decode("utf-8"), file=stderr)
         raise Exception(out.stderr.decode("utf-8"))

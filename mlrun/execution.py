@@ -14,7 +14,7 @@
 
 from copy import deepcopy
 from datetime import datetime
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import uuid
@@ -671,7 +671,7 @@ class MLClientCtx(object):
         feature_vector: str = None,
         feature_weights: list = None,
         training_set=None,
-        label_column=None,
+        label_column: Union[str, list] = None,
         extra_data=None,
         db_key=None,
     ):

@@ -46,7 +46,7 @@ def my_func(context):
         "y": [25, 94, 0.1, 57, datetime.datetime(2018, 1, 1)],
     }
     df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "x", "y"])
-    context.log_dataset("df1", df=df)
+    context.log_dataset("df1", df=df, format="csv")
 
     date_rng = pd.date_range("2018-01-01", periods=4, freq="H")
     df = pd.DataFrame(date_rng, columns=["date"])

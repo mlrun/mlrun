@@ -418,14 +418,18 @@ class RemoteRuntime(KubeResource):
                 ', recreate with function kind "mlrun"'
             )
 
-        state = self.status.state
-        if state != "ready":
-            if state:
-                raise RunError(f"cannot run, function in state {state}")
-            state = self._get_state(raise_on_exception=True)
+        # import here to prevent import cycle
+        from mlrun.runtimes import RuntimeKinds
+
+        if self.kind in RuntimeKinds.nuclio_runtimes():
+            state = self.status.state
             if state != "ready":
-                logger.info("starting nuclio build!")
-                self.deploy()
+                if state:
+                    raise RunError(f"cannot run, function in state {state}")
+                state = self._get_state(raise_on_exception=True)
+                if state != "ready":
+                    logger.info("starting nuclio build!")
+                    self.deploy()
 
     def _run(self, runobj: RunObject, execution):
         self._pre_run_validations()

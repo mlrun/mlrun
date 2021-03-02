@@ -48,5 +48,5 @@ def test_example(db, fname):
         "run",
         path,
     ]
-    out = run(cmd, env=env)
+    out = run(cmd, env=env, cwd=examples_path)
     assert out.returncode == 0, "bad run"

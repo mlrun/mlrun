@@ -128,111 +128,73 @@ class FeatureSetSpec(ModelObj):
     def entities(self) -> ObjectList:
         """
         Feature set entities (indexes)
-
-        :return: object list of entities
         """
         return self._entities
 
     @entities.setter
     def entities(self, entities: typing.List[Entity]):
-        """
-        Set feature set entities (indexes)
-
-        :param entities: entities to set
-        """
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
     def features(self) -> ObjectList:
         """
         Feature set features list
-
-        :return: object list of features
         """
         return self._features
 
     @features.setter
     def features(self, features: typing.List[Feature]):
-        """
-        Set the feature set list
-        :param features: list of Feature objects
-        """
         self._features = ObjectList.from_list(Feature, features)
 
     @property
     def targets(self) -> ObjectList:
         """
-        Get list object of desired targets (material storage)
-
-        :return object list of targets
+        List object of desired targets (material storage)
         """
         return self._targets
 
     @targets.setter
     def targets(self, targets: typing.List[DataTargetBase]):
-        """
-        Set targets list
-
-        :param targets: list of DataTarget objects
-        """
         self._targets = ObjectList.from_list(DataTargetBase, targets)
 
     @property
     def graph(self) -> RootFlowState:
         """
-        Get feature set transformation graph/DAG
+        Feature set transformation graph/DAG
         """
         return self._graph
 
     @graph.setter
     def graph(self, graph: typing.Union[dict, RootFlowState]):
-        """
-        Set the transformation graph for the feature set
-
-        :param graph: graph dict or root state object
-        """
         self._graph = self._verify_dict(graph, "graph", RootFlowState)
         self._graph.engine = "async"
 
     @property
     def function(self) -> FunctionReference:
         """
-        Get template graph processing function reference
-
-        :return: function reference
+        The template graph processing function reference
         """
         return self._function
 
     @function.setter
     def function(self, function: typing.Union[dict, FunctionReference]):
-        """
-        Set function reference for template graph processing
-
-        :param function: function reference object
-        """
         self._function = self._verify_dict(function, "function", FunctionReference)
 
     @property
     def source(self) -> DataSource:
         """
-        Get feature set data source definitions
-
-        :return: data source
+        The feature set data source definitions
         """
         return self._source
 
     @source.setter
     def source(self, source: typing.Union[dict, DataSource]):
-        """
-        Set source definition for feature set
-
-        :param source: source definition
-        """
         self._source = self._verify_dict(source, "source", DataSource)
 
     def require_processing(self) -> bool:
         """
         Is processing required on this feature set
+
         :return: bool (true if there are any graph states)
         """
         return len(self._graph.states) > 0
@@ -242,7 +204,6 @@ class FeatureSetStatus(ModelObj):
     """
     Status for FeatureSet
     """
-
     def __init__(
         self,
         state: typing.Optional[str] = None,
@@ -263,9 +224,7 @@ class FeatureSetStatus(ModelObj):
     @property
     def targets(self) -> ObjectList:
         """
-        list of material storage targets + their status/path
-
-        :return: Object list of DataTarget
+        List of material storage targets + their status/path
         """
         return self._targets
 
@@ -317,62 +276,40 @@ class FeatureSet(ModelObj):
     @property
     def spec(self) -> FeatureSetSpec:
         """
-        Get the feature set spec
-
-        :return: Feature set spec
+        The feature set spec
         """
         return self._spec
 
     @spec.setter
     def spec(self, spec: typing.Union[dict, FeatureSetSpec]):
-        """
-        Set feature set spec
-
-        :param spec: Feature set spec to set
-        """
         self._spec = self._verify_dict(spec, "spec", FeatureSetSpec)
 
     @property
     def metadata(self) -> VersionedObjMetadata:
         """
-        Get feature set metadata
-
-        :return: Feature set metadata
+        The feature set metadata
         """
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata: typing.Union[dict, VersionedObjMetadata]):
-        """
-        Set feature set metadata
-
-        :param metadata: Feature set metadata
-        """
         self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureSetStatus:
         """
-        Get feature set status
-
-        :return: feature set status
+        The feature set status
         """
         return self._status
 
     @status.setter
     def status(self, status: typing.Union[dict, FeatureSetStatus]):
-        """
-        Set feature set status
-        :param status: Status to set
-        """
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
     @property
     def uri(self) -> str:
         """
-        Get the fully qualified feature set uri
-
-        :return: uri
+        The fully qualified feature set uri
         """
         uri = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
@@ -454,7 +391,7 @@ class FeatureSet(ModelObj):
     @property
     def graph(self) -> RootFlowState:
         """
-        Get feature set transformation graph/DAG
+        The feature set transformation graph/DAG
         """
         return self.spec.graph
 
@@ -568,7 +505,7 @@ class FeatureSet(ModelObj):
         target_name: typing.Optional[str] = None,
     ) -> typing.Union[pd.DataFrame, typing.Any]:
         """
-        Return featureset (offline) data as dataframe
+        Return feature set (offline) data as dataframe
 
         :param columns:   Optional, list of columns to select
         :param df_module: Optional, dataframe class (e.g. pd, dd, cudf, ..)

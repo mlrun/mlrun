@@ -260,9 +260,7 @@ class Config:
     @property
     def version(self) -> str:
         """
-        Return the MLRun version
-
-        :return: version string
+        The MLRun version
         """
         # importing here to avoid circular dependency
         from mlrun.utils.version import Version
@@ -272,7 +270,7 @@ class Config:
     @property
     def kfp_image(self) -> str:
         """
-        Get the kfp image URL.
+        The kfp image URL.
         Note that if not specifically configured it will default to mlrun/mlrun
         """
 
@@ -289,17 +287,12 @@ class Config:
 
     @kfp_image.setter
     def kfp_image(self, value: str):
-        """
-        Set the kfp image
-
-        :param value: kfp image URL
-        """
         self._kfp_image = value
 
     @property
     def dask_kfp_image(self) -> str:
         """
-        Set the dask kfp image URL.
+        Dask kfp image URL.
         See kfp_image property docstring for why we're defining this property
         """
         if not self._dask_kfp_image:
@@ -311,25 +304,17 @@ class Config:
 
     @dask_kfp_image.setter
     def dask_kfp_image(self, value: str):
-        """
-        Set the dask kfp image
-
-        :param value: Dask kfp image full URL
-        """
         self._dask_kfp_image = value
 
     @property
     def dbpath(self) -> str:
         """
-        Get the db path
+        The DB path
         """
         return self._dbpath
 
     @dbpath.setter
     def dbpath(self, value: str):
-        """
-        Set the db path
-        """
         self._dbpath = value
         if value:
             # importing here to avoid circular dependency
@@ -356,7 +341,8 @@ config = Config.from_dict(default_config)
 
 
 def _populate():
-    """Populate configuration from config file (if exists in environment) and
+    """
+    Populate configuration from config file (if exists in environment) and
     from environment variables.
 
     populate will run only once, after first call it does nothing.
@@ -408,7 +394,9 @@ def _convert_str(value, typ):
 
 
 def read_env(env=None, prefix=env_prefix):
-    """Read configuration from environment"""
+    """
+    Read configuration from environment
+    """
     env = os.environ if env is None else env
 
     config = {}

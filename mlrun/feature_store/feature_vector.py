@@ -76,21 +76,20 @@ class FeatureVectorSpec(ModelObj):
 
     @property
     def entity_source(self) -> DataSource:
-        """data source used as entity source (events/keys need to be enriched)"""
+        """
+        Data source used as entity source (events/keys need to be enriched)
+        """
         return self._entity_source
 
     @entity_source.setter
     def entity_source(self, source: typing.Union[dict, DataSource]):
-        """
-        Set entity data source
-        :param source: datasource as dic or DataSource object
-        :return:
-        """
         self._entity_source = self._verify_dict(source, "entity_source", DataSource)
 
     @property
     def entity_fields(self) -> ObjectList:
-        """the schema/metadata for the entity source fields"""
+        """
+        The schema/metadata for the entity source fields
+        """
         return self._entity_fields
 
     @entity_fields.setter
@@ -99,7 +98,9 @@ class FeatureVectorSpec(ModelObj):
 
     @property
     def graph(self) -> RootFlowState:
-        """feature vector transformation graph/DAG"""
+        """
+        Feature vector transformation graph/DAG
+        """
         return self._graph
 
     @graph.setter
@@ -109,7 +110,9 @@ class FeatureVectorSpec(ModelObj):
 
     @property
     def function(self) -> FunctionReference:
-        """reference to template graph processing function"""
+        """
+        Reference to template graph processing function
+        """
         return self._function
 
     @function.setter
@@ -139,7 +142,9 @@ class FeatureVectorStatus(ModelObj):
 
     @property
     def targets(self) -> ObjectList:
-        """list of material storage targets + their status/path"""
+        """
+        List of material storage targets + their status/path
+        """
         return self._targets
 
     @targets.setter
@@ -151,7 +156,9 @@ class FeatureVectorStatus(ModelObj):
 
     @property
     def features(self) -> ObjectList:
-        """list of features (result of joining features from the source feature sets)"""
+        """
+        List of features (result of joining features from the source feature sets)
+        """
         return self._features
 
     @features.setter
@@ -194,63 +201,40 @@ class FeatureVector(ModelObj):
     @property
     def spec(self) -> FeatureVectorSpec:
         """
-        Get the feature vector spec
-
-        :return: Feature vector spec
+        Feature vector spec
         """
         return self._spec
 
     @spec.setter
     def spec(self, spec: typing.Union[dict, FeatureVectorSpec]):
-        """
-        Set the feature vector spec
-
-        :param spec: spec dict or object
-        """
         self._spec = self._verify_dict(spec, "spec", FeatureVectorSpec)
 
     @property
     def metadata(self) -> VersionedObjMetadata:
         """
         Get feature vector metadata
-
-        :return: metadata object
         """
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata: typing.Union[dict, VersionedObjMetadata]):
-        """
-        Set feature vector metadata from dict or object
-
-        :param metadata: dict or object representing metadata
-        """
         self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureVectorStatus:
         """
-        Get the feature vector status
-
-        :return: Feature vector status object
+        The feature vector status
         """
         return self._status
 
     @status.setter
     def status(self, status: typing.Union[dict, FeatureVectorStatus]):
-        """
-        Set feature vector status from dict or status object
-
-        :param status: status as dict or object
-        """
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
 
     @property
     def uri(self) -> str:
         """
         Get the fully qualified feature vector uri
-
-        :return: uri
         """
         uri = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
@@ -404,9 +388,7 @@ class OnlineVectorService:
     @property
     def status(self) -> str:
         """
-        Get vector prep function status.
-
-        :return: Status - One of [ready, running, error]
+        Vector prep function status.
         """
         return "ready"
 
@@ -432,29 +414,38 @@ class OnlineVectorService:
 
 
 class OfflineVectorResponse:
-    """get_offline_features response object"""
-
+    """
+    Response object for get_offline_features response
+    """
     def __init__(self, merger):
         self._merger = merger
         self.vector = merger.vector
 
     @property
     def status(self):
-        """vector prep job status (ready, running, error)"""
+        """
+        Vector prep job status (ready, running, error)
+        """
         return self._merger.get_status()
 
     def to_dataframe(self):
-        """return result as dataframe"""
+        """
+        Get results as dataframe
+        """
         if self.status != "completed":
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
         return self._merger.get_df()
 
     def to_parquet(self, target_path, **kw):
-        """return results as parquet file"""
+        """
+        Get results as parquet file
+        """
         return ParquetTarget(path=target_path).write_dataframe(
             self._merger.get_df(), **kw
         )
 
     def to_csv(self, target_path, **kw):
-        """return results as csv file"""
+        """
+        Get results as csv file
+        """
         return CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)

@@ -164,6 +164,16 @@ class GrafanaColumn(BaseModel):
     type: str
 
 
+class GrafanaNumberColumn(GrafanaColumn):
+    text: str
+    type: str = "number"
+
+
+class GrafanaTextualColumn(GrafanaColumn):
+    text: str
+    type: str = "string"
+
+
 class GrafanaTable(BaseModel):
     columns: List[GrafanaColumn]
     rows: List[List[Optional[Union[int, float, str]]]] = []

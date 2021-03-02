@@ -40,6 +40,8 @@ from .model_endpoints import (
     Histogram,
     Metric,
     GrafanaColumn,
+    GrafanaNumberColumn,
+    GrafanaTextualColumn,
     GrafanaTable,
 )
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind

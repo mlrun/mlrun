@@ -13,7 +13,7 @@ from mlrun.api.crud.model_endpoints import (
 from mlrun.api.schemas import (
     GrafanaTable,
     GrafanaColumn,
-    ModelEndpointState,
+    ModelEndpointState, GrafanaNumberColumn,
 )
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import logger
@@ -137,13 +137,13 @@ def grafana_list_endpoints(
     return [table]
 
 
-def grafana_endpoint_features(
+def grafana_individual_feature_analysis(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id,)
+    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
 
     # Load JSON data from KV, make sure not to fail if a field is missing
     feature_stats = _json_loads_or_default(endpoint.get("feature_stats"), {})
@@ -185,26 +185,24 @@ def grafana_endpoint_features(
     return [table]
 
 
-def grafana_endpoint_drift_measures(
+def grafana_overall_feature_analysis(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = get_endpoint_kv_record_by_id(
-        access_key, project, endpoint_id, ENDPOINT_TABLE_ATTRIBUTES,
-    )
+    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
 
     drift_measurements = endpoint["drift_measurements"]
     drift_measurements = json.loads(drift_measurements)
 
     columns = [
-        GrafanaColumn(text="tvd_sum", type="number"),
-        GrafanaColumn(text="tvd_mean", type="number"),
-        GrafanaColumn(text="hellinger_sum", type="number"),
-        GrafanaColumn(text="hellinger_mean", type="number"),
-        GrafanaColumn(text="kld_sum", type="number"),
-        GrafanaColumn(text="kld_mean", type="number"),
+        GrafanaNumberColumn(text="tvd_sum"),
+        GrafanaNumberColumn(text="tvd_mean"),
+        GrafanaNumberColumn(text="hellinger_sum"),
+        GrafanaNumberColumn(text="hellinger_mean"),
+        GrafanaNumberColumn(text="kld_sum"),
+        GrafanaNumberColumn(text="kld_mean"),
     ]
 
     rows = [
@@ -244,7 +242,7 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
         raise MLRunBadRequestError(f"Target missing in request body:\n {request_body}")
 
     parameters = {}
-    for query in target_query.split(";"):
+    for query in filter(lambda q: q, target_query.split(";")):
         query_parts = query.split("=")
         if len(query_parts) < 2:
             raise MLRunBadRequestError(
@@ -290,6 +288,6 @@ NAME_TO_FUNCTION_DICTIONARY: Dict[
     str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
 ] = {
     "list_endpoints": grafana_list_endpoints,
-    "endpoint_features": grafana_endpoint_features,
-    "endpoint_drift_measures": grafana_endpoint_drift_measures,
+    "individual_feature_analysis": grafana_individual_feature_analysis,
+    "overall_feature_analysis": grafana_overall_feature_analysis
 }

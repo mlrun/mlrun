@@ -400,6 +400,7 @@ test: clean ## Run mlrun tests
 		--capture=no \
 		--disable-warnings \
 		--ignore=tests/integration \
+		--ignore=tests/test_noteboooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
 		tests
@@ -422,6 +423,7 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		-rf \
 		tests/integration \
+		tests/test_noteboooks.py \
 		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized

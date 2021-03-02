@@ -94,6 +94,7 @@ class ModelEndpoints:
         model_class: Optional[str] = None,
         labels: Optional[dict] = None,
         model_artifact: Optional[str] = None,
+        feature_stats: Optional[dict] = None,
         stream_path: Optional[str] = None,
         active: bool = True,
         with_feature_stats: bool = True,
@@ -108,6 +109,7 @@ class ModelEndpoints:
         :param tag: The tag/version of the model/function (used for creating endpoint.id)
         :param labels: key value pairs of user defined labels
         :param model_artifact: The path to the model artifact containing metadata about the features of the model
+        :param feature_stats: The actual metadata about the features of the model (use either this or `model_artifact`)
         :param stream_path: The path to the output stream of the model server
 
         Parameters for ModelEndpointSpec
@@ -131,15 +133,25 @@ class ModelEndpoints:
             model_artifact=model_artifact,
         )
 
-        feature_stats = None
         if with_feature_stats:
-            if model_artifact is None:
-                raise MLRunInvalidArgumentError(
-                    f"Failed to obtain `feature_stats` because `model_artifact` is None: {{project={project}, "
+            if not model_artifact and not feature_stats:
+                message = (
+                    f"Failed to register endpoint because both `model_artifact` and `feature_stats` are not "
+                    f"initialized properly, please either initialize one of them: {{project={project} "
                     f"model={model}, function={function}, tag={tag}}}"
                 )
-            model_obj = get_model(model_artifact)
-            feature_stats = model_obj[1].feature_stats
+                raise MLRunInvalidArgumentError(message)
+            if model_artifact and feature_stats:
+                message = (
+                    f"Failed to register endpoint because both `model_artifact` and `feature_stats` are "
+                    f"initialized, please initialize only one of them: {{project={project} model={model}, "
+                    f"function={function}, tag={tag}}}"
+                )
+                raise MLRunInvalidArgumentError(message)
+            if model_artifact:
+                model_obj = get_model(model_artifact)
+                feature_stats = model_obj[1].feature_stats
+
             feature_stats = {
                 _clean_feature_name(k): v for k, v in feature_stats.items()
             }

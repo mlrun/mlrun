@@ -152,7 +152,9 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
                 key, tag=tag, iter=resource.get("link_iteration", 0), project=project,
             )
         if resource:
-            return mlrun.artifacts.dict_to_artifact(resource)
+            # import here to avoid circular imports
+            from mlrun.artifacts import dict_to_artifact
+            return dict_to_artifact(resource)
 
     else:
         stores = mlrun.store_manager.set(secrets, db=db)

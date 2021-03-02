@@ -118,6 +118,36 @@ def test_artifacts_latest(db: SQLDB, db_session: Session):
     assert {17, 99} == set(art["a"] for art in arts), "latest"
 
 
+def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
+    k1, u1, art1 = "k1", "u1", {"a": 1, "b": "blubla"}
+    u2, art2 = "u2", {"a": 2, "b": "blublu"}
+    prj = "p38"
+    db.store_artifact(db_session, k1, art1, u1, iter=1, project=prj, tag="tag1")
+    db.store_artifact(db_session, k1, art2, u2, iter=2, project=prj, tag="tag2")
+
+    result = db.read_artifact(db_session, k1, "tag1", iter=1, project=prj)
+    assert result["tag"] == "tag1"
+    result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
+    assert result["tag"] == "tag2"
+    result = db.read_artifact(db_session, k1, iter=1, project=prj)
+    assert result["tag"] == "tag1"
+    # read_artifact supports a case where the tag is actually the uid.
+    result = db.read_artifact(db_session, k1, tag="u2", iter=2, project=prj)
+    assert result["tag"] == "tag2"
+
+    result = db.list_artifacts(db_session, k1, project=prj)
+    assert len(result) == 2
+    for artifact in result:
+        assert (artifact["a"] == 1 and artifact["tag"] == "tag1") or (
+            artifact["a"] == 2 and artifact["tag"] == "tag2"
+        )
+
+    result = db.list_artifacts(db_session, k1, tag="tag1", project=prj)
+    assert len(result) == 1 and result[0]["tag"] == "tag1" and result[0]["a"] == 1
+    result = db.list_artifacts(db_session, k1, tag="tag2", project=prj)
+    assert len(result) == 1 and result[0]["tag"] == "tag2" and result[0]["a"] == 2
+
+
 @pytest.mark.parametrize(
     "cls", [tagged_model for tagged_model in _tagged if tagged_model != Run]
 )

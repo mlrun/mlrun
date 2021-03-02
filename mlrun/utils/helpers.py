@@ -386,9 +386,7 @@ def parse_versioned_object_uri(uri, default_project=""):
 
 
 def parse_artifact_uri(uri, default_project=""):
-    uri_pattern = (
-        r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
-    )
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(

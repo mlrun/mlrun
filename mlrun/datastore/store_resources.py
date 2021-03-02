@@ -154,6 +154,7 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
         if resource:
             # import here to avoid circular imports
             from mlrun.artifacts import dict_to_artifact
+
             return dict_to_artifact(resource)
 
     else:

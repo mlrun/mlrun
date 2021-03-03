@@ -289,7 +289,7 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:    project to initiate the context in (by default mlrun.mlctx.default_project)
+    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
 
     :return: execution context
 

@@ -268,7 +268,12 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
 
 def get_or_create_ctx(
-    name: str, event=None, spec=None, with_env: bool = True, rundb: str = "", project: str = ""
+    name: str,
+    event=None,
+    spec=None,
+    with_env: bool = True,
+    rundb: str = "",
+    project: str = "",
 ):
     """called from within the user program to obtain a run context
 
@@ -352,7 +357,9 @@ def get_or_create_ctx(
         autocommit = True
         logger.info(f"logging run results to: {out}")
 
-    newspec["metadata"]['project'] = project or newspec["metadata"].get('project') or mlconf.default_project
+    newspec["metadata"]["project"] = (
+        project or newspec["metadata"].get("project") or mlconf.default_project
+    )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()

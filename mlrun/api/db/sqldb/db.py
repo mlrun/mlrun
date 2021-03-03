@@ -234,6 +234,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not art:
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
         update_labels(art, labels)
+
+        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
+        # body and tag parameter provided.
+        artifact.pop("tag", None)
+
         art.struct = artifact
         self._upsert(session, art)
         if tag_artifact:
@@ -289,14 +294,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not art:
             raise DBError(f"Artifact {key}:{tag}:{project} not found")
 
-        artifacts_with_tag = self._add_tags_to_artifact_struct(
-            session, art.struct, art.id, db_tag
-        )
-        if len(artifacts_with_tag) > 1:
-            raise DBError(
-                f"Multiple tags returned for a single query {key}:{tag}:{project}"
-            )
-        return artifacts_with_tag[0]
+        artifact_struct = art.struct
+        # We only set a tag in the object if the user asked specifically for this tag.
+        if db_tag:
+            artifact_struct["tag"] = db_tag
+        return artifact_struct
 
     def list_artifacts(
         self,

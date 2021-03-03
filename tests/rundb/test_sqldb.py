@@ -131,9 +131,13 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
     assert result["tag"] == "tag2"
     result = db.read_artifact(db_session, k1, iter=1, project=prj)
-    assert result["tag"] == "tag1"
+    # When doing get without a tag, the returned object must not contain a tag.
+    assert "tag" not in result
     # read_artifact supports a case where the tag is actually the uid.
     result = db.read_artifact(db_session, k1, tag="u2", iter=2, project=prj)
+    assert "tag" not in result
+
+    result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
     assert result["tag"] == "tag2"
 
     result = db.list_artifacts(db_session, k1, project=prj)

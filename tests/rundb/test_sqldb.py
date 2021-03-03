@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import _tagged, Artifact, Run
+from mlrun.lists import ArtifactList
 from tests.conftest import new_run
 
 
@@ -142,10 +143,26 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
             artifact["a"] == 2 and artifact["tag"] == "tag2"
         )
 
+    # To be used later, after adding tags
+    full_results = result
+
     result = db.list_artifacts(db_session, k1, tag="tag1", project=prj)
     assert len(result) == 1 and result[0]["tag"] == "tag1" and result[0]["a"] == 1
     result = db.list_artifacts(db_session, k1, tag="tag2", project=prj)
     assert len(result) == 1 and result[0]["tag"] == "tag2" and result[0]["a"] == 2
+
+    # Add another tag to all objects (there are 2 at this point)
+    expected_results = ArtifactList()
+    for artifact in full_results:
+        expected_results.append(artifact)
+        artifact_with_new_tag = artifact.copy()
+        artifact_with_new_tag["tag"] = "new_tag"
+        expected_results.append(artifact_with_new_tag)
+
+    artifacts = db_session.query(Artifact).all()
+    db.tag_artifacts(db_session, artifacts, prj, "new_tag")
+    result = db.list_artifacts(db_session, k1, prj)
+    assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 
 
 @pytest.mark.parametrize(

@@ -240,19 +240,22 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
 
-    def _add_tag_to_artifact_struct(
+    def _add_tags_to_artifact_struct(
         self, session, artifact_struct, artifact_id, tag=None
     ):
+        artifacts = []
         if tag:
             artifact_struct["tag"] = tag
+            artifacts.append(artifact_struct)
         else:
-            tag_object = self._query(
-                session, Artifact.Tag, obj_id=artifact_id
-            ).one_or_none()
-            if tag_object:
-                artifact_struct["tag"] = tag_object.name
-            else:
-                artifact_struct["tag"] = None
+            tag_results = self._query(session, Artifact.Tag, obj_id=artifact_id).all()
+            if not tag_results:
+                return [artifact_struct]
+            for tag_object in tag_results:
+                artifact_with_tag = artifact_struct.copy()
+                artifact_with_tag["tag"] = tag_object.name
+                artifacts.append(artifact_with_tag)
+        return artifacts
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
@@ -286,10 +289,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not art:
             raise DBError(f"Artifact {key}:{tag}:{project} not found")
 
-        artifact_struct = art.struct
-        self._add_tag_to_artifact_struct(session, artifact_struct, art.id, db_tag)
-
-        return artifact_struct
+        artifacts_with_tag = self._add_tags_to_artifact_struct(
+            session, art.struct, art.id, db_tag
+        )
+        if len(artifacts_with_tag) > 1:
+            raise DBError(
+                f"Multiple tags returned for a single query {key}:{tag}:{project}"
+            )
+        return artifacts_with_tag[0]
 
     def list_artifacts(
         self,
@@ -317,8 +324,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, project, uids, labels, since, until, name, kind, category
         ):
             artifact_struct = artifact.struct
-            self._add_tag_to_artifact_struct(session, artifact_struct, artifact.id, tag)
-            artifacts.append(artifact_struct)
+            artifacts_with_tag = self._add_tags_to_artifact_struct(
+                session, artifact_struct, artifact.id, tag
+            )
+            artifacts.extend(artifacts_with_tag)
 
         return artifacts
 

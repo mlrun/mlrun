@@ -172,7 +172,16 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     result = db.list_artifacts(db_session, k1, prj)
     # We want to ignore the "updated" field, since it changes as we store a new tag.
     exclude_regex = r"root\[\d+\]\['updated'\]"
-    assert deepdiff.DeepDiff(result, expected_results, ignore_order=True, exclude_regex_paths=exclude_regex) == {}
+    assert (
+        deepdiff.DeepDiff(
+            result,
+            expected_results,
+            ignore_order=True,
+            exclude_regex_paths=exclude_regex,
+        )
+        == {}
+    )
+
 
 @pytest.mark.parametrize(
     "cls", [tagged_model for tagged_model in _tagged if tagged_model != Run]

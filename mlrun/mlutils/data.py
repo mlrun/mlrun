@@ -41,7 +41,7 @@ def _get_label_from_raw(raw, label):
     Just a stupid wrapper so that nice error will be raised when users give wrong label
     """
     if label not in raw:
-        raise ValueError(f'Specified label could not be found: {label}')
+        raise ValueError(f"Specified label could not be found: {label}")
     return raw.pop(label)
 
 

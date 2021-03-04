@@ -14,9 +14,16 @@
 import getpass
 import shutil
 import warnings
+import typing
 
 from ..db import get_run_db
-from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
+from ..artifacts import (
+    ArtifactManager,
+    ArtifactProducer,
+    dict_to_artifact,
+    DatasetArtifact,
+    ModelArtifact,
+)
 from ..secrets import SecretsStore
 from ..model import ModelObj
 import tarfile
@@ -37,6 +44,7 @@ from ..run import (
     get_object,
     wait_for_pipeline_completion,
 )
+from ..features import Feature
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
@@ -49,6 +57,7 @@ from ..utils import (
 )
 from ..runtimes.utils import add_code_metadata
 import mlrun.api.schemas
+import mlrun.errors
 import mlrun.api.utils.projects.leader
 
 
@@ -774,6 +783,7 @@ class MlrunProject(ModelObj):
         upload=True,
         labels=None,
         target_path=None,
+        db_key=None,
     ):
         am = self._get_artifact_manager()
         artifact_path = artifact_path or self.spec.artifact_path
@@ -794,8 +804,177 @@ class MlrunProject(ModelObj):
             upload=upload,
             labels=labels,
             target_path=target_path,
+            db_key=db_key,
         )
         self.spec.set_artifact(item.key, item.base_dict())
+        return item
+
+    def log_dataset(
+        self,
+        key,
+        df,
+        tag="",
+        local_path=None,
+        artifact_path=None,
+        upload=True,
+        labels=None,
+        format="",
+        preview=None,
+        stats=False,
+        db_key=None,
+        target_path="",
+        extra_data=None,
+        **kwargs,
+    ):
+        """
+        log a dataset artifact and optionally upload it to datastore
+
+        example::
+
+            raw_data = {
+                "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+                "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+                "age": [42, 52, 36, 24, 73],
+                "testScore": [25, 94, 57, 62, 70],
+            }
+            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            context.log_dataset("mydf", df=df, stats=True)
+
+        :param key:           artifact key
+        :param df:            dataframe object
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: target artifact path (when not using the default)
+                              to define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
+        :param tag:           version tag
+        :param format:        optional, format to use (e.g. csv, parquet, ..)
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param preview:       number of lines to store as preview in the artifact metadata
+        :param stats:         calculate and store dataset stats in the artifact metadata
+        :param extra_data:    key/value list of extra files/charts to link with this dataset
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+        :param db_key:        the key to use in the artifact DB table, by default
+                              its run name + '_' + key
+                              db_key=False will not register it in the artifacts table
+
+        :returns: artifact object
+        """
+        ds = DatasetArtifact(
+            key,
+            df,
+            preview=preview,
+            extra_data=extra_data,
+            format=format,
+            stats=stats,
+            **kwargs,
+        )
+
+        item = self.log_artifact(
+            ds,
+            local_path=local_path,
+            artifact_path=artifact_path or self.spec.artifact_path,
+            target_path=target_path,
+            tag=tag,
+            upload=upload,
+            db_key=db_key,
+            labels=labels,
+        )
+        return item
+
+    def log_model(
+        self,
+        key,
+        body=None,
+        framework="",
+        tag="",
+        model_dir=None,
+        model_file=None,
+        metrics=None,
+        parameters=None,
+        artifact_path=None,
+        upload=True,
+        labels=None,
+        inputs: typing.List[Feature] = None,
+        outputs: typing.List[Feature] = None,
+        feature_vector: str = None,
+        feature_weights: list = None,
+        training_set=None,
+        label_column=None,
+        extra_data=None,
+        db_key=None,
+    ):
+        """log a model artifact and optionally upload it to datastore
+
+        example::
+
+            context.log_model("model", body=dumps(model),
+                              model_file="model.pkl",
+                              metrics=context.results,
+                              training_set=training_df,
+                              label_column='label',
+                              feature_vector=feature_vector_uri,
+                              labels={"app": "fraud"})
+
+        :param key:             artifact key or artifact class ()
+        :param body:            will use the body as the artifact content
+        :param model_file:      path to the local model file we upload (seel also model_dir)
+        :param model_dir:       path to the local dir holding the model file and extra files
+        :param artifact_path:   target artifact path (when not using the default)
+                                to define a subpath under the default location use:
+                                `artifact_path=context.artifact_subpath('data')`
+        :param framework:       name of the ML framework
+        :param tag:             version tag
+        :param metrics:         key/value dict of model metrics
+        :param parameters:      key/value dict of model parameters
+        :param inputs:          ordered list of model input features (name, type, ..)
+        :param outputs:         ordered list of model output/result elements (name, type, ..)
+        :param upload:          upload to datastore (default is True)
+        :param labels:          a set of key/value labels to tag the artifact with
+        :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+        :param feature_weights: list of feature weights, one per input column
+        :param training_set:    training set dataframe, used to infer inputs & outputs
+        :param label_column:    which columns in the training set are the label (target) columns
+        :param extra_data:      key/value list of extra files/charts to link with this dataset
+                                value can be abs/relative path string | bytes | artifact object
+        :param db_key:          the key to use in the artifact DB table, by default
+                                its run name + '_' + key
+                                db_key=False will not register it in the artifacts table
+
+        :returns: artifact object
+        """
+
+        if training_set is not None and inputs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify inputs and training set together"
+            )
+
+        model = ModelArtifact(
+            key,
+            body,
+            model_file=model_file,
+            metrics=metrics,
+            parameters=parameters,
+            inputs=inputs,
+            outputs=outputs,
+            framework=framework,
+            feature_vector=feature_vector,
+            feature_weights=feature_weights,
+            extra_data=extra_data,
+        )
+        if training_set is not None:
+            model.infer_from_df(training_set, label_column)
+
+        item = self.log_artifact(
+            model,
+            local_path=model_dir,
+            artifact_path=artifact_path or self.spec.artifact_path,
+            tag=tag,
+            upload=upload,
+            db_key=db_key,
+            labels=labels,
+        )
         return item
 
     def reload(self, sync=False):

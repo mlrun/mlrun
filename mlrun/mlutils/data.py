@@ -25,15 +25,24 @@ def get_sample(
     if (sample == -1) or (sample >= 1):
         # get all rows, or contiguous sample starting at row 1.
         raw = table.dropna()
-        labels = raw.pop(label)
+        labels = _get_label_from_raw(raw, label)
         raw = raw.iloc[:sample, :]
         labels = labels.iloc[:sample]
     else:
         # grab a random sample
         raw = table.dropna().sample(sample * -1)
-        labels = raw.pop(label)
+        labels = _get_label_from_raw(raw, label)
 
     return raw, labels, raw.columns.values
+
+
+def _get_label_from_raw(raw, label):
+    """
+    Just a stupid wrapper so that nice error will be raised when users give wrong label
+    """
+    if label not in raw:
+        raise ValueError(f'Specified label could not be found: {label}')
+    return raw.pop(label)
 
 
 def get_splits(

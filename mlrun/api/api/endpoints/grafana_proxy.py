@@ -2,21 +2,31 @@ import json
 from http import HTTPStatus
 from typing import List, Dict, Any, Callable, Optional
 
+import numpy as np
+import pandas as pd
 from fastapi import APIRouter, Response, Request
 
 from mlrun.api.crud.model_endpoints import (
     ModelEndpoints,
     get_access_key,
     get_endpoint_kv_record_by_id,
+    ENDPOINT_EVENTS_TABLE_PATH,
 )
 from mlrun.api.schemas import (
     GrafanaTable,
     GrafanaColumn,
     ModelEndpointState,
     GrafanaNumberColumn,
+    GrafanaStringColumn,
+    GrafanaTimeSeries,
+    GrafanaTimeSeriesTarget,
+    GrafanaDataPoint,
+    Format,
 )
+from mlrun.db import get_run_db
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils import logger
+from mlrun.utils import logger, config
+from mlrun.utils.v3io_clients import get_frames_client
 
 router = APIRouter()
 
@@ -31,7 +41,7 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.post("/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable])
+@router.post("/grafana-proxy/model-endpoints/query")
 async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaTable]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
@@ -54,6 +64,19 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
         body, query_parameters, access_key
     )
     return result
+
+
+def grafana_list_projects(
+    body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
+) -> List[GrafanaTable]:
+    mldb = get_run_db(config.dbpath)
+    table = GrafanaTable(columns=[GrafanaStringColumn(text="project_name")])
+    try:
+        for project in mldb.list_projects(format_=Format.name_only):
+            table.add_row(project)
+    except Exception as e:
+        logger.error(str(e))
+    return [table]
 
 
 def grafana_list_endpoints(
@@ -219,6 +242,56 @@ def grafana_overall_feature_analysis(
     return [table]
 
 
+def grafana_incoming_features(
+    body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
+):
+    endpoint_id = query_parameters.get("endpoint_id")
+    project = query_parameters.get("project")
+    start = body.get("rangeRaw", {}).get("from", "now-1h")
+    end = body.get("rangeRaw", {}).get("to", "now")
+
+    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
+
+    time_series = GrafanaTimeSeries()
+
+    feature_names = endpoint.get("feature_names")
+    feature_names = json.loads(feature_names) if feature_names is not None else []
+
+    if not feature_names:
+        logger.warn(
+            "'feature_names' is either missing or not initialized in endpoint record",
+            endpoint_id=endpoint.get("endpoint_id"),
+        )
+        return time_series.target_data_points
+
+    client = get_frames_client(
+        token=access_key,
+        address=config.v3io_framesd,
+        container=config.model_endpoint_monitoring.container,
+    )
+
+    data: pd.DataFrame = client.read(
+        backend="tsdb",
+        table=f"{project}/{ENDPOINT_EVENTS_TABLE_PATH}",
+        columns=feature_names,
+        filter=f"endpoint_id=='{endpoint_id}'",
+        start=start,
+        end=end,
+    )
+
+    data.drop(["endpoint_id"], axis=1, inplace=True)
+    data.index = data.index.astype(np.int64) // 10 ** 6
+
+    for feature, indexed_values in data.to_dict().items():
+        target = GrafanaTimeSeriesTarget(target=feature)
+        for index, value in indexed_values.items():
+            data_point = GrafanaDataPoint(value=float(value), timestamp=index)
+            target.add_data_point(data_point)
+        time_series.target_data_points.append(target)
+
+    return time_series.target_data_points
+
+
 def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     """
     This function searches for the `target` field in Grafana's `SimpleJson` json. Once located, the target string is
@@ -287,7 +360,9 @@ def _json_loads_or_default(string: Optional[str], default: Any):
 NAME_TO_FUNCTION_DICTIONARY: Dict[
     str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
 ] = {
+    "list_projects": grafana_list_projects,
     "list_endpoints": grafana_list_endpoints,
     "individual_feature_analysis": grafana_individual_feature_analysis,
     "overall_feature_analysis": grafana_overall_feature_analysis,
+    "incoming_features": grafana_incoming_features,
 }

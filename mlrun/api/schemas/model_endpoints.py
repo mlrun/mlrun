@@ -18,6 +18,7 @@ class ModelEndpointMetadata(BaseModel):
     model_artifact: Optional[str]
     stream_path: Optional[str]
     feature_stats: Optional[dict]
+    feature_names: Optional[List[str]]
 
     class Config:
         extra = Extra.allow
@@ -75,6 +76,7 @@ class ModelEndpoint(BaseModel):
         model_artifact: Optional[str] = None,
         stream_path: Optional[str] = None,
         feature_stats: Optional[dict] = None,
+        feature_names: Optional[List[str]] = None,
         state: Optional[str] = None,
         active: bool = True,
     ) -> "ModelEndpoint":
@@ -88,6 +90,7 @@ class ModelEndpoint(BaseModel):
         :param model_artifact: The path to the model artifact containing metadata about the features of the model
         :param stream_path: The path to the output stream of the model server
         :param feature_stats: A dictionary describing the model's features
+        :param feature_names: A list of feature names
 
         Parameters for ModelEndpointSpec
         :param model: The name of the model that is used in the serving function (used for creating endpoint.id)
@@ -106,6 +109,7 @@ class ModelEndpoint(BaseModel):
                 model_artifact=model_artifact,
                 stream_path=stream_path,
                 feature_stats=feature_stats,
+                feature_names=feature_names
             ),
             spec=ModelEndpointSpec(
                 model=model, function=function, model_class=model_class,
@@ -169,7 +173,7 @@ class GrafanaNumberColumn(GrafanaColumn):
     type: str = "number"
 
 
-class GrafanaTextualColumn(GrafanaColumn):
+class GrafanaStringColumn(GrafanaColumn):
     text: str
     type: str = "string"
 
@@ -181,3 +185,20 @@ class GrafanaTable(BaseModel):
 
     def add_row(self, *args):
         self.rows.append(list(args))
+
+
+class GrafanaDataPoint(BaseModel):
+    value: float
+    timestamp: int  # Unix timestamp in milliseconds
+
+
+class GrafanaTimeSeriesTarget(BaseModel):
+    target: str
+    datapoints: List[Tuple[float, int]] = []
+
+    def add_data_point(self, data_point: GrafanaDataPoint):
+        self.datapoints.append((data_point.value, data_point.timestamp))
+
+
+class GrafanaTimeSeries(BaseModel):
+    target_data_points: List[GrafanaTimeSeriesTarget] = []

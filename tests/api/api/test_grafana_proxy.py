@@ -1,6 +1,9 @@
 import os
+from datetime import datetime, timedelta
+from random import randint
 from typing import Optional
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from pytest import fail
@@ -336,3 +339,95 @@ def cleanup_endpoints(db: Session, client: TestClient):
             )
         except CreateError:
             pass
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_grafana_incoming_features(db: Session, client: TestClient):
+
+    frames = get_frames_client(
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+    )
+
+    frames.create(
+        backend="tsdb",
+        table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+        rate="10/m",
+        if_exists=1,
+    )
+
+    start = datetime.utcnow()
+    endpoints = [_mock_random_endpoint() for _ in range(5)]
+
+    for endpoint in endpoints:
+        ModelEndpoints.register_endpoint(
+            _get_access_key(),
+            endpoint.metadata.project,
+            endpoint.spec.model,
+            endpoint.spec.function,
+            endpoint.metadata.tag,
+            feature_names=["f0", "f1", "f2", "f3"]
+        )
+
+        total = 0
+
+        dfs = []
+
+        for i in range(10):
+            count = randint(1, 10)
+            total += count
+            data = {
+                "f0": i,
+                "f1": i + 1,
+                "f2": i + 2,
+                "f3": i + 3,
+                "endpoint_id": endpoint.id,
+                "timestamp": start - timedelta(minutes=10 - i),
+            }
+            df = pd.DataFrame(data=[data])
+            dfs.append(df)
+
+        frames.write(
+            backend="tsdb",
+            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+            dfs=dfs,
+            index_cols=["timestamp", "endpoint_id"],
+        )
+
+    for endpoint in endpoints:
+        response = client.post(
+            url="/api/grafana-proxy/model-endpoints/query",
+            headers={"X-V3io-Session-Key": _get_access_key()},
+            json={
+                "targets": [
+                    {
+                        "target": f"project=test;endpoint_id={endpoint.id};target_endpoint=incoming_features"
+                    }
+                ]
+            },
+        )
+        response = response.json()
+        targets = [t["target"] for t in response]
+        assert targets == ['f0', 'f1', 'f2', 'f3']
+
+        lens = [t["datapoints"] for t in response]
+        assert all(map(lambda l: len(l) == 10, lens))
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_grafana_list_projects(db: Session, client: TestClient):
+    response = client.post(
+        url="/api/grafana-proxy/model-endpoints/query",
+        headers={"X-V3io-Session-Key": _get_access_key()},
+        json={
+            "targets": [
+                {
+                    "target": f"target_endpoint=list_projects"
+                }
+            ]
+        },
+    )
+    pass

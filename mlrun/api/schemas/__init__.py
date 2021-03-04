@@ -41,8 +41,11 @@ from .model_endpoints import (
     Metric,
     GrafanaColumn,
     GrafanaNumberColumn,
-    GrafanaTextualColumn,
+    GrafanaStringColumn,
     GrafanaTable,
+    GrafanaTimeSeries,
+    GrafanaTimeSeriesTarget,
+    GrafanaDataPoint
 )
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
 from .pipeline import PipelinesPagination, PipelinesOutput

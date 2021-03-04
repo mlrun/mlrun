@@ -95,12 +95,15 @@ class ModelEndpoints:
         labels: Optional[dict] = None,
         model_artifact: Optional[str] = None,
         feature_stats: Optional[dict] = None,
+        feature_names: Optional[List[str]] = None,
         stream_path: Optional[str] = None,
         active: bool = True,
         with_feature_stats: bool = True,
     ):
         """
-        Writes endpoint data to KV, a prerequisite for initializing the monitoring process
+        Writes endpoint data to KV, a prerequisite for initializing the monitoring process for a specific endpoint.
+        This method exposes a functionality for storing endpoint meta data that is crucial for the endpoint monitoring
+        system.
 
         :param access_key: V3IO access key for managing user permissions
 
@@ -109,7 +112,8 @@ class ModelEndpoints:
         :param tag: The tag/version of the model/function (used for creating endpoint.id)
         :param labels: key value pairs of user defined labels
         :param model_artifact: The path to the model artifact containing metadata about the features of the model
-        :param feature_stats: The actual metadata about the features of the model (use either this or `model_artifact`)
+        :param feature_stats: The actual metadata about the features of the model
+        :param feature_names:
         :param stream_path: The path to the output stream of the model server
 
         Parameters for ModelEndpointSpec
@@ -133,28 +137,36 @@ class ModelEndpoints:
             model_artifact=model_artifact,
         )
 
-        if with_feature_stats:
-            if not model_artifact and not feature_stats:
-                message = (
-                    f"Failed to register endpoint because both `model_artifact` and `feature_stats` are not "
-                    f"initialized properly, please either initialize one of them: {{project={project} "
-                    f"model={model}, function={function}, tag={tag}}}"
-                )
-                raise MLRunInvalidArgumentError(message)
-            if model_artifact and feature_stats:
-                message = (
-                    f"Failed to register endpoint because both `model_artifact` and `feature_stats` are "
-                    f"initialized, please initialize only one of them: {{project={project} model={model}, "
-                    f"function={function}, tag={tag}}}"
-                )
-                raise MLRunInvalidArgumentError(message)
+        # If model artifact was supplied but `feature_stats` was not, grab model artifact and get `feature_stats`
+        if model_artifact and not feature_stats:
             if model_artifact:
                 model_obj = get_model(model_artifact)
                 feature_stats = model_obj[1].feature_stats
 
-            feature_stats = {
-                _clean_feature_name(k): v for k, v in feature_stats.items()
-            }
+        # If `feature_stats` was either populated by `model_artifact`or by manual input, make sure to keep the names
+        # of the features. If `feature_names` was supplied, replace the names set in `feature_stats`, otherwise - make
+        # sure to keep a clean version of the names
+        if feature_stats:
+            if feature_names:
+                if len(feature_stats) != len(feature_names):
+                    raise MLRunInvalidArgumentError(
+                        f"`feature_stats` and `feature_names` have a different number of names, while expected to match"
+                        f"feature_stats({len(feature_stats)}), feature_names({len(feature_names)})"
+                    )
+            clean_feature_stats = {}
+            clean_feature_names = []
+            for i, (feature, stats) in enumerate(feature_stats.items()):
+                if feature_names:
+                    clean_name = _clean_feature_name(feature_names[i])
+                else:
+                    clean_name = _clean_feature_name(feature)
+                clean_feature_stats[clean_name] = stats
+                clean_feature_names.append(clean_name)
+            feature_stats = clean_feature_stats
+            feature_names = clean_feature_names
+
+        # If none of the above was supplied, feature names will be assigned on first contact with the model monitoring
+        # system
 
         endpoint = ModelEndpoint.new(
             project=project,
@@ -166,6 +178,7 @@ class ModelEndpoints:
             model_artifact=model_artifact,
             stream_path=stream_path,
             feature_stats=feature_stats,
+            feature_names=feature_names,
             active=active,
             state="registered",
         )
@@ -187,11 +200,11 @@ class ModelEndpoints:
         :param endpoint: ModelEndpoint object
         """
 
-        labels = endpoint.metadata.labels or ""
-
+        labels = endpoint.metadata.labels or {}
         searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
 
-        feature_stats = endpoint.metadata.feature_stats or ""
+        feature_stats = endpoint.metadata.feature_stats or {}
+        feature_names = endpoint.metadata.feature_names or []
 
         client = get_v3io_client(endpoint=config.v3io_api)
         client.kv.put(
@@ -206,12 +219,13 @@ class ModelEndpoints:
                 "function": endpoint.spec.function,
                 "tag": endpoint.metadata.tag,
                 "model_class": endpoint.spec.model_class or "",
-                "labels": json.dumps(labels) if labels else "{}",
+                "labels": json.dumps(labels),
                 "model_artifact": endpoint.metadata.model_artifact or "",
                 "stream_path": endpoint.metadata.stream_path or "",
                 "active": endpoint.status.active,
                 "state": endpoint.status.state or "",
-                "feature_stats": json.dumps(feature_stats) if feature_stats else "{}",
+                "feature_stats": json.dumps(feature_stats),
+                "feature_names": json.dumps(feature_names),
                 **searchable_labels,
             },
         )

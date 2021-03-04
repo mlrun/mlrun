@@ -25,7 +25,6 @@ from tests.conftest import (
 )
 from unittest.mock import Mock
 import mlrun
-import mlrun.errors
 from mlrun import new_task, get_run_db, new_function
 
 
@@ -89,13 +88,6 @@ def test_failed_schedule_not_creating_run():
     function.store_run = Mock()
     function.run(handler=my_func, schedule="* * * * *")
     assert 0 == function.store_run.call_count
-
-
-def test_schedule_with_local_exploding():
-    function = new_function()
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
-        function.run(local=True, schedule="* * * * *")
-    assert "local and schedule cannot be used together" in str(excinfo.value)
 
 
 def test_invalid_name():

@@ -244,11 +244,6 @@ class BaseRuntime(ModelObj):
         """
 
         if local:
-
-            if schedule is not None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "local and schedule cannot be used together"
-                )
             # allow local run simulation with a flip of a flag
             command = self
             if local_code_path:

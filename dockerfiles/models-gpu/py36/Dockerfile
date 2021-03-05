@@ -111,14 +111,15 @@ RUN conda config --add channels plotly && \
     scipy \
     seaborn \
     tensorflow-gpu \
-    wrapt
+    wrapt \
+    && conda clean -aqy
 
 RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12
+    -c anaconda -c conda-forge -c defaults rapids=0.12 \
+    && conda clean -aqy
 
-RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
-
-RUN conda clean -aqy
+RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1 \
+    && conda clean -aqy
 
 RUN python -m pip install --upgrade pip~=20.2.0
 

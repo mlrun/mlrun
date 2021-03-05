@@ -20,7 +20,7 @@ ENV PIP_NO_CACHE_DIR=1
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install --no-install-recommends -y \
         apt-transport-https \
         ca-certificates \
         curl \
@@ -29,13 +29,15 @@ RUN apt-get update && apt-get install -y \
         gnupg2 \
         make \
         software-properties-common \
-        graphviz
+        graphviz \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 
 RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 
-RUN apt update && apt-get install -y docker-ce-cli
+RUN apt update && apt-get install -y docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade pip~=20.2.0
 

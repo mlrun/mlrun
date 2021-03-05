@@ -22,6 +22,11 @@ from copy import copy
 from os import environ, remove
 from tempfile import mktemp
 
+from distributed import Client
+
+from mlrun.lists import RunList
+
+import mlrun
 from .kubejob import KubejobRuntime
 from ..model import RunObject
 from ..utils import logger
@@ -40,7 +45,86 @@ from nuclio import Event
 from .remotesparkjob import RemoteSparkRuntime
 
 
-class HandlerRuntime(BaseRuntime):
+class ParallelRunner:
+
+    def _get_handler(self, handler):
+        return None, handler
+
+    def _get_dask_client(self):
+        if self.spec.dask_cluster_uri:
+            return mlrun.import_function(self.spec.dask_cluster_uri).client
+        return Client()
+
+    def _parallel_run_many(self, generator, execution, runobj: RunObject) -> RunList:
+        results = RunList()
+        tasks = generator.generate(runobj)
+        handler = runobj.spec.handler
+        self._force_handler(handler)
+        if self.spec.pythonpath:
+            set_paths(self.spec.pythonpath)
+        _, handler = self._get_handler(handler)
+
+        client = self._get_dask_client()
+        parallel_runs = self.spec.parallel_runs or 4
+        queued_runs = 0
+        result_index = 0
+        num_errors = 0
+
+        def process_result(future):
+            nonlocal num_errors
+            resp, sout, serr = future.result()
+            runobj = RunObject.from_dict(resp)
+            try:
+                log_std(self._db_conn, runobj, sout, serr, show=True)
+                resp = self._post_run(resp)
+            except RunError as err:
+                resp = self._post_run(resp, err=str(err))
+                num_errors += 1
+            results.append(resp)
+            if num_errors > generator.max_errors:
+                logger.error("too many errors, stopping iterations!")
+                return True
+            run_results = resp["status"].get("results", {})
+            stop = generator.eval_stop_condition(run_results)
+            if stop:
+                logger.info(f"reached early stop condition ({generator.stop_condition}), stopping iterations!")
+            return stop
+
+        futures = []
+        for task in tasks:
+            # self.store_run(task)
+            resp = client.submit(remote_handler_wrapper, task.to_json(), handler, self.spec.workdir)
+            futures.append(resp)
+            queued_runs += 1
+            if queued_runs >= parallel_runs:
+                early_stop = process_result(futures[result_index])
+                queued_runs -= 1
+                result_index += 1
+                if early_stop:
+                    break
+
+        for future in futures[result_index:]:
+            process_result(future)
+
+        return results
+
+
+def remote_handler_wrapper(task, handler, workdir=None):
+    if task and not isinstance(task, dict):
+        task = json.loads(task)
+
+    context = MLClientCtx.from_dict(
+        task,
+        autocommit=False,
+        host=socket.gethostname(),
+    )
+    runobj = RunObject.from_dict(task)
+
+    sout, serr = exec_from_params(handler, runobj, context, workdir)
+    return context.to_dict(), sout, serr
+
+
+class HandlerRuntime(BaseRuntime, ParallelRunner):
     kind = "handler"
 
     def _run(self, runobj: RunObject, execution):
@@ -64,7 +148,7 @@ class HandlerRuntime(BaseRuntime):
         return context.to_dict()
 
 
-class LocalRuntime(BaseRuntime):
+class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
 
@@ -78,6 +162,9 @@ class LocalRuntime(BaseRuntime):
     @property
     def is_deployed(self):
         return True
+
+    def _get_handler(self, handler):
+        return load_module(self.spec.command, handler)
 
     def _run(self, runobj: RunObject, execution):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
@@ -102,7 +189,7 @@ class LocalRuntime(BaseRuntime):
             if self.spec.pythonpath:
                 set_paths(self.spec.pythonpath)
 
-            mod, fn = load_module(self.spec.command, handler)
+            mod, fn = self._get_handler(handler)
             context = MLClientCtx.from_dict(
                 runobj.to_dict(),
                 rundb=self.spec.rundb,

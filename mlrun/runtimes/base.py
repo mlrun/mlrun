@@ -79,6 +79,8 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
+        parallel_runs=None,
+        dask_cluster_uri=None,
     ):
 
         self.command = command or ""
@@ -89,6 +91,8 @@ class FunctionSpec(ModelObj):
         self.description = description or ""
         self.workdir = workdir
         self.pythonpath = pythonpath
+        self.parallel_runs = parallel_runs
+        self.dask_cluster_uri = dask_cluster_uri
 
         self._build = None
         self.build = build
@@ -409,8 +413,11 @@ class BaseRuntime(ModelObj):
         last_err = None
         if task_generator:
             # multiple runs (based on hyper params or params file)
-            generator = task_generator.generate(runspec)
-            results = self._run_many(generator, execution, runspec)
+            generator = task_generator
+            runner = self._run_many
+            if hasattr(self, "_parallel_run_many") and (self.spec.parallel_runs or self.spec.dask_cluster_uri):
+                runner = self._parallel_run_many
+            results = runner(generator, execution, runspec)
             results_to_iter(results, runspec, execution)
             result = execution.to_dict()
 
@@ -524,18 +531,33 @@ class BaseRuntime(ModelObj):
     def _run(self, runspec: RunObject, execution) -> dict:
         pass
 
-    def _run_many(self, tasks, execution, runobj: RunObject) -> RunList:
+    def _run_many(self, generator, execution, runobj: RunObject) -> RunList:
         results = RunList()
+        num_errors = 0
+        tasks = generator.generate(runobj)
         for task in tasks:
             try:
                 # self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
+                run_results = resp["status"].get("results", {})
+                if generator.eval_stop_condition(run_results):
+                    logger.info(f"reached early stop condition ({generator.stop_condition}), stopping iterations!")
+                    results.append(resp)
+                    break
+
             except RunError as err:
                 task.status.state = "error"
                 task.status.error = str(err)
                 resp = self._post_run(task=task, err=err)
+                num_errors += 1
+                if num_errors > generator.max_errors:
+                    logger.error("too many errors, stopping iterations!")
+                    results.append(resp)
+                    break
+
             results.append(resp)
+
         return results
 
     def store_run(self, runobj: RunObject):

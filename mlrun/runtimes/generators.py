@@ -39,6 +39,10 @@ def get_generator(spec, execution):
     if spec.selector:
         parse_selector(spec.selector)
 
+    stop_condition = None
+    if "EARLY_STOP_CONDITION" in spec.parameters:
+        stop_condition = spec.parameters.pop("EARLY_STOP_CONDITION")
+
     obj = None
     if spec.param_file:
         obj = execution.get_dataitem(spec.param_file)
@@ -48,26 +52,37 @@ def get_generator(spec, execution):
             hyperparams = json.loads(obj.get())
 
     if not tuning_strategy or tuning_strategy == "grid":
-        return GridGenerator(hyperparams, spec.parameters)
+        return GridGenerator(hyperparams, spec.parameters, stop_condition)
 
     if tuning_strategy == "random":
-        return RandomGenerator(hyperparams, spec.parameters)
+        return RandomGenerator(hyperparams, spec.parameters, stop_condition)
 
     if obj:
         df = obj.as_df()
     else:
         df = pd.DataFrame(hyperparams)
-    return ListGenerator(df)
+    return ListGenerator(df, stop_condition)
 
 
 class TaskGenerator:
+    max_errors = 3
+
+    def __init__(self):
+        self.stop_condition = None
+
     def generate(self, run: RunObject):
         pass
 
+    def eval_stop_condition(self, results) -> bool:
+        if not self.stop_condition:
+            return False
+        return eval(self.stop_condition, {}, results)
+
 
 class GridGenerator(TaskGenerator):
-    def __init__(self, hyperparams, params: dict = None):
+    def __init__(self, hyperparams, params: dict = None, stop_condition=None):
         self.hyperparams = hyperparams
+        self.stop_condition = stop_condition
 
     def generate(self, run: RunObject):
         i = 0
@@ -102,8 +117,9 @@ class GridGenerator(TaskGenerator):
 
 
 class RandomGenerator(TaskGenerator):
-    def __init__(self, hyperparams: dict, params: dict = None):
+    def __init__(self, hyperparams: dict, params: dict = None, stop_condition=None):
         self.hyperparams = hyperparams
+        self.stop_condition = stop_condition
         self.max_evals = default_max_evals
         if "MAX_RANDOM_EVALS" in params:
             self.max_evals = params.pop("MAX_RANDOM_EVALS")
@@ -127,9 +143,9 @@ class RandomGenerator(TaskGenerator):
 
 
 class ListGenerator(TaskGenerator):
-    def __init__(self, df):
-
+    def __init__(self, df, stop_condition=None):
         self.df = df
+        self.stop_condition = stop_condition
 
     def generate(self, run: RunObject):
         i = 0

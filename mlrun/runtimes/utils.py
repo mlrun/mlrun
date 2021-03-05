@@ -257,7 +257,7 @@ def results_to_iter(results, runspec, execution):
     )
     if failed:
         execution.set_state(
-            error=f"{failed} or {len(results)} tasks failed, check logs in db for details",
+            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
             commit=False,
         )
     elif running == 0:

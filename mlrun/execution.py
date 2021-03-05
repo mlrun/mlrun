@@ -210,6 +210,8 @@ class MLClientCtx(object):
                 self._rundb = get_run_db(rundb, secrets=self._secrets_manager)
             else:
                 self._rundb = rundb
+        else:
+            self._rundb = mlrun.get_run_db()
         self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(db=self._rundb)
 

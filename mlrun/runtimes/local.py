@@ -110,6 +110,7 @@ class ParallelRunner:
         for future in futures[result_index:]:
             process_result(future)
 
+        client.close()
         if function_name and generator.options.teardown_dask:
             logger.info("tearing down the dask cluster..")
             mlrun.get_run_db().delete_runtime_object("dask", function_name, force=True)

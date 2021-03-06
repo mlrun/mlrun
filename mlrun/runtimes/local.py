@@ -46,13 +46,12 @@ from .remotesparkjob import RemoteSparkRuntime
 
 
 class ParallelRunner:
-
     def _get_handler(self, handler):
         return None, handler
 
-    def _get_dask_client(self):
-        if self.spec.dask_cluster_uri:
-            return mlrun.import_function(self.spec.dask_cluster_uri).client
+    def _get_dask_client(self, options):
+        if options.dask_cluster_uri:
+            return mlrun.import_function(options.dask_cluster_uri).client
         return Client()
 
     def _parallel_run_many(self, generator, execution, runobj: RunObject) -> RunList:
@@ -64,8 +63,8 @@ class ParallelRunner:
             set_paths(self.spec.pythonpath)
         _, handler = self._get_handler(handler)
 
-        client = self._get_dask_client()
-        parallel_runs = self.spec.parallel_runs or 4
+        client = self._get_dask_client(generator.options)
+        parallel_runs = generator.options.parallel_runs or 4
         queued_runs = 0
         result_index = 0
         num_errors = 0
@@ -75,7 +74,7 @@ class ParallelRunner:
             resp, sout, serr = future.result()
             runobj = RunObject.from_dict(resp)
             try:
-                log_std(self._db_conn, runobj, sout, serr, show=True)
+                log_std(self._db_conn, runobj, sout, serr, show=False)
                 resp = self._post_run(resp)
             except RunError as err:
                 resp = self._post_run(resp, err=str(err))
@@ -87,13 +86,17 @@ class ParallelRunner:
             run_results = resp["status"].get("results", {})
             stop = generator.eval_stop_condition(run_results)
             if stop:
-                logger.info(f"reached early stop condition ({generator.stop_condition}), stopping iterations!")
+                logger.info(
+                    f"reached early stop condition ({generator.stop_condition}), stopping iterations!"
+                )
             return stop
 
         futures = []
         for task in tasks:
             # self.store_run(task)
-            resp = client.submit(remote_handler_wrapper, task.to_json(), handler, self.spec.workdir)
+            resp = client.submit(
+                remote_handler_wrapper, task.to_json(), handler, self.spec.workdir
+            )
             futures.append(resp)
             queued_runs += 1
             if queued_runs >= parallel_runs:
@@ -113,11 +116,7 @@ def remote_handler_wrapper(task, handler, workdir=None):
     if task and not isinstance(task, dict):
         task = json.loads(task)
 
-    context = MLClientCtx.from_dict(
-        task,
-        autocommit=False,
-        host=socket.gethostname(),
-    )
+    context = MLClientCtx.from_dict(task, autocommit=False, host=socket.gethostname(),)
     runobj = RunObject.from_dict(task)
 
     sout, serr = exec_from_params(handler, runobj, context, workdir)

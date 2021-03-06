@@ -45,7 +45,14 @@ from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import write_kfpmeta, mlrun_op
 from ..lists import RunList
-from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
+from ..model import (
+    RunObject,
+    ModelObj,
+    RunTemplate,
+    BaseMetadata,
+    ImageBuilder,
+    HyperParamOptions,
+)
 from ..secrets import SecretsStore
 from ..utils import (
     get_in,
@@ -79,8 +86,6 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
-        parallel_runs=None,
-        dask_cluster_uri=None,
     ):
 
         self.command = command or ""
@@ -91,8 +96,6 @@ class FunctionSpec(ModelObj):
         self.description = description or ""
         self.workdir = workdir
         self.pythonpath = pythonpath
-        self.parallel_runs = parallel_runs
-        self.dask_cluster_uri = dask_cluster_uri
 
         self._build = None
         self.build = build
@@ -168,6 +171,10 @@ class BaseRuntime(ModelObj):
         return self
 
     @property
+    def uri(self):
+        return self._function_uri()
+
+    @property
     def is_deployed(self):
         return True
 
@@ -218,6 +225,8 @@ class BaseRuntime(ModelObj):
         artifact_path: str = "",
         watch: bool = True,
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
+        hyperparams: Dict[str, list] = None,
+        hyper_options: HyperParamOptions = None,
         verbose=None,
         scrape_metrics=False,
         local=False,
@@ -238,6 +247,10 @@ class BaseRuntime(ModelObj):
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string (which
         will be converted to the class using its `from_crontab` constructor. see this link for help:
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
+                               the default strategy is grid search, can specify strategy (grid, list, random)
+                               and other options in the hyper_options parameter
+        :param hyper_options:  dict or :py:class:`~mlrun.model.HyperParamOptions` struct of hyper parameter options
         :param verbose:        add verbose prints/logs
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
@@ -301,6 +314,8 @@ class BaseRuntime(ModelObj):
         )
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
+        runspec.spec.hyper_options = hyper_options or runspec.spec.hyper_options
         runspec.spec.verbose = verbose or runspec.spec.verbose
         runspec.spec.scrape_metrics = scrape_metrics or runspec.spec.scrape_metrics
         runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
@@ -415,7 +430,7 @@ class BaseRuntime(ModelObj):
             # multiple runs (based on hyper params or params file)
             generator = task_generator
             runner = self._run_many
-            if hasattr(self, "_parallel_run_many") and (self.spec.parallel_runs or self.spec.dask_cluster_uri):
+            if hasattr(self, "_parallel_run_many") and generator.use_parallel():
                 runner = self._parallel_run_many
             results = runner(generator, execution, runspec)
             results_to_iter(results, runspec, execution)
@@ -542,7 +557,9 @@ class BaseRuntime(ModelObj):
                 resp = self._post_run(resp, task=task)
                 run_results = resp["status"].get("results", {})
                 if generator.eval_stop_condition(run_results):
-                    logger.info(f"reached early stop condition ({generator.stop_condition}), stopping iterations!")
+                    logger.info(
+                        f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                    )
                     results.append(resp)
                     break
 

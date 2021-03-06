@@ -16,16 +16,18 @@ import random
 import pandas as pd
 import sys
 from copy import deepcopy
-from ..model import RunObject
+from ..model import RunObject, HyperParamOptions
 from ..utils import get_in
 
 
 hyper_types = ["list", "grid", "random"]
 default_max_evals = 10
+default_max_errors = 3
 
 
 def get_generator(spec, execution):
-    tuning_strategy = spec.tuning_strategy
+    options = spec.hyper_options
+    tuning_strategy = spec.tuning_strategy or options.tuning_strategy
     hyperparams = spec.hyperparams
     if not spec.param_file and not hyperparams:
         return None
@@ -36,12 +38,9 @@ def get_generator(spec, execution):
     if spec.param_file and hyperparams:
         raise ValueError("hyperparams and param_file cannot be used together")
 
-    if spec.selector:
-        parse_selector(spec.selector)
-
-    stop_condition = None
-    if "EARLY_STOP_CONDITION" in spec.parameters:
-        stop_condition = spec.parameters.pop("EARLY_STOP_CONDITION")
+    options.selector = options.selector or spec.selector
+    if options.selector:
+        parse_selector(options.selector)
 
     obj = None
     if spec.param_file:
@@ -52,37 +51,46 @@ def get_generator(spec, execution):
             hyperparams = json.loads(obj.get())
 
     if not tuning_strategy or tuning_strategy == "grid":
-        return GridGenerator(hyperparams, spec.parameters, stop_condition)
+        return GridGenerator(hyperparams, options)
 
     if tuning_strategy == "random":
-        return RandomGenerator(hyperparams, spec.parameters, stop_condition)
+        return RandomGenerator(hyperparams, options)
 
     if obj:
         df = obj.as_df()
     else:
         df = pd.DataFrame(hyperparams)
-    return ListGenerator(df, stop_condition)
+    return ListGenerator(df, options)
 
 
 class TaskGenerator:
-    max_errors = 3
+    def __init__(self, options: HyperParamOptions):
+        self.options = options
 
-    def __init__(self):
-        self.stop_condition = None
+    def use_parallel(self):
+        return self.options.parallel_runs or self.options.dask_cluster_uri
+
+    @property
+    def max_errors(self):
+        return self.options.max_errors or default_max_errors
+
+    @property
+    def max_evals(self):
+        return self.options.max_evals or default_max_evals
 
     def generate(self, run: RunObject):
         pass
 
     def eval_stop_condition(self, results) -> bool:
-        if not self.stop_condition:
+        if not self.options.stop_condition:
             return False
-        return eval(self.stop_condition, {}, results)
+        return eval(self.options.stop_condition, {}, results)
 
 
 class GridGenerator(TaskGenerator):
-    def __init__(self, hyperparams, params: dict = None, stop_condition=None):
+    def __init__(self, hyperparams, options=None):
+        super().__init__(options)
         self.hyperparams = hyperparams
-        self.stop_condition = stop_condition
 
     def generate(self, run: RunObject):
         i = 0
@@ -117,12 +125,9 @@ class GridGenerator(TaskGenerator):
 
 
 class RandomGenerator(TaskGenerator):
-    def __init__(self, hyperparams: dict, params: dict = None, stop_condition=None):
+    def __init__(self, hyperparams: dict, options=None):
+        super().__init__(options)
         self.hyperparams = hyperparams
-        self.stop_condition = stop_condition
-        self.max_evals = default_max_evals
-        if "MAX_RANDOM_EVALS" in params:
-            self.max_evals = params.pop("MAX_RANDOM_EVALS")
 
     def generate(self, run: RunObject):
         i = 0
@@ -143,9 +148,9 @@ class RandomGenerator(TaskGenerator):
 
 
 class ListGenerator(TaskGenerator):
-    def __init__(self, df, stop_condition=None):
+    def __init__(self, df, options=None):
+        super().__init__(options)
         self.df = df
-        self.stop_condition = stop_condition
 
     def generate(self, run: RunObject):
         i = 0

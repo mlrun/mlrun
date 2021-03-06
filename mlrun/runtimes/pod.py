@@ -49,9 +49,6 @@ class KubeResourceSpec(FunctionSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
-        parallel_runs=None,
-        dask_cluster_uri=None,
-        node_selector=None,
     ):
         super().__init__(
             command=command,
@@ -63,8 +60,6 @@ class KubeResourceSpec(FunctionSpec):
             description=description,
             workdir=workdir,
             default_handler=default_handler,
-            parallel_runs=parallel_runs,
-            dask_cluster_uri=dask_cluster_uri,
         )
         self._volumes = {}
         self._volume_mounts = {}
@@ -76,7 +71,6 @@ class KubeResourceSpec(FunctionSpec):
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self.image_pull_secret = image_pull_secret
-        self.node_selector = node_selector
 
     @property
     def volumes(self) -> list:

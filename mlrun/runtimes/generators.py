@@ -25,13 +25,17 @@ default_max_evals = 10
 default_max_errors = 3
 
 
+def is_hyper_job(spec):
+    return spec.param_file or spec.hyperparams
+
+
 def get_generator(spec, execution):
+    if not is_hyper_job(spec):
+        return None
+
     options = spec.hyper_options
     tuning_strategy = spec.tuning_strategy or options.tuning_strategy
     hyperparams = spec.hyperparams
-    if not spec.param_file and not hyperparams:
-        return None
-
     if tuning_strategy and tuning_strategy not in hyper_types:
         raise ValueError(f"unsupported hyperparams type ({tuning_strategy})")
 
@@ -68,7 +72,7 @@ class TaskGenerator:
         self.options = options
 
     def use_parallel(self):
-        return self.options.parallel_runs or self.options.dask_cluster_uri
+        return self.options.parallelism or self.options.dask_cluster_uri
 
     @property
     def max_errors(self):

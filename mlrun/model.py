@@ -334,10 +334,11 @@ class HyperParamOptions(ModelObj):
         tuning_strategy (str):  hyper param strategy - grid, list or random
         selector (str):         selection criteria for best result ([min|max]<column>), e.g. max.accuracy
         stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
-        parallel_runs (int):    number of param combinations to run in parallel (over Dask)
+        parallelism (int):      number of param combinations to run in parallel (over Dask)
         dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
         max_evals (int):        max number of runs (in random strategy)
         max_errors (int):       max number of child runs errors for the overall job to fail
+        teardown_dask (bool):   kill the dask cluster pods after the runs
     """
 
     def __init__(
@@ -346,10 +347,11 @@ class HyperParamOptions(ModelObj):
         tuning_strategy=None,
         selector=None,
         stop_condition=None,
-        parallel_runs=None,
+        parallelism=None,
         dask_cluster_uri=None,
         max_evals=None,
         max_errors=None,
+        teardown_dask=None,
     ):
         self.param_file = param_file
         self.tuning_strategy = tuning_strategy
@@ -357,8 +359,9 @@ class HyperParamOptions(ModelObj):
         self.stop_condition = stop_condition
         self.max_evals = max_evals
         self.max_errors = max_errors
-        self.parallel_runs = parallel_runs
+        self.parallelism = parallelism
         self.dask_cluster_uri = dask_cluster_uri
+        self.teardown_dask = teardown_dask
 
 
 class RunSpec(ModelObj):

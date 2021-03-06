@@ -171,7 +171,7 @@ def test_hyper_grid_parallel():
 
     run_spec = tag_test(base_spec, "test_hyper_grid")
     run_spec.with_param_file(
-        "memory://params.json", selector="r1", strategy="grid", parallel_runs=2
+        "memory://params.json", selector="r1", strategy="grid", parallelism=2
     )
     run = new_function().run(run_spec, handler=hyper_func)
 

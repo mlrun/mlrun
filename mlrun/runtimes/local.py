@@ -51,8 +51,9 @@ class ParallelRunner:
 
     def _get_dask_client(self, options):
         if options.dask_cluster_uri:
-            return mlrun.import_function(options.dask_cluster_uri).client
-        return Client()
+            function = mlrun.import_function(options.dask_cluster_uri)
+            return function.client, function.metadata.name
+        return Client(), None
 
     def _parallel_run_many(self, generator, execution, runobj: RunObject) -> RunList:
         results = RunList()
@@ -63,8 +64,8 @@ class ParallelRunner:
             set_paths(self.spec.pythonpath)
         _, handler = self._get_handler(handler)
 
-        client = self._get_dask_client(generator.options)
-        parallel_runs = generator.options.parallel_runs or 4
+        client, function_name = self._get_dask_client(generator.options)
+        parallelism = generator.options.parallelism or 4
         queued_runs = 0
         result_index = 0
         num_errors = 0
@@ -99,7 +100,7 @@ class ParallelRunner:
             )
             futures.append(resp)
             queued_runs += 1
-            if queued_runs >= parallel_runs:
+            if queued_runs >= parallelism:
                 early_stop = process_result(futures[result_index])
                 queued_runs -= 1
                 result_index += 1
@@ -108,6 +109,10 @@ class ParallelRunner:
 
         for future in futures[result_index:]:
             process_result(future)
+
+        if function_name and generator.options.teardown_dask:
+            logger.info("tearing down the dask cluster..")
+            mlrun.get_run_db().delete_runtime_object("dask", function_name, force=True)
 
         return results
 

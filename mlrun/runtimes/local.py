@@ -74,7 +74,7 @@ class ParallelRunner:
             resp, sout, serr = future.result()
             runobj = RunObject.from_dict(resp)
             try:
-                log_std(self._db_conn, runobj, sout, serr, show=False)
+                log_std(self._db_conn, runobj, sout, serr)
                 resp = self._post_run(resp)
             except RunError as err:
                 resp = self._post_run(resp, err=str(err))

@@ -698,8 +698,7 @@ class BaseRuntime(ModelObj):
         #     image = self.full_image_path()
 
         if use_db:
-            hash_key = self.save(versioned=True, refresh=True)
-            url = "db://" + self._function_uri(hash_key=hash_key)
+            url = self.save(versioned=True, refresh=True)
         else:
             url = None
 
@@ -800,7 +799,7 @@ class BaseRuntime(ModelObj):
         logger.info(f"function spec saved to path: {target}")
         return self
 
-    def save(self, tag="", versioned=False, refresh=False):
+    def save(self, tag="", versioned=False, refresh=False) -> str:
         db = self._get_db()
         if not db:
             logger.error("database connection is not configured")
@@ -828,7 +827,8 @@ class BaseRuntime(ModelObj):
         hash_key = db.store_function(
             obj, self.metadata.name, self.metadata.project, tag, versioned
         )
-        return hash_key
+        hash_key = hash_key if versioned else None
+        return "db://" + self._function_uri(hash_key=hash_key)
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)

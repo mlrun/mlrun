@@ -362,8 +362,7 @@ class RemoteRuntime(KubeResource):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
         if use_function_from_db:
-            hash_key = self.save(versioned=True, refresh=True)
-            url = "db://" + self._function_uri(hash_key=hash_key)
+            url = self.save(versioned=True, refresh=True)
         else:
             url = None
 

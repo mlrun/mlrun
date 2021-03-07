@@ -101,13 +101,13 @@ def grafana_list_projects(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ) -> List[GrafanaTable]:
     mldb = get_run_db(config.dbpath)
-    table = GrafanaTable(columns=[GrafanaStringColumn(text="project_name")])
+    name_list = []
     try:
         for project in mldb.list_projects(format_=Format.name_only):
-            table.add_row(project)
+            name_list.append(project)
     except Exception as e:
         logger.error(str(e))
-    return [table]
+    return name_list
 
 
 def grafana_list_endpoints(

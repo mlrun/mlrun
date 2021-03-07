@@ -47,18 +47,18 @@ def test_grafana_proxy_model_endpoints_check_connection(
     )
     assert response.status_code == 200
 
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_grafana_list_endpoints_temp(db: Session, client: TestClient):
-    response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
-        headers={"X-V3io-Session-Key": _get_access_key()},
-        json={"targets": [{"target": "project=test-michaell;target_endpoint=list_endpoints"}]},
-    )
-
-    pass
+#
+# @pytest.mark.skipif(
+#     _is_env_params_dont_exist(), reason=_build_skip_message(),
+# )
+# def test_grafana_list_endpoints_temp(db: Session, client: TestClient):
+#     response = client.post(
+#         url="/api/grafana-proxy/model-endpoints/query",
+#         headers={"X-V3io-Session-Key": _get_access_key()},
+#         json={"targets": [{"target": "project=;target_endpoint=list_endpoints"}]},
+#     )
+#
+#     pass
 
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),

@@ -31,11 +31,11 @@ def is_hyper_job(spec):
 
 
 def get_generator(spec, execution):
-    if not is_hyper_job(spec):
-        return None
-
     options = spec.hyper_options
     strategy = spec.strategy or options.strategy
+    if not is_hyper_job(spec) or strategy == "custom":
+        return None
+
     hyperparams = spec.hyperparams
     param_file = spec.param_file or options.param_file
     if strategy and strategy not in hyper_types:

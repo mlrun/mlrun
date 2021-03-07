@@ -54,7 +54,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
 
-    logger.info("Querying grafana-proxy", **query_parameters)
+    logger.debug("Querying grafana-proxy", **query_parameters)
 
     _validate_query_parameters(query_parameters)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
@@ -284,7 +284,7 @@ def grafana_incoming_features(
         end=end,
     )
 
-    data.drop(["endpoint_id"], axis=1, inplace=True)
+    # data.drop(["endpoint_id"], axis=1, inplace=True)
     data.index = data.index.astype(np.int64) // 10 ** 6
 
     for feature, indexed_values in data.to_dict().items():

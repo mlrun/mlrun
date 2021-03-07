@@ -292,7 +292,7 @@ class CSVTarget(BaseStoreTarget):
         if timestamp_key:
             column_list = [timestamp_key] + column_list
         if key_column not in column_list:
-            column_list.append(key_column)
+            column_list.insert(0, key_column)
         graph.add_step(
             name="WriteToCSV",
             after=after,
@@ -335,7 +335,7 @@ class NoSqlTarget(BaseStoreTarget):
             key for key, feature in features.items() if not feature.aggregate
         ]
         if key_column not in column_list:
-            column_list.append(key_column)
+            column_list.insert(0, key_column)
         graph.add_step(
             name="WriteToTable",
             after=after,
@@ -373,7 +373,7 @@ class StreamTarget(BaseStoreTarget):
         if timestamp_key:
             column_list = [timestamp_key] + column_list
         if key_column not in column_list:
-            column_list.append(key_column)
+            column_list.insert(0, key_column)
         graph.add_step(
             name="WriteToStream",
             after=after,

@@ -37,6 +37,8 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
     """
+    logger.debug("Querying grafana-proxy / health check")
+
     get_access_key(request)
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -54,7 +56,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
 
-    logger.debug("Querying grafana-proxy", **query_parameters)
+    logger.debug("Querying grafana-proxy / query", **query_parameters)
 
     _validate_query_parameters(query_parameters)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
@@ -79,9 +81,9 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     """
     access_key = get_access_key(request)
     body = await request.json()
-    query_parameters = _parse_query_parameters(body)
+    query_parameters = _parse_search_parameters(body)
 
-    logger.debug("Querying grafana-proxy", **query_parameters)
+    logger.debug("Querying grafana-proxy / search", **query_parameters)
 
     _validate_query_parameters(query_parameters)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
@@ -93,6 +95,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
         body, query_parameters, access_key
     )
     return result
+
 
 def grafana_list_projects(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str

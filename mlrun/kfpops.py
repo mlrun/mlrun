@@ -19,6 +19,7 @@ import os.path
 
 
 import mlrun
+from .model import HyperParamOptions
 from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
@@ -239,6 +240,8 @@ def mlrun_op(
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
+    if hyper_options and isinstance(hyper_options, dict):
+        hyper_options = HyperParamOptions.from_dict(hyper_options)
     inputs = {} if inputs is None else inputs
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
@@ -351,7 +354,7 @@ def mlrun_op(
     if param_file:
         cmd += ["--param-file", param_file]
     if hyper_options:
-        cmd += ["--hyper-options", json.dumps(hyper_options)]
+        cmd += ["--hyper-options", hyper_options.to_json()]
     if selector:
         cmd += ["--selector", selector]
     if job_image:

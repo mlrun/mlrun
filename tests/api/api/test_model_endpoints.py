@@ -152,7 +152,7 @@ def test_list_endpoints(db: Session, client: TestClient):
         headers={"X-V3io-Session-Key": _get_access_key()},
     )
 
-    endpoints_out = [ModelEndpoint(**e["endpoint"]) for e in response.json()]
+    endpoints_out = [ModelEndpoint(**e["endpoint"]) for e in response.json()["endpoints"]]
 
     in_endpoint_ids = set(map(lambda e: e.id, endpoints_in))
     out_endpoint_ids = set(map(lambda e: e.id, endpoints_out))
@@ -186,37 +186,37 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
     filter_model = client.get(
         "/api/projects/test/model-endpoints/?model=filterme",
         headers={"X-V3io-Session-Key": access_key},
-    ).json()
+    ).json()["endpoints"]
     assert len(filter_model) == 1
 
     filter_function = client.get(
         "/api/projects/test/model-endpoints/?function=filterme",
         headers={"X-V3io-Session-Key": access_key},
-    ).json()
+    ).json()["endpoints"]
     assert len(filter_function) == 2
 
     filter_tag = client.get(
         "/api/projects/test/model-endpoints/?tag=filterme",
         headers={"X-V3io-Session-Key": access_key},
-    ).json()
+    ).json()["endpoints"]
     assert len(filter_tag) == 3
 
     filter_labels = client.get(
         "/api/projects/test/model-endpoints/?label=filtermex=1",
         headers={"X-V3io-Session-Key": access_key},
-    ).json()
+    ).json()["endpoints"]
     assert len(filter_labels) == 4
 
     filter_labels = client.get(
         "/api/projects/test/model-endpoints/?label=filtermex=1&label=filtermey=2",
         headers={"X-V3io-Session-Key": access_key},
-    ).json()
+    ).json()["endpoints"]
     assert len(filter_labels) == 4
 
     filter_labels = client.get(
         "/api/projects/test/model-endpoints/?label=filtermey=2",
         headers={"X-V3io-Session-Key": access_key},
-    ).json()
+    ).json()["endpoints"]
     assert len(filter_labels) == 4
 
 
@@ -267,7 +267,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
             url=f"/api/projects/test/model-endpoints/{endpoint.id}?metric=predictions",
             headers={"X-V3io-Session-Key": _get_access_key()},
         )
-        response = json.loads(response.content)
+        response = response.json()
 
         assert "metrics" in response
 

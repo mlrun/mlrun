@@ -284,7 +284,7 @@ def grafana_incoming_features(
         end=end,
     )
 
-    # data.drop(["endpoint_id"], axis=1, inplace=True)
+    data.drop(["endpoint_id"], axis=1, inplace=True, errors="ignore")
     data.index = data.index.astype(np.int64) // 10 ** 6
 
     for feature, indexed_values in data.to_dict().items():

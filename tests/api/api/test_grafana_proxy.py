@@ -14,7 +14,7 @@ from v3io_frames import frames_pb2 as fpb2
 
 from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
-    _validate_query_parameters, _drop_grafana_escape_chars,
+    _validate_query_parameters,
 )
 from mlrun.api.crud.model_endpoints import (
     ENDPOINTS_TABLE_PATH,
@@ -346,7 +346,6 @@ def cleanup_endpoints(db: Session, client: TestClient):
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_grafana_incoming_features(db: Session, client: TestClient):
-
     frames = get_frames_client(
         token=_get_access_key(), container="projects", address=config.v3io_framesd,
     )
@@ -414,16 +413,3 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
 
         lens = [t["datapoints"] for t in response]
         assert all(map(lambda l: len(l) == 10, lens))
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_grafana_list_projects(db: Session, client: TestClient):
-    # config.dbpath = os.environ.get("MLRUN_DBPATH")
-    # response = client.post(
-    #     url="/api/grafana-proxy/model-endpoints/query",
-    #     headers={"X-V3io-Session-Key": _get_access_key()},
-    #     json={"targets": [{"target": f"target_endpoint=list_projects"}]},
-    # )
-    pass

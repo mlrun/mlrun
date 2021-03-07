@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, Response, Request
 
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
-from mlrun.api.schemas import ModelEndpointState
+from mlrun.api.schemas import ModelEndpointState, ModelEndpointStateList
 from mlrun.errors import MLRunConflictError, MLRunInvalidArgumentError
 
 router = APIRouter()
@@ -78,7 +78,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
 
 
 @router.get(
-    "/projects/{project}/model-endpoints", response_model=List[ModelEndpointState]
+    "/projects/{project}/model-endpoints", response_model=ModelEndpointStateList
 )
 def list_endpoints(
     request: Request,
@@ -117,7 +117,7 @@ def list_endpoints(
         start=start,
         end=end,
     )
-    return endpoints
+    return ModelEndpointStateList(endpoints=endpoints)
 
 
 @router.get(

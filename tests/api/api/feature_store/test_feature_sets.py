@@ -375,6 +375,33 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
+def test_feature_set_re_store_same_object(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+
+    # Put a new object - verify it's created
+    response = _store_and_assert_feature_set(
+        client, project_name, name, "tag1", feature_set
+    )
+    uid = response["metadata"]["uid"]
+    response = _store_and_assert_feature_set(
+        client, project_name, name, "tag1", feature_set
+    )
+    assert response["metadata"]["uid"] == uid
+
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, "name=feature_set1", 1
+    )
+
+    # Try to store same object with a different tag.
+    response = client.put(
+        f"/api/projects/{project_name}/feature-sets/{name}/references/tag2?versioned=True",
+        json=feature_set,
+    )
+    assert response.status_code == HTTPStatus.CONFLICT.value
+
+
 def test_feature_set_create_without_labels(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     name = "feature_set1"

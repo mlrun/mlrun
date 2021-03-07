@@ -1296,6 +1296,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureSet, project, name, tag, uid
         )
         if not existing_feature_set:
+            feature_set.metadata.tag = tag
             return self.create_feature_set(session, project, feature_set, versioned)
 
         feature_set_dict = feature_set.dict()
@@ -1526,6 +1527,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureVector, project, name, tag, uid
         )
         if not existing_feature_vector:
+            feature_vector.metadata.tag = tag
             return self.create_feature_vector(
                 session, project, feature_vector, versioned
             )

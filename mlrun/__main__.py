@@ -103,6 +103,11 @@ def main():
     help="hyperparam tuning strategy list | grid | random",
 )
 @click.option(
+    "--hyper-options",
+    default="",
+    help="hyperparam options json string",
+)
+@click.option(
     "--func-url",
     "-f",
     default="",
@@ -146,6 +151,7 @@ def run(
     param_file,
     selector,
     tuning_strategy,
+    hyper_options,
     func_url,
     task,
     handler,
@@ -231,10 +237,13 @@ def run(
         update_in(runtime, "spec.image", image)
     set_item(runobj.spec, handler, "handler")
     set_item(runobj.spec, param, "parameters", fill_params(param))
+
     set_item(runobj.spec, hyperparam, "hyperparams", fill_params(hyperparam))
-    set_item(runobj.spec, param_file, "param_file")
-    set_item(runobj.spec, tuning_strategy, "tuning_strategy")
-    set_item(runobj.spec, selector, "selector")
+    if hyper_options:
+        runobj.spec.hyper_options = json.loads(hyper_options)
+    set_item(runobj.spec.hyper_options, param_file, "param_file")
+    set_item(runobj.spec.hyper_options, tuning_strategy, "tuning_strategy")
+    set_item(runobj.spec.hyper_options, selector, "selector")
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
     set_item(runobj.spec, in_path, run_keys.input_path)

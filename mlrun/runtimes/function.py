@@ -337,7 +337,9 @@ class RemoteRuntime(KubeResource):
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
-        runtime_env = {}
+        runtime_env = {
+            "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
+        }
         if self.spec.rundb or mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:

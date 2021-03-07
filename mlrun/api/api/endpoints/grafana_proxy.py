@@ -369,7 +369,7 @@ def _parse_search_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     """
 
     # Try to get the `target`
-    target = request_body.get("targets")
+    target = request_body.get("target")
 
     if not target:
         raise MLRunBadRequestError(f"Target missing in request body:\n {request_body}")

@@ -758,7 +758,7 @@ def _module_to_namespace(namespace):
     return namespace
 
 
-def get_class(class_name, namespace):
+def get_class(class_name, namespace=None):
     """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name

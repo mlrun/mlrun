@@ -101,6 +101,8 @@ class ModelArtifact(Artifact):
         subset = df
         inferer = get_infer_interface(subset)
         if label_columns:
+            if not isinstance(label_columns, list):
+                label_columns = [label_columns]
             subset = df.drop(columns=label_columns)
         inferer.infer_schema(subset, self.inputs, {}, options=InferOptions.Features)
         if label_columns:

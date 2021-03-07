@@ -4,7 +4,7 @@ Serving and Data Pipelines
 ==========================
 
 MLRun provides advanced and high-performance model, data, and API serving layer.
-see the following sections for details and examples.
+See the following sections for details and examples.
 
 .. toctree::
    :maxdepth: 2

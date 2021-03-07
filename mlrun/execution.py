@@ -84,7 +84,7 @@ class MLClientCtx(object):
         self._function = ""
         self._parameters = {}
         self._hyperparams = {}
-        self._hyper_options = HyperParamOptions
+        self._hyper_options = HyperParamOptions()
         self._in_path = ""
         self.artifact_path = ""
         self._inputs = {}

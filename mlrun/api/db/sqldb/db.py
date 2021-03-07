@@ -1673,9 +1673,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         except SQLAlchemyError as err:
             session.rollback()
             cls = obj.__class__.__name__
-            logger.warning(f"conflict adding {cls}, {err}")
+            logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
             if not ignore:
-                raise DBError(f"duplicate {cls} - {err}") from err
+                raise mlrun.errors.MLRunConflictError(
+                    f"Conflict - {cls} already exists"
+                ) from err
 
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)

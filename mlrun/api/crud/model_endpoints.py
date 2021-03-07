@@ -297,6 +297,18 @@ class ModelEndpoints:
         :param end: The end time of the metrics
         """
 
+        logger.info(
+            "Listing endpoints",
+            project=project,
+            model=model,
+            function=function,
+            tag=tag,
+            labels=labels,
+            metrics=metrics,
+            start=start,
+            end=end,
+        )
+
         client = get_v3io_client(endpoint=config.v3io_api)
         cursor = client.kv.new_cursor(
             container=config.model_endpoint_monitoring.container,

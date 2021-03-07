@@ -24,6 +24,7 @@ import mlrun
 from mlrun.artifacts import ModelArtifact
 
 from mlrun.errors import MLRunInvalidArgumentError
+from .model import HyperParamOptions
 from .artifacts import ArtifactManager, DatasetArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from .datastore import store_manager
@@ -82,6 +83,8 @@ class MLClientCtx(object):
 
         self._function = ""
         self._parameters = {}
+        self._hyperparams = {}
+        self._hyper_options = HyperParamOptions
         self._in_path = ""
         self.artifact_path = ""
         self._inputs = {}
@@ -250,6 +253,11 @@ class MLClientCtx(object):
             self._log_level = spec.get("log_level", self._log_level)
             self._function = spec.get("function", self._function)
             self._parameters = spec.get("parameters", self._parameters)
+            if not self._iteration:
+                self._hyperparams = spec.get("hyperparams", self._hyperparams)
+                self._hyper_options = spec.get("hyper_options", self._hyper_options)
+                if isinstance(self._hyper_options, dict):
+                    self._hyper_options = HyperParamOptions.from_dict(self._hyper_options)
             self._outputs = spec.get("outputs", self._outputs)
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
@@ -837,6 +845,10 @@ class MLClientCtx(object):
                 "last_update": to_date_str(self._last_update),
             },
         }
+
+        if not self._iteration:
+            struct["spec"]["hyperparams"] = self._hyperparams
+            struct["spec"]["hyper_options"] = self._hyper_options.to_dict()
 
         set_if_valid(struct["status"], "error", self._error)
         set_if_valid(struct["status"], "commit", self._commit)

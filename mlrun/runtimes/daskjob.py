@@ -301,9 +301,22 @@ class DaskCluster(KubejobRuntime):
         except ValueError:
             return Client()
 
-    def deploy(self, watch=True, with_mlrun=False, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
-        return super().deploy(watch, with_mlrun, skip_deployed, is_kfp=is_kfp)
+        return super().deploy(
+            watch,
+            with_mlrun,
+            skip_deployed,
+            is_kfp=is_kfp,
+            mlrun_version_specifier=mlrun_version_specifier,
+        )
 
     def _run(self, runobj: RunObject, execution):
 

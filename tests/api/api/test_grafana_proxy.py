@@ -14,7 +14,7 @@ from v3io_frames import frames_pb2 as fpb2
 
 from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
-    _validate_query_parameters,
+    _validate_query_parameters, _drop_grafana_escape_chars,
 )
 from mlrun.api.crud.model_endpoints import (
     ENDPOINTS_TABLE_PATH,
@@ -438,4 +438,9 @@ def test_grafana_list_projects(db: Session, client: TestClient):
     #     headers={"X-V3io-Session-Key": _get_access_key()},
     #     json={"targets": [{"target": f"target_endpoint=list_projects"}]},
     # )
+    pass
+
+
+def test_drop_grafana_escape_chars():
+    a = _drop_grafana_escape_chars({"test": "some_test"})
     pass

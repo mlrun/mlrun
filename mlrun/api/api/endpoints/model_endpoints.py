@@ -4,10 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, Response, Request
 
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
-from mlrun.api.schemas import (
-    ModelEndpointStateList,
-    ModelEndpointState,
-)
+from mlrun.api.schemas import ModelEndpointState
 from mlrun.errors import MLRunConflictError, MLRunInvalidArgumentError
 
 router = APIRouter()

@@ -3,6 +3,7 @@ import os
 import string
 from datetime import datetime, timedelta
 from random import randint, choice
+from typing import Optional
 
 import pandas as pd
 import pytest
@@ -12,58 +13,61 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
-from mlrun.api.api.endpoints.model_endpoints import (
-    get_endpoint_id,
-    _get_endpoint_kv_record_by_id,
-    ENDPOINTS_TABLE_PATH,
+from mlrun.api.crud.model_endpoints import (
+    get_endpoint_kv_record_by_id,
     ENDPOINT_EVENTS_TABLE_PATH,
+    ENDPOINTS_TABLE_PATH,
 )
-from mlrun.config import config
-from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 from mlrun.api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpoint,
     ObjectStatus,
 )
+from mlrun.config import config
+from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
+
+ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
 
 
-def is_env_params_dont_exist() -> bool:
-    return not all(
-        (
-            os.environ.get(r, False)
-            for r in ["V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"]
-        )
-    )
+def _build_skip_message():
+    return f"One of the required environment params is not initialized ({', '.join(ENV_PARAMS)})"
+
+
+def _is_env_params_dont_exist() -> bool:
+    return not all((os.environ.get(r, False) for r in ENV_PARAMS))
 
 
 @pytest.mark.skipif(
-    is_env_params_dont_exist(),
-    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_clear_endpoint(db: Session, client: TestClient):
+    access_key = _get_access_key()
     endpoint = _mock_random_endpoint()
+
     _write_endpoint_to_kv(endpoint)
-    endpoint_id = get_endpoint_id(endpoint)
 
-    kv_record = _get_endpoint_kv_record_by_id(endpoint_id)
-
-    assert kv_record
-
-    response = client.post(
-        f"/api/projects/{kv_record['project']}/model-endpoints/{endpoint_id}/clear"
+    kv_record = get_endpoint_kv_record_by_id(
+        access_key, endpoint.metadata.project, endpoint.id
     )
 
-    assert response.status_code == 200
+    assert kv_record
+    response = client.post(
+        url=f"/api/projects/{kv_record['project']}/model-endpoints/{endpoint.id}/clear",
+        headers={"X-V3io-Session-Key": access_key},
+    )
 
-    kv_record = _get_endpoint_kv_record_by_id(endpoint_id)
+    assert response.status_code == 204
+
+    kv_record = get_endpoint_kv_record_by_id(
+        access_key, endpoint.metadata.project, endpoint.id
+    )
 
     assert not kv_record
 
 
 @pytest.mark.skipif(
-    is_env_params_dont_exist(),
-    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
@@ -71,7 +75,10 @@ def test_list_endpoints(db: Session, client: TestClient):
     for endpoint in endpoints_in:
         _write_endpoint_to_kv(endpoint)
 
-    response = client.get("/api/projects/test/model-endpoints")
+    response = client.get(
+        url="/api/projects/test/model-endpoints",
+        headers={"X-V3io-Session-Key": _get_access_key()},
+    )
 
     endpoints_out = [
         ModelEndpoint(**e["endpoint"]) for e in response.json()["endpoints"]
@@ -85,10 +92,10 @@ def test_list_endpoints(db: Session, client: TestClient):
 
 
 @pytest.mark.skipif(
-    is_env_params_dont_exist(),
-    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_list_endpoints_filter(db: Session, client: TestClient):
+    access_key = _get_access_key()
     for i in range(5):
         endpoint_details = _mock_random_endpoint()
 
@@ -107,56 +114,74 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
         _write_endpoint_to_kv(endpoint_details)
 
     filter_model = json.loads(
-        client.get("/api/projects/test/model-endpoints/?model=filterme").text
+        client.get(
+            "/api/projects/test/model-endpoints/?model=filterme",
+            headers={"X-V3io-Session-Key": access_key},
+        ).text
     )["endpoints"]
     assert len(filter_model) == 1
 
     filter_function = json.loads(
-        client.get("/api/projects/test/model-endpoints/?function=filterme").text
+        client.get(
+            "/api/projects/test/model-endpoints/?function=filterme",
+            headers={"X-V3io-Session-Key": access_key},
+        ).text
     )["endpoints"]
     assert len(filter_function) == 2
 
     filter_tag = json.loads(
-        client.get("/api/projects/test/model-endpoints/?tag=filterme").text
+        client.get(
+            "/api/projects/test/model-endpoints/?tag=filterme",
+            headers={"X-V3io-Session-Key": access_key},
+        ).text
     )["endpoints"]
     assert len(filter_tag) == 3
 
     filter_labels = json.loads(
-        client.get("/api/projects/test/model-endpoints/?label=filtermex==1").text
-    )["endpoints"]
-    assert len(filter_labels) == 4
-
-    filter_labels = json.loads(
         client.get(
-            "/api/projects/test/model-endpoints/?label=filtermex==1&label=filtermey==2"
+            "/api/projects/test/model-endpoints/?label=filtermex=1",
+            headers={"X-V3io-Session-Key": access_key},
         ).text
     )["endpoints"]
     assert len(filter_labels) == 4
 
     filter_labels = json.loads(
-        client.get("/api/projects/test/model-endpoints/?label=filtermey==2").text
+        client.get(
+            "/api/projects/test/model-endpoints/?label=filtermex=1&label=filtermey=2",
+            headers={"X-V3io-Session-Key": access_key},
+        ).text
+    )["endpoints"]
+    assert len(filter_labels) == 4
+
+    filter_labels = json.loads(
+        client.get(
+            "/api/projects/test/model-endpoints/?label=filtermey=2",
+            headers={"X-V3io-Session-Key": access_key},
+        ).text
     )["endpoints"]
     assert len(filter_labels) == 4
 
 
 @pytest.mark.skipif(
-    is_env_params_dont_exist(),
-    reason="V3IO_ACCESS_KEY, V3IO_API and V3IO_FRAMESD environment must be initialized",
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_get_endpoint_metrics(db: Session, client: TestClient):
+    frames = get_frames_client(
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+    )
 
     start = datetime.utcnow()
 
     for i in range(5):
         endpoint = _mock_random_endpoint()
-        endpoint_id = get_endpoint_id(endpoint)
 
         _write_endpoint_to_kv(endpoint)
 
-        frames = get_frames_client(container="projects")
-
         frames.create(
-            backend="tsdb", table=ENDPOINT_EVENTS_TABLE_PATH, rate="10/m", if_exists=1
+            backend="tsdb",
+            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+            rate="10/m",
+            if_exists=1,
         )
 
         total = 0
@@ -168,7 +193,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
             total += count
             data = {
                 "predictions_per_second_count_1s": count,
-                "endpoint_id": endpoint_id,
+                "endpoint_id": endpoint.id,
                 "timestamp": start - timedelta(minutes=10 - i),
             }
             df = pd.DataFrame(data=[data])
@@ -176,13 +201,14 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         frames.write(
             backend="tsdb",
-            table=ENDPOINT_EVENTS_TABLE_PATH,
+            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
             dfs=dfs,
             index_cols=["timestamp", "endpoint_id"],
         )
 
         response = client.get(
-            f"/api/projects/test/model-endpoints/{endpoint_id}?metrics=true&name=predictions"
+            url=f"/api/projects/test/model-endpoints/{endpoint.id}?metric=predictions",
+            headers={"X-V3io-Session-Key": _get_access_key()},
         )
         response = json.loads(response.content)
 
@@ -192,11 +218,11 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         assert len(metrics) > 0
 
-        first_metric = metrics[0]
+        predictions_per_second = metrics["predictions_per_second"]
 
-        assert first_metric["name"] == "predictions_per_second"
+        assert predictions_per_second["name"] == "predictions_per_second"
 
-        response_total = sum((m[1] for m in first_metric["values"]))
+        response_total = sum((m[1] for m in predictions_per_second["values"]))
 
         assert total == response_total
 
@@ -220,12 +246,11 @@ def _mock_random_endpoint(state: str = "") -> ModelEndpoint:
 
 
 def _write_endpoint_to_kv(endpoint: ModelEndpoint):
-    endpoint_id = get_endpoint_id(endpoint)
-
-    get_v3io_client().kv.put(
-        container=config.httpdb.model_endpoint_monitoring.container,
-        table_path=ENDPOINTS_TABLE_PATH,
-        key=endpoint_id,
+    client = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
+    client.kv.put(
+        container="projects",
+        table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}/",
+        key=endpoint.id,
         attributes={
             "project": endpoint.metadata.project,
             "function": endpoint.spec.function,
@@ -238,14 +263,17 @@ def _write_endpoint_to_kv(endpoint: ModelEndpoint):
     )
 
 
-@pytest.fixture(autouse=False)
+@pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
-    v3io = get_v3io_client()
-    frames = get_frames_client(container="projects")
+    v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
+
+    frames = get_frames_client(
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+    )
     try:
         all_records = v3io.kv.new_cursor(
-            container=config.httpdb.model_endpoint_monitoring.container,
-            table_path=ENDPOINTS_TABLE_PATH,
+            container="projects",
+            table_path=f"test/{ENDPOINTS_TABLE_PATH}",
             raise_for_status=RaiseForStatus.never,
         ).all()
 
@@ -253,9 +281,9 @@ def cleanup_endpoints(db: Session, client: TestClient):
 
         # Cleanup KV
         for record in all_records:
-            get_v3io_client().kv.delete(
-                container=config.httpdb.model_endpoint_monitoring.container,
-                table_path=ENDPOINTS_TABLE_PATH,
+            v3io.kv.delete(
+                container="projects",
+                table_path=f"test/{ENDPOINTS_TABLE_PATH}",
                 key=record,
                 raise_for_status=RaiseForStatus.never,
             )
@@ -265,7 +293,13 @@ def cleanup_endpoints(db: Session, client: TestClient):
     try:
         # Cleanup TSDB
         frames.delete(
-            backend="tsdb", table=ENDPOINT_EVENTS_TABLE_PATH, if_missing=fpb2.IGNORE,
+            backend="tsdb",
+            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+            if_missing=fpb2.IGNORE,
         )
     except CreateError:
         pass
+
+
+def _get_access_key() -> Optional[str]:
+    return os.environ.get("V3IO_ACCESS_KEY")

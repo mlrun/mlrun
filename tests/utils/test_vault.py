@@ -86,7 +86,7 @@ def test_vault_end_to_end():
     # Create function and set container configuration
     function = code_to_function(
         name=func_name,
-        filename="{}/vault_function.py".format(examples_path),
+        filename=f"{examples_path}/vault_function.py",
         handler="vault_func",
         project=project_name,
         kind="job",
@@ -113,8 +113,8 @@ def test_vault_end_to_end():
     print(state)
 
     assert (
-        log.find("value: {}".format(aws_key_value)) != -1
+        log.find(f"value: {aws_key_value}") != -1
     ), "secret value not detected in function output"
     assert (
-        log.find("value: {}".format(github_key_value)) != -1
+        log.find(f"value: {github_key_value}") != -1
     ), "secret value not detected in function output"

@@ -5,12 +5,29 @@
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-<p align="left"><img src="docs/_static/images/MLRun-logo.png" width="150"/></p>
+<p align="left"><img src="docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/></p>
 
-*The Open-Source MLOps Orchestration Framework.*
+*The Open-Source MLOps Orchestration Framework*
 
 MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
 MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
+
+<a id="mlrun-arch"></a>
+#### The MLRun Architecture <!-- omit in toc -->
+
+<p align="left"><img src="docs/_static/images/mlrun-architecture.png" alt="MLRun architecture" /></p>
+
+MLRun is composed of the following layers:
+
+- **Feature and Artifact Store** &mdash;
+    handles the ingestion, processing, metadata, and storage of data and features across multiple repositories and technologies.
+- **Elastic Serverless Runtimes** &mdash;
+    converts simple code to scalable and managed microservices with workload-specific runtime engines (such as Kubernetes jobs, Nuclio, Dask, Spark, and Horovod).
+- **ML Pipeline Automation** &mdash;
+    automates data preparation, model training and testing, deployment of real-time production pipelines, and end-to-end monitoring.
+- **Central Management** &mdash;
+    provides a unified portal for managing the entire MLOps workflow.
+    The portal includes a UI, a CLI, and an SDK, which are accessible from anywhere.
 
 <a id="key-benefits"></a>
 #### Key Benefits <!-- omit in toc -->
@@ -22,25 +39,10 @@ MLRun provides the following key benefits:
 - **Feature management** &mdash; ingestion, preparation, and monitoring
 - **Works anywhere** &mdash; your local IDE, multi-cloud, or on-prem
 
-<a id="key-features"></a>
-#### Key Features <!-- omit in toc -->
-
-MLRun includes the following key features:
-
-- **Feature store** &mdash; define and reuse features with a robust feature store that includes a highly flexible transformation framework.
-- **Elastic serverless runtimes** &mdash; use a single command to turn your Python code into composable functions that can run at scale on Kubernetes, Dask, and Horovod.
-- **Function marketplace** &mdash; leverage a function marketplace to accelerate your model-development process.
-- **Data ingestion & preparation** &mdash; read and transform data from batch and online data stores.
-- **Model training & testing** &mdash; train models at scale with automated testing functions.
-- **Real-time Data & model Pipeline** &mdash; deploy real-time pipelines for data collection and model serving and monitoring.
-- **Data & model Monitoring** &mdash; automate model monitoring and drift detection.
-- **Central data & metadata management** &mdash; log all data, models and artifacts and track all code execution.
-
-MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), and a graphical user interface (the MLRun dashboard).
-
 &#x25B6; For more information, see the [MLRun Python package documentation](https://mlrun.readthedocs.io).
 
 #### In This Document <!-- omit in toc -->
+
 - [General Concept and Motivation](#general-concept-and-motivation)
   - [The Challenge](#the-challenge)
   - [Why MLRun?](#why-mlrun)

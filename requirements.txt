@@ -14,7 +14,8 @@ nuclio-jupyter>=0.8.9
 # >=1.16.5 from pandas 1.2.1 and <1.20.0 because we're hitting the same issue as this one
 # https://github.com/Azure/MachineLearningNotebooks/issues/1314
 numpy>=1.16.5, <1.20.0
-pandas~=1.0
+pandas~=1.2; python_version >= '3.7'
+pandas~=1.0; python_version < '3.7'
 # used as a the engine for parquet files by pandas
 pyarrow~=1.0
 pyyaml~=5.1
@@ -46,3 +47,7 @@ kubernetes~=11.0
 #  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2
 fastapi~=0.62.0
+v3iofs~=0.1.5
+# 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
+cryptography~=3.3.2
+storey~=0.3.4; python_version >= '3.7'

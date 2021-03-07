@@ -11,29 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import List
 
 import mlrun
 import pandas as pd
 
-from ...features import Feature, Entity
-from .base import (
-    FeatureAggregation,
-    DataTarget,
-    DataSource,
-    DataTargetBase,
-    CommonMetadata,
-)
-from ..targets import get_offline_target, default_target_names
-from ...model import ModelObj, ObjectList
-from ...runtimes.function_reference import FunctionReference
-from ...serving.states import BaseState, RootFlowState, previous_step
-from ...config import config as mlconf
-from ...utils import StorePrefix
-from ...datastore import get_store_uri
+from ..features import Feature, Entity
+from ..model import VersionedObjMetadata
+from ..datastore.targets import get_offline_target, default_target_names, TargetTypes
+from ..model import ModelObj, ObjectList, DataSource, DataTarget, DataTargetBase
+from ..runtimes.function_reference import FunctionReference
+from ..serving.states import BaseState, RootFlowState, previous_step
+from ..config import config as mlconf
+from ..utils import StorePrefix
+from ..datastore import get_store_uri
 
 aggregates_step = "Aggregates"
+
+
+class FeatureAggregation(ModelObj):
+    """feature aggregation requirements"""
+
+    def __init__(
+        self, name=None, column=None, operations=None, windows=None, period=None
+    ):
+        self.name = name
+        self.column = column
+        self.operations = operations or []
+        self.windows = windows or []
+        self.period = period
 
 
 class FeatureSetSpec(ModelObj):
@@ -52,6 +58,7 @@ class FeatureSetSpec(ModelObj):
         graph=None,
         function=None,
         analysis=None,
+        engine=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -73,6 +80,7 @@ class FeatureSetSpec(ModelObj):
         self.label_column = label_column
         self.function = function
         self.analysis = analysis or {}
+        self.engine = engine
 
     @property
     def entities(self) -> List[Entity]:
@@ -179,7 +187,7 @@ class FeatureSet(ModelObj):
         self.spec = FeatureSetSpec(
             description=description, entities=entities, timestamp_key=timestamp_key
         )
-        self.metadata = CommonMetadata(name=name)
+        self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
 
@@ -192,12 +200,12 @@ class FeatureSet(ModelObj):
         self._spec = self._verify_dict(spec, "spec", FeatureSetSpec)
 
     @property
-    def metadata(self) -> CommonMetadata:
+    def metadata(self) -> VersionedObjMetadata:
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", CommonMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureSetStatus:
@@ -210,26 +218,41 @@ class FeatureSet(ModelObj):
     @property
     def uri(self):
         """fully qualified feature set uri"""
-        uri = f'{self._metadata.project or ""}/{self._metadata.name}:{self._metadata.tag or "latest"}'
+        uri = (
+            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
+        )
         uri = get_store_uri(StorePrefix.FeatureSet, uri)
+        if self._metadata.tag:
+            uri += ":" + self._metadata.tag
         return uri
 
     def get_target_path(self, name=None):
+        """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
             return target.path
 
     def set_targets(self, targets=None, with_defaults=True):
-        """set the desired target list"""
+        """set the desired target list or defaults
+
+        :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
+                         CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
+        :param with_defaults: add the default targets (as defined in the central config)
+        """
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "targets can only be None or a list of kinds/DataTargetBase"
+                "targets can only be None or a list of kinds or DataTargetBase derivatives"
             )
         targets = targets or []
         if with_defaults:
             targets.extend(default_target_names())
         for target in targets:
-            if not isinstance(target, DataTargetBase):
+            kind = target.kind if hasattr(target, "kind") else target
+            if kind not in TargetTypes.all():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"target kind is not supported, use one of: {','.join(TargetTypes.all())}"
+                )
+            if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
 
@@ -337,9 +360,10 @@ class FeatureSet(ModelObj):
     def to_dataframe(self, columns=None, df_module=None, target_name=None):
         """return featureset (offline) data as dataframe"""
         if columns:
-            if self.spec.timestamp_key:
+            entities = list(self.spec.entities.keys())
+            if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
-            columns = list(self.spec.entities.keys()) + columns
+            columns = entities + columns
         driver = get_offline_target(self, name=target_name)
         if not driver:
             raise mlrun.errors.MLRunNotFoundError(
@@ -357,3 +381,12 @@ class FeatureSet(ModelObj):
             "features", []
         )  # bypass DB bug
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
+
+    def reload(self, update_spec=True):
+        """reload/sync the feature vector status and spec from the DB"""
+        from_db = mlrun.get_run_db().get_feature_set(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
+        self.status = from_db.status
+        if update_spec:
+            self.spec = from_db.spec

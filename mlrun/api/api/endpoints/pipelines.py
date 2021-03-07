@@ -81,9 +81,9 @@ def get_pipeline(run_id, namespace: str = Query(config.namespace)):
         run = client.get_run(run_id)
         if run:
             run = run.to_dict()
-    except Exception as e:
+    except Exception as exc:
         log_and_raise(
-            HTTPStatus.INTERNAL_SERVER_ERROR.value, reason="get kfp error: {}".format(e)
+            HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {exc}"
         )
 
     return run
@@ -94,7 +94,7 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
     arguments_data = request.headers.get("pipeline-arguments")
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
-        logger.info("pipeline arguments {}".format(arguments_data))
+        logger.info(f"pipeline arguments {arguments_data}")
 
     ctype = request.headers.get("content-type", "")
     if "/yaml" in ctype:
@@ -103,11 +103,10 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
         ctype = ".zip"
     else:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason="unsupported pipeline type {}".format(ctype),
+            HTTPStatus.BAD_REQUEST.value, reason=f"unsupported pipeline type {ctype}",
         )
 
-    logger.info("writing file {}".format(ctype))
+    logger.info(f"writing file {ctype}")
 
     print(str(data))
     pipe_tmp = tempfile.mktemp(suffix=ctype)
@@ -119,9 +118,9 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
         client = kfclient(namespace=namespace)
         experiment = client.create_experiment(name=experiment_name)
         run = client.run_pipeline(experiment.id, run_name, pipe_tmp, params=arguments)
-    except Exception as e:
+    except Exception as exc:
         remove(pipe_tmp)
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="kfp err: {}".format(e))
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"kfp err: {exc}")
 
     remove(pipe_tmp)
 

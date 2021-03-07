@@ -17,16 +17,16 @@ import mlrun
 import pandas as pd
 
 
-from ...features import Feature
-from .base import DataSource, DataTarget, CommonMetadata
-from ..common import parse_feature_string, get_feature_set_by_uri
-from ...model import ModelObj, ObjectList
-from ...artifacts.dataset import upload_dataframe
-from ...config import config as mlconf
-from ...serving.states import RootFlowState
-from ..targets import get_offline_target
-from ...datastore import get_store_uri
-from ...utils import StorePrefix
+from ..features import Feature
+from ..model import VersionedObjMetadata
+from ..feature_store.common import parse_feature_string, get_feature_set_by_uri
+from ..model import ModelObj, ObjectList, DataSource, DataTarget
+from ..config import config as mlconf
+from ..runtimes.function_reference import FunctionReference
+from ..serving.states import RootFlowState
+from ..datastore.targets import get_offline_target, ParquetTarget, CSVTarget
+from ..datastore import get_store_uri
+from ..utils import StorePrefix
 
 
 class FeatureVectorSpec(ModelObj):
@@ -39,11 +39,13 @@ class FeatureVectorSpec(ModelObj):
         timestamp_field=None,
         graph=None,
         label_column=None,
+        function=None,
         analysis=None,
     ):
         self._graph: RootFlowState = None
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
+        self._function: FunctionReference = None
 
         self.description = description
         self.features: List[str] = features or []
@@ -52,6 +54,7 @@ class FeatureVectorSpec(ModelObj):
         self.graph = graph
         self.timestamp_field = timestamp_field
         self.label_column = label_column
+        self.function = function
         self.analysis = analysis or {}
 
     @property
@@ -82,10 +85,25 @@ class FeatureVectorSpec(ModelObj):
         self._graph = self._verify_dict(graph, "graph", RootFlowState)
         self._graph.engine = "async"
 
+    @property
+    def function(self) -> FunctionReference:
+        """reference to template graph processing function"""
+        return self._function
+
+    @function.setter
+    def function(self, function):
+        self._function = self._verify_dict(function, "function", FunctionReference)
+
 
 class FeatureVectorStatus(ModelObj):
     def __init__(
-        self, state=None, targets=None, features=None, stats=None, preview=None
+        self,
+        state=None,
+        targets=None,
+        features=None,
+        stats=None,
+        preview=None,
+        run_uri=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -95,6 +113,7 @@ class FeatureVectorStatus(ModelObj):
         self.stats = stats or {}
         self.preview = preview or []
         self.features: List[Feature] = features or []
+        self.run_uri = run_uri
 
     @property
     def targets(self) -> List[DataTarget]:
@@ -130,7 +149,7 @@ class FeatureVector(ModelObj):
         self._status = None
 
         self.spec = FeatureVectorSpec(description=description, features=features)
-        self.metadata = CommonMetadata(name=name)
+        self.metadata = VersionedObjMetadata(name=name)
         self.status = None
 
         self._entity_df = None
@@ -146,12 +165,12 @@ class FeatureVector(ModelObj):
         self._spec = self._verify_dict(spec, "spec", FeatureVectorSpec)
 
     @property
-    def metadata(self) -> CommonMetadata:
+    def metadata(self) -> VersionedObjMetadata:
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", CommonMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", VersionedObjMetadata)
 
     @property
     def status(self) -> FeatureVectorStatus:
@@ -164,7 +183,9 @@ class FeatureVector(ModelObj):
     @property
     def uri(self):
         """fully qualified feature vector uri"""
-        uri = f'{self._metadata.project or ""}/{self._metadata.name}'
+        uri = (
+            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
+        )
         uri = get_store_uri(StorePrefix.FeatureVector, uri)
         if self._metadata.tag:
             uri += ":" + self._metadata.tag
@@ -200,6 +221,15 @@ class FeatureVector(ModelObj):
         tag = tag or self.metadata.tag
         as_dict = self.to_dict()
         db.store_feature_vector(as_dict, tag=tag, versioned=versioned)
+
+    def reload(self, update_spec=True):
+        """reload/sync the feature set status and spec from the DB"""
+        from_db = mlrun.get_run_db().get_feature_vector(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
+        self.status = from_db.status
+        if update_spec:
+            self.spec = from_db.spec
 
     def parse_features(self):
         """parse and validate feature list (from vector) and add metadata from feature sets
@@ -301,19 +331,16 @@ class OfflineVectorResponse:
 
     def to_dataframe(self):
         """return result as dataframe"""
-        if self.status != "ready":
+        if self.status != "completed":
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
         return self._merger.get_df()
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        return self._upload(target_path, "parquet", **kw)
+        return ParquetTarget(path=target_path).write_dataframe(
+            self._merger.get_df(), **kw
+        )
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return self._upload(target_path, "csv", **kw)
-
-    def _upload(self, target_path, format="parquet", src_path=None, **kw):
-        upload_dataframe(
-            self._merger.get_df(), target_path, format=format, src_path=src_path, **kw,
-        )
+        return CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)

@@ -21,10 +21,6 @@ class TestDemo(TestMLRunSystem):
             project=self._demo_project.to_dict(),
         )
 
-    def custom_teardown(self):
-        self._run_db.del_runs(project=self.project_name, labels={"kind": "job"})
-        self._run_db.del_artifacts(tag="*", project=self.project_name)
-
     def create_demo_project(self) -> mlrun.projects.MlrunProject:
         raise NotImplementedError
 
@@ -38,8 +34,6 @@ class TestDemo(TestMLRunSystem):
             watch=True,
         )
 
-        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
-        self._run_db = mlrun.db.get_run_db()
         runs = self._run_db.list_runs(
             project=self.project_name, labels=f"workflow={run_id}"
         )

@@ -4,7 +4,7 @@ from typing import Any, List, Dict
 
 import mergedeep
 import pytz
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -228,7 +228,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not updated:
             updated = artifact["updated"] = datetime.now(timezone.utc)
         if iter:
-            key = "{}-{}".format(iter, key)
+            key = f"{iter}-{key}"
         art = self._get_artifact(session, uid, project, key)
         labels = artifact.get("labels", {})
         if not art:
@@ -244,7 +244,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project = project or config.default_project
         uids = self._resolve_tag(session, Artifact, project, tag)
         if iter:
-            key = "{}-{}".format(iter, key)
+            key = f"{iter}-{key}"
 
         query = self._query(session, Artifact, key=key, project=project)
 
@@ -1884,15 +1884,39 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             return query
 
         preds = []
+        # Some specific handling is needed for the case of a query like "label=x&label=x=value". In this case
+        # of course it should be reduced to "label=x=value". That's why we need to keep the labels that are queried
+        # with values, and then remove it from the list of labels queried without value.
+        label_names_with_values = set()
+        label_names_no_values = set()
+
         for lbl in labels:
             if "=" in lbl:
                 name, value = [v.strip() for v in lbl.split("=", 1)]
                 cond = and_(cls.Label.name == name, cls.Label.value == value)
                 preds.append(cond)
+                label_names_with_values.add(name)
             else:
-                preds.append(cls.Label.name == lbl.strip())
+                label_names_no_values.add(lbl.strip())
 
-        subq = session.query(cls.Label).filter(*preds).subquery("labels")
+        for name in label_names_no_values.difference(label_names_with_values):
+            preds.append(cls.Label.name == name)
+
+        if len(preds) == 1:
+            # A single label predicate is a common case, and there's no need to burden the DB with
+            # a more complex query for that case.
+            subq = session.query(cls.Label).filter(*preds).subquery("labels")
+        else:
+            # Basically do an "or" query on the predicates, and count how many rows each parent object has -
+            # if it has as much rows as predicates, then it means it answers all the conditions.
+            subq = (
+                session.query(cls.Label)
+                .filter(or_(*preds))
+                .group_by(cls.Label.parent)
+                .having(func.count(cls.Label.parent) == len(preds))
+                .subquery("labels")
+            )
+
         return query.join(subq)
 
     def _delete_class_labels(

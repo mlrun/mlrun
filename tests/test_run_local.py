@@ -29,7 +29,7 @@ base_spec.spec.inputs = {"infile.txt": "infile.txt"}
 def test_run_local():
     spec = tag_test(base_spec, "test_run_local")
     result = run_local(
-        spec, command="{}/training.py".format(examples_path), workdir=examples_path
+        spec, command=f"{examples_path}/training.py", workdir=examples_path
     )
     verify_state(result)
 
@@ -50,7 +50,7 @@ def test_run_local_with_uid_does_not_exist(monkeypatch):
     monkeypatch.setattr(getpass, "getuser", mock_getpwuid_raise)
     spec = tag_test(base_spec, "test_run_local")
     result = run_local(
-        spec, command="{}/training.py".format(examples_path), workdir=examples_path
+        spec, command=f"{examples_path}/training.py", workdir=examples_path
     )
     verify_state(result)
 
@@ -59,7 +59,7 @@ def test_run_local_handler():
     spec = tag_test(base_spec, "test_run_local_handler")
     spec.spec.handler = "my_func"
     result = run_local(
-        spec, command="{}/handler.py".format(examples_path), workdir=examples_path
+        spec, command=f"{examples_path}/handler.py", workdir=examples_path
     )
     verify_state(result)
 
@@ -68,7 +68,7 @@ def test_run_local_nb():
     spec = tag_test(base_spec, "test_run_local_nb")
     spec.spec.handler = "training"
     result = run_local(
-        spec, command="{}/mlrun_jobs.ipynb".format(examples_path), workdir=examples_path
+        spec, command=f"{examples_path}/mlrun_jobs.ipynb", workdir=examples_path
     )
     verify_state(result)
 
@@ -76,7 +76,7 @@ def test_run_local_nb():
 def test_run_local_yaml():
     spec = tag_test(base_spec, "test_run_local_yaml")
     spec.spec.handler = "training"
-    nbpath = "{}/mlrun_jobs.ipynb".format(examples_path)
+    nbpath = f"{examples_path}/mlrun_jobs.ipynb"
     ymlpath = path.join(out_path, "nbyaml.yaml")
     print("out path:", out_path, ymlpath)
     code_to_function(filename=nbpath, kind="job").export(ymlpath)
@@ -87,7 +87,7 @@ def test_run_local_yaml():
 def test_run_local_obj():
     spec = tag_test(base_spec, "test_run_local_obj")
     spec.spec.handler = "training"
-    nbpath = "{}/mlrun_jobs.ipynb".format(examples_path)
+    nbpath = f"{examples_path}/mlrun_jobs.ipynb"
     ymlpath = path.join(out_path, "nbyaml.yaml")
     print("out path:", out_path, ymlpath)
     fn = code_to_function(filename=nbpath, kind="job").export(ymlpath)
@@ -98,9 +98,9 @@ def test_run_local_obj():
 def test_run_local_from_func():
     spec = tag_test(base_spec, "test_run_local_from_func")
     spec.spec.handler = "training"
-    nbpath = "{}/mlrun_jobs.ipynb".format(examples_path)
-    ymlpath = path.join(out_path, "nbyaml.yaml")
-    print("out path:", out_path, ymlpath)
-    fn = code_to_function(filename=nbpath, kind="job").export(ymlpath)
+    nb_path = f"{examples_path}/mlrun_jobs.ipynb"
+    nbyml_path = path.join(out_path, "nbyaml.yaml")
+    print("out path:", out_path, nbyml_path)
+    fn = code_to_function(filename=nb_path, kind="job").export(nbyml_path)
     result = fn.run(spec, workdir=out_path, local=True)
     verify_state(result)

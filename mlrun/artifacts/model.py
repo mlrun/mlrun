@@ -17,7 +17,8 @@ from typing import List
 
 import yaml
 import mlrun
-from ..features import infer_schema_from_df, Feature, InferOptions, get_df_stats
+from ..features import Feature
+from ..data_types import InferOptions, get_infer_interface
 from ..model import ObjectList
 from ..datastore import store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
@@ -98,15 +99,16 @@ class ModelArtifact(Artifact):
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
         """infer inputs, outputs, and stats from provided df (training set)"""
         subset = df
+        inferer = get_infer_interface(subset)
         if label_columns:
             subset = df.drop(columns=label_columns)
-        infer_schema_from_df(subset, self.inputs, {}, options=InferOptions.Features)
+        inferer.infer_schema(subset, self.inputs, {}, options=InferOptions.Features)
         if label_columns:
-            infer_schema_from_df(
+            inferer.infer_schema(
                 df[label_columns], self.outputs, {}, options=InferOptions.Features
             )
         if with_stats:
-            self.feature_stats = get_df_stats(
+            self.feature_stats = inferer.get_stats(
                 df, options=InferOptions.Histogram, num_bins=num_bins
             )
 
@@ -134,7 +136,7 @@ class ModelArtifact(Artifact):
         else:
             src_model_path = _get_src_path(self, self.model_file)
             if not path.isfile(src_model_path):
-                raise ValueError("model file {} not found".format(src_model_path))
+                raise ValueError(f"model file {src_model_path} not found")
             self._upload_file(src_model_path, target=target_model_path)
 
         upload_extra_data(self, self.extra_data)
@@ -181,7 +183,7 @@ def get_model(model_dir, suffix=""):
     if is_store_uri(model_dir):
         model_spec, target = store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
-            raise ValueError("store artifact ({}) is not model kind".format(model_dir))
+            raise ValueError(f"store artifact ({model_dir}) is not model kind")
         model_file = _get_file_path(target, model_spec.model_file)
         extra_dataitems = _get_extra(target, model_spec.extra_data)
 
@@ -208,9 +210,7 @@ def get_model(model_dir, suffix=""):
                     model_file = path.join(model_dir, file)
                     break
     if not model_file:
-        raise ValueError(
-            "cant resolve model file for {} suffix{}".format(model_dir, suffix)
-        )
+        raise ValueError(f"cant resolve model file for {model_dir} suffix{suffix}")
 
     obj = store_manager.object(url=model_file)
     if obj.kind == "file":
@@ -291,7 +291,7 @@ def update_model(
         raise ValueError("model path must be a model store object/URL/DataItem")
 
     if not model_spec or model_spec.kind != "model":
-        raise ValueError("store artifact ({}) is not model kind".format(model_artifact))
+        raise ValueError(f"store artifact ({model_artifact}) is not model kind")
 
     if parameters:
         for key, val in parameters.items():

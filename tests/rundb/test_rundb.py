@@ -50,5 +50,5 @@ def test_list_artifacts():
 
     html = artifacts.show(display=False)
 
-    with open("{}/artifacts.html".format(results), "w") as fp:
+    with open(f"{results}/artifacts.html", "w") as fp:
         fp.write(html)

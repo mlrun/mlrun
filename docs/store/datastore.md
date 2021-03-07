@@ -59,7 +59,7 @@ a simple parameter we used the `params` dictionary attribute. the input value is
 The {py:class}`~mlrun.datastore.DataItem` support multiple convenience methods such as:
 * **get**, **put** - to read/write data
 * **download**, **upload** - to download/upload files
-* **as_df** - to convertthe data to a DataFrame object
+* **as_df** - to convert the data to a DataFrame object
 * **local** - to get a local file link to the data (will be downloaded locally if needed)
 * **listdir**, **stat** - file system like methods
 * **meta** - access to the artifact metadata (in case of an artifact uri)

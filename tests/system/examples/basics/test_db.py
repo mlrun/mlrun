@@ -1,5 +1,5 @@
-from mlrun import get_run_db, run_local, new_task
-
+import mlrun.runtimes
+from mlrun import run_local, new_task
 from tests.system.base import TestMLRunSystem
 
 
@@ -33,8 +33,6 @@ class TestDB(TestMLRunSystem):
 
     def test_db_commands(self):
 
-        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
-        self._run_db = get_run_db()
         runs = self._run_db.list_runs(project=self.project_name)
         assert len(runs) == 1
 
@@ -43,12 +41,7 @@ class TestDB(TestMLRunSystem):
             uid=self._run_uid,
             name="demo",
             project=self.project_name,
-            labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "kind": "",
-                "owner": self._test_env["V3IO_USERNAME"],
-                "framework": "sklearn",
-            },
+            labels={"kind": "", "framework": "sklearn"},
         )
         self._verify_run_spec(
             runs[0]["spec"],
@@ -71,8 +64,8 @@ class TestDB(TestMLRunSystem):
             assert artifact_exists
 
         runtimes = self._run_db.list_runtimes()
-        assert len(runtimes) == 4
-        for runtime_kind in ["dask", "job", "spark", "mpijob"]:
+        assert len(runtimes) == len(mlrun.runtimes.RuntimeKinds.runtime_with_handlers())
+        for runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_exists = False
             for runtime in runtimes:
                 if runtime["kind"] == runtime_kind:

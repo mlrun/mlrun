@@ -41,6 +41,7 @@ class SystemTestPreparer:
         github_access_token: str,
         mlrun_dbpath: str,
         webapi_direct_http: str,
+        framesd_url: str,
         username: str,
         access_key: str,
         password: str = None,
@@ -65,6 +66,7 @@ class SystemTestPreparer:
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_API": webapi_direct_http,
+            "V3IO_FRAMESD": framesd_url,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
         }
@@ -137,11 +139,11 @@ class SystemTestPreparer:
                 stdout, stderr, exit_status = self._run_command_remotely(
                     command, args, workdir, stdin, live, suppress_errors
                 )
-        except (paramiko.SSHException, RuntimeError) as e:
+        except (paramiko.SSHException, RuntimeError) as exc:
             self._logger.error(
                 f"Failed running command {log_command_location}",
                 command=command,
-                error=e,
+                error=exc,
                 stdout=stdout,
                 stderr=stderr,
                 exit_status=exit_status,
@@ -405,6 +407,7 @@ def main():
 @click.argument("github-access-token", type=str, required=True)
 @click.argument("mlrun-dbpath", type=str, required=True)
 @click.argument("webapi-direct-url", type=str, required=True)
+@click.argument("framesd-url", type=str, required=True)
 @click.argument("username", type=str, required=True)
 @click.argument("access-key", type=str, required=True)
 @click.argument("password", type=str, default=None, required=False)
@@ -426,6 +429,7 @@ def run(
     github_access_token: str,
     mlrun_dbpath: str,
     webapi_direct_url: str,
+    framesd_url: str,
     username: str,
     access_key: str,
     password: str,
@@ -443,6 +447,7 @@ def run(
         github_access_token,
         mlrun_dbpath,
         webapi_direct_url,
+        framesd_url,
         username,
         access_key,
         password,

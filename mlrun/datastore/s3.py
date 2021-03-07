@@ -14,7 +14,7 @@
 
 import boto3
 import time
-
+import fsspec
 from .base import DataStore, get_range, FileStats
 
 
@@ -36,6 +36,28 @@ class S3Store(DataStore):
         else:
             # from env variables
             self.s3 = boto3.resource("s3", region_name=region)
+
+    def get_filesystem(self, silent=True):
+        """return fsspec file system object, if supported"""
+        if self._filesystem:
+            return self._filesystem
+        try:
+            import s3fs  # noqa
+        except ImportError as exc:
+            if not silent:
+                raise ImportError(
+                    f"AWS s3fs not installed, run pip install s3fs, {exc}"
+                )
+            return None
+        self._filesystem = fsspec.filesystem("s3", **self.get_storage_options())
+        return self._filesystem
+
+    def get_storage_options(self):
+        return dict(
+            anon=False,
+            key=self._get_secret_or_env("AWS_ACCESS_KEY_ID"),
+            secret=self._get_secret_or_env("AWS_SECRET_ACCESS_KEY"),
+        )
 
     def upload(self, key, src_path):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(

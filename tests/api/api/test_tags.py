@@ -9,15 +9,14 @@ from mlrun.run import new_function
 
 def test_tag(db: Session, client: TestClient) -> None:
     prj = "prj7"
-    fn_name = "fn_{}".format
     for i in range(7):
-        name = fn_name(i)
+        name = f"fn_{i}"
         fn = new_function(name=name, project=prj).to_dict()
         tag = uuid4().hex
         resp = client.post(f"/api/func/{prj}/{name}?tag={tag}", json=fn)
         assert resp.status_code == HTTPStatus.OK.value, "status create"
     tag = "t1"
-    tagged = {fn_name(i) for i in (1, 3, 4)}
+    tagged = {f"fn_{i}" for i in (1, 3, 4)}
     for name in tagged:
         query = {"functions": {"name": name}}
         resp = client.post(f"/api/{prj}/tag/{tag}", json=query)

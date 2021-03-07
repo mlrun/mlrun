@@ -53,8 +53,7 @@ def html_summary(title, data, num=None, open=False):
         tag = " open"
     if num:
         title = f"{title} ({num})"
-    summary = "<details{}><summary><b>{}<b></summary>{}</details>"
-    return summary.format(tag, title, data)
+    return f"<details{tag}><summary><b>{title}<b></summary>{data}</details>"
 
 
 def html_crop(x):
@@ -91,7 +90,7 @@ def link_html(text, link=""):
     if not link:
         link = text
     link, ref = link_to_ipython(link)
-    return '<div {}title="{}">{}</div>'.format(ref, link, text)
+    return f'<div {ref}title="{link}">{text}</div>'
 
 
 def artifacts_html(x, pathcol="path"):
@@ -100,7 +99,7 @@ def artifacts_html(x, pathcol="path"):
     html = ""
     for i in x:
         link, ref = link_to_ipython(i[pathcol])
-        html += '<div {}title="{}">{}</div>'.format(ref, link, i["key"])
+        html += f'<div {ref}title="{link}">{i["key"]}</div>'
     return html
 
 
@@ -110,7 +109,7 @@ def inputs_html(x):
     html = ""
     for k, v in x.items():
         link, ref = link_to_ipython(v)
-        html += '<div {}title="{}">{}</div>'.format(ref, link, k)
+        html += f'<div {ref}title="{link}">{k}</div>'
     return html
 
 
@@ -121,7 +120,7 @@ def sources_list_html(x):
     for src in x:
         v = src.get("path", "")
         link, ref = link_to_ipython(v)
-        html += '<div {}title="{}">{}</div>'.format(ref, link, src["name"])
+        html += f'<div {ref}title="{link}">{src["name"]}</div>'
     return html
 
 
@@ -350,9 +349,7 @@ def runs_to_html(df, display=True, classes=None, short=False):
             axis=1,
         )
     else:
-        df["uid"] = df["uid"].apply(
-            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:])
-        )
+        df["uid"] = df["uid"].apply(lambda x: f'<div title="{x}">...{x[-6:]}</div>')
 
     if short:
         df.drop("project", axis=1, inplace=True)
@@ -367,9 +364,13 @@ def runs_to_html(df, display=True, classes=None, short=False):
 
     def expand_error(x):
         if x["state"] == "error":
-            x["state"] = '<div style="color: red;" title="{}">{}</div>'.format(
-                (str(x["error"])).replace('"', "'"), x["state"]
-            )
+            title = str(x["error"])
+            state = f'<div style="color: red;" title="{title}">'
+
+            # TODO: is this replacement needed?
+            state.replace('"', "'")
+            state += f'{x["state"]}</div>'
+            x["state"] = state
         return x
 
     df = df.apply(expand_error, axis=1)
@@ -382,12 +383,13 @@ def artifacts_to_html(df, display=True, classes=None):
     def prod_htm(x):
         if not x or not isinstance(x, dict):
             return ""
-        p = "{}/{}".format(get_in(x, "kind", ""), get_in(x, "uri", ""))
+        kind = get_in(x, "kind", "")
+        uri = get_in(x, "uri", "")
+        name = get_in(x, "name", "unknown")
+        title = f"{kind}/{uri}"
         if "owner" in x:
-            p += " by {}".format(x["owner"])
-        return '<div title="{}" class="producer">{}</div>'.format(
-            p, get_in(x, "name", "unknown")
-        )
+            title += f" by {x['owner']}"
+        return f'<div title="{title}" class="producer">{name}</div>'
 
     if "tree" in df.columns.values:
         df["tree"] = df["tree"].apply(html_crop)

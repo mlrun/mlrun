@@ -10,6 +10,20 @@ logger = mlrun.utils.create_logger(level="debug", name="automation")
 
 
 class ReleaseNotesGenerator:
+    commit_regex = (
+        r"^"
+        r"(?P<commitId>[a-zA-Z0-9]+)"
+        r" "
+        r"(\[(?P<scope>[^\]]*)\])?"
+        r"( )?"
+        r"(?P<commitMessage>.*)"
+        r" "
+        r"\("
+        r"(?P<pullRequestNumber>#[0-9]+)"
+        r"\)"
+        r"$"
+    )
+
     def __init__(
         self, release: str, previous_release: str, release_branch: str,
     ):
@@ -74,20 +88,9 @@ class ReleaseNotesGenerator:
         )
 
     def _generate_highlight_notes_from_commits(self, commits):
-        regex = (
-            r"^"
-            r"(?P<commitId>[a-zA-Z0-9]+)"
-            r" "
-            r"(\[(?P<scope>.*)\])?"
-            r"(?P<commitMessage>.*)"
-            r"\("
-            r"(?P<pullRequestNumber>#[0-9]+)"
-            r"\)"
-            r"$"
-        )
         highlighted_notes = ""
         for commit in commits.split("\n"):
-            match = re.fullmatch(regex, commit)
+            match = re.fullmatch(self.commit_regex, commit)
             assert match is not None, f"Commit did not matched regex. {commit}"
             scope = match.groupdict()["scope"] or "Unknown"
             message = match.groupdict()["commitMessage"]

@@ -17,13 +17,13 @@ import mlrun
 from base64 import b64encode
 from nuclio.build import mlrun_footer
 
-
+from .utils import enrich_function_from_dict
 from ..model import ModelObj
 from ..utils import generate_object_uri
 
 
 class FunctionReference(ModelObj):
-    """function reference/template"""
+    """function reference/template, point to function and add/override resources"""
 
     def __init__(
         self,
@@ -40,6 +40,8 @@ class FunctionReference(ModelObj):
         self.image = image
         self.requirements = requirements
         self.name = name
+        if hasattr(spec, "to_dict"):
+            spec = spec.to_dict()
         self.spec = spec
         self.code = code
 
@@ -60,17 +62,17 @@ class FunctionReference(ModelObj):
 
     @property
     def function_object(self):
+        """get the generated function object"""
         return self._function
 
     def to_function(self, default_kind=None):
+        """generate a function object from the ref definitions"""
         if self.url and "://" not in self.url:
             if not os.path.isfile(self.url):
-                raise OSError("{} not found".format(self.url))
+                raise OSError(f"{self.url} not found")
 
         kind = self.kind or default_kind
-        if self.spec:
-            func = mlrun.new_function(self.name, runtime=self.spec)
-        elif self.url:
+        if self.url:
             if (
                 self.url.endswith(".yaml")
                 or self.url.startswith("db://")
@@ -94,9 +96,9 @@ class FunctionReference(ModelObj):
                     self.name, filename=self.url, image=self.image, kind=kind
                 )
             else:
-                raise ValueError(
-                    "unsupported function url {} or no spec".format(self.url)
-                )
+                raise ValueError(f"unsupported function url {self.url} or no spec")
+            if self.spec:
+                func = enrich_function_from_dict(func, self.spec)
         elif self.code is not None:
             code = self.code
             if kind == mlrun.runtimes.RuntimeKinds.serving:
@@ -108,6 +110,10 @@ class FunctionReference(ModelObj):
             func.spec.build.functionSourceCode = data
             if kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 func.spec.default_handler = "handler"
+            if self.spec:
+                func = enrich_function_from_dict(func, self.spec)
+        elif self.spec:
+            func = mlrun.new_function(self.name, runtime=self.spec)
         else:
             raise ValueError("url or spec or code must be specified")
 
@@ -121,5 +127,6 @@ class FunctionReference(ModelObj):
         return self._address
 
     def deploy(self, **kwargs):
+        """deploy the function"""
         self._address = self._function.deploy(**kwargs)
         return self._address

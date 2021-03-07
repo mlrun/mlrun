@@ -44,12 +44,7 @@ class TestBasics(TestMLRunSystem):
             uid=run_uid,
             name="demo",
             project=self.project_name,
-            labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "kind": "",
-                "owner": self._test_env["V3IO_USERNAME"],
-                "framework": "sklearn",
-            },
+            labels={"kind": "", "framework": "sklearn"},
         )
         self._verify_run_spec(
             run_object.to_dict()["spec"],

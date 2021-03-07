@@ -538,8 +538,8 @@ class RunTemplate(ModelObj):
         return self
 
     def with_param_file(self, param_file, selector=None, strategy=None, **options):
-        self.spec.param_file = param_file
         self.spec.hyper_options = options
+        self.spec.hyper_options.param_file = param_file
         self.spec.hyper_options.selector = selector
         self.spec.hyper_options.tuning_strategy = strategy
         return self

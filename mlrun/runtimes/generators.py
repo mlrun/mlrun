@@ -26,7 +26,8 @@ default_max_errors = 3
 
 
 def is_hyper_job(spec):
-    return spec.param_file or spec.hyperparams
+    param_file = spec.param_file or spec.hyper_options.param_file
+    return param_file or spec.hyperparams
 
 
 def get_generator(spec, execution):
@@ -36,10 +37,11 @@ def get_generator(spec, execution):
     options = spec.hyper_options
     tuning_strategy = spec.tuning_strategy or options.tuning_strategy
     hyperparams = spec.hyperparams
+    param_file = spec.param_file or options.param_file
     if tuning_strategy and tuning_strategy not in hyper_types:
         raise ValueError(f"unsupported hyperparams type ({tuning_strategy})")
 
-    if spec.param_file and hyperparams:
+    if param_file and hyperparams:
         raise ValueError("hyperparams and param_file cannot be used together")
 
     options.selector = options.selector or spec.selector
@@ -47,8 +49,8 @@ def get_generator(spec, execution):
         parse_selector(options.selector)
 
     obj = None
-    if spec.param_file:
-        obj = execution.get_dataitem(spec.param_file)
+    if param_file:
+        obj = execution.get_dataitem(param_file)
         if not tuning_strategy and obj.suffix == ".csv":
             tuning_strategy = "list"
         if not tuning_strategy or tuning_strategy in ["grid", "random"]:
@@ -102,9 +104,7 @@ class GridGenerator(TaskGenerator):
         max = len(next(iter(params.values())))
 
         while i < max:
-            newrun = deepcopy(run)
-            newrun.spec.hyperparams = None
-            newrun.spec.param_file = None
+            newrun = get_run_copy(run)
             param_dict = newrun.spec.parameters or {}
             for key, values in params.items():
                 param_dict[key] = values[i]
@@ -137,10 +137,7 @@ class RandomGenerator(TaskGenerator):
         i = 0
 
         while i < self.max_evals:
-            newrun = deepcopy(run)
-            newrun.spec.hyperparams = None
-            newrun.spec.param_file = None
-
+            newrun = get_run_copy(run)
             param_dict = newrun.spec.parameters or {}
             params = {k: random.sample(v, 1)[0] for k, v in self.hyperparams.items()}
             for key, values in params.items():
@@ -159,9 +156,7 @@ class ListGenerator(TaskGenerator):
     def generate(self, run: RunObject):
         i = 0
         for _, row in self.df.iterrows():
-            newrun = deepcopy(run)
-            newrun.spec.hyperparams = None
-            newrun.spec.param_file = None
+            newrun = get_run_copy(run)
             param_dict = newrun.spec.parameters or {}
             for key, values in row.to_dict().items():
                 param_dict[key] = values
@@ -169,6 +164,14 @@ class ListGenerator(TaskGenerator):
             newrun.metadata.iteration = i + 1
             i += 1
             yield newrun
+
+
+def get_run_copy(run):
+    newrun = deepcopy(run)
+    newrun.spec.hyperparams = None
+    newrun.spec.param_file = None
+    newrun.spec.hyper_options = None
+    return newrun
 
 
 def parse_selector(criteria):

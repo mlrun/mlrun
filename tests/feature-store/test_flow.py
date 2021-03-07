@@ -48,9 +48,9 @@ def test_read_csv():
 
     expected = pd.DataFrame(
         {
-            0: ['ticker', 'MSFT', 'GOOG', 'AAPL'],
-            1: ['name', "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-            2: ['exchange', "NASDAQ", "NASDAQ", "NASDAQ"]
+            0: ["ticker", "MSFT", "GOOG", "AAPL"],
+            1: ["name", "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+            2: ["exchange", "NASDAQ", "NASDAQ", "NASDAQ"]
         }
     )
 

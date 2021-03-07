@@ -154,7 +154,10 @@ class Scheduler:
     def delete_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Deleting schedule", project=project, name=name)
         job_id = self._resolve_job_id(project, name)
-        self._scheduler.remove_job(job_id)
+        # don't fail on delete if job doesn't exist
+        job = self._scheduler.get_job(job_id)
+        if job:
+            self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
     async def invoke_schedule(self, db_session: Session, project: str, name: str):

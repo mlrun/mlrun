@@ -53,13 +53,15 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     access_key = get_access_key(request)
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
+
+    logger.info("Querying grafana-proxy", **query_parameters)
+
     _validate_query_parameters(query_parameters)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
-    logger.info("Querying grafana-proxy", **query_parameters)
     result = NAME_TO_FUNCTION_DICTIONARY[target_endpoint](
         body, query_parameters, access_key
     )

@@ -18,6 +18,7 @@ from typing import Dict
 from datetime import datetime
 
 import mlrun
+from mlrun.utils import now_date
 
 
 class V2ModelServer:
@@ -178,7 +179,7 @@ class V2ModelServer:
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
-        start = datetime.now()
+        start = now_date()
         op = event.path.strip("/")
 
         if op == "predict" or op == "infer":

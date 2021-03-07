@@ -68,6 +68,32 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     return result
 
 
+@router.post("/grafana-proxy/model-endpoints/search")
+async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaTable]:
+    """
+    Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
+    model-endpoints logic.
+
+    This implementation requires passing `target_function` query parameter in order to dispatch different
+    model-endpoint monitoring functions.
+    """
+    access_key = get_access_key(request)
+    body = await request.json()
+    query_parameters = _parse_query_parameters(body)
+
+    logger.debug("Querying grafana-proxy", **query_parameters)
+
+    _validate_query_parameters(query_parameters)
+    query_parameters = _drop_grafana_escape_chars(query_parameters)
+
+    # At this point everything is validated and we can access everything that is needed without performing all previous
+    # checks again.
+    target_endpoint = query_parameters["target_endpoint"]
+    result = NAME_TO_FUNCTION_DICTIONARY[target_endpoint](
+        body, query_parameters, access_key
+    )
+    return result
+
 def grafana_list_projects(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ) -> List[GrafanaTable]:
@@ -321,6 +347,32 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
 
     parameters = {}
     for query in filter(lambda q: q, target_query.split(";")):
+        query_parts = query.split("=")
+        if len(query_parts) < 2:
+            raise MLRunBadRequestError(
+                f"Query must contain both query key and query value. Expected query_key=query_value, "
+                f"found {query} instead."
+            )
+        parameters[query_parts[0]] = query_parts[1]
+
+    return parameters
+
+
+def _parse_search_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
+    """
+    This function searches for the `target` field in Grafana's `SimpleJson` json. Once located, the target string is
+    parsed by splitting on semi-colons (;). Each part in the resulting list is then split by an equal sign (=) to be
+    read as key-value pairs.
+    """
+
+    # Try to get the `target`
+    target = request_body.get("targets")
+
+    if not target:
+        raise MLRunBadRequestError(f"Target missing in request body:\n {request_body}")
+
+    parameters = {}
+    for query in filter(lambda q: q, target.split(";")):
         query_parts = query.split("=")
         if len(query_parts) < 2:
             raise MLRunBadRequestError(

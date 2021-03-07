@@ -35,11 +35,11 @@ def get_generator(spec, execution):
         return None
 
     options = spec.hyper_options
-    tuning_strategy = spec.tuning_strategy or options.tuning_strategy
+    strategy = spec.strategy or options.strategy
     hyperparams = spec.hyperparams
     param_file = spec.param_file or options.param_file
-    if tuning_strategy and tuning_strategy not in hyper_types:
-        raise ValueError(f"unsupported hyperparams type ({tuning_strategy})")
+    if strategy and strategy not in hyper_types:
+        raise ValueError(f"unsupported hyperparams type ({strategy})")
 
     if param_file and hyperparams:
         raise ValueError("hyperparams and param_file cannot be used together")
@@ -51,15 +51,15 @@ def get_generator(spec, execution):
     obj = None
     if param_file:
         obj = execution.get_dataitem(param_file)
-        if not tuning_strategy and obj.suffix == ".csv":
-            tuning_strategy = "list"
-        if not tuning_strategy or tuning_strategy in ["grid", "random"]:
+        if not strategy and obj.suffix == ".csv":
+            strategy = "list"
+        if not strategy or strategy in ["grid", "random"]:
             hyperparams = json.loads(obj.get())
 
-    if not tuning_strategy or tuning_strategy == "grid":
+    if not strategy or strategy == "grid":
         return GridGenerator(hyperparams, options)
 
-    if tuning_strategy == "random":
+    if strategy == "random":
         return RandomGenerator(hyperparams, options)
 
     if obj:

@@ -331,8 +331,8 @@ class HyperParamOptions(ModelObj):
 
     Parameters:
         param_file (str):       hyper params input file path/url, instead of inline
-        tuning_strategy (str):  hyper param strategy - grid, list or random
-        selector (str):         selection criteria for best result ([min|max]<column>), e.g. max.accuracy
+        strategy (str):         hyper param strategy - grid, list or random
+        selector (str):         selection criteria for best result ([min|max.]<column>), e.g. max.accuracy
         stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
         parallelism (int):      number of param combinations to run in parallel (over Dask)
         dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
@@ -344,7 +344,7 @@ class HyperParamOptions(ModelObj):
     def __init__(
         self,
         param_file=None,
-        tuning_strategy=None,
+        strategy=None,
         selector=None,
         stop_condition=None,
         parallelism=None,
@@ -354,7 +354,7 @@ class HyperParamOptions(ModelObj):
         teardown_dask=None,
     ):
         self.param_file = param_file
-        self.tuning_strategy = tuning_strategy
+        self.strategy = strategy
         self.selector = selector
         self.stop_condition = stop_condition
         self.max_evals = max_evals
@@ -381,7 +381,7 @@ class RunSpec(ModelObj):
         function=None,
         secret_sources=None,
         data_stores=None,
-        tuning_strategy=None,
+        strategy=None,
         verbose=None,
         scrape_metrics=False,
         hyper_options=None,
@@ -395,7 +395,7 @@ class RunSpec(ModelObj):
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
-        self.tuning_strategy = tuning_strategy
+        self.strategy = strategy
         self.selector = selector
         self.handler = handler
         self.input_path = input_path
@@ -534,14 +534,14 @@ class RunTemplate(ModelObj):
         self.spec.hyperparams = hyperparams
         self.spec.hyper_options = options
         self.spec.hyper_options.selector = selector
-        self.spec.hyper_options.tuning_strategy = strategy
+        self.spec.hyper_options.strategy = strategy
         return self
 
     def with_param_file(self, param_file, selector=None, strategy=None, **options):
         self.spec.hyper_options = options
         self.spec.hyper_options.param_file = param_file
         self.spec.hyper_options.selector = selector
-        self.spec.hyper_options.tuning_strategy = strategy
+        self.spec.hyper_options.strategy = strategy
         return self
 
     def with_secrets(self, kind, source):
@@ -710,7 +710,7 @@ def NewTask(
     hyper_params=None,
     param_file=None,
     selector=None,
-    tuning_strategy=None,
+    strategy=None,
     inputs=None,
     outputs=None,
     in_path=None,
@@ -734,7 +734,7 @@ def NewTask(
         hyper_params,
         param_file,
         selector,
-        tuning_strategy,
+        strategy,
         inputs,
         outputs,
         in_path,

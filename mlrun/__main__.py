@@ -98,9 +98,7 @@ def main():
     help="how to select the best result from a list, e.g. max.accuracy",
 )
 @click.option(
-    "--tuning-strategy",
-    default="",
-    help="hyperparam tuning strategy list | grid | random",
+    "--strategy", default="", help="hyperparam tuning strategy list | grid | random",
 )
 @click.option(
     "--hyper-options", default="", help="hyperparam options json string",
@@ -148,7 +146,7 @@ def run(
     hyperparam,
     param_file,
     selector,
-    tuning_strategy,
+    strategy,
     hyper_options,
     func_url,
     task,
@@ -240,7 +238,7 @@ def run(
     if hyper_options:
         runobj.spec.hyper_options = json.loads(hyper_options)
     set_item(runobj.spec.hyper_options, param_file, "param_file")
-    set_item(runobj.spec.hyper_options, tuning_strategy, "tuning_strategy")
+    set_item(runobj.spec.hyper_options, strategy, "strategy")
     set_item(runobj.spec.hyper_options, selector, "selector")
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))

@@ -103,9 +103,7 @@ def main():
     help="hyperparam tuning strategy list | grid | random",
 )
 @click.option(
-    "--hyper-options",
-    default="",
-    help="hyperparam options json string",
+    "--hyper-options", default="", help="hyperparam options json string",
 )
 @click.option(
     "--func-url",

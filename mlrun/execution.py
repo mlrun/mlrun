@@ -257,7 +257,9 @@ class MLClientCtx(object):
                 self._hyperparams = spec.get("hyperparams", self._hyperparams)
                 self._hyper_options = spec.get("hyper_options", self._hyper_options)
                 if isinstance(self._hyper_options, dict):
-                    self._hyper_options = HyperParamOptions.from_dict(self._hyper_options)
+                    self._hyper_options = HyperParamOptions.from_dict(
+                        self._hyper_options
+                    )
             self._outputs = spec.get("outputs", self._outputs)
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)

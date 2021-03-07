@@ -282,9 +282,13 @@ def mlrun_op(
         handler = handler or runobj.spec.handler_name
         params = params or runobj.spec.parameters
         hyperparams = hyperparams or runobj.spec.hyperparams
-        param_file = param_file or runobj.spec.param_file or runobj.spec.hyper_options.param_file
+        param_file = (
+            param_file or runobj.spec.param_file or runobj.spec.hyper_options.param_file
+        )
         hyper_options = hyper_options or runobj.spec.hyper_options
-        selector = selector or runobj.spec.selector or runobj.spec.hyper_options.selector
+        selector = (
+            selector or runobj.spec.selector or runobj.spec.hyper_options.selector
+        )
         inputs = inputs or runobj.spec.inputs
         outputs = outputs or runobj.spec.outputs
         in_path = in_path or runobj.spec.input_path

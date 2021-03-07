@@ -5,6 +5,7 @@ import string
 import os
 from tests.conftest import results, tests_root_directory
 from storey import ReadCSV, build_flow, ReduceToDataFrame
+from data_sample import stocks
 
 from mlrun.datastore.targets import CSVTarget
 import mlrun.feature_store as fs
@@ -25,7 +26,7 @@ def has_db():
 
 
 def _generate_random_name():
-    random_name = ''.join([random.choice(string.ascii_letters) for i in range(10)])
+    random_name = "".join([random.choice(string.ascii_letters) for i in range(10)])
     return random_name
 
 
@@ -35,28 +36,23 @@ def test_read_csv():
 
     init_store()
 
-    stocks = pd.DataFrame(
-        {
-            "ticker": ["MSFT", "GOOG", "AAPL"],
-            "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-            "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
-        }
-    )
-
     targets = [CSVTarget("mycsv", path=csv_path)]
     stocks_set = fs.FeatureSet("tests", entities=[Entity("ticker", ValueType.STRING)])
-    fs.ingest(stocks_set, stocks, infer_options=fs.InferOptions.default(), targets=targets)
+    fs.ingest(
+        stocks_set, stocks, infer_options=fs.InferOptions.default(), targets=targets
+    )
 
     # reading csv file
-    controller = build_flow([
-        ReadCSV(csv_path),
-        ReduceToDataFrame()
-    ]).run()
+    controller = build_flow([ReadCSV(csv_path), ReduceToDataFrame()]).run()
     termination_result = controller.await_termination()
 
-    expected = pd.DataFrame({0: ['ticker', 'MSFT', 'GOOG', 'AAPL'],
-                             1: ['name', "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-                             2: ['exchange', "NASDAQ", "NASDAQ", "NASDAQ"]})
+    expected = pd.DataFrame(
+        {
+            0: ['ticker', 'MSFT', 'GOOG', 'AAPL'],
+            1: ['name', "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+            2: ['exchange', "NASDAQ", "NASDAQ", "NASDAQ"]
+        }
+    )
 
     assert termination_result.equals(expected), f"{termination_result}\n!=\n{expected}"
 

@@ -50,7 +50,7 @@ def test_read_csv():
         {
             0: ["ticker", "MSFT", "GOOG", "AAPL"],
             1: ["name", "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-            2: ["exchange", "NASDAQ", "NASDAQ", "NASDAQ"]
+            2: ["exchange", "NASDAQ", "NASDAQ", "NASDAQ"],
         }
     )
 

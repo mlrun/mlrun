@@ -96,9 +96,9 @@ class ModelEndpoints:
         model_artifact: Optional[str] = None,
         feature_stats: Optional[dict] = None,
         feature_names: Optional[List[str]] = None,
+        monitor_configuration: Optional[dict] = None,
         stream_path: Optional[str] = None,
         active: bool = True,
-        with_feature_stats: bool = True,
     ):
         """
         Writes endpoint data to KV, a prerequisite for initializing the monitoring process for a specific endpoint.
@@ -113,7 +113,9 @@ class ModelEndpoints:
         :param labels: key value pairs of user defined labels
         :param model_artifact: The path to the model artifact containing metadata about the features of the model
         :param feature_stats: The actual metadata about the features of the model
-        :param feature_names:
+        :param feature_names: A list of feature names, if provided along side `model_artifact` or `feature_stats`, will
+        override the feature names that can be found in the metadata
+        :param monitor_configuration: A monitoring related key value configuration
         :param stream_path: The path to the output stream of the model server
 
         Parameters for ModelEndpointSpec
@@ -123,19 +125,17 @@ class ModelEndpoints:
 
         Parameters for ModelEndpointStatus
         :param active: The "activation" status of the endpoint - True for active / False for not active (default True)
-
-        :param with_feature_stats: When True, this function will attempt to get the model artifact by calling
-        `get_model(model_artifact)`
         """
 
-        logger.info(
-            "Getting feature metadata",
-            project=project,
-            model=model,
-            function=function,
-            tag=tag,
-            model_artifact=model_artifact,
-        )
+        if model_artifact or feature_stats:
+            logger.info(
+                "Getting feature metadata",
+                project=project,
+                model=model,
+                function=function,
+                tag=tag,
+                model_artifact=model_artifact,
+            )
 
         # If model artifact was supplied but `feature_stats` was not, grab model artifact and get `feature_stats`
         if model_artifact and not feature_stats:
@@ -179,58 +179,65 @@ class ModelEndpoints:
             stream_path=stream_path,
             feature_stats=feature_stats,
             feature_names=feature_names,
+            monitor_configuration=monitor_configuration,
             active=active,
             state="registered",
         )
 
         logger.info("Registering model endpoint", endpoint_id=endpoint.id)
 
-        ModelEndpoints.persist_to_kv(access_key, endpoint)
+        serialize_endpoint_to_kv(access_key, endpoint)
 
         logger.info("Model endpoint registered", endpoint_id=endpoint.id)
 
         return endpoint
 
     @staticmethod
-    def persist_to_kv(access_key: str, endpoint: ModelEndpoint):
+    def update_endpoint_record(
+        access_key: str,
+        project: str,
+        endpoint_id: str,
+        payload: dict,
+        check_existence: bool = True,
+    ):
         """
-        Writes endpoint data to KV, a prerequisite for initializing the monitoring process
+        Updates the KV data of a given model endpoint
 
         :param access_key: V3IO access key for managing user permissions
-        :param endpoint: ModelEndpoint object
+        :param project: The name of the project
+        :param endpoint_id: The id of the endpoint
+        :param payload: The parameters that should be updated
+        :param check_existence: Check if the endpoint already exists, if it doesn't, don't create the record and raise
+        MLRunInvalidArgumentError
         """
 
-        labels = endpoint.metadata.labels or {}
-        searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
+        if not payload:
+            raise MLRunInvalidArgumentError(
+                "Update payload must contain at least one field to update"
+            )
 
-        feature_stats = endpoint.metadata.feature_stats or {}
-        feature_names = endpoint.metadata.feature_names or []
-
+        logger.info("Updating model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
-        client.kv.put(
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}",
-            key=endpoint.id,
-            access_key=access_key,
-            attributes={
-                "endpoint_id": endpoint.id,
-                "project": endpoint.metadata.project,
-                "model": endpoint.spec.model,
-                "function": endpoint.spec.function,
-                "tag": endpoint.metadata.tag,
-                "model_class": endpoint.spec.model_class or "",
-                "labels": json.dumps(labels),
-                "model_artifact": endpoint.metadata.model_artifact or "",
-                "stream_path": endpoint.metadata.stream_path or "",
-                "active": endpoint.status.active,
-                "state": endpoint.status.state or "",
-                "feature_stats": json.dumps(feature_stats),
-                "feature_names": json.dumps(feature_names),
-                **searchable_labels,
-            },
-        )
 
-        return endpoint
+        if check_existence:
+            try:
+                client.kv.get(
+                    container=config.model_endpoint_monitoring.container,
+                    table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+                    key=endpoint_id,
+                    access_key=access_key,
+                )
+            except RuntimeError:
+                raise MLRunInvalidArgumentError(f"Endpoint: {endpoint_id} not found")
+
+        client.kv.update(
+            container=config.model_endpoint_monitoring.container,
+            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+            key=endpoint_id,
+            access_key=access_key,
+            attributes=payload,
+        )
+        logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
     @staticmethod
     def clear_endpoint_record(access_key: str, endpoint_id: str):
@@ -252,48 +259,6 @@ class ModelEndpoints:
         )
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
-
-    @staticmethod
-    def update_endpoint_record(
-        access_key: str, endpoint_id: str, payload: dict, check_existence: bool = True
-    ):
-        """
-        Updates the KV data of a given model endpoint
-
-        :param access_key: V3IO access key for managing user permissions
-        :param endpoint_id: The id of the endpoint
-        :param payload: The parameters that are available for update
-        :param check_existence: Check if the endpoint already exists, if it does, raise MLRunInvalidArgumentError
-        """
-
-        if not payload:
-            raise MLRunInvalidArgumentError(
-                "Update payload must contain at least one field to update"
-            )
-
-        logger.info("Updating model endpoint table", endpoint_id=endpoint_id)
-        client = get_v3io_client(endpoint=config.v3io_api)
-        project = _get_project_name(endpoint_id)
-
-        if check_existence:
-            try:
-                client.kv.get(
-                    container=config.model_endpoint_monitoring.container,
-                    table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
-                    key=endpoint_id,
-                    access_key=access_key,
-                )
-            except RuntimeError:
-                raise MLRunInvalidArgumentError(f"Endpoint: {endpoint_id} not found")
-
-        client.kv.update(
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
-            key=endpoint_id,
-            access_key=access_key,
-            attributes=payload,
-        )
-        logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
     @staticmethod
     def list_endpoints(
@@ -402,13 +367,14 @@ class ModelEndpoints:
         :param start: The start time of the metrics
         :param end: The end time of the metrics
         """
-        endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
+        endpoint = deserialize_endpoint_state_from_kv(
+            access_key=access_key, project=project, endpoint_id=endpoint_id
+        )
 
         if not endpoint:
             url = f"/projects/{project}/model-endpoints/{endpoint_id}"
             raise MLRunNotFoundError(f"Endpoint {endpoint_id} not found - {url}")
 
-        endpoint_metrics = None
         if metrics:
             endpoint_metrics = _get_endpoint_metrics(
                 access_key=access_key,
@@ -418,27 +384,157 @@ class ModelEndpoints:
                 end=end,
                 name=metrics,
             )
+            endpoint.metrics = endpoint_metrics
 
-        return ModelEndpointState(
-            endpoint=ModelEndpoint.new(
-                project=endpoint.get("project"),
-                model=endpoint.get("model"),
-                function=endpoint.get("function"),
-                tag=endpoint.get("tag"),
-                model_class=endpoint.get("model_class"),
-                labels=json.loads(endpoint.get("labels")),
-                model_artifact=endpoint.get("model_artifact"),
-                stream_path=endpoint.get("stream_path"),
-                feature_stats=json.loads(endpoint.get("feature_stats")),
-                state=endpoint.get("state"),
-                active=endpoint.get("active"),
-            ),
-            first_request=endpoint.get("first_request"),
-            last_request=endpoint.get("last_request"),
-            error_count=endpoint.get("error_count"),
-            drift_status=endpoint.get("drift_status"),
-            metrics=endpoint_metrics,
-        )
+        return endpoint
+
+
+def serialize_endpoint_to_kv(
+    access_key: str, endpoint: ModelEndpoint, update: bool = True
+):
+    """
+    Writes endpoint data to KV, a prerequisite for initializing the monitoring process
+
+    :param access_key: V3IO access key for managing user permissions
+    :param endpoint: ModelEndpoint object
+    :param update: When True, use `client.kv.update`, otherwise use `client.kv.put`
+    """
+
+    labels = endpoint.metadata.labels or {}
+    searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
+
+    feature_stats = endpoint.metadata.feature_stats or {}
+    feature_names = endpoint.metadata.feature_names or []
+    monitor_configuration = endpoint.metadata.monitor_configuration or {}
+
+    client = get_v3io_client(endpoint=config.v3io_api)
+    function = client.kv.update if update else client.kv.put
+    function(
+        container=config.model_endpoint_monitoring.container,
+        table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}",
+        key=endpoint.id,
+        access_key=access_key,
+        attributes={
+            "endpoint_id": endpoint.id,
+            "project": endpoint.metadata.project,
+            "model": endpoint.spec.model,
+            "function": endpoint.spec.function,
+            "tag": endpoint.metadata.tag,
+            "model_class": endpoint.spec.model_class or "",
+            "labels": json.dumps(labels),
+            "model_artifact": endpoint.metadata.model_artifact or "",
+            "stream_path": endpoint.metadata.stream_path or "",
+            "active": endpoint.status.active,
+            "state": endpoint.status.state or "",
+            "feature_stats": json.dumps(feature_stats),
+            "feature_names": json.dumps(feature_names),
+            "monitor_configuration": json.dumps(monitor_configuration),
+            **searchable_labels,
+        },
+    )
+
+    return endpoint
+
+
+def deserialize_endpoint_from_kv(
+    access_key: str, project: str, endpoint_id: str
+) -> ModelEndpoint:
+
+    logger.info(
+        "Getting model endpoint record from kv", endpoint_id=endpoint_id,
+    )
+
+    client = get_v3io_client(endpoint=config.v3io_api)
+
+    endpoint = client.kv.get(
+        container=config.model_endpoint_monitoring.container,
+        table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+        key=endpoint_id,
+        access_key=access_key,
+        raise_for_status=RaiseForStatus.never,
+    ).output.item
+
+    labels = endpoint.get("labels")
+    feature_stats = endpoint.get("feature_stats")
+    feature_names = endpoint.get("feature_names")
+    monitor_configuration = endpoint.get("monitor_configuration")
+
+    return ModelEndpoint.new(
+        project=endpoint.get("project"),
+        model=endpoint.get("model"),
+        function=endpoint.get("function"),
+        tag=endpoint.get("tag"),
+        model_class=endpoint.get("model_class"),
+        labels=_json_loads_if_not_none(labels),
+        model_artifact=endpoint.get("model_artifact"),
+        stream_path=endpoint.get("stream_path"),
+        feature_stats=_json_loads_if_not_none(feature_stats),
+        feature_names=_json_loads_if_not_none(feature_names),
+        monitor_configuration=_json_loads_if_not_none(monitor_configuration),
+        state=endpoint.get("state"),
+        active=endpoint.get("active"),
+    )
+
+
+def deserialize_endpoint_state_from_kv(
+    access_key: str, project: str, endpoint_id: str
+) -> ModelEndpointState:
+
+    logger.info(
+        "Getting model endpoint record from kv", endpoint_id=endpoint_id,
+    )
+
+    client = get_v3io_client(endpoint=config.v3io_api)
+
+    endpoint = client.kv.get(
+        container=config.model_endpoint_monitoring.container,
+        table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+        key=endpoint_id,
+        access_key=access_key,
+        raise_for_status=RaiseForStatus.never,
+    ).output.item
+
+    labels = endpoint.get("labels")
+    feature_stats = endpoint.get("feature_stats")
+    feature_names = endpoint.get("feature_names")
+    monitor_configuration = endpoint.get("monitor_configuration")
+
+    drift_status = endpoint.get("drift_status")
+    drift_measures = endpoint.get("drift_measures")
+    current_stats = endpoint.get("current_stats")
+
+    return ModelEndpointState.new(
+        endpoint=ModelEndpoint.new(
+            project=endpoint.get("project"),
+            model=endpoint.get("model"),
+            function=endpoint.get("function"),
+            tag=endpoint.get("tag"),
+            model_class=endpoint.get("model_class"),
+            labels=_json_loads_if_not_none(labels),
+            model_artifact=endpoint.get("model_artifact"),
+            stream_path=endpoint.get("stream_path"),
+            feature_stats=_json_loads_if_not_none(feature_stats),
+            feature_names=_json_loads_if_not_none(feature_names),
+            monitor_configuration=_json_loads_if_not_none(monitor_configuration),
+            state=endpoint.get("state"),
+            active=endpoint.get("active"),
+        ),
+        first_request=endpoint.get("first_request"),
+        last_request=endpoint.get("last_request"),
+        accuracy=endpoint.get("accuracy"),
+        error_count=endpoint.get("error_count"),
+        drift_status=_json_loads_if_not_none(drift_status),
+        drift_measures=_json_loads_if_not_none(drift_measures),
+        current_stats=_json_loads_if_not_none(current_stats),
+        # metrics -> Computed from TSDB
+        # features -> Computed from TSDB
+    )
+
+
+def _json_loads_if_not_none(field: Any):
+    if field is None:
+        return None
+    return json.loads(field)
 
 
 def _clean_feature_name(feature_name):
@@ -529,32 +625,6 @@ def _build_kv_cursor_filter_expression(
                 filter_expression.append(f"exists({label})")
 
     return " AND ".join(filter_expression)
-
-
-def get_endpoint_kv_record_by_id(
-    access_key: str, endpoint_id: str, attribute_names: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-
-    logger.info(
-        "Getting model endpoint record from kv",
-        endpoint_id=endpoint_id,
-        attribute_names=attribute_names,
-    )
-
-    client = get_v3io_client(endpoint=config.v3io_api)
-
-    project = endpoint_id.split(".")[0]
-
-    endpoint = client.kv.get(
-        container=config.model_endpoint_monitoring.container,
-        table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
-        key=endpoint_id,
-        access_key=access_key,
-        attribute_names=attribute_names or "*",
-        raise_for_status=RaiseForStatus.never,
-    ).output.item
-
-    return endpoint
 
 
 def _get_project_name(endpoint_id: str):

@@ -9,6 +9,7 @@ from mlrun.api.schemas.object import (
     ObjectSpec,
     ObjectStatus,
 )
+from mlrun.errors import MLRunInvalidArgumentError
 
 
 class ModelEndpointMetadata(BaseModel):
@@ -19,6 +20,7 @@ class ModelEndpointMetadata(BaseModel):
     stream_path: Optional[str]
     feature_stats: Optional[dict]
     feature_names: Optional[List[str]]
+    monitor_configuration: Optional[dict]
 
     class Config:
         extra = Extra.allow
@@ -31,7 +33,7 @@ class ModelEndpointSpec(ObjectSpec):
 
 
 class ModelEndpointStatus(ObjectStatus):
-    active: bool = True
+    active: Optional[bool]
 
     class Config:
         extra = Extra.allow
@@ -70,18 +72,18 @@ class ModelEndpoint(BaseModel):
         project: str,
         model: str,
         function: str,
-        tag: str = "latest",
+        tag: str,
         model_class: Optional[str] = None,
         labels: Optional[dict] = None,
         model_artifact: Optional[str] = None,
         stream_path: Optional[str] = None,
         feature_stats: Optional[dict] = None,
         feature_names: Optional[List[str]] = None,
+        monitor_configuration: Optional[dict] = None,
         state: Optional[str] = None,
         active: bool = True,
     ) -> "ModelEndpoint":
-        """
-        A constructor method for better usability
+        """ A constructor method for better usability
 
         Parameters for ModelEndpointMetadata
         :param project: The name of the project of which this endpoint belongs to (used for creating endpoint.id)
@@ -91,6 +93,7 @@ class ModelEndpoint(BaseModel):
         :param stream_path: The path to the output stream of the model server
         :param feature_stats: A dictionary describing the model's features
         :param feature_names: A list of feature names
+        :param monitor_configuration: A monitoring related key value configuration
 
         Parameters for ModelEndpointSpec
         :param model: The name of the model that is used in the serving function (used for creating endpoint.id)
@@ -101,7 +104,14 @@ class ModelEndpoint(BaseModel):
         :param state: The current state of the endpoint
         :param active: The "activation" status of the endpoint - True for active / False for not active (default True)
         """
-        return ModelEndpoint(
+
+        if project is None and model is None and function is None and tag is None:
+            raise MLRunInvalidArgumentError(
+                f"All of `project`[{project}], `model`[{model}], `function`[{function}] and `tag`[{tag}] must be "
+                f"properly initialized"
+            )
+
+        return cls(
             metadata=ModelEndpointMetadata(
                 project=project,
                 tag=tag,
@@ -109,7 +119,8 @@ class ModelEndpoint(BaseModel):
                 model_artifact=model_artifact,
                 stream_path=stream_path,
                 feature_stats=feature_stats,
-                feature_names=feature_names
+                feature_names=feature_names,
+                monitor_configuration=monitor_configuration,
             ),
             spec=ModelEndpointSpec(
                 model=model, function=function, model_class=model_class,
@@ -150,13 +161,55 @@ class Features(BaseModel):
 
 class ModelEndpointState(BaseModel):
     endpoint: ModelEndpoint
-    first_request: Optional[str] = None
-    last_request: Optional[str] = None
-    accuracy: Optional[float] = None
-    error_count: Optional[int] = None
-    drift_status: Optional[str] = None
-    metrics: Dict[str, Metric] = {}
-    features: List[Features] = []
+    first_request: Optional[str]
+    last_request: Optional[str]
+    accuracy: Optional[float]
+    error_count: Optional[int]
+    drift_status: Optional[str]
+    drift_measures: Optional[dict]
+    current_stats: Optional[dict]
+    metrics: Optional[Dict[str, Metric]]
+    features: Optional[List[Features]]
+
+    @classmethod
+    def new(
+        cls,
+        endpoint: ModelEndpoint,
+        first_request: Optional[str] = None,
+        last_request: Optional[str] = None,
+        accuracy: Optional[float] = None,
+        error_count: Optional[int] = None,
+        drift_status: Optional[str] = None,
+        drift_measures: Optional[dict] = None,
+        current_stats: Optional[dict] = None,
+        metrics: Optional[Dict[str, Metric]] = None,
+        features: Optional[List[Features]] = None,
+    ):
+        """ A constructor method for better usability
+
+        :param endpoint: The object representing a model endpoint
+        :param first_request: The first request encountered for the given endpoint
+        :param last_request: The last request encountered for the given endpoint
+        :param accuracy: The accuracy of the model
+        :param error_count: The error count of the model
+        :param drift_status: The drift status of the model
+        :param drift_measures: The drift measures of the model
+        :param current_stats: The current statistics of the model
+        :param metrics: The collected metrics of the model endpoint
+        :param features: The incoming features of the model
+        """
+        return cls(
+            endpoint=endpoint,
+            first_request=first_request,
+            last_request=last_request,
+            accuracy=accuracy,
+            error_count=error_count,
+            drift_status=drift_status,
+            drift_measures=drift_measures,
+            current_stats=current_stats,
+            metrics=metrics,
+            features=features,
+        )
 
 
 class ModelEndpointStateList(BaseModel):

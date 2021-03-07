@@ -20,6 +20,7 @@ from mlrun.api.crud.model_endpoints import (
     ENDPOINTS_TABLE_PATH,
     ENDPOINT_EVENTS_TABLE_PATH,
     ModelEndpoints,
+    serialize_endpoint_to_kv,
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
@@ -54,7 +55,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        ModelEndpoints.persist_to_kv(_get_access_key(), endpoint)
+        serialize_endpoint_to_kv(_get_access_key(), endpoint)
 
     response = client.post(
         url="/api/grafana-proxy/model-endpoints/query",
@@ -159,7 +160,7 @@ def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
         "last_request": "2021-02-28 21:02:58.642108",
         "error_count": 0,
         "feature_stats": '{"sepal length (cm)": {"count": 30, "mean": 5.946666666666668, "std": 0.8394305678023165, "min": 4.7, "max": 7.9, "hist": [[4, 4, 4, 4, 4, 3, 4, 0, 3, 4, 1, 1, 2, 1, 0, 1, 0, 0, 1, 1], [4.7, 4.86, 5.0200000000000005, 5.18, 5.34, 5.5, 5.66, 5.82, 5.98, 6.140000000000001, 6.300000000000001, 6.46, 6.62, 6.78, 6.94, 7.1, 7.26, 7.42, 7.58, 7.74, 7.9]]}, "sepal width (cm)": {"count": 30, "mean": 3.119999999999999, "std": 0.4088672324766359, "min": 2.2, "max": 3.8, "hist": [[1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 3, 3, 2, 2, 0, 3, 1, 1, 0, 4], [2.2, 2.2800000000000002, 2.3600000000000003, 2.44, 2.52, 2.6, 2.68, 2.7600000000000002, 2.84, 2.92, 3, 3.08, 3.16, 3.24, 3.3200000000000003, 3.4, 3.48, 3.56, 3.6399999999999997, 3.7199999999999998, 3.8]]}, "petal length (cm)": {"count": 30, "mean": 3.863333333333333, "std": 1.8212317418360753, "min": 1.3, "max": 6.7, "hist": [[6, 6, 6, 6, 6, 6, 0, 0, 1, 2, 0, 3, 3, 2, 2, 3, 1, 1, 1, 1], [1.3, 1.57, 1.84, 2.1100000000000003, 2.38, 2.6500000000000004, 2.92, 3.1900000000000004, 3.46, 3.7300000000000004, 4, 4.2700000000000005, 4.54, 4.8100000000000005, 5.08, 5.3500000000000005, 5.62, 5.89, 6.16, 6.430000000000001, 6.7]]}, "petal width (cm)": {"count": 30, "mean": 1.2733333333333334, "std": 0.8291804567674381, "min": 0.1, "max": 2.5, "hist": [[5, 5, 5, 5, 5, 5, 0, 0, 1, 2, 3, 2, 1, 0, 2, 3, 1, 1, 0, 4], [0.1, 0.22, 0.33999999999999997, 0.45999999999999996, 0.58, 0.7, 0.82, 0.94, 1.06, 1.1800000000000002, 1.3, 1.42, 1.54, 1.6600000000000001, 1.78, 1.9, 2.02, 2.14, 2.2600000000000002, 2.38, 2.5]]}}',  # noqa
-        "drift_measurements": '{"petal width (cm)": {"tvd": 0.4, "hellinger": 0.38143130942893605, "kld": 1.3765624725652992}, "tvd_sum": 1.755886699507389, "tvd_mean": 0.43897167487684724, "hellinger_sum": 1.7802062191831514, "hellinger_mean": 0.44505155479578784, "kld_sum": 9.133613874253776, "kld_mean": 2.283403468563444, "sepal width (cm)": {"tvd": 0.3551724137931034, "hellinger": 0.4024622641158891, "kld": 1.7123635755188409}, "petal length (cm)": {"tvd": 0.445, "hellinger": 0.39975075965755447, "kld": 1.6449612084377268}, "sepal length (cm)": {"tvd": 0.5557142857142856, "hellinger": 0.5965618859807716, "kld": 4.399726617731908}}',  # noqa
+        "drift_measures": '{"petal width (cm)": {"tvd": 0.4, "hellinger": 0.38143130942893605, "kld": 1.3765624725652992}, "tvd_sum": 1.755886699507389, "tvd_mean": 0.43897167487684724, "hellinger_sum": 1.7802062191831514, "hellinger_mean": 0.44505155479578784, "kld_sum": 9.133613874253776, "kld_mean": 2.283403468563444, "sepal width (cm)": {"tvd": 0.3551724137931034, "hellinger": 0.4024622641158891, "kld": 1.7123635755188409}, "petal length (cm)": {"tvd": 0.445, "hellinger": 0.39975075965755447, "kld": 1.6449612084377268}, "sepal length (cm)": {"tvd": 0.5557142857142856, "hellinger": 0.5965618859807716, "kld": 4.399726617731908}}',  # noqa
     }
 
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
@@ -217,7 +218,7 @@ def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
         "last_request": "2021-02-28 21:02:58.642108",
         "error_count": 0,
         "feature_stats": '{"sepal length (cm)": {"count": 30, "mean": 5.946666666666668, "std": 0.8394305678023165, "min": 4.7, "max": 7.9, "hist": [[4, 4, 4, 4, 4, 3, 4, 0, 3, 4, 1, 1, 2, 1, 0, 1, 0, 0, 1, 1], [4.7, 4.86, 5.0200000000000005, 5.18, 5.34, 5.5, 5.66, 5.82, 5.98, 6.140000000000001, 6.300000000000001, 6.46, 6.62, 6.78, 6.94, 7.1, 7.26, 7.42, 7.58, 7.74, 7.9]]}, "sepal width (cm)": {"count": 30, "mean": 3.119999999999999, "std": 0.4088672324766359, "min": 2.2, "max": 3.8, "hist": [[1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 3, 3, 2, 2, 0, 3, 1, 1, 0, 4], [2.2, 2.2800000000000002, 2.3600000000000003, 2.44, 2.52, 2.6, 2.68, 2.7600000000000002, 2.84, 2.92, 3, 3.08, 3.16, 3.24, 3.3200000000000003, 3.4, 3.48, 3.56, 3.6399999999999997, 3.7199999999999998, 3.8]]}, "petal length (cm)": {"count": 30, "mean": 3.863333333333333, "std": 1.8212317418360753, "min": 1.3, "max": 6.7, "hist": [[6, 6, 6, 6, 6, 6, 0, 0, 1, 2, 0, 3, 3, 2, 2, 3, 1, 1, 1, 1], [1.3, 1.57, 1.84, 2.1100000000000003, 2.38, 2.6500000000000004, 2.92, 3.1900000000000004, 3.46, 3.7300000000000004, 4, 4.2700000000000005, 4.54, 4.8100000000000005, 5.08, 5.3500000000000005, 5.62, 5.89, 6.16, 6.430000000000001, 6.7]]}, "petal width (cm)": {"count": 30, "mean": 1.2733333333333334, "std": 0.8291804567674381, "min": 0.1, "max": 2.5, "hist": [[5, 5, 5, 5, 5, 5, 0, 0, 1, 2, 3, 2, 1, 0, 2, 3, 1, 1, 0, 4], [0.1, 0.22, 0.33999999999999997, 0.45999999999999996, 0.58, 0.7, 0.82, 0.94, 1.06, 1.1800000000000002, 1.3, 1.42, 1.54, 1.6600000000000001, 1.78, 1.9, 2.02, 2.14, 2.2600000000000002, 2.38, 2.5]]}}',  # noqa
-        "drift_measurements": '{"petal width (cm)": {"tvd": 0.4, "hellinger": 0.38143130942893605, "kld": 1.3765624725652992}, "tvd_sum": 1.755886699507389, "tvd_mean": 0.43897167487684724, "hellinger_sum": 1.7802062191831514, "hellinger_mean": 0.44505155479578784, "kld_sum": 9.133613874253776, "kld_mean": 2.283403468563444, "sepal width (cm)": {"tvd": 0.3551724137931034, "hellinger": 0.4024622641158891, "kld": 1.7123635755188409}, "petal length (cm)": {"tvd": 0.445, "hellinger": 0.39975075965755447, "kld": 1.6449612084377268}, "sepal length (cm)": {"tvd": 0.5557142857142856, "hellinger": 0.5965618859807716, "kld": 4.399726617731908}}',  # noqa
+        "drift_measures": '{"petal width (cm)": {"tvd": 0.4, "hellinger": 0.38143130942893605, "kld": 1.3765624725652992}, "tvd_sum": 1.755886699507389, "tvd_mean": 0.43897167487684724, "hellinger_sum": 1.7802062191831514, "hellinger_mean": 0.44505155479578784, "kld_sum": 9.133613874253776, "kld_mean": 2.283403468563444, "sepal width (cm)": {"tvd": 0.3551724137931034, "hellinger": 0.4024622641158891, "kld": 1.7123635755188409}, "petal length (cm)": {"tvd": 0.445, "hellinger": 0.39975075965755447, "kld": 1.6449612084377268}, "sepal length (cm)": {"tvd": 0.5557142857142856, "hellinger": 0.5965618859807716, "kld": 4.399726617731908}}',  # noqa
     }
 
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
@@ -367,7 +368,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
             endpoint.spec.model,
             endpoint.spec.function,
             endpoint.metadata.tag,
-            feature_names=["f0", "f1", "f2", "f3"]
+            feature_names=["f0", "f1", "f2", "f3"],
         )
 
         total = 0
@@ -409,7 +410,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         )
         response = response.json()
         targets = [t["target"] for t in response]
-        assert targets == ['f0', 'f1', 'f2', 'f3']
+        assert targets == ["f0", "f1", "f2", "f3"]
 
         lens = [t["datapoints"] for t in response]
         assert all(map(lambda l: len(l) == 10, lens))
@@ -419,15 +420,10 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_grafana_list_projects(db: Session, client: TestClient):
+    config.dbpath = os.environ.get("MLRUN_DBPATH")
     response = client.post(
         url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
-        json={
-            "targets": [
-                {
-                    "target": f"target_endpoint=list_projects"
-                }
-            ]
-        },
+        json={"targets": [{"target": f"target_endpoint=list_projects"}]},
     )
     pass

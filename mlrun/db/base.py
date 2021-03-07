@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Union, Optional
 
 from mlrun.api import schemas
 
@@ -327,5 +327,64 @@ class RunDBInterface(ABC):
             str, schemas.SecretProviderName
         ] = schemas.SecretProviderName.vault,
         secrets: dict = None,
+    ):
+        pass
+
+    @abstractmethod
+    def register_endpoint(
+        self,
+        project: str,
+        model: str,
+        function: str,
+        tag: str = "latest",
+        model_class: Optional[str] = None,
+        labels: Optional[dict] = None,
+        model_artifact: Optional[str] = None,
+        feature_stats: Optional[dict] = None,
+        feature_names: Optional[List[str]] = None,
+        stream_path: Optional[str] = None,
+        active: bool = True,
+    ):
+        pass
+
+    @abstractmethod
+    def update_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        payload: dict,
+        check_existence: bool = True,
+    ):
+        pass
+
+    @abstractmethod
+    def clear_endpoint_record(
+        self, project: str, endpoint_id: str,
+    ):
+        pass
+
+    @abstractmethod
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
     ):
         pass

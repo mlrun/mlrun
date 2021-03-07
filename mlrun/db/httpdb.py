@@ -16,7 +16,7 @@ import tempfile
 import time
 from datetime import datetime
 from os import path, remove
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 
 import kfp
 import requests
@@ -1789,6 +1789,137 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
+
+    def register_endpoint(
+        self,
+        project: str,
+        model: str,
+        function: str,
+        tag: str = "latest",
+        model_class: Optional[str] = None,
+        labels: Optional[dict] = None,
+        model_artifact: Optional[str] = None,
+        feature_stats: Optional[dict] = None,
+        feature_names: Optional[List[str]] = None,
+        stream_path: Optional[str] = None,
+        active: bool = True,
+    ):
+        """
+        Writes endpoint data to KV, a prerequisite for initializing the monitoring process for a specific endpoint.
+
+        :param project: The name of the project of which this endpoint belongs to (used for creating endpoint.id)
+        :param tag: The tag/version of the model/function (used for creating endpoint.id)
+        :param labels: key value pairs of user defined labels
+        :param model_artifact: The path to the model artifact containing metadata about the features of the model
+        :param feature_stats: The actual metadata about the features of the model
+        :param feature_names:
+        :param stream_path: The path to the output stream of the model server
+        :param model: The name of the model that is used in the serving function (used for creating endpoint.id)
+        :param function: The name of the function that servers the model (used for creating endpoint.id)
+        :param model_class: The class of the model
+        :param active: The "activation" status of the endpoint - True for active / False for not active (default True)
+        """
+        path = f"/projects/{project}/model-endpoints/register"
+        body = {
+            "model": model,
+            "function": function,
+            "tag": tag,
+            "model_class": model_class,
+            "labels": labels,
+            "model_artifact": model_artifact,
+            "feature_stats": feature_stats,
+            "feature_names": feature_names,
+            "stream_path": stream_path,
+            "active": active,
+        }
+        self.api_call(
+            method="POST",
+            path=path,
+            body=dict_to_json(body),
+            headers={"X-V3io-Session-Key": self.token},
+        )
+
+    def update_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        payload: dict,
+        check_existence: bool = True,
+    ):
+        """
+        Updates the KV data of a given model endpoint
+
+        :param project: The name of the project
+        :param endpoint_id: The id of the endpoint
+        :param payload: The parameters that should be updated
+        :param check_existence: Check if the endpoint already exists, if it doesn't, don't create the record and raise
+        MLRunInvalidArgumentError
+        """
+
+        path = f"/projects/{project}/model-endpoints/{endpoint_id}/update"
+        self.api_call(
+            method="POST",
+            path=path,
+            body=dict_to_json(payload),
+            headers={"X-V3io-Session-Key": self.token},
+        )
+
+    def clear_endpoint_record(self, project: str, endpoint_id: str):
+        path = f"/projects/{project}/model-endpoints/{endpoint_id}/clear"
+        self.api_call(
+            method="POST", path=path, headers={"X-V3io-Session-Key": self.token}
+        )
+
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+    ):
+        path = f"/projects/{project}/model-endpoints"
+        response = self.api_call(
+            method="GET",
+            path=path,
+            params={
+                "model": model,
+                "function": function,
+                "tag": tag,
+                "labels": labels,
+                "start": start,
+                "end": end,
+                "metrics": metrics,
+            },
+            headers={"X-V3io-Session-Key": self.token},
+        )
+        return schemas.ModelEndpointStateList(**response.json())
+
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
+    ):
+        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
+        response = self.api_call(
+            method="GET",
+            path=path,
+            params={
+                "start": start,
+                "end": end,
+                "metrics": metrics,
+                "features": features,
+            },
+            headers={"X-V3io-Session-Key": self.token},
+        )
+        return schemas.ModelEndpointState(**response.json())
 
 
 def _as_json(obj):

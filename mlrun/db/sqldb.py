@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union
+from typing import List, Union, Optional
 
 import mlrun.api.schemas
 from mlrun.api.db.base import DBError
@@ -435,5 +435,51 @@ class SQLDB(RunDBInterface):
             str, mlrun.api.schemas.SecretProviderName
         ] = mlrun.api.schemas.SecretProviderName.vault,
         secrets: dict = None,
+    ):
+        raise NotImplementedError()
+
+    def register_endpoint(
+        self,
+        project: str,
+        model: str,
+        function: str,
+        tag: str = "latest",
+        model_class: Optional[str] = None,
+        labels: Optional[dict] = None,
+        model_artifact: Optional[str] = None,
+        feature_stats: Optional[dict] = None,
+        feature_names: Optional[List[str]] = None,
+        stream_path: Optional[str] = None,
+        active: bool = True,
+    ):
+        raise NotImplementedError()
+
+    def update_endpoint(self, project: str, endpoint_id: str, payload: dict):
+        raise NotImplementedError()
+
+    def clear_endpoint_record(self, project: str, endpoint_id: str):
+        raise NotImplementedError()
+
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+    ):
+        raise NotImplementedError()
+
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
     ):
         raise NotImplementedError()

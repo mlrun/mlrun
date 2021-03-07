@@ -9,13 +9,13 @@ from fastapi import APIRouter, Response, Request
 from mlrun.api.crud.model_endpoints import (
     ModelEndpoints,
     get_access_key,
-    get_endpoint_kv_record_by_id,
+    deserialize_endpoint_from_kv,
     ENDPOINT_EVENTS_TABLE_PATH,
+    deserialize_endpoint_state_from_kv,
 )
 from mlrun.api.schemas import (
     GrafanaTable,
     GrafanaColumn,
-    ModelEndpointState,
     GrafanaNumberColumn,
     GrafanaStringColumn,
     GrafanaTimeSeries,
@@ -99,7 +99,7 @@ def grafana_list_endpoints(
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
 
-    endpoint_list: List[ModelEndpointState] = ModelEndpoints.list_endpoints(
+    endpoint_list = ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
         model=model,
@@ -128,7 +128,7 @@ def grafana_list_endpoints(
 
     found_metrics = set()
     for endpoint_state in endpoint_list:
-        if endpoint_state.metrics:
+        if endpoint_state.metrics is not None:
             for key in endpoint_state.metrics.keys():
                 if key not in found_metrics:
                     found_metrics.add(key)
@@ -151,7 +151,7 @@ def grafana_list_endpoints(
             endpoint_state.drift_status,
         ]
 
-        if metric_columns and endpoint_state.metrics:
+        if endpoint_state.metrics is not None and metric_columns:
             for metric_column in metric_columns:
                 row.append(endpoint_state.metrics[metric_column.text])
 
@@ -166,12 +166,14 @@ def grafana_individual_feature_analysis(
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
+    endpoint_state = deserialize_endpoint_state_from_kv(
+        access_key=access_key, project=project, endpoint_id=endpoint_id
+    )
 
     # Load JSON data from KV, make sure not to fail if a field is missing
-    feature_stats = _json_loads_or_default(endpoint.get("feature_stats"), {})
-    current_stats = _json_loads_or_default(endpoint.get("current_stats"), {})
-    drift_measurements = _json_loads_or_default(endpoint.get("drift_measurements"), {})
+    feature_stats = endpoint_state.endpoint.metadata.feature_stats or {}
+    current_stats = endpoint_state.current_stats or {}
+    drift_measures = endpoint_state.drift_measures or {}
 
     table = GrafanaTable(
         columns=[
@@ -190,7 +192,7 @@ def grafana_individual_feature_analysis(
 
     for feature, base_stat in feature_stats.items():
         current_stat = current_stats.get(feature, {})
-        drift_measure = drift_measurements.get(feature, {})
+        drift_measure = drift_measures.get(feature, {})
 
         table.add_row(
             feature,
@@ -214,7 +216,9 @@ def grafana_overall_feature_analysis(
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
+    endpoint_state = deserialize_endpoint_state_from_kv(
+        access_key=access_key, project=project, endpoint_id=endpoint_id
+    )
 
     table = GrafanaTable(
         columns=[
@@ -227,16 +231,14 @@ def grafana_overall_feature_analysis(
         ]
     )
 
-    drift_measurements = endpoint.get("drift_measurements")
-    if drift_measurements:
-        drift_measurements = json.loads(drift_measurements)
+    if endpoint_state.drift_measures:
         table.add_row(
-            drift_measurements.get("tvd_sum"),
-            drift_measurements.get("tvd_mean"),
-            drift_measurements.get("hellinger_sum"),
-            drift_measurements.get("hellinger_mean"),
-            drift_measurements.get("kld_sum"),
-            drift_measurements.get("kld_mean"),
+            endpoint_state.drift_measures.get("tvd_sum"),
+            endpoint_state.drift_measures.get("tvd_mean"),
+            endpoint_state.drift_measures.get("hellinger_sum"),
+            endpoint_state.drift_measures.get("hellinger_mean"),
+            endpoint_state.drift_measures.get("kld_sum"),
+            endpoint_state.drift_measures.get("kld_mean"),
         )
 
     return [table]
@@ -250,17 +252,18 @@ def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    endpoint = get_endpoint_kv_record_by_id(access_key, endpoint_id)
+    endpoint = deserialize_endpoint_from_kv(
+        access_key=access_key, project=project, endpoint_id=endpoint_id
+    )
 
     time_series = GrafanaTimeSeries()
 
-    feature_names = endpoint.get("feature_names")
-    feature_names = json.loads(feature_names) if feature_names is not None else []
+    feature_names = endpoint.metadata.feature_names
 
     if not feature_names:
         logger.warn(
             "'feature_names' is either missing or not initialized in endpoint record",
-            endpoint_id=endpoint.get("endpoint_id"),
+            endpoint_id=endpoint.id,
         )
         return time_series.target_data_points
 

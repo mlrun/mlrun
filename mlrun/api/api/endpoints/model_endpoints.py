@@ -8,9 +8,62 @@ from mlrun.api.schemas import (
     ModelEndpointStateList,
     ModelEndpointState,
 )
-from mlrun.errors import MLRunConflictError
+from mlrun.errors import MLRunConflictError, MLRunInvalidArgumentError
 
 router = APIRouter()
+
+
+@router.post(
+    "/projects/{project}/model-endpoints/register",
+    status_code=HTTPStatus.NO_CONTENT.value,
+)
+async def register_endpoint(request: Request, project: str):
+    access_key = get_access_key(request)
+    payload = await request.json()
+
+    # Required parameters
+    model = get_or_raise(payload, "model")
+    function = get_or_raise(payload, "function")
+    tag = get_or_raise(payload, "tag")
+
+    model_class = payload.get("model_class")
+    labels = payload.get("labels")
+    model_artifact = payload.get("model_artifact")
+    feature_stats = payload.get("feature_stats")
+    feature_names = payload.get("feature_names")
+    stream_path = payload.get("stream_path")
+    active = payload.get("active")
+
+    ModelEndpoints.register_endpoint(
+        access_key=access_key,
+        project=project,
+        model=model,
+        function=function,
+        tag=tag,
+        model_class=model_class,
+        labels=labels,
+        model_artifact=model_artifact,
+        feature_stats=feature_stats,
+        feature_names=feature_names,
+        stream_path=stream_path,
+        active=active,
+    )
+
+
+@router.post(
+    "/projects/{project}/model-endpoints/{endpoint_id}/update",
+    status_code=HTTPStatus.NO_CONTENT.value,
+)
+async def update_endpoint(
+    request: Request, project: str, endpoint_id: str,
+):
+    verify_endpoint(project, endpoint_id)
+    access_key = get_access_key(request)
+    payload = await request.json()
+    ModelEndpoints.update_endpoint_record(
+        access_key=access_key, project=project, endpoint_id=endpoint_id, payload=payload
+    )
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.post(
@@ -28,7 +81,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
 
 
 @router.get(
-    "/projects/{project}/model-endpoints", response_model=ModelEndpointStateList
+    "/projects/{project}/model-endpoints", response_model=List[ModelEndpointState]
 )
 def list_endpoints(
     request: Request,
@@ -56,7 +109,7 @@ def list_endpoints(
      `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
      """
     access_key = get_access_key(request)
-    endpoint_list = ModelEndpoints.list_endpoints(
+    endpoints = ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
         model=model,
@@ -67,7 +120,7 @@ def list_endpoints(
         start=start,
         end=end,
     )
-    return ModelEndpointStateList(endpoints=endpoint_list)
+    return endpoints
 
 
 @router.get(
@@ -96,20 +149,12 @@ def get_endpoint(
     )
 
 
-@router.post(
-    "/projects/{project}/model-endpoints/{endpoint_id}/update",
-    status_code=HTTPStatus.NO_CONTENT.value,
-)
-async def update_endpoint(
-    request: Request, project: str, endpoint_id: str,
-):
-    verify_endpoint(project, endpoint_id)
-    access_key = get_access_key(request)
-    payload = await request.json()
-    ModelEndpoints.update_endpoint_record(
-        access_key=access_key, endpoint_id=endpoint_id, payload=payload
-    )
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+def get_or_raise(dictionary: dict, key: str):
+    if key not in dictionary:
+        raise MLRunInvalidArgumentError(
+            f"Required argument '{key}' missing from json payload: {dictionary}"
+        )
+    return dictionary[key]
 
 
 def verify_endpoint(project, endpoint_id):

@@ -1,6 +1,6 @@
 # MLRun - Serving
 
-Mlrun serving can take MLRun models or standard model files and produce managed real-time serverless functions 
+MLRun serving can take MLRun models or standard model files and produce managed real-time serverless functions 
 (based on Nuclio real-time serverless engine), which can be deployed everywhere. 
 
 Simple model serving classes can be written in Python or be taken from a set of pre-developed 

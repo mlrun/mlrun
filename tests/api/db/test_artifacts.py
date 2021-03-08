@@ -364,7 +364,7 @@ def test_data_migration_fix_datasets_large_previews(
             artifact_with_valid_preview_after_migration,
             artifact_with_valid_preview.to_dict(),
             ignore_order=True,
-            exclude_paths=["root['updated']"],
+            exclude_paths=["root['updated']", "root['tag']"],
         )
         == {}
     )
@@ -383,6 +383,7 @@ def test_data_migration_fix_datasets_large_previews(
                 "root['stats']",
                 "root['schema']",
                 "root['preview']",
+                "root['tag']",
             ],
         )
         == {}

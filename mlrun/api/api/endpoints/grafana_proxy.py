@@ -70,7 +70,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
 
 
 @router.post("/grafana-proxy/model-endpoints/search")
-async def grafana_proxy_model_endpoints_search(request: Request) -> List[GrafanaTable]:
+async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
     """
     Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -98,7 +98,7 @@ async def grafana_proxy_model_endpoints_search(request: Request) -> List[Grafana
 
 def grafana_list_projects(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
-) -> List[GrafanaTable]:
+) -> List[str]:
     mldb = get_run_db(config.dbpath)
     name_list = []
     try:
@@ -426,7 +426,7 @@ NAME_TO_QUERY_FUNCTION_DICTIONARY: Dict[
 }
 
 NAME_TO_SEARCH_FUNCTION_DICTIONARY: Dict[
-    str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
+    str, Callable[[Dict[str, Any], Dict[str, str], str], List[str]]
 ] = {
     "list_projects": grafana_list_projects,
 }

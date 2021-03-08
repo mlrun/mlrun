@@ -102,41 +102,40 @@ def test_parse_url_preserve_case():
 
 def test_get_store_artifact_url_parsing():
     db = Mock()
-    store_manager = mlrun.datastore.StoreManager(db=db)
     cases = [
         {
             "url": "store:///artifact_key",
             "project": "default",
             "key": "artifact_key",
-            "tag": "",
+            "tag": None,
             "iter": None,
         },
         {
             "url": "store://project_name/artifact_key",
             "project": "project_name",
             "key": "artifact_key",
-            "tag": "",
+            "tag": None,
             "iter": None,
         },
         {
-            "url": "store://Project_Name/Artifact_Key#ABC",
+            "url": "store://Project_Name/Artifact_Key@ABC",
             "project": "Project_Name",
             "key": "Artifact_Key",
             "tag": "ABC",
             "iter": None,
         },
         {
-            "url": "store://project_name/artifact_key#a5dc8e34a46240bb9a07cd9deb3609c7",
+            "url": "store://project_name/artifact_key@a5dc8e34a46240bb9a07cd9deb3609c7",
             "project": "project_name",
             "key": "artifact_key",
             "tag": "a5dc8e34a46240bb9a07cd9deb3609c7",
             "iter": None,
         },
         {
-            "url": "store://project_name/artifact_key/1",
+            "url": "store://project_name/artifact_key#1",
             "project": "project_name",
             "key": "artifact_key",
-            "tag": "",
+            "tag": None,
             "iter": 1,
         },
         {
@@ -147,14 +146,14 @@ def test_get_store_artifact_url_parsing():
             "iter": None,
         },
         {
-            "url": "store:///ArtifacT_key/1:some_Tag",
+            "url": "store:///ArtifacT_key#1:some_Tag",
             "project": "default",
             "key": "ArtifacT_key",
             "tag": "some_Tag",
             "iter": 1,
         },
         {
-            "url": "store:///ArtifacT_key/1#Some_Tag",
+            "url": "store:///ArtifacT_key#1@Some_Tag",
             "project": "default",
             "key": "ArtifacT_key",
             "tag": "Some_Tag",
@@ -183,7 +182,7 @@ def test_get_store_artifact_url_parsing():
             return {}
 
         db.read_artifact = mock_read_artifact
-        store_manager.get_store_artifact(url)
+        mlrun.datastore.store_resources.get_store_resource(url, db)
 
 
 @pytest.mark.usefixtures("patch_file_forbidden")

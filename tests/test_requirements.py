@@ -49,7 +49,9 @@ def test_requirement_specifiers_inconsistencies():
     ignored_inconsistencies_map = {
         # It's ==1.4.1 only in models-gpu because of tensorflow 2.2.0, TF version expected to be changed there soon so
         # ignoring for now
-        "scipy": ["~=1.0", "==1.4.1", "~=1.0"]
+        "scipy": ["~=1.0", "==1.4.1", "~=1.0"],
+        # It's ok we have 2 different versions cause they are for different python versions
+        "pandas": ["~=1.2; python_version >= '3.7'", "~=1.0; python_version < '3.7'"],
     }
 
     for (

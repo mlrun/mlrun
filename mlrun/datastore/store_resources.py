@@ -16,7 +16,7 @@
 
 import mlrun
 from mlrun.config import config
-from mlrun.utils.helpers import parse_versioned_object_uri
+from mlrun.utils.helpers import parse_versioned_object_uri, parse_artifact_uri
 from .targets import get_online_target
 from .v3io import parse_v3io_path
 from ..utils import DB_SCHEMA, StorePrefix
@@ -139,30 +139,23 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
         return db.get_feature_vector(name, project, tag, uid)
 
     elif StorePrefix.is_artifact(kind):
-        project, name, tag, uid = parse_versioned_object_uri(
+        project, key, iteration, tag, uid = parse_artifact_uri(
             uri, project or config.default_project
         )
-        iteration = None
-        if "/" in name:
-            loc = uri.find("/")
-            name = uri[:loc]
-            try:
-                iteration = int(uri[loc + 1 :])
-            except ValueError:
-                raise ValueError(
-                    f"illegal store path {uri}, iteration must be integer value"
-                )
 
         resource = db.read_artifact(
-            name, project=project, tag=tag or uid, iter=iteration
+            key, project=project, tag=tag or uid, iter=iteration
         )
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             resource = db.read_artifact(
-                name, tag=tag, iter=resource.get("link_iteration", 0), project=project,
+                key, tag=tag, iter=resource.get("link_iteration", 0), project=project,
             )
         if resource:
-            return mlrun.artifacts.dict_to_artifact(resource)
+            # import here to avoid circular imports
+            from mlrun.artifacts import dict_to_artifact
+
+            return dict_to_artifact(resource)
 
     else:
         stores = mlrun.store_manager.set(secrets, db=db)

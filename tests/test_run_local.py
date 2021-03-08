@@ -46,6 +46,7 @@ def test_run_local_with_uid_does_not_exist(monkeypatch):
     def mock_getpwuid_raise(*args, **kwargs):
         raise KeyError("getpwuid(): uid not found: 400")
 
+    old_v3io_username = environ.pop("V3IO_USERNAME", None)
     environ["V3IO_USERNAME"] = "some_user"
     monkeypatch.setattr(getpass, "getuser", mock_getpwuid_raise)
     spec = tag_test(base_spec, "test_run_local")
@@ -53,6 +54,10 @@ def test_run_local_with_uid_does_not_exist(monkeypatch):
         spec, command=f"{examples_path}/training.py", workdir=examples_path
     )
     verify_state(result)
+    if old_v3io_username is not None:
+        environ["V3IO_USERNAME"] = old_v3io_username
+    else:
+        del environ["V3IO_USERNAME"]
 
 
 def test_run_local_handler():

@@ -28,7 +28,6 @@ __all__ = [
 
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
-from ..serving import MLModelServer, new_v1_model_server  # noqa
 from .base import BaseRuntime, BaseRuntimeHandler, RunError  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
@@ -42,11 +41,12 @@ from .mpijob import (  # noqa
     MpiV1RuntimeHandler,
 )
 from .nuclio import nuclio_init_hook
-
-# for legacy imports (MLModelServer moved from here to /serving)
 from .remotesparkjob import RemoteSparkRuntime, RemoteSparkRuntimeHandler
 from .serving import ServingRuntime, new_v2_model_server
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
+
+# for legacy imports (MLModelServer moved from here to /serving)
+from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
 
 
 def new_model_server(

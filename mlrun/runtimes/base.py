@@ -21,50 +21,51 @@ from base64 import b64encode
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
 import mlrun.errors
-import mlrun.utils.regex
 import mlrun.utils.helpers
+import mlrun.utils.regex
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
-from mlrun.utils.helpers import verify_field_regex, generate_object_uri
-from .constants import PodPhases, RunStates
-from .funcdoc import update_function_entry_points
-from .generators import get_generator
-from .utils import calc_hash, RunError, results_to_iter
+from mlrun.utils.helpers import generate_object_uri, verify_field_regex
+
 from ..config import config
 from ..datastore import store_manager
-from ..db import get_run_db, get_or_set_dburl, RunDBError
+from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
-from ..kfpops import write_kfpmeta, mlrun_op
+from ..kfpops import mlrun_op, write_kfpmeta
 from ..lists import RunList
 from ..model import (
-    RunObject,
-    ModelObj,
-    RunTemplate,
     BaseMetadata,
-    ImageBuilder,
     HyperParamOptions,
+    ImageBuilder,
+    ModelObj,
+    RunObject,
+    RunTemplate,
 )
 from ..secrets import SecretsStore
 from ..utils import (
-    get_in,
-    update_in,
-    logger,
-    is_ipython,
-    now_date,
-    enrich_image_url,
-    dict_to_yaml,
     dict_to_json,
+    dict_to_yaml,
+    enrich_image_url,
+    get_in,
     get_parsed_docker_registry,
+    is_ipython,
+    logger,
+    now_date,
+    update_in,
 )
+from .constants import PodPhases, RunStates
+from .funcdoc import update_function_entry_points
+from .generators import get_generator
+from .utils import RunError, calc_hash, results_to_iter
 
 
 class FunctionStatus(ModelObj):

@@ -1,7 +1,7 @@
 import asyncio
 import copy
 from datetime import datetime, timedelta
-from typing import Any, Callable, List, Tuple, Dict, Union, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import humanfriendly
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -9,7 +9,7 @@ from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
-from mlrun.api.db.session import create_session, close_session
+from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config

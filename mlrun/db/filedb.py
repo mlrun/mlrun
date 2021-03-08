@@ -15,7 +15,7 @@
 import json
 import pathlib
 from datetime import datetime, timedelta, timezone
-from os import makedirs, path, remove, scandir, listdir
+from os import listdir, makedirs, path, remove, scandir
 from typing import List, Union
 
 import yaml
@@ -23,22 +23,23 @@ from dateutil.parser import parse as parse_time
 
 import mlrun.api.schemas
 import mlrun.errors
-from .base import RunDBError, RunDBInterface
+
 from ..config import config
 from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
+    fill_function_hash,
+    generate_object_uri,
     get_in,
     logger,
     match_labels,
-    match_value,
     match_times,
+    match_value,
     update_in,
-    fill_function_hash,
-    generate_object_uri,
 )
+from .base import RunDBError, RunDBInterface
 
 run_logs = "runs"
 artifacts_dir = "artifacts"

@@ -24,7 +24,7 @@ from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
 from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1Alpha1States
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
-from mlrun.utils import update_in, get_in
+from mlrun.utils import get_in, update_in
 
 
 class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):

@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import logger, normalize_name, enrich_image_url, get_parsed_docker_registry
+from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
 
 
 def make_dockerfile(

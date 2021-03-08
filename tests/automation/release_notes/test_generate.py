@@ -1,4 +1,5 @@
 import re
+
 import automation.release_notes.generate
 
 

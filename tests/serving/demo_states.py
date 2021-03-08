@@ -1,4 +1,5 @@
 from copy import copy
+
 from mlrun.serving import V2ModelServer
 
 

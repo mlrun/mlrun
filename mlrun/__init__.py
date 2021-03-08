@@ -23,27 +23,27 @@ from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .execution import MLClientCtx
-from .model import RunTemplate, NewTask, new_task, RunObject
+from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
-    mount_v3io,
-    v3io_cred,
-    mount_v3io_extended,
     VolumeMount,
+    mount_v3io,
+    mount_v3io_extended,
     mount_v3io_legacy,
+    v3io_cred,
 )
 from .projects import load_project, new_project
 from .run import (
-    get_or_create_ctx,
-    new_function,
     code_to_function,
-    import_function,
-    run_pipeline,
-    run_local,
     function_to_module,
-    get_object,
-    get_pipeline,
-    wait_for_pipeline_completion,
     get_dataitem,
+    get_object,
+    get_or_create_ctx,
+    get_pipeline,
+    import_function,
+    new_function,
+    run_local,
+    run_pipeline,
+    wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server
 from .utils.version import Version

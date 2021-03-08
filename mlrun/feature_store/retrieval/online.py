@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import mlrun
-
 from mlrun.datastore.store_resources import ResourceCache
-from mlrun.serving.server import create_graph_server
 from mlrun.datastore.targets import get_online_target
+from mlrun.serving.server import create_graph_server
 
 
 def _build_feature_vector_graph(

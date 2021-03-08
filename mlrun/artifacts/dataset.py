@@ -15,14 +15,14 @@ import os
 import pathlib
 from io import StringIO
 
-import mlrun
 import numpy as np
 import pandas as pd
-
 from pandas.io.json import build_table_schema
 
+import mlrun
+
+from ..datastore import is_store_uri, store_manager
 from .base import Artifact
-from ..datastore import store_manager, is_store_uri
 
 default_preview_rows_length = 20
 max_preview_columns = 100

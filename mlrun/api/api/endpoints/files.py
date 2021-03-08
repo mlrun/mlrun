@@ -3,7 +3,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Query, Request, Response
 
-from mlrun.api.api.utils import log_and_raise, get_obj_path, get_secrets
+from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
 from mlrun.utils import logger
 

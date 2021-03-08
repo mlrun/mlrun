@@ -16,10 +16,11 @@
 
 import mlrun
 from mlrun.config import config
-from mlrun.utils.helpers import parse_versioned_object_uri, parse_artifact_uri
+from mlrun.utils.helpers import parse_artifact_uri, parse_versioned_object_uri
+
+from ..utils import DB_SCHEMA, StorePrefix
 from .targets import get_online_target
 from .v3io import parse_v3io_path
-from ..utils import DB_SCHEMA, StorePrefix
 
 
 def is_store_uri(url):
@@ -63,7 +64,7 @@ class ResourceCache:
     def get_table(self, uri):
         """get storey Table object by uri"""
         try:
-            from storey import Table, Driver, V3ioDriver
+            from storey import Driver, Table, V3ioDriver
         except ImportError:
             raise ImportError("storey package is not installed, use pip install storey")
 

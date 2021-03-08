@@ -14,8 +14,8 @@
 
 import pytest
 
+from mlrun import new_function, new_task
 from tests.conftest import tag_test, verify_state
-from mlrun import new_task, new_function
 
 has_dask = False
 try:

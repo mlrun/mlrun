@@ -497,17 +497,19 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code (using black)
+fmt: ## Format the code (using black and isort)
 	@echo "Running black fmt..."
 	python -m black .
+	python -m isort .
 
 .PHONY: lint
 lint: flake8 fmt-check ## Run lint on the code
 
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)
-	@echo "Running black fmt check..."
+	@echo "Running black+isort fmt check..."
 	python -m black --check --diff .
+	python -m isort --check --diff .
 
 .PHONY: flake8
 flake8: ## Run flake8 lint

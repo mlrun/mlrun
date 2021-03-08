@@ -1,18 +1,20 @@
-import unittest.mock
-from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.utils import create_logger
-from mlrun.runtimes.constants import PodPhases
-from kubernetes import client
-from datetime import datetime, timezone
-from copy import deepcopy
-from mlrun.config import config as mlconf
 import json
-from mlrun.model import new_task
-import deepdiff
 import pathlib
 import sys
+import unittest.mock
 from base64 import b64encode
+from copy import deepcopy
+from datetime import datetime, timezone
+
+import deepdiff
+from kubernetes import client
 from kubernetes.client import V1EnvVar
+
+from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.config import config as mlconf
+from mlrun.model import new_task
+from mlrun.runtimes.constants import PodPhases
+from mlrun.utils import create_logger
 from mlrun.utils.vault import VaultStore
 
 logger = create_logger(level="debug", name="test-runtime")

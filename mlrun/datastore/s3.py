@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import boto3
 import time
+
+import boto3
 import fsspec
-from .base import DataStore, get_range, FileStats
+
+from .base import DataStore, FileStats, get_range
 
 
 class S3Store(DataStore):

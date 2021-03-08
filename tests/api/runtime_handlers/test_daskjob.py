@@ -3,8 +3,7 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.runtimes.constants import PodPhases
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 

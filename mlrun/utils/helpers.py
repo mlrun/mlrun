@@ -13,29 +13,30 @@
 # limitations under the License.
 
 import hashlib
+import inspect
 import json
 import re
 import sys
 import time
+from datetime import datetime, timezone
+from importlib import import_module
+from os import environ, path
 from types import ModuleType
 from typing import Optional, Tuple
-from datetime import datetime, timezone
-from dateutil import parser
-from os import path, environ
-from importlib import import_module
-import inspect
 
 import numpy as np
 import requests
 import yaml
+from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-import mlrun.utils.version.version
 import mlrun.errors
-from .logger import create_logger
+import mlrun.utils.version.version
+
 from ..config import config
+from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()

@@ -1,15 +1,17 @@
+import base64
 import os
+import unittest.mock
+
+import deepdiff
+import nuclio
 import pytest
-from tests.api.runtimes.base import TestRuntimeBase
-from mlrun.runtimes.function import deploy_nuclio_function
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from mlrun import code_to_function
-import unittest.mock
-import nuclio
-import deepdiff
-import base64
 from mlrun.platforms.iguazio import split_path
+from mlrun.runtimes.function import deploy_nuclio_function
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestNuclioRuntime(TestRuntimeBase):

@@ -14,19 +14,19 @@
 import collections
 from copy import copy
 from typing import List
-import mlrun
+
 import pandas as pd
 
+import mlrun
 
-from ..features import Feature
-from ..model import VersionedObjMetadata
-from ..feature_store.common import parse_feature_string, get_feature_set_by_uri
-from ..model import ModelObj, ObjectList, DataSource, DataTarget
 from ..config import config as mlconf
+from ..datastore import get_store_uri
+from ..datastore.targets import CSVTarget, ParquetTarget, get_offline_target
+from ..feature_store.common import get_feature_set_by_uri, parse_feature_string
+from ..features import Feature
+from ..model import DataSource, DataTarget, ModelObj, ObjectList, VersionedObjMetadata
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowState
-from ..datastore.targets import get_offline_target, ParquetTarget, CSVTarget
-from ..datastore import get_store_uri
 from ..utils import StorePrefix
 
 

@@ -13,13 +13,13 @@
 # limitations under the License.
 
 from base64 import b64encode
-from os import remove, path, getenv
+from os import getenv, path, remove
 from tempfile import mktemp
 
 import fsspec
+import pandas as pd
 import requests
 import urllib3
-import pandas as pd
 
 import mlrun.errors
 from mlrun.utils import logger

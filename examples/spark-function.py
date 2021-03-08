@@ -1,8 +1,9 @@
 # Pyspark example called by mlrun_spark_k8s.ipynb
 
 
-from mlrun import get_or_create_ctx
 from pyspark.sql import SparkSession
+
+from mlrun import get_or_create_ctx
 
 # Acquire MLRun context
 mlctx = get_or_create_ctx("spark-function")

@@ -28,15 +28,15 @@ __all__ = [
 ]
 
 
-from .feature_set import FeatureSet
-from .feature_vector import FeatureVector
-from ..features import Feature, Entity
 from ..data_types import InferOptions, ValueType
+from ..features import Entity, Feature
 from .api import (
+    deploy_ingestion_service,
     get_offline_features,
     get_online_feature_service,
-    ingest,
     infer_metadata,
+    ingest,
     run_ingestion_job,
-    deploy_ingestion_service,
 )
+from .feature_set import FeatureSet
+from .feature_vector import FeatureVector

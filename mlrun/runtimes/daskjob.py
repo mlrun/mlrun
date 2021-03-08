@@ -14,27 +14,28 @@
 import datetime
 import inspect
 import socket
-from os import environ
 import time
+from os import environ
 from typing import Dict, List
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-from mlrun.api.db.base import DBInterface
 import mlrun.api.schemas
+from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
-from .base import FunctionStatus
-from .kubejob import KubejobRuntime
-from .local import load_module, exec_from_params
-from .pod import KubeResourceSpec
-from .utils import get_resource_labels, get_func_selector, log_std, RunError
+
 from ..config import config
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..model import RunObject
 from ..render import ipython_display
-from ..utils import update_in, logger, normalize_name
+from ..utils import logger, normalize_name, update_in
+from .base import FunctionStatus
+from .kubejob import KubejobRuntime
+from .local import exec_from_params, load_module
+from .pod import KubeResourceSpec
+from .utils import RunError, get_func_selector, get_resource_labels, log_std
 
 
 def get_dask_resource():
@@ -348,10 +349,10 @@ def deploy_function(function: DaskCluster, secrets=None):
 
     # TODO: why is this here :|
     try:
-        from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
-        from dask.distributed import Client, default_client  # noqa: F401
-        from kubernetes_asyncio import client
         import dask
+        from dask.distributed import Client, default_client  # noqa: F401
+        from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
+        from kubernetes_asyncio import client
     except ImportError as exc:
         print(
             "missing dask or dask_kubernetes, please run "

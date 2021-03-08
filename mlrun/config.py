@@ -21,10 +21,10 @@ Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
+import base64
 import copy
 import json
 import os
-import base64
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser

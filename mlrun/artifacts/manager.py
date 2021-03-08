@@ -16,12 +16,11 @@ import pathlib
 from os.path import isdir
 
 from ..db import RunDBInterface
-from ..utils import uxjoin, logger
-
-from .base import Artifact, LinkArtifact, DirArtifact
-from .plots import PlotArtifact, ChartArtifact
-from .dataset import TableArtifact, DatasetArtifact
+from ..utils import logger, uxjoin
+from .base import Artifact, DirArtifact, LinkArtifact
+from .dataset import DatasetArtifact, TableArtifact
 from .model import ModelArtifact
+from .plots import ChartArtifact, PlotArtifact
 
 artifact_types = {
     "": Artifact,

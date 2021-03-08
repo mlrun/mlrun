@@ -15,19 +15,20 @@
 import uuid
 from copy import deepcopy
 
-from kubernetes import client
 from kfp.dsl import ContainerOp
+from kubernetes import client
 
 import mlrun.utils.regex
+
+from ..utils import logger, normalize_name, update_in, verify_field_regex
+from .base import BaseRuntime, FunctionSpec
 from .utils import (
     apply_kfp,
-    set_named_item,
+    generate_resources,
     get_item_name,
     get_resource_labels,
-    generate_resources,
+    set_named_item,
 )
-from ..utils import normalize_name, update_in, verify_field_regex, logger
-from .base import BaseRuntime, FunctionSpec
 
 
 class KubeResourceSpec(FunctionSpec):

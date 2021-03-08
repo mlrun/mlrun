@@ -13,18 +13,25 @@
 # limitations under the License.
 from typing import List
 
-import mlrun
 import pandas as pd
 
-from ..features import Feature, Entity
-from ..model import VersionedObjMetadata
-from ..datastore.targets import get_offline_target, default_target_names, TargetTypes
-from ..model import ModelObj, ObjectList, DataSource, DataTarget, DataTargetBase
+import mlrun
+
+from ..config import config as mlconf
+from ..datastore import get_store_uri
+from ..datastore.targets import TargetTypes, default_target_names, get_offline_target
+from ..features import Entity, Feature
+from ..model import (
+    DataSource,
+    DataTarget,
+    DataTargetBase,
+    ModelObj,
+    ObjectList,
+    VersionedObjMetadata,
+)
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseState, RootFlowState, previous_step
-from ..config import config as mlconf
 from ..utils import StorePrefix
-from ..datastore import get_store_uri
 
 aggregates_step = "Aggregates"
 

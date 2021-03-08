@@ -3,18 +3,20 @@ import os
 import unittest
 from http import HTTPStatus
 
-from mlrun.db import SQLDB
-from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
-from .test_nuclio import TestNuclioRuntime
+import deepdiff
+import nuclio
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-import deepdiff
+
 from mlrun import mlconf
-import nuclio
+from mlrun.db import SQLDB
+from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
+
+from .assets.serving_child_functions import *  # noqa
 
 # Needed for the serving test
 from .assets.serving_functions import *  # noqa
-from .assets.serving_child_functions import *  # noqa
+from .test_nuclio import TestNuclioRuntime
 
 
 class TestServingRuntime(TestNuclioRuntime):

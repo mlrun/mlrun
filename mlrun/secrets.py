@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from ast import literal_eval
-from .utils import list2dict
-from .utils import VaultStore
 from os import environ
+
+from .utils import VaultStore, list2dict
 
 
 class SecretsStore:

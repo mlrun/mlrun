@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .job import run_merge_job  # noqa
 from .local_merger import LocalFeatureMerger  # noqa
 from .online import init_feature_vector_graph  # noqa
-from .job import run_merge_job  # noqa

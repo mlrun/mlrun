@@ -1,26 +1,21 @@
 import os
 
-import mlrun
-import pytest
 import pandas as pd
-
-
-from tests.conftest import results, tests_root_directory
-
-from mlrun.datastore.sources import CSVSource
-from mlrun.feature_store.steps import FeaturesetValidator
-
+import pytest
 from data_sample import quotes, stocks, trades
 from storey import MapClass
 
-from mlrun.datastore.targets import CSVTarget
-from mlrun.utils import logger
+import mlrun
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
-from mlrun.feature_store import FeatureSet, Entity, run_ingestion_job
 from mlrun.data_types.data_types import ValueType
+from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.targets import CSVTarget
+from mlrun.feature_store import Entity, FeatureSet, run_ingestion_job
+from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
-
+from mlrun.utils import logger
+from tests.conftest import results, tests_root_directory
 
 local_dir = f"{tests_root_directory}/feature-store/"
 results_dir = f"{results}/feature-store/"

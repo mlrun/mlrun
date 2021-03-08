@@ -10,15 +10,15 @@ import v3io.dataplane
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.config
-import mlrun.db
 import mlrun.datastore
+import mlrun.db
 import mlrun.utils
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import create_session, _init_engine
+from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
-from tests.conftest import root_path, rundb_path, logs_path
+from tests.conftest import logs_path, root_path, rundb_path
 
 session_maker: Callable
 

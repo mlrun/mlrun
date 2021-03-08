@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
-from os import path, environ
+from os import environ, path
 
-from mlrun import new_task, run_local, code_to_function
-from tests.conftest import (
-    examples_path,
-    out_path,
-    tag_test,
-    verify_state,
-)
+from mlrun import code_to_function, new_task, run_local
+from tests.conftest import examples_path, out_path, tag_test, verify_state
 
 base_spec = new_task(params={"p1": 8}, out_path=out_path)
 base_spec.spec.inputs = {"infile.txt": "infile.txt"}

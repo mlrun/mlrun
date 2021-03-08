@@ -1,9 +1,9 @@
 import argparse
 import json
-import sys
 import logging
 import os.path
 import subprocess
+import sys
 
 # NOTE
 # this script is being used in all build flows before building to add version information to the code

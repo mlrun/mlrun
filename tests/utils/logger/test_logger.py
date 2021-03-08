@@ -3,7 +3,7 @@ from typing import Generator
 
 import pytest
 
-from mlrun.utils.logger import create_logger, FormatterKinds, Logger
+from mlrun.utils.logger import FormatterKinds, Logger, create_logger
 
 
 @pytest.fixture(params=[formatter_kind.name for formatter_kind in list(FormatterKinds)])

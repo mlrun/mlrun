@@ -1,8 +1,8 @@
 import os
-import pytest
 
 import kfp
 import kfp.compiler
+import pytest
 
 from mlrun import (
     code_to_function,
@@ -11,7 +11,6 @@ from mlrun import (
     run_pipeline,
     wait_for_pipeline_completion,
 )
-
 from tests.system.base import TestMLRunSystem
 
 

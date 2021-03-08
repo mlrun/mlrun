@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-
-from .pod import KubeResourceSpec
-from .kubejob import KubejobRuntime, KubeRuntimeHandler
-from mlrun.config import config
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from subprocess import run
+
+from mlrun.config import config
+
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from .kubejob import KubejobRuntime, KubeRuntimeHandler
+from .pod import KubeResourceSpec
 
 
 class RemoteSparkSpec(KubeResourceSpec):

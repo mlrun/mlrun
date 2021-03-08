@@ -5,8 +5,8 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.member
 import mlrun.api.utils.projects.leader
+import mlrun.api.utils.projects.remotes.member
 import mlrun.config
 import mlrun.errors
 from mlrun.utils import logger

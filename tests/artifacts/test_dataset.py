@@ -1,10 +1,11 @@
+import pathlib
+
 import numpy
 import pandas
 import pandas.io.json
-import pathlib
-import tests.conftest
 
 import mlrun.artifacts.dataset
+import tests.conftest
 
 
 def test_dataset_preview_size_limit():

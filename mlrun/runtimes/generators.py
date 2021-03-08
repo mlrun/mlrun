@@ -13,12 +13,13 @@
 # limitations under the License.
 import json
 import random
-import pandas as pd
 import sys
 from copy import deepcopy
-from ..model import RunObject, HyperParamOptions, RunSpec
-from ..utils import get_in
 
+import pandas as pd
+
+from ..model import HyperParamOptions, RunObject, RunSpec
+from ..utils import get_in
 
 hyper_types = ["list", "grid", "random"]
 default_max_iterations = 10

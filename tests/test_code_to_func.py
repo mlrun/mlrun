@@ -14,8 +14,8 @@
 
 from os import path
 
-from tests.conftest import examples_path, results
 from mlrun import code_to_function, new_model_server
+from tests.conftest import examples_path, results
 
 
 def test_job_nb():

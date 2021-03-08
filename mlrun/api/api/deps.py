@@ -6,7 +6,7 @@ from fastapi import Request
 from sqlalchemy.orm import Session
 
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.db.session import create_session, close_session
+from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 
 

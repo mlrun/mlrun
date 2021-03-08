@@ -13,14 +13,13 @@
 # limitations under the License.
 
 from os import environ
+from pathlib import Path
 from subprocess import run
 from sys import executable
-from pathlib import Path
 
 import pytest
 
 from tests.conftest import examples_path
-
 
 example_files = [
     "training.py",

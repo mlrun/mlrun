@@ -1,4 +1,5 @@
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from .data_types import ValueType
 from .model import ModelObj
 

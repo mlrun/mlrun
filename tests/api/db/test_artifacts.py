@@ -1,20 +1,19 @@
+import deepdiff
 import numpy
 import pandas
 import pytest
-import deepdiff
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
-from mlrun.artifacts.dataset import DatasetArtifact
-from mlrun.artifacts.model import ModelArtifact
+from sqlalchemy.orm.exc import MultipleResultsFound
 
 import mlrun.api.initial_data
 from mlrun.api import schemas
-from mlrun.api.db.base import DBInterface
-from tests.api.db.conftest import dbs
+from mlrun.api.db.base import DBError, DBInterface
+from mlrun.artifacts.dataset import DatasetArtifact
+from mlrun.artifacts.model import ModelArtifact
+from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
 from mlrun.utils import logger
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm.exc import MultipleResultsFound
-from mlrun.api.db.base import DBError
+from tests.api.db.conftest import dbs
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

@@ -1,13 +1,15 @@
 import os
+
 import pytest
-from tests.api.runtimes.base import TestRuntimeBase
-import mlrun.errors
-from mlrun.runtimes.kubejob import KubejobRuntime
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from mlrun.runtimes.utils import generate_resources
-from mlrun.platforms import auto_mount
+
+import mlrun.errors
 from mlrun.config import config as mlconf
+from mlrun.platforms import auto_mount
+from mlrun.runtimes.kubejob import KubejobRuntime
+from mlrun.runtimes.utils import generate_resources
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestKubejobRuntime(TestRuntimeBase):

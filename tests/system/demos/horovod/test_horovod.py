@@ -1,8 +1,8 @@
 import pathlib
+
 import pytest
 
 import mlrun
-
 from tests.system.base import TestMLRunSystem
 from tests.system.demos.base import TestDemo
 

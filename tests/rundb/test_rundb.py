@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun
-from tests.conftest import rundb_path, results
 import pytest
+
+import mlrun
+from tests.conftest import results, rundb_path
 
 
 def get_db():

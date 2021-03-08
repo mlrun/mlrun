@@ -1,13 +1,13 @@
 import os
-import pytest
-import deepdiff
 from http import HTTPStatus
 from unittest.mock import Mock
-import mlrun
-import mlrun.errors
 
+import deepdiff
+import pytest
 import requests
 
+import mlrun
+import mlrun.errors
 from mlrun.platforms import add_or_refresh_credentials
 
 

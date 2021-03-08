@@ -13,11 +13,13 @@
 # limitations under the License.
 
 from typing import List
+
 import pandas as pd
 
 import mlrun
-from ..feature_vector import OfflineVectorResponse
+
 from ...utils import logger
+from ..feature_vector import OfflineVectorResponse
 
 
 class LocalFeatureMerger:

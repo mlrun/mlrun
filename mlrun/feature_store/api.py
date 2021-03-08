@@ -12,24 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import uuid
-from typing import List, Union, Dict
-import mlrun
+from typing import Dict, List, Union
+
 import pandas as pd
-from .common import get_feature_vector_by_uri, get_feature_set_by_uri
-from ..model import DataTargetBase, DataSource
-from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
-from .ingestion import (
-    init_featureset_graph,
-    default_ingestion_job_function,
-    context_to_ingestion_params,
-)
-from .feature_set import FeatureSet
-from .feature_vector import FeatureVector, OnlineVectorService, OfflineVectorResponse
+
+import mlrun
+
+from ..data_types import InferOptions, get_infer_interface
 from ..datastore.targets import get_default_targets, get_target_driver
+from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
-from ..data_types import InferOptions, get_infer_interface
+from .common import get_feature_set_by_uri, get_feature_vector_by_uri
+from .feature_set import FeatureSet
+from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService
+from .ingestion import (
+    context_to_ingestion_params,
+    default_ingestion_job_function,
+    init_featureset_graph,
+)
+from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"

@@ -1,10 +1,10 @@
+import shutil
 from typing import Generator
 
 import pytest
-import shutil
 
 from mlrun.api.db.filedb.db import FileDB
-from mlrun.api.db.session import create_session, close_session
+from mlrun.api.db.session import close_session, create_session
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import _init_engine
 from mlrun.api.initial_data import init_data

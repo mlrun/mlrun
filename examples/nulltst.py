@@ -1,5 +1,5 @@
-import time
 import sys
+import time
 
 
 def test_job():

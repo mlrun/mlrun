@@ -23,7 +23,7 @@ import pytest
 import yaml
 
 import mlrun.kfpops
-from mlrun import new_task, new_function
+from mlrun import new_function, new_task
 from mlrun.artifacts import ChartArtifact
 from mlrun.utils import logger
 

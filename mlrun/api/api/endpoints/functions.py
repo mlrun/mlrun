@@ -3,7 +3,7 @@ from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query, Response, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -11,14 +11,14 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 from mlrun.api.api import deps
-from mlrun.api.api.utils import log_and_raise, get_run_db_instance
+from mlrun.api.api.utils import get_run_db_instance, log_and_raise
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
-from mlrun.runtimes import runtime_resources_map, RuntimeKinds
-from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
+from mlrun.runtimes import RuntimeKinds, runtime_resources_map
+from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 
 router = APIRouter()

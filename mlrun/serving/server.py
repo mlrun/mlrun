@@ -24,20 +24,15 @@ import uuid
 from typing import Union
 
 import mlrun
-from mlrun.secrets import SecretsStore
 from mlrun.config import config
+from mlrun.secrets import SecretsStore
 
-from .states import (
-    RouterState,
-    RootFlowState,
-    get_function,
-    graph_root_setter,
-)
 from ..datastore import get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
+from .states import RootFlowState, RouterState, get_function, graph_root_setter
 
 
 class _StreamContext:

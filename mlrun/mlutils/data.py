@@ -1,7 +1,9 @@
+from typing import Union
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
+
 from ..datastore import DataItem
-from typing import Union
 
 
 def get_sample(

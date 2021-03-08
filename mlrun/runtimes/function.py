@@ -12,29 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
+from datetime import datetime
 from os import environ
 from time import sleep
 
+import nuclio
 import requests
-from datetime import datetime
-import asyncio
 from aiohttp.client import ClientSession
+from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 from mlrun.db import RunDBError
-from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
-import nuclio
 
-from .pod import KubeResourceSpec, KubeResource
+from ..config import config as mlconf
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io, split_path
-from .base import RunError, FunctionStatus
-from .utils import log_std, get_item_name
-from ..utils import logger, update_in, get_in, enrich_image_url
 from ..lists import RunList
 from ..model import RunObject
-from ..config import config as mlconf
+from ..platforms.iguazio import mount_v3io, split_path
+from ..utils import enrich_image_url, get_in, logger, update_in
+from .base import FunctionStatus, RunError
+from .pod import KubeResource, KubeResourceSpec
+from .utils import get_item_name, log_std
 
 default_max_replicas = 4
 

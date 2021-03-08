@@ -1,8 +1,9 @@
+import pytest
+
 import mlrun
 from mlrun.utils import logger
-import pytest
-from .demo_states import *  # noqa
 
+from .demo_states import *  # noqa
 
 engines = [
     "sync",

@@ -15,24 +15,25 @@
 import time
 from copy import deepcopy
 from datetime import datetime
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-from mlrun.db import get_run_db
 from mlrun.api.db.base import DBInterface
+from mlrun.config import config
+from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import SparkApplicationStates
-from mlrun.config import config
+
+from ..execution import MLClientCtx
+from ..model import RunObject
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ..utils import get_in, logger, update_in
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from .utils import generate_resources
-from ..execution import MLClientCtx
-from ..model import RunObject
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import update_in, logger, get_in
 
 igz_deps = {
     "jars": [

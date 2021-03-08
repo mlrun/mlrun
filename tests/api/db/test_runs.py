@@ -1,10 +1,11 @@
-import pytest
-from mlrun.config import config
 from datetime import datetime, timezone
+
+import pytest
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import Run
+from mlrun.config import config
 from tests.api.db.conftest import dbs
 
 

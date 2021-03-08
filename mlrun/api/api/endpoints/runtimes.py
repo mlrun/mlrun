@@ -1,7 +1,6 @@
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends
-from fastapi import Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud

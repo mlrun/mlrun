@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Any, Dict
+from typing import Any, Dict, List
 
 from mlrun.api import schemas
 

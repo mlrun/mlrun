@@ -10,7 +10,7 @@ requests-mock~=1.8
 # needed for system tests
 matplotlib~=3.0
 graphviz~=0.16.0
-# temporary until storey 0.3.3 is fixed
 nuclio-sdk~=0.3.0
+isort~=5.7
 # needed for mlutils tests
 scikit-learn~=0.23.0

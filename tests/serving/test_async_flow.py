@@ -1,7 +1,8 @@
 import mlrun
 from mlrun.utils import logger
-from .demo_states import *  # noqa
 from tests.conftest import results
+
+from .demo_states import *  # noqa
 
 
 def test_async_basic():

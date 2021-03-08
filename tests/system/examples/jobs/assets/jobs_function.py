@@ -1,8 +1,8 @@
-from mlrun.execution import MLClientCtx
-from mlrun.datastore import DataItem
-from mlrun.artifacts import get_model, update_model
-
 import pandas as pd
+
+from mlrun.artifacts import get_model, update_model
+from mlrun.datastore import DataItem
+from mlrun.execution import MLClientCtx
 
 
 def training(context: MLClientCtx, p1: int = 1, p2: int = 2) -> None:

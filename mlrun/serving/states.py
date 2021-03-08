@@ -18,18 +18,18 @@ import json
 import os
 import pathlib
 import traceback
-from copy import deepcopy, copy
+from copy import copy, deepcopy
 from inspect import getfullargspec
 from typing import Union
 
+import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-import requests
 
 from ..datastore import get_stream_pusher
-from ..model import ModelObj, ObjectDict
-from ..utils import get_function, get_class
 from ..errors import MLRunInvalidArgumentError
+from ..model import ModelObj, ObjectDict
+from ..utils import get_class, get_function
 
 callable_prefix = "_"
 path_splitter = "/"

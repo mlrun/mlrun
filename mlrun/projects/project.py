@@ -783,7 +783,6 @@ class MlrunProject(ModelObj):
         upload=True,
         labels=None,
         target_path=None,
-        db_key=None,
     ):
         am = self._get_artifact_manager()
         artifact_path = artifact_path or self.spec.artifact_path
@@ -804,7 +803,6 @@ class MlrunProject(ModelObj):
             upload=upload,
             labels=labels,
             target_path=target_path,
-            db_key=db_key,
         )
         self.spec.set_artifact(item.key, item.base_dict())
         return item
@@ -821,7 +819,6 @@ class MlrunProject(ModelObj):
         format="",
         preview=None,
         stats=False,
-        db_key=None,
         target_path="",
         extra_data=None,
         **kwargs,
@@ -855,9 +852,6 @@ class MlrunProject(ModelObj):
         :param extra_data:    key/value list of extra files/charts to link with this dataset
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
-        :param db_key:        the key to use in the artifact DB table, by default
-                              its run name + '_' + key
-                              db_key=False will not register it in the artifacts table
 
         :returns: artifact object
         """
@@ -878,7 +872,6 @@ class MlrunProject(ModelObj):
             target_path=target_path,
             tag=tag,
             upload=upload,
-            db_key=db_key,
             labels=labels,
         )
         return item
@@ -903,7 +896,6 @@ class MlrunProject(ModelObj):
         training_set=None,
         label_column=None,
         extra_data=None,
-        db_key=None,
     ):
         """log a model artifact and optionally upload it to datastore
 
@@ -938,9 +930,6 @@ class MlrunProject(ModelObj):
         :param label_column:    which columns in the training set are the label (target) columns
         :param extra_data:      key/value list of extra files/charts to link with this dataset
                                 value can be abs/relative path string | bytes | artifact object
-        :param db_key:          the key to use in the artifact DB table, by default
-                                its run name + '_' + key
-                                db_key=False will not register it in the artifacts table
 
         :returns: artifact object
         """
@@ -972,7 +961,6 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path or self.spec.artifact_path,
             tag=tag,
             upload=upload,
-            db_key=db_key,
             labels=labels,
         )
         return item

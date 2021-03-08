@@ -25,6 +25,7 @@ from tests.conftest import (
 )
 from unittest.mock import Mock
 import mlrun
+import mlrun.errors
 from mlrun import new_task, get_run_db, new_function
 
 
@@ -88,6 +89,13 @@ def test_failed_schedule_not_creating_run():
     function.store_run = Mock()
     function.run(handler=my_func, schedule="* * * * *")
     assert 0 == function.store_run.call_count
+
+
+def test_schedule_with_local_exploding():
+    function = new_function()
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+        function.run(local=True, schedule="* * * * *")
+    assert "local and schedule cannot be used together" in str(excinfo.value)
 
 
 def test_invalid_name():
@@ -165,6 +173,21 @@ def test_hyper_grid():
     assert run.output("best_iteration") == 6, "wrong best iteration"
 
 
+def test_hyper_grid_parallel():
+    grid_params = '{"p2": [2,1,3], "p3": [10,20]}'
+    mlrun.datastore.set_in_memory_item("params.json", grid_params)
+
+    run_spec = tag_test(base_spec, "test_hyper_grid")
+    run_spec.with_param_file(
+        "memory://params.json", selector="r1", strategy="grid", parallel_runs=2
+    )
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    # 3 x p2, 2 x p3 = 6 iterations + 1 header line
+    assert len(run.status.iterations) == 1 + 2 * 3, "wrong number of iterations"
+
+
 def test_hyper_list():
     list_params = '{"p2": [2,3,1], "p3": [10,30,20]}'
     mlrun.datastore.set_in_memory_item("params.json", list_params)
@@ -181,11 +204,31 @@ def test_hyper_list():
     assert run.output("best_iteration") == 2, "wrong best iteration"
 
 
+def test_hyper_list_with_stop():
+    list_params = '{"p2": [2,3,7,4,5], "p3": [10,10,10,10,10]}'
+    mlrun.datastore.set_in_memory_item("params.json", list_params)
+
+    run_spec = tag_test(base_spec, "test_hyper_list_with_stop")
+    run_spec.with_param_file(
+        "memory://params.json",
+        selector="max.r1",
+        strategy="list",
+        stop_condition="r1>=70",
+    )
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run
+    assert len(run.status.iterations) == 1 + 3, "wrong number of iterations"
+    assert run.output("best_iteration") == 3, "wrong best iteration"
+
+
 def test_hyper_random():
     grid_params = {"p2": [2, 1, 3], "p3": [10, 20, 30]}
     run_spec = tag_test(base_spec, "test_hyper_random")
-    run_spec.with_hyper_params(grid_params, selector="r1", strategy="random")
-    run_spec.spec.parameters["MAX_RANDOM_EVALS"] = 5
+    run_spec.with_hyper_params(
+        grid_params, selector="r1", strategy="random", max_iterations=5
+    )
     run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)

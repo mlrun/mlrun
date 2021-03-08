@@ -104,7 +104,7 @@ class Artifact(ModelObj):
         uri_project = project or self.project
         uri = "/".join([uri_project, self.db_key])
         if with_tag:
-            uri += "#" + self.tree
+            uri += ":" + self.tree
         return get_store_uri(StorePrefix.Artifact, uri)
 
     def base_dict(self):

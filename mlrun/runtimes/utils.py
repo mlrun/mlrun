@@ -233,7 +233,7 @@ def results_to_iter(results, runspec, execution):
     if not runspec:
         return summary
 
-    criteria = runspec.spec.selector
+    criteria = runspec.spec.hyper_param_options.selector
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
         logger.warning(
@@ -257,7 +257,7 @@ def results_to_iter(results, runspec, execution):
     )
     if failed:
         execution.set_state(
-            error=f"{failed} or {len(results)} tasks failed, check logs in db for details",
+            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
             commit=False,
         )
     elif running == 0:

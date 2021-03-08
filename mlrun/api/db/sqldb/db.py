@@ -234,11 +234,33 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not art:
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
         update_labels(art, labels)
+
+        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
+        # body and tag parameter provided.
+        artifact.pop("tag", None)
+
         art.struct = artifact
         self._upsert(session, art)
         if tag_artifact:
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
+
+    def _add_tags_to_artifact_struct(
+        self, session, artifact_struct, artifact_id, tag=None
+    ):
+        artifacts = []
+        if tag:
+            artifact_struct["tag"] = tag
+            artifacts.append(artifact_struct)
+        else:
+            tag_results = self._query(session, Artifact.Tag, obj_id=artifact_id).all()
+            if not tag_results:
+                return [artifact_struct]
+            for tag_object in tag_results:
+                artifact_with_tag = artifact_struct.copy()
+                artifact_with_tag["tag"] = tag_object.name
+                artifacts.append(artifact_with_tag)
+        return artifacts
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
@@ -248,6 +270,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         query = self._query(session, Artifact, key=key, project=project)
 
+        # This will hold the real tag of the object (if exists). Will be placed in the artifact structure.
+        db_tag = None
+
         # TODO: refactor this
         # tag has 2 meanings:
         # 1. tag - in this case _resolve_tag will find the relevant uids and will return a list
@@ -255,6 +280,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # represents the uid
         if isinstance(uids, list) and uids:
             query = query.filter(Artifact.uid.in_(uids))
+            db_tag = tag
         elif isinstance(uids, str) and uids:
             query = query.filter(Artifact.uid == uids)
         else:
@@ -267,7 +293,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         art = query.one_or_none()
         if not art:
             raise DBError(f"Artifact {key}:{tag}:{project} not found")
-        return art.struct
+
+        artifact_struct = art.struct
+        # We only set a tag in the object if the user asked specifically for this tag.
+        if db_tag:
+            artifact_struct["tag"] = db_tag
+        return artifact_struct
 
     def list_artifacts(
         self,
@@ -290,12 +321,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if tag:
             uids = self._resolve_tag(session, Artifact, project, tag)
 
-        artifacts = ArtifactList(
-            artifact.struct
-            for artifact in self._find_artifacts(
-                session, project, uids, labels, since, until, name, kind, category
+        artifacts = ArtifactList()
+        for artifact in self._find_artifacts(
+            session, project, uids, labels, since, until, name, kind, category
+        ):
+            artifact_struct = artifact.struct
+            artifacts_with_tag = self._add_tags_to_artifact_struct(
+                session, artifact_struct, artifact.id, tag
             )
-        )
+            artifacts.extend(artifacts_with_tag)
+
         return artifacts
 
     def del_artifact(self, session, key, tag="", project=""):
@@ -539,8 +574,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         last_run_uri: str = None,
     ):
         get_project_member().ensure_project(session, project)
-        query = self._query(session, Schedule, project=project, name=name)
-        schedule = query.one_or_none()
+        schedule = self._get_schedule_record(session, project, name)
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
         if scheduled_object is not None:
@@ -590,10 +624,20 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self, session: Session, project: str, name: str
     ) -> schemas.ScheduleRecord:
         logger.debug("Getting schedule from db", project=project, name=name)
-        query = self._query(session, Schedule, project=project, name=name)
-        db_schedule = query.one_or_none()
-        schedule = self._transform_schedule_model_to_scheme(db_schedule)
+        schedule_record = self._get_schedule_record(session, project, name)
+        schedule = self._transform_schedule_model_to_scheme(schedule_record)
         return schedule
+
+    def _get_schedule_record(
+        self, session: Session, project: str, name: str
+    ) -> schemas.ScheduleRecord:
+        query = self._query(session, Schedule, project=project, name=name)
+        schedule_record = query.one_or_none()
+        if not schedule_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Schedule not found: project={project}, name={name}"
+            )
+        return schedule_record
 
     def delete_schedule(self, session: Session, project: str, name: str):
         logger.debug("Removing schedule from db", project=project, name=name)
@@ -1286,10 +1330,22 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
-        if not existing_feature_set:
-            return self.create_feature_set(session, project, feature_set, versioned)
 
         feature_set_dict = feature_set.dict()
+
+        if not existing_feature_set:
+            # Check if this is a re-tag of existing object - search by uid only
+            uid = fill_object_hash(feature_set_dict, "uid", tag)
+            _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
+                session, FeatureSet, project, name, None, uid
+            )
+            if existing_feature_set:
+                self.tag_objects_v2(session, [existing_feature_set], project, tag)
+                return uid
+
+            feature_set.metadata.tag = tag
+            return self.create_feature_set(session, project, feature_set, versioned)
+
         uid = self._common_object_validate_and_perform_uid_change(
             feature_set_dict, tag, versioned, original_uid
         )
@@ -1516,12 +1572,24 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
             session, FeatureVector, project, name, tag, uid
         )
+
+        feature_vector_dict = feature_vector.dict()
+
         if not existing_feature_vector:
+            # Check if this is a re-tag of existing object - search by uid only
+            uid = fill_object_hash(feature_vector_dict, "uid", tag)
+            _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
+                session, FeatureVector, project, name, None, uid
+            )
+            if existing_feature_vector:
+                self.tag_objects_v2(session, [existing_feature_vector], project, tag)
+                return uid
+
+            feature_vector.metadata.tag = tag
             return self.create_feature_vector(
                 session, project, feature_vector, versioned
             )
 
-        feature_vector_dict = feature_vector.dict()
         uid = self._common_object_validate_and_perform_uid_change(
             feature_vector_dict, tag, versioned, original_uid
         )
@@ -1673,9 +1741,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         except SQLAlchemyError as err:
             session.rollback()
             cls = obj.__class__.__name__
-            logger.warning(f"conflict adding {cls}, {err}")
+            logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
             if not ignore:
-                raise DBError(f"duplicate {cls} - {err}") from err
+                raise mlrun.errors.MLRunConflictError(
+                    f"Conflict - {cls} already exists"
+                ) from err
 
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)

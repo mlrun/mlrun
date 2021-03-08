@@ -96,9 +96,7 @@ class DaskSpec(KubeResourceSpec):
         self.args = args
 
         self.extra_pip = extra_pip
-        self.remote = remote
-        if replicas or min_replicas or max_replicas:
-            self.remote = True
+        self.remote = True if remote is None else remote  # make remote the default
 
         self.service_type = service_type
         self.kfp_image = kfp_image
@@ -301,9 +299,22 @@ class DaskCluster(KubejobRuntime):
         except ValueError:
             return Client()
 
-    def deploy(self, watch=True, with_mlrun=False, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
-        return super().deploy(watch, with_mlrun, skip_deployed, is_kfp=is_kfp)
+        return super().deploy(
+            watch,
+            with_mlrun,
+            skip_deployed,
+            is_kfp=is_kfp,
+            mlrun_version_specifier=mlrun_version_specifier,
+        )
 
     def _run(self, runobj: RunObject, execution):
 

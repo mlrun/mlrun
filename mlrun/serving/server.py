@@ -77,6 +77,7 @@ class GraphServer(ModelObj):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
+        secret_sources=None,
     ):
         self._graph = None
         self.graph: Union[RouterState, RootFlowState] = graph
@@ -92,7 +93,8 @@ class GraphServer(ModelObj):
         self.error_stream = error_stream
         self.track_models = track_models
         self._error_stream_object = None
-        self._secrets = SecretsStore()
+        self.secret_sources = secret_sources
+        self._secrets = SecretsStore.from_list(secret_sources)
         self._db_conn = None
         self.resource_cache = None
 
@@ -124,9 +126,13 @@ class GraphServer(ModelObj):
     ):
         """for internal use, initialize all states (recursively)"""
 
+        if self.secret_sources:
+            self._secrets = SecretsStore.from_list(self.secret_sources)
+
         if self.error_stream:
             self._error_stream_object = get_stream_pusher(self.error_stream)
         self.resource_cache = resource_cache or ResourceCache()
+
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
 
         context.stream = _StreamContext(
@@ -343,7 +349,7 @@ class GraphContext:
 
     def get_secret(self, key: str):
         if self._server and self._server._secrets:
-            return self._secrets.get(key)
+            return self._server._secrets.get(key)
         return None
 
 

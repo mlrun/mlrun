@@ -19,6 +19,7 @@ import os.path
 
 
 import mlrun
+from .model import HyperParamOptions
 from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
@@ -153,7 +154,7 @@ def mlrun_op(
     mode: str = "",
     handler: str = "",
     more_args: list = None,
-    tuning_strategy=None,
+    hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
 ):
@@ -177,10 +178,10 @@ def mlrun_op(
     :param hyperparams: dictionary of hyper parameters and list values, each
                         hyperparam holds a list of values, the run will be
                         executed for every parameter combination (GridSearch)
-    :param param_file:  a csv file with parameter combinations, first row hold
+    :param param_file:  a csv/json file with parameter combinations, first csv row hold
                         the parameter names, following rows hold param values
     :param selector: selection criteria for hyperparams e.g. "max.accuracy"
-    :param tuning_strategy: selection strategy for hyperparams e.g. list, grid, random
+    :param hyper_param_options: hyper param options class, see: :py:class:`~mlrun.model.HyperParamOptions`
     :param labels:   labels to tag the job/run with ({key:val, ..})
     :param inputs:   dictionary of input objects + optional paths (if path is
                      omitted the path will be the in_path/key.
@@ -239,6 +240,8 @@ def mlrun_op(
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
+    if hyper_param_options and isinstance(hyper_param_options, dict):
+        hyper_param_options = HyperParamOptions.from_dict(hyper_param_options)
     inputs = {} if inputs is None else inputs
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
@@ -282,9 +285,15 @@ def mlrun_op(
         handler = handler or runobj.spec.handler_name
         params = params or runobj.spec.parameters
         hyperparams = hyperparams or runobj.spec.hyperparams
-        param_file = param_file or runobj.spec.param_file
-        tuning_strategy = tuning_strategy or runobj.spec.tuning_strategy
-        selector = selector or runobj.spec.selector
+        param_file = (
+            param_file
+            or runobj.spec.param_file
+            or runobj.spec.hyper_param_options.param_file
+        )
+        hyper_param_options = hyper_param_options or runobj.spec.hyper_param_options
+        selector = (
+            selector or runobj.spec.selector or runobj.spec.hyper_param_options.selector
+        )
         inputs = inputs or runobj.spec.inputs
         outputs = outputs or runobj.spec.outputs
         in_path = in_path or runobj.spec.input_path
@@ -346,8 +355,8 @@ def mlrun_op(
         cmd += ["--out-path", out_path]
     if param_file:
         cmd += ["--param-file", param_file]
-    if tuning_strategy:
-        cmd += ["--tuning-strategy", tuning_strategy]
+    if hyper_param_options:
+        cmd += ["--hyper-param-options", hyper_param_options.to_json()]
     if selector:
         cmd += ["--selector", selector]
     if job_image:
@@ -391,23 +400,8 @@ def mlrun_op(
                 name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
             )
         )
-    cop.container.add_env_variable(
-        k8s_client.V1EnvVar(
-            "MLRUN_NAMESPACE",
-            value_from=k8s_client.V1EnvVarSource(
-                field_ref=k8s_client.V1ObjectFieldSelector(
-                    field_path="metadata.namespace"
-                )
-            ),
-        )
-    )
 
-    if config.mpijob_crd_version:
-        cop.container.add_env_variable(
-            k8s_client.V1EnvVar(
-                name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version
-            )
-        )
+    add_default_env(k8s_client, cop)
 
     return cop
 
@@ -425,6 +419,7 @@ def deploy_op(
     verbose=False,
 ):
     from kfp import dsl
+    from kubernetes import client as k8s_client
 
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
@@ -464,6 +459,8 @@ def deploy_op(
         command=cmd,
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
+
+    add_default_env(k8s_client, cop)
     return cop
 
 
@@ -560,6 +557,12 @@ def build_op(
             )
         )
 
+    add_default_env(k8s_client, cop)
+
+    return cop
+
+
+def add_default_env(k8s_client, cop):
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(
             "MLRUN_NAMESPACE",
@@ -570,7 +573,18 @@ def build_op(
             ),
         )
     )
-    return cop
+
+    if config.httpdb.api_url:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(name="MLRUN_DBPATH", value=config.httpdb.api_url)
+        )
+
+    if config.mpijob_crd_version:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version
+            )
+        )
 
 
 def get_default_reg():

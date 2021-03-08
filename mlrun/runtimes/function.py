@@ -249,6 +249,10 @@ class RemoteRuntime(KubeResource):
         self.spec.min_replicas = shards
         self.spec.max_replicas = shards
 
+    def add_vault_config_to_spec(self):
+        # Currently secrets are only handled in Serving runtime.
+        pass
+
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,
     ):
@@ -337,7 +341,9 @@ class RemoteRuntime(KubeResource):
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
-        runtime_env = {}
+        runtime_env = {
+            "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
+        }
         if self.spec.rundb or mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:
@@ -362,8 +368,7 @@ class RemoteRuntime(KubeResource):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
         if use_function_from_db:
-            hash_key = self.save(versioned=True, refresh=True)
-            url = "db://" + self._function_uri(hash_key=hash_key)
+            url = self.save(versioned=True, refresh=True)
         else:
             url = None
 
@@ -453,8 +458,9 @@ class RemoteRuntime(KubeResource):
 
         return self._update_state(resp.json())
 
-    def _run_many(self, tasks, execution, runobj: RunObject):
+    def _run_many(self, generator, execution, runobj: RunObject):
         self._pre_run_validations()
+        tasks = generator.generate(runobj)
         secrets = self._secrets.to_serial() if self._secrets else None
         log_level = execution.log_level
         headers = {"x-nuclio-log-level": log_level}
@@ -544,6 +550,11 @@ def get_fullname(name, project, tag):
 
 def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     function.set_config("metadata.labels.mlrun/class", function.kind)
+
+    # Add vault configurations to function's pod spec, if vault secret source was added.
+    # Needs to be here, since it adds env params, which are handled in the next lines.
+    function.add_vault_config_to_spec()
+
     env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
     for key, value in function._get_runtime_env().items():
         env_dict[key] = value

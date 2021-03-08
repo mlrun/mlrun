@@ -9,6 +9,7 @@ from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.errors
 import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
@@ -199,6 +200,34 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
 
 
 @pytest.mark.asyncio
+async def test_create_schedule_failure_already_exists(
+    db: Session, scheduler: Scheduler
+):
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
+
+    with pytest.raises(mlrun.errors.MLRunConflictError) as excinfo:
+        scheduler.create_schedule(
+            db,
+            project,
+            schedule_name,
+            schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+        )
+    assert "Conflict - Schedule already exists" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
 async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Scheduler):
     """
     _validate_cron_trigger runs 60 checks to be able to validate limit low as one minute.
@@ -342,6 +371,15 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
+async def test_get_schedule_failure_not_found(db: Session, scheduler: Scheduler):
+    schedule_name = "schedule-name"
+    project = config.default_project
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.get_schedule(db, project, schedule_name)
+    assert "Schedule not found" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
 async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
     cases = [
         {"name": "some_prefix-mlrun", "should_find": True},
@@ -400,6 +438,9 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
 
     schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 0
+
+    # verify another delete pass successfully
+    scheduler.delete_schedule(db, project, schedule_name)
 
 
 @pytest.mark.asyncio
@@ -558,6 +599,15 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_failure_not_found(db: Session, scheduler: Scheduler):
+    schedule_name = "schedule-name"
+    project = config.default_project
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.update_schedule(db, project, schedule_name)
+    assert "Schedule not found" in str(excinfo.value)
 
 
 def _assert_schedule(

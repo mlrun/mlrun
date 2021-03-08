@@ -1,4 +1,3 @@
-import json
 import os
 import string
 from datetime import datetime, timedelta
@@ -152,7 +151,9 @@ def test_list_endpoints(db: Session, client: TestClient):
         headers={"X-V3io-Session-Key": _get_access_key()},
     )
 
-    endpoints_out = [ModelEndpoint(**e["endpoint"]) for e in response.json()["endpoints"]]
+    endpoints_out = [
+        ModelEndpoint(**e["endpoint"]) for e in response.json()["endpoints"]
+    ]
 
     in_endpoint_ids = set(map(lambda e: e.id, endpoints_in))
     out_endpoint_ids = set(map(lambda e: e.id, endpoints_out))

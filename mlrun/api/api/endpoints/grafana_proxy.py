@@ -17,7 +17,6 @@ from mlrun.api.schemas import (
     GrafanaTable,
     GrafanaColumn,
     GrafanaNumberColumn,
-    GrafanaStringColumn,
     GrafanaTimeSeries,
     GrafanaTimeSeriesTarget,
     GrafanaDataPoint,
@@ -64,16 +63,16 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
-    result = NAME_TO_FUNCTION_DICTIONARY[target_endpoint](
+    result = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint](
         body, query_parameters, access_key
     )
     return result
 
 
 @router.post("/grafana-proxy/model-endpoints/search")
-async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaTable]:
+async def grafana_proxy_model_endpoints_search(request: Request) -> List[GrafanaTable]:
     """
-    Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
+    Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
 
     This implementation requires passing `target_function` query parameter in order to dispatch different
@@ -91,7 +90,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
-    result = NAME_TO_FUNCTION_DICTIONARY[target_endpoint](
+    result = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint](
         body, query_parameters, access_key
     )
     return result
@@ -401,10 +400,10 @@ def _validate_query_parameters(query_parameters: Dict[str, str]):
         raise MLRunBadRequestError(
             f"Expected 'target_endpoint' field in query, found {query_parameters} instead"
         )
-    if query_parameters["target_endpoint"] not in NAME_TO_FUNCTION_DICTIONARY:
+    if query_parameters["target_endpoint"] not in NAME_TO_QUERY_FUNCTION_DICTIONARY:
         raise MLRunBadRequestError(
             f"{query_parameters['target_endpoint']} unsupported in query parameters: {query_parameters}. "
-            f"Currently supports: {','.join(NAME_TO_FUNCTION_DICTIONARY.keys())}"
+            f"Currently supports: {','.join(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())}"
         )
 
 
@@ -417,12 +416,17 @@ def _json_loads_or_default(string: Optional[str], default: Any):
     return obj
 
 
-NAME_TO_FUNCTION_DICTIONARY: Dict[
+NAME_TO_QUERY_FUNCTION_DICTIONARY: Dict[
     str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
 ] = {
-    "list_projects": grafana_list_projects,
     "list_endpoints": grafana_list_endpoints,
     "individual_feature_analysis": grafana_individual_feature_analysis,
     "overall_feature_analysis": grafana_overall_feature_analysis,
     "incoming_features": grafana_incoming_features,
+}
+
+NAME_TO_SEARCH_FUNCTION_DICTIONARY: Dict[
+    str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
+] = {
+    "list_projects": grafana_list_projects,
 }

@@ -244,6 +244,11 @@ class BaseRuntime(ModelObj):
         """
 
         if local:
+
+            if schedule is not None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "local and schedule cannot be used together"
+                )
             # allow local run simulation with a flip of a flag
             command = self
             if local_code_path:
@@ -484,7 +489,12 @@ class BaseRuntime(ModelObj):
             return task.to_dict()
 
     def _generate_runtime_env(self, runobj: RunObject):
-        runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
+        runtime_env = {
+            "MLRUN_EXEC_CONFIG": runobj.to_json(),
+            "MLRUN_DEFAULT_PROJECT": runobj.metadata.project
+            or self.metadata.project
+            or config.default_project,
+        }
         if runobj.spec.verbose:
             runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:

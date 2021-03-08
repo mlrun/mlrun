@@ -7,10 +7,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from mlrun.runtimes.utils import generate_resources
 from mlrun.platforms import auto_mount
-import unittest.mock
-from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.utils.vault import VaultStore
-from kubernetes import client
 from mlrun.config import config as mlconf
 
 
@@ -24,8 +20,6 @@ class TestKubejobRuntime(TestRuntimeBase):
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
-        self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
-        self.vault_secret_name = "test-secret"
 
     def _generate_runtime(self):
         runtime = KubejobRuntime()
@@ -118,25 +112,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._execute_run(runtime)
         self._assert_pod_creation_config()
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
-
-    # For now Vault is only supported in KubeJob, so it's here. Once it's relevant to other runtimes, this can
-    # move to the base.
-    def _mock_vault_functionality(self):
-        secret_dict = {key: "secret" for key in self.vault_secrets}
-        VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
-
-        object_meta = client.V1ObjectMeta(
-            name="test-service-account", namespace=self.namespace
-        )
-        secret = client.V1ObjectReference(
-            name=self.vault_secret_name, namespace=self.namespace
-        )
-        service_account = client.V1ServiceAccount(
-            metadata=object_meta, secrets=[secret]
-        )
-        get_k8s().v1api.read_namespaced_service_account = unittest.mock.Mock(
-            return_value=service_account
-        )
 
     def test_run_with_vault_secrets(self, db: Session, client: TestClient):
         self._mock_vault_functionality()

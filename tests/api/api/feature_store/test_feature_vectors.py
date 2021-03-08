@@ -151,17 +151,24 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
 
     # Put a new object - verify it's created
     response = _assert_store_feature_vector(
-        client, project_name, name, "latest", feature_vector
+        client, project_name, name, "tag1", feature_vector
     )
     uid = response["metadata"]["uid"]
     # Change fields that will not affect the uid, verify object is overwritten
     feature_vector["status"]["state"] = "modified"
 
     response = _assert_store_feature_vector(
-        client, project_name, name, "latest", feature_vector
+        client, project_name, name, "tag1", feature_vector
     )
     assert response["metadata"]["uid"] == uid
     assert response["status"]["state"] == "modified"
+
+    # Attempt storing with a different tag.
+    response = client.put(
+        f"/api/projects/{project_name}/feature-vectors/{name}/references/tag2?versioned=True",
+        json=feature_vector,
+    )
+    assert response.status_code == HTTPStatus.CONFLICT.value
 
     _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 1)
 

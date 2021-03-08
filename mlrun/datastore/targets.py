@@ -15,12 +15,13 @@ import os
 import sys
 from copy import copy
 from typing import Dict
+
 import mlrun
+from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 
-from mlrun.model import DataTargetBase, DataTarget
-from .v3io import parse_v3io_path
 from .utils import store_path_to_spark
+from .v3io import parse_v3io_path
 
 
 class TargetTypes:
@@ -291,7 +292,8 @@ class CSVTarget(BaseStoreTarget):
         column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
-
+        if key_column not in column_list:
+            column_list.insert(0, key_column)
         graph.add_step(
             name="WriteToCSV",
             after=after,
@@ -333,6 +335,8 @@ class NoSqlTarget(BaseStoreTarget):
         column_list = [
             key for key, feature in features.items() if not feature.aggregate
         ]
+        if key_column not in column_list:
+            column_list.insert(0, key_column)
         graph.add_step(
             name="WriteToTable",
             after=after,
@@ -369,6 +373,8 @@ class StreamTarget(BaseStoreTarget):
         column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
+        if key_column not in column_list:
+            column_list.insert(0, key_column)
         graph.add_step(
             name="WriteToStream",
             after=after,

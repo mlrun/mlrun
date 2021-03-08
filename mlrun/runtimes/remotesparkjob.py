@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-
-from .pod import KubeResourceSpec
-from .kubejob import KubejobRuntime, KubeRuntimeHandler
-from mlrun.config import config
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from subprocess import run
+
+from mlrun.config import config
+
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from .kubejob import KubejobRuntime, KubeRuntimeHandler
+from .pod import KubeResourceSpec
 
 
 class RemoteSparkSpec(KubeResourceSpec):
@@ -106,7 +107,14 @@ class RemoteSparkRuntime(KubejobRuntime):
             return app_image + ":" + config.spark_app_image_tag
         return None
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
@@ -116,6 +124,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
+            mlrun_version_specifier=mlrun_version_specifier,
         )
 
 

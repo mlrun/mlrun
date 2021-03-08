@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from io import BytesIO, StringIO
+
 import pandas as pd
-from io import StringIO, BytesIO
 
 import mlrun
+
 from .base import DataStore, FileStats
 
 

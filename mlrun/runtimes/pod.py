@@ -15,18 +15,20 @@
 import uuid
 from copy import deepcopy
 
-from kubernetes import client
 from kfp.dsl import ContainerOp
+from kubernetes import client
 
+import mlrun.utils.regex
+
+from ..utils import logger, normalize_name, update_in, verify_field_regex
+from .base import BaseRuntime, FunctionSpec
 from .utils import (
     apply_kfp,
-    set_named_item,
+    generate_resources,
     get_item_name,
     get_resource_labels,
-    generate_resources,
+    set_named_item,
 )
-from ..utils import normalize_name, update_in
-from .base import BaseRuntime, FunctionSpec
 
 
 class KubeResourceSpec(FunctionSpec):
@@ -181,6 +183,24 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
+        if mem:
+            verify_field_regex(
+                "function.limits.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                "function.limits.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if gpus:
+            verify_field_regex(
+                "function.limits.gpus",
+                gpus,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
         update_in(
             self.spec.resources,
             "limits",
@@ -189,7 +209,21 @@ class KubeResource(BaseRuntime):
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
-        update_in(self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu))
+        if mem:
+            verify_field_regex(
+                "function.requests.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                "function.requests.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
+        )
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
@@ -213,3 +247,50 @@ class KubeResource(BaseRuntime):
         self._cop = ContainerOp("name", "image")
         fn._cop = ContainerOp("name", "image")
         return fn
+
+    def _add_vault_params_to_spec(self, runobj=None, project=None):
+        from ..config import config as mlconf
+
+        project_name = project or runobj.metadata.project
+        if project_name is None:
+            logger.warning("No project provided. Cannot add vault parameters")
+            return
+
+        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
+            project=project_name
+        )
+
+        project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(
+            project_name, service_account_name
+        )
+        if project_vault_secret_name is None:
+            logger.info(f"No vault secret associated with project {project_name}")
+            return
+
+        volumes = [
+            {
+                "name": "vault-secret",
+                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
+            }
+        ]
+        # We cannot use expanduser() here, since the user in question is the user running in the pod
+        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
+        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
+
+        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
+
+        self.spec.update_vols_and_mounts(volumes, volume_mounts)
+        self.spec.env.append(
+            {
+                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
+                "value": f"project:{project_name}",
+            }
+        )
+        # In case remote URL is different than local URL, use it. Else, use the local URL
+        vault_url = mlconf.secret_stores.vault.remote_url
+        if vault_url == "":
+            vault_url = mlconf.secret_stores.vault.url
+
+        self.spec.env.append(
+            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
+        )

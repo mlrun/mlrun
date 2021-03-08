@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import mlrun
-from ..runtimes import RuntimeKinds
-
-from mlrun.datastore.sources import get_source_step, get_source_from_dict
+from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import add_target_states, get_target_driver
-from ..datastore.store_resources import ResourceCache
-from ..serving.server import create_graph_server
+
 from ..data_types import InferOptions
+from ..datastore.store_resources import ResourceCache
+from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
+from ..serving.server import create_graph_server
 
 
 def init_featureset_graph(source, featureset, namespace, targets=None, return_df=True):

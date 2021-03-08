@@ -1,14 +1,10 @@
 from hashlib import md5
-from typing import Optional, List, Tuple, Any, Dict, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
-from mlrun.api.schemas.object import (
-    ObjectKind,
-    ObjectSpec,
-    ObjectStatus,
-)
+from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.errors import MLRunInvalidArgumentError
 
 

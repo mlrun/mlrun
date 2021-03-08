@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from copy import deepcopy
 from datetime import datetime
-import time
 from urllib.parse import urlparse
 
 import fsspec
 import v3io.dataplane
 
 import mlrun
+
 from ..platforms.iguazio import split_path
 from .base import (
     DataStore,
@@ -28,11 +29,10 @@ from .base import (
     basic_auth_header,
     get_range,
     http_get,
-    http_put,
     http_head,
+    http_put,
     http_upload,
 )
-
 
 V3IO_LOCAL_ROOT = "v3io"
 

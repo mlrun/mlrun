@@ -1,20 +1,17 @@
 import os
-import pandas as pd
-
-import tensorflow as tf
 
 import horovod.tensorflow.keras as hvd
+import pandas as pd
+import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
 # to deprecate, use mlrun.mlutils.models and make this model a parameter instead:
 from tensorflow.keras.applications.vgg16 import VGG16
-
-from tensorflow.keras.layers import Flatten, Dense
+from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.models import Model
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.optimizers import Adadelta
-from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
-
-from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 from mlrun import get_or_create_ctx
 from mlrun.artifacts import ChartArtifact

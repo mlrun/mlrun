@@ -1,7 +1,7 @@
 import os
 import string
 from datetime import datetime, timedelta
-from random import randint, choice
+from random import choice, randint
 from typing import Optional
 
 import pandas as pd
@@ -13,15 +13,15 @@ from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
 from mlrun.api.crud.model_endpoints import (
-    deserialize_endpoint_from_kv,
     ENDPOINT_EVENTS_TABLE_PATH,
     ENDPOINTS_TABLE_PATH,
+    deserialize_endpoint_from_kv,
     serialize_endpoint_to_kv,
 )
 from mlrun.api.schemas import ModelEndpoint
 from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
+from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
 

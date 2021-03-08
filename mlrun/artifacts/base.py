@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import hashlib
+import os
 
 import yaml
 
 import mlrun
+
+from ..datastore import get_store_uri, is_store_uri, store_manager
 from ..model import ModelObj
-from ..datastore import is_store_uri, get_store_uri, store_manager
 from ..utils import StorePrefix
 
 calc_hash = True
@@ -104,7 +105,7 @@ class Artifact(ModelObj):
         uri_project = project or self.project
         uri = "/".join([uri_project, self.db_key])
         if with_tag:
-            uri += "#" + self.tree
+            uri += ":" + self.tree
         return get_store_uri(StorePrefix.Artifact, uri)
 
     def base_dict(self):

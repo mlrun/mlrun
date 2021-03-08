@@ -16,11 +16,13 @@ from tempfile import mktemp
 from typing import List
 
 import yaml
+
 import mlrun
-from ..features import Feature
+
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore import is_store_uri, store_manager
+from ..features import Feature
 from ..model import ObjectList
-from ..datastore import store_manager, is_store_uri
 from .base import Artifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
@@ -101,6 +103,8 @@ class ModelArtifact(Artifact):
         subset = df
         inferer = get_infer_interface(subset)
         if label_columns:
+            if not isinstance(label_columns, list):
+                label_columns = [label_columns]
             subset = df.drop(columns=label_columns)
         inferer.infer_schema(subset, self.inputs, {}, options=InferOptions.Features)
         if label_columns:

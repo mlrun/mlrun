@@ -16,11 +16,12 @@ import time
 from datetime import datetime
 from sys import stdout
 
-from kubernetes import config, client
+from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+
+from .config import config as mlconfig
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
-from .config import config as mlconfig
 
 _k8s = None
 

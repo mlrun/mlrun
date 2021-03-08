@@ -1,26 +1,21 @@
 import os
 
-import mlrun
-import pytest
 import pandas as pd
-
-
-from tests.conftest import results, tests_root_directory
-
-from mlrun.datastore.sources import CSVSource
-from mlrun.feature_store.steps import FeaturesetValidator
-
+import pytest
 from data_sample import quotes, stocks, trades
 from storey import MapClass
 
-from mlrun.datastore.targets import CSVTarget
-from mlrun.utils import logger
+import mlrun
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
-from mlrun.feature_store import FeatureSet, Entity, run_ingestion_job
 from mlrun.data_types.data_types import ValueType
+from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.targets import CSVTarget
+from mlrun.feature_store import Entity, FeatureSet, run_ingestion_job
+from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
-
+from mlrun.utils import logger
+from tests.conftest import results, tests_root_directory
 
 local_dir = f"{tests_root_directory}/feature-store/"
 results_dir = f"{results}/feature-store/"
@@ -107,24 +102,28 @@ def test_realtime_query():
         "stock-quotes.ask as mycol",
         "stocks.*",
     ]
+    features_size = (
+        len(features) + 1 + 1
+    )  # (*) returns 2 features, label adds 1 feature
 
     resp = fs.get_offline_features(
-        features, entity_rows=trades, entity_timestamp_column="time"
+        features,
+        entity_rows=trades,
+        entity_timestamp_column="time",
+        label_feature="stock-quotes.xx",
     )
     vector = resp.vector
     assert len(vector.spec.features) == len(
         features
     ), "unexpected num of requested features"
-    # stocks (*) returns 2 features
     assert (
-        len(vector.status.features) == len(features) + 1
+        len(vector.status.features) == features_size
     ), "unexpected num of returned features"
-    assert (
-        len(vector.status.stats) == len(features) + 1
-    ), "unexpected num of feature stats"
+    assert len(vector.status.stats) == features_size, "unexpected num of feature stats"
+    assert vector.status.label_column == "xx", "unexpected label_column name"
 
     df = resp.to_dataframe()
-    columns = trades.shape[1] + len(features) + 1
+    columns = trades.shape[1] + features_size - 2  # - 2 keys
     assert df.shape[1] == columns, "unexpected num of returned df columns"
     resp.to_parquet(results_dir + "query.parquet")
 
@@ -133,11 +132,14 @@ def test_realtime_query():
     svc = fs.get_online_feature_service(vector)
 
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-    print(resp)
     resp = svc.get([{"ticker": "AAPL"}])
     assert (
-        resp[0]["ticker"] == "AAPL" and resp[0]["exchange"] == "NASDAQ"
+        resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
     ), "unexpected online result"
+    resp2 = svc.get([{"ticker": "AAPL"}], as_list=True)
+    assert (
+        len(resp2[0]) == features_size - 1
+    ), "unexpected online vector size"  # -1 label
     svc.close()
 
 

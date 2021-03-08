@@ -4,10 +4,7 @@ import typing
 
 import pydantic
 
-from .object import (
-    ObjectStatus,
-    ObjectKind,
-)
+from .object import ObjectKind, ObjectStatus
 
 
 class ProjectMetadata(pydantic.BaseModel):

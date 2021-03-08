@@ -1,11 +1,11 @@
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils.helpers import (
-    verify_field_regex,
-    extend_hub_uri_if_needed,
-    enrich_image_url,
-    get_parsed_docker_registry,
     StorePrefix,
+    enrich_image_url,
+    extend_hub_uri_if_needed,
+    get_parsed_docker_registry,
+    verify_field_regex,
 )
 from mlrun.utils.regex import run_name
 

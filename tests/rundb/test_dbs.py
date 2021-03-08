@@ -19,7 +19,7 @@ import pytest
 import mlrun.errors
 from mlrun.db import SQLDB, FileRunDB, sqldb
 from mlrun.db.base import RunDBInterface
-from tests.conftest import new_run, run_now, init_sqldb
+from tests.conftest import init_sqldb, new_run, run_now
 
 dbs = [
     "sql",

@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import orjson
 import json
 import pickle
 import warnings
 from datetime import datetime, timezone
 
+import orjson
 from sqlalchemy import (
     BLOB,
     JSON,
@@ -30,7 +30,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, class_mapper
+from sqlalchemy.orm import class_mapper, relationship
 
 from mlrun.api import schemas
 

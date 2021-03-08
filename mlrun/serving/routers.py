@@ -19,8 +19,9 @@ from datetime import datetime
 from enum import Enum
 from io import BytesIO
 
-import mlrun
 from numpy.core.fromnumeric import mean
+
+import mlrun
 
 from .v2_serving import _ModelLogPusher
 

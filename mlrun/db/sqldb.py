@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union, Optional
+from typing import List, Optional, Union
 
 import mlrun.api.schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
-from .base import RunDBInterface, RunDBError
+from .base import RunDBError, RunDBInterface
 
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
@@ -454,7 +454,13 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def update_endpoint(self, project: str, endpoint_id: str, payload: dict):
+    def update_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        payload: dict,
+        check_existence: bool = True,
+    ):
         raise NotImplementedError()
 
     def clear_endpoint_record(self, project: str, endpoint_id: str):

@@ -1,9 +1,11 @@
-import mlrun
-import pytest
-import yaml
 import os
 import random
 from pathlib import Path
+
+import pytest
+import yaml
+
+import mlrun
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-azure-blob.yml"

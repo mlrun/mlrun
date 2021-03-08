@@ -13,27 +13,27 @@
 # limitations under the License.
 
 import codecs
-import deepdiff
 from collections import namedtuple
 from os import environ
 from pathlib import Path
 from shutil import rmtree
 from socket import socket
-from subprocess import Popen, run, PIPE, DEVNULL
+from subprocess import DEVNULL, PIPE, Popen, run
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
 
+import deepdiff
 import pytest
 
-from mlrun.api import schemas
 import mlrun.errors
+import mlrun.projects.project
 from mlrun import RunObject
+from mlrun.api import schemas
 from mlrun.artifacts import Artifact
 from mlrun.db import RunDBError
 from mlrun.db.httpdb import HTTPRunDB
-from tests.conftest import wait_for_server, tests_root_directory
-import mlrun.projects.project
+from tests.conftest import tests_root_directory, wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple("Server", "url conn workdir")

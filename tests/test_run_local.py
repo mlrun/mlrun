@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
-from os import path, environ
+from os import environ, path
 
-from mlrun import new_task, run_local, code_to_function
-from tests.conftest import (
-    examples_path,
-    out_path,
-    tag_test,
-    verify_state,
-)
+from mlrun import code_to_function, new_task, run_local
+from tests.conftest import examples_path, out_path, tag_test, verify_state
 
 base_spec = new_task(params={"p1": 8}, out_path=out_path)
 base_spec.spec.inputs = {"infile.txt": "infile.txt"}
@@ -46,6 +41,7 @@ def test_run_local_with_uid_does_not_exist(monkeypatch):
     def mock_getpwuid_raise(*args, **kwargs):
         raise KeyError("getpwuid(): uid not found: 400")
 
+    old_v3io_username = environ.pop("V3IO_USERNAME", None)
     environ["V3IO_USERNAME"] = "some_user"
     monkeypatch.setattr(getpass, "getuser", mock_getpwuid_raise)
     spec = tag_test(base_spec, "test_run_local")
@@ -53,6 +49,10 @@ def test_run_local_with_uid_does_not_exist(monkeypatch):
         spec, command=f"{examples_path}/training.py", workdir=examples_path
     )
     verify_state(result)
+    if old_v3io_username is not None:
+        environ["V3IO_USERNAME"] = old_v3io_username
+    else:
+        del environ["V3IO_USERNAME"]
 
 
 def test_run_local_handler():

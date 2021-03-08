@@ -2,72 +2,68 @@
 
 from .artifact import ArtifactCategories
 from .background_task import (
-    BackgroundTaskState,
     BackgroundTask,
     BackgroundTaskMetadata,
     BackgroundTaskSpec,
+    BackgroundTaskState,
     BackgroundTaskStatus,
 )
-from .constants import Format, PatchMode, HeaderNames, DeletionStrategy
+from .constants import DeletionStrategy, Format, HeaderNames, PatchMode
 from .feature_store import (
-    Feature,
-    FeatureRecord,
+    EntitiesOutput,
     Entity,
+    EntityListOutput,
     EntityRecord,
-    FeatureSetSpec,
+    Feature,
+    FeatureListOutput,
+    FeatureRecord,
     FeatureSet,
-    FeatureSetRecord,
-    FeatureSetsOutput,
     FeatureSetDigestOutput,
     FeatureSetDigestSpec,
-    FeatureListOutput,
+    FeatureSetRecord,
+    FeatureSetsOutput,
+    FeatureSetSpec,
     FeaturesOutput,
-    EntityListOutput,
-    EntitiesOutput,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
 from .model_endpoints import (
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpoint,
-    ModelEndpointStateList,
-    ModelEndpointState,
-    ModelEndpointStatus,
     Features,
     FeatureValues,
-    Histogram,
-    Metric,
     GrafanaColumn,
+    GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaStringColumn,
     GrafanaTable,
     GrafanaTimeSeries,
     GrafanaTimeSeriesTarget,
-    GrafanaDataPoint,
+    Histogram,
+    Metric,
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointState,
+    ModelEndpointStateList,
+    ModelEndpointStatus,
 )
-from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
-from .pipeline import PipelinesPagination, PipelinesOutput
+from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     Project,
     ProjectMetadata,
-    ProjectSpec,
     ProjectsOutput,
-    ProjectStatus,
+    ProjectSpec,
     ProjectState,
+    ProjectStatus,
 )
 from .schedule import (
-    SchedulesOutput,
-    ScheduleOutput,
     ScheduleCronTrigger,
-    ScheduleKinds,
-    ScheduleUpdate,
     ScheduleInput,
+    ScheduleKinds,
+    ScheduleOutput,
     ScheduleRecord,
+    SchedulesOutput,
+    ScheduleUpdate,
 )
-from .secret import (
-    SecretsData,
-    SecretProviderName,
-    UserSecretCreationRequest,
-)
+from .secret import SecretProviderName, SecretsData, UserSecretCreationRequest

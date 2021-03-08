@@ -1,18 +1,21 @@
-import unittest.mock
-from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.utils import create_logger
-from mlrun.runtimes.constants import PodPhases
-from kubernetes import client
-from datetime import datetime, timezone
-from copy import deepcopy
-from mlrun.config import config as mlconf
 import json
-from mlrun.model import new_task
-import deepdiff
 import pathlib
 import sys
+import unittest.mock
 from base64 import b64encode
+from copy import deepcopy
+from datetime import datetime, timezone
+
+import deepdiff
+from kubernetes import client
 from kubernetes.client import V1EnvVar
+
+from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.config import config as mlconf
+from mlrun.model import new_task
+from mlrun.runtimes.constants import PodPhases
+from mlrun.utils import create_logger
+from mlrun.utils.vault import VaultStore
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -29,6 +32,10 @@ class TestRuntimeBase:
         self.artifact_path = "/tmp"
         self.function_name_label = "mlrun/name"
         self.code_filename = str(self.assets_path / "sample_function.py")
+
+        self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
+        self.vault_secret_value = "secret123!@"
+        self.vault_secret_name = "vault-secret"
 
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -99,6 +106,24 @@ class TestRuntimeBase:
 
         get_k8s().v1api.create_namespaced_pod = unittest.mock.Mock(
             side_effect=_generate_pod
+        )
+
+    # Vault now supported in KubeJob and Serving, so moved to base.
+    def _mock_vault_functionality(self):
+        secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
+        VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
+
+        object_meta = client.V1ObjectMeta(
+            name="test-service-account", namespace=self.namespace
+        )
+        secret = client.V1ObjectReference(
+            name=self.vault_secret_name, namespace=self.namespace
+        )
+        service_account = client.V1ServiceAccount(
+            metadata=object_meta, secrets=[secret]
+        )
+        get_k8s().v1api.read_namespaced_service_account = unittest.mock.Mock(
+            return_value=service_account
         )
 
     def _execute_run(self, runtime, **kwargs):

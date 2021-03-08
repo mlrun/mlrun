@@ -1,9 +1,9 @@
 import getpass
-import pathlib
-import pytest
 import os
+import pathlib
 
 import deepdiff
+import pytest
 
 import mlrun
 import mlrun.errors

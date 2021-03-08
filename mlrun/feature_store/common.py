@@ -14,6 +14,7 @@
 
 import mlrun
 from mlrun.utils import parse_versioned_object_uri
+
 from ..config import config
 
 feature_separator = "."

@@ -21,10 +21,10 @@ Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
+import base64
 import copy
 import json
 import os
-import base64
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
@@ -360,15 +360,6 @@ def read_env(env=None, prefix=env_prefix):
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
-
-    # TODO: remove this - and verify dbpath is set correctly in all flows
-    # Here we're just guessing that there is a service named mlrun-api, if there is, there will be an env var for it's
-    # port - MLRUN_API_PORT - so we're using the env var existence to know whether our guess is right.
-    # the existence of config.httpdb.api_url tell that we're running in an API context so no need to set the dbpath
-    svc = env.get("MLRUN_API_PORT")
-    if svc and not config.get("dbpath") and not config.get("httpdb", {}).get("api_url"):
-        port = default_config["httpdb"]["port"] or 8080
-        config["dbpath"] = f"http://mlrun-api:{port}"
 
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API)

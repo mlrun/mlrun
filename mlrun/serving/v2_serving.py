@@ -14,8 +14,8 @@
 import threading
 import time
 import traceback
-from typing import Dict
 from datetime import datetime
+from typing import Dict
 
 import mlrun
 from mlrun.utils import now_date

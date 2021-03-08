@@ -25,12 +25,11 @@ import mlrun
 from mlrun.db import get_run_db
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
-from .generators import selector
+
 from ..artifacts import TableArtifact
 from ..config import config
-from ..utils import get_in
-from ..utils import logger
-from ..utils import helpers
+from ..utils import get_in, helpers, logger
+from .generators import selector
 
 
 class RunError(Exception):
@@ -169,10 +168,10 @@ def add_code_metadata(path=""):
 
     try:
         from git import (
-            Repo,
-            InvalidGitRepositoryError,
             GitCommandNotFound,
+            InvalidGitRepositoryError,
             NoSuchPathError,
+            Repo,
         )
     except ImportError:
         return None
@@ -233,7 +232,7 @@ def results_to_iter(results, runspec, execution):
     if not runspec:
         return summary
 
-    criteria = runspec.spec.selector
+    criteria = runspec.spec.hyper_param_options.selector
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
         logger.warning(
@@ -257,7 +256,7 @@ def results_to_iter(results, runspec, execution):
     )
     if failed:
         execution.set_state(
-            error=f"{failed} or {len(results)} tasks failed, check logs in db for details",
+            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
             commit=False,
         )
     elif running == 0:

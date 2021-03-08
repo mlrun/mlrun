@@ -1,11 +1,12 @@
-import alembic
-import alembic.config
 import os.path
 import pathlib
-import pytest
 import shutil
 import typing
 import unittest.mock
+
+import alembic
+import alembic.config
+import pytest
 
 import mlrun.api.utils.alembic
 from mlrun import mlconf

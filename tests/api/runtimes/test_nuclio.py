@@ -1,15 +1,17 @@
+import base64
 import os
+import unittest.mock
+
+import deepdiff
+import nuclio
 import pytest
-from tests.api.runtimes.base import TestRuntimeBase
-from mlrun.runtimes.function import deploy_nuclio_function
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from mlrun import code_to_function
-import unittest.mock
-import nuclio
-import deepdiff
-import base64
 from mlrun.platforms.iguazio import split_path
+from mlrun.runtimes.function import deploy_nuclio_function
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestNuclioRuntime(TestRuntimeBase):
@@ -23,12 +25,13 @@ class TestNuclioRuntime(TestRuntimeBase):
     def custom_setup(self):
         self.image_name = "test/image:latest"
         self.code_handler = "test_func"
+
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
     @staticmethod
     def _mock_nuclio_deploy_config():
-        nuclio.deploy.deploy_config = unittest.mock.Mock()
+        nuclio.deploy.deploy_config = unittest.mock.Mock(return_value="some-server")
 
     @staticmethod
     def _get_expected_struct_for_http_trigger(parameters):
@@ -84,29 +87,43 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         return runtime
 
-    def _assert_deploy_called_basic_config(self):
+    def _assert_deploy_called_basic_config(
+        self, expected_class="remote", call_count=1, expected_params=[]
+    ):
         deploy_mock = nuclio.deploy.deploy_config
-        deploy_mock.assert_called_once()
+        assert deploy_mock.call_count == call_count
 
-        full_function_name = f"{self.project}-{self.name}"
+        call_args_list = deploy_mock.call_args_list
+        for single_call_args in call_args_list:
+            args, kwargs = single_call_args
+            if expected_params:
+                current_parameters = expected_params.pop(0)
+                expected_function_name = current_parameters["function_name"]
+                source_filename = current_parameters["file_name"]
+            else:
+                expected_function_name = f"{self.project}-{self.name}"
+                source_filename = self.code_filename
 
-        args, kwargs = deploy_mock.call_args
+            assert kwargs["name"] == expected_function_name
+            assert kwargs["project"] == self.project
 
-        assert kwargs["name"] == full_function_name
-        assert kwargs["project"] == self.project
+            deploy_config = args[0]
+            function_metadata = deploy_config["metadata"]
+            assert function_metadata["name"] == expected_function_name
+            expected_labels = {"mlrun/class": expected_class}
+            assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
 
-        deploy_config = args[0]
-        function_metadata = deploy_config["metadata"]
-        assert function_metadata["name"] == full_function_name
-        expected_labels = {"mlrun/class": "remote"}
-        assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
+            build_info = deploy_config["spec"]["build"]
 
-        code_base64 = base64.b64encode(open(self.code_filename, "rb").read()).decode(
-            "utf-8"
-        )
-        build_info = deploy_config["spec"]["build"]
-        assert build_info["functionSourceCode"] == code_base64
-        assert build_info["baseImage"] == self.image_name
+            # Nuclio source code in some cases adds a suffix to the code, initializing nuclio context.
+            # We just verify that the code provided starts with our code.
+            original_source_code = open(source_filename, "r").read()
+            spec_source_code = base64.b64decode(
+                build_info["functionSourceCode"]
+            ).decode("utf-8")
+            assert spec_source_code.startswith(original_source_code)
+
+            assert build_info["baseImage"] == self.image_name
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
         args, _ = nuclio.deploy.deploy_config.call_args

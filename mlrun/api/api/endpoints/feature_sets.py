@@ -1,13 +1,13 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Response, Query, Header
+from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.api.utils import parse_reference
+from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
 

@@ -14,27 +14,28 @@
 import datetime
 import inspect
 import socket
-from os import environ
 import time
+from os import environ
 from typing import Dict, List
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-from mlrun.api.db.base import DBInterface
 import mlrun.api.schemas
+from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
-from .base import FunctionStatus
-from .kubejob import KubejobRuntime
-from .local import load_module, exec_from_params
-from .pod import KubeResourceSpec
-from .utils import get_resource_labels, get_func_selector, log_std, RunError
+
 from ..config import config
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..model import RunObject
 from ..render import ipython_display
-from ..utils import update_in, logger, normalize_name
+from ..utils import logger, normalize_name, update_in
+from .base import FunctionStatus
+from .kubejob import KubejobRuntime
+from .local import exec_from_params, load_module
+from .pod import KubeResourceSpec
+from .utils import RunError, get_func_selector, get_resource_labels, log_std
 
 
 def get_dask_resource():
@@ -96,9 +97,7 @@ class DaskSpec(KubeResourceSpec):
         self.args = args
 
         self.extra_pip = extra_pip
-        self.remote = remote
-        if replicas or min_replicas or max_replicas:
-            self.remote = True
+        self.remote = True if remote is None else remote  # make remote the default
 
         self.service_type = service_type
         self.kfp_image = kfp_image
@@ -301,9 +300,22 @@ class DaskCluster(KubejobRuntime):
         except ValueError:
             return Client()
 
-    def deploy(self, watch=True, with_mlrun=False, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
-        return super().deploy(watch, with_mlrun, skip_deployed, is_kfp=is_kfp)
+        return super().deploy(
+            watch,
+            with_mlrun,
+            skip_deployed,
+            is_kfp=is_kfp,
+            mlrun_version_specifier=mlrun_version_specifier,
+        )
 
     def _run(self, runobj: RunObject, execution):
 
@@ -337,10 +349,10 @@ def deploy_function(function: DaskCluster, secrets=None):
 
     # TODO: why is this here :|
     try:
-        from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
-        from dask.distributed import Client, default_client  # noqa: F401
-        from kubernetes_asyncio import client
         import dask
+        from dask.distributed import Client, default_client  # noqa: F401
+        from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
+        from kubernetes_asyncio import client
     except ImportError as exc:
         print(
             "missing dask or dask_kubernetes, please run "

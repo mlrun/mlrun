@@ -15,13 +15,13 @@ import inspect
 import json
 import socket
 
-from .serving import serving_subkind
 from ..db import get_or_set_dburl
-from ..model import RunTemplate
 from ..execution import MLClientCtx
-from ..serving.v1_serving import nuclio_serving_init
+from ..model import RunTemplate
 from ..serving.server import v2_serving_init
+from ..serving.v1_serving import nuclio_serving_init
 from .local import get_func_arg
+from .serving import serving_subkind
 
 
 def nuclio_init_hook(context, data, kind):

@@ -1,15 +1,15 @@
-import click
 import json
-import paramiko
 import pathlib
-import requests
 import subprocess
 import sys
-import yaml
 import time
 
-import mlrun.utils
+import click
+import paramiko
+import requests
+import yaml
 
+import mlrun.utils
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 

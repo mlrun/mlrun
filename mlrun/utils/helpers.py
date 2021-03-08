@@ -13,29 +13,30 @@
 # limitations under the License.
 
 import hashlib
+import inspect
 import json
 import re
 import sys
 import time
+from datetime import datetime, timezone
+from importlib import import_module
+from os import environ, path
 from types import ModuleType
 from typing import Optional, Tuple
-from datetime import datetime, timezone
-from dateutil import parser
-from os import path, environ
-from importlib import import_module
-import inspect
 
 import numpy as np
 import requests
 import yaml
+from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-import mlrun.utils.version.version
 import mlrun.errors
-from .logger import create_logger
+import mlrun.utils.version.version
+
 from ..config import config
+from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -383,6 +384,31 @@ def parse_versioned_object_uri(uri, default_project=""):
         uri = uri[:loc]
 
     return project, uri, tag, hash_key
+
+
+def parse_artifact_uri(uri, default_project=""):
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    match = re.match(uri_pattern, uri)
+    if not match:
+        raise ValueError(
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+        )
+    group_dict = match.groupdict()
+    iteration = group_dict["iteration"]
+    if iteration is not None:
+        try:
+            iteration = int(iteration)
+        except ValueError:
+            raise ValueError(
+                f"illegal store path {uri}, iteration must be integer value"
+            )
+    return (
+        group_dict["project"] or default_project,
+        group_dict["key"],
+        iteration,
+        group_dict["tag"],
+        group_dict["uid"],
+    )
 
 
 def generate_object_uri(project, name, tag=None, hash_key=None):
@@ -758,7 +784,7 @@ def _module_to_namespace(namespace):
     return namespace
 
 
-def get_class(class_name, namespace):
+def get_class(class_name, namespace=None):
     """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name

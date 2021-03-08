@@ -1,30 +1,30 @@
 import json
 from http import HTTPStatus
-from typing import List, Dict, Any, Callable, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Response, Request
+from fastapi import APIRouter, Request, Response
 
 from mlrun.api.crud.model_endpoints import (
-    ModelEndpoints,
-    get_access_key,
-    deserialize_endpoint_from_kv,
     ENDPOINT_EVENTS_TABLE_PATH,
+    ModelEndpoints,
+    deserialize_endpoint_from_kv,
     deserialize_endpoint_state_from_kv,
+    get_access_key,
 )
 from mlrun.api.schemas import (
-    GrafanaTable,
+    Format,
     GrafanaColumn,
+    GrafanaDataPoint,
     GrafanaNumberColumn,
+    GrafanaTable,
     GrafanaTimeSeries,
     GrafanaTimeSeriesTarget,
-    GrafanaDataPoint,
-    Format,
 )
 from mlrun.db import get_run_db
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils import logger, config
+from mlrun.utils import config, logger
 from mlrun.utils.v3io_clients import get_frames_client
 
 router = APIRouter()

@@ -1,8 +1,8 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
 from .data_types import InferOptions, pd_schema_to_value_type
-from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
 default_num_bins = 20
 

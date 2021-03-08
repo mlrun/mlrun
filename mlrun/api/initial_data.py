@@ -2,16 +2,18 @@ import collections
 import datetime
 import os
 import pathlib
-import sqlalchemy.orm
 import typing
 
-from mlrun.api.db.init_db import init_db
+import sqlalchemy.orm
+
 import mlrun.api.db.sqldb.db
 import mlrun.api.db.sqldb.models
 import mlrun.api.schemas
 import mlrun.artifacts
-from mlrun.api.db.session import create_session, close_session
+from mlrun.api.db.init_db import init_db
+from mlrun.api.db.session import close_session, create_session
 from mlrun.utils import logger
+
 from .utils.alembic import AlembicUtil
 
 

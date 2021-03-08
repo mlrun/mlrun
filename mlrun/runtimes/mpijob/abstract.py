@@ -17,13 +17,14 @@ import time
 import typing
 
 from kubernetes import client
+
 from mlrun.config import config
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
+from mlrun.runtimes.pod import KubeResourceSpec
 from mlrun.runtimes.utils import AsyncLogWriter, RunError
 from mlrun.utils import get_in, logger
-from mlrun.runtimes.pod import KubeResourceSpec
 
 
 class MPIResourceSpec(KubeResourceSpec):

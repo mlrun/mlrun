@@ -5,9 +5,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from .base import (
-    _patch_object,
-    _list_and_assert_objects,
     _assert_diff_as_expected_except_for_specific_metadata,
+    _list_and_assert_objects,
+    _patch_object,
 )
 
 
@@ -151,19 +151,17 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
 
     # Put a new object - verify it's created
     response = _assert_store_feature_vector(
-        client, project_name, name, "latest", feature_vector
+        client, project_name, name, "tag1", feature_vector
     )
     uid = response["metadata"]["uid"]
     # Change fields that will not affect the uid, verify object is overwritten
     feature_vector["status"]["state"] = "modified"
 
     response = _assert_store_feature_vector(
-        client, project_name, name, "latest", feature_vector
+        client, project_name, name, "tag1", feature_vector
     )
     assert response["metadata"]["uid"] == uid
     assert response["status"]["state"] == "modified"
-
-    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 1)
 
     # Now modify in a way that will affect uid, add a field to the metadata.
     # Since referencing the object as "latest", a new version (with new uid) should be created.
@@ -184,6 +182,35 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
         json=feature_vector,
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+
+def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_vector1"
+    feature_vector = _generate_feature_vector(name)
+
+    _assert_store_feature_vector(client, project_name, name, "tag1", feature_vector)
+
+    _assert_store_feature_vector(client, project_name, name, "tag2", feature_vector)
+
+    response = _list_and_assert_objects(
+        client, "feature_vectors", project_name, f"name={name}", 2
+    )["feature_vectors"]
+    expected_tags = {"tag1", "tag2"}
+    returned_tags = set()
+    for feature_vector_response in response:
+        returned_tags.add(feature_vector_response["metadata"]["tag"])
+    assert expected_tags == returned_tags
+
+    # Storing object with same tag - should just update
+    feature_vector["metadata"]["extra_metadata"] = 200
+    _assert_store_feature_vector(client, project_name, name, "tag2", feature_vector)
+
+    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 2)
+    response = _list_and_assert_objects(
+        client, "feature_vectors", project_name, f"name={name}&tag=tag2", 1
+    )["feature_vectors"]
+    assert response[0]["metadata"]["extra_metadata"] == 200
 
 
 def test_feature_vector_patch(db: Session, client: TestClient) -> None:

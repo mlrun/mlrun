@@ -1,13 +1,15 @@
 import os
 import unittest
-from tests.api.runtimes.base import TestRuntimeBase
+
+from dask import distributed
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 import mlrun
-from mlrun.platforms import auto_mount
-from dask import distributed
 from mlrun import mlconf
+from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestDaskRuntime(TestRuntimeBase):

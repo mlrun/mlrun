@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tests.conftest import (
-    out_path,
-    tag_test,
-    verify_state,
-)
-from mlrun import new_task, run_local
-import numpy as np
-import pandas as pd
 import datetime
 from pprint import pprint
+
+import numpy as np
+import pandas as pd
+
+from mlrun import new_task, run_local
+from tests.conftest import out_path, tag_test, verify_state
 
 
 def my_func(context):
@@ -46,7 +44,7 @@ def my_func(context):
         "y": [25, 94, 0.1, 57, datetime.datetime(2018, 1, 1)],
     }
     df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "x", "y"])
-    context.log_dataset("df1", df=df)
+    context.log_dataset("df1", df=df, format="csv")
 
     date_rng = pd.date_range("2018-01-01", periods=4, freq="H")
     df = pd.DataFrame(date_rng, columns=["date"])

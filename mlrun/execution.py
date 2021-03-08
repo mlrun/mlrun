@@ -84,7 +84,7 @@ class MLClientCtx(object):
         self._function = ""
         self._parameters = {}
         self._hyperparams = {}
-        self._hyper_options = HyperParamOptions()
+        self._hyper_param_options = HyperParamOptions()
         self._in_path = ""
         self.artifact_path = ""
         self._inputs = {}
@@ -255,10 +255,12 @@ class MLClientCtx(object):
             self._parameters = spec.get("parameters", self._parameters)
             if not self._iteration:
                 self._hyperparams = spec.get("hyperparams", self._hyperparams)
-                self._hyper_options = spec.get("hyper_options", self._hyper_options)
-                if isinstance(self._hyper_options, dict):
-                    self._hyper_options = HyperParamOptions.from_dict(
-                        self._hyper_options
+                self._hyper_param_options = spec.get(
+                    "hyper_param_options", self._hyper_param_options
+                )
+                if isinstance(self._hyper_param_options, dict):
+                    self._hyper_param_options = HyperParamOptions.from_dict(
+                        self._hyper_param_options
                     )
             self._outputs = spec.get("outputs", self._outputs)
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
@@ -850,7 +852,7 @@ class MLClientCtx(object):
 
         if not self._iteration:
             struct["spec"]["hyperparams"] = self._hyperparams
-            struct["spec"]["hyper_options"] = self._hyper_options.to_dict()
+            struct["spec"]["hyper_param_options"] = self._hyper_param_options.to_dict()
 
         set_if_valid(struct["status"], "error", self._error)
         set_if_valid(struct["status"], "commit", self._commit)

@@ -16,30 +16,25 @@ import random
 import pandas as pd
 import sys
 from copy import deepcopy
-from ..model import RunObject, HyperParamOptions
+from ..model import RunObject, HyperParamOptions, RunSpec
 from ..utils import get_in
 
 
 hyper_types = ["list", "grid", "random"]
-default_max_evals = 10
+default_max_iterations = 10
 default_max_errors = 3
 
 
-def is_hyper_job(spec):
-    param_file = spec.param_file or spec.hyper_options.param_file
-    return param_file or spec.hyperparams
-
-
-def get_generator(spec, execution):
-    options = spec.hyper_options
+def get_generator(spec: RunSpec, execution):
+    options = spec.hyper_param_options
     strategy = spec.strategy or options.strategy
-    if not is_hyper_job(spec) or strategy == "custom":
+    if not spec.is_hyper_job() or strategy == "custom":
         return None
-
+    options.validate()
     hyperparams = spec.hyperparams
     param_file = spec.param_file or options.param_file
     if strategy and strategy not in hyper_types:
-        raise ValueError(f"unsupported hyperparams type ({strategy})")
+        raise ValueError(f"unsupported hyper params strategy  ({strategy})")
 
     if param_file and hyperparams:
         raise ValueError("hyperparams and param_file cannot be used together")
@@ -74,15 +69,15 @@ class TaskGenerator:
         self.options = options
 
     def use_parallel(self):
-        return self.options.parallelism or self.options.dask_cluster_uri
+        return self.options.parallel_runs or self.options.dask_cluster_uri
 
     @property
     def max_errors(self):
         return self.options.max_errors or default_max_errors
 
     @property
-    def max_evals(self):
-        return self.options.max_evals or default_max_evals
+    def max_iterations(self):
+        return self.options.max_iterations or default_max_iterations
 
     def generate(self, run: RunObject):
         pass
@@ -136,7 +131,7 @@ class RandomGenerator(TaskGenerator):
     def generate(self, run: RunObject):
         i = 0
 
-        while i < self.max_evals:
+        while i < self.max_iterations:
             newrun = get_run_copy(run)
             param_dict = newrun.spec.parameters or {}
             params = {k: random.sample(v, 1)[0] for k, v in self.hyperparams.items()}
@@ -170,7 +165,7 @@ def get_run_copy(run):
     newrun = deepcopy(run)
     newrun.spec.hyperparams = None
     newrun.spec.param_file = None
-    newrun.spec.hyper_options = None
+    newrun.spec.hyper_param_options = None
     return newrun
 
 

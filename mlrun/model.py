@@ -326,17 +326,33 @@ class RunMetadata(ModelObj):
         self._iteration = iteration
 
 
+class HyperParamStrategies:
+    grid = "grid"
+    list = "list"
+    random = "random"
+    custom = "custom"
+
+    @staticmethod
+    def all():
+        return [
+            HyperParamStrategies.grid,
+            HyperParamStrategies.list,
+            HyperParamStrategies.random,
+            HyperParamStrategies.custom,
+        ]
+
+
 class HyperParamOptions(ModelObj):
     """Hyper Parameter Options
 
     Parameters:
         param_file (str):       hyper params input file path/url, instead of inline
         strategy (str):         hyper param strategy - grid, list or random
-        selector (str):         selection criteria for best result ([min|max.]<column>), e.g. max.accuracy
+        selector (str):         selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
         stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
-        parallelism (int):      number of param combinations to run in parallel (over Dask)
+        parallel_runs (int):    number of param combinations to run in parallel (over Dask)
         dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
-        max_evals (int):        max number of runs (in random strategy)
+        max_iterations (int):   max number of runs (in random strategy)
         max_errors (int):       max number of child runs errors for the overall job to fail
         teardown_dask (bool):   kill the dask cluster pods after the runs
     """
@@ -345,11 +361,11 @@ class HyperParamOptions(ModelObj):
         self,
         param_file=None,
         strategy=None,
-        selector=None,
+        selector: HyperParamStrategies = None,
         stop_condition=None,
-        parallelism=None,
+        parallel_runs=None,
         dask_cluster_uri=None,
-        max_evals=None,
+        max_iterations=None,
         max_errors=None,
         teardown_dask=None,
     ):
@@ -357,11 +373,21 @@ class HyperParamOptions(ModelObj):
         self.strategy = strategy
         self.selector = selector
         self.stop_condition = stop_condition
-        self.max_evals = max_evals
+        self.max_iterations = max_iterations
         self.max_errors = max_errors
-        self.parallelism = parallelism
+        self.parallel_runs = parallel_runs
         self.dask_cluster_uri = dask_cluster_uri
         self.teardown_dask = teardown_dask
+
+    def validate(self):
+        if self.strategy and self.strategy not in HyperParamStrategies.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"illegal hyper param strategy, use {','.join(HyperParamStrategies.all())}"
+            )
+        if self.max_iterations and self.strategy != HyperParamStrategies.random:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "max_iterations is only valid in random strategy"
+            )
 
 
 class RunSpec(ModelObj):
@@ -384,14 +410,14 @@ class RunSpec(ModelObj):
         strategy=None,
         verbose=None,
         scrape_metrics=False,
-        hyper_options=None,
+        hyper_param_options=None,
     ):
 
-        self._hyper_options = None
+        self._hyper_param_options = None
         self._inputs = inputs
         self._outputs = outputs
 
-        self.hyper_options = hyper_options
+        self.hyper_param_options = hyper_param_options
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
@@ -412,6 +438,10 @@ class RunSpec(ModelObj):
             struct["handler"] = self.handler
         return struct
 
+    def is_hyper_job(self):
+        param_file = self.param_file or self.hyper_param_options.param_file
+        return param_file or self.hyperparams
+
     @property
     def inputs(self):
         return self._inputs
@@ -421,13 +451,13 @@ class RunSpec(ModelObj):
         self._inputs = self._verify_dict(inputs, "inputs")
 
     @property
-    def hyper_options(self) -> HyperParamOptions:
-        return self._hyper_options
+    def hyper_param_options(self) -> HyperParamOptions:
+        return self._hyper_param_options
 
-    @hyper_options.setter
-    def hyper_options(self, hyper_options):
-        self._hyper_options = self._verify_dict(
-            hyper_options, "inputs", HyperParamOptions
+    @hyper_param_options.setter
+    def hyper_param_options(self, hyper_param_options):
+        self._hyper_param_options = self._verify_dict(
+            hyper_param_options, "hyper_param_options", HyperParamOptions
         )
 
     @property
@@ -521,27 +551,68 @@ class RunTemplate(ModelObj):
         self._metadata = self._verify_dict(metadata, "metadata", RunMetadata)
 
     def with_params(self, **kwargs):
+        """set task parameters using key=value, key2=value2, .."""
         self.spec.parameters = kwargs
         return self
 
     def with_input(self, key, path):
+        """set task data input, path is an Mlrun global DataItem uri
+
+        examples::
+
+            task.with_input("data", "/file-dir/path/to/file")
+            task.with_input("data", "s3://<bucket>/path/to/file")
+            task.with_input("data", "v3io://[<remote-host>]/<data-container>/path/to/file")
+        """
         if not self.spec.inputs:
             self.spec.inputs = {}
         self.spec.inputs[key] = path
         return self
 
-    def with_hyper_params(self, hyperparams, selector=None, strategy=None, **options):
+    def with_hyper_params(
+        self,
+        hyperparams,
+        selector=None,
+        strategy: HyperParamStrategies = None,
+        **options,
+    ):
+        """set hyper param values and configurations,
+        see parameters in: :py:class:`HyperParamOptions`
+
+        example::
+
+            grid_params = {"p1": [2,4,1], "p2": [10,20]}
+            task = mlrun.new_task("grid-search")
+            task.with_hyper_params(grid_params, selector="max.accuracy")
+        """
         self.spec.hyperparams = hyperparams
-        self.spec.hyper_options = options
-        self.spec.hyper_options.selector = selector
-        self.spec.hyper_options.strategy = strategy
+        self.spec.hyper_param_options = options
+        self.spec.hyper_param_options.selector = selector
+        self.spec.hyper_param_options.strategy = strategy
+        self.spec.hyper_param_options.validate()
         return self
 
-    def with_param_file(self, param_file, selector=None, strategy=None, **options):
-        self.spec.hyper_options = options
-        self.spec.hyper_options.param_file = param_file
-        self.spec.hyper_options.selector = selector
-        self.spec.hyper_options.strategy = strategy
+    def with_param_file(
+        self,
+        param_file,
+        selector=None,
+        strategy: HyperParamStrategies = None,
+        **options,
+    ):
+        """set hyper param values (from a file url) and configurations,
+        see parameters in: :py:class:`HyperParamOptions`
+
+        example::
+
+            grid_params = "s3://<my-bucket>/path/to/params.json"
+            task = mlrun.new_task("grid-search")
+            task.with_param_file(grid_params, selector="max.accuracy")
+        """
+        self.spec.hyper_param_options = options
+        self.spec.hyper_param_options.param_file = param_file
+        self.spec.hyper_param_options.selector = selector
+        self.spec.hyper_param_options.strategy = strategy
+        self.spec.hyper_param_options.validate()
         return self
 
     def with_secrets(self, kind, source):
@@ -567,6 +638,7 @@ class RunTemplate(ModelObj):
         return self
 
     def set_label(self, key, value):
+        """set a key/value label for the task"""
         self.metadata.labels[key] = str(value)
         return self
 
@@ -600,6 +672,7 @@ class RunObject(RunTemplate):
         self._status = self._verify_dict(status, "status", RunStatus)
 
     def output(self, key):
+        """return the value of a specific result or artifact by key"""
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
         artifact = self.artifact(key)
@@ -609,6 +682,7 @@ class RunObject(RunTemplate):
 
     @property
     def outputs(self):
+        """return a dict of outputs, result values and artifact uris"""
         outputs = {}
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
@@ -618,6 +692,7 @@ class RunObject(RunTemplate):
         return outputs
 
     def artifact(self, key):
+        """return artifact metadata by key"""
         if self.status.artifacts:
             for a in self.status.artifacts:
                 if a["key"] == key:
@@ -625,9 +700,11 @@ class RunObject(RunTemplate):
         return None
 
     def uid(self):
+        """run unique id"""
         return self.metadata.uid
 
     def state(self):
+        """current run state"""
         db = mlrun.get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
@@ -638,10 +715,12 @@ class RunObject(RunTemplate):
             return get_in(run, "status.state", "unknown")
 
     def show(self):
+        """show the current status widget, in jupyter notebook"""
         db = mlrun.get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
     def logs(self, watch=True, db=None):
+        """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
         if not db:
@@ -753,7 +832,7 @@ def new_task(
     hyper_params=None,
     param_file=None,
     selector=None,
-    hyper_options=None,
+    hyper_param_options=None,
     inputs=None,
     outputs=None,
     in_path=None,
@@ -774,7 +853,7 @@ def new_task(
     :param param_file:      a csv file with parameter combinations, first row hold
                             the parameter names, following rows hold param values
     :param selector:        selection criteria for hyper params e.g. "max.accuracy"
-    :param hyper_options:   hyper parameter options, see: :py:class:`HyperParamOptions`
+    :param hyper_param_options:   hyper parameter options, see: :py:class:`HyperParamOptions`
     :param inputs:          dictionary of input objects + optional paths (if path is
                             omitted the path will be the in_path/key.
     :param outputs:         dictionary of input objects + optional paths (if path is
@@ -802,9 +881,13 @@ def new_task(
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
 
     run.spec.hyperparams = hyper_params or run.spec.hyperparams
-    run.spec.hyper_options = hyper_options or run.spec.hyper_options
-    run.spec.hyper_options.param_file = param_file or run.spec.hyper_options.param_file
-    run.spec.hyper_options.selector = selector or run.spec.hyper_options.selector
+    run.spec.hyper_param_options = hyper_param_options or run.spec.hyper_param_options
+    run.spec.hyper_param_options.param_file = (
+        param_file or run.spec.hyper_param_options.param_file
+    )
+    run.spec.hyper_param_options.selector = (
+        selector or run.spec.hyper_param_options.selector
+    )
     return run
 
 

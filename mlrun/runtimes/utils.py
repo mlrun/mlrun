@@ -233,7 +233,7 @@ def results_to_iter(results, runspec, execution):
     if not runspec:
         return summary
 
-    criteria = runspec.spec.hyper_options.selector
+    criteria = runspec.spec.hyper_param_options.selector
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
         logger.warning(

@@ -98,10 +98,12 @@ def main():
     help="how to select the best result from a list, e.g. max.accuracy",
 )
 @click.option(
-    "--strategy", default="", help="hyperparam tuning strategy list | grid | random",
+    "--hyper-param-strategy",
+    default="",
+    help="hyperparam tuning strategy list | grid | random",
 )
 @click.option(
-    "--hyper-options", default="", help="hyperparam options json string",
+    "--hyper-param-options", default="", help="hyperparam options json string",
 )
 @click.option(
     "--func-url",
@@ -146,8 +148,8 @@ def run(
     hyperparam,
     param_file,
     selector,
-    strategy,
-    hyper_options,
+    hyper_param_strategy,
+    hyper_param_options,
     func_url,
     task,
     handler,
@@ -235,11 +237,11 @@ def run(
     set_item(runobj.spec, param, "parameters", fill_params(param))
 
     set_item(runobj.spec, hyperparam, "hyperparams", fill_params(hyperparam))
-    if hyper_options:
-        runobj.spec.hyper_options = json.loads(hyper_options)
-    set_item(runobj.spec.hyper_options, param_file, "param_file")
-    set_item(runobj.spec.hyper_options, strategy, "strategy")
-    set_item(runobj.spec.hyper_options, selector, "selector")
+    if hyper_param_options:
+        runobj.spec.hyper_param_options = json.loads(hyper_param_options)
+    set_item(runobj.spec.hyper_param_options, param_file, "param_file")
+    set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
+    set_item(runobj.spec.hyper_param_options, selector, "selector")
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
     set_item(runobj.spec, in_path, run_keys.input_path)

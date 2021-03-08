@@ -65,7 +65,7 @@ class ParallelRunner:
         _, handler = self._get_handler(handler)
 
         client, function_name = self._get_dask_client(generator.options)
-        parallelism = generator.options.parallelism or 4
+        parallel_runs = generator.options.parallel_runs or 4
         queued_runs = 0
         result_index = 0
         num_errors = 0
@@ -82,7 +82,7 @@ class ParallelRunner:
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:
-                logger.error("too many errors, stopping iterations!")
+                logger.error("max errors reached, stopping iterations!")
                 return True
             run_results = resp["status"].get("results", {})
             stop = generator.eval_stop_condition(run_results)
@@ -94,13 +94,12 @@ class ParallelRunner:
 
         futures = []
         for task in tasks:
-            # self.store_run(task)
             resp = client.submit(
                 remote_handler_wrapper, task.to_json(), handler, self.spec.workdir
             )
             futures.append(resp)
             queued_runs += 1
-            if queued_runs >= parallelism:
+            if queued_runs >= parallel_runs:
                 early_stop = process_result(futures[result_index])
                 queued_runs -= 1
                 result_index += 1

@@ -154,7 +154,7 @@ def mlrun_op(
     mode: str = "",
     handler: str = "",
     more_args: list = None,
-    hyper_options=None,
+    hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
 ):
@@ -181,7 +181,7 @@ def mlrun_op(
     :param param_file:  a csv/json file with parameter combinations, first csv row hold
                         the parameter names, following rows hold param values
     :param selector: selection criteria for hyperparams e.g. "max.accuracy"
-    :param hyper_options: hyper param options class, see: :py:class:`~mlrun.model.HyperParamOptions`
+    :param hyper_param_options: hyper param options class, see: :py:class:`~mlrun.model.HyperParamOptions`
     :param labels:   labels to tag the job/run with ({key:val, ..})
     :param inputs:   dictionary of input objects + optional paths (if path is
                      omitted the path will be the in_path/key.
@@ -240,8 +240,8 @@ def mlrun_op(
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
-    if hyper_options and isinstance(hyper_options, dict):
-        hyper_options = HyperParamOptions.from_dict(hyper_options)
+    if hyper_param_options and isinstance(hyper_param_options, dict):
+        hyper_param_options = HyperParamOptions.from_dict(hyper_param_options)
     inputs = {} if inputs is None else inputs
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
@@ -286,11 +286,13 @@ def mlrun_op(
         params = params or runobj.spec.parameters
         hyperparams = hyperparams or runobj.spec.hyperparams
         param_file = (
-            param_file or runobj.spec.param_file or runobj.spec.hyper_options.param_file
+            param_file
+            or runobj.spec.param_file
+            or runobj.spec.hyper_param_options.param_file
         )
-        hyper_options = hyper_options or runobj.spec.hyper_options
+        hyper_param_options = hyper_param_options or runobj.spec.hyper_param_options
         selector = (
-            selector or runobj.spec.selector or runobj.spec.hyper_options.selector
+            selector or runobj.spec.selector or runobj.spec.hyper_param_options.selector
         )
         inputs = inputs or runobj.spec.inputs
         outputs = outputs or runobj.spec.outputs
@@ -353,8 +355,8 @@ def mlrun_op(
         cmd += ["--out-path", out_path]
     if param_file:
         cmd += ["--param-file", param_file]
-    if hyper_options:
-        cmd += ["--hyper-options", hyper_options.to_json()]
+    if hyper_param_options:
+        cmd += ["--hyper-param-options", hyper_param_options.to_json()]
     if selector:
         cmd += ["--selector", selector]
     if job_image:

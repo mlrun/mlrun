@@ -171,7 +171,7 @@ def test_hyper_grid_parallel():
 
     run_spec = tag_test(base_spec, "test_hyper_grid")
     run_spec.with_param_file(
-        "memory://params.json", selector="r1", strategy="grid", parallelism=2
+        "memory://params.json", selector="r1", strategy="grid", parallel_runs=2
     )
     run = new_function().run(run_spec, handler=hyper_func)
 
@@ -219,7 +219,7 @@ def test_hyper_random():
     grid_params = {"p2": [2, 1, 3], "p3": [10, 20, 30]}
     run_spec = tag_test(base_spec, "test_hyper_random")
     run_spec.with_hyper_params(
-        grid_params, selector="r1", strategy="random", max_evals=5
+        grid_params, selector="r1", strategy="random", max_iterations=5
     )
     run = new_function().run(run_spec, handler=hyper_func)
 

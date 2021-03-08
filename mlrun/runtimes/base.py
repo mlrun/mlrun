@@ -226,7 +226,7 @@ class BaseRuntime(ModelObj):
         watch: bool = True,
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
         hyperparams: Dict[str, list] = None,
-        hyper_options: HyperParamOptions = None,
+        hyper_param_options: HyperParamOptions = None,
         verbose=None,
         scrape_metrics=False,
         local=False,
@@ -249,8 +249,9 @@ class BaseRuntime(ModelObj):
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
                                the default strategy is grid search, can specify strategy (grid, list, random)
-                               and other options in the hyper_options parameter
-        :param hyper_options:  dict or :py:class:`~mlrun.model.HyperParamOptions` struct of hyper parameter options
+                               and other options in the hyper_param_options parameter
+        :param hyper_param_options:  dict or :py:class:`~mlrun.model.HyperParamOptions` struct of
+                                     hyper parameter options
         :param verbose:        add verbose prints/logs
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
@@ -315,7 +316,9 @@ class BaseRuntime(ModelObj):
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
-        runspec.spec.hyper_options = hyper_options or runspec.spec.hyper_options
+        runspec.spec.hyper_param_options = (
+            hyper_param_options or runspec.spec.hyper_param_options
+        )
         runspec.spec.verbose = verbose or runspec.spec.verbose
         runspec.spec.scrape_metrics = scrape_metrics or runspec.spec.scrape_metrics
         runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
@@ -428,11 +431,10 @@ class BaseRuntime(ModelObj):
         last_err = None
         if task_generator:
             # multiple runs (based on hyper params or params file)
-            generator = task_generator
             runner = self._run_many
-            if hasattr(self, "_parallel_run_many") and generator.use_parallel():
+            if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
                 runner = self._parallel_run_many
-            results = runner(generator, execution, runspec)
+            results = runner(task_generator, execution, runspec)
             results_to_iter(results, runspec, execution)
             result = execution.to_dict()
 
@@ -662,7 +664,7 @@ class BaseRuntime(ModelObj):
         params: dict = None,
         hyperparams=None,
         selector="",
-        hyper_options: HyperParamOptions = None,
+        hyper_param_options: HyperParamOptions = None,
         inputs: dict = None,
         outputs: dict = None,
         workdir: str = "",
@@ -718,7 +720,7 @@ class BaseRuntime(ModelObj):
             params=params,
             hyperparams=hyperparams,
             selector=selector,
-            hyper_options=hyper_options,
+            hyper_param_options=hyper_param_options,
             inputs=inputs,
             outputs=outputs,
             job_image=image,
@@ -830,7 +832,7 @@ class BaseRuntime(ModelObj):
             obj, self.metadata.name, self.metadata.project, tag, versioned
         )
         hash_key = hash_key if versioned else None
-        return "db://" + self._function_uri(hash_key=hash_key)
+        return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)

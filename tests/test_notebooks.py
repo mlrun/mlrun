@@ -74,4 +74,4 @@ def test_notebook(notebook):
         + ["."]
     )
     out = run(cmd, cwd=root)
-    assert out.returncode == 0, "cannot build"
+    assert out.returncode == 0, f"Failed building {out.stdout} {out.stderr}"

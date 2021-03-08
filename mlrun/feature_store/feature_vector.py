@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+from copy import copy
 from typing import List
 import mlrun
 import pandas as pd
@@ -38,7 +39,8 @@ class FeatureVectorSpec(ModelObj):
         entity_fields=None,
         timestamp_field=None,
         graph=None,
-        label_column=None,
+        label_feature=None,
+        with_indexes=None,
         function=None,
         analysis=None,
     ):
@@ -53,7 +55,8 @@ class FeatureVectorSpec(ModelObj):
         self.entity_fields = entity_fields or []
         self.graph = graph
         self.timestamp_field = timestamp_field
-        self.label_column = label_column
+        self.label_feature = label_feature
+        self.with_indexes = with_indexes
         self.function = function
         self.analysis = analysis or {}
 
@@ -101,6 +104,7 @@ class FeatureVectorStatus(ModelObj):
         state=None,
         targets=None,
         features=None,
+        label_column=None,
         stats=None,
         preview=None,
         run_uri=None,
@@ -109,6 +113,7 @@ class FeatureVectorStatus(ModelObj):
         self._features: ObjectList = None
 
         self.state = state or "created"
+        self.label_column = label_column
         self.targets = targets
         self.stats = stats or {}
         self.preview = preview or []
@@ -143,12 +148,14 @@ class FeatureVector(ModelObj):
     kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, features=None, description=None):
+    def __init__(self, name=None, features=None, label_feature=None, description=None):
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
 
-        self.spec = FeatureVectorSpec(description=description, features=features)
+        self.spec = FeatureVectorSpec(
+            description=description, features=features, label_feature=label_feature
+        )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
 
@@ -231,7 +238,7 @@ class FeatureVector(ModelObj):
         if update_spec:
             self.spec = from_db.spec
 
-    def parse_features(self):
+    def parse_features(self, offline=True):
         """parse and validate feature list (from vector) and add metadata from feature sets
 
         :returns
@@ -241,6 +248,11 @@ class FeatureVector(ModelObj):
         processed_features = {}  # dict of name to (featureset, feature object)
         feature_set_objects = {}
         feature_set_fields = collections.defaultdict(list)
+        features = copy(self.spec.features)
+        if offline and self.spec.label_feature:
+            features.append(self.spec.label_feature)
+            _, name, alias = parse_feature_string(self.spec.label_feature)
+            self.status.label_column = alias or name
 
         def add_feature(name, alias, feature_set_object):
             if alias in processed_features.keys():
@@ -253,7 +265,7 @@ class FeatureVector(ModelObj):
             featureset_name = feature_set_object.metadata.name
             feature_set_fields[featureset_name].append((name, alias))
 
-        for feature in self.spec.features:
+        for feature in features:
             feature_set, feature_name, alias = parse_feature_string(feature)
             if feature_set not in feature_set_objects.keys():
                 feature_set_objects[feature_set] = get_feature_set_by_uri(
@@ -291,16 +303,17 @@ class FeatureVector(ModelObj):
 class OnlineVectorService:
     """get_online_feature_service response object"""
 
-    def __init__(self, vector, graph):
+    def __init__(self, vector, graph, index_columns):
         self.vector = vector
         self._controller = graph.controller
+        self._index_columns = index_columns
 
     @property
     def status(self):
         """vector prep function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: List[dict]):
+    def get(self, entity_rows: List[dict], as_list=False):
         """get feature vector given the provided entity inputs"""
         results = []
         futures = []
@@ -308,7 +321,13 @@ class OnlineVectorService:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
         for future in futures:
             result = future.await_result()
-            results.append(result.body)
+            data = result.body
+            for key in self._index_columns:
+                if key in data:
+                    del data[key]
+            if as_list:
+                data = [result.body[key] for key in self.vector.status.features.keys()]
+            results.append(data)
 
         return results
 

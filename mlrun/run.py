@@ -268,7 +268,12 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
 
 def get_or_create_ctx(
-    name: str, event=None, spec=None, with_env: bool = True, rundb: str = ""
+    name: str,
+    event=None,
+    spec=None,
+    with_env: bool = True,
+    rundb: str = "",
+    project: str = "",
 ):
     """called from within the user program to obtain a run context
 
@@ -284,6 +289,7 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
+    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
 
     :return: execution context
 
@@ -342,6 +348,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
 
+    newspec.setdefault("metadata", {})
     update_in(newspec, "metadata.name", name, replace=False)
     autocommit = False
     tmp = environ.get("MLRUN_META_TMPFILE")
@@ -349,6 +356,10 @@ def get_or_create_ctx(
     if out:
         autocommit = True
         logger.info(f"logging run results to: {out}")
+
+    newspec["metadata"]["project"] = (
+        project or newspec["metadata"].get("project") or mlconf.default_project
+    )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()

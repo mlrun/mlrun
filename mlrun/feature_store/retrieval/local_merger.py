@@ -32,6 +32,15 @@ class LocalFeatureMerger:
         target=None,
         drop_columns=None,
     ):
+        index_columns = []
+        drop_indexes = False if self.vector.spec.with_indexes else True
+
+        def append_index(key):
+            if drop_indexes and key and key not in index_columns:
+                index_columns.append(key)
+
+        if entity_timestamp_column:
+            index_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
         if self.vector.metadata.name:
             self.vector.save()
@@ -51,10 +60,17 @@ class LocalFeatureMerger:
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
             dfs.append(df)
+            append_index(feature_set.spec.timestamp_key)
+            for key in feature_set.spec.entities.keys():
+                append_index(key)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
-        if drop_columns:
-            self._result_df.drop(columns=drop_columns, inplace=True)
+        if drop_columns or index_columns:
+            for field in drop_columns or []:
+                if field not in index_columns:
+                    index_columns.append(field)
+
+            self._result_df.drop(columns=index_columns, inplace=True)
 
         if target:
             is_persistent_vector = self.vector.metadata.name is not None

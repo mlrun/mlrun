@@ -121,7 +121,12 @@ class KubejobRuntime(KubeResource):
         )
         self.status.state = ""
 
-        if self._is_remote_api() and not is_kfp:
+        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
+        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
+        if is_kfp:
+            watch = True
+
+        if self._is_remote_api():
             db = self._get_db()
             logger.info(f"starting remote build, image: {self.spec.build.image}")
             data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
@@ -134,9 +139,7 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(
-                self, with_mlrun, mlrun_version_specifier, watch or is_kfp
-            )
+            ready = build_runtime(self, with_mlrun, mlrun_version_specifier, watch)
             self.save(versioned=False)
 
         return ready

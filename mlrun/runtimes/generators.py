@@ -16,57 +16,81 @@ import random
 import pandas as pd
 import sys
 from copy import deepcopy
-from ..model import RunObject
+from ..model import RunObject, HyperParamOptions, RunSpec
 from ..utils import get_in
 
 
 hyper_types = ["list", "grid", "random"]
-default_max_evals = 10
+default_max_iterations = 10
+default_max_errors = 3
 
 
-def get_generator(spec, execution):
-    tuning_strategy = spec.tuning_strategy
-    hyperparams = spec.hyperparams
-    if not spec.param_file and not hyperparams:
+def get_generator(spec: RunSpec, execution):
+    options = spec.hyper_param_options
+    strategy = spec.strategy or options.strategy
+    if not spec.is_hyper_job() or strategy == "custom":
         return None
+    options.validate()
+    hyperparams = spec.hyperparams
+    param_file = spec.param_file or options.param_file
+    if strategy and strategy not in hyper_types:
+        raise ValueError(f"unsupported hyper params strategy  ({strategy})")
 
-    if tuning_strategy and tuning_strategy not in hyper_types:
-        raise ValueError(f"unsupported hyperparams type ({tuning_strategy})")
-
-    if spec.param_file and hyperparams:
+    if param_file and hyperparams:
         raise ValueError("hyperparams and param_file cannot be used together")
 
-    if spec.selector:
-        parse_selector(spec.selector)
+    options.selector = options.selector or spec.selector
+    if options.selector:
+        parse_selector(options.selector)
 
     obj = None
-    if spec.param_file:
-        obj = execution.get_dataitem(spec.param_file)
-        if not tuning_strategy and obj.suffix == ".csv":
-            tuning_strategy = "list"
-        if not tuning_strategy or tuning_strategy in ["grid", "random"]:
+    if param_file:
+        obj = execution.get_dataitem(param_file)
+        if not strategy and obj.suffix == ".csv":
+            strategy = "list"
+        if not strategy or strategy in ["grid", "random"]:
             hyperparams = json.loads(obj.get())
 
-    if not tuning_strategy or tuning_strategy == "grid":
-        return GridGenerator(hyperparams, spec.parameters)
+    if not strategy or strategy == "grid":
+        return GridGenerator(hyperparams, options)
 
-    if tuning_strategy == "random":
-        return RandomGenerator(hyperparams, spec.parameters)
+    if strategy == "random":
+        return RandomGenerator(hyperparams, options)
 
     if obj:
         df = obj.as_df()
     else:
         df = pd.DataFrame(hyperparams)
-    return ListGenerator(df)
+    return ListGenerator(df, options)
 
 
 class TaskGenerator:
+    def __init__(self, options: HyperParamOptions):
+        self.options = options
+
+    def use_parallel(self):
+        return self.options.parallel_runs or self.options.dask_cluster_uri
+
+    @property
+    def max_errors(self):
+        return self.options.max_errors or default_max_errors
+
+    @property
+    def max_iterations(self):
+        return self.options.max_iterations or default_max_iterations
+
     def generate(self, run: RunObject):
         pass
 
+    def eval_stop_condition(self, results) -> bool:
+        if not self.options.stop_condition:
+            return False
+        return eval(self.options.stop_condition, {}, results)
+
 
 class GridGenerator(TaskGenerator):
-    def __init__(self, hyperparams, params: dict = None):
+    def __init__(self, hyperparams, options=None):
+        super().__init__(options)
         self.hyperparams = hyperparams
 
     def generate(self, run: RunObject):
@@ -75,9 +99,7 @@ class GridGenerator(TaskGenerator):
         max = len(next(iter(params.values())))
 
         while i < max:
-            newrun = deepcopy(run)
-            newrun.spec.hyperparams = None
-            newrun.spec.param_file = None
+            newrun = get_run_copy(run)
             param_dict = newrun.spec.parameters or {}
             for key, values in params.items():
                 param_dict[key] = values[i]
@@ -102,20 +124,15 @@ class GridGenerator(TaskGenerator):
 
 
 class RandomGenerator(TaskGenerator):
-    def __init__(self, hyperparams: dict, params: dict = None):
+    def __init__(self, hyperparams: dict, options=None):
+        super().__init__(options)
         self.hyperparams = hyperparams
-        self.max_evals = default_max_evals
-        if "MAX_RANDOM_EVALS" in params:
-            self.max_evals = params.pop("MAX_RANDOM_EVALS")
 
     def generate(self, run: RunObject):
         i = 0
 
-        while i < self.max_evals:
-            newrun = deepcopy(run)
-            newrun.spec.hyperparams = None
-            newrun.spec.param_file = None
-
+        while i < self.max_iterations:
+            newrun = get_run_copy(run)
             param_dict = newrun.spec.parameters or {}
             params = {k: random.sample(v, 1)[0] for k, v in self.hyperparams.items()}
             for key, values in params.items():
@@ -127,16 +144,14 @@ class RandomGenerator(TaskGenerator):
 
 
 class ListGenerator(TaskGenerator):
-    def __init__(self, df):
-
+    def __init__(self, df, options=None):
+        super().__init__(options)
         self.df = df
 
     def generate(self, run: RunObject):
         i = 0
         for _, row in self.df.iterrows():
-            newrun = deepcopy(run)
-            newrun.spec.hyperparams = None
-            newrun.spec.param_file = None
+            newrun = get_run_copy(run)
             param_dict = newrun.spec.parameters or {}
             for key, values in row.to_dict().items():
                 param_dict[key] = values
@@ -144,6 +159,14 @@ class ListGenerator(TaskGenerator):
             newrun.metadata.iteration = i + 1
             i += 1
             yield newrun
+
+
+def get_run_copy(run):
+    newrun = deepcopy(run)
+    newrun.spec.hyperparams = None
+    newrun.spec.param_file = None
+    newrun.spec.hyper_param_options = None
+    return newrun
 
 
 def parse_selector(criteria):

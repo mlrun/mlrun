@@ -96,9 +96,7 @@ class DaskSpec(KubeResourceSpec):
         self.args = args
 
         self.extra_pip = extra_pip
-        self.remote = remote
-        if replicas or min_replicas or max_replicas:
-            self.remote = True
+        self.remote = True if remote is None else remote  # make remote the default
 
         self.service_type = service_type
         self.kfp_image = kfp_image

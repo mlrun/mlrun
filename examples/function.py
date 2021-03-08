@@ -5,8 +5,9 @@
 #     pip install mlrun
 
 
-from mlrun import get_or_create_ctx
 import time
+
+from mlrun import get_or_create_ctx
 
 
 def handler(context, event):

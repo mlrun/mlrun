@@ -1,4 +1,5 @@
-from typing import Dict, Any
+from typing import Any, Dict
+
 from storey import MapClass
 
 this_path = "mlrun.feature_store.steps"

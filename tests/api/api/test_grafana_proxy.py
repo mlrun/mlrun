@@ -14,12 +14,12 @@ from mlrun.api.api.endpoints.grafana_proxy import (
     _validate_query_parameters,
 )
 from mlrun.api.crud.model_endpoints import (
-    ENDPOINTS_TABLE_PATH,
     ENDPOINT_EVENTS_TABLE_PATH,
+    ENDPOINTS_TABLE_PATH,
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
+from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 from tests.api.api.test_model_endpoints import (
     _mock_random_endpoint,
     _write_endpoint_to_kv,

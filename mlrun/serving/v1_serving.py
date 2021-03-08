@@ -16,10 +16,11 @@ import json
 import os
 import socket
 from copy import deepcopy
+from datetime import datetime
 from io import BytesIO
 from typing import Dict
 from urllib.request import urlopen
-from datetime import datetime
+
 import nuclio
 
 import mlrun

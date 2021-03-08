@@ -33,19 +33,19 @@ from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .projects import load_project
-from .run import new_function, import_function_to_dict, import_function, get_object
+from .run import get_object, import_function, import_function_to_dict, new_function
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
+    RunNotifications,
+    dict_to_yaml,
+    get_in,
     list2dict,
     logger,
+    parse_versioned_object_uri,
+    pr_comment,
     run_keys,
     update_in,
-    get_in,
-    parse_versioned_object_uri,
-    dict_to_yaml,
-    pr_comment,
-    RunNotifications,
 )
 from .utils.version import Version
 

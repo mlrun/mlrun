@@ -13,16 +13,17 @@
 # limitations under the License.
 
 import inspect
+import re
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-import re
-from typing import Tuple, Dict
+from typing import Dict, Tuple
+
 import mlrun
 
 from .config import config
-from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
+from .utils import dict_to_json, dict_to_yaml, get_artifact_target, get_in
 
 
 class ModelObj:

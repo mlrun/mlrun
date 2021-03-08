@@ -1,29 +1,29 @@
 import json
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import Request
 from v3io.dataplane import RaiseForStatus
 
 from mlrun.api.schemas import (
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpoint,
-    ModelEndpointState,
     Features,
     Metric,
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointState,
     ObjectStatus,
 )
 from mlrun.config import config
 from mlrun.errors import (
-    MLRunConflictError,
-    MLRunNotFoundError,
-    MLRunInvalidArgumentError,
     MLRunBadRequestError,
+    MLRunConflictError,
+    MLRunInvalidArgumentError,
+    MLRunNotFoundError,
 )
 from mlrun.utils.helpers import logger
-from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
+from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENDPOINTS_TABLE_PATH = "model-endpoints/endpoints"
 ENDPOINT_EVENTS_TABLE_PATH = "model-endpoints/events"

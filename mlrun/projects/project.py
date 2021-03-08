@@ -12,53 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
+import importlib.util as imputil
 import shutil
-import warnings
+import tarfile
 import typing
+import warnings
+from os import environ, path, remove
+from tempfile import mktemp
+from urllib.parse import urlparse
 
-from ..db import get_run_db
+import yaml
+from git import Repo
+from kfp import compiler
+
+import mlrun.api.schemas
+import mlrun.api.utils.projects.leader
+import mlrun.errors
+
 from ..artifacts import (
     ArtifactManager,
     ArtifactProducer,
-    dict_to_artifact,
     DatasetArtifact,
     ModelArtifact,
+    dict_to_artifact,
 )
-from ..secrets import SecretsStore
-from ..model import ModelObj
-import tarfile
-from tempfile import mktemp
-from git import Repo
-
-import yaml
-from os import path, remove, environ
-
-from ..datastore import store_manager
 from ..config import config
+from ..datastore import store_manager
+from ..db import get_run_db
+from ..features import Feature
+from ..model import ModelObj
 from ..run import (
-    import_function,
     code_to_function,
-    new_function,
     download_object,
-    run_pipeline,
     get_object,
+    import_function,
+    new_function,
+    run_pipeline,
     wait_for_pipeline_completion,
 )
-from ..features import Feature
-import importlib.util as imputil
-from urllib.parse import urlparse
-from kfp import compiler
-
-from ..utils import (
-    update_in,
-    new_pipe_meta,
-    logger,
-    RunNotifications,
-)
 from ..runtimes.utils import add_code_metadata
-import mlrun.api.schemas
-import mlrun.errors
-import mlrun.api.utils.projects.leader
+from ..secrets import SecretsStore
+from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 
 
 class ProjectError(Exception):

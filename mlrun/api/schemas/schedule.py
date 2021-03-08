@@ -1,8 +1,9 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Union, Any, Dict
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
+
 from mlrun.api.schemas.object import LabelRecord
 
 

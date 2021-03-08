@@ -1,14 +1,10 @@
 from http import HTTPStatus
-from typing import List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List
 
-from fastapi import APIRouter, Response, Request
+from fastapi import APIRouter, Request, Response
 
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
-from mlrun.api.schemas import (
-    GrafanaTable,
-    GrafanaColumn,
-    ModelEndpointState,
-)
+from mlrun.api.schemas import GrafanaColumn, GrafanaTable, ModelEndpointState
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.logger import create_logger

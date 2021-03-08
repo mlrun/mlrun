@@ -9,8 +9,8 @@ from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.errors
 import mlrun.api.utils.singletons.project_member
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db

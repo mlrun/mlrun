@@ -1,8 +1,7 @@
-from typing import List, Any, Dict
+from typing import Any, Dict, List
 
 from mlrun.api import schemas
-from mlrun.api.db.base import DBError
-from mlrun.api.db.base import DBInterface
+from mlrun.api.db.base import DBError, DBInterface
 from mlrun.db.base import RunDBError
 from mlrun.db.filedb import FileRunDB
 

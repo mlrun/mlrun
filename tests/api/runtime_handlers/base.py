@@ -1,6 +1,6 @@
 import unittest.mock
 from datetime import datetime, timezone
-from typing import List, Dict
+from typing import Dict, List
 
 import pytest
 from kubernetes import client
@@ -11,7 +11,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import RunStates, PodPhases
+from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
 
 logger = create_logger(level="debug", name="test-runtime-handlers")

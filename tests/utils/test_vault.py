@@ -1,11 +1,8 @@
 import pytest
-from tests.conftest import (
-    examples_path,
-    out_path,
-    verify_state,
-)
-from mlrun import new_task, get_run_db, mlconf, code_to_function, new_project
+
+from mlrun import code_to_function, get_run_db, mlconf, new_project, new_task
 from mlrun.utils.vault import VaultStore
+from tests.conftest import examples_path, out_path, verify_state
 
 # Set a proper token value for Vault test
 user_token = ""

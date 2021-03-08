@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import _tagged, Artifact, Run
+from mlrun.api.db.sqldb.models import Artifact, Run, _tagged
 from mlrun.lists import ArtifactList
 from tests.conftest import new_run
 

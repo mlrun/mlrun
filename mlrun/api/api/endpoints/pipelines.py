@@ -4,7 +4,7 @@ from datetime import datetime
 from http import HTTPStatus
 from os import remove
 
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from kfp import Client as kfclient
 

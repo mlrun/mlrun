@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from subprocess import PIPE, run
 from sys import executable, stderr
-from subprocess import run, PIPE
-from tests.conftest import (
-    tests_root_directory,
-    examples_path,
-)
+
+from tests.conftest import examples_path, tests_root_directory
 
 
 def exec_main(op, args):

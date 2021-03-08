@@ -15,4 +15,4 @@
 # Don't remove this, used by sphinx documentation
 __all__ = ["load_project", "new_project", "MlrunProject"]
 
-from .project import load_project, new_project, MlrunProject
+from .project import MlrunProject, load_project, new_project

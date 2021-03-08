@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tests.conftest import (
-    out_path,
-    tag_test,
-    verify_state,
-)
-from mlrun import new_task, run_local
-import numpy as np
-import pandas as pd
 import datetime
 from pprint import pprint
+
+import numpy as np
+import pandas as pd
+
+from mlrun import new_task, run_local
+from tests.conftest import out_path, tag_test, verify_state
 
 
 def my_func(context):

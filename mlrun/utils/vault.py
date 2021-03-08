@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import requests
+import json
 import os
 from os.path import expanduser
-import json
-from .helpers import logger
+
+import requests
+
+from mlrun.errors import MLRunInvalidArgumentError
+
 from ..config import config as mlconf
 from ..k8s_utils import get_k8s_helper
-from mlrun.errors import MLRunInvalidArgumentError
+from .helpers import logger
 
 vault_default_prefix = "v1/secret/data"
 

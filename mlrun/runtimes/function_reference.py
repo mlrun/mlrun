@@ -13,13 +13,15 @@
 # limitations under the License.
 
 import os
-import mlrun
 from base64 import b64encode
+
 from nuclio.build import mlrun_footer
 
-from .utils import enrich_function_from_dict
+import mlrun
+
 from ..model import ModelObj
 from ..utils import generate_object_uri
+from .utils import enrich_function_from_dict
 
 
 class FunctionReference(ModelObj):

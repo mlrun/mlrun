@@ -15,12 +15,13 @@ import os
 import sys
 from copy import copy
 from typing import Dict
+
 import mlrun
+from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 
-from mlrun.model import DataTargetBase, DataTarget
-from .v3io import parse_v3io_path
 from .utils import store_path_to_spark
+from .v3io import parse_v3io_path
 
 
 class TargetTypes:

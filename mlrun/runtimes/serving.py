@@ -14,23 +14,25 @@
 
 import json
 from typing import List, Union
-import mlrun
+
 import nuclio
 
+import mlrun
+
 from ..model import ObjectList
-from .function import RemoteRuntime, NuclioSpec
-from .function_reference import FunctionReference
 from ..secrets import SecretsStore
-from ..utils import logger, get_caller_globals
-from ..serving.server import create_graph_server, GraphServer
+from ..serving.server import GraphServer, create_graph_server
 from ..serving.states import (
+    RootFlowState,
     RouterState,
     StateKinds,
-    RootFlowState,
     graph_root_setter,
-    new_remote_endpoint,
     new_model_endpoint,
+    new_remote_endpoint,
 )
+from ..utils import get_caller_globals, logger
+from .function import NuclioSpec, RemoteRuntime
+from .function_reference import FunctionReference
 
 serving_subkind = "serving_v2"
 

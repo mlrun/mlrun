@@ -13,16 +13,16 @@
 # limitations under the License.
 import getpass
 import json
-from copy import deepcopy
 import os
 import os.path
-
+from copy import deepcopy
 
 import mlrun
-from .model import HyperParamOptions
-from .db import get_or_set_dburl
-from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
+
 from .config import config
+from .db import get_or_set_dburl
+from .model import HyperParamOptions
+from .utils import dict_to_yaml, gen_md_table, get_artifact_target, logger, run_keys
 
 KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
@@ -233,8 +233,9 @@ def mlrun_op(
             train.outputs['model-txt']).apply(mount_v3io())
 
     """
-    from kfp import dsl
     from os import environ
+
+    from kfp import dsl
     from kubernetes import client as k8s_client
 
     secrets = [] if secrets is None else secrets
@@ -497,8 +498,9 @@ def build_op(
 ):
     """build Docker image."""
 
-    from kfp import dsl
     from os import environ
+
+    from kfp import dsl
     from kubernetes import client as k8s_client
 
     cmd = ["python", "-m", "mlrun", "build", "--kfp"]

@@ -12,37 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+import importlib.util as imputil
 import inspect
+import json
 import os
 import socket
 import sys
 import traceback
+from contextlib import redirect_stdout
 from copy import copy
+from io import StringIO
 from os import environ, remove
+from pathlib import Path
+from subprocess import PIPE, Popen
+from sys import executable
 from tempfile import mktemp
 
 from distributed import Client
-
-from mlrun.lists import RunList
-
-import mlrun
-from .kubejob import KubejobRuntime
-from ..model import RunObject
-from ..utils import logger
-from ..execution import MLClientCtx
-from .base import BaseRuntime
-from .utils import log_std, global_context, RunError
-from sys import executable
-from subprocess import PIPE, Popen
-
-import importlib.util as imputil
-from io import StringIO
-from contextlib import redirect_stdout
-from pathlib import Path
 from nuclio import Event
 
+import mlrun
+from mlrun.lists import RunList
+
+from ..execution import MLClientCtx
+from ..model import RunObject
+from ..utils import logger
+from .base import BaseRuntime
+from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
+from .utils import RunError, global_context, log_std
 
 
 class ParallelRunner:

@@ -5,9 +5,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from .base import (
-    _patch_object,
-    _list_and_assert_objects,
     _assert_diff_as_expected_except_for_specific_metadata,
+    _list_and_assert_objects,
+    _patch_object,
 )
 
 

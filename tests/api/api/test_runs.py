@@ -1,13 +1,13 @@
-from http import HTTPStatus
 import time
 from datetime import datetime, timezone
+from http import HTTPStatus
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun.config import config
 from mlrun.api.db.sqldb.models import Run
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.config import config
 
 
 def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:

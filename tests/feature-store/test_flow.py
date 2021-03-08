@@ -1,17 +1,18 @@
-import pytest
-import pandas as pd
+import os
 import random
 import string
-import os
-from tests.conftest import results, tests_root_directory
-from storey import ReadCSV, build_flow, ReduceToDataFrame
-from data_sample import stocks
 
-from mlrun.datastore.targets import CSVTarget
+import pandas as pd
+import pytest
+from data_sample import stocks
+from storey import ReadCSV, ReduceToDataFrame, build_flow
+
 import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
-from mlrun.feature_store import Entity
 from mlrun.data_types.data_types import ValueType
+from mlrun.datastore.targets import CSVTarget
+from mlrun.feature_store import Entity
+from tests.conftest import results, tests_root_directory
 
 local_dir = f"{tests_root_directory}/feature-store/"
 results_dir = f"{results}/feature-store/"

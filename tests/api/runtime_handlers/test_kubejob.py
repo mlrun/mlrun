@@ -5,9 +5,8 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import RunStates, PodPhases
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 

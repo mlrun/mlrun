@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from os import environ
 from urllib.parse import urlparse
 
 from ..config import config
@@ -18,7 +19,6 @@ from ..platforms import add_or_refresh_credentials
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
 from .sqldb import SQLDB
-from os import environ
 
 
 def get_or_set_dburl(default=""):

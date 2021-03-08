@@ -13,11 +13,12 @@
 # limitations under the License.
 from copy import copy
 from typing import Dict
+
 import mlrun
 
 from ..model import DataSource
-from .utils import store_path_to_spark
 from ..utils import get_class
+from .utils import store_path_to_spark
 
 
 def get_source_from_dict(source):

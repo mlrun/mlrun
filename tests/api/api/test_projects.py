@@ -1,16 +1,16 @@
+import copy
 import typing
 import unittest.mock
-import mergedeep
-import copy
 from http import HTTPStatus
 from uuid import uuid4
 
 import deepdiff
+import mergedeep
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
 import mlrun.api.crud
+import mlrun.api.schemas
 import mlrun.errors
 
 

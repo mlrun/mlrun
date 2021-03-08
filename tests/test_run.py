@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import pathlib
+from unittest.mock import Mock
+
 import pandas as pd
+import pytest
+
+import mlrun
+import mlrun.errors
+from mlrun import get_run_db, new_function, new_task
 from tests.conftest import (
     examples_path,
     has_secrets,
-    tests_root_directory,
     out_path,
     tag_test,
+    tests_root_directory,
     verify_state,
 )
-from unittest.mock import Mock
-import mlrun
-import mlrun.errors
-from mlrun import new_task, get_run_db, new_function
 
 
 def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):

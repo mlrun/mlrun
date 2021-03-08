@@ -4,21 +4,21 @@ from mlrun.api.api import deps
 from mlrun.api.api.endpoints import (
     artifacts,
     background_tasks,
+    feature_sets,
     files,
     functions,
+    grafana_proxy,
     healthz,
     logs,
+    model_endpoints,
     pipelines,
     projects,
     runs,
     runtimes,
     schedules,
+    secrets,
     submit,
     tags,
-    feature_sets,
-    model_endpoints,
-    secrets,
-    grafana_proxy,
 )
 
 api_router = APIRouter()

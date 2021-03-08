@@ -6,10 +6,8 @@ from sqlalchemy.orm import Session
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import MPIJobCRDVersions
-from mlrun.runtimes.constants import RunStates
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes.constants import MPIJobCRDVersions, RunStates
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 

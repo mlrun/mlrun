@@ -62,6 +62,7 @@ Table Of Content
    :caption: ML Pipelines:
 
    job-submission-and-tracking
+   hyper-params
    projects
    serving/index
 

@@ -368,8 +368,7 @@ class RemoteRuntime(KubeResource):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
         if use_function_from_db:
-            hash_key = self.save(versioned=True, refresh=True)
-            url = "db://" + self._function_uri(hash_key=hash_key)
+            url = self.save(versioned=True, refresh=True)
         else:
             url = None
 
@@ -459,8 +458,9 @@ class RemoteRuntime(KubeResource):
 
         return self._update_state(resp.json())
 
-    def _run_many(self, tasks, execution, runobj: RunObject):
+    def _run_many(self, generator, execution, runobj: RunObject):
         self._pre_run_validations()
+        tasks = generator.generate(runobj)
         secrets = self._secrets.to_serial() if self._secrets else None
         log_level = execution.log_level
         headers = {"x-nuclio-log-level": log_level}

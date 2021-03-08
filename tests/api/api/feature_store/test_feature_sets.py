@@ -1,5 +1,6 @@
 from http import HTTPStatus
 from uuid import uuid4
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from .base import (
@@ -375,7 +376,7 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
-def test_feature_set_re_store_same_object(db: Session, client: TestClient) -> None:
+def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -385,21 +386,33 @@ def test_feature_set_re_store_same_object(db: Session, client: TestClient) -> No
         client, project_name, name, "tag1", feature_set
     )
     uid = response["metadata"]["uid"]
+
+    # Put the same object with a different tag - this should result in just adding a tag
     response = _store_and_assert_feature_set(
-        client, project_name, name, "tag1", feature_set
+        client, project_name, name, "tag2", feature_set
     )
     assert response["metadata"]["uid"] == uid
 
-    _list_and_assert_objects(
-        client, "feature_sets", project_name, "name=feature_set1", 1
-    )
+    response = _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name}", 2
+    )["feature_sets"]
 
-    # Try to store same object with a different tag.
-    response = client.put(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/tag2?versioned=True",
-        json=feature_set,
-    )
-    assert response.status_code == HTTPStatus.CONFLICT.value
+    expected_tags = {"tag1", "tag2"}
+    returned_tags = set()
+    for feature_set_response in response:
+        returned_tags.add(feature_set_response["metadata"]["tag"])
+    assert expected_tags == returned_tags
+
+    # Storing object with same tag - should just update
+    feature_set["metadata"]["extra_metadata"] = 200
+    _store_and_assert_feature_set(client, project_name, name, "tag2", feature_set)
+
+    _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 2)
+
+    response = _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name}&tag=tag2", 1
+    )["feature_sets"]
+    assert response[0]["metadata"]["extra_metadata"] == 200
 
 
 def test_feature_set_create_without_labels(db: Session, client: TestClient) -> None:

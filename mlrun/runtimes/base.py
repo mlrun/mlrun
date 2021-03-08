@@ -45,7 +45,14 @@ from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import write_kfpmeta, mlrun_op
 from ..lists import RunList
-from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
+from ..model import (
+    RunObject,
+    ModelObj,
+    RunTemplate,
+    BaseMetadata,
+    ImageBuilder,
+    HyperParamOptions,
+)
 from ..secrets import SecretsStore
 from ..utils import (
     get_in,
@@ -164,6 +171,10 @@ class BaseRuntime(ModelObj):
         return self
 
     @property
+    def uri(self):
+        return self._function_uri()
+
+    @property
     def is_deployed(self):
         return True
 
@@ -214,6 +225,8 @@ class BaseRuntime(ModelObj):
         artifact_path: str = "",
         watch: bool = True,
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
+        hyperparams: Dict[str, list] = None,
+        hyper_param_options: HyperParamOptions = None,
         verbose=None,
         scrape_metrics=False,
         local=False,
@@ -234,6 +247,11 @@ class BaseRuntime(ModelObj):
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string (which
         will be converted to the class using its `from_crontab` constructor. see this link for help:
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
+                               the default strategy is grid search, can specify strategy (grid, list, random)
+                               and other options in the hyper_param_options parameter
+        :param hyper_param_options:  dict or :py:class:`~mlrun.model.HyperParamOptions` struct of
+                                     hyper parameter options
         :param verbose:        add verbose prints/logs
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
@@ -302,6 +320,10 @@ class BaseRuntime(ModelObj):
         )
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
+        runspec.spec.hyper_param_options = (
+            hyper_param_options or runspec.spec.hyper_param_options
+        )
         runspec.spec.verbose = verbose or runspec.spec.verbose
         runspec.spec.scrape_metrics = scrape_metrics or runspec.spec.scrape_metrics
         runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
@@ -414,8 +436,10 @@ class BaseRuntime(ModelObj):
         last_err = None
         if task_generator:
             # multiple runs (based on hyper params or params file)
-            generator = task_generator.generate(runspec)
-            results = self._run_many(generator, execution, runspec)
+            runner = self._run_many
+            if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
+                runner = self._parallel_run_many
+            results = runner(task_generator, execution, runspec)
             results_to_iter(results, runspec, execution)
             result = execution.to_dict()
 
@@ -534,18 +558,35 @@ class BaseRuntime(ModelObj):
     def _run(self, runspec: RunObject, execution) -> dict:
         pass
 
-    def _run_many(self, tasks, execution, runobj: RunObject) -> RunList:
+    def _run_many(self, generator, execution, runobj: RunObject) -> RunList:
         results = RunList()
+        num_errors = 0
+        tasks = generator.generate(runobj)
         for task in tasks:
             try:
                 # self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
+                run_results = resp["status"].get("results", {})
+                if generator.eval_stop_condition(run_results):
+                    logger.info(
+                        f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                    )
+                    results.append(resp)
+                    break
+
             except RunError as err:
                 task.status.state = "error"
                 task.status.error = str(err)
                 resp = self._post_run(task=task, err=err)
+                num_errors += 1
+                if num_errors > generator.max_errors:
+                    logger.error("too many errors, stopping iterations!")
+                    results.append(resp)
+                    break
+
             results.append(resp)
+
         return results
 
     def store_run(self, runobj: RunObject):
@@ -633,6 +674,7 @@ class BaseRuntime(ModelObj):
         params: dict = None,
         hyperparams=None,
         selector="",
+        hyper_param_options: HyperParamOptions = None,
         inputs: dict = None,
         outputs: dict = None,
         workdir: str = "",
@@ -669,8 +711,7 @@ class BaseRuntime(ModelObj):
         #     image = self.full_image_path()
 
         if use_db:
-            hash_key = self.save(versioned=True, refresh=True)
-            url = "db://" + self._function_uri(hash_key=hash_key)
+            url = self.save(versioned=True, refresh=True)
         else:
             url = None
 
@@ -689,6 +730,7 @@ class BaseRuntime(ModelObj):
             params=params,
             hyperparams=hyperparams,
             selector=selector,
+            hyper_param_options=hyper_param_options,
             inputs=inputs,
             outputs=outputs,
             job_image=image,
@@ -771,7 +813,7 @@ class BaseRuntime(ModelObj):
         logger.info(f"function spec saved to path: {target}")
         return self
 
-    def save(self, tag="", versioned=False, refresh=False):
+    def save(self, tag="", versioned=False, refresh=False) -> str:
         db = self._get_db()
         if not db:
             logger.error("database connection is not configured")
@@ -799,7 +841,8 @@ class BaseRuntime(ModelObj):
         hash_key = db.store_function(
             obj, self.metadata.name, self.metadata.project, tag, versioned
         )
-        return hash_key
+        hash_key = hash_key if versioned else None
+        return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)

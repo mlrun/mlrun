@@ -1330,11 +1330,22 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
+
+        feature_set_dict = feature_set.dict()
+
         if not existing_feature_set:
+            # Check if this is a re-tag of existing object - search by uid only
+            uid = fill_object_hash(feature_set_dict, "uid", tag)
+            _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
+                session, FeatureSet, project, name, None, uid
+            )
+            if existing_feature_set:
+                self.tag_objects_v2(session, [existing_feature_set], project, tag)
+                return uid
+
             feature_set.metadata.tag = tag
             return self.create_feature_set(session, project, feature_set, versioned)
 
-        feature_set_dict = feature_set.dict()
         uid = self._common_object_validate_and_perform_uid_change(
             feature_set_dict, tag, versioned, original_uid
         )
@@ -1561,13 +1572,24 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
             session, FeatureVector, project, name, tag, uid
         )
+
+        feature_vector_dict = feature_vector.dict()
+
         if not existing_feature_vector:
+            # Check if this is a re-tag of existing object - search by uid only
+            uid = fill_object_hash(feature_vector_dict, "uid", tag)
+            _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
+                session, FeatureVector, project, name, None, uid
+            )
+            if existing_feature_vector:
+                self.tag_objects_v2(session, [existing_feature_vector], project, tag)
+                return uid
+
             feature_vector.metadata.tag = tag
             return self.create_feature_vector(
                 session, project, feature_vector, versioned
             )
 
-        feature_vector_dict = feature_vector.dict()
         uid = self._common_object_validate_and_perform_uid_change(
             feature_vector_dict, tag, versioned, original_uid
         )

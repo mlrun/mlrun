@@ -2,7 +2,7 @@
 
 ## Overview
 
-Mlrun serving graphs allow to easily build real-time data processing and 
+MLRun serving graphs allow to easily build real-time data processing and 
 advanced model serving pipelines, and deploy them quickly to production with
 minimal effort.
 

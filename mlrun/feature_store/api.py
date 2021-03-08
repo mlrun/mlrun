@@ -53,8 +53,10 @@ def get_offline_features(
     features: Union[str, List[str], FeatureVector],
     entity_rows=None,
     entity_timestamp_column: str = None,
+    label_feature: str = None,
     batch: bool = False,
     store_target: DataTargetBase = None,
+    with_indexes: bool = False,
     drop_columns: List[str] = None,
     engine: str = None,
     name: str = None,
@@ -85,23 +87,30 @@ def get_offline_features(
         print(resp.vector.get_stats_table())
         resp.to_parquet("./out.parquet")
 
-    :param features:     list of features or feature vector uri or FeatureVector object
-    :param entity_rows:  dataframe with entity rows to join with
-    :param batch:        run as a remote (cluster) batch job
-    :param store_target: where to write the results to
-    :param drop_columns: list of columns to drop from the final result
-    :param engine:       join/merge engine (local, job, spark)
-    :param name:         name for the generated feature vector
+    :param features:      list of features or feature vector uri or FeatureVector object
+    :param entity_rows:   dataframe with entity rows to join with
+    :param label_feature: label feature uri ({feature-set}.{feature-name}[as {alias}])
+    :param batch:         run as a remote (cluster) batch job
+    :param store_target:  where to write the results to
+    :param with_indexes:  keep the entity and time indexes in the result (removed by default)
+    :param drop_columns:  list of columns to drop from the final result
+    :param engine:        join/merge engine (local, job, spark)
+    :param name:          name for the generated feature vector
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
-    :param function:     custom merger function
-    :param local:        run local emulation using mock_server() or run_local()
-    :param watch:        wait for job completion, set to False if you dont want to wait
-    :param auto_mount:   add PVC or v3io volume to the function (using mlrun.platform.auto_mount)
-    :param secrets:      key/value dictionary for secrets (for data credential vars)
+    :param function:      custom merger function
+    :param local:         run local emulation using mock_server() or run_local()
+    :param watch:         wait for job completion, set to False if you dont want to wait
+    :param auto_mount:    add PVC or v3io volume to the function (using mlrun.platform.auto_mount)
+    :param secrets:       key/value dictionary for secrets (for data credential vars)
     """
     vector = _features_to_vector(features)
     if name:
         vector.metadata.name = name
+    if with_indexes:
+        vector.spec.with_indexes = with_indexes
+    if label_feature:
+        vector.spec.label_feature = label_feature
+
     entity_timestamp_column = entity_timestamp_column or vector.spec.timestamp_field
     if batch:
         return run_merge_job(
@@ -143,8 +152,8 @@ def get_online_feature_service(
     :param function:     optional, mlrun FunctionReference object, serverless function template
     """
     vector = _features_to_vector(features)
-    graph = init_feature_vector_graph(vector)
-    service = OnlineVectorService(vector, graph)
+    graph, index_columns = init_feature_vector_graph(vector)
+    service = OnlineVectorService(vector, graph, index_columns)
 
     # todo: support remote service (using remote nuclio/mlrun function)
     return service

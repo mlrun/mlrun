@@ -14,6 +14,22 @@ import mlrun.api.crud
 import mlrun.errors
 
 
+def test_create_project_failure_already_exists(db: Session, client: TestClient) -> None:
+    name1 = f"prj-{uuid4().hex}"
+    project_1 = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
+    )
+
+    # create
+    response = client.post("/api/projects", json=project_1.dict())
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project_1, response)
+
+    # create again
+    response = client.post("/api/projects", json=project_1.dict())
+    assert response.status_code == HTTPStatus.CONFLICT.value
+
+
 def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(

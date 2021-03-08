@@ -511,7 +511,6 @@ def deserialize_endpoint_state_from_kv(
     feature_names = endpoint.get("feature_names")
     monitor_configuration = endpoint.get("monitor_configuration")
 
-    drift_status = endpoint.get("drift_status")
     drift_measures = endpoint.get("drift_measures")
     current_stats = endpoint.get("current_stats")
 
@@ -535,7 +534,7 @@ def deserialize_endpoint_state_from_kv(
         last_request=endpoint.get("last_request"),
         accuracy=endpoint.get("accuracy"),
         error_count=endpoint.get("error_count"),
-        drift_status=_json_loads_if_not_none(drift_status),
+        drift_status=endpoint.get("drift_status"),
         drift_measures=_json_loads_if_not_none(drift_measures),
         current_stats=_json_loads_if_not_none(current_stats),
         # metrics -> Computed from TSDB

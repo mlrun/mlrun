@@ -123,6 +123,7 @@ class RuntimeKinds(object):
     @staticmethod
     def nuclio_runtimes():
         return [
+            RuntimeKinds.remote,
             RuntimeKinds.nuclio,
             RuntimeKinds.serving,
         ]

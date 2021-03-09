@@ -21,7 +21,7 @@ from mlrun.api.crud.model_endpoints import (
 from mlrun.api.schemas import ModelEndpoint
 from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
-# from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
 
@@ -62,11 +62,11 @@ def test_clear_endpoint(db: Session, client: TestClient):
             endpoint_id=endpoint.id,
         )
 
+
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-def test_update_endpoint(db: Session, client: TestClient, mock_v3io_client):
-    # v = get_v3io_client()
+def test_update_endpoint(db: Session, client: TestClient):
     access_key = _get_access_key()
     endpoint = _mock_random_endpoint()
     serialize_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
@@ -221,68 +221,68 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
     assert len(filter_labels) == 4
 
 
-# @pytest.mark.skipif(
-#     _is_env_params_dont_exist(), reason=_build_skip_message(),
-# )
-# def test_get_endpoint_metrics(db: Session, client: TestClient):
-#     frames = get_frames_client(
-#         token=_get_access_key(), container="projects", address=config.v3io_framesd,
-#     )
-#
-#     start = datetime.utcnow()
-#
-#     for i in range(5):
-#         endpoint = _mock_random_endpoint()
-#         serialize_endpoint_to_kv(_get_access_key(), endpoint)
-#
-#         frames.create(
-#             backend="tsdb",
-#             table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
-#             rate="10/m",
-#             if_exists=1,
-#         )
-#
-#         total = 0
-#
-#         dfs = []
-#
-#         for i in range(10):
-#             count = randint(1, 10)
-#             total += count
-#             data = {
-#                 "predictions_per_second_count_1s": count,
-#                 "endpoint_id": endpoint.id,
-#                 "timestamp": start - timedelta(minutes=10 - i),
-#             }
-#             df = pd.DataFrame(data=[data])
-#             dfs.append(df)
-#
-#         frames.write(
-#             backend="tsdb",
-#             table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
-#             dfs=dfs,
-#             index_cols=["timestamp", "endpoint_id"],
-#         )
-#
-#         response = client.get(
-#             url=f"/api/projects/test/model-endpoints/{endpoint.id}?metric=predictions",
-#             headers={"X-V3io-Session-Key": _get_access_key()},
-#         )
-#         response = response.json()
-#
-#         assert "metrics" in response
-#
-#         metrics = response["metrics"]
-#
-#         assert len(metrics) > 0
-#
-#         predictions_per_second = metrics["predictions_per_second"]
-#
-#         assert predictions_per_second["name"] == "predictions_per_second"
-#
-#         response_total = sum((m[1] for m in predictions_per_second["values"]))
-#
-#         assert total == response_total
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_get_endpoint_metrics(db: Session, client: TestClient):
+    frames = get_frames_client(
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+    )
+
+    start = datetime.utcnow()
+
+    for i in range(5):
+        endpoint = _mock_random_endpoint()
+        serialize_endpoint_to_kv(_get_access_key(), endpoint)
+
+        frames.create(
+            backend="tsdb",
+            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+            rate="10/m",
+            if_exists=1,
+        )
+
+        total = 0
+
+        dfs = []
+
+        for i in range(10):
+            count = randint(1, 10)
+            total += count
+            data = {
+                "predictions_per_second_count_1s": count,
+                "endpoint_id": endpoint.id,
+                "timestamp": start - timedelta(minutes=10 - i),
+            }
+            df = pd.DataFrame(data=[data])
+            dfs.append(df)
+
+        frames.write(
+            backend="tsdb",
+            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+            dfs=dfs,
+            index_cols=["timestamp", "endpoint_id"],
+        )
+
+        response = client.get(
+            url=f"/api/projects/test/model-endpoints/{endpoint.id}?metric=predictions",
+            headers={"X-V3io-Session-Key": _get_access_key()},
+        )
+        response = response.json()
+
+        assert "metrics" in response
+
+        metrics = response["metrics"]
+
+        assert len(metrics) > 0
+
+        predictions_per_second = metrics["predictions_per_second"]
+
+        assert predictions_per_second["name"] == "predictions_per_second"
+
+        response_total = sum((m[1] for m in predictions_per_second["values"]))
+
+        assert total == response_total
 
 
 def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
@@ -300,42 +300,42 @@ def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
     )
 
 
-# @pytest.fixture(autouse=True)
-# def cleanup_endpoints(db: Session, client: TestClient):
-#     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
-#
-#     frames = get_frames_client(
-#         token=_get_access_key(), container="projects", address=config.v3io_framesd,
-#     )
-#     try:
-#         all_records = v3io.kv.new_cursor(
-#             container="projects",
-#             table_path=f"test/{ENDPOINTS_TABLE_PATH}",
-#             raise_for_status=RaiseForStatus.never,
-#         ).all()
-#
-#         all_records = [r["__name"] for r in all_records]
-#
-#         # Cleanup KV
-#         for record in all_records:
-#             v3io.kv.delete(
-#                 container="projects",
-#                 table_path=f"test/{ENDPOINTS_TABLE_PATH}",
-#                 key=record,
-#                 raise_for_status=RaiseForStatus.never,
-#             )
-#     except RuntimeError:
-#         pass
-#
-#     try:
-#         # Cleanup TSDB
-#         frames.delete(
-#             backend="tsdb",
-#             table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
-#             if_missing=fpb2.IGNORE,
-#         )
-#     except CreateError:
-#         pass
+@pytest.fixture(autouse=True)
+def cleanup_endpoints(db: Session, client: TestClient):
+    v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
+
+    frames = get_frames_client(
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+    )
+    try:
+        all_records = v3io.kv.new_cursor(
+            container="projects",
+            table_path=f"test/{ENDPOINTS_TABLE_PATH}",
+            raise_for_status=RaiseForStatus.never,
+        ).all()
+
+        all_records = [r["__name"] for r in all_records]
+
+        # Cleanup KV
+        for record in all_records:
+            v3io.kv.delete(
+                container="projects",
+                table_path=f"test/{ENDPOINTS_TABLE_PATH}",
+                key=record,
+                raise_for_status=RaiseForStatus.never,
+            )
+    except RuntimeError:
+        pass
+
+    try:
+        # Cleanup TSDB
+        frames.delete(
+            backend="tsdb",
+            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+            if_missing=fpb2.IGNORE,
+        )
+    except CreateError:
+        pass
 
 
 def _get_access_key() -> Optional[str]:

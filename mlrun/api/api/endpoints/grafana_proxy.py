@@ -42,13 +42,13 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.post("/grafana-proxy/model-endpoints/query")
+@router.post("/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable])
 async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaTable]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
 
-    This implementation requires passing `target_function` query parameter in order to dispatch different
+    This implementation requires passing `target_endpoint` query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
     access_key = get_access_key(request)
@@ -69,13 +69,13 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     return result
 
 
-@router.post("/grafana-proxy/model-endpoints/search")
+@router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
 async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
     """
     Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
 
-    This implementation requires passing `target_function` query parameter in order to dispatch different
+    This implementation requires passing `target_endpoint` query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
     access_key = get_access_key(request)

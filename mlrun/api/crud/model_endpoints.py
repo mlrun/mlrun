@@ -134,6 +134,7 @@ class ModelEndpoints:
 
         # If model artifact was supplied but `feature_stats` was not, grab model artifact and get `feature_stats`
         if model_artifact and not feature_stats:
+            logger.info("Getting model object, inferring column names and collecting feature stats")
             if model_artifact:
                 model_obj = get_model(model_artifact)
                 feature_stats = model_obj[1].feature_stats
@@ -142,6 +143,7 @@ class ModelEndpoints:
         # of the features. If `feature_names` was supplied, replace the names set in `feature_stats`, otherwise - make
         # sure to keep a clean version of the names
         if feature_stats:
+            logger.info("Feature stats found, cleaning feature names")
             if feature_names:
                 if len(feature_stats) != len(feature_names):
                     raise MLRunInvalidArgumentError(
@@ -159,6 +161,8 @@ class ModelEndpoints:
                 clean_feature_names.append(clean_name)
             feature_stats = clean_feature_stats
             feature_names = clean_feature_names
+
+            logger.info("Done preparing feature names and stats", feature_names=feature_names)
 
         # If none of the above was supplied, feature names will be assigned on first contact with the model monitoring
         # system

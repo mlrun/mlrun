@@ -52,15 +52,15 @@ def test_grafana_proxy_model_endpoints_check_connection(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_grafana_list_endpoints(db: Session, client: TestClient):
-    # endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
-    #
-    # for endpoint in endpoints_in:
-    #     serialize_endpoint_to_kv(_get_access_key(), endpoint)
+    endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
+
+    for endpoint in endpoints_in:
+        serialize_endpoint_to_kv(_get_access_key(), endpoint)
 
     response = client.post(
         url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
-        json={"targets": [{"target": "project=sheba-flow;endpoint_id=sheba-flow\.3e8efff6c1e60dc5840746c30a823bbc;target_endpoint=incoming_features"}]},
+        json={"targets": [{"target": "project=test;target_endpoint=list_endpoints"}]},
     )
 
     response_json = response.json()
@@ -303,7 +303,7 @@ def _get_access_key() -> Optional[str]:
     return os.environ.get("V3IO_ACCESS_KEY")
 
 
-# @pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())

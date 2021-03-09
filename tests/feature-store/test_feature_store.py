@@ -44,8 +44,44 @@ def test_basic_featureset():
     assert (
         stocks_set.spec.features["name"].description == "some name"
     ), "description was not set"
-    assert len(df) == len(stocks), "datafreame size doesnt match"
+    assert len(df) == len(stocks), "dataframe size doesnt match"
     assert stocks_set.status.stats["exchange"], "stats not created"
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_featureset_column_types():
+    init_store()
+
+    data = pd.DataFrame(
+        {
+            "key": ["key1", "key2"],
+            "str": ["my_string1", "my_string2"],
+            "int": [123456, 234567],
+            "float": [123.456, 234.567],
+            "bool": [True, False],
+            "timestamp": [
+                pd.Timestamp("1980-02-04 17:21:50.781"),
+                pd.Timestamp("2020-03-04 12:12:45.120"),
+            ],
+        }
+    )
+
+    init_store()
+
+    # add feature set without time column (stock ticker metadata)
+    types_set = fs.FeatureSet("types")
+    fs.infer_metadata(types_set, data, entity_columns=["key"])
+    df = fs.ingest(types_set, data, infer_options=fs.InferOptions.default())
+
+    logger.info(f"output df:\n{df}")
+    # stocks_set["name"].description = "some name"
+
+    logger.info(f"data spec: {types_set.to_yaml()}")
+    # assert (
+    #     stocks_set.spec.features["name"].description == "some name"
+    # ), "description was not set"
+    assert len(df) == len(data), "dataframe size doesnt match"
+    # assert stocks_set.status.stats["exchange"], "stats not created"
 
 
 class MyMap(MapClass):

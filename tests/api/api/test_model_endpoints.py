@@ -294,7 +294,9 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         assert total == response_total
 
-
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
 def test_get_endpoint_metric_function():
     frames = get_frames_client(
         token=_get_access_key(), container="projects", address=config.v3io_framesd,
@@ -347,21 +349,10 @@ def test_get_endpoint_metric_function():
     assert sum(map(lambda t: t[1], actual_values)) == total
 
 
-def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
-    def random_labels():
-        return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
 
-    return ModelEndpoint.new(
-        project="test",
-        model=f"model_{randint(0, 100)}",
-        function=f"function_{randint(0, 100)}",
-        tag=f"v{randint(0, 100)}",
-        model_class="classifier",
-        labels=random_labels(),
-        state=state,
-    )
-
-
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
 def test_build_kv_cursor_filter_expression():
     with pytest.raises(MLRunInvalidArgumentError):
         build_kv_cursor_filter_expression("")
@@ -641,3 +632,18 @@ def cleanup_endpoints(db: Session, client: TestClient):
         )
     except CreateError:
         pass
+
+
+def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
+    def random_labels():
+        return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
+
+    return ModelEndpoint.new(
+        project="test",
+        model=f"model_{randint(0, 100)}",
+        function=f"function_{randint(0, 100)}",
+        tag=f"v{randint(0, 100)}",
+        model_class="classifier",
+        labels=random_labels(),
+        state=state,
+    )

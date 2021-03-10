@@ -38,7 +38,6 @@ from .model_endpoints import (
     GrafanaTable,
     GrafanaTimeSeries,
     GrafanaTimeSeriesTarget,
-    Histogram,
     Metric,
     ModelEndpoint,
     ModelEndpointMetadata,

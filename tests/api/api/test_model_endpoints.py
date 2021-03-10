@@ -294,6 +294,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         assert total == response_total
 
+
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
@@ -347,7 +348,6 @@ def test_get_endpoint_metric_function():
     actual_values = endpoint_metrics["predictions_per_second_count_1s"].values
     assert len(actual_values) == 10
     assert sum(map(lambda t: t[1], actual_values)) == total
-
 
 
 @pytest.mark.skipif(

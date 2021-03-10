@@ -42,7 +42,7 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.post("/grafana-proxy/model-endpoints/query", response_model=List[GrafanaTable])
+@router.post("/grafana-proxy/model-endpoints/query")
 async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaTable]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and

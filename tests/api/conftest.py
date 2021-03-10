@@ -5,6 +5,7 @@ from typing import Generator
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.utils.v3io_clients
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
@@ -14,8 +15,6 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
 from mlrun.utils import logger
-import mlrun.utils.v3io_clients
-
 from tests.api.mocks import MockV3IOClient
 
 

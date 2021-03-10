@@ -16,18 +16,21 @@ from mlrun.api.api.endpoints.model_endpoints import get_or_raise
 from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ENDPOINTS_TABLE_PATH,
-    deserialize_endpoint_from_kv,
-    serialize_endpoint_to_kv,
-    get_endpoint_metrics,
     build_kv_cursor_filter_expression,
+    deserialize_endpoint_from_kv,
     get_access_key,
-    string_to_tsdb_name,
     get_endpoint_features,
-    ModelEndpoints,
+    get_endpoint_metrics,
+    serialize_endpoint_to_kv,
+    string_to_tsdb_name,
 )
 from mlrun.api.schemas import ModelEndpoint
 from mlrun.config import config
-from mlrun.errors import MLRunInvalidArgumentError, MLRunBadRequestError, MLRunNotFoundError
+from mlrun.errors import (
+    MLRunBadRequestError,
+    MLRunInvalidArgumentError,
+    MLRunNotFoundError,
+)
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}

@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Mapping
+from typing import Any, Dict, List, Mapping, Optional
 
 import pandas as pd
 from v3io.dataplane import RaiseForStatus
@@ -551,7 +551,8 @@ def deserialize_endpoint_state_from_kv(
         drift_measures=_json_loads_if_not_none(drift_measures),
         current_stats=_json_loads_if_not_none(current_stats),
         # metrics -> Computed from TSDB
-        # features -> Computed from `ModelEndpointState.endpoint.metadata.feature_stats` and `ModelEndpointState.current_stats`
+        # features -> Computed from `ModelEndpointState.endpoint.metadata.feature_stats` and
+        # `ModelEndpointState.current_stats`
     )
 
 

@@ -14,7 +14,7 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
 from mlrun.utils import logger
-from mlrun.utils import v3io_clients
+import mlrun.utils.v3io_clients
 
 from tests.api.mocks import MockV3IOClient
 
@@ -69,7 +69,7 @@ def client() -> Generator:
 def mock_v3io_client(monkeypatch) -> Generator:
     logger.info("Patching v3io client with mock client")
 
-    def get_v3io_client(**kwargs):
+    def get_v3io_client(*args, **kwargs):
         return MockV3IOClient()
 
-    monkeypatch.setattr(v3io_clients, "get_v3io_client", get_v3io_client)
+    monkeypatch.setattr(mlrun.utils.v3io_clients, "get_v3io_client", get_v3io_client)

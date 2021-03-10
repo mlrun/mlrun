@@ -603,6 +603,10 @@ def _get_access_key() -> Optional[str]:
 
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
+    # Do nothing unless its system test env
+    if _is_env_params_dont_exist():
+        return
+
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
     frames = get_frames_client(

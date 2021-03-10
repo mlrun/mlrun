@@ -12,15 +12,22 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
+from mlrun.api.api.endpoints.model_endpoints import get_or_raise
 from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ENDPOINTS_TABLE_PATH,
     deserialize_endpoint_from_kv,
     serialize_endpoint_to_kv,
+    get_endpoint_metrics,
+    build_kv_cursor_filter_expression,
+    get_access_key,
+    string_to_tsdb_name,
+    get_endpoint_features,
+    ModelEndpoints,
 )
 from mlrun.api.schemas import ModelEndpoint
 from mlrun.config import config
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, MLRunBadRequestError, MLRunNotFoundError
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
@@ -55,7 +62,7 @@ def test_clear_endpoint(db: Session, client: TestClient):
 
     assert response.status_code == 204
 
-    with pytest.raises(MLRunInvalidArgumentError):
+    with pytest.raises(MLRunNotFoundError):
         deserialize_endpoint_from_kv(
             access_key=access_key,
             project=endpoint.metadata.project,
@@ -276,13 +283,65 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         assert len(metrics) > 0
 
-        predictions_per_second = metrics["predictions_per_second"]
+        predictions_per_second = metrics["predictions_per_second_count_1s"]
 
-        assert predictions_per_second["name"] == "predictions_per_second"
+        assert predictions_per_second["name"] == "predictions_per_second_count_1s"
 
         response_total = sum((m[1] for m in predictions_per_second["values"]))
 
         assert total == response_total
+
+
+def test_get_endpoint_metric_function():
+    frames = get_frames_client(
+        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+    )
+
+    start = datetime.utcnow()
+
+    endpoint = _mock_random_endpoint()
+    serialize_endpoint_to_kv(_get_access_key(), endpoint)
+
+    frames.create(
+        backend="tsdb",
+        table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+        rate="10/m",
+        if_exists=1,
+    )
+
+    total = 0
+    dfs = []
+
+    for i in range(10):
+        count = randint(1, 10)
+        total += count
+        data = {
+            "predictions_per_second_count_1s": count,
+            "endpoint_id": endpoint.id,
+            "timestamp": start - timedelta(minutes=10 - i),
+        }
+        df = pd.DataFrame(data=[data])
+        dfs.append(df)
+
+    frames.write(
+        backend="tsdb",
+        table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+        dfs=dfs,
+        index_cols=["timestamp", "endpoint_id"],
+    )
+
+    endpoint_metrics = get_endpoint_metrics(
+        access_key=_get_access_key(),
+        project="test",
+        endpoint_id=endpoint.id,
+        name=["predictions"],
+    )
+
+    assert "predictions_per_second_count_1s" in endpoint_metrics
+
+    actual_values = endpoint_metrics["predictions_per_second_count_1s"].values
+    assert len(actual_values) == 10
+    assert sum(map(lambda t: t[1], actual_values)) == total
 
 
 def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
@@ -298,6 +357,245 @@ def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
         labels=random_labels(),
         state=state,
     )
+
+
+def test_build_kv_cursor_filter_expression():
+    with pytest.raises(MLRunInvalidArgumentError):
+        build_kv_cursor_filter_expression("")
+
+    filter_expression = build_kv_cursor_filter_expression(project="test")
+    assert filter_expression == "project=='test'"
+
+    filter_expression = build_kv_cursor_filter_expression(
+        project="test", function="test_function", model="test_model", tag="test_tag"
+    )
+    expected = "project=='test' AND function=='test_function' AND model=='test_model' AND tag=='test_tag'"
+    assert filter_expression == expected
+
+    filter_expression = build_kv_cursor_filter_expression(
+        project="test", labels=["lbl1", "lbl2"]
+    )
+    assert filter_expression == "project=='test' AND exists(_lbl1) AND exists(_lbl2)"
+
+    filter_expression = build_kv_cursor_filter_expression(
+        project="test", labels=["lbl1=1", "lbl2=2"]
+    )
+    assert filter_expression == "project=='test' AND _lbl1=='1' AND _lbl2=='2'"
+
+    filter_expression = build_kv_cursor_filter_expression(
+        project="test", labels=["lbl1==1", "lbl2==2"]
+    )
+    assert filter_expression == "project=='test' AND _lbl1=='1' AND _lbl2=='2'"
+
+
+def test_get_access_key():
+    key = get_access_key({"X-V3io-Session-Key": "asd"})
+    assert key == "asd"
+
+    with pytest.raises(MLRunBadRequestError):
+        get_access_key({"some_other_header": "asd"})
+
+
+def test_get_or_raise():
+    some_dict = {"happy_path": "happy_value"}
+    value = get_or_raise(some_dict, "happy_path")
+    assert value == "happy_value"
+
+    with pytest.raises(MLRunInvalidArgumentError):
+        get_or_raise(some_dict, "not_happy_path")
+
+
+def test_string_to_tsdb_name():
+    with pytest.raises(MLRunInvalidArgumentError):
+        string_to_tsdb_name("unsupported_string")
+
+
+def test_get_endpoint_features_function():
+    stats = {
+        "sepal length (cm)": {
+            "count": 30.0,
+            "mean": 5.946666666666668,
+            "std": 0.8394305678023165,
+            "min": 4.7,
+            "max": 7.9,
+            "hist": [
+                [4, 2, 1, 0, 1, 3, 4, 0, 3, 4, 1, 1, 2, 1, 0, 1, 0, 0, 1, 1],
+                [
+                    4.7,
+                    4.86,
+                    5.0200000000000005,
+                    5.18,
+                    5.34,
+                    5.5,
+                    5.66,
+                    5.82,
+                    5.98,
+                    6.140000000000001,
+                    6.300000000000001,
+                    6.46,
+                    6.62,
+                    6.78,
+                    6.94,
+                    7.1,
+                    7.26,
+                    7.42,
+                    7.58,
+                    7.74,
+                    7.9,
+                ],
+            ],
+        },
+        "sepal width (cm)": {
+            "count": 30.0,
+            "mean": 3.119999999999999,
+            "std": 0.4088672324766359,
+            "min": 2.2,
+            "max": 3.8,
+            "hist": [
+                [1, 0, 0, 1, 0, 0, 3, 4, 2, 0, 3, 3, 2, 2, 0, 3, 1, 1, 0, 4],
+                [
+                    2.2,
+                    2.2800000000000002,
+                    2.3600000000000003,
+                    2.44,
+                    2.52,
+                    2.6,
+                    2.68,
+                    2.7600000000000002,
+                    2.84,
+                    2.92,
+                    3.0,
+                    3.08,
+                    3.16,
+                    3.24,
+                    3.3200000000000003,
+                    3.4,
+                    3.48,
+                    3.56,
+                    3.6399999999999997,
+                    3.7199999999999998,
+                    3.8,
+                ],
+            ],
+        },
+        "petal length (cm)": {
+            "count": 30.0,
+            "mean": 3.863333333333333,
+            "std": 1.8212317418360753,
+            "min": 1.3,
+            "max": 6.7,
+            "hist": [
+                [6, 4, 0, 0, 0, 0, 0, 0, 1, 2, 0, 3, 3, 2, 2, 3, 1, 1, 1, 1],
+                [
+                    1.3,
+                    1.57,
+                    1.84,
+                    2.1100000000000003,
+                    2.38,
+                    2.6500000000000004,
+                    2.92,
+                    3.1900000000000004,
+                    3.46,
+                    3.7300000000000004,
+                    4.0,
+                    4.2700000000000005,
+                    4.54,
+                    4.8100000000000005,
+                    5.08,
+                    5.3500000000000005,
+                    5.62,
+                    5.89,
+                    6.16,
+                    6.430000000000001,
+                    6.7,
+                ],
+            ],
+        },
+        "petal width (cm)": {
+            "count": 30.0,
+            "mean": 1.2733333333333334,
+            "std": 0.8291804567674381,
+            "min": 0.1,
+            "max": 2.5,
+            "hist": [
+                [5, 3, 2, 0, 0, 0, 0, 0, 1, 2, 3, 2, 1, 0, 2, 3, 1, 1, 0, 4],
+                [
+                    0.1,
+                    0.22,
+                    0.33999999999999997,
+                    0.45999999999999996,
+                    0.58,
+                    0.7,
+                    0.82,
+                    0.94,
+                    1.06,
+                    1.1800000000000002,
+                    1.3,
+                    1.42,
+                    1.54,
+                    1.6600000000000001,
+                    1.78,
+                    1.9,
+                    2.02,
+                    2.14,
+                    2.2600000000000002,
+                    2.38,
+                    2.5,
+                ],
+            ],
+        },
+    }
+    feature_names = list(stats.keys())
+
+    features = get_endpoint_features(feature_names, stats, stats)
+    assert len(features) == 4
+    # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
+    for feature in features:
+        assert feature.expected is not None
+        assert feature.actual is not None
+
+        assert feature.expected.histogram is not None
+        # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
+
+        assert feature.actual.histogram is not None
+        # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
+
+    features = get_endpoint_features(feature_names, stats, None)
+    assert len(features) == 4
+    for feature in features:
+        assert feature.expected is not None
+        assert feature.actual is None
+
+        assert feature.expected.histogram is not None
+        # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
+
+    features = get_endpoint_features(feature_names, None, stats)
+    assert len(features) == 4
+    for feature in features:
+        assert feature.expected is None
+        assert feature.actual is not None
+
+        assert feature.actual.histogram is not None
+        # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
+
+    features = get_endpoint_features(feature_names[1:], None, stats)
+    assert len(features) == 3
+
+
+@pytest.mark.skipif(
+    _is_env_params_dont_exist(), reason=_build_skip_message(),
+)
+def test_deserialize_endpoint_from_kv():
+    endpoint = _mock_random_endpoint()
+    serialize_endpoint_to_kv(_get_access_key(), endpoint)
+    endpoint_from_kv = deserialize_endpoint_from_kv(
+        _get_access_key(), endpoint.metadata.project, endpoint.id
+    )
+    assert endpoint.id == endpoint_from_kv.id
+
+
+def _get_access_key() -> Optional[str]:
+    return os.environ.get("V3IO_ACCESS_KEY")
 
 
 @pytest.fixture(autouse=True)
@@ -336,7 +634,3 @@ def cleanup_endpoints(db: Session, client: TestClient):
         )
     except CreateError:
         pass
-
-
-def _get_access_key() -> Optional[str]:
-    return os.environ.get("V3IO_ACCESS_KEY")

@@ -15,7 +15,7 @@ router = APIRouter()
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 async def register_endpoint(request: Request, project: str):
-    access_key = get_access_key(request)
+    access_key = get_access_key(request.headers)
     payload = await request.json()
 
     # Required parameters
@@ -55,7 +55,7 @@ async def update_endpoint(
     request: Request, project: str, endpoint_id: str,
 ):
     verify_endpoint(project, endpoint_id)
-    access_key = get_access_key(request)
+    access_key = get_access_key(request.headers)
     payload = await request.json()
     ModelEndpoints.update_endpoint_record(
         access_key=access_key, project=project, endpoint_id=endpoint_id, payload=payload
@@ -72,8 +72,10 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     Clears endpoint record from KV by endpoint_id
     """
     verify_endpoint(project, endpoint_id)
-    access_key = get_access_key(request)
-    ModelEndpoints.clear_endpoint_record(access_key, endpoint_id)
+    access_key = get_access_key(request.headers)
+    ModelEndpoints.clear_endpoint_record(
+        access_key=access_key, project=project, endpoint_id=endpoint_id
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -105,7 +107,7 @@ def list_endpoints(
      Or by using a `,` (comma) seperator:
      `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
      """
-    access_key = get_access_key(request)
+    access_key = get_access_key(request.headers)
     endpoints = ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
@@ -134,7 +136,7 @@ def get_endpoint(
     features: bool = Query(default=False),
 ):
     verify_endpoint(project, endpoint_id)
-    access_key = get_access_key(request)
+    access_key = get_access_key(request.headers)
     return ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,

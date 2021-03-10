@@ -38,7 +38,7 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
     """
     logger.debug("Querying grafana-proxy / health check")
 
-    get_access_key(request)
+    get_access_key(request.headers)
     return Response(status_code=HTTPStatus.OK.value)
 
 
@@ -51,7 +51,7 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     This implementation requires passing `target_endpoint` query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
-    access_key = get_access_key(request)
+    access_key = get_access_key(request.headers)
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
 
@@ -78,7 +78,7 @@ async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
     This implementation requires passing `target_endpoint` query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
-    access_key = get_access_key(request)
+    access_key = get_access_key(request.headers)
     body = await request.json()
     query_parameters = _parse_search_parameters(body)
 

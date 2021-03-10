@@ -47,20 +47,26 @@ class ModelEndpoint(BaseModel):
 
     def __init__(self, **data: Any):
         super().__init__(**data)
-        self.id = self.create_endpoint_id()
-
-    def create_endpoint_id(self):
-        if not self.spec.function or not self.spec.model or not self.metadata.tag:
-            raise ValueError(
-                "ModelEndpoint.spec.function, ModelEndpoint.spec.model "
-                "and ModelEndpoint.metadata.tag must be initalized"
-            )
-
-        endpoint_unique_string = (
-            f"{self.spec.function}_{self.spec.model}_{self.metadata.tag}"
+        self.id = self.create_endpoint_id(
+            project=self.metadata.project,
+            function=self.spec.function,
+            model=self.spec.model,
+            tag=self.metadata.tag,
         )
+
+    @staticmethod
+    def create_endpoint_id(
+        project: str, function: str, model: str, tag: Optional[str] = None
+    ):
+        if not project or not function or not model:
+            raise ValueError("project, function, model must be initialized")
+
+        endpoint_unique_string = f"{function}_{model}"
+        if tag:
+            endpoint_unique_string += f"_{tag}"
+
         md5_str = md5(endpoint_unique_string.encode("utf-8")).hexdigest()
-        return f"{self.metadata.project}.{md5_str}"
+        return f"{project}.{md5_str}"
 
     @classmethod
     def new(
@@ -101,10 +107,9 @@ class ModelEndpoint(BaseModel):
         :param active: The "activation" status of the endpoint - True for active / False for not active (default True)
         """
 
-        if project is None and model is None and function is None and tag is None:
+        if project is None and model is None and function is None:
             raise MLRunInvalidArgumentError(
-                f"All of `project`[{project}], `model`[{model}], `function`[{function}] and `tag`[{tag}] must be "
-                f"properly initialized"
+                f"All of 'project[={project}]', 'model[={model}]', 'function[={function}]' must be properly initialized"
             )
 
         return cls(
@@ -124,35 +129,71 @@ class ModelEndpoint(BaseModel):
             status=ModelEndpointStatus(state=state, active=active),
         )
 
+    @property
+    def project(self):
+        return self.metadata.project
 
-class Histogram(BaseModel):
-    buckets: List[Tuple[float, float]]
-    count: List[int]
+    @property
+    def function(self):
+        return self.spec.function
+
+    @property
+    def model(self):
+        return self.spec.model
+
+    @property
+    def tag(self):
+        return self.metadata.tag
 
 
 class Metric(BaseModel):
     name: str
-    start_timestamp: str
-    end_timestamp: str
-    headers: List[str]
     values: List[Tuple[str, float]]
-    min: float
-    avg: float
-    max: float
+
+
+class Histogram(BaseModel):
+    buckets: List[float]
+    counts: List[int]
 
 
 class FeatureValues(BaseModel):
     min: float
-    avg: float
+    mean: float
     max: float
     histogram: Histogram
+
+    @classmethod
+    def new(cls, stats: Optional[dict]):
+        if stats:
+            return FeatureValues(
+                min=stats["min"],
+                mean=stats["mean"],
+                max=stats["max"],
+                histogram=Histogram(buckets=stats["hist"][1], counts=stats["hist"][0]),
+            )
+        else:
+            return None
 
 
 class Features(BaseModel):
     name: str
     weight: float
-    expected: FeatureValues
+    expected: Optional[FeatureValues]
     actual: Optional[FeatureValues]
+
+    @classmethod
+    def new(
+        cls,
+        feature_name: str,
+        feature_stats: Optional[dict],
+        current_stats: Optional[dict],
+    ):
+        return cls(
+            name=feature_name,
+            weight=-1.0,
+            expected=FeatureValues.new(feature_stats),
+            actual=FeatureValues.new(current_stats),
+        )
 
 
 class ModelEndpointState(BaseModel):

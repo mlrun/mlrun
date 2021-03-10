@@ -14,7 +14,7 @@
 
 import mlrun
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
-from mlrun.datastore.targets import add_target_states, get_target_driver
+from mlrun.datastore.targets import add_target_states, get_target_driver, validate_target_placement
 
 from ..data_types import InferOptions
 from ..datastore.store_resources import ResourceCache
@@ -78,6 +78,7 @@ def _add_data_states(
     graph, cache, featureset, targets, source, return_df=False,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
+    validate_target_placement(graph, default_final_state, targets)
     cache.cache_resource(featureset.uri, featureset, True)
     table = add_target_states(
         graph, featureset, targets, to_df=return_df, final_state=default_final_state

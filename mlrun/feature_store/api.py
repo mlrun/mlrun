@@ -243,7 +243,7 @@ def ingest(
     return df
 
 
-def infer_metadata(
+def infer(
     featureset: FeatureSet,
     source,
     entity_columns=None,
@@ -296,6 +296,9 @@ def infer_metadata(
 
     df = infer_from_static_df(source, featureset, entity_columns, options)
     return df
+
+
+infer_metadata = infer
 
 
 def run_ingestion_job(
@@ -570,7 +573,7 @@ def set_task_params(
     parameters = parameters or {}
     parameters["infer_options"] = infer_options
     parameters["featureset"] = featureset.uri
-    if not source.online:
+    if source:
         parameters["source"] = source.to_dict()
     if targets:
         parameters["targets"] = [target.to_dict() for target in targets]

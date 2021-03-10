@@ -15,6 +15,7 @@ from copy import copy
 from typing import Dict
 
 import mlrun
+import storey
 
 from ..model import DataSource
 from ..utils import get_class
@@ -46,8 +47,6 @@ class BaseSourceDriver(DataSource):
         return store
 
     def to_step(self, key_field=None, time_field=None):
-        import storey
-
         return storey.Source()
 
     def get_table_object(self):
@@ -87,8 +86,6 @@ class CSVSource(BaseSourceDriver):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
     def to_step(self, key_field=None, time_field=None):
-        import storey
-
         attributes = self.attributes or {}
         return storey.ReadCSV(
             paths=self.path,
@@ -126,8 +123,6 @@ class ParquetSource(BaseSourceDriver):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
     def to_step(self, key_field=None, time_field=None):
-        import storey
-
         attributes = self.attributes or {}
         return storey.ReadParquet(
             paths=self.path,
@@ -176,8 +171,6 @@ class DataFrameSource:
         self.time_field = time_field
 
     def to_step(self, key_field=None, time_field=None):
-        import storey
-
         return storey.DataframeSource(
             dfs=self._df,
             key_field=self.key_field or key_field,
@@ -196,6 +189,8 @@ class OnlineSource(BaseSourceDriver):
         "name",
         "path",
         "attributes",
+        "key_field",
+        "time_field",
         "online",
         "workers",
     ]
@@ -206,11 +201,20 @@ class OnlineSource(BaseSourceDriver):
         name: str = None,
         path: str = None,
         attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
         workers: int = None,
     ):
-        super().__init__(name, path, attributes)
+        super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
         self.workers = workers
+
+    def to_step(self, key_field=None, time_field=None):
+        return storey.Source(
+            key_field=self.key_field or key_field,
+            time_field=self.time_field or time_field,
+            full_event=True,
+        )
 
 
 class HttpSource(OnlineSource):

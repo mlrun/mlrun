@@ -58,6 +58,17 @@ def get_default_targets():
     ]
 
 
+def validate_target_placement(graph, final_step, targets):
+    if final_step or graph.is_empty():
+        return True
+    for target in targets:
+        if not target.after_state:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "writer step location is undetermined due to graph branching"
+                ", set the target .after_state attribute or the graph .final_state"
+            )
+
+
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     """add the target states to the graph"""
     targets = targets or []

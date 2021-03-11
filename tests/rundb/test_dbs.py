@@ -16,16 +16,16 @@ from tempfile import mkdtemp
 
 import pytest
 
-import mlrun.errors
-from mlrun.db import SQLDB, FileRunDB, sqldb
-from mlrun.db.base import RunDBInterface
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.project_member
+import mlrun.errors
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
-import mlrun.api.utils.singletons.project_member
-from tests.conftest import init_sqldb, new_run, run_now
+from mlrun.db import SQLDB, FileRunDB, sqldb
+from mlrun.db.base import RunDBInterface
+from tests.conftest import new_run, run_now
 
 dbs = [
     "sql",

@@ -14,8 +14,9 @@
 from copy import copy
 from typing import Dict
 
-import mlrun
 import storey
+
+import mlrun
 
 from ..model import DataSource
 from ..utils import get_class

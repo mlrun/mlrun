@@ -15,7 +15,8 @@ import os
 import sys
 from copy import copy
 from typing import Dict
-from storey import V3ioDriver, Table
+
+from storey import Table, V3ioDriver
 
 import mlrun
 from mlrun.model import DataTarget, DataTargetBase

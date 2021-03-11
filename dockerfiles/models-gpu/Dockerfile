@@ -117,7 +117,7 @@ RUN conda config --add channels conda-forge && \
         scikit-plot \
         scipy \
         seaborn \
-        tensorflow-gpu=2.3.0 \
+        tensorflow-gpu=2.2.0 \
         wrapt \
     && conda clean -aqy
 

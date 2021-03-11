@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import MultipleResultsFound
 
 import mlrun.api.initial_data
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
 from mlrun.artifacts.dataset import DatasetArtifact
@@ -151,6 +152,113 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
     assert artifact["kind"] == artifact_1_kind
     artifact = db.read_artifact(db_session, artifact_1_key, tag=artifact_1_uid)
     assert artifact.get("kind") is None
+    artifacts = db.list_artifacts(db_session, artifact_1_key, tag="latest")
+    assert len(artifacts) == 1
+    artifacts = db.list_artifacts(db_session, artifact_1_key, tag=artifact_1_uid)
+    assert len(artifacts) == 1
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Session):
+    artifact_key = "artifact_key_1"
+    artifact_1_uid = "artifact_uid_1"
+    artifact_2_uid = "artifact_uid_2"
+    artifact_1_body = _generate_artifact(artifact_key, uid=artifact_1_uid)
+    artifact_2_body = _generate_artifact(artifact_key, uid=artifact_2_uid)
+    artifact_1_tag = "artifact_tag_1"
+    artifact_2_tag = "artifact_tag_2"
+
+    db.store_artifact(
+        db_session, artifact_key, artifact_1_body, artifact_1_uid, tag=artifact_1_tag,
+    )
+    db.store_artifact(
+        db_session, artifact_key, artifact_2_body, artifact_2_uid, tag=artifact_2_tag,
+    )
+    artifacts = db.list_artifacts(db_session, artifact_key, tag="*")
+    assert len(artifacts) == 2
+    expected_uids = [artifact_1_uid, artifact_2_uid]
+    uids = [artifact["metadata"]["uid"] for artifact in artifacts]
+    assert deepdiff.DeepDiff(expected_uids, uids, ignore_order=True,) == {}
+    expected_tags = [artifact_1_tag, artifact_2_tag]
+    tags = [artifact["tag"] for artifact in artifacts]
+    assert deepdiff.DeepDiff(expected_tags, tags, ignore_order=True,) == {}
+    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_1_tag)
+    assert artifact["metadata"]["uid"] == artifact_1_uid
+    assert artifact["tag"] == artifact_1_tag
+    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)
+    assert artifact["metadata"]["uid"] == artifact_2_uid
+    assert artifact["tag"] == artifact_2_tag
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
+    """
+    We had a bug in which when we got a tag filter for read/list artifact, we were transforming this tag to list of
+    possible uids which is wrong, since a different artifact might have this uid as well, and we will return it,
+    although it's not really tag with the given tag
+    """
+    artifact_1_key = "artifact_key_1"
+    artifact_2_key = "artifact_key_2"
+    artifact_uid = "artifact_uid_1"
+    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_uid)
+    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_uid)
+    artifact_1_tag = "artifact_tag_1"
+    artifact_2_tag = "artifact_tag_2"
+
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_uid, tag=artifact_1_tag,
+    )
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_uid, tag=artifact_2_tag,
+    )
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.read_artifact(db_session, artifact_1_key, artifact_2_tag)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.read_artifact(db_session, artifact_2_key, artifact_1_tag)
+    # just verifying it's not raising
+    db.read_artifact(db_session, artifact_1_key, artifact_1_tag)
+    db.read_artifact(db_session, artifact_2_key, artifact_2_tag)
+    # check list
+    artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
+    assert len(artifacts) == 1
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+    assert len(artifacts) == 1
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
+    artifact_1_key = "artifact_key_1"
+    artifact_2_key = "artifact_key_2"
+    artifact_1_uid = "artifact_uid_1"
+    artifact_2_uid = "artifact_uid_2"
+    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
+    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
+    artifact_1_tag = "artifact_tag_one"
+    artifact_2_tag = "artifact_tag_two"
+
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_1_uid, tag=artifact_1_tag,
+    )
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_2_uid, tag=artifact_2_tag,
+    )
+    db.del_artifacts(db_session, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
+    assert len(artifacts) == 0
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+    assert len(artifacts) == 1
+    db.del_artifacts(db_session, tag=artifact_2_uid)
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+    assert len(artifacts) == 0
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

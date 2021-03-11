@@ -140,7 +140,7 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
     assert result["tag"] == "tag2"
 
-    result = db.list_artifacts(db_session, k1, project=prj)
+    result = db.list_artifacts(db_session, k1, project=prj, tag="*")
     assert len(result) == 2
     for artifact in result:
         assert (artifact["a"] == 1 and artifact["tag"] == "tag1") or (
@@ -165,7 +165,7 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
 
     artifacts = db_session.query(Artifact).all()
     db.tag_artifacts(db_session, artifacts, prj, "new_tag")
-    result = db.list_artifacts(db_session, k1, prj)
+    result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 
     db.store_artifact(db_session, k1, art1, u1, iter=1, project=prj, tag="tag3")
@@ -173,7 +173,7 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     assert result["tag"] == "tag3"
     expected_results.append(result)
 
-    result = db.list_artifacts(db_session, k1, prj)
+    result = db.list_artifacts(db_session, k1, prj, tag="*")
     # We want to ignore the "updated" field, since it changes as we store a new tag.
     exclude_regex = r"root\[\d+\]\['updated'\]"
     assert (

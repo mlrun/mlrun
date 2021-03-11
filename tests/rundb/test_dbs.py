@@ -16,10 +16,16 @@ from tempfile import mkdtemp
 
 import pytest
 
+import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.project_member
 import mlrun.errors
+from mlrun.api.db.sqldb.session import _init_engine, create_session
+from mlrun.api.initial_data import init_data
+from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.config import config
 from mlrun.db import SQLDB, FileRunDB, sqldb
 from mlrun.db.base import RunDBInterface
-from tests.conftest import init_sqldb, new_run, run_now
+from tests.conftest import new_run, run_now
 
 dbs = [
     "sql",
@@ -35,14 +41,21 @@ def db(request):
     if request.param == "sql":
         db_file = f"{path}/mlrun.db"
         dsn = f"sqlite:///{db_file}?check_same_thread=false"
-        session_maker = init_sqldb(dsn)
-        db = SQLDB(dsn, session=session_maker())
+        config.httpdb.dsn = dsn
+        _init_engine(dsn)
+        init_data()
+        initialize_db()
+        db_session = create_session()
+        db = SQLDB(dsn, session=db_session)
     elif request.param == "file":
         db = FileRunDB(path)
     else:
         assert False, f"unknown db type - {request.param}"
 
     db.connect()
+    if request.param == "sql":
+        mlrun.api.utils.singletons.db.initialize_db(db.db)
+        mlrun.api.utils.singletons.project_member.initialize_project_member()
     return db
 
 
@@ -159,7 +172,7 @@ def test_artifacts(db: RunDBInterface):
     assert {2, 3} == {a["a"] for a in arts}, "list artifact a"
 
     db.del_artifact(key=k1)
-    with pytest.raises(sqldb.RunDBError):
+    with pytest.raises((sqldb.RunDBError, mlrun.errors.MLRunNotFoundError)):
         db.read_artifact(k1)
 
 

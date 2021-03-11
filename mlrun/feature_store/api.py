@@ -298,6 +298,7 @@ def infer(
     return df
 
 
+# keep for backwards compatibility
 infer_metadata = infer
 
 

@@ -16,8 +16,6 @@ import sys
 from copy import copy
 from typing import Dict
 
-from storey import Table, V3ioDriver
-
 import mlrun
 from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
@@ -337,6 +335,8 @@ class NoSqlTarget(BaseStoreTarget):
     support_storey = True
 
     def get_table_object(self):
+        from storey import Table, V3ioDriver
+
         # TODO use options/cred
         endpoint, uri = parse_v3io_path(self._target_path)
         return Table(uri, V3ioDriver(webapi=endpoint))
@@ -381,6 +381,8 @@ class StreamTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
+        from storey import V3ioDriver
+
         endpoint, uri = parse_v3io_path(self._target_path)
         column_list = list(features.keys())
         if timestamp_key and timestamp_key not in column_list:

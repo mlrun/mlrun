@@ -1113,7 +1113,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     None,
                 )
                 if not feature:
-                    raise mlrun.errors.MLRunConflictError(
+                    raise mlrun.errors.MLRunInternalServerError(
                         "Inconsistent data in DB - features in DB not in feature-set document"
                     )
 
@@ -1167,7 +1167,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     None,
                 )
                 if not entity:
-                    raise mlrun.errors.MLRunConflictError(
+                    raise mlrun.errors.MLRunInternalServerError(
                         "Inconsistent data in DB - entities in DB not in feature-set document"
                     )
 

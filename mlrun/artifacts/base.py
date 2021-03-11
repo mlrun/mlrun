@@ -20,7 +20,7 @@ import mlrun
 
 from ..datastore import get_store_uri, is_store_uri, store_manager
 from ..model import ModelObj
-from ..utils import StorePrefix
+from ..utils import StorePrefix, generate_artifact_uri
 
 calc_hash = True
 
@@ -102,10 +102,8 @@ class Artifact(ModelObj):
         return self.target_path
 
     def get_store_url(self, with_tag=True, project=None):
-        uri_project = project or self.project
-        uri = "/".join([uri_project, self.db_key])
-        if with_tag:
-            uri += ":" + self.tree
+        tag = self.tree if with_tag else None
+        uri = generate_artifact_uri(project or self.project, self.db_key, tag, self.iter)
         return get_store_uri(StorePrefix.Artifact, uri)
 
     def base_dict(self):

@@ -118,15 +118,12 @@ RUN conda config --add channels conda-forge && \
         scipy \
         seaborn \
         tensorflow-gpu \
-        wrapt \
-    && conda clean -aqy
+        wrapt
 
 RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7 \
-    && conda clean -aqy
+    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7
 
-RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1 \
-    && conda clean -aqy
+RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
 RUN python -m pip install --upgrade pip~=20.2.0
 

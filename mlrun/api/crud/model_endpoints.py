@@ -441,7 +441,7 @@ def serialize_endpoint_to_kv(
             "project": endpoint.metadata.project,
             "model": endpoint.spec.model,
             "function": endpoint.spec.function,
-            "tag": endpoint.metadata.tag,
+            "tag": endpoint.metadata.tag or "",
             "model_class": endpoint.spec.model_class or "",
             "labels": json.dumps(labels),
             "model_artifact": endpoint.metadata.model_artifact or "",

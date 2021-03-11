@@ -218,7 +218,7 @@ def test_ordered_pandas_asof_merge():
     )
 
     features = ["left.*", "right.*"]
-    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    feature_vector = fs.FeatureVector("test_fv", features, description="test FV")
     res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
     res = res.to_dataframe()
     assert res.shape[0] == left.shape[0]
@@ -236,7 +236,7 @@ def test_left_not_ordered_pandas_asof_merge():
     )
 
     features = ["left.*", "right.*"]
-    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    feature_vector = fs.FeatureVector("test_fv", features, description="test FV")
     res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
     res = res.to_dataframe()
     assert res.shape[0] == left.shape[0]
@@ -254,7 +254,7 @@ def test_right_not_ordered_pandas_asof_merge():
     )
 
     features = ["left.*", "right.*"]
-    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    feature_vector = fs.FeatureVector("test_fv", features, description="test FV")
     res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
     res = res.to_dataframe()
     assert res.shape[0] == left.shape[0]

@@ -15,6 +15,7 @@ import os
 import sys
 from copy import copy
 from typing import Dict
+from storey import V3ioDriver, Table
 
 import mlrun
 from mlrun.model import DataTarget, DataTargetBase
@@ -270,6 +271,7 @@ class ParquetTarget(BaseStoreTarget):
             columns=column_list,
             index_cols=key_column,
             storage_options=self._get_store().get_storage_options(),
+            **self.attributes,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -315,6 +317,7 @@ class CSVTarget(BaseStoreTarget):
             header=True,
             index_cols=key_column,
             storage_options=self._get_store().get_storage_options(),
+            **self.attributes,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -333,8 +336,6 @@ class NoSqlTarget(BaseStoreTarget):
     support_storey = True
 
     def get_table_object(self):
-        from storey import Table, V3ioDriver
-
         # TODO use options/cred
         endpoint, uri = parse_v3io_path(self._target_path)
         return Table(uri, V3ioDriver(webapi=endpoint))
@@ -355,6 +356,7 @@ class NoSqlTarget(BaseStoreTarget):
             class_name="storey.WriteToTable",
             columns=column_list,
             table=table,
+            **self.attributes,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -378,11 +380,9 @@ class StreamTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
-        from storey import V3ioDriver
-
         endpoint, uri = parse_v3io_path(self._target_path)
         column_list = list(features.keys())
-        if timestamp_key:
+        if timestamp_key and timestamp_key not in column_list:
             column_list = [timestamp_key] + column_list
         if key_column not in column_list:
             column_list.insert(0, key_column)
@@ -394,6 +394,40 @@ class StreamTarget(BaseStoreTarget):
             columns=column_list,
             storage=V3ioDriver(webapi=endpoint),
             stream_path=uri,
+            **self.attributes,
+        )
+
+    def as_df(self, columns=None, df_module=None):
+        raise NotImplementedError()
+
+
+class TSDBTarget(BaseStoreTarget):
+    kind = TargetTypes.tsdb
+    is_table = False
+    is_online = False
+    support_spark = False
+    support_storey = True
+
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
+        endpoint, uri = parse_v3io_path(self._target_path)
+        column_list = list(features.keys())
+        if not timestamp_key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "feature set timestamp_key must be specified for TSDBTarget writer"
+            )
+        if key_column not in column_list:
+            column_list.insert(0, key_column)
+        graph.add_step(
+            name="WriteToTSDB",
+            class_name="storey.WriteToTSDB",
+            after=after,
+            graph_shape="cylinder",
+            path=uri,
+            time_col=timestamp_key,
+            index_cols=key_column,
+            columns=column_list,
             **self.attributes,
         )
 
@@ -466,6 +500,7 @@ kind_to_driver = {
     TargetTypes.nosql: NoSqlTarget,
     TargetTypes.dataframe: DFTarget,
     TargetTypes.stream: StreamTarget,
+    TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
 }
 

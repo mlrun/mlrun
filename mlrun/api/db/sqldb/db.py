@@ -1888,7 +1888,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if ids != "*":
             if ids == "latest":
                 query = self._latest_uid_filter(session, query)
-            elif isinstance(ids, str) and ids:
+            elif isinstance(ids, str):
                 query = query.filter(Artifact.uid == ids)
             else:
                 query = query.filter(Artifact.id.in_(ids))

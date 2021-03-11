@@ -19,7 +19,12 @@ import mlrun
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
-from ..datastore.targets import TargetTypes, default_target_names, get_offline_target, validate_target_placement
+from ..datastore.targets import (
+    TargetTypes,
+    default_target_names,
+    get_offline_target,
+    validate_target_placement,
+)
 from ..features import Entity, Feature
 from ..model import (
     DataSource,

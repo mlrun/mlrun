@@ -14,7 +14,11 @@
 
 import mlrun
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
-from mlrun.datastore.targets import add_target_states, get_target_driver, validate_target_placement
+from mlrun.datastore.targets import (
+    add_target_states,
+    get_target_driver,
+    validate_target_placement,
+)
 
 from ..data_types import InferOptions
 from ..datastore.store_resources import ResourceCache

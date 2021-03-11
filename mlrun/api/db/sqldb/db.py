@@ -46,6 +46,7 @@ from mlrun.utils import (
     match_times,
     update_in,
 )
+from mlrun.model import RunObject
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -119,7 +120,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise DBError(f"run {uid}:{project} not found")
+            run_uri = RunObject.create_uri(
+                project, uid, iter
+            )
+            raise mlrun.errors.MLRunNotFoundError(f"Run {run_uri} not found")
         struct = run.struct
         for key, val in updates.items():
             update_in(struct, key, val)

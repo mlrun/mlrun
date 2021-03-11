@@ -1103,7 +1103,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     None,
                 )
                 if not feature:
-                    raise DBError(
+                    raise mlrun.errors.MLRunConflictError(
                         "Inconsistent data in DB - features in DB not in feature-set document"
                     )
 
@@ -1157,7 +1157,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     None,
                 )
                 if not entity:
-                    raise DBError(
+                    raise mlrun.errors.MLRunConflictError(
                         "Inconsistent data in DB - entities in DB not in feature-set document"
                     )
 
@@ -1709,7 +1709,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                raise DBError(f"add user: {err}") from err
+                raise mlrun.errors.MLRunConflictError(f"add user: {err}") from err
         return users
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):

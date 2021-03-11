@@ -172,7 +172,7 @@ def test_artifacts(db: RunDBInterface):
     assert {2, 3} == {a["a"] for a in arts}, "list artifact a"
 
     db.del_artifact(key=k1)
-    with pytest.raises(sqldb.RunDBError):
+    with pytest.raises((sqldb.RunDBError, mlrun.errors.MLRunNotFoundError)):
         db.read_artifact(k1)
 
 

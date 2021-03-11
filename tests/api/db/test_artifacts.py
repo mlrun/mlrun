@@ -181,14 +181,7 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     assert len(artifacts) == 2
     expected_uids = [artifact_1_uid, artifact_2_uid]
     uids = [artifact["metadata"]["uid"] for artifact in artifacts]
-    assert (
-            deepdiff.DeepDiff(
-                expected_uids,
-                uids,
-                ignore_order=True,
-            )
-            == {}
-    )
+    assert deepdiff.DeepDiff(expected_uids, uids, ignore_order=True,) == {}
     artifact = db.read_artifact(db_session, artifact_key, tag=artifact_1_tag)
     assert artifact["metadata"]["uid"] == artifact_1_uid
     artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)

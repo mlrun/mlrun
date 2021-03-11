@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.utils.projects.remotes.member
 import mlrun.errors
 from mlrun.api import schemas
-from mlrun.api.db.base import DBError, DBInterface
+from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
     label_set,
     run_labels,
@@ -37,17 +37,17 @@ from mlrun.api.db.sqldb.models import (
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
+from mlrun.model import RunObject
 from mlrun.utils import (
     fill_function_hash,
     fill_object_hash,
-    generate_object_uri,
     generate_artifact_uri,
+    generate_object_uri,
     get_in,
     logger,
     match_times,
     update_in,
 )
-from mlrun.model import RunObject
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -121,9 +121,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            run_uri = RunObject.create_uri(
-                project, uid, iter
-            )
+            run_uri = RunObject.create_uri(project, uid, iter)
             raise mlrun.errors.MLRunNotFoundError(f"Run {run_uri} not found")
         struct = run.struct
         for key, val in updates.items():

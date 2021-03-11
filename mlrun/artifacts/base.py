@@ -103,7 +103,9 @@ class Artifact(ModelObj):
 
     def get_store_url(self, with_tag=True, project=None):
         tag = self.tree if with_tag else None
-        uri = generate_artifact_uri(project or self.project, self.db_key, tag, self.iter)
+        uri = generate_artifact_uri(
+            project or self.project, self.db_key, tag, self.iter
+        )
         return get_store_uri(StorePrefix.Artifact, uri)
 
     def base_dict(self):

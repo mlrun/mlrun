@@ -252,7 +252,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self, session, artifact_struct, artifact_id, tag=None
     ):
         artifacts = []
-        if tag:
+        if tag and tag != "*":
             artifact_struct["tag"] = tag
             artifacts.append(artifact_struct)
         else:
@@ -334,10 +334,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, project, ids, labels, since, until, name, kind, category
         ):
             artifact_struct = artifact.struct
-            artifacts_with_tag = self._add_tags_to_artifact_struct(
-                session, artifact_struct, artifact.id, tag
-            )
-            artifacts.extend(artifacts_with_tag)
+            if ids != "latest":
+                artifacts_with_tag = self._add_tags_to_artifact_struct(
+                    session, artifact_struct, artifact.id, tag
+                )
+                artifacts.extend(artifacts_with_tag)
+            else:
+                artifacts.append(artifact_struct)
 
         return artifacts
 

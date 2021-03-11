@@ -182,10 +182,15 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     expected_uids = [artifact_1_uid, artifact_2_uid]
     uids = [artifact["metadata"]["uid"] for artifact in artifacts]
     assert deepdiff.DeepDiff(expected_uids, uids, ignore_order=True,) == {}
+    expected_tags = [artifact_1_tag, artifact_2_tag]
+    tags = [artifact["tag"] for artifact in artifacts]
+    assert deepdiff.DeepDiff(expected_tags, tags, ignore_order=True, ) == {}
     artifact = db.read_artifact(db_session, artifact_key, tag=artifact_1_tag)
     assert artifact["metadata"]["uid"] == artifact_1_uid
+    assert artifact["tag"] == artifact_1_tag
     artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)
     assert artifact["metadata"]["uid"] == artifact_2_uid
+    assert artifact["tag"] == artifact_2_tag
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

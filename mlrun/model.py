@@ -18,7 +18,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 import mlrun
 
@@ -740,9 +740,10 @@ class RunObject(RunTemplate):
         return state
 
     @staticmethod
-    def create_uri(project: str, uid: str, iteration: str, tag: str = ""):
+    def create_uri(project: str, uid: str, iteration: Union[int, str], tag: str = ""):
         if tag:
             tag = f":{tag}"
+        iteration = str(iteration)
         return f"{project}@{uid}#{iteration}{tag}"
 
     @staticmethod

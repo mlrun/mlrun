@@ -760,7 +760,7 @@ class BaseRuntime(ModelObj):
         if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
 
-            _, _, body = build_file(from_file)
+            _, _, body = build_file(from_file, name=self.metadata.name)
 
         else:
             if from_file:

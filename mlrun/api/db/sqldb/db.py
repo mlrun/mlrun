@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.utils.projects.remotes.member
 import mlrun.errors
 from mlrun.api import schemas
-from mlrun.api.db.base import DBError, DBInterface
+from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
     label_set,
     run_labels,
@@ -37,9 +37,11 @@ from mlrun.api.db.sqldb.models import (
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
+from mlrun.model import RunObject
 from mlrun.utils import (
     fill_function_hash,
     fill_object_hash,
+    generate_artifact_uri,
     generate_object_uri,
     get_in,
     logger,
@@ -119,7 +121,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise DBError(f"run {uid}:{project} not found")
+            run_uri = RunObject.create_uri(project, uid, iter)
+            raise mlrun.errors.MLRunNotFoundError(f"Run {run_uri} not found")
         struct = run.struct
         for key, val in updates.items():
             update_in(struct, key, val)
@@ -249,7 +252,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self, session, artifact_struct, artifact_id, tag=None
     ):
         artifacts = []
-        if tag:
+        if tag and tag != "*":
             artifact_struct["tag"] = tag
             artifacts.append(artifact_struct)
         else:
@@ -264,7 +267,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
-        uids = self._resolve_tag(session, Artifact, project, tag)
+        ids = self._resolve_tag(session, Artifact, project, tag)
         if iter:
             key = f"{iter}-{key}"
 
@@ -278,11 +281,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # 1. tag - in this case _resolve_tag will find the relevant uids and will return a list
         # 2. uid - in this case _resolve_tag won't find anything and simply return what was given to it, which actually
         # represents the uid
-        if isinstance(uids, list) and uids:
-            query = query.filter(Artifact.uid.in_(uids))
+        if isinstance(ids, list) and ids:
+            query = query.filter(Artifact.id.in_(ids))
             db_tag = tag
-        elif isinstance(uids, str) and uids:
-            query = query.filter(Artifact.uid == uids)
+        elif isinstance(ids, str) and ids:
+            query = query.filter(Artifact.uid == ids)
         else:
             # Select by last updated
             max_updated = session.query(func.max(Artifact.updated)).filter(
@@ -292,7 +295,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         art = query.one_or_none()
         if not art:
-            raise DBError(f"Artifact {key}:{tag}:{project} not found")
+            artifact_uri = generate_artifact_uri(project, key, tag, iter)
+            raise mlrun.errors.MLRunNotFoundError(f"Artifact {artifact_uri} not found")
 
         artifact_struct = art.struct
         # We only set a tag in the object if the user asked specifically for this tag.
@@ -315,21 +319,28 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project = project or config.default_project
 
         # TODO: Refactor this area
-        # in case where tag is not given uids will be "latest" to mark to _find_artifacts to find the latest using the
+        # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
-        uids = "latest"
+        ids = "latest"
         if tag:
-            uids = self._resolve_tag(session, Artifact, project, tag)
+            # allow to ask for all versions of an artifact
+            if tag == "*":
+                ids = tag
+            else:
+                ids = self._resolve_tag(session, Artifact, project, tag)
 
         artifacts = ArtifactList()
         for artifact in self._find_artifacts(
-            session, project, uids, labels, since, until, name, kind, category
+            session, project, ids, labels, since, until, name, kind, category
         ):
             artifact_struct = artifact.struct
-            artifacts_with_tag = self._add_tags_to_artifact_struct(
-                session, artifact_struct, artifact.id, tag
-            )
-            artifacts.extend(artifacts_with_tag)
+            if ids != "latest":
+                artifacts_with_tag = self._add_tags_to_artifact_struct(
+                    session, artifact_struct, artifact.id, tag
+                )
+                artifacts.extend(artifacts_with_tag)
+            else:
+                artifacts.append(artifact_struct)
 
         return artifacts
 
@@ -365,7 +376,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
-        for artifact in self._find_artifacts(session, project, tag, labels, name=name):
+        ids = "*"
+        if tag and tag != "*":
+            ids = self._resolve_tag(session, Artifact, project, tag)
+        for artifact in self._find_artifacts(session, project, ids, labels, name=name):
             self.del_artifact(session, artifact.key, "", project)
 
     def store_function(
@@ -1099,7 +1113,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     None,
                 )
                 if not feature:
-                    raise DBError(
+                    raise mlrun.errors.MLRunInternalServerError(
                         "Inconsistent data in DB - features in DB not in feature-set document"
                     )
 
@@ -1153,7 +1167,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     None,
                 )
                 if not entity:
-                    raise DBError(
+                    raise mlrun.errors.MLRunInternalServerError(
                         "Inconsistent data in DB - entities in DB not in feature-set document"
                     )
 
@@ -1651,12 +1665,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self._delete(session, FeatureVector, project=project, name=name)
 
     def _resolve_tag(self, session, cls, project, name):
-        uids = []
+        ids = []
         for tag in self._query(session, cls.Tag, project=project, name=name):
-            uids.append(self._query(session, cls).get(tag.obj_id).uid)
-        if not uids:
+            ids.append(tag.obj_id)
+        if not ids:
             return name  # Not found, return original uid
-        return uids
+        return ids
 
     def _resolve_class_tag_uid(self, session, cls, project, obj_name, tag_name):
         for tag in self._query(
@@ -1705,7 +1719,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                raise DBError(f"add user: {err}") from err
+                raise mlrun.errors.MLRunConflictError(f"add user: {err}") from err
         return users
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
@@ -1849,7 +1863,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self,
         session,
         project,
-        uids,
+        ids,
         labels=None,
         since=None,
         until=None,
@@ -1859,10 +1873,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     ):
         """
         TODO: refactor this method
-        basically uids should be list of strings (representing uids), but we also handle two special cases (mainly for
+        basically ids should be list of strings (representing ids), but we also handle 3 special cases (mainly for
         BC until we refactor the whole artifacts API):
-        1. uids == "*" - in which we don't care about uids we just don't add any filter for this column
-        1. uids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
+        1. ids == "*" - in which we don't care about ids we just don't add any filter for this column
+        2. ids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
+        3. ids is a string (different than "latest") - in which the meaning is actually a uid, so we add this filter
         """
         if category and kind:
             message = "Category and Kind filters can't be given together"
@@ -1870,11 +1885,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             raise ValueError(message)
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
-        if uids != "*":
-            if uids == "latest":
+        if ids != "*":
+            if ids == "latest":
                 query = self._latest_uid_filter(session, query)
+            elif isinstance(ids, str):
+                query = query.filter(Artifact.uid == ids)
             else:
-                query = query.filter(Artifact.uid.in_(uids))
+                query = query.filter(Artifact.id.in_(ids))
 
         query = self._add_labels_filter(session, query, Artifact, labels)
 

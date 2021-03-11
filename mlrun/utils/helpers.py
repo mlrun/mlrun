@@ -422,6 +422,15 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
+def generate_artifact_uri(project, key, tag=None, iter=None):
+    artifact_uri = f"{project}/{key}"
+    if iter is not None:
+        artifact_uri = f"{artifact_uri}#{iter}"
+    if tag is not None:
+        artifact_uri = f"{artifact_uri}:{tag}"
+    return artifact_uri
+
+
 def extend_hub_uri_if_needed(uri):
     if not uri.startswith(hub_prefix):
         return uri, False

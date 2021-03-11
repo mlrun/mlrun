@@ -56,9 +56,8 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-RUN conda install -y -c plotly plotly-orca python=3.6
-
-RUN conda clean -ayq
+RUN conda install -y -c plotly plotly-orca python=3.6 && \
+    conda clean -ayq
 
 # pytorch caused cuda download, this guarantees cpu version:
 RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \

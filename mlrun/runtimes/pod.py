@@ -332,5 +332,7 @@ def kube_resource_spec_to_pod_spec(
         service_account=kube_resource_spec.service_account,
         node_name=kube_resource_spec.node_name,
         node_selector=kube_resource_spec.node_selector,
-        affinity=kube_resource_spec.affinity.to_dict(),
+        affinity=kube_resource_spec.affinity.to_dict()
+        if kube_resource_spec.affinity
+        else None,
     )

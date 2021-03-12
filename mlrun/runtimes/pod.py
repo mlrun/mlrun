@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import uuid
+import typing
 from copy import deepcopy
 
 from kfp.dsl import ContainerOp
@@ -51,6 +52,9 @@ class KubeResourceSpec(FunctionSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -73,6 +77,9 @@ class KubeResourceSpec(FunctionSpec):
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self.image_pull_secret = image_pull_secret
+        self.node_name = node_name
+        self.node_selector = node_selector
+        self.affinity = affinity
 
     @property
     def volumes(self) -> list:
@@ -224,6 +231,21 @@ class KubeResource(BaseRuntime):
         update_in(
             self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
         )
+
+    def with_node_name(self, node_name: str = None):
+        """set node_name to schedule the pod on"""
+        if node_name:
+            self.spec.node_name = node_name
+
+    def with_node_selector(self, node_selector: typing.Dict[str, str] = None):
+        """set node_name to schedule the pod on"""
+        if node_selector:
+            self.spec.node_selector = node_selector
+
+    def with_affinity(self, affinity: client.V1Affinity = None):
+        """set node_name to schedule the pod on"""
+        if affinity:
+            self.spec.node_selector = affinity
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()

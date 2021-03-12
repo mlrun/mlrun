@@ -116,7 +116,7 @@ class KubeResourceSpec(FunctionSpec):
         api = client.ApiClient()
         affinity = self.affinity
         if isinstance(self.affinity, dict):
-            affinity = api.__deserialize(self.affinity, "V1Affinity")
+            affinity = api._ApiClient__deserialize(self.affinity, "V1Affinity")
         return affinity
 
     def _get_sanitized_affinity(self):

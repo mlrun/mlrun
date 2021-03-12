@@ -316,3 +316,15 @@ class KubeResource(BaseRuntime):
         self.spec.env.append(
             {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
         )
+
+
+def kube_resource_spec_to_pod_spec(kube_resource_spec: KubeResourceSpec, container: client.V1Container):
+    return client.V1PodSpec(
+        containers=[container],
+        restart_policy="Never",
+        volumes=kube_resource_spec.volumes,
+        service_account=kube_resource_spec.service_account,
+        node_name=kube_resource_spec.node_name,
+        node_selector=kube_resource_spec.node_selector,
+        affinity=kube_resource_spec.affinity,
+    )

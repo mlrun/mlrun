@@ -112,6 +112,10 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount)
 
+    def _get_sanitized_affinity(self):
+        api = client.ApiClient()
+        return api.sanitize_for_serialization(self.affinity)
+
     def _set_volume_mount(self, volume_mount):
         # calculate volume mount hash
         volume_name = get_item_name(volume_mount, "name")

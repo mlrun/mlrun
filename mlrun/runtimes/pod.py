@@ -131,6 +131,8 @@ class KubeResourceSpec(FunctionSpec):
         affinity = self.affinity
         if isinstance(affinity, dict):
             api = client.ApiClient()
+            # not ideal to use their private method, but looks like that's the only option
+            # Taken from https://github.com/kubernetes-client/python/issues/977
             affinity = api._ApiClient__deserialize(self.affinity, "V1Affinity")
         return affinity
 

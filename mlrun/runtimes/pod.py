@@ -19,6 +19,7 @@ from copy import deepcopy
 from kfp.dsl import ContainerOp
 from kubernetes import client
 
+import mlrun.errors
 import mlrun.utils.regex
 
 from ..utils import logger, normalize_name, update_in, verify_field_regex
@@ -103,6 +104,18 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount)
 
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude=["affinity"])
+        api = client.ApiClient()
+        struct["affinity"] = api.sanitize_for_serialization(self.affinity)
+        return struct
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None):
+        new_instance = super().from_dict(struct, fields)
+        new_instance.affinity = new_instance._get_affinity_as_k8s_class_instance()
+        return new_instance
+
     def update_vols_and_mounts(self, volumes, volume_mounts):
         if volumes:
             for vol in volumes:
@@ -113,9 +126,11 @@ class KubeResourceSpec(FunctionSpec):
                 self._set_volume_mount(volume_mount)
 
     def _get_affinity_as_k8s_class_instance(self):
-        api = client.ApiClient()
+        if not self.affinity:
+            return None
         affinity = self.affinity
-        if isinstance(self.affinity, dict):
+        if isinstance(affinity, dict):
+            api = client.ApiClient()
             affinity = api._ApiClient__deserialize(self.affinity, "V1Affinity")
         return affinity
 
@@ -123,11 +138,21 @@ class KubeResourceSpec(FunctionSpec):
         """
         When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
         Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
-        apply directly. For that we need the sanitized (CamelCase) version
+        apply directly. For that we need the sanitized (CamelCase) version.
         """
+        if not self.affinity:
+            return {}
+        if isinstance(self.affinity, dict):
+            # if node_affinity is part of the dict it means to_dict on the kubernetes object performed, there's nothing
+            # we can do at that point to transform it to the sanitized version
+            if "node_affinity" in self.affinity:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Affinity must be instance of kubernetes' V1Affinity class"
+                )
+            elif "nodeAffinity" in self.affinity:
+                # then it's already the sanitized version
+                return self.affinity
         api = client.ApiClient()
-        # When the client send the function to the API it already serialized it by using to_dict() which uses snake_case
-        # So we need to first turn it back into a k8s class instance
         affinity = self._get_affinity_as_k8s_class_instance()
         return api.sanitize_for_serialization(affinity)
 
@@ -340,14 +365,9 @@ class KubeResource(BaseRuntime):
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: KubeResourceSpec, container: client.V1Container
 ):
+    affinity = kube_resource_spec.affinity
     if kube_resource_spec.affinity and isinstance(kube_resource_spec.affinity, dict):
         affinity = kube_resource_spec._get_affinity_as_k8s_class_instance()
-    elif kube_resource_spec.affinity and isinstance(
-        kube_resource_spec.affinity, client.V1Affinity
-    ):
-        affinity = kube_resource_spec.affinity
-    else:
-        affinity = None
     return client.V1PodSpec(
         containers=[container],
         restart_policy="Never",

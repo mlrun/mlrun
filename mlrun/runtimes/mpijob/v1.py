@@ -187,7 +187,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             update_in(pod_template, "spec.volumes", self.spec.volumes)
             update_in(pod_template, "spec.nodeName", self.spec.node_name)
             update_in(pod_template, "spec.nodeSelector", self.spec.node_selector)
-            update_in(pod_template, "spec.affinity", self.spec._get_sanitized_affinity())
+            update_in(
+                pod_template, "spec.affinity", self.spec._get_sanitized_affinity()
+            )
 
         # configuration for workers only
         # update resources only for workers because the launcher

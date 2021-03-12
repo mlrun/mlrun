@@ -8,10 +8,10 @@ from datetime import datetime, timezone
 
 import deepdiff
 from kubernetes import client
+from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
 from mlrun.api.utils.singletons.k8s import get_k8s
-from kubernetes import client as k8s_client
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
@@ -91,10 +91,13 @@ class TestRuntimeBase:
                                 k8s_client.V1NodeSelectorRequirement(
                                     key="some_node_label",
                                     operator="In",
-                                    values=["possible-label-value-1", "possible-label-value-2"],
+                                    values=[
+                                        "possible-label-value-1",
+                                        "possible-label-value-2",
+                                    ],
                                 )
                             ]
-                        )
+                        ),
                     )
                 ]
             ),
@@ -102,15 +105,10 @@ class TestRuntimeBase:
                 required_during_scheduling_ignored_during_execution=[
                     k8s_client.V1PodAffinityTerm(
                         label_selector=k8s_client.V1LabelSelector(
-                            match_labels={
-                                "some-pod-label-key": "some-pod-label-value",
-                            }
+                            match_labels={"some-pod-label-key": "some-pod-label-value"}
                         ),
-                        namespaces=[
-                            "namespace-a",
-                            "namespace-b"
-                        ],
-                        topology_key="key-1"
+                        namespaces=["namespace-a", "namespace-b"],
+                        topology_key="key-1",
                     )
                 ]
             ),
@@ -124,18 +122,19 @@ class TestRuntimeBase:
                                     k8s_client.V1LabelSelectorRequirement(
                                         key="some_pod_label",
                                         operator="NotIn",
-                                        values=["forbidden-label-value-1", "forbidden-label-value-2"],
+                                        values=[
+                                            "forbidden-label-value-1",
+                                            "forbidden-label-value-2",
+                                        ],
                                     )
                                 ]
                             ),
-                            namespaces=[
-                                "namespace-c",
-                            ],
-                            topology_key="key-2"
-                        )
+                            namespaces=["namespace-c"],
+                            topology_key="key-2",
+                        ),
                     )
                 ]
-            )
+            ),
         )
 
     def _mock_create_namespaced_pod(self):
@@ -456,16 +455,18 @@ class TestRuntimeBase:
             assert pod.spec.node_name == expected_node_name
 
         if expected_node_selector:
-            assert deepdiff.DeepDiff(
-                    pod.spec.node_selector,
-                    expected_node_selector,
-                    ignore_order=True,
-                ) == {}
+            assert (
+                deepdiff.DeepDiff(
+                    pod.spec.node_selector, expected_node_selector, ignore_order=True,
+                )
+                == {}
+            )
         if expected_affinity:
-            assert deepdiff.DeepDiff(
-                    pod.spec.affinity,
-                    expected_affinity.to_dict(),
-                    ignore_order=True,
-                ) == {}
+            assert (
+                deepdiff.DeepDiff(
+                    pod.spec.affinity, expected_affinity.to_dict(), ignore_order=True,
+                )
+                == {}
+            )
 
         assert pod.spec.containers[0].image == self.image_name

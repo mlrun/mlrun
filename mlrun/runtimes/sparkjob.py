@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import Optional, Tuple
 
 from kubernetes.client.rest import ApiException
+from kubernetes import client
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
@@ -83,6 +84,7 @@ _sparkjob_template = {
             "volumeMounts": [],
             "env": [],
         },
+        "nodeSelector": {},
     },
 }
 
@@ -117,6 +119,7 @@ class SparkJobSpec(KubeResourceSpec):
         build=None,
         spark_conf=None,
         hadoop_conf=None,
+        node_selector=None,
     ):
 
         super().__init__(
@@ -137,6 +140,7 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
+            node_selector=node_selector,
         )
 
         self.driver_resources = driver_resources or {}
@@ -251,7 +255,7 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
-        update_in(job, "spec.executor.instances", self.spec.replicas or 1)
+        update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
         if (not self.spec.image) and self._default_image:
             self.spec.image = self._default_image
@@ -266,6 +270,7 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.env", extra_env + self.spec.env)
         update_in(job, "spec.driver.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.executor.volumeMounts", self.spec.volume_mounts)
+        update_in(job, "spec.deps", self.spec.deps)
         update_in(job, "spec.deps", self.spec.deps)
 
         if self.spec.spark_conf:
@@ -456,6 +461,16 @@ class SparkRuntime(KubejobRuntime):
     def with_requests(self, mem=None, cpu=None):
         raise NotImplementedError(
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
+        )
+
+    def with_node_name(self, node_name: str = None):
+        raise NotImplementedError(
+            "Setting node name is not supported for spark runtime"
+        )
+
+    def with_affinity(self, affinity: client.V1Affinity = None):
+        raise NotImplementedError(
+            "Setting affinity is not supported for spark runtime"
         )
 
     def with_executor_requests(

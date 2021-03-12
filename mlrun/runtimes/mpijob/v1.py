@@ -50,6 +50,9 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         image_pull_secret=None,
         mpi_args=None,
         clean_pod_policy=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -70,6 +73,9 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             image_pull_secret=image_pull_secret,
             args=args,
             mpi_args=mpi_args,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 

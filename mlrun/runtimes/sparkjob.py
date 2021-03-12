@@ -271,7 +271,6 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.executor.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.deps", self.spec.deps)
-        update_in(job, "spec.deps", self.spec.deps)
 
         if self.spec.spark_conf:
             job["spec"]["sparkConf"] = {}

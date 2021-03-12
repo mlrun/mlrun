@@ -279,17 +279,17 @@ class KubeResource(BaseRuntime):
         )
 
     def with_node_name(self, node_name: str = None):
-        """set node_name to schedule the pod on"""
+        """set node_name to schedule the job's pod/s on"""
         if node_name:
             self.spec.node_name = node_name
 
     def with_node_selector(self, node_selector: typing.Dict[str, str] = None):
-        """set node_name to schedule the pod on"""
+        """set a label selector that will be used by k8s scheduler to decide which node to use for the job's pod/s"""
         if node_selector:
             self.spec.node_selector = node_selector
 
     def with_affinity(self, affinity: client.V1Affinity = None):
-        """set node_name to schedule the pod on"""
+        """set affinity to the job's pod/s"""
         if affinity:
             self.spec.affinity = affinity
 

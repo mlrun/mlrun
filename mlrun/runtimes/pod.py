@@ -245,7 +245,7 @@ class KubeResource(BaseRuntime):
     def with_affinity(self, affinity: client.V1Affinity = None):
         """set node_name to schedule the pod on"""
         if affinity:
-            self.spec.node_selector = affinity
+            self.spec.affinity = affinity
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
@@ -328,5 +328,5 @@ def kube_resource_spec_to_pod_spec(
         service_account=kube_resource_spec.service_account,
         node_name=kube_resource_spec.node_name,
         node_selector=kube_resource_spec.node_selector,
-        affinity=kube_resource_spec.affinity,
+        affinity=kube_resource_spec.affinity.to_dict(),
     )

@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from kubernetes import client as k8s_client
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -88,6 +89,99 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._execute_run(runtime)
         self._assert_pod_creation_config(
             expected_limits=expected_limits, expected_requests=expected_requests
+        )
+
+    def test_run_with_node_name(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+
+        node_name = "some-node-name"
+        runtime.with_node_name(node_name)
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(
+            expected_node_name=node_name
+        )
+
+    def test_run_with_node_selector(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+
+        node_selector = {
+            "label-a": "val1",
+            "label-2": "val2",
+        }
+        runtime.with_node_selector(node_selector)
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(
+            expected_node_selector=node_selector
+        )
+
+    def test_run_with_affinity(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+        affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PreferredSchedulingTerm(
+                        weight=1,
+                        preference=k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="some_node_label",
+                                    operator="In",
+                                    values=["possible-label-value-1", "possible-label-value-2"],
+                                )
+                            ]
+                        )
+                    )
+                ]
+            ),
+            pod_affinity=k8s_client.V1PodAffinity(
+                required_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PodAffinityTerm(
+                        label_selector=k8s_client.V1LabelSelector(
+                            match_labels={
+                                "some-pod-label-key": "some-pod-label-value",
+                            }
+                        ),
+                        namespaces=[
+                            "namespace-a",
+                            "namespace-b"
+                        ],
+                        topology_key="key-1"
+                    )
+                ]
+            ),
+            pod_anti_affinity=k8s_client.V1PodAntiAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1WeightedPodAffinityTerm(
+                        weight=1,
+                        pod_affinity_term=k8s_client.V1PodAffinityTerm(
+                            label_selector=k8s_client.V1LabelSelector(
+                                match_expressions=[
+                                    k8s_client.V1LabelSelectorRequirement(
+                                        key="some_pod_label",
+                                        operator="NotIn",
+                                        values=["forbidden-label-value-1", "forbidden-label-value-2"],
+                                    )
+                                ]
+                            ),
+                            namespaces=[
+                                "namespace-c",
+                            ],
+                            topology_key="key-2"
+                        )
+                    )
+                ]
+            )
+        )
+        runtime.with_affinity(affinity)
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(
+            expected_affinity=affinity
         )
 
     def test_run_with_mounts(self, db: Session, client: TestClient):

@@ -325,6 +325,9 @@ class TestRuntimeBase:
         expected_requests=None,
         expected_code=None,
         expected_env={},
+        expected_node_name=None,
+        expected_node_selector=None,
+        expected_affinity=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
@@ -335,10 +338,10 @@ class TestRuntimeBase:
 
         assert self._get_namespace_arg() == self.namespace
 
-        pod_spec = self._get_pod_creation_args()
-        self._assert_labels(pod_spec.metadata.labels, expected_runtime_class_name)
+        pod = self._get_pod_creation_args()
+        self._assert_labels(pod.metadata.labels, expected_runtime_class_name)
 
-        container_spec = pod_spec.spec.containers[0]
+        container_spec = pod.spec.containers[0]
 
         if expected_limits:
             assert (
@@ -390,4 +393,20 @@ class TestRuntimeBase:
         if expected_code:
             assert expected_code_found
 
-        assert pod_spec.spec.containers[0].image == self.image_name
+        if expected_node_name:
+            assert pod.spec.node_name == expected_node_name
+
+        if expected_node_selector:
+            assert deepdiff.DeepDiff(
+                    pod.spec.node_selector,
+                    expected_node_selector,
+                    ignore_order=True,
+                ) == {}
+        if expected_affinity:
+            assert deepdiff.DeepDiff(
+                    pod.spec.affinity,
+                    expected_affinity.to_dict(),
+                    ignore_order=True,
+                ) == {}
+
+        assert pod.spec.containers[0].image == self.image_name

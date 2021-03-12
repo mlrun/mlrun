@@ -113,8 +113,18 @@ class KubeResourceSpec(FunctionSpec):
                 self._set_volume_mount(volume_mount)
 
     def _get_sanitized_affinity(self):
+        """
+        When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
+        Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
+        apply directly. For that we need the sanitized (CamelCase) version
+        """
         api = client.ApiClient()
-        return api.sanitize_for_serialization(self.affinity)
+        affinity = self.affinity
+        # When the client send the function to the API it already serialized it by using to_dict() which uses snake_case
+        # So we need to first turn it back into a k8s class instance
+        if isinstance(self.affinity, dict):
+            affinity = api.__deserialize(self.affinity, "V1Affinity")
+        return api.sanitize_for_serialization(affinity)
 
     def _set_volume_mount(self, volume_mount):
         # calculate volume mount hash
@@ -325,6 +335,14 @@ class KubeResource(BaseRuntime):
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: KubeResourceSpec, container: client.V1Container
 ):
+    if kube_resource_spec.affinity and isinstance(kube_resource_spec.affinity, dict):
+        affinity = kube_resource_spec.affinity
+    elif kube_resource_spec.affinity and isinstance(
+        kube_resource_spec.affinity, client.V1Affinity
+    ):
+        affinity = kube_resource_spec.affinity.to_dict()
+    else:
+        affinity = None
     return client.V1PodSpec(
         containers=[container],
         restart_policy="Never",
@@ -332,7 +350,5 @@ def kube_resource_spec_to_pod_spec(
         service_account=kube_resource_spec.service_account,
         node_name=kube_resource_spec.node_name,
         node_selector=kube_resource_spec.node_selector,
-        affinity=kube_resource_spec.affinity.to_dict()
-        if kube_resource_spec.affinity
-        else None,
+        affinity=affinity,
     )

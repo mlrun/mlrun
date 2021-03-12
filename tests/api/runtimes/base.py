@@ -99,7 +99,23 @@ class TestRuntimeBase:
                             ]
                         ),
                     )
-                ]
+                ],
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="some_node_label",
+                                    operator="In",
+                                    values=[
+                                        "required-label-value-1",
+                                        "required-label-value-2",
+                                    ],
+                                )
+                            ]
+                        ),
+                    ]
+                ),
             ),
             pod_affinity=k8s_client.V1PodAffinity(
                 required_during_scheduling_ignored_during_execution=[

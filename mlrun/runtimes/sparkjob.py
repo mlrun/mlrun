@@ -17,8 +17,8 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Optional, Tuple
 
-from kubernetes.client.rest import ApiException
 from kubernetes import client
+from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
@@ -469,9 +469,7 @@ class SparkRuntime(KubejobRuntime):
         )
 
     def with_affinity(self, affinity: client.V1Affinity = None):
-        raise NotImplementedError(
-            "Setting affinity is not supported for spark runtime"
-        )
+        raise NotImplementedError("Setting affinity is not supported for spark runtime")
 
     def with_executor_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"

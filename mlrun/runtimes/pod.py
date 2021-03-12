@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import uuid
 import typing
+import uuid
 from copy import deepcopy
 
 from kfp.dsl import ContainerOp
@@ -318,7 +318,9 @@ class KubeResource(BaseRuntime):
         )
 
 
-def kube_resource_spec_to_pod_spec(kube_resource_spec: KubeResourceSpec, container: client.V1Container):
+def kube_resource_spec_to_pod_spec(
+    kube_resource_spec: KubeResourceSpec, container: client.V1Container
+):
     return client.V1PodSpec(
         containers=[container],
         restart_policy="Never",

@@ -11,6 +11,7 @@ from kubernetes import client
 from kubernetes.client import V1EnvVar
 
 from mlrun.api.utils.singletons.k8s import get_k8s
+from kubernetes import client as k8s_client
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
@@ -77,6 +78,64 @@ class TestRuntimeBase:
     def _generate_task(self):
         return new_task(
             name=self.name, project=self.project, artifact_path=self.artifact_path
+        )
+
+    def _generate_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PreferredSchedulingTerm(
+                        weight=1,
+                        preference=k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="some_node_label",
+                                    operator="In",
+                                    values=["possible-label-value-1", "possible-label-value-2"],
+                                )
+                            ]
+                        )
+                    )
+                ]
+            ),
+            pod_affinity=k8s_client.V1PodAffinity(
+                required_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PodAffinityTerm(
+                        label_selector=k8s_client.V1LabelSelector(
+                            match_labels={
+                                "some-pod-label-key": "some-pod-label-value",
+                            }
+                        ),
+                        namespaces=[
+                            "namespace-a",
+                            "namespace-b"
+                        ],
+                        topology_key="key-1"
+                    )
+                ]
+            ),
+            pod_anti_affinity=k8s_client.V1PodAntiAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1WeightedPodAffinityTerm(
+                        weight=1,
+                        pod_affinity_term=k8s_client.V1PodAffinityTerm(
+                            label_selector=k8s_client.V1LabelSelector(
+                                match_expressions=[
+                                    k8s_client.V1LabelSelectorRequirement(
+                                        key="some_pod_label",
+                                        operator="NotIn",
+                                        values=["forbidden-label-value-1", "forbidden-label-value-2"],
+                                    )
+                                ]
+                            ),
+                            namespaces=[
+                                "namespace-c",
+                            ],
+                            topology_key="key-2"
+                        )
+                    )
+                ]
+            )
         )
 
     def _mock_create_namespaced_pod(self):

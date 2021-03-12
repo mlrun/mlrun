@@ -464,7 +464,9 @@ class TestRuntimeBase:
         if expected_affinity:
             assert (
                 deepdiff.DeepDiff(
-                    pod.spec.affinity, expected_affinity.to_dict(), ignore_order=True,
+                    pod.spec.affinity.to_dict(),
+                    expected_affinity.to_dict(),
+                    ignore_order=True,
                 )
                 == {}
             )

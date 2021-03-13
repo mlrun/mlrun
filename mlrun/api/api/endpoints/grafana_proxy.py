@@ -68,7 +68,9 @@ async def grafana_proxy_model_endpoints_query(
 
 
 @router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
-async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
+async def grafana_proxy_model_endpoints_search(
+    request: Request, db_session: Session = Depends(deps.get_db_session),
+) -> List[str]:
     """
     Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -76,28 +78,20 @@ async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
     This implementation requires passing `target_endpoint` query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
-    access_key = get_access_key(request.headers)
+    get_access_key(request.headers)
     body = await request.json()
     query_parameters = _parse_search_parameters(body)
 
     _validate_query_parameters(query_parameters, SUPPORTED_SEARCH_FUNCTIONS)
-    query_parameters = _drop_grafana_escape_chars(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
-    result = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint](
-        body, query_parameters, access_key
-    )
+    result = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint](db_session)
     return result
 
 
-def grafana_list_projects(
-    body: Dict[str, Any],
-    query_parameters: Dict[str, str],
-    access_key: str,
-    db_session: Session = Depends(deps.get_db_session),
-) -> List[str]:
+def grafana_list_projects(db_session: Session) -> List[str]:
     db = get_db()
     projects: List[str] = db.list_projects(db_session, format_=Format.name_only)
     return projects
@@ -431,9 +425,7 @@ NAME_TO_QUERY_FUNCTION_DICTIONARY: Dict[
     "incoming_features": grafana_incoming_features,
 }
 
-NAME_TO_SEARCH_FUNCTION_DICTIONARY: Dict[
-    str, Callable[[Dict[str, Any], Dict[str, str], str], List[str]]
-] = {
+NAME_TO_SEARCH_FUNCTION_DICTIONARY: Dict[str, Callable] = {
     "list_projects": grafana_list_projects,
 }
 

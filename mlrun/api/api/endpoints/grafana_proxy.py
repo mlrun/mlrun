@@ -14,7 +14,6 @@ from mlrun.api.crud.model_endpoints import (
     get_access_key,
 )
 from mlrun.api.schemas import (
-    Format,
     GrafanaColumn,
     GrafanaDataPoint,
     GrafanaNumberColumn,
@@ -93,8 +92,13 @@ async def grafana_proxy_model_endpoints_search(
 
 def grafana_list_projects(db_session: Session) -> List[str]:
     db = get_db()
-    projects: List[str] = db.list_projects(db_session, format_=Format.name_only)
-    return projects
+    projects = db.list_projects(db_session).projects
+    if not projects:
+        return []
+    projects_list = []
+    for project in projects:
+        projects_list.append(project.metadata.name)
+    return projects_list
 
 
 def grafana_list_endpoints(

@@ -295,11 +295,11 @@ def test_validate_query_parameters_failure():
 
     # target_endpoint unsupported
     with pytest.raises(MLRunBadRequestError):
-        _validate_query_parameters({"target_endpoint": "unsupported_endpoint"})
+        _validate_query_parameters({"target_endpoint": "unsupported_endpoint"}, {"supported_endpoint"})
 
 
 def test_validate_query_parameters_success():
-    _validate_query_parameters({"target_endpoint": "list_endpoints"})
+    _validate_query_parameters({"target_endpoint": "list_endpoints"}, {"list_endpoints"})
 
 
 def _get_access_key() -> Optional[str]:

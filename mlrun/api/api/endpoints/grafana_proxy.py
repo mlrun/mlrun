@@ -1,6 +1,6 @@
 import json
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Set
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,6 @@ from mlrun.api.schemas import (
     GrafanaTimeSeriesTarget,
 )
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.db import get_run_db
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
 from mlrun.utils.v3io_clients import get_frames_client
@@ -56,7 +55,7 @@ async def grafana_proxy_model_endpoints_query(
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
 
-    _validate_query_parameters(query_parameters)
+    _validate_query_parameters(query_parameters, SUPPORTED_QUERY_FUNCTIONS)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
@@ -81,7 +80,7 @@ async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
     body = await request.json()
     query_parameters = _parse_search_parameters(body)
 
-    _validate_query_parameters(query_parameters)
+    _validate_query_parameters(query_parameters, SUPPORTED_SEARCH_FUNCTIONS)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
@@ -395,16 +394,22 @@ def _drop_grafana_escape_chars(query_parameters: Dict[str, str]):
     return query_parameters
 
 
-def _validate_query_parameters(query_parameters: Dict[str, str]):
+def _validate_query_parameters(
+    query_parameters: Dict[str, str], supported_endpoints: Optional[Set[str]] = None
+):
     """Validates the parameters sent via Grafana's SimpleJson query"""
     if "target_endpoint" not in query_parameters:
         raise MLRunBadRequestError(
             f"Expected 'target_endpoint' field in query, found {query_parameters} instead"
         )
-    if query_parameters["target_endpoint"] not in NAME_TO_QUERY_FUNCTION_DICTIONARY:
+
+    if (
+        supported_endpoints is not None
+        and query_parameters["target_endpoint"] not in supported_endpoints
+    ):
         raise MLRunBadRequestError(
             f"{query_parameters['target_endpoint']} unsupported in query parameters: {query_parameters}. "
-            f"Currently supports: {','.join(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())}"
+            f"Currently supports: {','.join(supported_endpoints)}"
         )
 
 
@@ -431,3 +436,6 @@ NAME_TO_SEARCH_FUNCTION_DICTIONARY: Dict[
 ] = {
     "list_projects": grafana_list_projects,
 }
+
+SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
+SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)

@@ -1,6 +1,6 @@
 import json
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -9,8 +9,6 @@ from fastapi import APIRouter, Request, Response
 from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ModelEndpoints,
-    deserialize_endpoint_from_kv,
-    deserialize_endpoint_state_from_kv,
     get_access_key,
 )
 from mlrun.api.schemas import (
@@ -36,14 +34,12 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
     """
-    logger.debug("Querying grafana-proxy / health check")
-
     get_access_key(request.headers)
     return Response(status_code=HTTPStatus.OK.value)
 
 
 @router.post("/grafana-proxy/model-endpoints/query")
-async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaTable]:
+async def grafana_proxy_model_endpoints_query(request: Request) -> List[Union[GrafanaTable, GrafanaTimeSeries]]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -54,8 +50,6 @@ async def grafana_proxy_model_endpoints_query(request: Request) -> List[GrafanaT
     access_key = get_access_key(request.headers)
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
-
-    logger.debug("Querying grafana-proxy / query", **query_parameters)
 
     _validate_query_parameters(query_parameters)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
@@ -81,8 +75,6 @@ async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
     access_key = get_access_key(request.headers)
     body = await request.json()
     query_parameters = _parse_search_parameters(body)
-
-    logger.debug("Querying grafana-proxy / search", **query_parameters)
 
     _validate_query_parameters(query_parameters)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
@@ -157,9 +149,9 @@ def grafana_list_endpoints(
     metric_columns = []
 
     found_metrics = set()
-    for endpoint_state in endpoint_list:
-        if endpoint_state.metrics is not None:
-            for key in endpoint_state.metrics.keys():
+    for endpoint in endpoint_list.endpoints:
+        if endpoint.status.metrics is not None:
+            for key in endpoint.status.metrics.keys():
                 if key not in found_metrics:
                     found_metrics.add(key)
                     metric_columns.append(GrafanaColumn(text=key, type="number"))
@@ -167,23 +159,23 @@ def grafana_list_endpoints(
     columns = columns + metric_columns
     table = GrafanaTable(columns=columns)
 
-    for endpoint_state in endpoint_list:
+    for endpoint in endpoint_list.endpoints:
         row = [
-            endpoint_state.endpoint.id,
-            endpoint_state.endpoint.spec.function,
-            endpoint_state.endpoint.spec.model,
-            endpoint_state.endpoint.spec.model_class,
-            endpoint_state.endpoint.metadata.tag,
-            endpoint_state.first_request,
-            endpoint_state.last_request,
-            endpoint_state.accuracy,
-            endpoint_state.error_count,
-            endpoint_state.drift_status,
+            endpoint.metadata.uid,
+            endpoint.spec.function,
+            endpoint.spec.model,
+            endpoint.spec.model_class,
+            endpoint.metadata.tag,
+            endpoint.status.first_request,
+            endpoint.status.last_request,
+            endpoint.status.accuracy,
+            endpoint.status.error_count,
+            endpoint.status.drift_status,
         ]
 
-        if endpoint_state.metrics is not None and metric_columns:
+        if endpoint.status.metrics is not None and metric_columns:
             for metric_column in metric_columns:
-                row.append(endpoint_state.metrics[metric_column.text])
+                row.append(endpoint.status.metrics[metric_column.text])
 
         table.add_row(*row)
 
@@ -196,14 +188,17 @@ def grafana_individual_feature_analysis(
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint_state = deserialize_endpoint_state_from_kv(
-        access_key=access_key, project=project, endpoint_id=endpoint_id
+    endpoint = ModelEndpoints.get_endpoint(
+        access_key=access_key,
+        project=project,
+        endpoint_id=endpoint_id,
+        feature_analysis=True,
     )
 
     # Load JSON data from KV, make sure not to fail if a field is missing
-    feature_stats = endpoint_state.endpoint.metadata.feature_stats or {}
-    current_stats = endpoint_state.current_stats or {}
-    drift_measures = endpoint_state.drift_measures or {}
+    feature_stats = endpoint.status.feature_stats or {}
+    current_stats = endpoint.status.current_stats or {}
+    drift_measures = endpoint.status.drift_measures or {}
 
     table = GrafanaTable(
         columns=[
@@ -246,8 +241,11 @@ def grafana_overall_feature_analysis(
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint_state = deserialize_endpoint_state_from_kv(
-        access_key=access_key, project=project, endpoint_id=endpoint_id
+    endpoint = ModelEndpoints.get_endpoint(
+        access_key=access_key,
+        project=project,
+        endpoint_id=endpoint_id,
+        feature_analysis=True,
     )
 
     table = GrafanaTable(
@@ -261,14 +259,14 @@ def grafana_overall_feature_analysis(
         ]
     )
 
-    if endpoint_state.drift_measures:
+    if endpoint.status.drift_measures:
         table.add_row(
-            endpoint_state.drift_measures.get("tvd_sum"),
-            endpoint_state.drift_measures.get("tvd_mean"),
-            endpoint_state.drift_measures.get("hellinger_sum"),
-            endpoint_state.drift_measures.get("hellinger_mean"),
-            endpoint_state.drift_measures.get("kld_sum"),
-            endpoint_state.drift_measures.get("kld_mean"),
+            endpoint.status.drift_measures.get("tvd_sum"),
+            endpoint.status.drift_measures.get("tvd_mean"),
+            endpoint.status.drift_measures.get("hellinger_sum"),
+            endpoint.status.drift_measures.get("hellinger_mean"),
+            endpoint.status.drift_measures.get("kld_sum"),
+            endpoint.status.drift_measures.get("kld_mean"),
         )
 
     return [table]
@@ -282,18 +280,18 @@ def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    endpoint = deserialize_endpoint_from_kv(
+    endpoint = ModelEndpoints.get_endpoint(
         access_key=access_key, project=project, endpoint_id=endpoint_id
     )
 
     time_series = GrafanaTimeSeries()
 
-    feature_names = endpoint.metadata.feature_names
+    feature_names = endpoint.status.feature_names
 
     if not feature_names:
         logger.warn(
             "'feature_names' is either missing or not initialized in endpoint record",
-            endpoint_id=endpoint.id,
+            endpoint_id=endpoint.metadata.uid,
         )
         return time_series.target_data_points
 
@@ -352,8 +350,8 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
         query_parts = query.split("=")
         if len(query_parts) < 2:
             raise MLRunBadRequestError(
-                f"Query must contain both query key and query value. Expected query_key=query_value, "
-                f"found {query} instead."
+                f"Query must contain both query key and query value. Expected query_key=query_value, found {query} "
+                f"instead."
             )
         parameters[query_parts[0]] = query_parts[1]
 

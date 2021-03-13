@@ -17,14 +17,19 @@ from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ENDPOINTS_TABLE_PATH,
     build_kv_cursor_filter_expression,
-    deserialize_endpoint_from_kv,
+    ModelEndpoints,
     get_access_key,
     get_endpoint_features,
     get_endpoint_metrics,
     serialize_endpoint_to_kv,
     string_to_tsdb_name,
 )
-from mlrun.api.schemas import ModelEndpoint
+from mlrun.api.schemas import (
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointStatus,
+    ModelEndpointSpec,
+)
 from mlrun.config import config
 from mlrun.errors import (
     MLRunBadRequestError,
@@ -51,25 +56,25 @@ def test_clear_endpoint(db: Session, client: TestClient):
     access_key = _get_access_key()
     endpoint = _mock_random_endpoint()
     serialize_endpoint_to_kv(access_key, endpoint)
-    kv_record = deserialize_endpoint_from_kv(
+    kv_record = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
-        endpoint_id=endpoint.id,
+        endpoint_id=endpoint.metadata.uid,
     )
 
     assert kv_record
     response = client.post(
-        url=f"/api/projects/{kv_record.metadata.project}/model-endpoints/{endpoint.id}/clear",
+        url=f"/api/projects/{kv_record.metadata.project}/model-endpoints/{endpoint.metadata.uid}/clear",
         headers={"X-V3io-Session-Key": access_key},
     )
 
     assert response.status_code == 204
 
     with pytest.raises(MLRunNotFoundError):
-        deserialize_endpoint_from_kv(
+        ModelEndpoints.get_endpoint(
             access_key=access_key,
             project=endpoint.metadata.project,
-            endpoint_id=endpoint.id,
+            endpoint_id=endpoint.metadata.uid,
         )
 
 
@@ -81,26 +86,26 @@ def test_update_endpoint(db: Session, client: TestClient):
     endpoint = _mock_random_endpoint()
     serialize_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
 
-    kv_record_before_update = deserialize_endpoint_from_kv(
+    kv_record_before_update = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
-        endpoint_id=endpoint.id,
+        endpoint_id=endpoint.metadata.uid,
     )
 
-    assert kv_record_before_update.status.state == ""
+    assert kv_record_before_update.status.state is None
 
     response = client.post(
-        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.id}/update",
+        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.metadata.uid}/update",
         headers={"X-V3io-Session-Key": access_key},
         json=dict(state="testing...testing...1 2 1 2"),
     )
 
     assert response.status_code == 204
 
-    kv_record_after_update = deserialize_endpoint_from_kv(
+    kv_record_after_update = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
-        endpoint_id=endpoint.id,
+        endpoint_id=endpoint.metadata.uid,
     )
 
     assert kv_record_after_update.status.state == "testing...testing...1 2 1 2"
@@ -114,7 +119,7 @@ def test_update_endpoint_doesnt_exists(db: Session, client: TestClient):
     endpoint = _mock_random_endpoint()
 
     response = client.post(
-        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.id}/update",
+        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.metadata.uid}/update",
         headers={"X-V3io-Session-Key": access_key},
         json=dict(status="testing...testing...1 2 1 2"),
     )
@@ -130,16 +135,16 @@ def test_update_endpoint_missing_payload_fields(db: Session, client: TestClient)
     endpoint = _mock_random_endpoint()
     serialize_endpoint_to_kv(access_key, endpoint)
 
-    kv_record_before_update = deserialize_endpoint_from_kv(
+    kv_record_before_update = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
-        endpoint_id=endpoint.id,
+        endpoint_id=endpoint.metadata.uid,
     )
 
     assert kv_record_before_update
 
     response = client.post(
-        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.id}/update",
+        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.metadata.uid}/update",
         headers={"X-V3io-Session-Key": access_key},
         json={},
     )
@@ -162,11 +167,11 @@ def test_list_endpoints(db: Session, client: TestClient):
     )
 
     endpoints_out = [
-        ModelEndpoint(**e["endpoint"]) for e in response.json()["endpoints"]
+        ModelEndpoint(**e) for e in response.json()["endpoints"]
     ]
 
-    in_endpoint_ids = set(map(lambda e: e.id, endpoints_in))
-    out_endpoint_ids = set(map(lambda e: e.id, endpoints_out))
+    in_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_in))
+    out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out))
 
     endpoints_intersect = in_endpoint_ids.intersection(out_endpoint_ids)
     assert len(endpoints_intersect) == 5
@@ -261,7 +266,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
             total += count
             data = {
                 "predictions_per_second_count_1s": count,
-                "endpoint_id": endpoint.id,
+                "endpoint_id": endpoint.metadata.uid,
                 "timestamp": start - timedelta(minutes=10 - i),
             }
             df = pd.DataFrame(data=[data])
@@ -275,22 +280,19 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
         )
 
         response = client.get(
-            url=f"/api/projects/test/model-endpoints/{endpoint.id}?metric=predictions",
+            url=f"/api/projects/test/model-endpoints/{endpoint.metadata.uid}?metric=predictions",
             headers={"X-V3io-Session-Key": _get_access_key()},
         )
-        response = response.json()
 
-        assert "metrics" in response
+        endpoint = ModelEndpoint(**response.json())
 
-        metrics = response["metrics"]
+        assert len(endpoint.status.metrics) > 0
 
-        assert len(metrics) > 0
+        predictions_per_second = endpoint.status.metrics["predictions_per_second_count_1s"]
 
-        predictions_per_second = metrics["predictions_per_second_count_1s"]
+        assert predictions_per_second.name == "predictions_per_second_count_1s"
 
-        assert predictions_per_second["name"] == "predictions_per_second_count_1s"
-
-        response_total = sum((m[1] for m in predictions_per_second["values"]))
+        response_total = sum((m[1] for m in predictions_per_second.values))
 
         assert total == response_total
 
@@ -323,7 +325,7 @@ def test_get_endpoint_metric_function():
         total += count
         data = {
             "predictions_per_second_count_1s": count,
-            "endpoint_id": endpoint.id,
+            "endpoint_id": endpoint.metadata.uid,
             "timestamp": start - timedelta(minutes=10 - i),
         }
         df = pd.DataFrame(data=[data])
@@ -339,7 +341,7 @@ def test_get_endpoint_metric_function():
     endpoint_metrics = get_endpoint_metrics(
         access_key=_get_access_key(),
         project="test",
-        endpoint_id=endpoint.id,
+        endpoint_id=endpoint.metadata.uid,
         name=["predictions"],
     )
 
@@ -373,11 +375,6 @@ def test_build_kv_cursor_filter_expression():
 
     filter_expression = build_kv_cursor_filter_expression(
         project="test", labels=["lbl1=1", "lbl2=2"]
-    )
-    assert filter_expression == "project=='test' AND _lbl1=='1' AND _lbl2=='2'"
-
-    filter_expression = build_kv_cursor_filter_expression(
-        project="test", labels=["lbl1==1", "lbl2==2"]
     )
     assert filter_expression == "project=='test' AND _lbl1=='1' AND _lbl2=='2'"
 
@@ -582,10 +579,12 @@ def test_get_endpoint_features_function():
 def test_deserialize_endpoint_from_kv():
     endpoint = _mock_random_endpoint()
     serialize_endpoint_to_kv(_get_access_key(), endpoint)
-    endpoint_from_kv = deserialize_endpoint_from_kv(
-        _get_access_key(), endpoint.metadata.project, endpoint.id
+    endpoint_from_kv = ModelEndpoints.get_endpoint(
+        access_key=_get_access_key(),
+        project=endpoint.metadata.project,
+        endpoint_id=endpoint.metadata.uid,
     )
-    assert endpoint.id == endpoint_from_kv.id
+    assert endpoint.metadata.uid == endpoint_from_kv.metadata.uid
 
 
 def _get_access_key() -> Optional[str]:
@@ -638,12 +637,14 @@ def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
 
-    return ModelEndpoint.new(
-        project="test",
-        model=f"model_{randint(0, 100)}",
-        function=f"function_{randint(0, 100)}",
-        tag=f"v{randint(0, 100)}",
-        model_class="classifier",
-        labels=random_labels(),
-        state=state,
+    return ModelEndpoint(
+        metadata=ModelEndpointMetadata(
+            project="test", tag=f"v{randint(0, 100)}", labels=random_labels()
+        ),
+        spec=ModelEndpointSpec(
+            model=f"model_{randint(0, 100)}",
+            function=f"function_{randint(0, 100)}",
+            model_class="classifier",
+        ),
+        status=ModelEndpointStatus(state=state,),
     )

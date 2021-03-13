@@ -42,9 +42,8 @@ from .model_endpoints import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
-    ModelEndpointState,
-    ModelEndpointStateList,
     ModelEndpointStatus,
+    ModelEndpointList,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination

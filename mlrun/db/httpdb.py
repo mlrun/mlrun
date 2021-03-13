@@ -1882,6 +1882,7 @@ class HTTPRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
+        feature_analysis: bool = False,
     ):
         path = f"/projects/{project}/model-endpoints"
         response = self.api_call(
@@ -1895,10 +1896,11 @@ class HTTPRunDB(RunDBInterface):
                 "start": start,
                 "end": end,
                 "metrics": metrics,
+                "feature_analysis": feature_analysis
             },
             headers={"X-V3io-Session-Key": self.token},
         )
-        return schemas.ModelEndpointStateList(**response.json())
+        return schemas.ModelEndpointList(**response.json())
 
     def get_endpoint(
         self,
@@ -1907,7 +1909,7 @@ class HTTPRunDB(RunDBInterface):
         start: Optional[str] = None,
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
-        features: bool = False,
+        feature_analysis: bool = False,
     ):
         path = f"/projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
@@ -1917,11 +1919,11 @@ class HTTPRunDB(RunDBInterface):
                 "start": start,
                 "end": end,
                 "metrics": metrics,
-                "features": features,
+                "feature_analysis": feature_analysis,
             },
             headers={"X-V3io-Session-Key": self.token},
         )
-        return schemas.ModelEndpointState(**response.json())
+        return schemas.ModelEndpoint(**response.json())
 
 
 def _as_json(obj):

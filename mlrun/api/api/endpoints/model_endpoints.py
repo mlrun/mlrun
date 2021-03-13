@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, Request, Response
 
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
-from mlrun.api.schemas import ModelEndpointState, ModelEndpointStateList
+from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError, MLRunInvalidArgumentError
 
 router = APIRouter()
@@ -79,9 +79,7 @@ def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get(
-    "/projects/{project}/model-endpoints", response_model=ModelEndpointStateList
-)
+@router.get("/projects/{project}/model-endpoints", response_model=ModelEndpointList)
 def list_endpoints(
     request: Request,
     project: str,
@@ -119,12 +117,11 @@ def list_endpoints(
         start=start,
         end=end,
     )
-    return ModelEndpointStateList(endpoints=endpoints)
+    return endpoints
 
 
 @router.get(
-    "/projects/{project}/model-endpoints/{endpoint_id}",
-    response_model=ModelEndpointState,
+    "/projects/{project}/model-endpoints/{endpoint_id}", response_model=ModelEndpoint
 )
 def get_endpoint(
     request: Request,
@@ -133,19 +130,20 @@ def get_endpoint(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
-    features: bool = Query(default=False),
+    feature_analysis: bool = Query(default=False),
 ):
     verify_endpoint(project, endpoint_id)
     access_key = get_access_key(request.headers)
-    return ModelEndpoints.get_endpoint(
+    endpoint = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,
         endpoint_id=endpoint_id,
         metrics=metrics,
         start=start,
         end=end,
-        features=features,
+        feature_analysis=feature_analysis,
     )
+    return endpoint
 
 
 def get_or_raise(dictionary: dict, key: str):

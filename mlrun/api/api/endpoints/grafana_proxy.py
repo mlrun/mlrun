@@ -4,8 +4,10 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request, Response, Depends
+from sqlalchemy.orm import Session
 
+from mlrun.api.api import deps
 from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ModelEndpoints,
@@ -20,6 +22,7 @@ from mlrun.api.schemas import (
     GrafanaTimeSeries,
     GrafanaTimeSeriesTarget,
 )
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.db import get_run_db
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
@@ -39,7 +42,9 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
 
 
 @router.post("/grafana-proxy/model-endpoints/query")
-async def grafana_proxy_model_endpoints_query(request: Request) -> List[Union[GrafanaTable, GrafanaTimeSeries]]:
+async def grafana_proxy_model_endpoints_query(
+    request: Request,
+) -> List[Union[GrafanaTable, GrafanaTimeSeries]]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -89,16 +94,14 @@ async def grafana_proxy_model_endpoints_search(request: Request) -> List[str]:
 
 
 def grafana_list_projects(
-    body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
+    body: Dict[str, Any],
+    query_parameters: Dict[str, str],
+    access_key: str,
+    db_session: Session = Depends(deps.get_db_session),
 ) -> List[str]:
-    mldb = get_run_db(config.dbpath)
-    name_list = []
-    try:
-        for project in mldb.list_projects(format_=Format.name_only):
-            name_list.append(project)
-    except Exception as e:
-        logger.error(str(e))
-    return name_list
+    db = get_db()
+    projects: List[str] = db.list_projects(db_session, format_=Format.name_only)
+    return projects
 
 
 def grafana_list_endpoints(

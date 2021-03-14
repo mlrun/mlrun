@@ -8,6 +8,7 @@ from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
     _patch_object,
+    _test_group_by_for_feature_store_objects
 )
 
 
@@ -321,3 +322,19 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
         allowed_added_fields,
         expected_diff,
     )
+
+
+def test_feature_vector_list_group_by(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    count = 5
+    for i in range(count):
+        name = f"feature_vector_{i}"
+        feature_vector = _generate_feature_vector(name)
+        _assert_store_feature_vector(client, project_name, name, "older", feature_vector)
+        # Must change the uid, otherwise it will just re-tag the same object
+        feature_vector["metadata"]["extra_metadata"] = 200
+        _assert_store_feature_vector(client, project_name, name, "newer", feature_vector)
+        feature_vector["metadata"]["extra_metadata"] = 300
+        _assert_store_feature_vector(client, project_name, name, "newest", feature_vector)
+
+    _test_group_by_for_feature_store_objects(client, "feature_vectors", project_name, count)

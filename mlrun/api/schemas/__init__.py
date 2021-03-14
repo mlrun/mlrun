@@ -8,7 +8,7 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
-from .constants import DeletionStrategy, Format, HeaderNames, PatchMode
+from .constants import DeletionStrategy, Format, HeaderNames, PatchMode, SortField, GroupByField, OrderType
 from .feature_store import (
     EntitiesOutput,
     Entity,

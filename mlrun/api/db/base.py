@@ -284,6 +284,10 @@ class DBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        group_by: schemas.GroupByField = None,
+        rows_per_group: int = 1,
+        sort: schemas.SortField = None,
+        order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         pass
 
@@ -325,6 +329,10 @@ class DBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        group_by: schemas.GroupByField = None,
+        rows_per_group: int = 1,
+        sort: schemas.SortField = None,
+        order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         pass
 

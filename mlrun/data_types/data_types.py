@@ -43,6 +43,8 @@ def pd_schema_to_value_type(value):
         "number": ValueType.DOUBLE,
         "datetime": ValueType.DATETIME,
         "boolean": ValueType.BOOL,
+        "any": ValueType.STRING,
+        "duration": ValueType.INT64,
     }
     return type_map[value]
 

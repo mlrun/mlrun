@@ -10,7 +10,7 @@ import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget
+from mlrun.datastore.targets import CSVTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet, run_ingestion_job
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
@@ -48,6 +48,28 @@ def test_basic_featureset():
     assert stocks_set.status.stats["exchange"], "stats not created"
 
 
+def verify_ingest(
+    base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
+):
+    if isinstance(keys, str):
+        keys = [keys]
+    feature_set = fs.FeatureSet("my-feature-set")
+    if infer:
+        data = base_data.copy()
+        fs.infer_metadata(feature_set, data, entity_columns=keys)
+    else:
+        data = base_data.set_index(keys=keys)
+    if targets:
+        feature_set.set_targets(targets=targets, with_defaults=False)
+    df = fs.ingest(feature_set, data, infer_options=infer_options)
+
+    assert len(df) == len(data)
+    if infer:
+        data.set_index(keys=keys, inplace=True)
+    for idx in range(len(df)):
+        assert all(df.values[idx] == data.values[idx])
+
+
 @pytest.mark.skipif(not has_db(), reason="no db access")
 def test_featureset_column_types():
     init_store()
@@ -63,25 +85,33 @@ def test_featureset_column_types():
                 pd.Timestamp("1980-02-04 17:21:50.781"),
                 pd.Timestamp("2020-03-04 12:12:45.120"),
             ],
+            "category": pd.Categorical(
+                ["a", "c"], categories=["d", "c", "b", "a"], ordered=True
+            ),
         }
     )
+    verify_ingest(data, "key")
+    verify_ingest(data, "key", infer=True)
+    verify_ingest(data, "str")
+    verify_ingest(data, "str", infer=True)
+    verify_ingest(data, "int")
+    verify_ingest(data, "int", infer=True)
+    verify_ingest(data, "float")
+    verify_ingest(data, "float", infer=True)
+    verify_ingest(data, "bool")
+    verify_ingest(data, "bool", infer=True)
+    verify_ingest(data, "timestamp")
+    verify_ingest(data, "timestamp", infer=True)
+    verify_ingest(data, "category")
+    verify_ingest(data, "category", infer=True)
 
-    init_store()
+    # Timedelta isn't supported in parquet
+    data["timedelta"] = pd.Timedelta("-1 days 2 min 3us")
 
-    # add feature set without time column (stock ticker metadata)
-    types_set = fs.FeatureSet("types")
-    fs.infer_metadata(types_set, data, entity_columns=["key"])
-    df = fs.ingest(types_set, data, infer_options=fs.InferOptions.default())
-
-    logger.info(f"output df:\n{df}")
-    # stocks_set["name"].description = "some name"
-
-    logger.info(f"data spec: {types_set.to_yaml()}")
-    # assert (
-    #     stocks_set.spec.features["name"].description == "some name"
-    # ), "description was not set"
-    assert len(df) == len(data), "dataframe size doesnt match"
-    # assert stocks_set.status.stats["exchange"], "stats not created"
+    verify_ingest(data, "key", targets=[TargetTypes.nosql])
+    verify_ingest(data, "key", targets=[TargetTypes.nosql], infer=True)
+    verify_ingest(data, "timedelta", targets=[TargetTypes.nosql])
+    verify_ingest(data, "timedelta", targets=[TargetTypes.nosql], infer=True)
 
 
 class MyMap(MapClass):

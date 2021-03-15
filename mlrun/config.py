@@ -355,8 +355,9 @@ def _do_populate(env=None):
     if data:
         config.update(data)
 
-    # HACK to enable kfp_image and dask_kfp_image property to both have dynamic default and to use the value from
-    # dict/env like other configurations
+    # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
+    # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
+    # underscore
     config._cfg["_kfp_image"] = config._cfg["kfp_image"]
     del config._cfg["kfp_image"]
     config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]

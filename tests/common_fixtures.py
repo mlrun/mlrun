@@ -13,6 +13,7 @@ import mlrun.config
 import mlrun.datastore
 import mlrun.db
 import mlrun.utils
+import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
@@ -40,6 +41,9 @@ def config_test_base():
     mlrun.db._run_db = None
     mlrun.db._last_db_url = None
     mlrun.datastore.store_manager._db = None
+
+    # remove singletons in case they were change (we don't want changes to pass between tests)
+    mlrun.utils.singleton.Singleton._instances = {}
 
 
 @pytest.fixture

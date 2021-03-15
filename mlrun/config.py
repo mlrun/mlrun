@@ -287,9 +287,12 @@ class Config:
 
     @property
     def iguazio_api_url(self):
+        """
+        we want to be able to run with old versions of the service who runs the API (which doesn't configure this
+        value) so we're doing best effort to try and resolve it from other configurations
+        TODO: Remove this hack when 0.6.x is old enough
+        """
         if not self._iguazio_api_url:
-            # we want to be able to run with old versions of the service who runs the API (which doesn't configure this
-            # value) so we're doing best effort to try and resolve it from other configurations
             if self.httpdb.builder.docker_registry and self.igz_version:
                 docker_registry_url = self.httpdb.builder.docker_registry
                 # remove port suffix if exists

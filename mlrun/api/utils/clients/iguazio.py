@@ -40,8 +40,13 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                     and app_service.get("status", {}).get("state") == "ready"
                     and len(app_service.get("status", {}).get("urls", [])) > 0
                 ):
-                    # heuristically picking the first one
-                    return app_service.get("status", {}).get("urls")[0]["url"]
+                    url_kind_to_url = {}
+                    for url in app_service["status"]["urls"]:
+                        url_kind_to_url[url["kind"]] = url["url"]
+                    # precedence for https
+                    for kind in ["https", "http"]:
+                        if kind in url_kind_to_url:
+                            return url_kind_to_url[kind]
         return None
 
     def _send_request_to_api(self, method, path, session_cookie=None, **kwargs):

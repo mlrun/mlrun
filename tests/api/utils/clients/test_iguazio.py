@@ -34,7 +34,7 @@ def test_get_grafana_service_url_success(
         "spec": {"kind": "grafana"},
         "status": {
             "state": "ready",
-            "urls": [{"kind": "https", "url": expected_grafana_url}],
+            "urls": [{"kind": 'http', 'url': 'https-has-precedence'}, {"kind": "https", "url": expected_grafana_url}],
         },
     }
     response_body = _generate_app_services_manifests_body([grafana_service])

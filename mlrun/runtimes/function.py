@@ -308,19 +308,11 @@ class RemoteRuntime(KubeResource):
         logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
 
-    def with_node_name(self, node_name: str = None):
+    def with_node_selection(self, node_name: typing.Optional[str] = None,
+                            node_selector: typing.Optional[typing.Dict[str, str]] = None,
+                            affinity: typing.Optional[client.V1Affinity] = None):
         raise NotImplementedError(
-            "Setting node name is not supported for nuclio runtime"
-        )
-
-    def with_node_selector(self, node_selector: typing.Dict[str, str] = None):
-        raise NotImplementedError(
-            "Setting node selector is not supported for nuclio runtime"
-        )
-
-    def with_affinity(self, affinity: client.V1Affinity = None):
-        raise NotImplementedError(
-            "Setting affinity is not supported for nuclio runtime"
+            "Node selection is not supported for nuclio runtime"
         )
 
     def _get_state(

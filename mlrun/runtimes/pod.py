@@ -278,18 +278,22 @@ class KubeResource(BaseRuntime):
             self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
         )
 
-    def with_node_name(self, node_name: str = None):
-        """set node_name to schedule the job's pod/s on"""
+    def with_node_selection(self, node_name: typing.Optional[str] = None,
+                            node_selector: typing.Optional[typing.Dict[str, str]] = None,
+                            affinity: typing.Optional[client.V1Affinity] = None):
+        """
+        Enables to control on which k8s node the job will run
+
+        :param node_name:       The name of the k8s node
+        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param affinity:        Expands the types of constraints you can express - see
+                                https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+                                for details
+        """
         if node_name:
             self.spec.node_name = node_name
-
-    def with_node_selector(self, node_selector: typing.Dict[str, str] = None):
-        """set a label selector that will be used by k8s scheduler to decide which node to use for the job's pod/s"""
         if node_selector:
             self.spec.node_selector = node_selector
-
-    def with_affinity(self, affinity: client.V1Affinity = None):
-        """set affinity to the job's pod/s"""
         if affinity:
             self.spec.affinity = affinity
 

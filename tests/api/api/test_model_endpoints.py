@@ -22,8 +22,8 @@ from mlrun.api.crud.model_endpoints import (
     get_access_key,
     get_endpoint_features,
     get_endpoint_metrics,
-    write_endpoint_to_kv,
     string_to_tsdb_name,
+    write_endpoint_to_kv,
 )
 from mlrun.api.schemas import (
     ModelEndpoint,

@@ -5,6 +5,7 @@ from mlrun.api.api.endpoints import (
     artifacts,
     background_tasks,
     feature_sets,
+    frontend_specs,
     files,
     functions,
     grafana_proxy,
@@ -64,6 +65,11 @@ api_router.include_router(
 api_router.include_router(
     feature_sets.router,
     tags=["feature-sets"],
+    dependencies=[Depends(deps.AuthVerifier)],
+)
+api_router.include_router(
+    frontend_specs.router,
+    tags=["frontend-specs"],
     dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(

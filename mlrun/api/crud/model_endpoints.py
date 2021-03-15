@@ -149,8 +149,7 @@ class ModelEndpoints:
         This functions supports filtering by the following parameters:
         1) model
         2) function
-        3) tag
-        4) labels
+        3) labels
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based

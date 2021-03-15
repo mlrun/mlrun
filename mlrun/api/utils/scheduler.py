@@ -409,6 +409,12 @@ class Scheduler:
             labels=f"{schedule_name_label}={schedule_name}",
         )
         if len(active_runs) > schedule_concurrency_limit:
+            logger.warn(
+                "Schedule exceeded concurrency limit, skipping this run",
+                schedule_name=schedule_name,
+                schedule_concurrency_limit=schedule_concurrency_limit,
+                active_runs=len(active_runs),
+            )
             return
 
         response = await submit_run(db_session, scheduled_object)

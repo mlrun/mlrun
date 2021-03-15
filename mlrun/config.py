@@ -25,6 +25,7 @@ import base64
 import copy
 import json
 import os
+import urllib.parse
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
@@ -294,18 +295,23 @@ class Config:
         """
         if not self._iguazio_api_url:
             if self.httpdb.builder.docker_registry and self.igz_version:
-                docker_registry_url = self.httpdb.builder.docker_registry
-                # remove port suffix if exists
-                colon_index = docker_registry_url.find(":")
-                if colon_index > -1:
-                    docker_registry_url = docker_registry_url[:colon_index]
-                # replace the first domain section (app service name) with dashboard
-                first_dot_index = docker_registry_url.find(".")
-                if first_dot_index < 0:
-                    # if not found it's not the format we know - can't resolve the api url from the registry url
-                    return ""
-                return f"https://dashboard{docker_registry_url[first_dot_index:]}"
+                return self._extract_iguazio_api_from_docker_registry_url()
         return self._iguazio_api_url
+
+    def _extract_iguazio_api_from_docker_registry_url(self):
+        docker_registry_url = self.httpdb.builder.docker_registry
+        # add schema otherwise parsing go wrong
+        if "://" not in docker_registry_url:
+            docker_registry_url = f"http://{docker_registry_url}"
+        parsed_registry_url = urllib.parse.urlparse(docker_registry_url)
+        registry_hostname = parsed_registry_url.hostname
+        # replace the first domain section (app service name) with dashboard
+        first_dot_index = registry_hostname.find(".")
+        if first_dot_index < 0:
+            # if not found it's not the format we know - can't resolve the api url from the registry url
+            return ""
+        return f"https://dashboard{registry_hostname[first_dot_index:]}"
+
 
     @iguazio_api_url.setter
     def iguazio_api_url(self, value):

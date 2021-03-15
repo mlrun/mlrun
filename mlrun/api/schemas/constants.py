@@ -55,7 +55,7 @@ class HeaderNames:
 
 
 class GroupByField(str, Enum):
-    name = ("name",)  # Supported for feature-store objects
+    name = "name"  # Supported for feature-store objects
     key = "key"  # Supported for artifacts
 
     def to_group_by_db_field(self, db_cls):
@@ -67,11 +67,11 @@ class GroupByField(str, Enum):
 
 # For now, we only support sorting by updated field
 class SortField(str, Enum):
-    updated = ("updated",)
+    updated = "updated"
 
 
 class OrderType(str, Enum):
-    asc = ("asc",)
+    asc = "asc"
     desc = "desc"
 
     def to_order_by_predicate(self, db_field):

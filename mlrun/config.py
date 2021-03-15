@@ -98,7 +98,8 @@ default_config = {
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
-            "min_allowed_interval": "10 minutes"
+            "min_allowed_interval": "10 minutes",
+            "default_concurrency_limit": 1,
         },
         "projects": {
             "leader": "mlrun",

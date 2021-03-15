@@ -305,6 +305,7 @@ class FileDB(DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
         labels: Dict = None,
     ):
         raise NotImplementedError()
@@ -318,6 +319,7 @@ class FileDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
+        concurrency_limit: int = None,
     ):
         raise NotImplementedError()
 

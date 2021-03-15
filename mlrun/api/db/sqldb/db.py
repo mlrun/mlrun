@@ -552,6 +552,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
         labels: Dict = None,
     ):
         schedule = Schedule(
@@ -559,6 +560,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             name=name,
             kind=kind.value,
             creation_time=datetime.now(timezone.utc),
+            concurrency_limit=concurrency_limit,
             # these are properties of the object that map manually (using getters and setters) to other column of the
             # table and therefore Pycharm yells that they're unexpected
             scheduled_object=scheduled_object,
@@ -574,6 +576,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             name=name,
             kind=kind,
             cron_trigger=cron_trigger,
+            concurrency_limit=concurrency_limit,
         )
         self._upsert(session, schedule)
 
@@ -586,6 +589,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
+        concurrency_limit: int = None,
     ):
         get_project_member().ensure_project(session, project)
         schedule = self._get_schedule_record(session, project, name)
@@ -603,12 +607,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if last_run_uri is not None:
             schedule.last_run_uri = last_run_uri
 
+        if concurrency_limit is not None:
+            schedule.concurrency_limit = concurrency_limit
+
         logger.debug(
             "Updating schedule in db",
             project=project,
             name=name,
             cron_trigger=cron_trigger,
             labels=labels,
+            concurrency_limit=concurrency_limit,
         )
         session.merge(schedule)
         session.commit()

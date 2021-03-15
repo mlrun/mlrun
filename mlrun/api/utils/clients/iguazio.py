@@ -28,7 +28,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         Try to find a ready grafana app service, and return its URL
         If nothing found, returns None
         """
-        logger.debug("Getting grafana service url from Zebo")
+        logger.debug("Getting grafana service url from Iguazio")
         response = self._send_request_to_api(
             "GET", "app_services_manifests", session_cookie
         )

@@ -53,6 +53,8 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         url = f"{self._api_url}/api/{path}"
         if session_cookie:
             cookies = kwargs.get("cookies", {})
+            # in case some dev using this function for some reason setting cookies manually through kwargs + have a
+            # cookie with "session" key there + filling the session cookie - explode
             if "session" in cookies and cookies["session"] != session_cookie:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Session cookie already set"

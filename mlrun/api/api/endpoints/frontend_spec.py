@@ -9,9 +9,9 @@ router = fastapi.APIRouter()
 
 
 @router.get(
-    "/frontend-specs", response_model=mlrun.api.schemas.FrontendSpec,
+    "/frontend-spec", response_model=mlrun.api.schemas.FrontendSpec,
 )
-def get_frontend_specs(session: typing.Optional[str] = fastapi.Cookie(None)):
+def get_frontend_spec(session: typing.Optional[str] = fastapi.Cookie(None)):
     jobs_dashboard_url = None
     if session:
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)

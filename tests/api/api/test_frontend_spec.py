@@ -10,7 +10,7 @@ import mlrun.api.utils.clients.iguazio
 import mlrun.errors
 
 
-def test_get_frontend_specs(
+def test_get_frontend_spec(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     grafana_url = "some-url.com"
@@ -19,7 +19,7 @@ def test_get_frontend_specs(
     )
 
     # no cookie so no url
-    response = client.get("/api/frontend-specs")
+    response = client.get("/api/frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
@@ -29,7 +29,7 @@ def test_get_frontend_specs(
     )
 
     response = client.get(
-        "/api/frontend-specs", cookies={"session": "some-session-cookie"}
+        "/api/frontend-spec", cookies={"session": "some-session-cookie"}
     )
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())

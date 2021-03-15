@@ -21,9 +21,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
 
-    def try_get_grafana_service_url(
-        self, session_cookie: str
-    ) -> typing.Optional[str]:
+    def try_get_grafana_service_url(self, session_cookie: str) -> typing.Optional[str]:
         """
         Try to find a ready grafana app service, and return its URL
         If nothing found, returns None
@@ -34,7 +32,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
         response_body = response.json()
         for app_services_manifest in response_body.get("data", []):
-            for app_service in app_services_manifest.get("attributes", {}).get("app_services", []):
+            for app_service in app_services_manifest.get("attributes", {}).get(
+                "app_services", []
+            ):
                 if (
                     app_service.get("spec", {}).get("kind") == "grafana"
                     and app_service.get("status", {}).get("state") == "ready"

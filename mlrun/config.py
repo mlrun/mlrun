@@ -312,7 +312,6 @@ class Config:
             return ""
         return f"https://dashboard{registry_hostname[first_dot_index:]}"
 
-
     @iguazio_api_url.setter
     def iguazio_api_url(self, value):
         self._iguazio_api_url = value

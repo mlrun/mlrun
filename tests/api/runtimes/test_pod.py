@@ -12,7 +12,7 @@ class TestKubeResource(TestRuntimeBase):
         affinity = self._generate_affinity()
         kube_resource = mlrun.runtimes.pod.KubeResource()
         # simulating the client - setting from a class instance
-        kube_resource.with_affinity(affinity)
+        kube_resource.with_node_selection(affinity=affinity)
         # simulating sending to API - serialization through dict
         kube_resource_dict = kube_resource.to_dict()
         kube_resource = kube_resource.from_dict(kube_resource_dict)

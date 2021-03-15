@@ -90,31 +90,34 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_limits=expected_limits, expected_requests=expected_requests
         )
 
-    def test_run_with_node_name(self, db: Session, client: TestClient):
+    def test_run_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
         node_name = "some-node-name"
-        runtime.with_node_name(node_name)
+        runtime.with_node_selection(node_name)
         self._execute_run(runtime)
         self._assert_pod_creation_config(expected_node_name=node_name)
 
-    def test_run_with_node_selector(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
         node_selector = {
             "label-a": "val1",
             "label-2": "val2",
         }
-        runtime.with_node_selector(node_selector)
+        runtime.with_node_selection(node_selector=node_selector)
         self._execute_run(runtime)
         self._assert_pod_creation_config(expected_node_selector=node_selector)
 
-    def test_run_with_affinity(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         affinity = self._generate_affinity()
-        runtime.with_affinity(affinity)
+        runtime.with_node_selection(affinity=affinity)
         self._execute_run(runtime)
         self._assert_pod_creation_config(expected_affinity=affinity)
+
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(node_name, node_selector, affinity)
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(expected_node_name=node_name, expected_node_selector=node_selector, expected_affinity=affinity)
 
     def test_run_with_mounts(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

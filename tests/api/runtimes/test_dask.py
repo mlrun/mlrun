@@ -96,18 +96,18 @@ class TestDaskRuntime(TestRuntimeBase):
         )
         self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
 
-    def test_dask_with_node_selection_attributes(self, db: Session, client: TestClient):
+    def test_dask_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
         node_name = "some-node-name"
-        runtime.with_node_name(node_name)
+        runtime.with_node_selection(node_name)
         node_selector = {
             "label-a": "val1",
             "label-2": "val2",
         }
-        runtime.with_node_selector(node_selector)
+        runtime.with_node_selection(node_selector=node_selector)
         affinity = self._generate_affinity()
-        runtime.with_affinity(affinity)
+        runtime.with_node_selection(affinity=affinity)
         _ = runtime.client
 
         self.kube_cluster_mock.assert_called_once()

@@ -14,6 +14,7 @@
 
 import asyncio
 import json
+import typing
 from datetime import datetime
 from os import environ
 from time import sleep
@@ -21,6 +22,7 @@ from time import sleep
 import nuclio
 import requests
 from aiohttp.client import ClientSession
+from kubernetes import client
 from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -305,6 +307,14 @@ class RemoteRuntime(KubeResource):
 
         logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
+
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        raise NotImplementedError("Node selection is not supported for nuclio runtime")
 
     def _get_state(
         self,

@@ -34,7 +34,7 @@ from ..utils import logger, normalize_name, update_in
 from .base import FunctionStatus
 from .kubejob import KubejobRuntime
 from .local import exec_from_params, load_module
-from .pod import KubeResourceSpec
+from .pod import KubeResourceSpec, kube_resource_spec_to_pod_spec
 from .utils import RunError, get_func_selector, get_resource_labels, log_std
 
 
@@ -74,6 +74,9 @@ class DaskSpec(KubeResourceSpec):
         min_replicas=None,
         max_replicas=None,
         scheduler_timeout=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
 
         super().__init__(
@@ -93,6 +96,9 @@ class DaskSpec(KubeResourceSpec):
             entry_points=entry_points,
             description=description,
             image_pull_secret=image_pull_secret,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
         self.args = args
 
@@ -389,12 +395,7 @@ def deploy_function(function: DaskCluster, secrets=None):
         resources=spec.resources,
     )
 
-    pod_spec = client.V1PodSpec(
-        containers=[container],
-        restart_policy="Never",
-        volumes=spec.volumes,
-        service_account=spec.service_account,
-    )
+    pod_spec = kube_resource_spec_to_pod_spec(spec, container)
     if spec.image_pull_secret:
         pod_spec.image_pull_secrets = [
             client.V1LocalObjectReference(name=spec.image_pull_secret)

@@ -129,6 +129,7 @@ class GraphServer(ModelObj):
         self.resource_cache = resource_cache or ResourceCache()
 
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
+        context.root = self.graph
 
         context.stream = _StreamContext(
             self.track_models, self.parameters, self.function_uri
@@ -183,10 +184,36 @@ class GraphServer(ModelObj):
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type
         )
-        resp = v2_serving_handler(self.context, event, get_body=get_body)
+        resp = self.run(event, get_body=get_body)
         if hasattr(resp, "status_code") and resp.status_code >= 300 and not silent:
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
         return resp
+
+    def run(self, event, context=None, get_body=False):
+        server_context = self.context
+        context = context or server_context
+        try:
+            response = self.graph.run(event)
+        except Exception as exc:
+            message = str(exc)
+            if server_context.verbose:
+                message += "\n" + str(traceback.format_exc())
+            context.logger.error(f"run error, {traceback.format_exc()}")
+            server_context.push_error(event, message, source="_handler")
+            return context.Response(
+                body=message, content_type="text/plain", status_code=400
+            )
+
+        body = response.body
+        if isinstance(body, context.Response) or get_body:
+            return body
+
+        if body and not isinstance(body, (str, bytes)):
+            body = json.dumps(body)
+            return context.Response(
+                body=body, content_type="application/json", status_code=200
+            )
+        return body
 
     def wait_for_completion(self):
         """wait for async operation to complete"""
@@ -207,8 +234,7 @@ def v2_serving_init(context, namespace=None):
     serving_handler = server.init(context, namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
-    setattr(context, "root", server.graph)
-    setattr(context, "server_context", server.context)
+    setattr(context, "server", server)
     context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())
@@ -216,29 +242,7 @@ def v2_serving_init(context, namespace=None):
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
-
-    try:
-        response = context.root.run(event)
-    except Exception as exc:
-        message = str(exc)
-        if context.server_context.verbose:
-            message += "\n" + str(traceback.format_exc())
-        context.logger.error(f"run error, {traceback.format_exc()}")
-        context.server_context.push_error(event, message, source="_handler")
-        return context.Response(
-            body=message, content_type="text/plain", status_code=400
-        )
-
-    body = response.body
-    if isinstance(body, context.Response) or get_body:
-        return body
-
-    if body and not isinstance(body, (str, bytes)):
-        body = json.dumps(body)
-        return context.Response(
-            body=body, content_type="application/json", status_code=200
-        )
-    return body
+    return context.server.run(event, context, get_body)
 
 
 def create_graph_server(

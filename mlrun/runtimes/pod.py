@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
 import uuid
 from copy import deepcopy
 
 from kfp.dsl import ContainerOp
 from kubernetes import client
 
+import mlrun.errors
 import mlrun.utils.regex
 
 from ..utils import logger, normalize_name, update_in, verify_field_regex
@@ -51,6 +53,9 @@ class KubeResourceSpec(FunctionSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -73,6 +78,9 @@ class KubeResourceSpec(FunctionSpec):
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self.image_pull_secret = image_pull_secret
+        self.node_name = node_name
+        self.node_selector = node_selector
+        self.affinity = affinity
 
     @property
     def volumes(self) -> list:
@@ -96,6 +104,18 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount)
 
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude=["affinity"])
+        api = client.ApiClient()
+        struct["affinity"] = api.sanitize_for_serialization(self.affinity)
+        return struct
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None):
+        new_instance = super().from_dict(struct, fields)
+        new_instance.affinity = new_instance._get_affinity_as_k8s_class_instance()
+        return new_instance
+
     def update_vols_and_mounts(self, volumes, volume_mounts):
         if volumes:
             for vol in volumes:
@@ -104,6 +124,39 @@ class KubeResourceSpec(FunctionSpec):
         if volume_mounts:
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount)
+
+    def _get_affinity_as_k8s_class_instance(self):
+        if not self.affinity:
+            return None
+        affinity = self.affinity
+        if isinstance(affinity, dict):
+            api = client.ApiClient()
+            # not ideal to use their private method, but looks like that's the only option
+            # Taken from https://github.com/kubernetes-client/python/issues/977
+            affinity = api._ApiClient__deserialize(self.affinity, "V1Affinity")
+        return affinity
+
+    def _get_sanitized_affinity(self):
+        """
+        When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
+        Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
+        apply directly. For that we need the sanitized (CamelCase) version.
+        """
+        if not self.affinity:
+            return {}
+        if isinstance(self.affinity, dict):
+            # if node_affinity is part of the dict it means to_dict on the kubernetes object performed, there's nothing
+            # we can do at that point to transform it to the sanitized version
+            if "node_affinity" in self.affinity:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Affinity must be instance of kubernetes' V1Affinity class"
+                )
+            elif "nodeAffinity" in self.affinity:
+                # then it's already the sanitized version
+                return self.affinity
+        api = client.ApiClient()
+        affinity = self._get_affinity_as_k8s_class_instance()
+        return api.sanitize_for_serialization(affinity)
 
     def _set_volume_mount(self, volume_mount):
         # calculate volume mount hash
@@ -225,6 +278,28 @@ class KubeResource(BaseRuntime):
             self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
         )
 
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        """
+        Enables to control on which k8s node the job will run
+
+        :param node_name:       The name of the k8s node
+        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param affinity:        Expands the types of constraints you can express - see
+                                https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+                                for details
+        """
+        if node_name:
+            self.spec.node_name = node_name
+        if node_selector:
+            self.spec.node_selector = node_selector
+        if affinity:
+            self.spec.affinity = affinity
+
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
 
@@ -294,3 +369,20 @@ class KubeResource(BaseRuntime):
         self.spec.env.append(
             {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
         )
+
+
+def kube_resource_spec_to_pod_spec(
+    kube_resource_spec: KubeResourceSpec, container: client.V1Container
+):
+    affinity = kube_resource_spec.affinity
+    if kube_resource_spec.affinity and isinstance(kube_resource_spec.affinity, dict):
+        affinity = kube_resource_spec._get_affinity_as_k8s_class_instance()
+    return client.V1PodSpec(
+        containers=[container],
+        restart_policy="Never",
+        volumes=kube_resource_spec.volumes,
+        service_account=kube_resource_spec.service_account,
+        node_name=kube_resource_spec.node_name,
+        node_selector=kube_resource_spec.node_selector,
+        affinity=affinity,
+    )

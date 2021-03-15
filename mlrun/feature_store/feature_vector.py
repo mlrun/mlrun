@@ -326,7 +326,11 @@ class OnlineVectorService:
                 if key in data:
                     del data[key]
             if as_list:
-                data = [result.body[key] for key in self.vector.status.features.keys()]
+                data = [
+                    result.body[key]
+                    for key in self.vector.status.features.keys()
+                    if key != self.vector.status.label_column
+                ]
             results.append(data)
 
         return results

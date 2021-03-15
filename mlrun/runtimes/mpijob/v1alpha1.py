@@ -75,6 +75,11 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
             self._update_container(job, "image", self.full_image_path())
         update_in(job, "spec.template.spec.volumes", self.spec.volumes)
         self._update_container(job, "volumeMounts", self.spec.volume_mounts)
+        update_in(job, "spec.template.spec.nodeName", self.spec.node_name)
+        update_in(job, "spec.template.spec.nodeSelector", self.spec.node_selector)
+        update_in(
+            job, "spec.template.spec.affinity", self.spec._get_sanitized_affinity()
+        )
 
         extra_env = self._generate_runtime_env(runobj)
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]

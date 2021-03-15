@@ -5,87 +5,58 @@ from fastapi import APIRouter, Query, Request, Response
 
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
-from mlrun.errors import MLRunConflictError, MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, MLRunConflictError
 
 router = APIRouter()
 
 
-@router.post(
-    "/projects/{project}/model-endpoints/register",
+@router.put(
+    "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-async def register_endpoint(request: Request, project: str):
-    access_key = get_access_key(request.headers)
-    payload = await request.json()
-
-    # Required parameters
-    model = get_or_raise(payload, "model")
-    function = get_or_raise(payload, "function")
-    tag = get_or_raise(payload, "tag")
-
-    model_class = payload.get("model_class")
-    labels = payload.get("labels")
-    model_artifact = payload.get("model_artifact")
-    feature_stats = payload.get("feature_stats")
-    feature_names = payload.get("feature_names")
-    stream_path = payload.get("stream_path")
-    active = payload.get("active")
-
-    ModelEndpoints.register_endpoint(
-        access_key=access_key,
-        project=project,
-        model=model,
-        function=function,
-        tag=tag,
-        model_class=model_class,
-        labels=labels,
-        model_artifact=model_artifact,
-        feature_stats=feature_stats,
-        feature_names=feature_names,
-        stream_path=stream_path,
-        active=active,
-    )
-
-
-@router.post(
-    "/projects/{project}/model-endpoints/{endpoint_id}/update",
-    status_code=HTTPStatus.NO_CONTENT.value,
-)
-async def update_endpoint(
-    request: Request, project: str, endpoint_id: str,
+async def store_endpoint(
+    request: Request, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
 ):
-    verify_endpoint(project, endpoint_id)
+    """
+    Either create or updates the kv record of a given ModelEndpoint object
+    """
     access_key = get_access_key(request.headers)
-    payload = await request.json()
-    ModelEndpoints.update_endpoint_record(
-        access_key=access_key, project=project, endpoint_id=endpoint_id, payload=payload
+    if project != model_endpoint.metadata.project:
+        raise MLRunConflictError(
+            f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
+        )
+    if endpoint_id != model_endpoint.metadata.uid:
+        raise MLRunConflictError(
+            f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
+            f"\nMake sure the supplied function_uri, and model are configured as intended"
+        )
+    await ModelEndpoints.store_endpoint(
+        access_key=access_key, model_endpoint=model_endpoint
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.post(
-    "/projects/{project}/model-endpoints/{endpoint_id}/clear",
+@router.delete(
+    "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
+async def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
     """
     Clears endpoint record from KV by endpoint_id
     """
-    verify_endpoint(project, endpoint_id)
     access_key = get_access_key(request.headers)
-    ModelEndpoints.clear_endpoint_record(
+    await ModelEndpoints.clear_endpoint_record(
         access_key=access_key, project=project, endpoint_id=endpoint_id
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/projects/{project}/model-endpoints", response_model=ModelEndpointList)
-def list_endpoints(
+async def list_endpoints(
     request: Request,
     project: str,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
-    tag: Optional[str] = Query(None),
     labels: List[str] = Query([], alias="label"),
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
@@ -93,25 +64,24 @@ def list_endpoints(
 ):
     """
      Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
-     Lables can be used to filter on the existance of a label:
-     `api/projects/{project}/model-endpoints/?label=mylabel`
+     Labels can be used to filter on the existence of a label:
+     api/projects/{project}/model-endpoints/?label=mylabel
 
      Or on the value of a given label:
-     `api/projects/{project}/model-endpoints/?label=mylabel=1`
+     api/projects/{project}/model-endpoints/?label=mylabel=1
 
-     Multiple labels can be queried in a single request by either using `&` seperator:
-     `api/projects/{project}/model-endpoints/?label=mylabel=1&label=myotherlabel=2`
+     Multiple labels can be queried in a single request by either using "&" separator:
+     api/projects/{project}/model-endpoints/?label=mylabel=1&label=myotherlabel=2
 
-     Or by using a `,` (comma) seperator:
-     `api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2`
+     Or by using a "," (comma) separator:
+     api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
      """
     access_key = get_access_key(request.headers)
-    endpoints = ModelEndpoints.list_endpoints(
+    endpoints = await ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
         model=model,
         function=function,
-        tag=tag,
         labels=labels,
         metrics=metrics,
         start=start,
@@ -123,7 +93,7 @@ def list_endpoints(
 @router.get(
     "/projects/{project}/model-endpoints/{endpoint_id}", response_model=ModelEndpoint
 )
-def get_endpoint(
+async def get_endpoint(
     request: Request,
     project: str,
     endpoint_id: str,
@@ -132,9 +102,8 @@ def get_endpoint(
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
 ):
-    verify_endpoint(project, endpoint_id)
     access_key = get_access_key(request.headers)
-    endpoint = ModelEndpoints.get_endpoint(
+    endpoint = await ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,
         endpoint_id=endpoint_id,
@@ -152,11 +121,3 @@ def get_or_raise(dictionary: dict, key: str):
             f"Required argument '{key}' missing from json payload: {dictionary}"
         )
     return dictionary[key]
-
-
-def verify_endpoint(project, endpoint_id):
-    endpoint_id_project, _ = endpoint_id.split(".")
-    if endpoint_id_project != project:
-        raise MLRunConflictError(
-            f"project: {project} and endpoint_id: {endpoint_id} mismatch."
-        )

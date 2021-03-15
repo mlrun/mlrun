@@ -1,11 +1,12 @@
 import json
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional, Union, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Request, Response, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from mlrun.api.api import deps
 from mlrun.api.crud.model_endpoints import (
@@ -30,7 +31,7 @@ router = APIRouter()
 
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
-def grafana_proxy_model_endpoints_check_connection(request: Request):
+async def grafana_proxy_model_endpoints_check_connection(request: Request):
     """
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
@@ -47,22 +48,22 @@ async def grafana_proxy_model_endpoints_query(
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
 
-    This implementation requires passing `target_endpoint` query parameter in order to dispatch different
+    This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
     access_key = get_access_key(request.headers)
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
-
     _validate_query_parameters(query_parameters, SUPPORTED_QUERY_FUNCTIONS)
     query_parameters = _drop_grafana_escape_chars(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
-    result = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint](
+    function = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint](
         body, query_parameters, access_key
     )
+    result = await run_in_threadpool(function, body, query_parameters, access_key)
     return result
 
 
@@ -74,7 +75,7 @@ async def grafana_proxy_model_endpoints_search(
     Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
 
-    This implementation requires passing `target_endpoint` query parameter in order to dispatch different
+    This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
     get_access_key(request.headers)
@@ -86,7 +87,8 @@ async def grafana_proxy_model_endpoints_search(
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
-    result = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint](db_session)
+    function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
+    result = await run_in_threadpool(function, db_session)
     return result
 
 
@@ -109,7 +111,6 @@ def grafana_list_endpoints(
     # Filters
     model = query_parameters.get("model", None)
     function = query_parameters.get("function", None)
-    tag = query_parameters.get("tag", None)
     labels = query_parameters.get("labels", "")
     labels = labels.split(",") if labels else []
 
@@ -121,12 +122,11 @@ def grafana_list_endpoints(
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
 
-    endpoint_list = ModelEndpoints.list_endpoints(
+    endpoint_list = await ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
         model=model,
         function=function,
-        tag=tag,
         labels=labels,
         metrics=metrics,
         start=start,
@@ -138,7 +138,6 @@ def grafana_list_endpoints(
         GrafanaColumn(text="endpoint_function", type="string"),
         GrafanaColumn(text="endpoint_model", type="string"),
         GrafanaColumn(text="endpoint_model_class", type="string"),
-        GrafanaColumn(text="endpoint_tag", type="string"),
         GrafanaColumn(text="first_request", type="time"),
         GrafanaColumn(text="last_request", type="time"),
         GrafanaColumn(text="accuracy", type="number"),
@@ -162,10 +161,9 @@ def grafana_list_endpoints(
     for endpoint in endpoint_list.endpoints:
         row = [
             endpoint.metadata.uid,
-            endpoint.spec.function,
+            endpoint.spec.function_uri,
             endpoint.spec.model,
             endpoint.spec.model_class,
-            endpoint.metadata.tag,
             endpoint.status.first_request,
             endpoint.status.last_request,
             endpoint.status.accuracy,
@@ -182,13 +180,13 @@ def grafana_list_endpoints(
     return [table]
 
 
-def grafana_individual_feature_analysis(
+async def grafana_individual_feature_analysis(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = ModelEndpoints.get_endpoint(
+    endpoint = await ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,
         endpoint_id=endpoint_id,
@@ -235,13 +233,13 @@ def grafana_individual_feature_analysis(
     return [table]
 
 
-def grafana_overall_feature_analysis(
+async def grafana_overall_feature_analysis(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = ModelEndpoints.get_endpoint(
+    endpoint = await ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,
         endpoint_id=endpoint_id,
@@ -272,7 +270,7 @@ def grafana_overall_feature_analysis(
     return [table]
 
 
-def grafana_incoming_features(
+async def grafana_incoming_features(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
@@ -280,13 +278,13 @@ def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    endpoint = ModelEndpoints.get_endpoint(
+    endpoint = await ModelEndpoints.get_endpoint(
         access_key=access_key, project=project, endpoint_id=endpoint_id
     )
 
     time_series = GrafanaTimeSeries()
 
-    feature_names = endpoint.status.feature_names
+    feature_names = endpoint.spec.feature_names
 
     if not feature_names:
         logger.warn(
@@ -301,7 +299,8 @@ def grafana_incoming_features(
         container=config.model_endpoint_monitoring.container,
     )
 
-    data: pd.DataFrame = client.read(
+    data: pd.DataFrame = await run_in_threadpool(
+        client.read,
         backend="tsdb",
         table=f"{project}/{ENDPOINT_EVENTS_TABLE_PATH}",
         columns=feature_names,
@@ -325,12 +324,12 @@ def grafana_incoming_features(
 
 def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     """
-    This function searches for the `target` field in Grafana's `SimpleJson` json. Once located, the target string is
+    This function searches for the target field in Grafana's SimpleJson json. Once located, the target string is
     parsed by splitting on semi-colons (;). Each part in the resulting list is then split by an equal sign (=) to be
     read as key-value pairs.
     """
 
-    # Try to get the `target`
+    # Try to get the target
     targets = request_body.get("targets", [])
 
     if len(targets) > 1:
@@ -360,12 +359,12 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
 
 def _parse_search_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     """
-    This function searches for the `target` field in Grafana's `SimpleJson` json. Once located, the target string is
+    This function searches for the target field in Grafana's SimpleJson json. Once located, the target string is
     parsed by splitting on semi-colons (;). Each part in the resulting list is then split by an equal sign (=) to be
     read as key-value pairs.
     """
 
-    # Try to get the `target`
+    # Try to get the target
     target = request_body.get("target")
 
     if not target:

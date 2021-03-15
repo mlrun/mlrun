@@ -28,12 +28,12 @@ import mlrun
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
-
+from .base import RunDBError, RunDBInterface
+from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
-from .base import RunDBError, RunDBInterface
 
 default_project = config.default_project
 
@@ -1841,35 +1841,29 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Session-Key": self.token},
         )
 
-    def update_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
-        payload: dict,
-        check_existence: bool = True,
+    def store_endpoint(
+        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
     ):
         """
         Updates the KV data of a given model endpoint
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
-        :param payload: The parameters that should be updated
-        :param check_existence: Check if the endpoint already exists, if it doesn't, don't create the record and raise
-        MLRunInvalidArgumentError
+        :param model_endpoint: An object representing the model endpoint
         """
 
-        path = f"/projects/{project}/model-endpoints/{endpoint_id}/update"
+        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="POST",
+            method="PUT",
             path=path,
-            body=dict_to_json(payload),
+            body=model_endpoint.dict(),
             headers={"X-V3io-Session-Key": self.token},
         )
 
     def clear_endpoint_record(self, project: str, endpoint_id: str):
-        path = f"/projects/{project}/model-endpoints/{endpoint_id}/clear"
+        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="POST", path=path, headers={"X-V3io-Session-Key": self.token}
+            method="DELETE", path=path, headers={"X-V3io-Session-Key": self.token}
         )
 
     def list_endpoints(
@@ -1877,7 +1871,6 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        tag: Optional[str] = None,
         labels: List[str] = None,
         start: str = "now-1h",
         end: str = "now",
@@ -1891,12 +1884,11 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "model": model,
                 "function": function,
-                "tag": tag,
                 "labels": labels,
                 "start": start,
                 "end": end,
                 "metrics": metrics,
-                "feature_analysis": feature_analysis
+                "feature_analysis": feature_analysis,
             },
             headers={"X-V3io-Session-Key": self.token},
         )

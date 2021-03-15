@@ -40,10 +40,10 @@ from .model_endpoints import (
     GrafanaTimeSeriesTarget,
     Metric,
     ModelEndpoint,
+    ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelEndpointList,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination

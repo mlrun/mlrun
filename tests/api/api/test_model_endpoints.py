@@ -16,8 +16,8 @@ from mlrun.api.api.endpoints.model_endpoints import get_or_raise
 from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ENDPOINTS_TABLE_PATH,
-    build_kv_cursor_filter_expression,
     ModelEndpoints,
+    build_kv_cursor_filter_expression,
     get_access_key,
     get_endpoint_features,
     get_endpoint_metrics,
@@ -27,8 +27,8 @@ from mlrun.api.crud.model_endpoints import (
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
-    ModelEndpointStatus,
     ModelEndpointSpec,
+    ModelEndpointStatus,
 )
 from mlrun.config import config
 from mlrun.errors import (
@@ -166,9 +166,7 @@ def test_list_endpoints(db: Session, client: TestClient):
         headers={"X-V3io-Session-Key": _get_access_key()},
     )
 
-    endpoints_out = [
-        ModelEndpoint(**e) for e in response.json()["endpoints"]
-    ]
+    endpoints_out = [ModelEndpoint(**e) for e in response.json()["endpoints"]]
 
     in_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_in))
     out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out))
@@ -191,9 +189,6 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
         if i < 2:
             endpoint_details.spec.function = "filterme"
 
-        if i < 3:
-            endpoint_details.metadata.tag = "filterme"
-
         if i < 4:
             endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
@@ -210,12 +205,6 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
         headers={"X-V3io-Session-Key": access_key},
     ).json()["endpoints"]
     assert len(filter_function) == 2
-
-    filter_tag = client.get(
-        "/api/projects/test/model-endpoints/?tag=filterme",
-        headers={"X-V3io-Session-Key": access_key},
-    ).json()["endpoints"]
-    assert len(filter_tag) == 3
 
     filter_labels = client.get(
         "/api/projects/test/model-endpoints/?label=filtermex=1",
@@ -288,7 +277,9 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         assert len(endpoint.status.metrics) > 0
 
-        predictions_per_second = endpoint.status.metrics["predictions_per_second_count_1s"]
+        predictions_per_second = endpoint.status.metrics[
+            "predictions_per_second_count_1s"
+        ]
 
         assert predictions_per_second.name == "predictions_per_second_count_1s"
 
@@ -363,9 +354,9 @@ def test_build_kv_cursor_filter_expression():
     assert filter_expression == "project=='test'"
 
     filter_expression = build_kv_cursor_filter_expression(
-        project="test", function="test_function", model="test_model", tag="test_tag"
+        project="test", function="test_function", model="test_model"
     )
-    expected = "project=='test' AND function=='test_function' AND model=='test_model' AND tag=='test_tag'"
+    expected = "project=='test' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
     filter_expression = build_kv_cursor_filter_expression(

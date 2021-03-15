@@ -24,6 +24,7 @@ from dateutil.parser import parse as parse_time
 import mlrun.api.schemas
 import mlrun.errors
 
+from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
@@ -643,28 +644,8 @@ class FileRunDB(RunDBInterface):
     def list_artifact_tags(self, project=None):
         raise NotImplementedError()
 
-    def register_endpoint(
-        self,
-        project: str,
-        model: str,
-        function: str,
-        tag: str = "latest",
-        model_class: Optional[str] = None,
-        labels: Optional[dict] = None,
-        model_artifact: Optional[str] = None,
-        feature_stats: Optional[dict] = None,
-        feature_names: Optional[List[str]] = None,
-        stream_path: Optional[str] = None,
-        active: bool = True,
-    ):
-        raise NotImplementedError()
-
-    def update_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
-        payload: dict,
-        check_existence: bool = True,
+    def store_endpoint(
+        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
     ):
         raise NotImplementedError()
 

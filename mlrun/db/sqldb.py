@@ -19,9 +19,6 @@ from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
 
-from .base import RunDBError, RunDBInterface
-
-
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
 # require a RunDB to manage their state, when a user run them locally this db will either be the
@@ -30,6 +27,10 @@ from .base import RunDBError, RunDBInterface
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
+from ..api.schemas import ModelEndpoint
+from .base import RunDBError, RunDBInterface
+
+
 class SQLDB(RunDBInterface):
     def __init__(self, dsn, session=None):
         self.session = session
@@ -439,28 +440,8 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def register_endpoint(
-        self,
-        project: str,
-        model: str,
-        function: str,
-        tag: str = "latest",
-        model_class: Optional[str] = None,
-        labels: Optional[dict] = None,
-        model_artifact: Optional[str] = None,
-        feature_stats: Optional[dict] = None,
-        feature_names: Optional[List[str]] = None,
-        stream_path: Optional[str] = None,
-        active: bool = True,
-    ):
-        raise NotImplementedError()
-
-    def update_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
-        payload: dict,
-        check_existence: bool = True,
+    def store_endpoint(
+        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
     ):
         raise NotImplementedError()
 

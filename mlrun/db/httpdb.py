@@ -28,13 +28,12 @@ import mlrun
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
-
+from .base import RunDBError, RunDBInterface
 from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
-from .base import RunDBError, RunDBInterface
 
 default_project = config.default_project
 
@@ -1792,55 +1791,6 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
-
-    def register_endpoint(
-        self,
-        project: str,
-        model: str,
-        function: str,
-        tag: str = "latest",
-        model_class: Optional[str] = None,
-        labels: Optional[dict] = None,
-        model_artifact: Optional[str] = None,
-        feature_stats: Optional[dict] = None,
-        feature_names: Optional[List[str]] = None,
-        stream_path: Optional[str] = None,
-        active: bool = True,
-    ):
-        """
-        Writes endpoint data to KV, a prerequisite for initializing the monitoring process for a specific endpoint.
-
-        :param project: The name of the project of which this endpoint belongs to (used for creating endpoint.id)
-        :param tag: The tag/version of the model/function (used for creating endpoint.id)
-        :param labels: key value pairs of user defined labels
-        :param model_artifact: The path to the model artifact containing metadata about the features of the model
-        :param feature_stats: The actual metadata about the features of the model
-        :param feature_names:
-        :param stream_path: The path to the output stream of the model server
-        :param model: The name of the model that is used in the serving function (used for creating endpoint.id)
-        :param function: The name of the function that servers the model (used for creating endpoint.id)
-        :param model_class: The class of the model
-        :param active: The "activation" status of the endpoint - True for active / False for not active (default True)
-        """
-        path = f"/projects/{project}/model-endpoints/register"
-        body = {
-            "model": model,
-            "function": function,
-            "tag": tag,
-            "model_class": model_class,
-            "labels": labels,
-            "model_artifact": model_artifact,
-            "feature_stats": feature_stats,
-            "feature_names": feature_names,
-            "stream_path": stream_path,
-            "active": active,
-        }
-        self.api_call(
-            method="POST",
-            path=path,
-            body=dict_to_json(body),
-            headers={"X-V3io-Session-Key": self.token},
-        )
 
     def store_endpoint(
         self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint

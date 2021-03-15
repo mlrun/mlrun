@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
 from mlrun.api import schemas
+from mlrun.api.schemas import ModelEndpoint
 
 
 class RunDBError(Exception):
@@ -331,29 +332,8 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def register_endpoint(
-        self,
-        project: str,
-        model: str,
-        function: str,
-        tag: str = "latest",
-        model_class: Optional[str] = None,
-        labels: Optional[dict] = None,
-        model_artifact: Optional[str] = None,
-        feature_stats: Optional[dict] = None,
-        feature_names: Optional[List[str]] = None,
-        stream_path: Optional[str] = None,
-        active: bool = True,
-    ):
-        pass
-
-    @abstractmethod
-    def update_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
-        payload: dict,
-        check_existence: bool = True,
+    def store_endpoint(
+        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
     ):
         pass
 

@@ -21,7 +21,7 @@ from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ENDPOINTS_TABLE_PATH,
     ModelEndpoints,
-    serialize_endpoint_to_kv,
+    write_endpoint_to_kv,
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
@@ -57,7 +57,7 @@ async def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        await serialize_endpoint_to_kv(_get_access_key(), endpoint)
+        await write_endpoint_to_kv(_get_access_key(), endpoint)
 
     response = await run_in_threadpool(
         client.post,

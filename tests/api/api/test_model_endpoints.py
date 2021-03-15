@@ -22,7 +22,7 @@ from mlrun.api.crud.model_endpoints import (
     get_access_key,
     get_endpoint_features,
     get_endpoint_metrics,
-    serialize_endpoint_to_kv,
+    write_endpoint_to_kv,
     string_to_tsdb_name,
 )
 from mlrun.api.schemas import (
@@ -57,7 +57,7 @@ def _is_env_params_dont_exist() -> bool:
 async def test_clear_endpoint(db: Session, client: TestClient):
     access_key = _get_access_key()
     endpoint = _mock_random_endpoint()
-    await serialize_endpoint_to_kv(access_key, endpoint)
+    await write_endpoint_to_kv(access_key, endpoint)
     kv_record = await ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
@@ -88,7 +88,7 @@ async def test_clear_endpoint(db: Session, client: TestClient):
 async def test_store_endpoint_update_existing(db: Session, client: TestClient):
     access_key = _get_access_key()
     endpoint = _mock_random_endpoint()
-    await serialize_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
+    await write_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
 
     kv_record_before_update = await ModelEndpoints.get_endpoint(
         access_key=access_key,
@@ -127,7 +127,7 @@ async def test_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("testing") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        await serialize_endpoint_to_kv(_get_access_key(), endpoint)
+        await write_endpoint_to_kv(_get_access_key(), endpoint)
 
     response = await run_in_threadpool(
         client.get,
@@ -162,7 +162,7 @@ async def test_list_endpoints_filter(db: Session, client: TestClient):
         if i < 4:
             endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-        await serialize_endpoint_to_kv(_get_access_key(), endpoint_details)
+        await write_endpoint_to_kv(_get_access_key(), endpoint_details)
 
     filter_model = await run_in_threadpool(
         client.get,
@@ -213,7 +213,7 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
 
     for i in range(5):
         endpoint = _mock_random_endpoint()
-        await serialize_endpoint_to_kv(_get_access_key(), endpoint)
+        await write_endpoint_to_kv(_get_access_key(), endpoint)
         await run_in_threadpool(
             frames.create,
             backend="tsdb",
@@ -278,7 +278,7 @@ async def test_get_endpoint_metric_function():
     start = datetime.utcnow()
 
     endpoint = _mock_random_endpoint()
-    await serialize_endpoint_to_kv(_get_access_key(), endpoint)
+    await write_endpoint_to_kv(_get_access_key(), endpoint)
 
     await run_in_threadpool(
         frames.create,
@@ -551,7 +551,7 @@ def test_get_endpoint_features_function():
 )
 async def test_deserialize_endpoint_from_kv():
     endpoint = _mock_random_endpoint()
-    await serialize_endpoint_to_kv(_get_access_key(), endpoint)
+    await write_endpoint_to_kv(_get_access_key(), endpoint)
     endpoint_from_kv = await ModelEndpoints.get_endpoint(
         access_key=_get_access_key(),
         project=endpoint.metadata.project,

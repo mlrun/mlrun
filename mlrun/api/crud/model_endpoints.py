@@ -98,7 +98,7 @@ class ModelEndpoints:
         # system
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
-        await serialize_endpoint_to_kv(
+        await write_endpoint_to_kv(
             access_key=access_key, endpoint=model_endpoint, update=True,
         )
 
@@ -309,7 +309,7 @@ class ModelEndpoints:
         return endpoint
 
 
-async def serialize_endpoint_to_kv(
+async def write_endpoint_to_kv(
     access_key: str, endpoint: ModelEndpoint, update: bool = True
 ):
     """

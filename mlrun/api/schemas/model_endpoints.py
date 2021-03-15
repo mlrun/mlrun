@@ -45,7 +45,7 @@ class FeatureValues(BaseModel):
     histogram: Histogram
 
     @classmethod
-    def new(cls, stats: Optional[dict]):
+    def from_dict(cls, stats: Optional[dict]):
         if stats:
             return FeatureValues(
                 min=stats["min"],
@@ -73,8 +73,8 @@ class Features(BaseModel):
         return cls(
             name=feature_name,
             weight=-1.0,
-            expected=FeatureValues.new(feature_stats),
-            actual=FeatureValues.new(current_stats),
+            expected=FeatureValues.from_dict(feature_stats),
+            actual=FeatureValues.from_dict(current_stats),
         )
 
 

@@ -61,7 +61,10 @@ def get_default_targets():
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     """add the target states to the graph"""
     targets = targets or []
-    key_column = resource.spec.entities[0].name
+    if len(resource.spec.entities.keys()) > 1:
+        key_column = list(resource.spec.entities.keys())
+    else:
+        key_column = resource.spec.entities[0].name
     timestamp_key = resource.spec.timestamp_key
     features = resource.spec.features
     table = None
@@ -292,8 +295,9 @@ class CSVTarget(BaseStoreTarget):
         column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
-        if key_column not in column_list:
-            column_list.insert(0, key_column)
+        for key in reversed(key_column):
+            if key not in column_list:
+                column_list.insert(0, key)
         graph.add_step(
             name="WriteToCSV",
             after=after,
@@ -335,8 +339,9 @@ class NoSqlTarget(BaseStoreTarget):
         column_list = [
             key for key, feature in features.items() if not feature.aggregate
         ]
-        if key_column not in column_list:
-            column_list.insert(0, key_column)
+        for key in reversed(key_column):
+            if key not in column_list:
+                column_list.insert(0, key)
         graph.add_step(
             name="WriteToTable",
             after=after,
@@ -373,8 +378,9 @@ class StreamTarget(BaseStoreTarget):
         column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
-        if key_column not in column_list:
-            column_list.insert(0, key_column)
+        for key in reversed(key_column):
+            if key not in column_list:
+                column_list.insert(0, key)
         graph.add_step(
             name="WriteToStream",
             after=after,

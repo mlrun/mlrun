@@ -226,8 +226,8 @@ class ModelEndpoints:
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics
         :param end: The end time of the metrics
-        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to the
-        output of the resulting object
+        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+        the output of the resulting object
         """
 
         logger.info(

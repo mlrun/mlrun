@@ -463,15 +463,20 @@ class SparkRuntime(KubejobRuntime):
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
         )
 
-    def with_node_selection(self, node_name: typing.Optional[str] = None,
-                            node_selector: typing.Optional[typing.Dict[str, str]] = None,
-                            affinity: typing.Optional[client.V1Affinity] = None):
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
         if node_name:
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
         if affinity:
-            raise NotImplementedError("Setting affinity is not supported for spark runtime")
+            raise NotImplementedError(
+                "Setting affinity is not supported for spark runtime"
+            )
         super().with_node_selection(node_name, node_selector, affinity)
 
     def with_executor_requests(

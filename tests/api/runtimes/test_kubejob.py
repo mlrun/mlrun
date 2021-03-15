@@ -117,7 +117,11 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
         runtime.with_node_selection(node_name, node_selector, affinity)
         self._execute_run(runtime)
-        self._assert_pod_creation_config(expected_node_name=node_name, expected_node_selector=node_selector, expected_affinity=affinity)
+        self._assert_pod_creation_config(
+            expected_node_name=node_name,
+            expected_node_selector=node_selector,
+            expected_affinity=affinity,
+        )
 
     def test_run_with_mounts(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

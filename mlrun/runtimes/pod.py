@@ -278,9 +278,12 @@ class KubeResource(BaseRuntime):
             self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
         )
 
-    def with_node_selection(self, node_name: typing.Optional[str] = None,
-                            node_selector: typing.Optional[typing.Dict[str, str]] = None,
-                            affinity: typing.Optional[client.V1Affinity] = None):
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
         """
         Enables to control on which k8s node the job will run
 

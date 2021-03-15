@@ -13,7 +13,9 @@ import mlrun.errors
 def test_get_frontend_spec(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock()
+    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+        unittest.mock.Mock()
+    )
     # no cookie so no url
     response = client.get("/api/frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -25,7 +27,9 @@ def test_get_frontend_spec(
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
         return_value=None
     )
-    response = client.get("/api/frontend-spec", cookies={"session": "some-session-cookie"})
+    response = client.get(
+        "/api/frontend-spec", cookies={"session": "some-session-cookie"}
+    )
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None

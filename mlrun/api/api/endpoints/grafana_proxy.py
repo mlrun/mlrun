@@ -1,6 +1,6 @@
 import json
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 import pandas as pd
@@ -92,9 +92,10 @@ async def grafana_proxy_model_endpoints_search(
     return result
 
 
-def grafana_list_projects(db_session: Session) -> List[str]:
+async def grafana_list_projects(db_session: Session) -> List[str]:
     db = get_db()
-    projects = db.list_projects(db_session).projects
+    project_output = await run_in_threadpool(db.list_projects, db_session)
+    projects = project_output.projects
     if not projects:
         return []
     projects_list = []
@@ -103,7 +104,7 @@ def grafana_list_projects(db_session: Session) -> List[str]:
     return projects_list
 
 
-def grafana_list_endpoints(
+async def grafana_list_endpoints(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ) -> List[GrafanaTable]:
     project = query_parameters.get("project")
@@ -419,16 +420,14 @@ def _json_loads_or_default(string: Optional[str], default: Any):
     return obj
 
 
-NAME_TO_QUERY_FUNCTION_DICTIONARY: Dict[
-    str, Callable[[Dict[str, Any], Dict[str, str], str], List[GrafanaTable]]
-] = {
+NAME_TO_QUERY_FUNCTION_DICTIONARY = {
     "list_endpoints": grafana_list_endpoints,
     "individual_feature_analysis": grafana_individual_feature_analysis,
     "overall_feature_analysis": grafana_overall_feature_analysis,
     "incoming_features": grafana_incoming_features,
 }
 
-NAME_TO_SEARCH_FUNCTION_DICTIONARY: Dict[str, Callable] = {
+NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
     "list_projects": grafana_list_projects,
 }
 

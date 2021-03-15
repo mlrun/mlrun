@@ -136,7 +136,7 @@ def test_iguazio_api_url_resolution():
     mlconf.config.igz_version = "1.2.3"
     assert (
         mlconf.config.iguazio_api_url
-        == "dashboard.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
+        == "https://dashboard.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
     )
     # value configured - no resolution needed
     url = "some-url"

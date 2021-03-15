@@ -301,7 +301,7 @@ class Config:
                 if first_dot_index < 0:
                     # if not found it's not the format we know - can't resolve the api url from the registry url
                     return ""
-                return f"dashboard{docker_registry_url[first_dot_index:]}"
+                return f"https://dashboard{docker_registry_url[first_dot_index:]}"
         return self._iguazio_api_url
 
     @iguazio_api_url.setter

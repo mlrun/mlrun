@@ -33,23 +33,15 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             "GET", "app_services_manifests", session_cookie
         )
         response_body = response.json()
-        if len(response_body.get("data", [{}])) > 1:
-            raise mlrun.errors.MLRunInternalServerError(
-                "Found unexpected number of app services manifests"
-            )
-        app_services = (
-            response_body.get("data", [{}])[0]
-            .get("attributes", {})
-            .get("app_services", [])
-        )
-        for app_service in app_services:
-            if (
-                app_service.get("spec", {}).get("kind") == "grafana"
-                and app_service.get("status", {}).get("state") == "ready"
-                and len(app_service.get("status", {}).get("urls", [])) > 0
-            ):
-                # heuristically picking the first one
-                return app_service.get("status", {}).get("urls")[0]["url"]
+        for app_services_manifest in response_body.get("data", []):
+            for app_service in app_services_manifest.get("attributes", {}).get("app_services", []):
+                if (
+                    app_service.get("spec", {}).get("kind") == "grafana"
+                    and app_service.get("status", {}).get("state") == "ready"
+                    and len(app_service.get("status", {}).get("urls", [])) > 0
+                ):
+                    # heuristically picking the first one
+                    return app_service.get("status", {}).get("urls")[0]["url"]
         return None
 
     def _send_request_to_api(self, method, path, session_cookie=None, **kwargs):

@@ -48,6 +48,9 @@ class MPIResourceSpec(KubeResourceSpec):
         build=None,
         image_pull_secret=None,
         mpi_args=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -67,6 +70,9 @@ class MPIResourceSpec(KubeResourceSpec):
             service_account=service_account,
             image_pull_secret=image_pull_secret,
             args=args,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
         self.mpi_args = mpi_args or [
             "-x",

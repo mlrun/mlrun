@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import time
+import typing
 from copy import deepcopy
 from datetime import datetime
 from typing import Optional, Tuple
 
+from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -83,6 +85,7 @@ _sparkjob_template = {
             "volumeMounts": [],
             "env": [],
         },
+        "nodeSelector": {},
     },
 }
 
@@ -117,6 +120,7 @@ class SparkJobSpec(KubeResourceSpec):
         build=None,
         spark_conf=None,
         hadoop_conf=None,
+        node_selector=None,
     ):
 
         super().__init__(
@@ -137,6 +141,7 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
+            node_selector=node_selector,
         )
 
         self.driver_resources = driver_resources or {}
@@ -251,7 +256,7 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
-        update_in(job, "spec.executor.instances", self.spec.replicas or 1)
+        update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
         if (not self.spec.image) and self._default_image:
             self.spec.image = self._default_image
@@ -457,6 +462,22 @@ class SparkRuntime(KubejobRuntime):
         raise NotImplementedError(
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
         )
+
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        if node_name:
+            raise NotImplementedError(
+                "Setting node name is not supported for spark runtime"
+            )
+        if affinity:
+            raise NotImplementedError(
+                "Setting affinity is not supported for spark runtime"
+            )
+        super().with_node_selection(node_name, node_selector, affinity)
 
     def with_executor_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"

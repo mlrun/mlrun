@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 import deepdiff
 from kubernetes import client
+from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -77,6 +78,79 @@ class TestRuntimeBase:
     def _generate_task(self):
         return new_task(
             name=self.name, project=self.project, artifact_path=self.artifact_path
+        )
+
+    def _generate_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PreferredSchedulingTerm(
+                        weight=1,
+                        preference=k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="some_node_label",
+                                    operator="In",
+                                    values=[
+                                        "possible-label-value-1",
+                                        "possible-label-value-2",
+                                    ],
+                                )
+                            ]
+                        ),
+                    )
+                ],
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="some_node_label",
+                                    operator="In",
+                                    values=[
+                                        "required-label-value-1",
+                                        "required-label-value-2",
+                                    ],
+                                )
+                            ]
+                        ),
+                    ]
+                ),
+            ),
+            pod_affinity=k8s_client.V1PodAffinity(
+                required_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PodAffinityTerm(
+                        label_selector=k8s_client.V1LabelSelector(
+                            match_labels={"some-pod-label-key": "some-pod-label-value"}
+                        ),
+                        namespaces=["namespace-a", "namespace-b"],
+                        topology_key="key-1",
+                    )
+                ]
+            ),
+            pod_anti_affinity=k8s_client.V1PodAntiAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1WeightedPodAffinityTerm(
+                        weight=1,
+                        pod_affinity_term=k8s_client.V1PodAffinityTerm(
+                            label_selector=k8s_client.V1LabelSelector(
+                                match_expressions=[
+                                    k8s_client.V1LabelSelectorRequirement(
+                                        key="some_pod_label",
+                                        operator="NotIn",
+                                        values=[
+                                            "forbidden-label-value-1",
+                                            "forbidden-label-value-2",
+                                        ],
+                                    )
+                                ]
+                            ),
+                            namespaces=["namespace-c"],
+                            topology_key="key-2",
+                        ),
+                    )
+                ]
+            ),
         )
 
     def _mock_create_namespaced_pod(self):
@@ -325,6 +399,9 @@ class TestRuntimeBase:
         expected_requests=None,
         expected_code=None,
         expected_env={},
+        expected_node_name=None,
+        expected_node_selector=None,
+        expected_affinity=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
@@ -335,10 +412,10 @@ class TestRuntimeBase:
 
         assert self._get_namespace_arg() == self.namespace
 
-        pod_spec = self._get_pod_creation_args()
-        self._assert_labels(pod_spec.metadata.labels, expected_runtime_class_name)
+        pod = self._get_pod_creation_args()
+        self._assert_labels(pod.metadata.labels, expected_runtime_class_name)
 
-        container_spec = pod_spec.spec.containers[0]
+        container_spec = pod.spec.containers[0]
 
         if expected_limits:
             assert (
@@ -390,4 +467,24 @@ class TestRuntimeBase:
         if expected_code:
             assert expected_code_found
 
-        assert pod_spec.spec.containers[0].image == self.image_name
+        if expected_node_name:
+            assert pod.spec.node_name == expected_node_name
+
+        if expected_node_selector:
+            assert (
+                deepdiff.DeepDiff(
+                    pod.spec.node_selector, expected_node_selector, ignore_order=True,
+                )
+                == {}
+            )
+        if expected_affinity:
+            assert (
+                deepdiff.DeepDiff(
+                    pod.spec.affinity.to_dict(),
+                    expected_affinity.to_dict(),
+                    ignore_order=True,
+                )
+                == {}
+            )
+
+        assert pod.spec.containers[0].image == self.image_name

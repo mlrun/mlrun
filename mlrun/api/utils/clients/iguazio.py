@@ -19,7 +19,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)
-        self._api_url = mlrun.mlconf.httpdb.iguazio_api_url
+        self._api_url = mlrun.mlconf.iguazio_api_url
 
     def get_grafana_service_url_if_exists(
         self, session_cookie: str

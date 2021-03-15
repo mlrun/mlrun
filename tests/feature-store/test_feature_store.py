@@ -90,28 +90,16 @@ def test_featureset_column_types():
             ),
         }
     )
-    verify_ingest(data, "key")
-    verify_ingest(data, "key", infer=True)
-    verify_ingest(data, "str")
-    verify_ingest(data, "str", infer=True)
-    verify_ingest(data, "int")
-    verify_ingest(data, "int", infer=True)
-    verify_ingest(data, "float")
-    verify_ingest(data, "float", infer=True)
-    verify_ingest(data, "bool")
-    verify_ingest(data, "bool", infer=True)
-    verify_ingest(data, "timestamp")
-    verify_ingest(data, "timestamp", infer=True)
-    verify_ingest(data, "category")
-    verify_ingest(data, "category", infer=True)
+    for key in data.keys():
+        verify_ingest(data, key)
+        verify_ingest(data, key, infer=True)
 
     # Timedelta isn't supported in parquet
     data["timedelta"] = pd.Timedelta("-1 days 2 min 3us")
 
-    verify_ingest(data, "key", targets=[TargetTypes.nosql])
-    verify_ingest(data, "key", targets=[TargetTypes.nosql], infer=True)
-    verify_ingest(data, "timedelta", targets=[TargetTypes.nosql])
-    verify_ingest(data, "timedelta", targets=[TargetTypes.nosql], infer=True)
+    for key in ["key", "timedelta"]:
+        verify_ingest(data, key, targets=[TargetTypes.nosql])
+        verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
 
 
 class MyMap(MapClass):

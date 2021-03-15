@@ -1,6 +1,3 @@
-import http
-
-import deepdiff
 import pytest
 import requests_mock as requests_mock_package
 
@@ -30,26 +27,19 @@ def test_get_grafana_service_url_success(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
-    expected_grafana_url = "https://grafana.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
-    grafana_service = {
-        "spec": {
-            'kind': 'grafana',
-        },
-        'status': {
-            'state': 'ready',
-            'urls': [
-                {
-                    "kind": "https",
-                    "url": expected_grafana_url
-                }
-            ]
-        }
-    }
-    response_body = _generate_app_services_manifests_body(
-        [grafana_service]
+    expected_grafana_url = (
+        "https://grafana.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
     )
+    grafana_service = {
+        "spec": {"kind": "grafana"},
+        "status": {
+            "state": "ready",
+            "urls": [{"kind": "https", "url": expected_grafana_url}],
+        },
+    }
+    response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists('session-cookie')
+    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
     assert grafana_url == expected_grafana_url
 
 
@@ -58,20 +48,11 @@ def test_get_grafana_service_url_ignoring_disabled_service(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
-    grafana_service = {
-        "spec": {
-            'kind': 'grafana',
-        },
-        'status': {
-            'state': 'disabled',
-        }
-    }
-    response_body = _generate_app_services_manifests_body(
-        [grafana_service]
-    )
+    grafana_service = {"spec": {"kind": "grafana"}, "status": {"state": "disabled"}}
+    response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists('session-cookie')
-    assert grafana_url == None
+    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
+    assert grafana_url is None
 
 
 def test_get_grafana_service_url_no_grafana_exists(
@@ -79,12 +60,10 @@ def test_get_grafana_service_url_no_grafana_exists(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
-    response_body = _generate_app_services_manifests_body(
-        []
-    )
+    response_body = _generate_app_services_manifests_body([])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists('session-cookie')
-    assert grafana_url == None
+    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
+    assert grafana_url is None
 
 
 def test_get_grafana_service_url_no_urls(
@@ -93,31 +72,14 @@ def test_get_grafana_service_url_no_urls(
     requests_mock: requests_mock_package.Mocker,
 ):
     grafana_service = {
-        "spec": {
-            'kind': 'grafana',
-        },
-        'status': {
-            'state': 'ready',
-            'urls': [
-
-            ]
-        }
+        "spec": {"kind": "grafana"},
+        "status": {"state": "ready", "urls": []},
     }
-    response_body = _generate_app_services_manifests_body(
-        [grafana_service]
-    )
+    response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists('session-cookie')
-    assert grafana_url == None
+    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
+    assert grafana_url is None
 
 
 def _generate_app_services_manifests_body(app_services):
-    return {
-        'data': [
-            {
-                'attributes': {
-                    'app_services': app_services
-                }
-            }
-        ]
-    }
+    return {"data": [{"attributes": {"app_services": app_services}}]}

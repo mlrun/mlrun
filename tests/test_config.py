@@ -130,9 +130,14 @@ def test_iguazio_api_url_resolution():
     mlconf.config.igz_version = "1.2.3"
     assert mlconf.config.iguazio_api_url == ""
     # known format docker registry configured - can resolve
-    mlconf.config.httpdb.builder.docker_registry = "docker-registry.default-tenant.app.hedingber-301-1.iguazio-cd2.com:80"
+    mlconf.config.httpdb.builder.docker_registry = (
+        "docker-registry.default-tenant.app.hedingber-301-1.iguazio-cd2.com:80"
+    )
     mlconf.config.igz_version = "1.2.3"
-    assert mlconf.config.iguazio_api_url == "dashboard.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
+    assert (
+        mlconf.config.iguazio_api_url
+        == "dashboard.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
+    )
     # value configured - no resolution needed
     url = "some-url"
     mlconf.config._iguazio_api_url = url

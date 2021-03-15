@@ -548,6 +548,10 @@ class FileRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        group_by: str = None,
+        rows_per_group: int = 1,
+        sort_by: str = None,
+        order: str = "desc",
     ):
         raise NotImplementedError()
 

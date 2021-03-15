@@ -1195,15 +1195,21 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     @staticmethod
     def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
-        row_number_column = func.row_number().over(
-            partition_by=group_by.to_group_by_db_field(cls),
-            order_by=order.to_order_by_predicate(cls.updated)
-        ).label("row_number")
+        row_number_column = (
+            func.row_number()
+            .over(
+                partition_by=group_by.to_group_by_db_field(cls),
+                order_by=order.to_order_by_predicate(cls.updated),
+            )
+            .label("row_number")
+        )
 
         # Need to generate a subquery so we can filter based on the row_number, since it
         # is a window function using over().
         subquery = query.add_column(row_number_column).subquery()
-        return session.query(aliased(cls, subquery)).filter(subquery.c.row_number <= rows_per_group)
+        return session.query(aliased(cls, subquery)).filter(
+            subquery.c.row_number <= rows_per_group
+        )
 
     def list_feature_sets(
         self,
@@ -1240,7 +1246,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         if group_by:
             self._assert_group_by_parameters(group_by, sort)
-            query = self._create_partitioned_query(session, query, FeatureSet, group_by, order, rows_per_group)
+            query = self._create_partitioned_query(
+                session, query, FeatureSet, group_by, order, rows_per_group
+            )
 
         feature_sets = []
         for feature_set_record in query:
@@ -1594,7 +1602,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         if group_by:
             self._assert_group_by_parameters(group_by, sort)
-            query = self._create_partitioned_query(session, query, FeatureVector, group_by, order, rows_per_group)
+            query = self._create_partitioned_query(
+                session, query, FeatureVector, group_by, order, rows_per_group
+            )
 
         feature_vectors = []
         for feature_vector_record in query:

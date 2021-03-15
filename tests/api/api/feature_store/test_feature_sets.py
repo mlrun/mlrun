@@ -177,7 +177,9 @@ def test_feature_set_list_group_by(db: Session, client: TestClient) -> None:
         feature_set["metadata"]["extra_metadata"] = 300
         _store_and_assert_feature_set(client, project_name, name, "newest", feature_set)
 
-    _test_group_by_for_feature_store_objects(client, "feature_sets", project_name, count)
+    _test_group_by_for_feature_store_objects(
+        client, "feature_sets", project_name, count
+    )
 
 
 def test_feature_set_patch(db: Session, client: TestClient) -> None:

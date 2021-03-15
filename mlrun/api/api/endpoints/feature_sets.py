@@ -111,7 +111,18 @@ def list_feature_sets(
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_sets = get_db().list_feature_sets(
-        db_session, project, name, tag, state, entities, features, labels, group_by, rows_per_group, sort, order
+        db_session,
+        project,
+        name,
+        tag,
+        state,
+        entities,
+        features,
+        labels,
+        group_by,
+        rows_per_group,
+        sort,
+        order,
     )
 
     return feature_sets
@@ -194,7 +205,16 @@ def list_feature_vectors(
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_vectors = get_db().list_feature_vectors(
-        db_session, project, name, tag, state, labels, group_by, rows_per_group, sort, order
+        db_session,
+        project,
+        name,
+        tag,
+        state,
+        labels,
+        group_by,
+        rows_per_group,
+        sort,
+        order,
     )
 
     return feature_vectors

@@ -67,21 +67,33 @@ def _test_group_by_for_feature_store_objects(
 ):
     _list_and_assert_objects(client, object_name, project_name, None, count * 3)
     results = _list_and_assert_objects(
-        client, object_name, project_name, "group-by=name&sort-by=updated&rows-per-group=1&order=desc", count
+        client,
+        object_name,
+        project_name,
+        "group-by=name&sort-by=updated&rows-per-group=1&order=desc",
+        count,
     )[object_name]
 
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
     results = _list_and_assert_objects(
-        client, object_name, project_name, "group-by=name&sort-by=updated&rows-per-group=1&order=asc", count
+        client,
+        object_name,
+        project_name,
+        "group-by=name&sort-by=updated&rows-per-group=1&order=asc",
+        count,
     )[object_name]
 
     for result_object in results:
         assert result_object["metadata"]["tag"] == "older"
 
     results = _list_and_assert_objects(
-        client, object_name, project_name, "group-by=name&sort-by=updated&rows-per-group=2&order=desc", count * 2
+        client,
+        object_name,
+        project_name,
+        "group-by=name&sort-by=updated&rows-per-group=2&order=desc",
+        count * 2,
     )[object_name]
 
     for result_object in results:
@@ -89,13 +101,22 @@ def _test_group_by_for_feature_store_objects(
 
     # Query on additional fields, to force DB joins on these tables
     results = _list_and_assert_objects(
-        client, object_name, project_name, "entity=ticker&feature=bid&label=owner&group-by=name&sort-by=updated", count
+        client,
+        object_name,
+        project_name,
+        "entity=ticker&feature=bid&label=owner&group-by=name&sort-by=updated",
+        count,
     )[object_name]
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
     # Some negative testing
-    response = client.get(f"/api/projects/{project_name}/feature-vectors?group-by=name")
+    object_url_name = object_name.replace("_", "-")
+    response = client.get(
+        f"/api/projects/{project_name}/{object_url_name}?group-by=name"
+    )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
-    response = client.get(f"/api/projects/{project_name}/feature-vectors?group-by=key&sort-by=updated")
+    response = client.get(
+        f"/api/projects/{project_name}/{object_url_name}?group-by=key&sort-by=updated"
+    )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value

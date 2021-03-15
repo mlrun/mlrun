@@ -123,6 +123,7 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
+        "iguazio_api_url": "",
     },
     "model_endpoint_monitoring": {
         "container": "projects",
@@ -284,6 +285,25 @@ class Config:
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value)
 
+    @property
+    def iguazio_api_url(self):
+        if not self._iguazio_api_url:
+            # we want to be able to run with old versions of the service who runs the API (which doesn't configure this
+            # value) so we're doing best effort to try and resolve it from other configurations
+            if self.httpdb.builder.docker_registry and self.igz_version:
+                docker_registry_url = self.httpdb.builder.docker_registry
+                # remove port suffix if exists
+                colon_index = docker_registry_url.find(":")
+                if colon_index > -1:
+                    docker_registry_url = docker_registry_url[:colon_index]
+                # replace the first domain section (app service name) with dashboard
+                first_dot_index = docker_registry_url.find(".")
+                if first_dot_index < 0:
+                    # if not found it's not the format we know - can't resolve the api url from the registry url
+                    return None
+                return f"dashboard{docker_registry_url[first_dot_index:]}"
+        return self._iguazio_api_url
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -328,6 +348,8 @@ def _do_populate(env=None):
     del config._cfg["kfp_image"]
     config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]
     del config._cfg["dask_kfp_image"]
+    config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
+    del config._cfg["iguazio_api_url"]
 
 
 def _convert_str(value, typ):

@@ -291,8 +291,8 @@ class _ModelLogPusher:
         self.verbose = context.verbose
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
-        self.stream_batch = int(context.get_param("log_stream_sample", 1))
-        self.stream_sample = int(context.get_param("log_stream_batch", 1))
+        self.stream_batch = int(context.get_param("log_stream_batch", 1))
+        self.stream_sample = int(context.get_param("log_stream_sample", 1))
         self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id
         self._sample_iter = 0

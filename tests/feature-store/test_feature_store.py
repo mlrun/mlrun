@@ -10,7 +10,7 @@ import mlrun.feature_store as fs
 from mlrun.config import config as mlconf
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget
+from mlrun.datastore.targets import CSVTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet, run_ingestion_job
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
@@ -44,8 +44,62 @@ def test_basic_featureset():
     assert (
         stocks_set.spec.features["name"].description == "some name"
     ), "description was not set"
-    assert len(df) == len(stocks), "datafreame size doesnt match"
+    assert len(df) == len(stocks), "dataframe size doesnt match"
     assert stocks_set.status.stats["exchange"], "stats not created"
+
+
+def verify_ingest(
+    base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
+):
+    if isinstance(keys, str):
+        keys = [keys]
+    feature_set = fs.FeatureSet("my-feature-set")
+    if infer:
+        data = base_data.copy()
+        fs.infer_metadata(feature_set, data, entity_columns=keys)
+    else:
+        data = base_data.set_index(keys=keys)
+    if targets:
+        feature_set.set_targets(targets=targets, with_defaults=False)
+    df = fs.ingest(feature_set, data, infer_options=infer_options)
+
+    assert len(df) == len(data)
+    if infer:
+        data.set_index(keys=keys, inplace=True)
+    for idx in range(len(df)):
+        assert all(df.values[idx] == data.values[idx])
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_featureset_column_types():
+    init_store()
+
+    data = pd.DataFrame(
+        {
+            "key": ["key1", "key2"],
+            "str": ["my_string1", "my_string2"],
+            "int": [123456, 234567],
+            "float": [123.456, 234.567],
+            "bool": [True, False],
+            "timestamp": [
+                pd.Timestamp("1980-02-04 17:21:50.781"),
+                pd.Timestamp("2020-03-04 12:12:45.120"),
+            ],
+            "category": pd.Categorical(
+                ["a", "c"], categories=["d", "c", "b", "a"], ordered=True
+            ),
+        }
+    )
+    for key in data.keys():
+        verify_ingest(data, key)
+        verify_ingest(data, key, infer=True)
+
+    # Timedelta isn't supported in parquet
+    data["timedelta"] = pd.Timedelta("-1 days 2 min 3us")
+
+    for key in ["key", "timedelta"]:
+        verify_ingest(data, key, targets=[TargetTypes.nosql])
+        verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
 
 
 class MyMap(MapClass):
@@ -218,7 +272,7 @@ def test_ordered_pandas_asof_merge():
     )
 
     features = ["left.*", "right.*"]
-    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    feature_vector = fs.FeatureVector("test_fv", features, description="test FV")
     res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
     res = res.to_dataframe()
     assert res.shape[0] == left.shape[0]
@@ -236,7 +290,7 @@ def test_left_not_ordered_pandas_asof_merge():
     )
 
     features = ["left.*", "right.*"]
-    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    feature_vector = fs.FeatureVector("test_fv", features, description="test FV")
     res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
     res = res.to_dataframe()
     assert res.shape[0] == left.shape[0]
@@ -254,7 +308,7 @@ def test_right_not_ordered_pandas_asof_merge():
     )
 
     features = ["left.*", "right.*"]
-    feature_vector = fs.FeatureVector("test_fv", features, "test FV")
+    feature_vector = fs.FeatureVector("test_fv", features, description="test FV")
     res = fs.get_offline_features(feature_vector, entity_timestamp_column="time")
     res = res.to_dataframe()
     assert res.shape[0] == left.shape[0]

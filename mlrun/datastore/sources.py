@@ -196,6 +196,8 @@ class OnlineSource(BaseSourceDriver):
         "name",
         "path",
         "attributes",
+        "key_field",
+        "time_field",
         "online",
         "workers",
     ]
@@ -206,11 +208,22 @@ class OnlineSource(BaseSourceDriver):
         name: str = None,
         path: str = None,
         attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
         workers: int = None,
     ):
-        super().__init__(name, path, attributes)
+        super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
         self.workers = workers
+
+    def to_step(self, key_field=None, time_field=None):
+        import storey
+
+        return storey.Source(
+            key_field=self.key_field or key_field,
+            time_field=self.time_field or time_field,
+            full_event=True,
+        )
 
 
 class HttpSource(OnlineSource):

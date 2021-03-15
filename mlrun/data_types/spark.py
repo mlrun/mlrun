@@ -39,8 +39,6 @@ def infer_schema_from_df_spark(
         if value_type == "timestamp" and not is_entity:
             timestamp_fields.append(column)
 
-    if len(timestamp_fields) == 1 and not timestamp_key:
-        return timestamp_fields[0]
     return timestamp_key
 
 

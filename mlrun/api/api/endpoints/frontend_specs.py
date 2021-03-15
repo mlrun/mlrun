@@ -20,7 +20,7 @@ def get_frontend_specs(session: typing.Optional[str] = fastapi.Cookie(None)):
 
 def _resolve_jobs_dashboard_url(session: str):
     zebo_client = mlrun.api.utils.clients.iguazio.Client()
-    grafana_service_url = zebo_client.get_grafana_service_url_if_exists(session)
+    grafana_service_url = zebo_client.try_get_grafana_service_url(session)
     # FIXME: this creates a heavy coupling between mlrun and the grafana dashboard (name and filters) + org id
     return (
         f"{grafana_service_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={{filter_name}}"

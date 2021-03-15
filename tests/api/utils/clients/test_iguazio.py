@@ -39,7 +39,7 @@ def test_get_grafana_service_url_success(
     }
     response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
+    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
     assert grafana_url == expected_grafana_url
 
 
@@ -51,7 +51,7 @@ def test_get_grafana_service_url_ignoring_disabled_service(
     grafana_service = {"spec": {"kind": "grafana"}, "status": {"state": "disabled"}}
     response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
+    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
     assert grafana_url is None
 
 
@@ -62,7 +62,7 @@ def test_get_grafana_service_url_no_grafana_exists(
 ):
     response_body = _generate_app_services_manifests_body([])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
+    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
     assert grafana_url is None
 
 
@@ -77,7 +77,7 @@ def test_get_grafana_service_url_no_urls(
     }
     response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.get_grafana_service_url_if_exists("session-cookie")
+    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
     assert grafana_url is None
 
 

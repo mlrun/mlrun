@@ -14,7 +14,7 @@ def test_get_frontend_specs(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     grafana_url = "some-url.com"
-    mlrun.api.utils.clients.iguazio.Client().get_grafana_service_url_if_exists = unittest.mock.Mock(
+    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
         return_value=grafana_url
     )
 
@@ -24,7 +24,7 @@ def test_get_frontend_specs(
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
     assert (
-        mlrun.api.utils.clients.iguazio.Client().get_grafana_service_url_if_exists.call_count
+        mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
         == 0
     )
 
@@ -39,6 +39,6 @@ def test_get_frontend_specs(
         f"&var-groupBy={{filter_name}}&var-filter={{filter_value}}"
     )
     assert (
-        mlrun.api.utils.clients.iguazio.Client().get_grafana_service_url_if_exists.call_count
+        mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
         == 1
     )

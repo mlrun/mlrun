@@ -21,9 +21,13 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
 
-    def get_grafana_service_url_if_exists(
+    def try_get_grafana_service_url(
         self, session_cookie: str
     ) -> typing.Optional[str]:
+        """
+        Try to find a ready grafana app service, and return its URL
+        If nothing found, returns None
+        """
         logger.debug("Getting grafana service url from Zebo")
         response = self._send_request_to_api(
             "GET", "app_services_manifests", session_cookie

@@ -96,17 +96,13 @@ class ModelEndpoints:
 
         # If none of the above was supplied, feature names will be assigned on first contact with the model monitoring
         # system
-        logger.info(
-            "Registering model endpoint", endpoint_id=model_endpoint.metadata.uid
+        logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
+
+        await serialize_endpoint_to_kv(
+            access_key=access_key, endpoint=model_endpoint, update=True,
         )
 
-        await run_in_threadpool(
-            serialize_endpoint_to_kv, access_key, model_endpoint, True
-        )
-
-        logger.info(
-            "Model endpoint registered", endpoint_id=model_endpoint.metadata.uid
-        )
+        logger.info("Model endpoint updated", endpoint_id=model_endpoint.metadata.uid)
 
         return model_endpoint
 
@@ -195,7 +191,7 @@ class ModelEndpoints:
             if item is None:
                 break
             endpoint_id = item["endpoint_id"]
-            endpoint = ModelEndpoints.get_endpoint(
+            endpoint = await ModelEndpoints.get_endpoint(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint_id,
@@ -299,7 +295,7 @@ class ModelEndpoints:
                 endpoint.status.drift_measures = drift_measures
 
         if metrics:
-            endpoint_metrics = get_endpoint_metrics(
+            endpoint_metrics = await get_endpoint_metrics(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint_id,

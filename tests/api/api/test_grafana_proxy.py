@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pytest import fail
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from v3io.dataplane import RaiseForStatus
 from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
@@ -48,16 +49,18 @@ def test_grafana_proxy_model_endpoints_check_connection(
     assert response.status_code == 200
 
 
+@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-def test_grafana_list_endpoints(db: Session, client: TestClient):
+async def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        serialize_endpoint_to_kv(_get_access_key(), endpoint)
+        await serialize_endpoint_to_kv(_get_access_key(), endpoint)
 
-    response = client.post(
+    response = await run_in_threadpool(
+        client.post,
         url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={"targets": [{"target": "project=test;target_endpoint=list_endpoints"}]},
@@ -85,10 +88,11 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     assert len(response_json["rows"]) == 5
 
 
+@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
+async def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
     endpoint_data = {
         "timestamp": "2021-02-28 21:02:58.642108",
         "project": "test",
@@ -111,14 +115,16 @@ def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
 
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
-    v3io.kv.put(
+    await run_in_threadpool(
+        v3io.kv.put,
         container="projects",
         table_path="test/model-endpoints/endpoints",
         key="test.test_id",
         attributes=endpoint_data,
     )
 
-    response = client.post(
+    response = await run_in_threadpool(
+        client.post,
         url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
@@ -140,10 +146,11 @@ def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
     assert len(response_json[0]["rows"]) == 4
 
 
+@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
+async def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
     db: Session, client: TestClient
 ):
     endpoint_data = {
@@ -167,14 +174,16 @@ def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
 
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
-    v3io.kv.put(
+    await run_in_threadpool(
+        v3io.kv.put,
         container="projects",
         table_path="test/model-endpoints/endpoints",
         key="test.test_id",
         attributes=endpoint_data,
     )
 
-    response = client.post(
+    response = await run_in_threadpool(
+        client.post,
         url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
@@ -201,10 +210,11 @@ def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
         assert all(map(lambda e: e is not None, row[4:10]))
 
 
+@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
+async def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
     endpoint_data = {
         "timestamp": "2021-02-28 21:02:58.642108",
         "project": "test",
@@ -226,14 +236,16 @@ def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
 
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
-    v3io.kv.put(
+    await run_in_threadpool(
+        v3io.kv.put,
         container="projects",
         table_path="test/model-endpoints/endpoints",
         key="test.test_id",
         attributes=endpoint_data,
     )
 
-    response = client.post(
+    response = await run_in_threadpool(
+        client.post,
         url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
@@ -349,15 +361,17 @@ def cleanup_endpoints(db: Session, client: TestClient):
             pass
 
 
+@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-def test_grafana_incoming_features(db: Session, client: TestClient):
+async def test_grafana_incoming_features(db: Session, client: TestClient):
     frames = get_frames_client(
         token=_get_access_key(), container="projects", address=config.v3io_framesd,
     )
 
-    frames.create(
+    await run_in_threadpool(
+        frames.create,
         backend="tsdb",
         table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
         rate="10/m",
@@ -366,16 +380,11 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
 
     start = datetime.utcnow()
     endpoints = [_mock_random_endpoint() for _ in range(5)]
+    for e in endpoints:
+        e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     for endpoint in endpoints:
-        ModelEndpoints.register_endpoint(
-            _get_access_key(),
-            endpoint.metadata.project,
-            endpoint.spec.model,
-            endpoint.spec.function,
-            endpoint.metadata.tag,
-            feature_names=["f0", "f1", "f2", "f3"],
-        )
+        await ModelEndpoints.store_endpoint(_get_access_key(), endpoint)
 
         total = 0
 
@@ -395,7 +404,8 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
             df = pd.DataFrame(data=[data])
             dfs.append(df)
 
-        frames.write(
+        await run_in_threadpool(
+            frames.write,
             backend="tsdb",
             table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
             dfs=dfs,
@@ -403,7 +413,8 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         )
 
     for endpoint in endpoints:
-        response = client.post(
+        response = await run_in_threadpool(
+            client.post,
             url="/api/grafana-proxy/model-endpoints/query",
             headers={"X-V3io-Session-Key": _get_access_key()},
             json={

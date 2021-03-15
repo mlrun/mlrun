@@ -107,9 +107,10 @@ class ModelEndpoint(BaseModel):
     def __init__(self, **data: Any):
         super().__init__(**data)
         if self.metadata.uid is None:
-            self.metadata.uid = self.create_endpoint_id(
+            uid = self.create_endpoint_id(
                 function_uri=self.spec.function_uri, versioned_model=self.spec.model,
             )
+            self.metadata.uid = str(uid)
 
     @staticmethod
     def create_endpoint_id(function_uri: str, versioned_model: str):

@@ -53,6 +53,7 @@ default_config = {
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
     "igz_version": "",  # the version of the iguazio system the API is running on
+    "iguazio_api_url": "", # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
@@ -123,7 +124,6 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        "iguazio_api_url": "",
     },
     "model_endpoint_monitoring": {
         "container": "projects",
@@ -300,9 +300,13 @@ class Config:
                 first_dot_index = docker_registry_url.find(".")
                 if first_dot_index < 0:
                     # if not found it's not the format we know - can't resolve the api url from the registry url
-                    return None
+                    return ""
                 return f"dashboard{docker_registry_url[first_dot_index:]}"
         return self._iguazio_api_url
+
+    @iguazio_api_url.setter
+    def iguazio_api_url(self, value):
+        self._iguazio_api_url = value
 
 
 # Global configuration

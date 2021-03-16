@@ -255,6 +255,10 @@ class Scheduler:
         function, args, kwargs = self._resolve_job_function(
             kind, scheduled_object, name, concurrency_limit,
         )
+
+        # we use max_instances as well as our logic in the run wrapper for concurrent jobs
+        # in order to allow concurrency for triggering the jobs (max_instances), and concurrency
+        # of the jobs themselves (our logic in the run wrapper).
         self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -263,6 +267,7 @@ class Scheduler:
             args,
             kwargs,
             job_id,
+            max_instances=concurrency_limit,
         )
 
     def _update_schedule_in_scheduler(

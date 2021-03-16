@@ -403,17 +403,19 @@ class Scheduler:
 
         db_session = create_session()
 
+        schedule_project = (
+            scheduled_object.get("task", {}).get("metadata", {}).get("project", None)
+        )
         active_runs = get_db().list_runs(
             db_session,
             state=RunStates.non_terminal_states(),
-            project=scheduled_object.get("task", {})
-            .get("metadata", {})
-            .get("project", None),
+            project=schedule_project,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
         )
         if len(active_runs) > schedule_concurrency_limit:
             logger.warn(
                 "Schedule exceeded concurrency limit, skipping this run",
+                project=schedule_project,
                 schedule_name=schedule_name,
                 schedule_concurrency_limit=schedule_concurrency_limit,
                 active_runs=len(active_runs),

@@ -1815,7 +1815,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 ):
                     continue
             if state:
-                requested_states = set(as_list(state))
+                requested_states = as_list(state)
                 record_state = run.state
                 json_state = None
                 if (

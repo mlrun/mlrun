@@ -1804,7 +1804,7 @@ class HTTPRunDB(RunDBInterface):
         :param model_endpoint: An object representing the model endpoint
         """
 
-        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="PUT",
             path=path,
@@ -1820,7 +1820,7 @@ class HTTPRunDB(RunDBInterface):
         :param endpoint_id: The id of the endpoint
         """
 
-        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="DELETE", path=path, headers={"X-V3io-Session-Key": self.token}
         )
@@ -1856,7 +1856,7 @@ class HTTPRunDB(RunDBInterface):
         :param start: The start time of the metrics
         :param end: The end time of the metrics
         """
-        path = f"/projects/{project}/model-endpoints"
+        path = f"projects/{project}/model-endpoints"
         response = self.api_call(
             method="GET",
             path=path,
@@ -1892,7 +1892,7 @@ class HTTPRunDB(RunDBInterface):
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
         the output of the resulting object
         """
-        path = f"/projects/{project}/model-endpoints/{endpoint_id}"
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
             method="GET",
             path=path,

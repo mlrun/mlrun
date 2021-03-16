@@ -395,19 +395,21 @@ class Scheduler:
         # otherwise all runs will have the same uid
         scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
 
-        schedule_name_label = "schedule-name"
         if "task" in scheduled_object and "metadata" in scheduled_object["task"]:
             scheduled_object["task"]["metadata"].setdefault("labels", {})
             scheduled_object["task"]["metadata"]["labels"][
-                schedule_name_label
+                schemas.constants.LabelNames.schedule_name
             ] = schedule_name
 
         db_session = create_session()
 
         active_runs = get_db().list_runs(
             db_session,
-            state=RunStates.running,
-            labels=f"{schedule_name_label}={schedule_name}",
+            state=RunStates.non_terminal_states(),
+            project=scheduled_object.get("task", {})
+            .get("metadata", {})
+            .get("project", None),
+            labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
         )
         if len(active_runs) > schedule_concurrency_limit:
             logger.warn(

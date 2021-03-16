@@ -78,6 +78,15 @@ class RunStates(object):
             RunStates.error,
         ]
 
+    @staticmethod
+    def non_terminal_states():
+        return [
+            RunStates.running,
+            RunStates.created,
+            RunStates.pending,
+            RunStates.unknown,
+        ]
+
 
 class SparkApplicationStates:
     """

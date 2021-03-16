@@ -39,6 +39,7 @@ from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
+    as_list,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
@@ -1814,6 +1815,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 ):
                     continue
             if state:
+                requested_states = set(as_list(state))
                 record_state = run.state
                 json_state = None
                 if (
@@ -1826,10 +1828,20 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     continue
                 # json_state has precedence over record state
                 if json_state:
-                    if state not in json_state:
+                    if all(
+                        [
+                            requested_state not in json_state
+                            for requested_state in requested_states
+                        ]
+                    ):
                         continue
                 else:
-                    if state not in record_state:
+                    if all(
+                        [
+                            requested_state not in record_state
+                            for requested_state in requested_states
+                        ]
+                    ):
                         continue
             if last_update_time_from or last_update_time_to:
                 if not match_times(

@@ -667,7 +667,7 @@ async def test_schedule_job_concurrency_limit(
     )
 
     # wait so all runs will complete
-    await asyncio.sleep(5)
+    await asyncio.sleep(6)
     if schedule_kind == schemas.ScheduleKinds.job:
         runs = get_db().list_runs(db, project=project)
         assert len(runs) == run_amount

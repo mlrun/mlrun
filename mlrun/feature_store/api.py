@@ -582,3 +582,19 @@ def set_task_params(
         featureset.set_targets()
     featureset.save()
     return source, parameters
+
+
+def delete_feature_set(name, project=""):
+    """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+    :param name: Name of the object to delete
+    """
+    db = mlrun.get_run_db()
+    return db.delete_feature_set(name=name, project=project)
+
+
+def delete_feature_vector(name, project=""):
+    """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+    :param name: Name of the object to delete
+    """
+    db = mlrun.get_run_db()
+    return db.delete_feature_vector(name=name, project=project)

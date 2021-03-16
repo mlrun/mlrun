@@ -161,6 +161,33 @@ def test_feature_set_db():
     feature_set = db.get_feature_set(name)
     assert feature_set.metadata.name == name, "bad feature set response"
 
+    fs.delete_feature_set(name)
+    sets = db.list_feature_sets("", name)
+    assert not sets, "Feature set should be deleted"
+
+
+@pytest.mark.skipif(not has_db(), reason="no db access")
+def test_feature_vector_db():
+    init_store()
+
+    name = "fvec-test"
+    fvec = fs.FeatureVector(name=name)
+
+    db = mlrun.get_run_db()
+
+    # TODO: Using to_dict due to a bug in httpdb api which will be fixed in another PR
+    db.create_feature_vector(feature_vector=fvec.to_dict())
+
+    vecs = db.list_feature_vectors("", name)
+    assert len(vecs) == 1, "bad number of results"
+
+    feature_vec = db.get_feature_vector(name)
+    assert feature_vec.metadata.name == name, "bad feature set response"
+
+    fs.delete_feature_vector(name)
+    vecs = db.list_feature_vectors("", name)
+    assert not vecs, "Feature vector should be deleted"
+
 
 @pytest.mark.skipif(not has_db(), reason="no db access")
 def test_serverless_ingest():

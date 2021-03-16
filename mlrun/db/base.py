@@ -338,7 +338,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def clear_endpoint_record(
+    def delete_endpoint_record(
         self, project: str, endpoint_id: str,
     ):
         pass
@@ -349,7 +349,6 @@ class RunDBInterface(ABC):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        tag: Optional[str] = None,
         labels: List[str] = None,
         start: str = "now-1h",
         end: str = "now",

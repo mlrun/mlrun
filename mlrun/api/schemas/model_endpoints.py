@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
-from mlrun.api.schemas.object import ObjectKind, ObjectSpec
+from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.utils import parse_artifact_uri, parse_versioned_object_uri
 
 
 class ModelEndpointMetadata(BaseModel):
@@ -78,8 +79,7 @@ class Features(BaseModel):
         )
 
 
-class ModelEndpointStatus(BaseModel):
-    state: Optional[str]
+class ModelEndpointStatus(ObjectStatus):
     feature_stats: Optional[dict]
     current_stats: Optional[dict]
     first_request: Optional[str]
@@ -141,17 +141,17 @@ class ModelEndpoint(BaseModel):
         project: str
         function: str
         tag: Optional[str] = None
+        hash_key: Optional[str] = None
 
         @classmethod
         def from_string(cls, function_uri):
-            project, function_with_tag = function_uri.split("/")
-
-            try:
-                function, tag = function_with_tag.split(":")
-            except ValueError:
-                function, tag = function_with_tag, None
-
-            return cls(project, function, tag)
+            project, uri, tag, hash_key = parse_versioned_object_uri(function_uri)
+            return cls(
+                project=project,
+                function=uri,
+                tag=tag or None,
+                hash_key=hash_key or None,
+            )
 
     @dataclass
     class VersionedModel:
@@ -226,7 +226,3 @@ class GrafanaTimeSeriesTarget(BaseModel):
 
     def add_data_point(self, data_point: GrafanaDataPoint):
         self.datapoints.append((data_point.value, data_point.timestamp))
-
-
-class GrafanaTimeSeries(BaseModel):
-    target_data_points: List[GrafanaTimeSeriesTarget] = []

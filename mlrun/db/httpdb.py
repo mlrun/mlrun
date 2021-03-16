@@ -1797,7 +1797,7 @@ class HTTPRunDB(RunDBInterface):
         self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
     ):
         """
-        Updates the KV data of a given model endpoint
+        Creates or updates a KV record with the given model_endpoint record
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
@@ -1812,7 +1812,14 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Session-Key": self.token},
         )
 
-    def clear_endpoint_record(self, project: str, endpoint_id: str):
+    def delete_endpoint_record(self, project: str, endpoint_id: str):
+        """
+        Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
+
+        :param project: The name of the project
+        :param endpoint_id: The id of the endpoint
+        """
+
         path = f"/projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="DELETE", path=path, headers={"X-V3io-Session-Key": self.token}
@@ -1827,8 +1834,28 @@ class HTTPRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        feature_analysis: bool = False,
-    ):
+    ) -> schemas.ModelEndpointList:
+        """
+        Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
+        This functions supports filtering by the following parameters:
+        1) model
+        2) function
+        3) labels
+        By default, when no filters are applied, all available endpoints for the given project will be listed.
+
+        In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
+        and depends on the 'start' and 'end' parameters. By default, when the metrics parameter is None, no metrics are
+        added to the output of this function.
+
+        :param project: The name of the project
+        :param model: The name of the model to filter by
+        :param function: The name of the function to filter by
+        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
+        (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
+        :param start: The start time of the metrics
+        :param end: The end time of the metrics
+        """
         path = f"/projects/{project}/model-endpoints"
         response = self.api_call(
             method="GET",
@@ -1840,7 +1867,6 @@ class HTTPRunDB(RunDBInterface):
                 "start": start,
                 "end": end,
                 "metrics": metrics,
-                "feature_analysis": feature_analysis,
             },
             headers={"X-V3io-Session-Key": self.token},
         )
@@ -1854,7 +1880,18 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
-    ):
+    ) -> schemas.ModelEndpoint:
+        """
+        Returns a ModelEndpoint object with additional metrics and feature related data.
+
+        :param project: The name of the project
+        :param endpoint_id: The id of the model endpoint
+        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
+        :param start: The start time of the metrics
+        :param end: The end time of the metrics
+        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+        the output of the resulting object
+        """
         path = f"/projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
             method="GET",

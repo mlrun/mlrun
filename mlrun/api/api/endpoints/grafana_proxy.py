@@ -19,7 +19,6 @@ from mlrun.api.schemas import (
     GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaTable,
-    GrafanaTimeSeries,
     GrafanaTimeSeriesTarget,
 )
 from mlrun.api.utils.singletons.db import get_db
@@ -40,10 +39,13 @@ async def grafana_proxy_model_endpoints_check_connection(request: Request):
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.post("/grafana-proxy/model-endpoints/query")
+@router.post(
+    "/grafana-proxy/model-endpoints/query",
+    response_model=List[Union[GrafanaTable, GrafanaTimeSeriesTarget]],
+)
 async def grafana_proxy_model_endpoints_query(
     request: Request,
-) -> List[Union[GrafanaTable, GrafanaTimeSeries]]:
+) -> List[Union[GrafanaTable, GrafanaTimeSeriesTarget]]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -281,7 +283,7 @@ async def grafana_incoming_features(
         access_key=access_key, project=project, endpoint_id=endpoint_id
     )
 
-    time_series = GrafanaTimeSeries()
+    time_series = []
 
     feature_names = endpoint.spec.feature_names
 
@@ -290,7 +292,7 @@ async def grafana_incoming_features(
             "'feature_names' is either missing or not initialized in endpoint record",
             endpoint_id=endpoint.metadata.uid,
         )
-        return time_series.target_data_points
+        return time_series
 
     client = get_frames_client(
         token=access_key,
@@ -316,9 +318,9 @@ async def grafana_incoming_features(
         for index, value in indexed_values.items():
             data_point = GrafanaDataPoint(value=float(value), timestamp=index)
             target.add_data_point(data_point)
-        time_series.target_data_points.append(target)
+        time_series.append(target)
 
-    return time_series.target_data_points
+    return time_series
 
 
 def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
@@ -343,15 +345,7 @@ def _parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     if not target_query:
         raise MLRunBadRequestError(f"Target missing in request body:\n {request_body}")
 
-    parameters = {}
-    for query in filter(lambda q: q, target_query.split(";")):
-        query_parts = query.split("=")
-        if len(query_parts) < 2:
-            raise MLRunBadRequestError(
-                f"Query must contain both query key and query value. Expected query_key=query_value, found {query} "
-                f"instead."
-            )
-        parameters[query_parts[0]] = query_parts[1]
+    parameters = _parse_parameters(target_query)
 
     return parameters
 
@@ -369,16 +363,21 @@ def _parse_search_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     if not target:
         raise MLRunBadRequestError(f"Target missing in request body:\n {request_body}")
 
+    parameters = _parse_parameters(target)
+
+    return parameters
+
+
+def _parse_parameters(target_query):
     parameters = {}
-    for query in filter(lambda q: q, target.split(";")):
+    for query in filter(lambda q: q, target_query.split(";")):
         query_parts = query.split("=")
         if len(query_parts) < 2:
             raise MLRunBadRequestError(
-                f"Query must contain both query key and query value. Expected query_key=query_value, "
-                f"found {query} instead."
+                f"Query must contain both query key and query value. Expected query_key=query_value, found {query} "
+                f"instead."
             )
         parameters[query_parts[0]] = query_parts[1]
-
     return parameters
 
 

@@ -37,7 +37,6 @@ from .model_endpoints import (
     GrafanaNumberColumn,
     GrafanaStringColumn,
     GrafanaTable,
-    GrafanaTimeSeries,
     GrafanaTimeSeriesTarget,
     Metric,
     ModelEndpoint,

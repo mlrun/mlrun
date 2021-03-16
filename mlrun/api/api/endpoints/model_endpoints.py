@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query, Request, Response
 
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
-from mlrun.errors import MLRunConflictError, MLRunInvalidArgumentError
+from mlrun.errors import MLRunConflictError
 
 router = APIRouter()
 
@@ -16,7 +16,7 @@ router = APIRouter()
 )
 async def store_endpoint(
     request: Request, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
-):
+) -> Response:
     """
     Either create or updates the kv record of a given ModelEndpoint object
     """
@@ -40,12 +40,14 @@ async def store_endpoint(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-async def clear_endpoint_record(request: Request, project: str, endpoint_id: str):
+async def delete_endpoint_record(
+    request: Request, project: str, endpoint_id: str
+) -> Response:
     """
     Clears endpoint record from KV by endpoint_id
     """
     access_key = get_access_key(request.headers)
-    await ModelEndpoints.clear_endpoint_record(
+    await ModelEndpoints.delete_endpoint_record(
         access_key=access_key, project=project, endpoint_id=endpoint_id
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
@@ -61,7 +63,7 @@ async def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
-):
+) -> ModelEndpointList:
     """
      Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
      Labels can be used to filter on the existence of a label:
@@ -101,7 +103,7 @@ async def get_endpoint(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-):
+) -> ModelEndpoint:
     access_key = get_access_key(request.headers)
     endpoint = await ModelEndpoints.get_endpoint(
         access_key=access_key,
@@ -113,11 +115,3 @@ async def get_endpoint(
         feature_analysis=feature_analysis,
     )
     return endpoint
-
-
-def get_or_raise(dictionary: dict, key: str):
-    if key not in dictionary:
-        raise MLRunInvalidArgumentError(
-            f"Required argument '{key}' missing from json payload: {dictionary}"
-        )
-    return dictionary[key]

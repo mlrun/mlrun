@@ -13,7 +13,6 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
-from mlrun.api.api.endpoints.model_endpoints import get_or_raise
 from mlrun.api.crud.model_endpoints import (
     ENDPOINT_EVENTS_TABLE_PATH,
     ENDPOINTS_TABLE_PATH,
@@ -357,15 +356,6 @@ def test_get_access_key():
 
     with pytest.raises(MLRunBadRequestError):
         get_access_key({"some_other_header": "asd"})
-
-
-def test_get_or_raise():
-    some_dict = {"happy_path": "happy_value"}
-    value = get_or_raise(some_dict, "happy_path")
-    assert value == "happy_value"
-
-    with pytest.raises(MLRunInvalidArgumentError):
-        get_or_raise(some_dict, "not_happy_path")
 
 
 def test_string_to_tsdb_name():

@@ -31,7 +31,7 @@ class ModelEndpoints:
     @staticmethod
     async def store_endpoint(access_key: str, model_endpoint: ModelEndpoint):
         """
-        Updates the KV data of a given model endpoint
+        Creates or updates a KV record with the given model_endpoint record
 
         :param access_key: V3IO access key for managing user permissions
         :param model_endpoint: An object representing a model endpoint
@@ -107,9 +107,9 @@ class ModelEndpoints:
         return model_endpoint
 
     @staticmethod
-    async def clear_endpoint_record(access_key: str, project: str, endpoint_id: str):
+    async def delete_endpoint_record(access_key: str, project: str, endpoint_id: str):
         """
-        Clears the KV data of a given model endpoint
+        Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
 
         :param access_key: V3IO access key for managing user permissions
         :param project: The name of the project
@@ -213,7 +213,7 @@ class ModelEndpoints:
         feature_analysis: bool = False,
     ) -> ModelEndpoint:
         """
-        Returns the current state of an endpoint.
+        Returns a ModelEndpoint object with additional metrics and feature related data.
 
         :param access_key: V3IO access key for managing user permissions
         :param project: The name of the project

@@ -445,7 +445,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def clear_endpoint_record(self, project: str, endpoint_id: str):
+    def delete_endpoint_record(self, project: str, endpoint_id: str):
         raise NotImplementedError()
 
     def list_endpoints(
@@ -453,7 +453,6 @@ class SQLDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        tag: Optional[str] = None,
         labels: List[str] = None,
         start: str = "now-1h",
         end: str = "now",

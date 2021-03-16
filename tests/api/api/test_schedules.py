@@ -30,6 +30,7 @@ def test_list_schedules(db: Session, client: TestClient) -> None:
         schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger,
+        config.httpdb.scheduling.default_concurrency_limit,
         labels_1,
     )
 
@@ -44,6 +45,7 @@ def test_list_schedules(db: Session, client: TestClient) -> None:
         schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger,
+        config.httpdb.scheduling.default_concurrency_limit,
         labels_2,
     )
 

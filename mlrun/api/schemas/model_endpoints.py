@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.utils import parse_artifact_uri, parse_versioned_object_uri
+from mlrun.utils import parse_versioned_object_uri
 
 
 class ModelEndpointMetadata(BaseModel):

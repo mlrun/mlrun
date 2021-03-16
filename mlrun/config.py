@@ -141,6 +141,11 @@ default_config = {
             # This config is for debug/testing purposes only!
             "user_token": "",
         },
+        "azure_vault": {
+            "url": "https://{name}.vault.azure.net",
+            "default_secret_name": None,
+            "secret_path": "~/.mlrun/azure_vault",
+        },
     },
     "feature_store": {
         "data_prefixes": {

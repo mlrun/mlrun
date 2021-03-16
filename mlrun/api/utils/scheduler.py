@@ -305,7 +305,7 @@ class Scheduler:
                     db_schedule.kind,
                     db_schedule.scheduled_object,
                     db_schedule.cron_trigger,
-                    db_schedule.concurrency_limit
+                    db_schedule.concurrency_limit,
                 )
             except Exception as exc:
                 logger.warn(

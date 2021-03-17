@@ -639,9 +639,10 @@ async def test_schedule_job_concurrency_limit(
     call_counter = 0
 
     now = datetime.now()
-    now_plus_4_seconds = now + timedelta(seconds=4)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*", start_date=now, end_date=now_plus_4_seconds
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -667,7 +668,7 @@ async def test_schedule_job_concurrency_limit(
     )
 
     # wait so all runs will complete
-    await asyncio.sleep(6)
+    await asyncio.sleep(7)
     if schedule_kind == schemas.ScheduleKinds.job:
         runs = get_db().list_runs(db, project=project)
         assert len(runs) == run_amount

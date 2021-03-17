@@ -185,6 +185,7 @@ class Scheduler:
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,
+            project,
             name,
             db_schedule.concurrency_limit,
         )
@@ -253,7 +254,7 @@ class Scheduler:
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
-            kind, scheduled_object, name, concurrency_limit,
+            kind, scheduled_object, project, name, concurrency_limit,
         )
 
         # we use max_instances as well as our logic in the run wrapper for concurrent jobs
@@ -282,7 +283,7 @@ class Scheduler:
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
-            kind, scheduled_object, name, concurrency_limit,
+            kind, scheduled_object, project, name, concurrency_limit,
         )
         trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
             cron_trigger
@@ -357,6 +358,7 @@ class Scheduler:
         self,
         scheduled_kind: schemas.ScheduleKinds,
         scheduled_object: Any,
+        project_name: str,
         schedule_name: str,
         schedule_concurrency_limit: int,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
@@ -368,7 +370,7 @@ class Scheduler:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
             return (
                 Scheduler.submit_run_wrapper,
-                [scheduled_object_copy, schedule_name, schedule_concurrency_limit],
+                [scheduled_object_copy, project_name, schedule_name, schedule_concurrency_limit],
                 {},
             )
         if scheduled_kind == schemas.ScheduleKinds.local_function:
@@ -387,7 +389,7 @@ class Scheduler:
 
     @staticmethod
     async def submit_run_wrapper(
-        scheduled_object, schedule_name, schedule_concurrency_limit
+        scheduled_object, project_name, schedule_name, schedule_concurrency_limit
     ):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run
@@ -408,19 +410,16 @@ class Scheduler:
 
         db_session = create_session()
 
-        schedule_project = (
-            scheduled_object.get("task", {}).get("metadata", {}).get("project", None)
-        )
         active_runs = get_db().list_runs(
             db_session,
             state=RunStates.non_terminal_states(),
-            project=schedule_project,
+            project=project_name,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
         )
         if len(active_runs) > schedule_concurrency_limit:
             logger.warn(
                 "Schedule exceeded concurrency limit, skipping this run",
-                project=schedule_project,
+                project=project_name,
                 schedule_name=schedule_name,
                 schedule_concurrency_limit=schedule_concurrency_limit,
                 active_runs=len(active_runs),

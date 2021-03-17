@@ -202,6 +202,7 @@ with warnings.catch_warnings():
         last_run_uri = Column(String)
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
+        concurrency_limit = Column(Integer, nullable=False)
 
         @property
         def scheduled_object(self):

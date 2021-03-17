@@ -39,6 +39,7 @@ from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
+    as_list,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
@@ -552,6 +553,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
         labels: Dict = None,
     ):
         schedule = Schedule(
@@ -559,6 +561,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             name=name,
             kind=kind.value,
             creation_time=datetime.now(timezone.utc),
+            concurrency_limit=concurrency_limit,
             # these are properties of the object that map manually (using getters and setters) to other column of the
             # table and therefore Pycharm yells that they're unexpected
             scheduled_object=scheduled_object,
@@ -574,6 +577,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             name=name,
             kind=kind,
             cron_trigger=cron_trigger,
+            concurrency_limit=concurrency_limit,
         )
         self._upsert(session, schedule)
 
@@ -586,6 +590,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
+        concurrency_limit: int = None,
     ):
         get_project_member().ensure_project(session, project)
         schedule = self._get_schedule_record(session, project, name)
@@ -603,12 +608,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if last_run_uri is not None:
             schedule.last_run_uri = last_run_uri
 
+        if concurrency_limit is not None:
+            schedule.concurrency_limit = concurrency_limit
+
         logger.debug(
             "Updating schedule in db",
             project=project,
             name=name,
             cron_trigger=cron_trigger,
             labels=labels,
+            concurrency_limit=concurrency_limit,
         )
         session.merge(schedule)
         session.commit()
@@ -1806,6 +1815,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 ):
                     continue
             if state:
+                requested_states = as_list(state)
                 record_state = run.state
                 json_state = None
                 if (
@@ -1818,10 +1828,20 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     continue
                 # json_state has precedence over record state
                 if json_state:
-                    if state not in json_state:
+                    if all(
+                        [
+                            requested_state not in json_state
+                            for requested_state in requested_states
+                        ]
+                    ):
                         continue
                 else:
-                    if state not in record_state:
+                    if all(
+                        [
+                            requested_state not in record_state
+                            for requested_state in requested_states
+                        ]
+                    ):
                         continue
             if last_update_time_from or last_update_time_to:
                 if not match_times(

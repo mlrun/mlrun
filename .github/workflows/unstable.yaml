@@ -7,7 +7,6 @@ on:
     - development
 
 jobs:
-
   # Create a release on push to development
   release-preperation:
     runs-on: ubuntu-latest

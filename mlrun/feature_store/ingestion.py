@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
 import mlrun
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
@@ -99,35 +100,53 @@ def _add_data_states(
     graph.set_flow_source(source)
 
 
-def default_ingestion_job_function(name, featureset, engine=None, function=None):
-    if not function:
-        function_ref = featureset.spec.function.copy()
-        if not function_ref.to_dict():
-            function_ref = FunctionReference(name=name, kind=RuntimeKinds.job)
-        function_ref.kind = function_ref.kind or RuntimeKinds.job
+def run_ingestion_job(name, featureset, run_config, schedule=None):
+    name = name or f"{featureset.metadata.name}_ingest"
 
+    if not run_config.function:
+        function_ref = featureset.spec.function.copy()
+        if function_ref.is_empty():
+            function_ref = FunctionReference(name=name, kind=RuntimeKinds.job)
         if not function_ref.url:
             code = function_ref.code or ""
-            # todo: use engine until we have spark service runtime
-            engine = engine or featureset.spec.engine
-            if engine and engine == "spark":
+            if run_config.kind == RuntimeKinds.remotespark:
                 function_ref.code = code + _default_spark_handler
             else:
                 function_ref.code = code + _default_job_handler
-        function = function_ref.to_function()
-        function.spec.default_handler = "handler"
+        run_config.function = function_ref
+        run_config.handler = "handler"
+
+    image = (
+        _default_spark_image()
+        if run_config.kind == RuntimeKinds.remotespark
+        else mlrun.mlconf.feature_store.default_job_image
+    )
+    function = run_config.to_function("job", image)
+    function.metadata.project = featureset.metadata.project
+    function.metadata.name = function.metadata.name or name
 
     if not function.spec.image:
-        function.spec.image = (
-            _default_spark_image()
-            if engine == "spark"
-            else mlrun.mlconf.feature_store.default_job_image
-        )
-        if not function.spec.image:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "function image must be specified"
-            )
-    return function
+        raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
+
+    task = mlrun.new_task(
+        name=name, params=run_config.parameters, handler=run_config.handler
+    )
+    task.spec.secret_sources = run_config.secret_sources
+    task.set_label("job-type", "feature-ingest").set_label(
+        "feature-set", featureset.uri
+    )
+
+    # set run UID and save in the feature set status (linking the features et to the job)
+    task.metadata.uid = uuid.uuid4().hex
+    featureset.status.run_uri = task.metadata.uid
+    featureset.save()
+
+    run = function.run(
+        task, schedule=schedule, local=run_config.local, watch=run_config.watch
+    )
+    if run_config.watch:
+        featureset.reload()
+    return run
 
 
 def _default_spark_image():

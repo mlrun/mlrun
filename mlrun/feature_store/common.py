@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import copy
+
+from mlrun.runtimes.function_reference import FunctionReference
 
 import mlrun
 from mlrun.utils import parse_versioned_object_uri
@@ -54,3 +57,82 @@ def get_feature_vector_by_uri(uri):
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
     return db.get_feature_vector(name, project, tag, uid)
+
+
+class RunConfig:
+    def __init__(
+        self,
+        function=None,
+        local=None,
+        image=None,
+        kind=None,
+        handler=None,
+        parameters=None,
+    ):
+        self._function = None
+        self._modifiers = []
+        self.secret_sources = []
+
+        self.function = function
+        self.local = local
+        self.image = image
+        self.kind = kind
+        self.handler = handler
+        self.parameters = parameters or {}
+        self.watch = True
+
+    @property
+    def function(self):
+        return self._function
+
+    @function.setter
+    def function(self, function):
+        if function and not (
+            isinstance(function, (str, FunctionReference))
+            or hasattr(self.function, "apply")
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "function must be a uri (string) or mlrun function object/reference"
+            )
+        self._function = function
+
+    def apply(self, modifier):
+        self._modifiers.append(modifier)
+        return self
+
+    def with_secret(self, kind, source):
+        """register a secrets source (file, env or dict)
+
+        read secrets from a source provider to be used in jobs, example::
+
+            run_config.with_secrets('file', 'file.txt')
+            run_config.with_secrets('inline', {'key': 'val'})
+            run_config.with_secrets('env', 'ENV1,ENV2')
+            run_config.with_secrets('vault', ['secret1', 'secret2'...])
+
+        :param kind:   secret type (file, inline, env, vault)
+        :param source: secret data or link (see example)
+
+        :returns: This (self) object
+        """
+
+        self.secret_sources.append({"kind": kind, "source": source})
+        return self
+
+    def to_function(self, default_kind=None, default_image=None):
+        if isinstance(self.function, FunctionReference):
+            function = self.function.to_function(default_kind)
+        elif hasattr(self.function, "apply"):
+            function = copy(self.function)
+        else:
+            function = FunctionReference(
+                self.function, image=self.image, kind=self.kind
+            ).to_function(default_kind)
+
+        function.spec.image = function.spec.image or default_image
+        for modifier in self._modifiers:
+            function.apply(modifier)
+        return function
+
+    def copy(self):
+        return copy(self)

@@ -19,7 +19,7 @@ __all__ = [
     "get_online_feature_service",
     "ingest",
     "infer_metadata",
-    "run_ingestion_job",
+    "infer",
     "deploy_ingestion_service",
     "Feature",
     "Entity",
@@ -36,7 +36,8 @@ from .api import (
     get_online_feature_service,
     infer_metadata,
     ingest,
-    run_ingestion_job,
+    infer,
 )
 from .feature_set import FeatureSet
 from .feature_vector import FeatureVector
+from .common import RunConfig

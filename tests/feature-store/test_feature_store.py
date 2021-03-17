@@ -11,7 +11,7 @@ from mlrun.config import config as mlconf
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import CSVTarget, TargetTypes
-from mlrun.feature_store import Entity, FeatureSet, run_ingestion_job
+from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
 from mlrun.utils import logger
@@ -159,14 +159,10 @@ def test_realtime_query():
     features_size = (
         len(features) + 1 + 1
     )  # (*) returns 2 features, label adds 1 feature
-
+    vector = fs.FeatureVector("myvector", features, "stock-quotes.xx")
     resp = fs.get_offline_features(
-        features,
-        entity_rows=trades,
-        entity_timestamp_column="time",
-        label_feature="stock-quotes.xx",
+        vector, entity_rows=trades, entity_timestamp_column="time",
     )
-    vector = resp.vector
     assert len(vector.spec.features) == len(
         features
     ), "unexpected num of requested features"
@@ -230,15 +226,12 @@ def test_serverless_ingest():
     if os.path.exists(target_path):
         os.remove(target_path)
 
-    run_ingestion_job(
+    fs.ingest(
         measurements,
         source,
         targets,
-        name="test_ingest",
         infer_options=fs.InferOptions.schema() + fs.InferOptions.Stats,
-        parameters={},
-        function=None,
-        local=True,
+        run_config=fs.RunConfig(local=True),
     )
     assert os.path.exists(target_path), "result file was not generated"
     features = sorted(measurements.spec.features.keys())

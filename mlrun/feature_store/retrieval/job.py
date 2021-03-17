@@ -1,6 +1,7 @@
 import uuid
 
 import mlrun
+from ..common import RunConfig
 from mlrun.model import new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
@@ -11,12 +12,8 @@ def run_merge_job(
     target,
     entity_rows=None,
     timestamp_column=None,
-    local=None,
-    watch=None,
+    run_config=None,
     drop_columns=None,
-    function=None,
-    secrets=None,
-    auto_mount=None,
 ):
     name = vector.metadata.name
     if not name:
@@ -26,21 +23,20 @@ def run_merge_job(
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
     name = f"{name}_merger"
-    if not function:
-        function_ref = vector.spec.function
-        if not function_ref.to_dict():
+    run_config = run_config or RunConfig()
+    if not run_config.function:
+        function_ref = vector.spec.function.copy()
+        if function_ref.is_empty():
             function_ref = FunctionReference(name=name, kind="job")
-        function_ref.image = (
-            function_ref.image or mlrun.mlconf.feature_store.default_job_image
-        )
         if not function_ref.url:
             function_ref.code = _default_merger_handler
-        function = function_ref.to_function()
+        run_config.function = function_ref
 
-    if auto_mount:
-        function.apply(mlrun.platforms.auto_mount())
-
+    function = run_config.to_function(
+        "job", mlrun.mlconf.feature_store.default_job_image
+    )
     function.metadata.project = vector.metadata.project
+    function.metadata.name = function.metadata.name or name
     task = new_task(
         name=name,
         params={
@@ -51,13 +47,18 @@ def run_merge_job(
         },
         inputs={"entity_rows": entity_rows},
     )
-    if secrets:
-        task.with_secrets("inline", secrets)
+    task.spec.secret_sources = run_config.secret_sources
+    task.set_label("job-type", "feature-merge").set_label("feature-vector", vector.uri)
     task.metadata.uid = uuid.uuid4().hex
     vector.status.run_uri = task.metadata.uid
     vector.save()
 
-    run = function.run(task, handler="merge_handler", local=local, watch=watch)
+    run = function.run(
+        task,
+        handler=run_config.handler or "merge_handler",
+        local=run_config.local,
+        watch=run_config.watch,
+    )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
     return RemoteVectorResponse(vector, run)
 

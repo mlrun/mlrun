@@ -301,7 +301,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_set(self, session, project, name):
+    def delete_feature_set(self, session, project, name, tag=None, uid=None):
         pass
 
     @abstractmethod
@@ -356,7 +356,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_vector(self, session, project, name):
+    def delete_feature_vector(
+        self, session, project, name, tag=None, uid=None,
+    ):
         pass
 
     def list_artifact_tags(self, session, project):

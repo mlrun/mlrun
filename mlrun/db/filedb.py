@@ -561,7 +561,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         raise NotImplementedError()
 
     def create_feature_vector(self, feature_vector, project="", versioned=True) -> dict:
@@ -598,7 +598,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         raise NotImplementedError()
 
     def list_pipelines(

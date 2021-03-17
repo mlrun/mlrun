@@ -227,7 +227,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         pass
 
     @abstractmethod
@@ -281,7 +281,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         pass
 
     @abstractmethod

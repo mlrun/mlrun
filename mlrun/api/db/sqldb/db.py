@@ -1473,9 +1473,38 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             always_overwrite=True,
         )
 
-    def delete_feature_set(self, session, project, name):
-        self._delete(session, FeatureSet.Tag, project=project, obj_name=name)
-        self._delete(session, FeatureSet, project=project, name=name)
+    def _delete_feature_store_object(self, session, cls, project, name, tag, uid):
+        if tag and uid:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both uid and tag specified when deleting an object."
+            )
+
+        object_id = None
+        if uid:
+            object_record = self._query(
+                session, cls, project=project, name=name, uid=uid
+            ).one_or_none()
+            if object_record is None:
+                return
+            object_id = object_record.id
+        elif tag:
+            tag_record = self._query(
+                session, cls.Tag, project=project, name=tag, obj_name=name
+            ).one_or_none()
+            if tag_record is None:
+                return
+            object_id = tag_record.obj_id
+
+        if object_id:
+            self._delete(session, cls, id=object_id)
+            self._delete(session, cls.Tag, obj_id=object_id)
+        else:
+            # If we got here, neither tag nor uid were provided - delete all references by name.
+            self._delete(session, cls, project=project, name=name)
+            self._delete(session, cls.Tag, project=project, obj_name=name)
+
+    def delete_feature_set(self, session, project, name, tag=None, uid=None):
+        self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)
 
     def create_feature_vector(
         self, session, project, feature_vector: schemas.FeatureVector, versioned=True
@@ -1660,9 +1689,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             always_overwrite=True,
         )
 
-    def delete_feature_vector(self, session, project, name):
-        self._delete(session, FeatureVector.Tag, project=project, obj_name=name)
-        self._delete(session, FeatureVector, project=project, name=name)
+    def delete_feature_vector(self, session, project, name, tag=None, uid=None):
+        self._delete_feature_store_object(
+            session, FeatureVector, project, name, tag, uid
+        )
 
     def _resolve_tag(self, session, cls, project, name):
         ids = []

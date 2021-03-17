@@ -316,9 +316,9 @@ class SQLDB(RunDBInterface):
             patch_mode,
         )
 
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         return self._transform_db_error(
-            self.db.delete_feature_set, self.session, project, name
+            self.db.delete_feature_set, self.session, project, name, tag, uid
         )
 
     def create_feature_vector(self, feature_vector, project="", versioned=True):
@@ -389,9 +389,9 @@ class SQLDB(RunDBInterface):
             patch_mode,
         )
 
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         return self._transform_db_error(
-            self.db.delete_feature_vector, self.session, project, name,
+            self.db.delete_feature_vector, self.session, project, name, tag, uid
         )
 
     def list_pipelines(

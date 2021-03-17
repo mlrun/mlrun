@@ -7,7 +7,6 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
-
   push-to-release-branch:
     name: Push source to release branch
     runs-on: ubuntu-latest

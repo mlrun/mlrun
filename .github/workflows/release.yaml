@@ -5,8 +5,44 @@ on:
     tags:
       # we don't want to be triggered for RC releases (e.g. v0.6.0-rc9)
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  # Create unstable release on push to development
+    branches:
+    - development
 
 jobs:
+
+  # Create a release on push to development
+  release-preperation:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Delete previous unstable release
+      if: github.event_name == 'push'
+      uses: dev-drprasad/delete-tag-and-release@v0.1.3
+      with:
+        delete_release: true # default: false
+        tag_name: unstable # tag name to delete
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create new unstable release
+      id: create_unstable_release
+      if: github.event_name == 'push'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: unstable
+        release_name: unstable
+        body: |
+          Latest unstable release
+          - Git sha ${{ github.sha }}
+          - Updated at ${{ github.event.head_commit.timestamp}}
+        draft: false
+        prerelease: true
+
   push-to-release-branch:
     name: Push source to release branch
     runs-on: ubuntu-latest

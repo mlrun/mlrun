@@ -370,7 +370,12 @@ class Scheduler:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
             return (
                 Scheduler.submit_run_wrapper,
-                [scheduled_object_copy, project_name, schedule_name, schedule_concurrency_limit],
+                [
+                    scheduled_object_copy,
+                    project_name,
+                    schedule_name,
+                    schedule_concurrency_limit,
+                ],
                 {},
             )
         if scheduled_kind == schemas.ScheduleKinds.local_function:

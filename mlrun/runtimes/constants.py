@@ -80,12 +80,7 @@ class RunStates(object):
 
     @staticmethod
     def non_terminal_states():
-        return [
-            RunStates.running,
-            RunStates.created,
-            RunStates.pending,
-            RunStates.unknown,
-        ]
+        return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
 
 class SparkApplicationStates:

@@ -239,6 +239,11 @@ class HTTPRunDB(RunDBInterface):
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )
+            config.scrape_metrics = (
+                server_cfg.get("scrape_metrics")
+                if server_cfg.get("scrape_metrics") is not None
+                else config.kfp_image
+            )
         except Exception:
             pass
         return self

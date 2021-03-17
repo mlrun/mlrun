@@ -317,7 +317,8 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def get_resource_labels(function, run=None, scrape_metrics=False):
+def get_resource_labels(function, run=None, scrape_metrics=None):
+    scrape_metrics = scrape_metrics if scrape_metrics is not None else config.scrape_metrics
     run_uid, run_name, run_project, run_owner = None, None, None, None
     if run:
         run_uid = run.metadata.uid

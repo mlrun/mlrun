@@ -229,7 +229,7 @@ class BaseRuntime(ModelObj):
         hyperparams: Dict[str, list] = None,
         hyper_param_options: HyperParamOptions = None,
         verbose=None,
-        scrape_metrics=False,
+        scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
     ):
@@ -326,7 +326,12 @@ class BaseRuntime(ModelObj):
             hyper_param_options or runspec.spec.hyper_param_options
         )
         runspec.spec.verbose = verbose or runspec.spec.verbose
-        runspec.spec.scrape_metrics = scrape_metrics or runspec.spec.scrape_metrics
+        if scrape_metrics is None:
+            if runspec.spec.scrape_metrics is None:
+                scrape_metrics = config.scrape_metrics
+            else:
+                scrape_metrics = runspec.spec.scrape_metrics
+        runspec.spec.scrape_metrics = scrape_metrics
         runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir

@@ -440,33 +440,17 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def store_endpoint(
-        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
-    ):
+    def create_or_patch(self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint, access_key=None):
         raise NotImplementedError()
 
-    def delete_endpoint_record(self, project: str, endpoint_id: str):
+    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
         raise NotImplementedError()
 
-    def list_endpoints(
-        self,
-        project: str,
-        model: Optional[str] = None,
-        function: Optional[str] = None,
-        labels: List[str] = None,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: Optional[List[str]] = None,
-    ):
+    def list_endpoints(self, project: str, model: Optional[str] = None, function: Optional[str] = None,
+                       labels: List[str] = None, start: str = "now-1h", end: str = "now",
+                       metrics: Optional[List[str]] = None, access_key=None):
         raise NotImplementedError()
 
-    def get_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
-        metrics: Optional[List[str]] = None,
-        features: bool = False,
-    ):
+    def get_endpoint(self, project: str, endpoint_id: str, start: Optional[str] = None, end: Optional[str] = None,
+                     metrics: Optional[List[str]] = None, features: bool = False, access_key=None):
         raise NotImplementedError()

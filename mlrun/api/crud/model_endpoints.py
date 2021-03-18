@@ -29,7 +29,7 @@ ENDPOINT_EVENTS_TABLE_PATH = "model-endpoints/events"
 
 class ModelEndpoints:
     @staticmethod
-    async def store_endpoint(access_key: str, model_endpoint: ModelEndpoint):
+    async def create_or_patch(access_key: str, model_endpoint: ModelEndpoint):
         """
         Creates or updates a KV record with the given model_endpoint record
 

@@ -20,6 +20,7 @@ from mlrun.api.schemas import (
     GrafanaNumberColumn,
     GrafanaTable,
     GrafanaTimeSeriesTarget,
+    Format,
 )
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.errors import MLRunBadRequestError
@@ -94,14 +95,11 @@ async def grafana_proxy_model_endpoints_search(
 
 async def grafana_list_projects(db_session: Session) -> List[str]:
     db = get_db()
-    project_output = await run_in_threadpool(db.list_projects, db_session)
-    projects = project_output.projects
-    if not projects:
-        return []
-    projects_list = []
-    for project in projects:
-        projects_list.append(project.metadata.name)
-    return projects_list
+
+    projects_output = await run_in_threadpool(
+        db.list_projects, session=db_session, format_=Format.name,
+    )
+    return projects_output.projects
 
 
 async def grafana_list_endpoints(

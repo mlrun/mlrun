@@ -17,7 +17,7 @@ import time
 from datetime import datetime
 from os import path, remove
 from typing import Dict, List, Optional, Union
-
+import os
 import kfp
 import requests
 import semver
@@ -1793,8 +1793,12 @@ class HTTPRunDB(RunDBInterface):
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
-    def store_endpoint(
-        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key: Optional[str] = None,
     ):
         """
         Creates or updates a KV record with the given model_endpoint record
@@ -1802,27 +1806,43 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
         :param model_endpoint: An object representing the model endpoint
+        :param access_key: V3IO access key, when None, will be look for in environ
         """
+        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="PUT",
             path=path,
             body=model_endpoint.dict(),
-            headers={"X-V3io-Session-Key": self.token},
+            headers={"X-V3io-Session-Key": access_key},
         )
 
-    def delete_endpoint_record(self, project: str, endpoint_id: str):
+    def delete_endpoint_record(
+        self, project: str, endpoint_id: str, access_key: Optional[str] = None,
+    ):
         """
         Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
+        :param access_key: V3IO access key, when None, will be look for in environ
         """
+        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="DELETE", path=path, headers={"X-V3io-Session-Key": self.token}
+            method="DELETE", path=path, headers={"X-V3io-Session-Key": access_key},
         )
 
     def list_endpoints(
@@ -1834,6 +1854,7 @@ class HTTPRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
+        access_key: Optional[str] = None,
     ) -> schemas.ModelEndpointList:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -1855,7 +1876,15 @@ class HTTPRunDB(RunDBInterface):
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics
         :param end: The end time of the metrics
+        :param access_key: V3IO access key, when None, will be look for in environ
         """
+        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
         path = f"projects/{project}/model-endpoints"
         response = self.api_call(
             method="GET",
@@ -1868,7 +1897,7 @@ class HTTPRunDB(RunDBInterface):
                 "end": end,
                 "metrics": metrics,
             },
-            headers={"X-V3io-Session-Key": self.token},
+            headers={"X-V3io-Session-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
@@ -1880,6 +1909,7 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
+        access_key: Optional[str] = None,
     ) -> schemas.ModelEndpoint:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
@@ -1891,7 +1921,15 @@ class HTTPRunDB(RunDBInterface):
         :param end: The end time of the metrics
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
         the output of the resulting object
+        :param access_key: V3IO access key, when None, will be look for in environ
         """
+        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
             method="GET",
@@ -1902,7 +1940,7 @@ class HTTPRunDB(RunDBInterface):
                 "metrics": metrics,
                 "feature_analysis": feature_analysis,
             },
-            headers={"X-V3io-Session-Key": self.token},
+            headers={"X-V3io-Session-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
 

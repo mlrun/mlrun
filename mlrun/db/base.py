@@ -332,14 +332,18 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_endpoint(
-        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key: Optional[str] = None,
     ):
         pass
 
     @abstractmethod
     def delete_endpoint_record(
-        self, project: str, endpoint_id: str,
+        self, project: str, endpoint_id: str, access_key: Optional[str] = None
     ):
         pass
 
@@ -353,6 +357,7 @@ class RunDBInterface(ABC):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
+        access_key: Optional[str] = None
     ):
         pass
 
@@ -365,5 +370,6 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
+        access_key: Optional[str] = None,
     ):
         pass

@@ -14,7 +14,7 @@ router = APIRouter()
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-async def store_endpoint(
+async def create_or_patch(
     request: Request, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
 ) -> Response:
     """
@@ -30,7 +30,7 @@ async def store_endpoint(
             f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
-    await ModelEndpoints.store_endpoint(
+    await ModelEndpoints.create_or_patch(
         access_key=access_key, model_endpoint=model_endpoint
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from hashlib import md5
+from hashlib import sha1
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
@@ -179,9 +179,8 @@ class ModelEndpoint(BaseModel):
         def __post_init__(self):
             versioned_function = f"{self.function}_{self.function_tag or 'N/A'}"
             versioned_model = f"{self.model}_{self.model_version or 'N/A'}"
-            unique_string = f"{versioned_function}_{versioned_model}"
-            md5_str = md5(unique_string.encode("utf-8")).hexdigest()
-            self.uid = f"{self.project}.{md5_str}"
+            unique_string = f"{self.project}_{versioned_function}_{versioned_model}"
+            self.uid = sha1(unique_string.encode("utf-8")).hexdigest()
 
         def __str__(self):
             return self.uid

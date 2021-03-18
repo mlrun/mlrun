@@ -384,7 +384,7 @@ async def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     for endpoint in endpoints:
-        await ModelEndpoints.store_endpoint(_get_access_key(), endpoint)
+        await ModelEndpoints.create_or_patch(_get_access_key(), endpoint)
 
         total = 0
 

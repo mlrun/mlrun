@@ -97,7 +97,7 @@ async def grafana_list_projects(db_session: Session) -> List[str]:
     db = get_db()
 
     projects_output = await run_in_threadpool(
-        db.list_projects, session=db_session, format_=Format.name,
+        db.list_projects, session=db_session, format_=Format.name_only,
     )
     return projects_output.projects
 

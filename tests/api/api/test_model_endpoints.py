@@ -21,7 +21,6 @@ from mlrun.api.crud.model_endpoints import (
     get_access_key,
     get_endpoint_features,
     get_endpoint_metrics,
-    string_to_tsdb_name,
     write_endpoint_to_kv,
 )
 from mlrun.api.schemas import (
@@ -246,7 +245,7 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         response = await run_in_threadpool(
             client.get,
-            url=f"/api/projects/test/model-endpoints/{endpoint.metadata.uid}?metric=predictions",
+            url=f"/api/projects/test/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",
             headers={"X-V3io-Session-Key": _get_access_key()},
         )
 
@@ -313,7 +312,7 @@ async def test_get_endpoint_metric_function():
         access_key=_get_access_key(),
         project="test",
         endpoint_id=endpoint.metadata.uid,
-        name=["predictions"],
+        metrics=["predictions_per_second_count_1s"],
     )
 
     assert "predictions_per_second_count_1s" in endpoint_metrics
@@ -356,11 +355,6 @@ def test_get_access_key():
 
     with pytest.raises(MLRunBadRequestError):
         get_access_key({"some_other_header": "asd"})
-
-
-def test_string_to_tsdb_name():
-    with pytest.raises(MLRunInvalidArgumentError):
-        string_to_tsdb_name("unsupported_string")
 
 
 def test_get_endpoint_features_function():

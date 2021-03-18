@@ -301,7 +301,7 @@ class ModelEndpoints:
                 endpoint_id=endpoint_id,
                 start=start,
                 end=end,
-                name=metrics,
+                metrics=metrics,
             )
             if endpoint_metrics:
                 endpoint.status.metrics = endpoint_metrics
@@ -372,15 +372,13 @@ async def get_endpoint_metrics(
     access_key: str,
     project: str,
     endpoint_id: str,
-    name: List[str],
+    metrics: List[str],
     start: str = "now-1h",
     end: str = "now",
 ) -> Dict[str, Metric]:
 
-    if not name:
+    if not metrics:
         raise MLRunInvalidArgumentError("Metric names must be provided")
-
-    metrics = list(map(string_to_tsdb_name, name))
 
     client = get_frames_client(
         token=access_key,
@@ -408,19 +406,6 @@ async def get_endpoint_metrics(
         values = [(str(timestamp), value) for timestamp, value in metric_data.items()]
         metrics_mapping[metric] = Metric(name=metric, values=values)
     return metrics_mapping
-
-
-def string_to_tsdb_name(name: str) -> str:
-    if name in {"latency_avg_1s", "average_latency", "latency"}:
-        return "latency_avg_1s"
-    elif name in {
-        "predictions_per_second_count_1s",
-        "predictions_per_second",
-        "predictions",
-    }:
-        return "predictions_per_second_count_1s"
-    else:
-        raise MLRunInvalidArgumentError(f"Unsupported metric '{name}'")
 
 
 def get_endpoint_features(

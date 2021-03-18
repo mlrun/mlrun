@@ -76,7 +76,7 @@ def get_offline_features(
             vector, entity_rows=trades, entity_timestamp_column="time"
         )
         print(resp.to_dataframe())
-        print(resp.vector.get_stats_table())
+        print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
 
     :param feature_vector: feature vector uri or FeatureVector object
@@ -109,7 +109,7 @@ def get_offline_features(
 
 
 def get_online_feature_service(
-    feature_vector: Union[str, FeatureVector], function=None
+    feature_vector: Union[str, FeatureVector], run_config: RunConfig = None,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api
 
@@ -118,17 +118,18 @@ def get_online_feature_service(
         svc = get_online_feature_service(vector_uri)
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
         print(resp)
-        resp = svc.get([{"ticker": "AAPL"}])
+        resp = svc.get([{"ticker": "AAPL"}], as_list=True)
         print(resp)
 
     :param feature_vector:  feature vector uri or FeatureVector object
     :param function:     optional, mlrun FunctionReference object, serverless function template
+    :param run_config:   function and/or run configuration for remote jobs/services
     """
     feature_vector = _features_to_vector(feature_vector)
     graph, index_columns = init_feature_vector_graph(feature_vector)
     service = OnlineVectorService(feature_vector, graph, index_columns)
 
-    # todo: support remote service (using remote nuclio/mlrun function)
+    # todo: support remote service (using remote nuclio/mlrun function if run_config)
     return service
 
 
@@ -142,6 +143,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
+    transformer=None,  # temporary, will be merged into the graph
 ) -> pd.DataFrame:
     """Read local DataFrame, file, or URL into the feature store
 
@@ -163,6 +165,8 @@ def ingest(
     :param infer_options: schema and stats infer options
     :param run_config:    function and/or run configuration for remote jobs
     :param mlrun_context: mlrun context (when running as a job), for internal use !
+    :param spark_context: local spark session or True to create one
+    :param transformer:   custom transformation function
     """
     if not mlrun_context and (not featureset or source is None):
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -181,6 +185,7 @@ def ingest(
         return run_ingestion_job(name, featureset, run_config, source.schedule)
 
     if mlrun_context:
+        # extract ingestion parameters from mlrun context
         if featureset or source is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
@@ -196,6 +201,19 @@ def ingest(
         return_df = False
 
     namespace = namespace or get_caller_globals()
+
+    if spark_context:
+        # use local spark session to ingest
+        return _ingest_with_spark(
+            spark_context,
+            featureset,
+            source,
+            targets,
+            infer_options=infer_options,
+            transformer=transformer,
+            mlrun_context=mlrun_context,
+        )
+
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
@@ -219,13 +237,7 @@ def ingest(
     )
     df = graph.wait_for_completion()
     infer_from_static_df(df, featureset, options=infer_stats)
-    featureset.save()
-
-    if mlrun_context:
-        mlrun_context.logger.info("ingestion task completed, targets:")
-        mlrun_context.logger.info(f"{featureset.status.targets.to_dict()}")
-        mlrun_context.log_result("featureset", featureset.uri)
-
+    _post_ingestion(mlrun_context, featureset, spark_context)
     return df
 
 
@@ -390,7 +402,7 @@ def deploy_ingestion_service(
     return function.deploy()
 
 
-def ingest_with_spark(
+def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
     source: DataSource = None,
@@ -426,35 +438,15 @@ def ingest_with_spark(
     :param transformer:   custom transformation function
     :param namespace:      namespace or module containing graph classes
     """
-    if not mlrun_context and not featureset:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "feature set must be specified when no mlrun context"
-        )
-    namespace = namespace or get_caller_globals()
-    if mlrun_context:
-        if featureset or source is not None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot specify mlrun_context with feature set or source"
-            )
-
-        featureset, source, targets, infer_options = context_to_ingestion_params(
-            mlrun_context
-        )
-        mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
-        if not source:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "data source was not specified"
-            )
+    if spark is None or spark == True:
+        # create spark context
         from pyspark.sql import SparkSession
 
         spark = SparkSession.builder.appName(
             f"{mlrun_context.name}-{mlrun_context.uid}"
         ).getOrCreate()
-        transformer = transformer or namespace.get(spark_transform_handler, None)
 
-    if isinstance(featureset, str):
-        featureset = get_feature_set_by_uri(featureset)
-
+    transformer = transformer or namespace.get(spark_transform_handler, None)
     df = source.to_spark_df(spark)
     infer_from_static_df(df, featureset, options=infer_options)
 
@@ -476,15 +468,18 @@ def ingest_with_spark(
         target.set_resource(featureset)
         target.update_resource_status("ready", is_dir=True)
 
-    featureset.save()
-
-    if mlrun_context:
-        mlrun_context.logger.info("ingestion task completed, targets:")
-        mlrun_context.logger.info(f"{featureset.status.targets.to_dict()}")
-        mlrun_context.log_result("featureset", featureset.uri)
-        spark.stop()
-
+    _post_ingestion(mlrun_context, featureset, spark)
     return df
+
+
+def _post_ingestion(context, featureset, spark=None):
+    featureset.save()
+    if context:
+        context.logger.info("ingestion task completed, targets:")
+        context.logger.info(f"{featureset.status.targets.to_dict()}")
+        context.log_result("featureset", featureset.uri)
+        if spark:
+            spark.stop()
 
 
 def infer_from_static_df(

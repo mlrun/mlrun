@@ -357,7 +357,7 @@ class RunDBInterface(ABC):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key: Optional[str] = None
+        access_key: Optional[str] = None,
     ):
         pass
 

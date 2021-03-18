@@ -15,12 +15,12 @@ from mlrun.api.crud.model_endpoints import (
     get_access_key,
 )
 from mlrun.api.schemas import (
+    Format,
     GrafanaColumn,
     GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaTable,
     GrafanaTimeSeriesTarget,
-    Format,
 )
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.errors import MLRunBadRequestError

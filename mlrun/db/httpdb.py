@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import tempfile
 import time
 from datetime import datetime
 from os import path, remove
 from typing import Dict, List, Optional, Union
-import os
+
 import kfp
 import requests
 import semver

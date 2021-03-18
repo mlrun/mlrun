@@ -576,6 +576,7 @@ def _create_resources_of_all_kinds(
             schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
+            mlrun.config.config.httpdb.scheduling.default_concurrency_limit,
             labels,
         )
 

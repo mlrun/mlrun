@@ -52,3 +52,7 @@ class HeaderNames:
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
+
+
+class LabelNames:
+    schedule_name = "schedule-name"

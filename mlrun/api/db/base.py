@@ -144,6 +144,7 @@ class DBInterface(ABC):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
         labels: Dict = None,
     ):
         pass
@@ -158,6 +159,7 @@ class DBInterface(ABC):
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
+        concurrency_limit: int = None,
     ):
         pass
 

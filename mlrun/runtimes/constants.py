@@ -78,6 +78,10 @@ class RunStates(object):
             RunStates.error,
         ]
 
+    @staticmethod
+    def non_terminal_states():
+        return list(set(RunStates.all()) - set(RunStates.terminal_states()))
+
 
 class SparkApplicationStates:
     """

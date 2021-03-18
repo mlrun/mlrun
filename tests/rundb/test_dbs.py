@@ -127,6 +127,9 @@ def test_runs(db: RunDBInterface):
     assert 2 == len(runs), "labels length"
     assert {1, 2} == {r["x"] for r in runs}, "xs labels"
 
+    runs = db.list_runs(state=["s1", "s2"])
+    assert 3 == len(runs), "state length"
+
     runs = db.list_runs(state="s2")
     assert 1 == len(runs), "state length"
     run3["status"] = updates["status"]

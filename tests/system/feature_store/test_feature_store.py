@@ -1,10 +1,9 @@
 import os
+import random
+import string
 
 import pandas as pd
 import pytest
-from .data_sample import quotes, stocks, trades
-import random
-import string
 from storey import MapClass
 
 import mlrun
@@ -15,8 +14,9 @@ from mlrun.datastore.targets import CSVTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
-
 from tests.system.base import TestMLRunSystem
+
+from .data_sample import quotes, stocks, trades
 
 
 class MyMap(MapClass):

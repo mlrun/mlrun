@@ -378,7 +378,9 @@ class NoSqlTarget(BaseStoreTarget):
             options.update(kwargs)
             df.write.mode("overwrite").save(**options)
         else:
-            access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
+            access_key = self._secrets.get(
+                "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+            )
 
             frames_client = get_frames_client(
                 token=access_key,
@@ -456,7 +458,7 @@ class TSDBTarget(BaseStoreTarget):
         raise NotImplementedError()
 
     def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
-        access_key = self._secrets.get('V3IO_ACCESS_KEY', os.getenv('V3IO_ACCESS_KEY'))
+        access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
 
         new_index = []
         if timestamp_key:
@@ -470,7 +472,9 @@ class TSDBTarget(BaseStoreTarget):
             container=config.model_endpoint_monitoring.container,
         )
 
-        frames_client.write("tsdb", self._target_path, df, index_cols=new_index if new_index else None)
+        frames_client.write(
+            "tsdb", self._target_path, df, index_cols=new_index if new_index else None
+        )
 
 
 class CustomTarget(BaseStoreTarget):

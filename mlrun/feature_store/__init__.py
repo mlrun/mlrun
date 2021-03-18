@@ -34,10 +34,10 @@ from .api import (
     deploy_ingestion_service,
     get_offline_features,
     get_online_feature_service,
+    infer,
     infer_metadata,
     ingest,
-    infer,
 )
+from .common import RunConfig
 from .feature_set import FeatureSet
 from .feature_vector import FeatureVector
-from .common import RunConfig

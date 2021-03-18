@@ -13,9 +13,8 @@
 # limitations under the License.
 from copy import copy
 
-from mlrun.runtimes.function_reference import FunctionReference
-
 import mlrun
+from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import parse_versioned_object_uri
 
 from ..config import config

@@ -1,10 +1,11 @@
 import uuid
 
 import mlrun
-from ..common import RunConfig
 from mlrun.model import new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
+
+from ..common import RunConfig
 
 
 def run_merge_job(

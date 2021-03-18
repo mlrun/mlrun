@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import uuid
+
 import mlrun
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
@@ -164,7 +165,7 @@ def handler(context):
 
 
 _default_spark_handler = """
-from mlrun.feature_store.api import ingest_with_spark
+from mlrun.feature_store.api import ingest
 def handler(context):
-    ingest_with_spark(mlrun_context=context)
+    ingest(mlrun_context=context, spark_context=True)
 """

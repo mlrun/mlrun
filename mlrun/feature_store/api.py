@@ -23,13 +23,13 @@ from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
-from .common import get_feature_set_by_uri, get_feature_vector_by_uri, RunConfig
+from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
 from .feature_set import FeatureSet
 from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService
 from .ingestion import (
     context_to_ingestion_params,
-    run_ingestion_job,
     init_featureset_graph,
+    run_ingestion_job,
 )
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
 
@@ -438,7 +438,7 @@ def _ingest_with_spark(
     :param transformer:   custom transformation function
     :param namespace:      namespace or module containing graph classes
     """
-    if spark is None or spark == True:
+    if spark is None or spark is True:
         # create spark context
         from pyspark.sql import SparkSession
 

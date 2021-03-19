@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun.api.utils.singletons.db import get_db
 import mlrun.api.schemas
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
@@ -42,7 +42,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.mpijob, expected_crds=mocked_responses[0]["items"], group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job
+            RuntimeKinds.mpijob,
+            expected_crds=mocked_responses[0]["items"],
+            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
         )
 
     def test_delete_resources_succeeded_crd(self, db: Session, client: TestClient):

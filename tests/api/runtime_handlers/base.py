@@ -87,7 +87,7 @@ class TestRuntimeHandlerBase:
         runtime_kind, expected_crds=None, expected_pods=None, expected_services=None,
     ):
         runtime_handler = get_runtime_handler(runtime_kind)
-        resources = runtime_handler.list_resources()
+        resources = runtime_handler.list_resources("*")
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
             get_k8s().resolve_namespace(),

@@ -16,7 +16,7 @@ import inspect
 import socket
 import time
 from os import environ
-from typing import Dict, List
+from typing import Dict, List, Optional, Union
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
@@ -488,11 +488,15 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         return "mlrun/class=dask"
 
     def _enrich_list_resources_response(
-        self, response: Dict, namespace: str, label_selector: str = None
-    ) -> Dict:
+        self, response: Dict, namespace: str, label_selector: str = None,
+            group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None
+    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
         """
         Handling listing service resources
         """
+        # TODO: add support for enrichment also with group by
+        if group_by is not None:
+            return response
         k8s_helper = get_k8s_helper()
         services = k8s_helper.v1api.list_namespaced_service(
             namespace, label_selector=label_selector

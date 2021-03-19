@@ -1,9 +1,11 @@
 from http import HTTPStatus
+import typing
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Query
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.schemas
 from mlrun.api.api import deps
 from mlrun.config import config
 
@@ -12,7 +14,14 @@ router = APIRouter()
 
 @router.get("/runtimes")
 def list_runtimes(label_selector: str = None):
-    return mlrun.api.crud.Runtimes().list_runtimes(label_selector)
+    return mlrun.api.crud.Runtimes().list_runtimes("*", label_selector)
+
+
+# TODO: move everything to use this endpoint instead of list_runtimes and deprecate it
+@router.get("/projects/{project}/runtime-resources")
+def list_runtime_resources(project: str, label_selector: str = None,
+                           group_by: typing.Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = Query(None, alias="group-by"),):
+    return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector, group_by)
 
 
 @router.get("/runtimes/{kind}")

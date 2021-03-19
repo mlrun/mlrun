@@ -1,6 +1,6 @@
-
 import enum
 import typing
+
 import pydantic
 
 

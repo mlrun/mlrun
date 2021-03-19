@@ -488,8 +488,11 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         return "mlrun/class=dask"
 
     def _enrich_list_resources_response(
-        self, response: Dict, namespace: str, label_selector: str = None,
-            group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None
+        self,
+        response: Dict,
+        namespace: str,
+        label_selector: str = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
         """
         Handling listing service resources

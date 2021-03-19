@@ -8,7 +8,6 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
-from .runtime_resource import ListRuntimeResourcesGroupByField, GroupedRuntimeResourcesOutput, RuntimeResourcesOutput
 from .constants import DeletionStrategy, Format, HeaderNames, PatchMode
 from .feature_store import (
     EntitiesOutput,
@@ -52,6 +51,11 @@ from .project import (
     ProjectSpec,
     ProjectState,
     ProjectStatus,
+)
+from .runtime_resource import (
+    GroupedRuntimeResourcesOutput,
+    ListRuntimeResourcesGroupByField,
+    RuntimeResourcesOutput,
 )
 from .schedule import (
     ScheduleCronTrigger,

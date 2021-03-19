@@ -1,7 +1,7 @@
 import http
 import typing
-import mergedeep
 
+import mergedeep
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
@@ -12,16 +12,23 @@ import mlrun.config
 import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.singleton
-from mlrun.utils import logger
 
 
 class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
-    def list_runtimes(self, project: str, label_selector: str = None,
-                      group_by: typing.Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None) -> typing.Union[typing.Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    def list_runtimes(
+        self,
+        project: str,
+        label_selector: str = None,
+        group_by: typing.Optional[
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
+    ) -> typing.Union[typing.Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
         runtimes = [] if group_by is None else {}
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-            resources = runtime_handler.list_resources(project, label_selector, group_by)
+            resources = runtime_handler.list_resources(
+                project, label_selector, group_by
+            )
             if group_by is None:
                 runtimes.append({"kind": kind, "resources": resources})
             else:

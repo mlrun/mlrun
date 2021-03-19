@@ -8,7 +8,7 @@ from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
-from mlrun.runtimes.constants import MPIJobCRDVersions, RunStates, PodPhases
+from mlrun.runtimes.constants import MPIJobCRDVersions, PodPhases, RunStates
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -40,7 +40,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             "mlrun/tag": "latest",
             "mlrun/uid": self.run_uid,
             "mpi-job-name": "trainer-1b019005",
-            "mpi-job-role": "launcher"
+            "mpi-job-role": "launcher",
         }
         launcher_pod_name = "trainer-1b019005-launcher"
 
@@ -50,17 +50,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         worker_pod_labels = {
             "group-name": "kubeflow.org",
-                    "mlrun/class": "mpijob",
-                    "mlrun/function": "trainer",
-                    "mlrun/job": "trainer-1b019005",
-                    "mlrun/name": "trainer",
-                    "mlrun/owner": "iguazio",
-                    "mlrun/project": self.project,
-                    "mlrun/scrape-metrics": "True",
-                    "mlrun/tag": "latest",
-                    "mlrun/uid": self.run_uid,
-                    "mpi-job-name": "trainer-1b019005",
-                    "mpi-job-role": "worker"
+            "mlrun/class": "mpijob",
+            "mlrun/function": "trainer",
+            "mlrun/job": "trainer-1b019005",
+            "mlrun/name": "trainer",
+            "mlrun/owner": "iguazio",
+            "mlrun/project": self.project,
+            "mlrun/scrape-metrics": "True",
+            "mlrun/tag": "latest",
+            "mlrun/uid": self.run_uid,
+            "mpi-job-name": "trainer-1b019005",
+            "mpi-job-role": "worker",
         }
         worker_pod_name = "trainer-1b019005-worker-0"
 
@@ -68,13 +68,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             worker_pod_name, worker_pod_labels, PodPhases.running,
         )
 
-        self.pod_label_selector = self._generate_get_logger_pods_label_selector(self.runtime_handler)
+        self.pod_label_selector = self._generate_get_logger_pods_label_selector(
+            self.runtime_handler
+        )
 
     def test_list_resources(self):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.mpijob, expected_crds=mocked_responses[0]["items"], expected_pods=pods
+            RuntimeKinds.mpijob,
+            expected_crds=mocked_responses[0]["items"],
+            expected_pods=pods,
         )
 
     def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):

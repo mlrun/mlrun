@@ -69,7 +69,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             driver_pod_name, driver_pod_labels, PodPhases.running,
         )
 
-        self.pod_label_selector = self._generate_get_logger_pods_label_selector(self.runtime_handler)
+        self.pod_label_selector = self._generate_get_logger_pods_label_selector(
+            self.runtime_handler
+        )
 
     def test_list_resources(self):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])

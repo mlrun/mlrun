@@ -1,11 +1,13 @@
 import unittest.mock
+import deepdiff
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pytest
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 import mlrun.api.crud as crud
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
@@ -82,16 +84,26 @@ class TestRuntimeHandlerBase:
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
-    @staticmethod
     def _assert_runtime_handler_list_resources(
-        runtime_kind, expected_crds=None, expected_pods=None, expected_services=None,
+        self, runtime_kind, expected_crds=None, expected_pods=None, expected_services=None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ):
         runtime_handler = get_runtime_handler(runtime_kind)
-        resources = runtime_handler.list_resources("*")
+        if group_by is None:
+            project = "*"
+            label_selector = runtime_handler._get_default_label_selector()
+            assertion_func = TestRuntimeHandlerBase._assert_list_resources_response
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+            project = self.project
+            label_selector = ",".join([runtime_handler._get_default_label_selector(), f"mlrun/project={self.project}"])
+            assertion_func = TestRuntimeHandlerBase._assert_list_resources_grouped_response
+        else:
+            raise NotImplementedError("Unsupported group by value")
+        resources = runtime_handler.list_resources(project, group_by=group_by)
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
             get_k8s().resolve_namespace(),
-            label_selector=runtime_handler._get_default_label_selector(),
+            label_selector=label_selector,
         )
         if expected_crds:
             get_k8s().crdapi.list_namespaced_custom_object.assert_called_once_with(
@@ -99,19 +111,58 @@ class TestRuntimeHandlerBase:
                 crd_version,
                 get_k8s().resolve_namespace(),
                 crd_plural,
-                label_selector=runtime_handler._get_default_label_selector(),
+                label_selector=label_selector,
             )
         if expected_services:
             get_k8s().v1api.list_namespaced_service.assert_called_once_with(
                 get_k8s().resolve_namespace(),
-                label_selector=runtime_handler._get_default_label_selector(),
+                label_selector=label_selector,
             )
-        TestRuntimeHandlerBase._assert_list_resources_response(
+        assertion_func(
             resources,
             expected_crds=expected_crds,
             expected_pods=expected_pods,
             expected_services=expected_services,
         )
+
+    @staticmethod
+    def _assert_list_resources_grouped_response(
+            resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput, expected_crds=None, expected_pods=None, expected_services=None
+    ):
+        expected_crds = expected_crds or []
+        expected_pods = expected_pods or []
+        expected_services = expected_services or []
+        for index, crd in enumerate(expected_crds):
+            job_uid = crd["metadata"]["labels"]["mlrun/uid"]
+            found = False
+            for crd_resource in resources[job_uid].crd_resources:
+                if crd_resource["name"] == crd["metadata"]["name"]:
+                    found = True
+                    assert deepdiff.DeepDiff(crd_resource["labels"], crd["metadata"]["labels"], ignore_order=True, ) == {}
+                    assert deepdiff.DeepDiff(crd_resource["status"], crd["status"], ignore_order=True, ) == {}
+            if not found:
+                pytest.fail("Expected crd was not found in response resources")
+        for index, pod in enumerate(expected_pods):
+            pod_dict = pod.to_dict()
+            job_uid = pod_dict["metadata"]["labels"]["mlrun/uid"]
+            found = False
+            for pod_resource in resources[job_uid].pod_resources:
+                if pod_resource["name"] == pod_dict["metadata"]["name"]:
+                    found = True
+                    assert deepdiff.DeepDiff(pod_resource["labels"], pod_dict["metadata"]["labels"], ignore_order=True, ) == {}
+                    assert deepdiff.DeepDiff(pod_resource["status"], pod_dict["status"], ignore_order=True, ) == {}
+            if not found:
+                pytest.fail("Expected pod was not found in response resources")
+        for index, service in enumerate(expected_services):
+            job_uid = service["metadata"]["labels"]["mlrun/uid"]
+            found = False
+            for service_resource in resources[job_uid].service_resources:
+                if service_resource["name"] == service.metadata.name:
+                    found = True
+                    assert deepdiff.DeepDiff(service_resource["labels"], service.metadata.labels, ignore_order=True, ) == {}
+                    assert deepdiff.DeepDiff(service_resource["status"], service.metadata.status, ignore_order=True, ) == {}
+            if not found:
+                pytest.fail("Expected service was not found in response resources")
 
     @staticmethod
     def _assert_list_resources_response(

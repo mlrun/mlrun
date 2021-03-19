@@ -899,7 +899,7 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
-        if project and project != "*" and group_by is not None:
+        if project and project == "*" and group_by is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Group by can not be used across projects"
             )
@@ -1434,6 +1434,7 @@ class BaseRuntimeHandler(ABC):
             self._add_resource_to_grouped_by_job_resources_response(
                 resources, "crd_resources", crd_resource
             )
+        return resources
 
     @staticmethod
     def _add_resource_to_grouped_by_job_resources_response(

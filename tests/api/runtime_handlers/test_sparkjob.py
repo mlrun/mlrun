@@ -69,10 +69,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             driver_pod_name, driver_pod_labels, PodPhases.running,
         )
 
-        run_label_selector = self.runtime_handler._get_run_label_selector(
-            self.project, self.run_uid
-        )
-        self.pod_label_selector = f"mlrun/class,{run_label_selector}"
+        self.pod_label_selector = self._generate_get_logger_pods_label_selector(self.runtime_handler)
 
     def test_list_resources(self):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])

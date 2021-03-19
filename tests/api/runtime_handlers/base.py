@@ -84,6 +84,12 @@ class TestRuntimeHandlerBase:
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
+    def _generate_get_logger_pods_label_selector(self, runtime_handler):
+        run_label_selector = runtime_handler._get_run_label_selector(
+            self.project, self.run_uid
+        )
+        return f"mlrun/class,{run_label_selector}"
+
     def _assert_runtime_handler_list_resources(
         self,
         runtime_kind,

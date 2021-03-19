@@ -8,7 +8,7 @@ from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
-from mlrun.runtimes.constants import MPIJobCRDVersions, RunStates
+from mlrun.runtimes.constants import MPIJobCRDVersions, RunStates, PodPhases
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -28,22 +28,62 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.project, self.run_uid, self._get_failed_crd_status(),
         )
 
-        # there's currently a bug (fix was merged but not released https://github.com/kubeflow/mpi-operator/pull/271)
-        # that causes mpijob's pods to not being labels with the given (MLRun's) labels - this prevents list resources
-        # from finding the pods, so we're simulating the same thing here
-        self._mock_list_namespaced_pods([[]])
+        launcher_pod_labels = {
+            "group-name": "kubeflow.org",
+            "mlrun/class": "mpijob",
+            "mlrun/function": "trainer",
+            "mlrun/job": "trainer-1b019005",
+            "mlrun/name": "trainer",
+            "mlrun/owner": "iguazio",
+            "mlrun/project": self.project,
+            "mlrun/scrape-metrics": "True",
+            "mlrun/tag": "latest",
+            "mlrun/uid": self.run_uid,
+            "mpi-job-name": "trainer-1b019005",
+            "mpi-job-role": "launcher"
+        }
+        launcher_pod_name = "trainer-1b019005-launcher"
+
+        self.launcher_pod = self._generate_pod(
+            launcher_pod_name, launcher_pod_labels, PodPhases.running,
+        )
+
+        worker_pod_labels = {
+            "group-name": "kubeflow.org",
+                    "mlrun/class": "mpijob",
+                    "mlrun/function": "trainer",
+                    "mlrun/job": "trainer-1b019005",
+                    "mlrun/name": "trainer",
+                    "mlrun/owner": "iguazio",
+                    "mlrun/project": self.project,
+                    "mlrun/scrape-metrics": "True",
+                    "mlrun/tag": "latest",
+                    "mlrun/uid": self.run_uid,
+                    "mpi-job-name": "trainer-1b019005",
+                    "mpi-job-role": "worker"
+        }
+        worker_pod_name = "trainer-1b019005-worker-0"
+
+        self.worker_pod = self._generate_pod(
+            worker_pod_name, worker_pod_labels, PodPhases.running,
+        )
+
+        self.pod_label_selector = self._generate_get_logger_pods_label_selector(self.runtime_handler)
 
     def test_list_resources(self):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
+        pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.mpijob, expected_crds=mocked_responses[0]["items"]
+            RuntimeKinds.mpijob, expected_crds=mocked_responses[0]["items"], expected_pods=pods
         )
 
     def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
+        pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.mpijob,
             expected_crds=mocked_responses[0]["items"],
+            expected_pods=pods,
             group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
         )
 
@@ -52,7 +92,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.succeeded_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
+        list_namespaced_pods_calls = [
+            [self.launcher_pod, self.worker_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
@@ -62,10 +108,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, len(list_namespaced_crds_calls),
         )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
+        )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(db, self.project, self.run_uid, "")
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.launcher_pod.metadata.name,
+        )
 
     def test_delete_resources_running_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
@@ -109,7 +162,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.active_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
+        list_namespaced_pods_calls = [
+            [self.launcher_pod, self.worker_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
@@ -119,10 +178,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, len(list_namespaced_crds_calls),
         )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
+        )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
         )
-        self._assert_run_logs(db, self.project, self.run_uid, "")
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.launcher_pod.metadata.name,
+        )
 
     def test_monitor_run_succeeded_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
@@ -130,7 +196,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.succeeded_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
+        list_namespaced_pods_calls = [
+            [self.launcher_pod, self.worker_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
         )
@@ -139,10 +211,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, expected_number_of_list_crds_calls,
         )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
+        )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(db, self.project, self.run_uid, "")
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.launcher_pod.metadata.name,
+        )
 
     def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
@@ -150,7 +229,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.failed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
+        list_namespaced_pods_calls = [
+            [self.launcher_pod, self.worker_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
         )
@@ -159,8 +244,21 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, expected_number_of_list_crds_calls,
         )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
+        )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        self._assert_run_logs(db, self.project, self.run_uid, "")
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.launcher_pod.metadata.name,
+        )
+
+    def _mock_list_resources_pods(self):
+        mocked_responses = self._mock_list_namespaced_pods(
+            [[self.launcher_pod, self.worker_pod]]
+        )
+        return mocked_responses[0].items
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):

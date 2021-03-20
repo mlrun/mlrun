@@ -50,6 +50,11 @@ class FunctionReference(ModelObj):
         self._function = None
         self._address = None
 
+    def is_empty(self):
+        if self.url or self.code or self.spec:
+            return False
+        return True
+
     def fullname(self, parent):
         return f"{parent.metadata.name}-{self.name}"
 

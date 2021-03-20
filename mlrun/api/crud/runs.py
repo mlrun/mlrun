@@ -26,8 +26,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         #  trigger abortion
         if (
             data
-            and data.get("status", {}).get("state")
-            == mlrun.runtimes.constants.RunStates.aborted
+            and data.get("status.state") == mlrun.runtimes.constants.RunStates.aborted
         ):
             current_run = mlrun.api.utils.singletons.db.get_db().read_run(
                 session, uid, project, iter

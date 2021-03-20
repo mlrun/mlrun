@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-import mlrun.api.crud
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.utils import logger
 from mlrun.utils.helpers import datetime_from_iso

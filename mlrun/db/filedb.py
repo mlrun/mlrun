@@ -103,6 +103,9 @@ class FileRunDB(RunDBInterface):
                 update_in(run, key, val)
         self.store_run(run, uid, project, iter=iter)
 
+    def abort_run(self, uid, project="", iter=0):
+        raise NotImplementedError()
+
     def read_run(self, uid, project="", iter=0):
         filepath = (
             self._filepath(run_logs, project, self._run_path(uid, iter), "")

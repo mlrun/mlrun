@@ -343,6 +343,12 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body)
 
+    def abort_run(self, uid, project="", iter=0):
+        """
+        Abort a running run - will remove the run's runtime resources and mark its state as aborted
+        """
+        self.update_run({'status.state': mlrun.runtimes.constants.RunStates.aborted}, uid, project, iter)
+
     def read_run(self, uid, project="", iter=0):
         """ Read the details of a stored run from the DB.
 

@@ -47,10 +47,7 @@ class ModelEndpoints:
             )
 
         # If model artifact was supplied but feature_stats was not, grab model artifact and get feature_stats
-        if (
-            model_endpoint.spec.model_uri
-            and not model_endpoint.status.feature_stats
-        ):
+        if model_endpoint.spec.model_uri and not model_endpoint.status.feature_stats:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )

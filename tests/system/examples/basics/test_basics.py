@@ -53,7 +53,6 @@ class TestBasics(TestMLRunSystem):
             output_path=str(self.results_path / run_uid),
             secret_sources=[],
             data_stores=[],
-            scrape_metrics=False,
         )
 
         assert run_object.state() == "completed"

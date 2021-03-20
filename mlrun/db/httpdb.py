@@ -29,13 +29,12 @@ import mlrun
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
-
+from .base import RunDBError, RunDBInterface
 from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
-from .base import RunDBError, RunDBInterface
 
 default_project = config.default_project
 
@@ -1809,7 +1808,7 @@ class HTTPRunDB(RunDBInterface):
         :param model_endpoint: An object representing the model endpoint
         :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         if not access_key:
             raise MLRunInvalidArgumentError(
                 "access_key must be initialized, either by passing it as an argument or by populating a "
@@ -1834,7 +1833,7 @@ class HTTPRunDB(RunDBInterface):
         :param endpoint_id: The id of the endpoint
         :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         if not access_key:
             raise MLRunInvalidArgumentError(
                 "access_key must be initialized, either by passing it as an argument or by populating a "
@@ -1879,7 +1878,7 @@ class HTTPRunDB(RunDBInterface):
         :param end: The end time of the metrics
         :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         if not access_key:
             raise MLRunInvalidArgumentError(
                 "access_key must be initialized, either by passing it as an argument or by populating a "
@@ -1924,7 +1923,7 @@ class HTTPRunDB(RunDBInterface):
         the output of the resulting object
         :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = os.environ.get("V3IO_ACCESS_KEY", access_key)
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         if not access_key:
             raise MLRunInvalidArgumentError(
                 "access_key must be initialized, either by passing it as an argument or by populating a "

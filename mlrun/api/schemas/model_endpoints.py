@@ -22,7 +22,7 @@ class ModelEndpointSpec(ObjectSpec):
     function_uri: Optional[str]  # <project_name>/<function_name>:<tag>
     model: Optional[str]  # <model_name>:<version>
     model_class: Optional[str]
-    model_artifact: Optional[str]
+    model_uri: Optional[str]
     feature_names: Optional[List[str]]
     stream_path: Optional[str]
     monitor_configuration: Optional[dict]

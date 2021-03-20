@@ -37,29 +37,29 @@ class ModelEndpoints:
         :param model_endpoint: An object representing a model endpoint
         """
 
-        if model_endpoint.spec.model_artifact or model_endpoint.status.feature_stats:
+        if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
             logger.info(
                 "Getting feature metadata",
                 project=model_endpoint.metadata.project,
                 model=model_endpoint.spec.model,
                 function=model_endpoint.spec.function_uri,
-                model_artifact=model_endpoint.spec.model_artifact,
+                model_uri=model_endpoint.spec.model_uri,
             )
 
         # If model artifact was supplied but feature_stats was not, grab model artifact and get feature_stats
         if (
-            model_endpoint.spec.model_artifact
+            model_endpoint.spec.model_uri
             and not model_endpoint.status.feature_stats
         ):
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
             model_obj = await run_in_threadpool(
-                get_model, model_endpoint.spec.model_artifact
+                get_model, model_endpoint.spec.model_uri
             )
             model_endpoint.status.feature_stats = model_obj[1].feature_stats
 
-        # If feature_stats was either populated by model_artifact or by manual input, make sure to keep the names
+        # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
         # sure to keep a clean version of the names
         if model_endpoint.status.feature_stats:
@@ -266,7 +266,7 @@ class ModelEndpoints:
                 function_uri=endpoint.get("function_uri"),
                 model=endpoint.get("model"),
                 model_class=endpoint.get("model_class") or None,
-                model_artifact=endpoint.get("model_artifact") or None,
+                model_uri=endpoint.get("model_uri") or None,
                 feature_names=feature_names or None,
                 stream_path=endpoint.get("stream_path") or None,
                 monitor_configuration=_json_loads_if_not_none(monitor_configuration),
@@ -343,7 +343,7 @@ async def write_endpoint_to_kv(
             "model": endpoint.spec.model,
             "model_class": endpoint.spec.model_class or "",
             "labels": json.dumps(labels),
-            "model_artifact": endpoint.spec.model_artifact or "",
+            "model_uri": endpoint.spec.model_uri or "",
             "stream_path": endpoint.spec.stream_path or "",
             "active": endpoint.spec.active or "",
             "state": endpoint.status.state or "",

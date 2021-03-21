@@ -14,10 +14,10 @@
 import threading
 import time
 import traceback
-from datetime import datetime
 from typing import Dict
 
 import mlrun
+from mlrun.utils import now_date
 
 
 class V2ModelServer:
@@ -178,7 +178,7 @@ class V2ModelServer:
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
-        start = datetime.now()
+        start = now_date()
         op = event.path.strip("/")
 
         if op == "predict" or op == "infer":
@@ -327,7 +327,7 @@ class _ModelLogPusher:
 
         self._sample_iter = (self._sample_iter + 1) % self.stream_sample
         if self.output_stream and self._sample_iter == 0:
-            microsec = (datetime.now() - start).microseconds
+            microsec = (now_date() - start).microseconds
 
             if self.stream_batch > 1:
                 if self._batch_iter == 0:

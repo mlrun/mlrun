@@ -4,6 +4,7 @@ import string
 
 import pandas as pd
 import pytest
+
 from .data_sample import stocks
 from storey import ReadCSV, ReduceToDataFrame, build_flow
 

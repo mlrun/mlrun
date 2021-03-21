@@ -1371,10 +1371,19 @@ class HTTPRunDB(RunDBInterface):
             headers=headers,
         )
 
-    def delete_feature_set(self, name, project=""):
-        """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB. """
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
+        """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+        If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
+        """
         project = project or default_project
         path = f"projects/{project}/feature-sets/{name}"
+
+        if tag or uid:
+            reference = self._resolve_reference(tag, uid)
+            path = path + f"/references/{reference}"
+
         error_message = f"Failed deleting feature-set {name}"
         self.api_call("DELETE", path, error_message)
 
@@ -1541,11 +1550,18 @@ class HTTPRunDB(RunDBInterface):
             headers=headers,
         )
 
-    def delete_feature_vector(self, name, project=""):
-        """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB. """
-
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
+        """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+        If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
+        """
         project = project or default_project
         path = f"projects/{project}/feature-vectors/{name}"
+        if tag or uid:
+            reference = self._resolve_reference(tag, uid)
+            path = path + f"/references/{reference}"
+
         error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
 

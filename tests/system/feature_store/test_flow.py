@@ -91,7 +91,7 @@ def test_multiple_entities():
         column="bid",
         operations=["sum", "max"],
         windows=["1h"],
-        period="10m"
+        period="10m",
     )
     fs.infer_metadata(
         data_set,

@@ -82,9 +82,17 @@ def test_multiple_entities():
     )
 
     # write to kv
-    data_set = fs.FeatureSet("tests2", entities=[Entity("first_name"), Entity("last_name")])
+    data_set = fs.FeatureSet(
+        "tests2", entities=[Entity("first_name"), Entity("last_name")]
+    )
 
-    data_set.add_aggregation(name="bids", column="bid", operations=["sum", "max"], windows=["1h"], period="10m")
+    data_set.add_aggregation(
+        name="bids",
+        column="bid",
+        operations=["sum", "max"],
+        windows=["1h"],
+        period="10m"
+    )
     fs.infer_metadata(
         data_set,
         data,  # source

@@ -4,8 +4,6 @@ import string
 
 import pandas as pd
 import pytest
-
-from .data_sample import stocks
 from storey import ReadCSV, ReduceToDataFrame, build_flow
 
 import mlrun.feature_store as fs
@@ -14,6 +12,8 @@ from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.targets import CSVTarget
 from mlrun.feature_store import Entity
 from tests.conftest import results, tests_root_directory
+
+from .data_sample import stocks
 
 local_dir = f"{tests_root_directory}/feature-store/"
 results_dir = f"{results}/feature-store/"

@@ -85,7 +85,7 @@ def test_multiple_entities():
     data_set = fs.FeatureSet("tests2", entities=[Entity("first_name"), Entity("last_name")])
 
     data_set.add_aggregation(name="bids", column="bid", operations=["sum", "max"], windows=["1h"], period="10m")
-    df = fs.infer_metadata(
+    fs.infer_metadata(
         data_set,
         data,  # source
         entity_columns=["first_name", "last_name"],
@@ -94,7 +94,7 @@ def test_multiple_entities():
     )
 
     data_set.plot(results_dir + "pipe.png", rankdir="LR", with_targets=True)
-    df = fs.ingest(data_set, data, return_df=True)
+    fs.ingest(data_set, data, return_df=True)
 
     features = [
         "tests2.bids_sum_1h",

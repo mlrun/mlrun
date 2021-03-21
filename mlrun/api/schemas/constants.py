@@ -54,15 +54,16 @@ class HeaderNames:
     secret_store_token = f"{headers_prefix}secret-store-token"
 
 
-class GroupByField(str, Enum):
+class FeatureStoreGroupByField(str, Enum):
     name = "name"  # Supported for feature-store objects
-    key = "key"  # Supported for artifacts
 
     def to_group_by_db_field(self, db_cls):
-        if self.value == GroupByField.name:
+        if self.value == FeatureStoreGroupByField.name:
             return db_cls.name
         else:
-            return db_cls.key
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown group by field: {self.value}"
+            )
 
 
 # For now, we only support sorting by updated field

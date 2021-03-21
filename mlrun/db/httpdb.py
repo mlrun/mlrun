@@ -1248,7 +1248,7 @@ class HTTPRunDB(RunDBInterface):
 
     @staticmethod
     def _generate_group_by_params(group_by, rows_per_group, sort_by, order):
-        if isinstance(group_by, schemas.GroupByField):
+        if isinstance(group_by, schemas.FeatureStoreGroupByField):
             group_by = group_by.value
         if isinstance(sort_by, schemas.SortField):
             sort_by = sort_by.value
@@ -1271,7 +1271,7 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        group_by: Union[schemas.GroupByField, str] = None,
+        group_by: Union[schemas.FeatureStoreGroupByField, str] = None,
         rows_per_group: int = 1,
         sort_by: Union[schemas.SortField, str] = None,
         order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
@@ -1464,7 +1464,7 @@ class HTTPRunDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        group_by: Union[schemas.GroupByField, str] = None,
+        group_by: Union[schemas.FeatureStoreGroupByField, str] = None,
         rows_per_group: int = 1,
         sort_by: Union[schemas.SortField, str] = None,
         order: Union[schemas.OrderType, str] = schemas.OrderType.desc,

@@ -1197,7 +1197,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 "sort parameter must be provided when group_by is used."
             )
         # For now, name is the only supported value. Remove once more fields are added.
-        if group_by != schemas.GroupByField.name:
+        if group_by != schemas.FeatureStoreGroupByField.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"group_by for feature-store objects must be 'name'. Value given: '{group_by.value}'"
             )
@@ -1230,7 +1230,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        group_by: schemas.GroupByField = None,
+        group_by: schemas.FeatureStoreGroupByField = None,
         rows_per_group: int = 1,
         sort: schemas.SortField = None,
         order: schemas.OrderType = schemas.OrderType.desc,
@@ -1590,7 +1590,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        group_by: schemas.GroupByField = None,
+        group_by: schemas.FeatureStoreGroupByField = None,
         rows_per_group: int = 1,
         sort: schemas.SortField = None,
         order: schemas.OrderType = schemas.OrderType.desc,

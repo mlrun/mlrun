@@ -65,7 +65,11 @@ def _assert_diff_as_expected_except_for_specific_metadata(
 def _test_group_by_for_feature_store_objects(
     client: TestClient, object_name, project_name, count
 ):
+    # Basic list, establishing baseline -
+    # Each object should have 3 versions, tagged "older", "newer" and "newest"
     _list_and_assert_objects(client, object_name, project_name, None, count * 3)
+
+    # Testing group-by with desc order (newest first)
     results = _list_and_assert_objects(
         client,
         object_name,
@@ -77,6 +81,7 @@ def _test_group_by_for_feature_store_objects(
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
+    # Testing group-by with asc order (oldest first)
     results = _list_and_assert_objects(
         client,
         object_name,
@@ -88,6 +93,7 @@ def _test_group_by_for_feature_store_objects(
     for result_object in results:
         assert result_object["metadata"]["tag"] == "older"
 
+    # Test more than 1 row per group.
     results = _list_and_assert_objects(
         client,
         object_name,
@@ -110,13 +116,14 @@ def _test_group_by_for_feature_store_objects(
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
-    # Some negative testing
+    # Some negative testing - no sort field
     object_url_name = object_name.replace("_", "-")
     response = client.get(
         f"/api/projects/{project_name}/{object_url_name}?group-by=name"
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    # An invalid group-by field - will be failed by fastapi due to schema validation.
     response = client.get(
         f"/api/projects/{project_name}/{object_url_name}?group-by=key&sort-by=updated"
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

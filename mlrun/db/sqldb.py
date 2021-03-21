@@ -277,7 +277,7 @@ class SQLDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        group_by: mlrun.api.schemas.GroupByField = None,
+        group_by: mlrun.api.schemas.FeatureStoreGroupByField = None,
         rows_per_group: int = 1,
         sort_by: mlrun.api.schemas.SortField = None,
         order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,

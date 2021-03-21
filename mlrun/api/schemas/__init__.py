@@ -10,8 +10,8 @@ from .background_task import (
 )
 from .constants import (
     DeletionStrategy,
+    FeatureStoreGroupByField,
     Format,
-    GroupByField,
     HeaderNames,
     OrderType,
     PatchMode,

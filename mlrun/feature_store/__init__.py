@@ -19,8 +19,10 @@ __all__ = [
     "get_online_feature_service",
     "ingest",
     "infer_metadata",
-    "run_ingestion_job",
+    "infer",
     "deploy_ingestion_service",
+    "delete_feature_set",
+    "delete_feature_vector",
     "Feature",
     "Entity",
     "FeatureSet",
@@ -31,12 +33,15 @@ __all__ = [
 from ..data_types import InferOptions, ValueType
 from ..features import Entity, Feature
 from .api import (
+    delete_feature_set,
+    delete_feature_vector,
     deploy_ingestion_service,
     get_offline_features,
     get_online_feature_service,
+    infer,
     infer_metadata,
     ingest,
-    run_ingestion_job,
 )
+from .common import RunConfig
 from .feature_set import FeatureSet
 from .feature_vector import FeatureVector

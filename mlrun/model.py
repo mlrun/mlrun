@@ -410,7 +410,7 @@ class RunSpec(ModelObj):
         data_stores=None,
         strategy=None,
         verbose=None,
-        scrape_metrics=False,
+        scrape_metrics=None,
         hyper_param_options=None,
     ):
 

@@ -54,7 +54,6 @@ class TestDask(TestMLRunSystem):
             output_path="",
             secret_sources=[],
             data_stores=[],
-            scrape_metrics=False,
         )
 
         assert run_object.state() == "completed"

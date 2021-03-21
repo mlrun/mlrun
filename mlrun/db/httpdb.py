@@ -239,6 +239,11 @@ class HTTPRunDB(RunDBInterface):
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )
+            config.scrape_metrics = (
+                server_cfg.get("scrape_metrics")
+                if server_cfg.get("scrape_metrics") is not None
+                else config.kfp_image
+            )
         except Exception:
             pass
         return self
@@ -337,6 +342,17 @@ class HTTPRunDB(RunDBInterface):
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body)
+
+    def abort_run(self, uid, project="", iter=0):
+        """
+        Abort a running run - will remove the run's runtime resources and mark its state as aborted
+        """
+        self.update_run(
+            {"status.state": mlrun.runtimes.constants.RunStates.aborted},
+            uid,
+            project,
+            iter,
+        )
 
     def read_run(self, uid, project="", iter=0):
         """ Read the details of a stored run from the DB.

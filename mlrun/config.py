@@ -76,6 +76,7 @@ default_config = {
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
+    "scrape_metrics": True,
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
@@ -100,7 +101,8 @@ default_config = {
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
-            "min_allowed_interval": "10 minutes"
+            "min_allowed_interval": "10 minutes",
+            "default_concurrency_limit": 1,
         },
         "projects": {
             "leader": "mlrun",

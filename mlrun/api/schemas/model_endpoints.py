@@ -130,6 +130,7 @@ class ModelEndpoint(BaseModel):
             function_uri.project,
             function_uri.function,
             function_uri.tag,
+            function_uri.hash_key,
             versioned_model.model,
             versioned_model.version,
         )
@@ -172,14 +173,15 @@ class ModelEndpoint(BaseModel):
         project: str
         function: str
         function_tag: str
+        function_hash_key: str
         model: str
         model_version: str
         uid: Optional[str] = None
 
         def __post_init__(self):
-            versioned_function = f"{self.function}_{self.function_tag or 'N/A'}"
+            function_ref = f"{self.function}_{self.function_tag or self.function_hash_key or 'N/A'}"
             versioned_model = f"{self.model}_{self.model_version or 'N/A'}"
-            unique_string = f"{self.project}_{versioned_function}_{versioned_model}"
+            unique_string = f"{self.project}_{function_ref}_{versioned_model}"
             self.uid = sha1(unique_string.encode("utf-8")).hexdigest()
 
         def __str__(self):

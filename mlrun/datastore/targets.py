@@ -258,7 +258,7 @@ class ParquetTarget(BaseStoreTarget):
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
         column_list = list(features.keys())
-        if timestamp_key:
+        if timestamp_key and timestamp_key not in column_list:
             column_list = [timestamp_key] + column_list
 
         graph.add_step(

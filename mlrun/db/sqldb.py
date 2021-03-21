@@ -62,6 +62,9 @@ class SQLDB(RunDBInterface):
             self.db.update_run, self.session, updates, uid, project, iter
         )
 
+    def abort_run(self, uid, project="", iter=0):
+        raise NotImplementedError()
+
     def read_run(self, uid, project=None, iter=None):
         return self._transform_db_error(
             self.db.read_run, self.session, uid, project, iter

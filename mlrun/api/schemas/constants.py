@@ -79,3 +79,7 @@ class OrderType(str, Enum):
             return db_field.asc()
         else:
             return db_field.desc()
+
+
+class LabelNames:
+    schedule_name = "schedule-name"

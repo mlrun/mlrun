@@ -47,6 +47,10 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def abort_run(self, uid, project="", iter=0):
+        pass
+
+    @abstractmethod
     def read_run(self, uid, project="", iter=0):
         pass
 

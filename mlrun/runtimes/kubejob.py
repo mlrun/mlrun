@@ -25,7 +25,7 @@ from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError
-from .pod import KubeResource
+from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import AsyncLogWriter, generate_function_image_name
 
 
@@ -268,12 +268,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         resources=runtime.spec.resources,
     )
 
-    pod_spec = client.V1PodSpec(
-        containers=[container],
-        restart_policy="Never",
-        volumes=runtime.spec.volumes,
-        service_account=runtime.spec.service_account,
-    )
+    pod_spec = kube_resource_spec_to_pod_spec(runtime.spec, container)
 
     if runtime.spec.image_pull_secret:
         pod_spec.image_pull_secrets = [

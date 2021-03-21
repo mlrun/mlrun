@@ -601,7 +601,7 @@ class VotingEnsemble(BaseModelRouter):
                     try:
                         results.append(future.result())
                     except Exception as exc:
-                        print(f"{future.fullname} generated an exception: {exc}")
+                        print(f"child route generated an exception: {exc}")
                 results = [
                     self.extract_results_from_response(event.body["outputs"])
                     for event in results

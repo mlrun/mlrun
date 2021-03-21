@@ -37,6 +37,7 @@ from ..utils import (
     match_labels,
     match_times,
     match_value,
+    match_value_options,
     update_in,
 )
 from .base import RunDBError, RunDBInterface
@@ -102,6 +103,9 @@ class FileRunDB(RunDBInterface):
                 update_in(run, key, val)
         self.store_run(run, uid, project, iter=iter)
 
+    def abort_run(self, uid, project="", iter=0):
+        raise NotImplementedError()
+
     def read_run(self, uid, project="", iter=0):
         filepath = (
             self._filepath(run_logs, project, self._run_path(uid, iter), "")
@@ -136,7 +140,7 @@ class FileRunDB(RunDBInterface):
             if (
                 match_value(name, run, "metadata.name")
                 and match_labels(get_in(run, "metadata.labels", {}), labels)
-                and match_value(state, run, "status.state")
+                and match_value_options(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
                 and match_times(
                     start_time_from, start_time_to, run, "status.start_time",

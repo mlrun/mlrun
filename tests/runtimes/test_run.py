@@ -28,6 +28,7 @@ def test_new_function_from_runtime():
             "env": [],
             "description": "",
             "build": {"commands": []},
+            "affinity": None,
         },
         "verbose": False,
     }
@@ -61,6 +62,7 @@ def test_new_function_args_without_command():
             "env": [],
             "description": "",
             "build": {"commands": []},
+            "affinity": None,
         },
         "verbose": False,
     }

@@ -42,6 +42,9 @@ class RemoteSparkSpec(KubeResourceSpec):
         build=None,
         image_pull_secret=None,
         provider=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -61,6 +64,9 @@ class RemoteSparkSpec(KubeResourceSpec):
             service_account=service_account,
             build=build,
             image_pull_secret=image_pull_secret,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
         self.provider = provider
 

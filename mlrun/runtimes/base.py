@@ -229,7 +229,7 @@ class BaseRuntime(ModelObj):
         hyperparams: Dict[str, list] = None,
         hyper_param_options: HyperParamOptions = None,
         verbose=None,
-        scrape_metrics=False,
+        scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
     ):
@@ -326,7 +326,12 @@ class BaseRuntime(ModelObj):
             hyper_param_options or runspec.spec.hyper_param_options
         )
         runspec.spec.verbose = verbose or runspec.spec.verbose
-        runspec.spec.scrape_metrics = scrape_metrics or runspec.spec.scrape_metrics
+        if scrape_metrics is None:
+            if runspec.spec.scrape_metrics is None:
+                scrape_metrics = config.scrape_metrics
+            else:
+                scrape_metrics = runspec.spec.scrape_metrics
+        runspec.spec.scrape_metrics = scrape_metrics
         runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir
@@ -760,7 +765,7 @@ class BaseRuntime(ModelObj):
         if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
 
-            _, _, body = build_file(from_file)
+            _, _, body = build_file(from_file, name=self.metadata.name)
 
         else:
             if from_file:
@@ -888,17 +893,28 @@ class BaseRuntimeHandler(ABC):
         """
         pass
 
-    def list_resources(self, label_selector: str = None) -> Dict:
+    def list_resources(
+        self,
+        project: str,
+        label_selector: str = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+        if project and project == "*" and group_by is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Group by can not be used across projects"
+            )
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(label_selector)
+        label_selector = self._resolve_label_selector(project, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
         crd_objects = self._list_crd_objects(namespace, label_selector)
         crd_resources = self._build_crd_resources(crd_objects)
-        response = self._build_list_resources_response(pod_resources, crd_resources)
+        response = self._build_list_resources_response(
+            pod_resources, crd_resources, group_by
+        )
         response = self._enrich_list_resources_response(
-            response, namespace, label_selector
+            response, namespace, label_selector, group_by
         )
         return response
 
@@ -912,7 +928,7 @@ class BaseRuntimeHandler(ABC):
     ):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(label_selector)
+        label_selector = self._resolve_label_selector("*", label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
@@ -981,8 +997,12 @@ class BaseRuntimeHandler(ABC):
                 )
 
     def _enrich_list_resources_response(
-        self, response: Dict, namespace: str, label_selector: str = None
-    ) -> Dict:
+        self,
+        response: Dict,
+        namespace: str,
+        label_selector: str = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
         """
         Override this to list resources other then pods or CRDs (which are handled by the base class)
         """
@@ -1099,13 +1119,16 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
-    def _resolve_label_selector(self, label_selector: str = None) -> str:
+    def _resolve_label_selector(self, project: str, label_selector: str = None) -> str:
         default_label_selector = self._get_default_label_selector()
 
         if label_selector:
             label_selector = ",".join([default_label_selector, label_selector])
         else:
             label_selector = default_label_selector
+
+        if project and project != "*":
+            label_selector = ",".join([label_selector, f"mlrun/project={project}"])
 
         return label_selector
 
@@ -1373,6 +1396,60 @@ class BaseRuntimeHandler(ABC):
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
+    def _build_list_resources_response(
+        self,
+        pod_resources: List = None,
+        crd_resources: List = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+        if crd_resources is None:
+            crd_resources = []
+        if pod_resources is None:
+            pod_resources = []
+
+        if group_by is None:
+            return {
+                "crd_resources": crd_resources,
+                "pod_resources": pod_resources,
+            }
+        else:
+            if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+                return self._build_grouped_by_job_list_resources_response(
+                    pod_resources, crd_resources
+                )
+            else:
+                raise NotImplementedError(
+                    f"Provided format is not supported. group_by={group_by}"
+                )
+
+    def _build_grouped_by_job_list_resources_response(
+        self, pod_resources: List = None, crd_resources: List = None
+    ) -> mlrun.api.schemas.GroupedRuntimeResourcesOutput:
+        resources = {}
+        for pod_resource in pod_resources:
+            self._add_resource_to_grouped_by_job_resources_response(
+                resources, "pod_resources", pod_resource
+            )
+        for crd_resource in crd_resources:
+            self._add_resource_to_grouped_by_job_resources_response(
+                resources, "crd_resources", crd_resource
+            )
+        return resources
+
+    @staticmethod
+    def _add_resource_to_grouped_by_job_resources_response(
+        resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        resource_field_name: str,
+        resource: dict,
+    ):
+        if "mlrun/uid" in resource["labels"]:
+            uid = resource["labels"]["mlrun/uid"]
+            if uid not in resources:
+                resources[uid] = mlrun.api.schemas.RuntimeResourcesOutput(
+                    pod_resources=[], crd_resources=[]
+                )
+            getattr(resources[uid], resource_field_name).append(resource)
+
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
         return f"mlrun/project={project},mlrun/uid={run_uid}"
@@ -1530,16 +1607,3 @@ class BaseRuntimeHandler(ABC):
                 }
             )
         return crd_resources
-
-    @staticmethod
-    def _build_list_resources_response(
-        pod_resources: List = None, crd_resources: List = None
-    ) -> Dict:
-        if crd_resources is None:
-            crd_resources = []
-        if pod_resources is None:
-            pod_resources = []
-        return {
-            "crd_resources": crd_resources,
-            "pod_resources": pod_resources,
-        }

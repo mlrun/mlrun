@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from importlib import import_module
 from os import environ, path
 from types import ModuleType
-from typing import Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import requests
@@ -257,6 +257,13 @@ def match_value(value, obj, key):
     return get_in(obj, key, _missing) == value
 
 
+def match_value_options(value_options, obj, key):
+    if not value_options:
+        return True
+
+    return get_in(obj, key, _missing) in as_list(value_options)
+
+
 def flatten(df, col, prefix=""):
     params = []
     for r in df[col]:
@@ -420,6 +427,15 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     elif tag:
         uri += f":{tag}"
     return uri
+
+
+def generate_artifact_uri(project, key, tag=None, iter=None):
+    artifact_uri = f"{project}/{key}"
+    if iter is not None:
+        artifact_uri = f"{artifact_uri}#{iter}"
+    if tag is not None:
+        artifact_uri = f"{artifact_uri}:{tag}"
+    return artifact_uri
 
 
 def extend_hub_uri_if_needed(uri):
@@ -830,3 +846,7 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     if not time_obj:
         return
     return time_obj.isoformat()
+
+
+def as_list(element: Any) -> List[Any]:
+    return element if isinstance(element, list) else [element]

@@ -14,9 +14,10 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Optional, Union
 
 from mlrun.api import schemas
+from mlrun.api.schemas import ModelEndpoint
 
 
 class RunDBError(Exception):
@@ -231,7 +232,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         pass
 
     @abstractmethod
@@ -285,7 +286,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         pass
 
     @abstractmethod
@@ -331,5 +332,48 @@ class RunDBInterface(ABC):
             str, schemas.SecretProviderName
         ] = schemas.SecretProviderName.vault,
         secrets: dict = None,
+    ):
+        pass
+
+    @abstractmethod
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_endpoint_record(
+        self, project: str, endpoint_id: str, access_key: Optional[str] = None
+    ):
+        pass
+
+    @abstractmethod
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+        access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
+        access_key: Optional[str] = None,
     ):
         pass

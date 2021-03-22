@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union
+from typing import List, Optional, Union
 
 import mlrun.api.schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
-
-from .base import RunDBError, RunDBInterface
-
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
@@ -30,6 +27,10 @@ from .base import RunDBError, RunDBInterface
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
+from ..api.schemas import ModelEndpoint
+from .base import RunDBError, RunDBInterface
+
+
 class SQLDB(RunDBInterface):
     def __init__(self, dsn, session=None):
         self.session = session
@@ -319,9 +320,9 @@ class SQLDB(RunDBInterface):
             patch_mode,
         )
 
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         return self._transform_db_error(
-            self.db.delete_feature_set, self.session, project, name
+            self.db.delete_feature_set, self.session, project, name, tag, uid
         )
 
     def create_feature_vector(self, feature_vector, project="", versioned=True):
@@ -392,9 +393,9 @@ class SQLDB(RunDBInterface):
             patch_mode,
         )
 
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         return self._transform_db_error(
-            self.db.delete_feature_vector, self.session, project, name,
+            self.db.delete_feature_vector, self.session, project, name, tag, uid
         )
 
     def list_pipelines(
@@ -439,5 +440,42 @@ class SQLDB(RunDBInterface):
             str, mlrun.api.schemas.SecretProviderName
         ] = mlrun.api.schemas.SecretProviderName.vault,
         secrets: dict = None,
+    ):
+        raise NotImplementedError()
+
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+        raise NotImplementedError()
+
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
+        access_key=None,
     ):
         raise NotImplementedError()

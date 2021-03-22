@@ -110,6 +110,11 @@ class TestFeatureStore(TestMLRunSystem):
         assert df.shape[1] == columns, "unexpected num of returned df columns"
         resp.to_parquet(str(self.results_path / "query.parquet"))
 
+        # check simple api without join with other df
+        resp = fs.get_offline_features(vector)
+        df = resp.to_dataframe()
+        assert df.shape[1] == features_size, "unexpected num of returned df columns"
+
     def _get_online_features(self, features, features_size):
         # test real-time query
         vector = fs.FeatureVector("my-vec", features)

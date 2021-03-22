@@ -4,7 +4,7 @@ from mlrun import code_to_function, get_run_db, mlconf, new_task
 from tests.conftest import out_path, verify_state
 
 azure_key_vault_k8s_secret = ""
-api_db_port = 52314
+api_db_port = 56295
 
 
 @pytest.mark.skipif(azure_key_vault_k8s_secret == "", reason="no Azure vault secret")
@@ -16,7 +16,7 @@ def test_azure_vault_end_to_end():
     # Create function and set container configuration
     function = code_to_function(
         name="azure_vault_func",
-        filename="./vault_function.py",
+        filename="vault_function.py",
         handler="vault_func",
         project=project_name,
         kind="job",

@@ -15,16 +15,21 @@
 import os
 from os.path import expanduser
 
-from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
-from azure.identity import EnvironmentCredential
-from azure.keyvault.secrets import SecretClient
-
 from ..config import config as mlconf
 from .helpers import logger
 
 
 class AzureVaultStore:
     def __init__(self, vault_name):
+
+        try:
+            from azure.identity import EnvironmentCredential
+            from azure.keyvault.secrets import SecretClient
+        except ImportError as exc:
+            raise ImportError(
+                f"Azure key-vault libraries not installed, run pip install azure-identity azure-keyvault-secrets, {exc}"
+            )
+
         self._vault_name = vault_name
         self._url = mlconf.secret_stores.azure_vault.url.format(name=vault_name)
         self._client = None
@@ -65,6 +70,10 @@ class AzureVaultStore:
         return None
 
     def get_secrets(self, keys):
+        # We're not checking this import, since azure-core is automatically installed by other
+        # libs. Assuming we passed the checks on __init__, this is expected to work.
+        from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+
         secrets = {}
         if not self._client:
             return secrets

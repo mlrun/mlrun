@@ -22,9 +22,9 @@ from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
+from ..platforms.iguazio import split_path
 from .utils import store_path_to_spark
 from .v3io import parse_v3io_path
-from ..platforms.iguazio import split_path
 
 
 class TargetTypes:

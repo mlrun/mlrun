@@ -93,11 +93,11 @@ def _add_data_states(
         cache.cache_table(featureset.uri, table, True)
 
     entity_columns = list(featureset.spec.entities.keys())
-    key_field = entity_columns if entity_columns else None
+    key_fields = entity_columns if entity_columns else None
 
     if source is not None:
         source = get_source_step(
-            source, key_field=key_field, time_field=featureset.spec.timestamp_key,
+            source, key_field=key_fields, time_field=featureset.spec.timestamp_key,
         )
     graph.set_flow_source(source)
 

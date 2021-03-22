@@ -72,10 +72,7 @@ def validate_target_placement(graph, final_step, targets):
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     """add the target states to the graph"""
     targets = targets or []
-    if len(resource.spec.entities.keys()) > 1:
-        key_column = list(resource.spec.entities.keys())
-    else:
-        key_column = resource.spec.entities[0].name
+    key_columns = list(resource.spec.entities.keys())
     timestamp_key = resource.spec.timestamp_key
     features = resource.spec.features
     table = None
@@ -88,7 +85,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
             graph,
             target.after_state or final_state,
             features=features,
-            key_column=key_column,
+            key_column=key_columns,
             timestamp_key=timestamp_key,
         )
     if to_df:
@@ -98,7 +95,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
             graph,
             final_state,
             features=features,
-            key_column=key_column,
+            key_column=key_columns,
             timestamp_key=timestamp_key,
         )
 
@@ -302,12 +299,12 @@ class CSVTarget(BaseStoreTarget):
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
-        for key in reversed(key_column):
+        for key in reversed(key_columns):
             if key not in column_list:
                 column_list.insert(0, key)
         graph.add_step(
@@ -318,7 +315,7 @@ class CSVTarget(BaseStoreTarget):
             path=self._target_path,
             columns=column_list,
             header=True,
-            index_cols=key_column,
+            index_cols=key_columns,
             storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )

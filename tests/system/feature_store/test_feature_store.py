@@ -1,6 +1,7 @@
 import os
 import random
 import string
+from datetime import datetime
 
 import pandas as pd
 import pytest
@@ -221,6 +222,21 @@ class TestFeatureStore(TestMLRunSystem):
         print(stats)
         stats.remove("timestamp")
         assert features == stats, "didnt infer stats for all features"
+
+    def test_ingest_with_timestamp(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+        resp = fs.ingest(measurements, source)
+        assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
+            "2020-12-01 17:24:15.906352"
+        )
 
     def test_featureset_column_types(self):
         data = pd.DataFrame(

@@ -24,6 +24,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 
 from .utils import store_path_to_spark
 from .v3io import parse_v3io_path
+from ..platforms.iguazio import split_path
 
 
 class TargetTypes:
@@ -382,13 +383,16 @@ class NoSqlTarget(BaseStoreTarget):
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
 
+            _, path_with_container = parse_v3io_path(self._target_path)
+            container, path = split_path(path_with_container)
+
             frames_client = get_frames_client(
                 token=access_key,
                 address=config.v3io_framesd,
-                container=config.model_endpoint_monitoring.container,
+                container=container
             )
 
-            frames_client.write("kv", self._target_path, df)
+            frames_client.write("kv", path, df)
 
 
 class StreamTarget(BaseStoreTarget):
@@ -466,14 +470,17 @@ class TSDBTarget(BaseStoreTarget):
         if key_column:
             new_index.append(key_column)
 
+        _, path_with_container = parse_v3io_path(self._target_path)
+        container, path = split_path(path_with_container)
+
         frames_client = get_frames_client(
             token=access_key,
             address=config.v3io_framesd,
-            container=config.model_endpoint_monitoring.container,
+            container=container,
         )
 
         frames_client.write(
-            "tsdb", self._target_path, df, index_cols=new_index if new_index else None
+            "tsdb", path, df, index_cols=new_index if new_index else None
         )
 
 

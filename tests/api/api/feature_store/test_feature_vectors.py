@@ -281,6 +281,54 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 2)
 
 
+def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_vector"
+    feature_vector = _generate_feature_vector(name)
+
+    count = 5
+    uids = {}
+    for i in range(count):
+        # Store different copies of the feature set with different uids and tags
+        feature_vector["metadata"]["extra_metadata"] = i * 100
+        tag = f"tag{i}"
+        result = _assert_store_feature_vector(
+            client, project_name, name, f"tag{i}", feature_vector
+        )
+        uids[result["metadata"]["uid"]] = tag
+
+    _list_and_assert_objects(
+        client, "feature_vectors", project_name, f"name={name}", count
+    )
+
+    delete_by_tag = True
+    objects_left = count
+    for uid, tag in uids.items():
+        reference = tag if delete_by_tag else uid
+        delete_by_tag = not delete_by_tag
+
+        response = client.delete(
+            f"/api/projects/{project_name}/feature-vectors/{name}/references/{reference}"
+        )
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
+        objects_left = objects_left - 1
+        _list_and_assert_objects(
+            client, "feature_vectors", project_name, f"name={name}", objects_left
+        )
+
+    for i in range(count):
+        feature_vector["metadata"]["extra_metadata"] = i * 100
+        _assert_store_feature_vector(
+            client, project_name, name, f"tag{i}", feature_vector
+        )
+
+    # Now delete by name
+    response = client.delete(f"/api/projects/{project_name}/feature-vectors/{name}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 0)
+
+
 def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     name = "feature_vector1"

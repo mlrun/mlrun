@@ -23,4 +23,5 @@ def health():
         "kfp_image": config.kfp_image,
         "dask_kfp_image": config.dask_kfp_image,
         "api_url": config.httpdb.api_url,
+        "scrape_metrics": config.scrape_metrics,
     }

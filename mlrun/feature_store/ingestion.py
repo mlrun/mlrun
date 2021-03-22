@@ -97,7 +97,7 @@ def _add_data_states(
 
     if source is not None:
         source = get_source_step(
-            source, key_field=key_fields, time_field=featureset.spec.timestamp_key,
+            source, key_fields=key_fields, time_field=featureset.spec.timestamp_key,
         )
     graph.set_flow_source(source)
 

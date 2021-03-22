@@ -22,7 +22,7 @@ class PackageTester:
         api_import = "import mlrun.api.main"
         s3_import = "import mlrun.datastore.s3"
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
-        azure_key_vault_import = "import mlrun.utils.AzureVaultStore"
+        azure_key_vault_import = "import mlrun.utils.azure_vault"
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},

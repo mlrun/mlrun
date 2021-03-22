@@ -39,7 +39,7 @@ def gen_sklearn_model(model_pkg, skparams):
     else:
         model_config = get_class_fit(model_pkg)
 
-    for k, v in skparams:
+    for k, v in skparams.items():
         if k.startswith("CLASS_"):
             model_config["CLASS"][k[6:]] = v
         if k.startswith("FIT_"):

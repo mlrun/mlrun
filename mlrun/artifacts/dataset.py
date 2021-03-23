@@ -289,9 +289,8 @@ def upload_dataframe(
         if not suffix:
             target_path = target_path + "." + format
         target_class = mlrun.datastore.targets.kind_to_driver[format]
-        return (
-            target_class(path=target_path).write_dataframe(df, **kw),
-            file_hash(target_path),
+        return target_class(path=target_path).write_dataframe(
+            df, calculate_file_hash=True, **kw
         )
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

@@ -13,10 +13,11 @@
 # limitations under the License.
 import os
 import sys
+import typing
 from copy import copy
-from typing import Dict
 
 import mlrun
+import mlrun.artifacts.base
 from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 
@@ -148,7 +149,7 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: typing.Dict[str, str] = None,
         after_state=None,
     ):
         self.name = name
@@ -164,7 +165,14 @@ class BaseStoreTarget(DataTargetBase):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(
+        self,
+        df,
+        key_column=None,
+        timestamp_key=None,
+        calculate_file_hash=False,
+        **kwargs,
+    ) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -176,14 +184,16 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            self._write_dataframe(df, fs, target_path, **kwargs)
+            file_hash = self._write_dataframe(
+                df, fs, target_path, calculate_file_hash, **kwargs
+            )
             try:
-                return fs.size(target_path)
+                return fs.size(target_path), file_hash
             except Exception:
                 return None
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, calculate_file_hash, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -250,9 +260,14 @@ class ParquetTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, calculate_file_hash, **kwargs):
         with fs.open(target_path, "wb") as fp:
             df.to_parquet(fp, **kwargs)
+        if calculate_file_hash:
+            with fs.open(target_path, "rb", cache_type=None) as fp:
+                file_hash = mlrun.artifacts.base.file_hash(fp)
+            return file_hash
+        return None
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -288,7 +303,7 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, calculate_file_hash, **kwargs):
         mode = "wb"
         # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
         # with such files until version 1.2.0, in this version they dropped support for python 3.6.
@@ -297,6 +312,11 @@ class CSVTarget(BaseStoreTarget):
             mode = "wt"
         with fs.open(target_path, mode) as fp:
             df.to_csv(fp, **kwargs)
+        if calculate_file_hash:
+            with fs.open(target_path, "rb", cache_type=None) as fp:
+                file_hash = mlrun.artifacts.base.file_hash(fp)
+            return file_hash
+        return None
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

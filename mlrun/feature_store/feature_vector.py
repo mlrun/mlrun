@@ -360,10 +360,14 @@ class OfflineVectorResponse:
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        return ParquetTarget(path=target_path).write_dataframe(
+        size, _ = ParquetTarget(path=target_path).write_dataframe(
             self._merger.get_df(), **kw
         )
+        return size
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
+        size, _ = CSVTarget(path=target_path).write_dataframe(
+            self._merger.get_df(), **kw
+        )
+        return size

@@ -82,7 +82,7 @@ class LocalFeatureMerger:
                 )
             target.name = target.name or target.kind
             target.set_resource(self.vector)
-            size = target.write_dataframe(self._result_df)
+            size, _ = target.write_dataframe(self._result_df)
             if is_persistent_vector:
                 target_status = target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")

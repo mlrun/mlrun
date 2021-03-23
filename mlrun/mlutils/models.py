@@ -39,7 +39,9 @@ def gen_sklearn_model(model_pkg, skparams):
     else:
         model_config = get_class_fit(model_pkg)
 
-    for k, v in skparams.items():
+    # we used to use skparams as is (without .items()) so supporting both cases for backwards compatibility
+    skparams = skparams.items() if isinstance(skparams, dict) else skparams
+    for k, v in skparams:
         if k.startswith("CLASS_"):
             model_config["CLASS"][k[6:]] = v
         if k.startswith("FIT_"):

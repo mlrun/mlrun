@@ -868,3 +868,19 @@ def calculate_file_hash(filename=None, file=None):
         for n in iter(lambda: file.readinto(mv), 0):
             h.update(mv[:n])
     return h.hexdigest()
+
+
+def fill_artifact_path_template(artifact_path, project):
+    # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
+    # {{run.project}} so we're supporting it too for backwards compatibility
+    if artifact_path and (
+        "{{run.project}}" in artifact_path or "{{project}}" in artifact_path
+    ):
+        if not project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "project name must be specified with this"
+                + f" artifact_path template {artifact_path}"
+            )
+        artifact_path = artifact_path.replace("{{run.project}}", project)
+        artifact_path = artifact_path.replace("{{project}}", project)
+    return artifact_path

@@ -850,3 +850,17 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
 
 def as_list(element: Any) -> List[Any]:
     return element if isinstance(element, list) else [element]
+
+
+def fill_artifact_path_template(artifact_path, project):
+    # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
+    # {{run.project}} so we're supporting it too for backwards compatibility
+    if artifact_path and ("{{run.project}}" in artifact_path or "{{project}}" in artifact_path):
+        if not project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "project name must be specified with this"
+                + f" artifact_path template {artifact_path}"
+            )
+        artifact_path.replace("{{run.project}}", project)
+        artifact_path.replace("{{project}}", project)
+    return artifact_path

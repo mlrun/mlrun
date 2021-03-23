@@ -56,6 +56,7 @@ from .utils import (
     retry_until_successful,
     update_in,
 )
+import mlrun.utils.helpers
 
 
 class RunStatuses(object):
@@ -790,15 +791,9 @@ def run_pipeline(
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
 
     artifact_path = artifact_path or mlconf.artifact_path
+    artifact_path = mlrun.utils.helpers.fill_artifact_path_template(artifact_path, project)
     if artifact_path and "{{run.uid}}" in artifact_path:
         artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")
-    if artifact_path and "{{run.project}}" in artifact_path:
-        if not project:
-            raise ValueError(
-                "project name must be specified with this"
-                + f" artifact_path template {artifact_path}"
-            )
-        artifact_path.replace("{{run.project}}", project)
     if not artifact_path:
         raise ValueError("artifact path was not specified")
 

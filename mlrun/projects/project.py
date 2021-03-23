@@ -780,6 +780,7 @@ class MlrunProject(ModelObj):
     ):
         am = self._get_artifact_manager()
         artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = mlrun.utils.helpers.fill_artifact_path_template(artifact_path, self.metadata.name)
         producer = ArtifactProducer(
             "project",
             self.metadata.name,

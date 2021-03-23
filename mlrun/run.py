@@ -29,6 +29,7 @@ from nuclio import build_file
 
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.utils.helpers
 
 from .config import config as mlconf
 from .datastore import store_manager
@@ -56,7 +57,6 @@ from .utils import (
     retry_until_successful,
     update_in,
 )
-import mlrun.utils.helpers
 
 
 class RunStatuses(object):
@@ -791,7 +791,9 @@ def run_pipeline(
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
 
     artifact_path = artifact_path or mlconf.artifact_path
-    artifact_path = mlrun.utils.helpers.fill_artifact_path_template(artifact_path, project)
+    artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+        artifact_path, project
+    )
     if artifact_path and "{{run.uid}}" in artifact_path:
         artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")
     if not artifact_path:

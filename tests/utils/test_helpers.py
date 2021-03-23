@@ -1,9 +1,13 @@
+import pytest
+
+import mlrun.errors
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
+    fill_artifact_path_template,
     get_parsed_docker_registry,
     verify_field_regex,
 )
@@ -195,3 +199,39 @@ def test_parse_store_uri():
     for case in cases:
         output = parse_store_uri(case["uri"])
         assert case["expected_output"] == output
+
+
+def test_fill_artifact_path_template():
+    cases = [
+        {
+            "artifact_path": "v3io://just/regular/path",
+            "expected_artifact_path": "v3io://just/regular/path",
+        },
+        {
+            "artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
+            "expected_artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
+        },
+        {
+            "artifact_path": "v3io://template-project-not-provided/{{project}}",
+            "raise": True,
+        },
+        {
+            "artifact_path": "v3io://template-project-provided/{{project}}",
+            "project": "some-project",
+            "expected_artifact_path": "v3io://template-project-provided/some-project",
+        },
+        {
+            "artifact_path": "v3io://legacy-template-project-provided/{{run.project}}",
+            "project": "some-project",
+            "expected_artifact_path": "v3io://legacy-template-project-provided/some-project",
+        },
+    ]
+    for case in cases:
+        if case.get("raise"):
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fill_artifact_path_template(case["artifact_path"], case.get("project"))
+        else:
+            filled_artifact_path = fill_artifact_path_template(
+                case["artifact_path"], case.get("project")
+            )
+            assert case["expected_artifact_path"] == filled_artifact_path

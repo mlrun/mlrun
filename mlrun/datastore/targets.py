@@ -17,7 +17,7 @@ import typing
 from copy import copy
 
 import mlrun
-import mlrun.artifacts.base
+import mlrun.utils.helpers
 from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 
@@ -265,7 +265,7 @@ class ParquetTarget(BaseStoreTarget):
             df.to_parquet(fp, **kwargs)
         if calculate_file_hash:
             with fs.open(target_path, "rb", cache_type=None) as fp:
-                file_hash = mlrun.artifacts.base.file_hash(fp)
+                file_hash = mlrun.utils.helpers.calculate_file_hash(file=fp)
             return file_hash
         return None
 
@@ -314,7 +314,7 @@ class CSVTarget(BaseStoreTarget):
             df.to_csv(fp, **kwargs)
         if calculate_file_hash:
             with fs.open(target_path, "rb", cache_type=None) as fp:
-                file_hash = mlrun.artifacts.base.file_hash(fp)
+                file_hash = mlrun.utils.helpers.calculate_file_hash(file=fp)
             return file_hash
         return None
 

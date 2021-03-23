@@ -21,9 +21,10 @@ import pandas as pd
 from pandas.io.json import build_table_schema
 
 import mlrun
+import mlrun.utils.helpers
 
 from ..datastore import is_store_uri, store_manager
-from .base import Artifact, file_hash
+from .base import Artifact
 
 default_preview_rows_length = 20
 max_preview_columns = 100
@@ -276,7 +277,10 @@ def upload_dataframe(
 
     if src_path and os.path.isfile(src_path):
         store_manager.object(url=target_path).upload(src_path)
-        return os.stat(src_path).st_size, file_hash(src_path)
+        return (
+            os.stat(src_path).st_size,
+            mlrun.utils.helpers.calculate_file_hash(src_path),
+        )
 
     if df is None:
         return None, None

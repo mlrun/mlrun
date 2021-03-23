@@ -14,6 +14,7 @@
 import os
 import pathlib
 from io import StringIO
+import typing
 
 import numpy as np
 import pandas as pd
@@ -22,7 +23,7 @@ from pandas.io.json import build_table_schema
 import mlrun
 
 from ..datastore import is_store_uri, store_manager
-from .base import Artifact
+from .base import Artifact, file_hash
 
 default_preview_rows_length = 20
 max_preview_columns = 100
@@ -128,7 +129,7 @@ class DatasetArtifact(Artifact):
         self._kw = kwargs
 
     def upload(self):
-        self.size = upload_dataframe(
+        self.size, self.hash = upload_dataframe(
             self._df,
             self.target_path,
             format=self.format,
@@ -263,7 +264,7 @@ def update_dataset_meta(
     )
 
 
-def upload_dataframe(df, target_path, format, src_path=None, **kw):
+def upload_dataframe(df, target_path, format, src_path=None, **kw) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
     suffix = pathlib.Path(target_path).suffix
     if not format:
         if suffix and suffix in [".csv", ".parquet", ".pq"]:
@@ -273,19 +274,19 @@ def upload_dataframe(df, target_path, format, src_path=None, **kw):
 
     if src_path and os.path.isfile(src_path):
         store_manager.object(url=target_path).upload(src_path)
-        return os.stat(src_path).st_size
+        return os.stat(src_path).st_size, file_hash(src_path)
 
     if df is None:
-        return None
+        return None, None
 
     if target_path.startswith("memory://"):
         store_manager.object(target_path).put(df)
-        return None
+        return None, None
 
     if format in ["csv", "parquet"]:
         if not suffix:
             target_path = target_path + "." + format
         target_class = mlrun.datastore.targets.kind_to_driver[format]
-        return target_class(path=target_path).write_dataframe(df, **kw)
+        return target_class(path=target_path).write_dataframe(df, **kw), file_hash(target_path)
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

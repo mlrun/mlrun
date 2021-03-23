@@ -151,7 +151,7 @@ Configurable values are documented in the `values.yaml`, and the `values.yaml` o
 ### Uninstalling the Chart
 
 ```bash
-helm --namespace mlrun uninstall -mlrun-kit
+helm --namespace mlrun uninstall mlrun-kit
 ```
 
 > **Note on terminating pods and hanging resources:**

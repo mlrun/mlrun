@@ -341,6 +341,62 @@ class TestFeatureStore(TestMLRunSystem):
         ), f"{termination_result}\n!=\n{expected}"
         os.remove(csv_path)
 
+    def test_multiple_entities(self):
+
+        current_time = pd.Timestamp.now()
+        data = pd.DataFrame(
+            {
+                "time": [
+                    current_time,
+                    current_time - pd.Timedelta(minutes=1),
+                    current_time - pd.Timedelta(minutes=2),
+                    current_time - pd.Timedelta(minutes=3),
+                    current_time - pd.Timedelta(minutes=4),
+                    current_time - pd.Timedelta(minutes=5),
+                ],
+                "first_name": ["moshe", "yosi", "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 2500, 14],
+            }
+        )
+
+        # write to kv
+        data_set = fs.FeatureSet(
+            "tests2", entities=[Entity("first_name"), Entity("last_name")]
+        )
+
+        data_set.add_aggregation(
+            name="bids",
+            column="bid",
+            operations=["sum", "max"],
+            windows=["1h"],
+            period="10m",
+        )
+        fs.infer_metadata(
+            data_set,
+            data,  # source
+            entity_columns=["first_name", "last_name"],
+            timestamp_key="time",
+            options=fs.InferOptions.default(),
+        )
+
+        data_set.plot(
+            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        )
+        fs.ingest(data_set, data, return_df=True)
+
+        features = [
+            "tests2.bids_sum_1h",
+        ]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
+        print(resp[0])
+
+        svc.close()
+
 
 def verify_ingest(
     base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()

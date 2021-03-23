@@ -264,7 +264,7 @@ class ParquetTarget(BaseStoreTarget):
         with fs.open(target_path, "wb") as fp:
             df.to_parquet(fp, **kwargs)
         if calculate_file_hash:
-            with fs.open(target_path, "rb", cache_type=None) as fp:
+            with fs.open(target_path, "rb", cache_type='none') as fp:
                 file_hash = mlrun.utils.helpers.calculate_file_hash(file=fp)
             return file_hash
         return None
@@ -313,7 +313,7 @@ class CSVTarget(BaseStoreTarget):
         with fs.open(target_path, mode) as fp:
             df.to_csv(fp, **kwargs)
         if calculate_file_hash:
-            with fs.open(target_path, "rb", cache_type=None) as fp:
+            with fs.open(target_path, "rb", cache_type='none') as fp:
                 file_hash = mlrun.utils.helpers.calculate_file_hash(file=fp)
             return file_hash
         return None

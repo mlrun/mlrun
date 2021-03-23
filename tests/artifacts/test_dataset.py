@@ -72,6 +72,12 @@ def test_dataset_upload_csv():
     artifact.upload()
 
 
+def test_dataset_upload_filling_hash():
+    artifact = _generate_dataset_artifact(format_="csv")
+    artifact.upload()
+    assert artifact.hash is not None
+
+
 def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"

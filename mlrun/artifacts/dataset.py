@@ -13,8 +13,8 @@
 # limitations under the License.
 import os
 import pathlib
-from io import StringIO
 import typing
+from io import StringIO
 
 import numpy as np
 import pandas as pd
@@ -264,7 +264,9 @@ def update_dataset_meta(
     )
 
 
-def upload_dataframe(df, target_path, format, src_path=None, **kw) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
+def upload_dataframe(
+    df, target_path, format, src_path=None, **kw
+) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
     suffix = pathlib.Path(target_path).suffix
     if not format:
         if suffix and suffix in [".csv", ".parquet", ".pq"]:
@@ -287,6 +289,9 @@ def upload_dataframe(df, target_path, format, src_path=None, **kw) -> typing.Tup
         if not suffix:
             target_path = target_path + "." + format
         target_class = mlrun.datastore.targets.kind_to_driver[format]
-        return target_class(path=target_path).write_dataframe(df, **kw), file_hash(target_path)
+        return (
+            target_class(path=target_path).write_dataframe(df, **kw),
+            file_hash(target_path),
+        )
 
     raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")

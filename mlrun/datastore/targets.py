@@ -166,13 +166,8 @@ class BaseStoreTarget(DataTargetBase):
         return store
 
     def write_dataframe(
-        self,
-        df,
-        key_column=None,
-        timestamp_key=None,
-        calculate_file_hash=False,
-        **kwargs,
-    ) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
+        self, df, key_column=None, timestamp_key=None, **kwargs,
+    ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -184,16 +179,14 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            file_hash = self._write_dataframe(
-                df, fs, target_path, calculate_file_hash, **kwargs
-            )
+            self._write_dataframe(df, fs, target_path, **kwargs)
             try:
-                return fs.size(target_path), file_hash
+                return fs.size(target_path)
             except Exception:
-                return None
+                return None, None
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, calculate_file_hash, **kwargs):
+    def _write_dataframe(df, fs, target_path, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -260,14 +253,9 @@ class ParquetTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, calculate_file_hash, **kwargs):
+    def _write_dataframe(df, fs, target_path, **kwargs):
         with fs.open(target_path, "wb") as fp:
             df.to_parquet(fp, **kwargs)
-        if calculate_file_hash:
-            with fs.open(target_path, "rb", cache_type="none") as fp:
-                file_hash = mlrun.utils.helpers.calculate_file_hash(file=fp)
-            return file_hash
-        return None
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -303,7 +291,7 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, calculate_file_hash, **kwargs):
+    def _write_dataframe(df, fs, target_path, **kwargs):
         mode = "wb"
         # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
         # with such files until version 1.2.0, in this version they dropped support for python 3.6.
@@ -312,11 +300,6 @@ class CSVTarget(BaseStoreTarget):
             mode = "wt"
         with fs.open(target_path, mode) as fp:
             df.to_csv(fp, **kwargs)
-        if calculate_file_hash:
-            with fs.open(target_path, "rb", cache_type="none") as fp:
-                file_hash = mlrun.utils.helpers.calculate_file_hash(file=fp)
-            return file_hash
-        return None
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None

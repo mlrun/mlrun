@@ -128,10 +128,10 @@ Define your MLRun configuration. As a minimum requirement:
     MLRUN_DBPATH=<API endpoint of the MLRun APIs service engpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
 
-2. In order to store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your artifact. You can use `{{run.project}}` to include the project name in the path `{{run.uid}}` to include the specific run uid in the artifact path. For example:
+2. In order to store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your artifact. You can use `{{project}}` to include the project name in the path `{{run.uid}}` to include the specific run uid in the artifact path. For example:
 
     ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{run.project}}
+    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
     ```
 
 3. If the remote service is on an instance of the Iguazio Data Science Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:

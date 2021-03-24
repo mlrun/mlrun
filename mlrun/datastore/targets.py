@@ -18,9 +18,12 @@ from copy import copy
 
 import mlrun
 import mlrun.utils.helpers
+from mlrun.config import config
 from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
+from mlrun.utils.v3io_clients import get_frames_client
 
+from ..platforms.iguazio import split_path
 from .utils import store_path_to_spark
 from .v3io import parse_v3io_path
 
@@ -375,6 +378,25 @@ class NoSqlTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
 
+    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+        if hasattr(df, "rdd"):
+            options = self.get_spark_options(key_column, timestamp_key)
+            options.update(kwargs)
+            df.write.mode("overwrite").save(**options)
+        else:
+            access_key = self._secrets.get(
+                "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+            )
+
+            _, path_with_container = parse_v3io_path(self._target_path)
+            container, path = split_path(path_with_container)
+
+            frames_client = get_frames_client(
+                token=access_key, address=config.v3io_framesd, container=container
+            )
+
+            frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
+
 
 class StreamTarget(BaseStoreTarget):
     kind = TargetTypes.stream
@@ -443,6 +465,28 @@ class TSDBTarget(BaseStoreTarget):
 
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
+
+    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+        access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
+
+        new_index = []
+        if timestamp_key:
+            new_index.append(timestamp_key)
+        if key_column:
+            if isinstance(key_column, str):
+                key_column = [key_column]
+            new_index.extend(key_column)
+
+        _, path_with_container = parse_v3io_path(self._target_path)
+        container, path = split_path(path_with_container)
+
+        frames_client = get_frames_client(
+            token=access_key, address=config.v3io_framesd, container=container,
+        )
+
+        frames_client.write(
+            "tsdb", path, df, index_cols=new_index if new_index else None, **kwargs
+        )
 
 
 class CustomTarget(BaseStoreTarget):

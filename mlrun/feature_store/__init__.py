@@ -27,6 +27,9 @@ __all__ = [
     "Entity",
     "FeatureSet",
     "FeatureVector",
+    "RunConfig",
+    "OfflineVectorResponse",
+    "OnlineVectorService",
 ]
 
 
@@ -44,4 +47,4 @@ from .api import (
 )
 from .common import RunConfig
 from .feature_set import FeatureSet
-from .feature_vector import FeatureVector
+from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService

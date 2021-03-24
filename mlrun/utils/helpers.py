@@ -852,6 +852,16 @@ def as_list(element: Any) -> List[Any]:
     return element if isinstance(element, list) else [element]
 
 
+def calculate_local_file_hash(filename):
+    h = hashlib.sha1()
+    b = bytearray(128 * 1024)
+    mv = memoryview(b)
+    with open(filename, "rb", buffering=0) as f:
+        for n in iter(lambda: f.readinto(mv), 0):
+            h.update(mv[:n])
+    return h.hexdigest()
+
+
 def fill_artifact_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility

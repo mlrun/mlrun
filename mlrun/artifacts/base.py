@@ -17,10 +17,11 @@ import os
 import yaml
 
 import mlrun
+import mlrun.errors
 
 from ..datastore import get_store_uri, is_store_uri, store_manager
 from ..model import ModelObj
-from ..utils import StorePrefix, generate_artifact_uri
+from ..utils import StorePrefix, calculate_local_file_hash, generate_artifact_uri
 
 calc_hash = True
 
@@ -146,7 +147,7 @@ class Artifact(ModelObj):
 
     def _upload_file(self, src, target=None):
         if calc_hash:
-            self.hash = file_hash(src)
+            self.hash = calculate_local_file_hash(src)
         self.size = os.stat(src).st_size
         store_manager.object(url=target or self.target_path).upload(src)
 
@@ -199,16 +200,6 @@ class LinkArtifact(Artifact):
         self.link_iteration = link_iteration
         self.link_key = link_key
         self.link_tree = link_tree
-
-
-def file_hash(filename):
-    h = hashlib.sha1()
-    b = bytearray(128 * 1024)
-    mv = memoryview(b)
-    with open(filename, "rb", buffering=0) as f:
-        for n in iter(lambda: f.readinto(mv), 0):
-            h.update(mv[:n])
-    return h.hexdigest()
 
 
 def blob_hash(data):

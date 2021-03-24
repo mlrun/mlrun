@@ -13,10 +13,11 @@
 # limitations under the License.
 import os
 import sys
+import typing
 from copy import copy
-from typing import Dict
 
 import mlrun
+import mlrun.utils.helpers
 from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 
@@ -148,7 +149,7 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: typing.Dict[str, str] = None,
         after_state=None,
     ):
         self.name = name
@@ -164,7 +165,9 @@ class BaseStoreTarget(DataTargetBase):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, **kwargs,
+    ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)

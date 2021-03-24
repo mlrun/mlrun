@@ -279,7 +279,7 @@ def upload_dataframe(
         store_manager.object(url=target_path).upload(src_path)
         return (
             os.stat(src_path).st_size,
-            mlrun.utils.helpers.calculate_file_hash(src_path),
+            mlrun.utils.helpers.calculate_local_file_hash(src_path),
         )
 
     if df is None:

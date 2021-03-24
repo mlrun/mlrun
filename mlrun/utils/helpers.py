@@ -852,20 +852,12 @@ def as_list(element: Any) -> List[Any]:
     return element if isinstance(element, list) else [element]
 
 
-def calculate_file_hash(filename=None, file=None):
-    if (not filename and not file) or file and filename:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Exactly one of filename and file must be provided"
-        )
+def calculate_local_file_hash(filename):
     h = hashlib.sha1()
     b = bytearray(128 * 1024)
     mv = memoryview(b)
-    if filename:
-        with open(filename, "rb", buffering=0) as f:
-            for n in iter(lambda: f.readinto(mv), 0):
-                h.update(mv[:n])
-    if file:
-        for n in iter(lambda: file.readinto(mv), 0):
+    with open(filename, "rb", buffering=0) as f:
+        for n in iter(lambda: f.readinto(mv), 0):
             h.update(mv[:n])
     return h.hexdigest()
 

@@ -54,5 +54,8 @@ class HeaderNames:
     secret_store_token = f"{headers_prefix}secret-store-token"
 
 
+labels_prefix = "mlrun/"
+
+
 class LabelNames:
-    schedule_name = "schedule-name"
+    schedule_name = f"{labels_prefix}schedule-name"

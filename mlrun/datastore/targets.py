@@ -183,7 +183,7 @@ class BaseStoreTarget(DataTargetBase):
             try:
                 return fs.size(target_path)
             except Exception:
-                return None, None
+                return None
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, **kwargs):

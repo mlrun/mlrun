@@ -881,6 +881,7 @@ class MlrunProject(ModelObj):
         tag="",
         model_dir=None,
         model_file=None,
+        algorithm=None,
         metrics=None,
         parameters=None,
         artifact_path=None,
@@ -914,6 +915,7 @@ class MlrunProject(ModelObj):
                                 to define a subpath under the default location use:
                                 `artifact_path=context.artifact_subpath('data')`
         :param framework:       name of the ML framework
+        :param algorithm:       training algorithm name
         :param tag:             version tag
         :param metrics:         key/value dict of model metrics
         :param parameters:      key/value dict of model parameters
@@ -945,6 +947,7 @@ class MlrunProject(ModelObj):
             inputs=inputs,
             outputs=outputs,
             framework=framework,
+            algorithm=algorithm,
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,

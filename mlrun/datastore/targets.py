@@ -149,11 +149,11 @@ class BaseStoreTarget(DataTargetBase):
     support_storey = False
 
     def __init__(
-        self,
-        name: str = "",
-        path=None,
-        attributes: typing.Dict[str, str] = None,
-        after_state=None,
+            self,
+            name: str = "",
+            path=None,
+            attributes: typing.Dict[str, str] = None,
+            after_state=None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
@@ -169,7 +169,7 @@ class BaseStoreTarget(DataTargetBase):
         return store
 
     def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, **kwargs,
+            self, df, key_column=None, timestamp_key=None, **kwargs,
     ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
@@ -232,7 +232,7 @@ class BaseStoreTarget(DataTargetBase):
         return target
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         """add storey writer state to graph"""
         raise NotImplementedError()
@@ -261,7 +261,7 @@ class ParquetTarget(BaseStoreTarget):
             df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         column_list = list(features.keys())
         if timestamp_key and timestamp_key not in column_list:
@@ -305,7 +305,7 @@ class CSVTarget(BaseStoreTarget):
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         column_list = list(features.keys())
         if timestamp_key:
@@ -349,7 +349,7 @@ class NoSqlTarget(BaseStoreTarget):
         return Table(uri, V3ioDriver(webapi=endpoint))
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
         column_list = [
@@ -395,7 +395,7 @@ class NoSqlTarget(BaseStoreTarget):
                 token=access_key, address=config.v3io_framesd, container=container
             )
 
-            frames_client.write("kv", path, df, **kwargs)
+            frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
 
 
 class StreamTarget(BaseStoreTarget):
@@ -406,7 +406,7 @@ class StreamTarget(BaseStoreTarget):
     support_storey = True
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         from storey import V3ioDriver
 
@@ -440,7 +440,7 @@ class TSDBTarget(BaseStoreTarget):
     support_storey = True
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         endpoint, uri = parse_v3io_path(self._target_path)
         column_list = list(features.keys())
@@ -497,14 +497,14 @@ class CustomTarget(BaseStoreTarget):
     support_storey = True
 
     def __init__(
-        self, class_name: str, name: str = "", after_state=None, **attributes,
+            self, class_name: str, name: str = "", after_state=None, **attributes,
     ):
         attributes = attributes or {}
         attributes["class_name"] = class_name
         super().__init__(name, "", attributes, after_state=after_state)
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
@@ -531,7 +531,7 @@ class DFTarget(BaseStoreTarget):
         pass
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         # todo: column filter
         graph.add_step(

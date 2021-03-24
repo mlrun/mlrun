@@ -51,14 +51,33 @@ def get_feature_set_by_uri(uri, project=None):
     return db.get_feature_set(name, project, tag, uid)
 
 
-def get_feature_vector_by_uri(uri):
+def get_feature_vector_by_uri(uri, project=None):
     """get feature vector object from db by uri"""
     db = mlrun.get_run_db()
-    project, name, tag, uid = parse_versioned_object_uri(uri, config.default_project)
+    default_project = project or config.default_project
+    project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
     return db.get_feature_vector(name, project, tag, uid)
 
 
 class RunConfig:
+    """remote job/service run configuration
+
+    when running feature ingestion or merging tasks we use the RunConfig class to pass
+    the desired function and job configuration.
+    the apply() method is used to set resources like volumes, the with_secret() method adds secrets
+
+    Parameters:
+        function:      this can be function uri or function object or path to function code (.py/.iynb) or
+                       a :py:class:`~mlrun.runtimes.function_reference.FunctionReference`
+                       the function define the code, dependencies, and resources
+        image (str):   function container image
+        kind (str):    mlrun function kind (job, serving, remote-spark, ..), required when function points to code
+        handler (str): the function handler to execute
+        local (bool):  use True to simulate local job run or mock service
+        watch (bool):  in batch jobs will wait for the job completion and print job logs to the console
+        parameters (dict): optional parameters
+    """
+
     def __init__(
         self,
         function=None,
@@ -67,6 +86,7 @@ class RunConfig:
         kind=None,
         handler=None,
         parameters=None,
+        watch=None,
     ):
         self._function = None
         self._modifiers = []
@@ -78,7 +98,7 @@ class RunConfig:
         self.kind = kind
         self.handler = handler
         self.parameters = parameters or {}
-        self.watch = True
+        self.watch = True if watch is None else watch
 
     @property
     def function(self):
@@ -96,6 +116,12 @@ class RunConfig:
         self._function = function
 
     def apply(self, modifier):
+        """apply a modifier to add/set function resources like volumes
+
+        example::
+
+            run_config.apply(mlrun.platforms.auto_mount())
+        """
         self._modifiers.append(modifier)
         return self
 

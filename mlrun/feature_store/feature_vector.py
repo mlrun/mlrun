@@ -310,7 +310,7 @@ class OnlineVectorService:
 
     @property
     def status(self):
-        """vector prep function status (ready, running, error)"""
+        """vector merger function status (ready, running, error)"""
         return "ready"
 
     def get(self, entity_rows: List[dict], as_list=False):

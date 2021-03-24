@@ -421,7 +421,7 @@ class Scheduler:
             project=project_name,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
         )
-        if len(active_runs) > schedule_concurrency_limit:
+        if len(active_runs) >= schedule_concurrency_limit:
             logger.warn(
                 "Schedule exceeded concurrency limit, skipping this run",
                 project=project_name,

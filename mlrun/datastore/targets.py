@@ -395,7 +395,7 @@ class NoSqlTarget(BaseStoreTarget):
                 token=access_key, address=config.v3io_framesd, container=container
             )
 
-            frames_client.write("kv", path, df)
+            frames_client.write("kv", path, df, **kwargs)
 
 
 class StreamTarget(BaseStoreTarget):
@@ -473,7 +473,9 @@ class TSDBTarget(BaseStoreTarget):
         if timestamp_key:
             new_index.append(timestamp_key)
         if key_column:
-            new_index.append(key_column)
+            if isinstance(key_column, str):
+                key_column = [key_column]
+            new_index.extend(key_column)
 
         _, path_with_container = parse_v3io_path(self._target_path)
         container, path = split_path(path_with_container)
@@ -483,7 +485,7 @@ class TSDBTarget(BaseStoreTarget):
         )
 
         frames_client.write(
-            "tsdb", path, df, index_cols=new_index if new_index else None
+            "tsdb", path, df, index_cols=new_index if new_index else None, **kwargs
         )
 
 

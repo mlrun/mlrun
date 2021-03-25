@@ -1,3 +1,4 @@
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
@@ -58,6 +59,7 @@ unversioned_tagged_object_uid_prefix = "unversioned-"
 class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
+        self._iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
         return
@@ -316,6 +318,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        all_iters: bool = True,
     ):
         project = project or config.default_project
 
@@ -334,6 +337,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         for artifact in self._find_artifacts(
             session, project, ids, labels, since, until, name, kind, category
         ):
+            # Regex support is db-specific, and SQLAlchemy actually implements Python regex in SQLite anyway,
+            # and even that only in SA 1.4. So doing this here rather than in the query.
+            if not all_iters and self._iter_regex.match(artifact.key):
+                continue
+
             artifact_struct = artifact.struct
             if ids != "latest":
                 artifacts_with_tag = self._add_tags_to_artifact_struct(

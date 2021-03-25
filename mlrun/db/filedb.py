@@ -226,7 +226,14 @@ class FileRunDB(RunDBInterface):
         return self._loads(data)
 
     def list_artifacts(
-        self, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        all_iters=True,
     ):
         labels = [] if labels is None else labels
         tag = tag or "latest"

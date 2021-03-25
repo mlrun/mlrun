@@ -53,6 +53,37 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
+def test_list_artifact_root_iter_only(db: DBInterface, db_session: Session):
+    artifact_name_1 = "artifact_name_1"
+    artifact_name_2 = "artifact_name_2"
+    artifact_1 = _generate_artifact(artifact_name_1)
+    artifact_2 = _generate_artifact(artifact_name_2)
+    uid = "artifact_uid"
+
+    # Use iters with multiple digits, to make sure filtering them via regex works
+    test_iters = [0, 5, 9, 42, 219, 2102]
+    for iter in test_iters:
+        artifact_1["iter"] = artifact_2["iter"] = iter
+        db.store_artifact(db_session, artifact_name_1, artifact_1, uid, iter)
+        db.store_artifact(db_session, artifact_name_2, artifact_2, uid, iter)
+
+    artifacts = db.list_artifacts(db_session)
+    assert len(artifacts) == len(test_iters) * 2
+
+    # When all_iters is False, only iter 0 is expected to return.
+    artifacts = db.list_artifacts(db_session, all_iters=False)
+    assert len(artifacts) == 2
+    for artifact in artifacts:
+        assert artifact["iter"] == 0
+
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1, all_iters=False)
+    assert len(artifacts) == 1
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
 def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_kind_1 = ChartArtifact.kind

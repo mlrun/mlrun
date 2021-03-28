@@ -139,7 +139,8 @@ async def start_function(
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
 
-    background_task = await run_in_threadpool(mlrun.api.utils.background_tasks.Handler().create_background_task,
+    background_task = await run_in_threadpool(
+        mlrun.api.utils.background_tasks.Handler().create_background_task,
         db_session,
         function.metadata.project,
         background_tasks,

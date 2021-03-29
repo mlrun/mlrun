@@ -73,6 +73,44 @@ def test_projects_sync_follower_project_adoption(
     )
 
 
+def test_projects_sync_mid_deletion(
+    db: sqlalchemy.orm.Session,
+    projects_leader: mlrun.api.utils.projects.leader.Member,
+    nop_follower: mlrun.api.utils.projects.remotes.member.Member,
+    second_nop_follower: mlrun.api.utils.projects.remotes.member.Member,
+    leader_follower: mlrun.api.utils.projects.remotes.member.Member,
+):
+    """
+    This reproduce a bug in which projects sync is running mid deletion
+    The sync starts after the project was removed from followers, but before it was removed from the leader, meaning the
+    sync will recognize the project is missing in the followers, and create it in them, so finally after the delete
+    process ends, the project exists in the followers, and not in the leader, on the next sync, the project will be
+    created back in the leader causing the the project to practically not being deleted.
+    """
+    project_name = "project-name"
+    project_description = "some description"
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+    )
+    projects_leader.create_project(db, project)
+    _assert_project_in_followers(
+        [leader_follower, nop_follower, second_nop_follower], project
+    )
+    original_leader_follower_delete_project = leader_follower.delete_project
+    def mock_sync_projects_mid_deletion(*args, **kwargs):
+        projects_leader._sync_projects()
+        original_leader_follower_delete_project(*args, **kwargs)
+
+    leader_follower.delete_project = mock_sync_projects_mid_deletion
+    projects_leader.delete_project(db, project_name)
+
+    _assert_no_projects_in_followers([leader_follower, nop_follower, second_nop_follower])
+
+    projects_leader._sync_projects()
+    _assert_no_projects_in_followers([leader_follower, nop_follower, second_nop_follower])
+
+
 def test_projects_sync_leader_project_syncing(
     db: sqlalchemy.orm.Session,
     projects_leader: mlrun.api.utils.projects.leader.Member,

@@ -1,6 +1,6 @@
 import copy
-import typing
 import http
+import typing
 
 import requests.adapters
 import urllib3
@@ -50,16 +50,15 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                             return url_kind_to_url[kind]
         return None
 
-    def create_project(self, session_cookie: str, project: mlrun.api.schemas.Project) -> mlrun.api.schemas.Project:
+    def create_project(
+        self, session_cookie: str, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._generate_request_body(project)
         return self._post_project_to_iguazio(session_cookie, body)
 
     def store_project(
-        self,
-        session_cookie: str,
-        name: str,
-        project: mlrun.api.schemas.Project,
+        self, session_cookie: str, name: str, project: mlrun.api.schemas.Project,
     ):
         logger.debug("Storing project in Iguazio", name=name, project=project)
         body = self._generate_request_body(project)
@@ -79,7 +78,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
         logger.debug(
-            "Deleting project in Iguazio", name=name, deletion_strategy=deletion_strategy
+            "Deleting project in Iguazio",
+            name=name,
+            deletion_strategy=deletion_strategy,
         )
         body = self._generate_request_body(
             mlrun.api.schemas.Project(
@@ -91,7 +92,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             "x-iguazio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
         }
         try:
-            self._send_request_to_api("DELETE", "projects", session_cookie, json=body, headers=headers)
+            self._send_request_to_api(
+                "DELETE", "projects", session_cookie, json=body, headers=headers
+            )
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
@@ -102,8 +105,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             )
 
     def list_projects(
-        self,
-        session_cookie: str,
+        self, session_cookie: str,
     ) -> typing.List[mlrun.api.schemas.Project]:
         response = self._send_request_to_api("GET", "projects", session_cookie)
         response_body = response.json()
@@ -112,12 +114,18 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             projects.append(self._transform_iguazio_project_to_schema(iguazio_project))
         return projects
 
-    def _post_project_to_iguazio(self, session_cookie: str, body: dict) -> mlrun.api.schemas.Project:
-        response = self._send_request_to_api("POST", "projects", session_cookie, json=body)
+    def _post_project_to_iguazio(
+        self, session_cookie: str, body: dict
+    ) -> mlrun.api.schemas.Project:
+        response = self._send_request_to_api(
+            "POST", "projects", session_cookie, json=body
+        )
         return self._transform_iguazio_project_to_schema(response)
 
     def _put_project_to_iguazio(self, session_cookie: str, body: dict):
-        response = self._send_request_to_api("PUT", "projects", session_cookie, json=body)
+        response = self._send_request_to_api(
+            "PUT", "projects", session_cookie, json=body
+        )
         return self._transform_iguazio_project_to_schema(response)
 
     def _get_project_from_iguazio(self, name):

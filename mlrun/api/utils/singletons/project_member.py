@@ -1,8 +1,7 @@
-import mlrun.api.utils.projects.leader
 import mlrun.api.utils.projects.follower
+import mlrun.api.utils.projects.leader
 import mlrun.api.utils.projects.member
 import mlrun.config
-
 
 # TODO: something nicer
 project_member: mlrun.api.utils.projects.member.Member = None

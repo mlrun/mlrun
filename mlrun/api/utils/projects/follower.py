@@ -1,4 +1,3 @@
-import collections
 import typing
 
 import humanfriendly
@@ -6,6 +5,7 @@ import sqlalchemy.orm
 
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
@@ -17,7 +17,6 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
-import mlrun.api.utils.clients.iguazio
 from mlrun.utils import logger
 
 
@@ -31,8 +30,12 @@ class Member(
         if mlrun.config.config.httpdb.projects.leader == "iguazio":
             self._leader_client = mlrun.api.utils.clients.iguazio.Client()
             if not mlrun.config.config.httpdb.projects.iguazio_access_key:
-                raise mlrun.errors.MLRunInvalidArgumentError("Iguazio access key must be configured when the leader is Iguazio")
-            self._iguazio_access_key = mlrun.config.config.httpdb.projects.iguazio_access_key
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Iguazio access key must be configured when the leader is Iguazio"
+                )
+            self._iguazio_access_key = (
+                mlrun.config.config.httpdb.projects.iguazio_access_key
+            )
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
@@ -47,7 +50,10 @@ class Member(
         self._stop_periodic_sync()
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project, request_from_leader: bool = False
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.api.schemas.Project,
+        request_from_leader: bool = False,
     ) -> mlrun.api.schemas.Project:
         if request_from_leader:
             if project.metadata.name in self._projects:
@@ -68,7 +74,9 @@ class Member(
             self._projects[project.metadata.name] = project
             return project
         else:
-            return self._leader_client.store_project(self._iguazio_access_key, name, project)
+            return self._leader_client.store_project(
+                self._iguazio_access_key, name, project
+            )
 
     def patch_project(
         self,
@@ -92,7 +100,9 @@ class Member(
             if name in self._projects:
                 del self._projects[name]
         else:
-            return self._leader_client.delete_project(self._iguazio_access_key, name, deletion_strategy)
+            return self._leader_client.delete_project(
+                self._iguazio_access_key, name, deletion_strategy
+            )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -116,9 +126,16 @@ class Member(
                 "Filtering projects by owner is currently not supported in follower mode"
             )
         if state:
-            projects = list(filter(lambda project: project.status.state == state, projects))
+            projects = list(
+                filter(lambda project: project.status.state == state, projects)
+            )
         if labels:
-            projects = list(filter(lambda project: self._is_project_matching_labels(labels, project), projects))
+            projects = list(
+                filter(
+                    lambda project: self._is_project_matching_labels(labels, project),
+                    projects,
+                )
+            )
         # format output
         if format_ == mlrun.api.schemas.Format.name_only:
             projects = list(map(lambda project: project.metadata.name, projects))
@@ -153,7 +170,9 @@ class Member(
         self._projects = {project.metadata.name: project for project in projects}
 
     @staticmethod
-    def _is_project_matching_labels(labels: typing.List[str], project: mlrun.api.schemas.Project):
+    def _is_project_matching_labels(
+        labels: typing.List[str], project: mlrun.api.schemas.Project
+    ):
         for label in labels:
             if "=" in label:
                 name, value = [v.strip() for v in label.split("=", 1)]

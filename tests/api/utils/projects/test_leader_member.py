@@ -81,7 +81,7 @@ def test_projects_sync_mid_deletion(
     leader_follower: mlrun.api.utils.projects.remotes.member.Member,
 ):
     """
-    This reproduce a bug in which projects sync is running mid deletion
+    This reproduces a bug in which projects sync is running mid deletion
     The sync starts after the project was removed from followers, but before it was removed from the leader, meaning the
     sync will recognize the project is missing in the followers, and create it in them, so finally after the delete
     process ends, the project exists in the followers, and not in the leader, on the next sync, the project will be

@@ -98,6 +98,7 @@ def test_projects_sync_mid_deletion(
         [leader_follower, nop_follower, second_nop_follower], project
     )
     original_leader_follower_delete_project = leader_follower.delete_project
+
     def mock_sync_projects_mid_deletion(*args, **kwargs):
         projects_leader._sync_projects()
         original_leader_follower_delete_project(*args, **kwargs)
@@ -105,10 +106,14 @@ def test_projects_sync_mid_deletion(
     leader_follower.delete_project = mock_sync_projects_mid_deletion
     projects_leader.delete_project(db, project_name)
 
-    _assert_no_projects_in_followers([leader_follower, nop_follower, second_nop_follower])
+    _assert_no_projects_in_followers(
+        [leader_follower, nop_follower, second_nop_follower]
+    )
 
     projects_leader._sync_projects()
-    _assert_no_projects_in_followers([leader_follower, nop_follower, second_nop_follower])
+    _assert_no_projects_in_followers(
+        [leader_follower, nop_follower, second_nop_follower]
+    )
 
 
 def test_projects_sync_leader_project_syncing(

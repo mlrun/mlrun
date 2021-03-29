@@ -107,7 +107,10 @@ default_config = {
         "projects": {
             "leader": "mlrun",
             "followers": "",
+            # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
+            # access key to be used when the leader is iguazio and polling is done from it
+            "iguazio_access_key": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

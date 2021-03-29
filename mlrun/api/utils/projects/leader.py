@@ -38,20 +38,6 @@ class Member(
         logger.info("Shutting down projects leader")
         self._stop_periodic_sync()
 
-    def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
-        project_names = self.list_projects(
-            session, format_=mlrun.api.schemas.Format.name_only
-        )
-        if name in project_names.projects:
-            return
-        logger.info(
-            "Ensure project called, but project does not exist. Creating", name=name
-        )
-        project = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=name),
-        )
-        self.create_project(session, project)
-
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:

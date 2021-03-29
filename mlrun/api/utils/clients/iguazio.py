@@ -1,5 +1,6 @@
 import copy
 import typing
+import http
 
 import requests.adapters
 import urllib3
@@ -49,6 +50,79 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                             return url_kind_to_url[kind]
         return None
 
+    def create_project(self, session_cookie: str, project: mlrun.api.schemas.Project) -> mlrun.api.schemas.Project:
+        logger.debug("Creating project in Iguazio", project=project)
+        body = self._generate_request_body(project)
+        return self._post_project_to_iguazio(session_cookie, body)
+
+    def store_project(
+        self,
+        session_cookie: str,
+        name: str,
+        project: mlrun.api.schemas.Project,
+    ):
+        logger.debug("Storing project in Iguazio", name=name, project=project)
+        body = self._generate_request_body(project)
+        try:
+            self._get_project_from_iguazio(name)
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._post_project_to_iguazio(session_cookie, body)
+        else:
+            self._put_project_to_iguazio(session_cookie, body)
+
+    def delete_project(
+        self,
+        session_cookie: str,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
+        logger.debug(
+            "Deleting project in Iguazio", name=name, deletion_strategy=deletion_strategy
+        )
+        body = self._generate_request_body(
+            mlrun.api.schemas.Project(
+                metadata=mlrun.api.schemas.ProjectMetadata(name=name)
+            )
+        )
+        # TODO: verify header name
+        headers = {
+            "x-iguazio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
+        }
+        try:
+            self._send_request_to_api("DELETE", "projects", session_cookie, json=body, headers=headers)
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            logger.debug(
+                "Project not found in Iguazio. Considering deletion as successful",
+                name=name,
+                deletion_strategy=deletion_strategy,
+            )
+
+    def list_projects(
+        self,
+        session_cookie: str,
+    ) -> typing.List[mlrun.api.schemas.Project]:
+        response = self._send_request_to_api("GET", "projects", session_cookie)
+        response_body = response.json()
+        projects = []
+        for iguazio_project in response_body.values():
+            projects.append(self._transform_iguazio_project_to_schema(iguazio_project))
+        return projects
+
+    def _post_project_to_iguazio(self, session_cookie: str, body: dict) -> mlrun.api.schemas.Project:
+        response = self._send_request_to_api("POST", "projects", session_cookie, json=body)
+        return self._transform_iguazio_project_to_schema(response)
+
+    def _put_project_to_iguazio(self, session_cookie: str, body: dict):
+        response = self._send_request_to_api("PUT", "projects", session_cookie, json=body)
+        return self._transform_iguazio_project_to_schema(response)
+
+    def _get_project_from_iguazio(self, name):
+        return self._send_request_to_api("GET", f"projects/{name}")
+
     def _send_request_to_api(self, method, path, session_cookie=None, **kwargs):
         url = f"{self._api_url}/api/{path}"
         if session_cookie:
@@ -79,3 +153,23 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             logger.warning("Request to iguazio failed", **log_kwargs)
             mlrun.errors.raise_for_status(response)
         return response
+
+    @staticmethod
+    def _generate_request_body(project: mlrun.api.schemas.Project):
+        # TODO: when I have stable schema
+        body = {}
+        return body
+
+    @staticmethod
+    def _transform_iguazio_project_to_schema(iguazio_project):
+        # TODO: when I have stable schema
+        return mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                # name=nuclio_project["metadata"]["name"],
+                # labels=nuclio_project["metadata"].get("labels"),
+                # annotations=nuclio_project["metadata"].get("annotations"),
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(
+                # description=nuclio_project["spec"].get("description")
+            ),
+        )

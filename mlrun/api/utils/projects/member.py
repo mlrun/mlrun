@@ -6,6 +6,7 @@ import sqlalchemy.orm
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.utils.singleton
+from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -17,9 +18,19 @@ class Member(abc.ABC):
     def shutdown(self):
         pass
 
-    @abc.abstractmethod
     def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
-        pass
+        project_names = self.list_projects(
+            session, format_=mlrun.api.schemas.Format.name_only
+        )
+        if name in project_names.projects:
+            return
+        logger.info(
+            "Ensure project called, but project does not exist. Creating", name=name
+        )
+        project = mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=name),
+        )
+        self.create_project(session, project)
 
     @abc.abstractmethod
     def create_project(

@@ -525,7 +525,7 @@ class MlrunProject(ModelObj):
 
     @property
     def name(self) -> str:
-        """This is a property of the spec, look there for documentation
+        """This is a property of the metadata, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
         warnings.warn(
             "This is a property of the metadata, use project.metadata.name instead"

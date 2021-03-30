@@ -16,7 +16,7 @@ import json
 import os
 from copy import deepcopy
 from io import StringIO
-from sys import stderr
+from sys import stderr, stdout
 
 import pandas as pd
 from kubernetes import client
@@ -132,6 +132,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True):
             out = line + out
         if show:
             print(out)
+            stdout.flush()
         if db and not skip:
             uid = runobj.metadata.uid
             project = runobj.metadata.project or ""

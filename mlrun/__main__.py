@@ -266,7 +266,6 @@ def run(
         if workdir:
             fn.spec.workdir = workdir
         fn.is_child = from_env and not kfp
-        print("starting run")
         resp = fn.run(runobj, watch=watch, schedule=schedule)
         if resp and dump:
             print(resp.to_yaml())

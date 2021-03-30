@@ -54,7 +54,6 @@ class ParallelRunner:
         return Client(), None
 
     def _parallel_run_many(self, generator, execution, runobj: RunObject) -> RunList:
-        print(f"start parallel run many, child={self.is_child}, kind={self.kind}")
         results = RunList()
         tasks = generator.generate(runobj)
         handler = runobj.spec.handler
@@ -95,7 +94,6 @@ class ParallelRunner:
             resp = client.submit(
                 remote_handler_wrapper, task.to_json(), handler, self.spec.workdir
             )
-            print("submitted run")
             completed_iter.add(resp)
             queued_runs += 1
             if queued_runs >= parallel_runs:

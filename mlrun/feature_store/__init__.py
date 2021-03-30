@@ -23,6 +23,8 @@ __all__ = [
     "deploy_ingestion_service",
     "delete_feature_set",
     "delete_feature_vector",
+    "get_feature_set",
+    "get_feature_vector",
     "Feature",
     "Entity",
     "FeatureSet",
@@ -44,6 +46,8 @@ from .api import (
     infer,
     infer_metadata,
     ingest,
+    get_feature_set,
+    get_feature_vector,
 )
 from .common import RunConfig
 from .feature_set import FeatureSet

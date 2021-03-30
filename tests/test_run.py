@@ -240,8 +240,9 @@ def test_hyper_parallel_with_stop():
     run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)
-    # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run + 1 in flight
-    assert len(run.status.iterations) == 1 + 3 + 1, "wrong number of iterations"
+    # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run
+    # may have one extra iterations in flight so checking both 4 or 5
+    assert len(run.status.iterations) in [4, 5], "wrong number of iterations"
     assert run.output("best_iteration") == 3, "wrong best iteration"
 
 

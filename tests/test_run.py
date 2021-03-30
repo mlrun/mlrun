@@ -234,7 +234,7 @@ def test_hyper_parallel_with_stop():
         {"p2": [2, 3, 7, 4, 5], "p3": [10, 10, 10, 10, 10]},
         parallel_runs=2,
         selector="max.r1",
-        strategy='list',
+        strategy="list",
         stop_condition="r1>=70",
     )
     run = new_function().run(run_spec, handler=hyper_func)

@@ -16,7 +16,7 @@ import json
 import os
 from copy import deepcopy
 from io import StringIO
-from sys import stderr, stdout
+from sys import stderr
 
 import pandas as pd
 from kubernetes import client

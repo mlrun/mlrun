@@ -566,11 +566,13 @@ class BaseRuntime(ModelObj):
 
     def _run_many(self, generator, execution, runobj: RunObject) -> RunList:
         results = RunList()
+        print(f"start run many, child={self.is_child}, kind={self.kind}")
         num_errors = 0
         tasks = generator.generate(runobj)
         for task in tasks:
             try:
                 # self.store_run(task)
+                print(f"Another run")
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
                 run_results = resp["status"].get("results", {})

@@ -321,6 +321,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)
 
+    stdout.flush()
     if cwd:
         os.chdir(old_dir)
     context.set_logger_stream(sys.stdout)

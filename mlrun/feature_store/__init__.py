@@ -41,13 +41,13 @@ from .api import (
     delete_feature_set,
     delete_feature_vector,
     deploy_ingestion_service,
+    get_feature_set,
+    get_feature_vector,
     get_offline_features,
     get_online_feature_service,
     infer,
     infer_metadata,
     ingest,
-    get_feature_set,
-    get_feature_vector,
 )
 from .common import RunConfig
 from .feature_set import FeatureSet

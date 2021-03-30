@@ -225,6 +225,26 @@ def test_hyper_list_with_stop():
     assert run.output("best_iteration") == 3, "wrong best iteration"
 
 
+def test_hyper_parallel_with_stop():
+    list_params = '{"p2": [2,3,7,4,5], "p3": [10,10,10,10,10]}'
+    mlrun.datastore.set_in_memory_item("params.json", list_params)
+
+    run_spec = mlrun.new_task(params={"p1": 1})
+    run_spec.with_hyper_params(
+        {"p2": [2, 3, 7, 4, 5], "p3": [10, 10, 10, 10, 10]},
+        parallel_runs=2,
+        selector="max.r1",
+        strategy='list',
+        stop_condition="r1>=70",
+    )
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run + 1 in flight
+    assert len(run.status.iterations) == 1 + 3 + 1, "wrong number of iterations"
+    assert run.output("best_iteration") == 3, "wrong best iteration"
+
+
 def test_hyper_random():
     grid_params = {"p2": [2, 1, 3], "p3": [10, 20, 30]}
     run_spec = tag_test(base_spec, "test_hyper_random")

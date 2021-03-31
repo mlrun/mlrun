@@ -502,7 +502,7 @@ def get_feature_set(uri, project=None):
     return get_feature_set_by_uri(uri, project)
 
 
-def get_vector_set(uri, project=None):
+def get_feature_vector(uri, project=None):
     """get feature vector object from the db
 
     :param uri:  a feature vector uri([{project}/{name}[:version])

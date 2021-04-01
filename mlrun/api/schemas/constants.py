@@ -9,6 +9,7 @@ class Format(str, Enum):
     full = "full"
     name_only = "name_only"
     metadata_only = "metadata_only"
+    summary = "summary"
 
 
 class PatchMode(str, Enum):

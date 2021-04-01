@@ -51,6 +51,15 @@ class Project(pydantic.BaseModel):
     status: ObjectStatus = ObjectStatus()
 
 
+class ProjectSummary(pydantic.BaseModel):
+    name: str
+    functions_count: int
+    feature_sets_count: int
+    models_count: int
+    runs_failed_recent_count: int
+    runs_running_count: int
+
+
 class ProjectsOutput(pydantic.BaseModel):
     # use the format query param to control whether the full object will be returned or only the names
-    projects: typing.List[typing.Union[Project, str]]
+    projects: typing.List[typing.Union[Project, str, ProjectSummary]]

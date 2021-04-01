@@ -297,16 +297,19 @@ def _assert_project(
 def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
     for index in range(artifacts_count):
         key = f"{kind}-name-{index}"
-        uid = str(uuid4())
-        artifact = {
-            "kind": kind,
-            "metadata": {
-                "key": key,
-                "project": project_name,
+        # create several versions of the same artifact to verify we're not counting all versions, just all artifacts
+        # (unique key)
+        for _ in range(3):
+            uid = str(uuid4())
+            artifact = {
+                "kind": kind,
+                "metadata": {
+                    "key": key,
+                    "project": project_name,
+                }
             }
-        }
-        response = client.post(f"/api/artifact/{project_name}/{uid}/{key}", json=artifact)
-        assert response.status_code == HTTPStatus.OK.value, response.json()
+            response = client.post(f"/api/artifact/{project_name}/{uid}/{key}", json=artifact)
+            assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
 def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
@@ -352,20 +355,24 @@ def _create_functions(client: TestClient, project_name, functions_count):
 
 def _create_runs(client: TestClient, project_name, runs_count, state=None, start_time=None):
     for index in range(runs_count):
-        run_uid = str(uuid4())
-        run = {
-            "kind": mlrun.artifacts.model.ModelArtifact.kind,
-            "metadata": {
-                "uid": run_uid,
-                "project": project_name,
-            },
-        }
-        if state:
-            run["status"] = {
-                "state": state,
+        run_name = f"run-name-{str(uuid4())}"
+        # create several runs of the same name to verify we're not counting all instances, just all unique run names
+        for _ in range(3):
+            run_uid = str(uuid4())
+            run = {
+                "kind": mlrun.artifacts.model.ModelArtifact.kind,
+                "metadata": {
+                    "name": run_name,
+                    "uid": run_uid,
+                    "project": project_name,
+                },
             }
-        if start_time:
-            run.setdefault("status", {})["start_time"] = start_time.isoformat()
-        response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
-        assert response.status_code == HTTPStatus.OK.value, response.json()
+            if state:
+                run["status"] = {
+                    "state": state,
+                }
+            if start_time:
+                run.setdefault("status", {})["start_time"] = start_time.isoformat()
+            response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
+            assert response.status_code == HTTPStatus.OK.value, response.json()
 

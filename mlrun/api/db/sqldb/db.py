@@ -865,22 +865,33 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         feature_sets_count_per_project = session.query(FeatureSet.project, func.count(distinct(FeatureSet.name))).group_by(
             FeatureSet.project).all()
         project_to_feature_set_count = {result[0]: result[1] for result in feature_sets_count_per_project}
-        model_artifacts = self._find_artifacts(session, None, "*", kind=mlrun.artifacts.model.ModelArtifact.kind)
+        # the kind filter is applied post the query to the DB (manually in python code), so counting should be that way
+        # as well, therefore we're doing it here, and can't do it with sql as the above
+        # we're using the "latest" which gives us only one version of each artifact key, which is what we want to count
+        # (artifact count, not artifact versions count)
+        model_artifacts = self._find_artifacts(session, None, "latest", kind=mlrun.artifacts.model.ModelArtifact.kind)
         project_to_models_count = collections.defaultdict(int)
         for model_artifact in model_artifacts:
             project_to_models_count[model_artifact.project] += 1
         runs = self._find_runs(session, None, "*", None)
         project_to_recent_failed_runs_count = collections.defaultdict(int)
+        project_to_recent_failed_run_names = collections.defaultdict(set)
         project_to_running_runs_count = collections.defaultdict(int)
+        project_to_running_run_names = collections.defaultdict(set)
         runs = runs.all()
         for run in runs:
             run_json = run.struct
             if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states()):
-                project_to_running_runs_count[run.project] += 1
+                if run_json.get("metadata", {}).get("name") and run_json['metadata']['name'] not in project_to_running_run_names[run.project]:
+                    project_to_running_run_names[run.project].add(run_json['metadata']['name'])
+                    project_to_running_runs_count[run.project] += 1
             if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.error):
                 one_day_ago = datetime.now() - timedelta(hours=24)
                 if run.start_time and run.start_time >= one_day_ago:
-                    project_to_recent_failed_runs_count[run.project] += 1
+                    if run_json.get("metadata", {}).get("name") and run_json['metadata']['name'] not in \
+                            project_to_recent_failed_run_names[run.project]:
+                        project_to_recent_failed_run_names[run.project].add(run_json['metadata']['name'])
+                        project_to_recent_failed_runs_count[run.project] += 1
 
         project_summaries = {}
         for project in projects:

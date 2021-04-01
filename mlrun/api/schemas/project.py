@@ -53,11 +53,11 @@ class Project(pydantic.BaseModel):
 
 class ProjectSummary(pydantic.BaseModel):
     name: str
-    functions: int
-    feature_sets: int
-    models: int
-    failed_runs: int
-    running_runs: int
+    functions_count: int
+    feature_sets_count: int
+    models_count: int
+    runs_failed_recent_count: int
+    runs_running_count: int
 
 
 class ProjectsOutput(pydantic.BaseModel):

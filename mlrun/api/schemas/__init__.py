@@ -54,6 +54,7 @@ from .project import (
     ProjectSpec,
     ProjectState,
     ProjectStatus,
+    ProjectSummary,
 )
 from .runtime_resource import (
     GroupedRuntimeResourcesOutput,

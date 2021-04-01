@@ -108,6 +108,7 @@ default_config = {
             "leader": "mlrun",
             "followers": "",
             "periodic_sync_interval": "1 minute",
+            "counters_cache_ttl": "10 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.utils.projects.remotes.member
 import mlrun.errors
-import mlrun.artifacts.model
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -860,15 +859,24 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return schemas.ProjectsOutput(projects=projects)
 
     def _generate_projects_summary_data(self, session: Session, projects: List[str]) -> Dict[str, mlrun.api.schemas.ProjectSummary]:
+        import mlrun.artifacts
         functions_count_per_project = session.query(Function.project, func.count(Function.id)).group_by(Function.project).all()
         project_to_function_count = {result[0]: result[1] for result in functions_count_per_project}
         feature_sets_count_per_project = session.query(FeatureSet.project, func.count(FeatureSet.id)).group_by(
             FeatureSet.project).all()
         project_to_feature_set_count = {result[0]: result[1] for result in feature_sets_count_per_project}
-        models_artifacts = self._find_artifacts(session, None, "*", kind=mlrun.artifacts.model.ModelArtifact.kind)
+        model_artifacts = self._find_artifacts(session, None, "*", kind=mlrun.artifacts.model.ModelArtifact.kind)
         project_to_models_count = collections.defaultdict(int)
-        for models_artifact in models_artifacts:
-            project_to_models_count[models_artifact.project] += 1
+        for model_artifact in model_artifacts:
+            project_to_models_count[model_artifact.project] += 1
+        runs = self._find_runs(session, None, "*", None)
+        project_to_recent_failed_runs_count = collections.defaultdict(int)
+        project_to_running_runs_count = collections.defaultdict(int)
+        for run in runs:
+            run_json = run.struct
+            if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states()):
+                continue
+            project_to_running_runs_count[run.project] += 1
 
         project_summaries = {}
         for project in projects:
@@ -878,7 +886,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 feature_sets_count=project_to_feature_set_count.get(project, 0),
                 models_count=project_to_models_count.get(project, 0),
                 runs_failed_recent_count=0,
-                runs_running_count=0,
+                runs_running_count=project_to_running_runs_count.get(project, 0),
             )
         return project_summaries
 
@@ -1877,34 +1885,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 ):
                     continue
             if state:
-                requested_states = as_list(state)
-                record_state = run.state
-                json_state = None
-                if (
-                    run_json
-                    and isinstance(run_json, dict)
-                    and run_json.get("status", {}).get("state")
-                ):
-                    json_state = run_json.get("status", {}).get("state")
-                if not record_state and not json_state:
+                if not self._is_run_matching_state(run, run_json, state):
                     continue
-                # json_state has precedence over record state
-                if json_state:
-                    if all(
-                        [
-                            requested_state not in json_state
-                            for requested_state in requested_states
-                        ]
-                    ):
-                        continue
-                else:
-                    if all(
-                        [
-                            requested_state not in record_state
-                            for requested_state in requested_states
-                        ]
-                    ):
-                        continue
             if last_update_time_from or last_update_time_to:
                 if not match_times(
                     last_update_time_from,
@@ -1917,6 +1899,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             filtered_runs.append(run)
 
         return filtered_runs
+
+    def _is_run_matching_state(self, run, run_json, state):
+        requested_states = as_list(state)
+        record_state = run.state
+        json_state = None
+        if (
+                run_json
+                and isinstance(run_json, dict)
+                and run_json.get("status", {}).get("state")
+        ):
+            json_state = run_json.get("status", {}).get("state")
+        if not record_state and not json_state:
+            return False
+        # json_state has precedence over record state
+        if json_state:
+            if all(
+                    [
+                        requested_state not in json_state
+                        for requested_state in requested_states
+                    ]
+            ):
+                return False
+        else:
+            if all(
+                    [
+                        requested_state not in record_state
+                        for requested_state in requested_states
+                    ]
+            ):
+                return False
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)

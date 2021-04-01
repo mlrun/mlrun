@@ -8,10 +8,13 @@ import deepdiff
 import mergedeep
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+import pytest
 
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.artifacts.model
+import mlrun.artifacts.dataset
 
 
 def test_create_project_failure_already_exists(db: Session, client: TestClient) -> None:
@@ -28,6 +31,59 @@ def test_create_project_failure_already_exists(db: Session, client: TestClient) 
     # create again
     response = client.post("/api/projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CONFLICT.value
+
+
+def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
+    # create empty project
+    empty_project_name = "empty-project"
+    empty_project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
+    )
+    response = client.post("/api/projects", json=empty_project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # create project with resources
+    project_name = "project-with-resources"
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+    )
+    response = client.post("/api/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # create functions for the project
+    functions_count = 5
+    _create_functions(client, project_name, functions_count)
+
+    # create feature sets for the project
+    feature_sets_count = 9
+    _create_feature_sets(client, project_name, feature_sets_count)
+
+    # create model artifacts for the project
+    models_count = 4
+    _create_artifacts(client, project_name, models_count, mlrun.artifacts.model.ModelArtifact.kind)
+
+    # create dataset artifacts for the project to make sure we're not mistakenly count them
+    _create_artifacts(client, project_name, 7, mlrun.artifacts.dataset.DatasetArtifact.kind)
+
+    # create runs for the project
+    runs_count = 5
+    _create_runs(client, project_name, runs_count, mlrun.runtimes.constants.RunStates.running)
+
+    # create completed runs for the project to make sure we're not mistakenly count them
+    _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
+
+    # list projects with summary format
+    response = client.get(
+        "/api/projects", params={"format": mlrun.api.schemas.Format.summary}
+    )
+    projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
+    for index, project_summary in enumerate(projects_output.projects):
+        if project_summary.name == empty_project_name:
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0)
+        elif project_summary.name == project_name:
+            _assert_project_summary(project_summary, functions_count, feature_sets_count, models_count, 0, runs_count)
+        else:
+            pytest.fail(f"Unexpected project summary returned: {project_summary}")
 
 
 def test_projects_crud(db: Session, client: TestClient) -> None:
@@ -197,6 +253,19 @@ def _assert_project_response(
     _assert_project(expected_project, project, extra_exclude)
 
 
+def _assert_project_summary(project_summary: mlrun.api.schemas.ProjectSummary,
+                            functions_count: int,
+                            feature_sets_count: int,
+                            models_count: int,
+                            runs_failed_recent_count: int,
+                            runs_running_count: int):
+    assert project_summary.functions_count == functions_count
+    assert project_summary.feature_sets_count == feature_sets_count
+    assert project_summary.models_count == models_count
+    assert project_summary.runs_failed_recent_count == runs_failed_recent_count
+    assert project_summary.runs_running_count == runs_running_count
+
+
 def _assert_project(
     expected_project: mlrun.api.schemas.Project,
     project: mlrun.api.schemas.Project,
@@ -213,3 +282,68 @@ def _assert_project(
         )
         == {}
     )
+
+
+def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
+    for index in range(artifacts_count):
+        key = f"{kind}-name-{index}"
+        uid = f"{kind}-uid-{index}"
+        artifact = {
+            "kind": kind,
+            "metadata": {
+                "key": key,
+                "project": project_name,
+            }
+        }
+        response = client.post(f"/api/artifact/{project_name}/{uid}/{key}", json=artifact)
+        assert response.status_code == HTTPStatus.OK.value, response.json()
+
+
+def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
+    for index in range(feature_sets_count):
+        feature_set_name = f"feature-set-name-{index}"
+        feature_set = {
+            "metadata": {
+                "name": feature_set_name,
+                "project": project_name,
+            },
+            "spec": {
+                "entities": [],
+                "features": [],
+            },
+            "status": {}
+        }
+        response = client.post(f"/api/projects/{project_name}/feature-sets", json=feature_set)
+        assert response.status_code == HTTPStatus.OK.value, response.json()
+
+
+def _create_functions(client: TestClient, project_name, functions_count):
+    for index in range(functions_count):
+        function_name = f"function-name-{index}"
+        function = {
+            "metadata": {
+                "name": function_name,
+                "project": project_name,
+            }
+        }
+        response = client.post(f"/api/func/{project_name}/{function_name}", json=function)
+        assert response.status_code == HTTPStatus.OK.value, response.json()
+
+
+def _create_runs(client: TestClient, project_name, runs_count, state=None):
+    for index in range(runs_count):
+        run_uid = f"run-uid-{index}"
+        run = {
+            "kind": mlrun.artifacts.model.ModelArtifact.kind,
+            "metadata": {
+                "uid": run_uid,
+                "project": project_name,
+            },
+        }
+        if state:
+            run["status"] = {
+                "state": state,
+            }
+        response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
+        assert response.status_code == HTTPStatus.OK.value, response.json()
+

@@ -878,7 +878,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states()):
                 project_to_running_runs_count[run.project] += 1
             if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.error):
-                bla = 1
+                one_day_ago = datetime.now() - timedelta(hours=24)
+                if run.start_time and run.start_time >= one_day_ago:
+                    project_to_recent_failed_runs_count[run.project] += 1
 
         project_summaries = {}
         for project in projects:
@@ -887,7 +889,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 functions_count=project_to_function_count.get(project, 0),
                 feature_sets_count=project_to_feature_set_count.get(project, 0),
                 models_count=project_to_models_count.get(project, 0),
-                runs_failed_recent_count=0,
+                runs_failed_recent_count=project_to_recent_failed_runs_count.get(project, 0),
                 runs_running_count=project_to_running_runs_count.get(project, 0),
             )
         return project_summaries

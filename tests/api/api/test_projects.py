@@ -1,6 +1,7 @@
 import copy
 import typing
 import unittest.mock
+import datetime
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -72,6 +73,15 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
     # create completed runs for the project to make sure we're not mistakenly count them
     _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
 
+    # create failed runs for the project for less than 24 hours ago
+    recent_failed_runs_count = 6
+    one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+    _create_runs(client, project_name, recent_failed_runs_count, mlrun.runtimes.constants.RunStates.error, one_hour_ago)
+
+    # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly count them
+    two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
+    _create_runs(client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago)
+
     # list projects with summary format
     response = client.get(
         "/api/projects", params={"format": mlrun.api.schemas.Format.summary}
@@ -81,7 +91,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         if project_summary.name == empty_project_name:
             _assert_project_summary(project_summary, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
-            _assert_project_summary(project_summary, functions_count, feature_sets_count, models_count, 0, running_runs_count)
+            _assert_project_summary(project_summary, functions_count, feature_sets_count, models_count, recent_failed_runs_count, running_runs_count)
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
 
@@ -330,7 +340,7 @@ def _create_functions(client: TestClient, project_name, functions_count):
         assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
-def _create_runs(client: TestClient, project_name, runs_count, state=None):
+def _create_runs(client: TestClient, project_name, runs_count, state=None, start_time=None):
     for index in range(runs_count):
         run_uid = str(uuid4())
         run = {
@@ -344,6 +354,8 @@ def _create_runs(client: TestClient, project_name, runs_count, state=None):
             run["status"] = {
                 "state": state,
             }
+        if start_time:
+            run.setdefault("status", {})["start_time"] = start_time.isoformat()
         response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
         assert response.status_code == HTTPStatus.OK.value, response.json()
 

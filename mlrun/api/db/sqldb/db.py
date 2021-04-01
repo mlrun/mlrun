@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 import mergedeep
 import pytz
 import collections
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, distinct
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -860,7 +860,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def _generate_projects_summary_data(self, session: Session, projects: List[str]) -> Dict[str, mlrun.api.schemas.ProjectSummary]:
         import mlrun.artifacts
-        functions_count_per_project = session.query(Function.project, func.count(Function.id)).group_by(Function.project).all()
+        functions_count_per_project = session.query(Function.project, func.count(distinct(Function.name))).group_by(Function.project).all()
         project_to_function_count = {result[0]: result[1] for result in functions_count_per_project}
         feature_sets_count_per_project = session.query(FeatureSet.project, func.count(FeatureSet.id)).group_by(
             FeatureSet.project).all()

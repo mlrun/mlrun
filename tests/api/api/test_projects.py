@@ -330,14 +330,20 @@ def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
 def _create_functions(client: TestClient, project_name, functions_count):
     for index in range(functions_count):
         function_name = f"function-name-{index}"
-        function = {
-            "metadata": {
-                "name": function_name,
-                "project": project_name,
+        # create several versions of the same function to verify we're not counting all versions, just all functions
+        # (unique name)
+        for _ in range(3):
+            function = {
+                "metadata": {
+                    "name": function_name,
+                    "project": project_name,
+                },
+                "spec": {
+                    "some_field": str(uuid4())
+                }
             }
-        }
-        response = client.post(f"/api/func/{project_name}/{function_name}", json=function)
-        assert response.status_code == HTTPStatus.OK.value, response.json()
+            response = client.post(f"/api/func/{project_name}/{function_name}", json=function, params={'versioned': True})
+            assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
 def _create_runs(client: TestClient, project_name, runs_count, state=None, start_time=None):

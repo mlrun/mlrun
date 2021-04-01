@@ -4,12 +4,14 @@ from typing import Any, Dict, List
 
 import mergedeep
 import pytz
+import collections
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.api.utils.projects.remotes.member
 import mlrun.errors
+import mlrun.artifacts.model
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -863,13 +865,18 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         feature_sets_count_per_project = session.query(FeatureSet.project, func.count(FeatureSet.id)).group_by(
             FeatureSet.project).all()
         project_to_feature_set_count = {result[0]: result[1] for result in feature_sets_count_per_project}
+        models_artifacts = self._find_artifacts(session, None, "*", kind=mlrun.artifacts.model.ModelArtifact.kind)
+        project_to_models_count = collections.defaultdict(int)
+        for models_artifact in models_artifacts:
+            project_to_models_count[models_artifact.project] += 1
+
         project_summaries = {}
         for project in projects:
             project_summaries[project] = mlrun.api.schemas.ProjectSummary(
                 name=project,
                 functions_count=project_to_function_count.get(project, 0),
                 feature_sets_count=project_to_feature_set_count.get(project, 0),
-                models_count=0,
+                models_count=project_to_models_count.get(project, 0),
                 runs_failed_recent_count=0,
                 runs_running_count=0,
             )

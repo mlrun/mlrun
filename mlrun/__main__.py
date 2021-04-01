@@ -238,7 +238,7 @@ def run(
 
     set_item(runobj.spec, hyperparam, "hyperparams", fill_params(hyperparam))
     if hyper_param_options:
-        runobj.spec.hyper_param_options = json.loads(hyper_param_options)
+        runobj.spec.hyper_param_options = py_eval(hyper_param_options)
     set_item(runobj.spec.hyper_param_options, param_file, "param_file")
     set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
     set_item(runobj.spec.hyper_param_options, selector, "selector")

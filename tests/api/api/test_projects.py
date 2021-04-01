@@ -312,19 +312,23 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
 def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
     for index in range(feature_sets_count):
         feature_set_name = f"feature-set-name-{index}"
-        feature_set = {
-            "metadata": {
-                "name": feature_set_name,
-                "project": project_name,
-            },
-            "spec": {
-                "entities": [],
-                "features": [],
-            },
-            "status": {}
-        }
-        response = client.post(f"/api/projects/{project_name}/feature-sets", json=feature_set)
-        assert response.status_code == HTTPStatus.OK.value, response.json()
+        # create several versions of the same feature set to verify we're not counting all versions, just all feature
+        # sets (unique name)
+        for _ in range(3):
+            feature_set = {
+                "metadata": {
+                    "name": feature_set_name,
+                    "project": project_name,
+                },
+                "spec": {
+                    "entities": [],
+                    "features": [],
+                    "some_field": str(uuid4())
+                },
+                "status": {}
+            }
+            response = client.post(f"/api/projects/{project_name}/feature-sets", json=feature_set)
+            assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
 def _create_functions(client: TestClient, project_name, functions_count):

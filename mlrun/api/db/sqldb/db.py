@@ -862,7 +862,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         import mlrun.artifacts
         functions_count_per_project = session.query(Function.project, func.count(distinct(Function.name))).group_by(Function.project).all()
         project_to_function_count = {result[0]: result[1] for result in functions_count_per_project}
-        feature_sets_count_per_project = session.query(FeatureSet.project, func.count(FeatureSet.id)).group_by(
+        feature_sets_count_per_project = session.query(FeatureSet.project, func.count(distinct(FeatureSet.name))).group_by(
             FeatureSet.project).all()
         project_to_feature_set_count = {result[0]: result[1] for result in feature_sets_count_per_project}
         model_artifacts = self._find_artifacts(session, None, "*", kind=mlrun.artifacts.model.ModelArtifact.kind)

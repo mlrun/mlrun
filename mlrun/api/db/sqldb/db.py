@@ -836,19 +836,44 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, Project, owner=owner, state=state)
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
+        project_records = query.all()
+        project_names = [project_record.name for project_record in project_records]
+        projects_summary_data = {}
+        if format_ == mlrun.api.schemas.Format.summary:
+            projects_summary_data = self._generate_projects_summary_data(session, project_names)
         projects = []
-        for project_record in query:
+        for project_record in project_records:
             if format_ == mlrun.api.schemas.Format.name_only:
-                projects.append(project_record.name)
+                projects = project_names
             elif format_ == mlrun.api.schemas.Format.full:
                 projects.append(
                     self._transform_project_record_to_schema(session, project_record)
                 )
+            elif format_ == mlrun.api.schemas.Format.summary:
+                projects.append(projects_summary_data[project_record.name])
             else:
                 raise NotImplementedError(
                     f"Provided format is not supported. format={format_}"
                 )
         return schemas.ProjectsOutput(projects=projects)
+
+    def _generate_projects_summary_data(self, session: Session, projects: List[str]) -> Dict[str, mlrun.api.schemas.ProjectSummary]:
+        functions_count_per_project = session.query(Function.project, func.count(Function.id)).group_by(Function.project).all()
+        project_to_function_count = {result[0]: result[1] for result in functions_count_per_project}
+        feature_sets_count_per_project = session.query(FeatureSet.project, func.count(FeatureSet.id)).group_by(
+            FeatureSet.project).all()
+        project_to_feature_set_count = {result[0]: result[1] for result in feature_sets_count_per_project}
+        project_summaries = {}
+        for project in projects:
+            project_summaries[project] = mlrun.api.schemas.ProjectSummary(
+                name=project,
+                functions_count=project_to_function_count.get(project, 0),
+                feature_sets_count=project_to_feature_set_count.get(project, 0),
+                models_count=0,
+                runs_failed_recent_count=0,
+                runs_running_count=0,
+            )
+        return project_summaries
 
     def _update_project_record_from_project(
         self, session: Session, project_record: Project, project: schemas.Project

@@ -872,11 +872,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         runs = self._find_runs(session, None, "*", None)
         project_to_recent_failed_runs_count = collections.defaultdict(int)
         project_to_running_runs_count = collections.defaultdict(int)
+        runs = runs.all()
         for run in runs:
             run_json = run.struct
             if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states()):
-                continue
-            project_to_running_runs_count[run.project] += 1
+                project_to_running_runs_count[run.project] += 1
+            if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.error):
+                bla = 1
 
         project_summaries = {}
         for project in projects:
@@ -1914,21 +1916,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             return False
         # json_state has precedence over record state
         if json_state:
-            if all(
-                    [
-                        requested_state not in json_state
-                        for requested_state in requested_states
-                    ]
-            ):
-                return False
+            if json_state in requested_states:
+                return True
         else:
-            if all(
-                    [
-                        requested_state not in record_state
-                        for requested_state in requested_states
-                    ]
-            ):
-                return False
+            if record_state in requested_states:
+                return True
+        return False
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)

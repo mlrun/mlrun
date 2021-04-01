@@ -66,8 +66,8 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
     _create_artifacts(client, project_name, 7, mlrun.artifacts.dataset.DatasetArtifact.kind)
 
     # create runs for the project
-    runs_count = 5
-    _create_runs(client, project_name, runs_count, mlrun.runtimes.constants.RunStates.running)
+    running_runs_count = 5
+    _create_runs(client, project_name, running_runs_count, mlrun.runtimes.constants.RunStates.running)
 
     # create completed runs for the project to make sure we're not mistakenly count them
     _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
@@ -81,7 +81,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         if project_summary.name == empty_project_name:
             _assert_project_summary(project_summary, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
-            _assert_project_summary(project_summary, functions_count, feature_sets_count, models_count, 0, runs_count)
+            _assert_project_summary(project_summary, functions_count, feature_sets_count, models_count, 0, running_runs_count)
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
 
@@ -287,7 +287,7 @@ def _assert_project(
 def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
     for index in range(artifacts_count):
         key = f"{kind}-name-{index}"
-        uid = f"{kind}-uid-{index}"
+        uid = str(uuid4())
         artifact = {
             "kind": kind,
             "metadata": {
@@ -332,7 +332,7 @@ def _create_functions(client: TestClient, project_name, functions_count):
 
 def _create_runs(client: TestClient, project_name, runs_count, state=None):
     for index in range(runs_count):
-        run_uid = f"run-uid-{index}"
+        run_uid = str(uuid4())
         run = {
             "kind": mlrun.artifacts.model.ModelArtifact.kind,
             "metadata": {

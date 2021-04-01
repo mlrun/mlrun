@@ -1,21 +1,21 @@
 import copy
+import datetime
 import typing
 import unittest.mock
-import datetime
 from http import HTTPStatus
 from uuid import uuid4
 
 import deepdiff
 import mergedeep
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-import pytest
 
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.errors
-import mlrun.artifacts.model
 import mlrun.artifacts.dataset
+import mlrun.artifacts.model
+import mlrun.errors
 
 
 def test_create_project_failure_already_exists(db: Session, client: TestClient) -> None:
@@ -61,14 +61,23 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
 
     # create model artifacts for the project
     models_count = 4
-    _create_artifacts(client, project_name, models_count, mlrun.artifacts.model.ModelArtifact.kind)
+    _create_artifacts(
+        client, project_name, models_count, mlrun.artifacts.model.ModelArtifact.kind
+    )
 
     # create dataset artifacts for the project to make sure we're not mistakenly count them
-    _create_artifacts(client, project_name, 7, mlrun.artifacts.dataset.DatasetArtifact.kind)
+    _create_artifacts(
+        client, project_name, 7, mlrun.artifacts.dataset.DatasetArtifact.kind
+    )
 
     # create runs for the project
     running_runs_count = 5
-    _create_runs(client, project_name, running_runs_count, mlrun.runtimes.constants.RunStates.running)
+    _create_runs(
+        client,
+        project_name,
+        running_runs_count,
+        mlrun.runtimes.constants.RunStates.running,
+    )
 
     # create completed runs for the project to make sure we're not mistakenly count them
     _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
@@ -76,11 +85,19 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
     # create failed runs for the project for less than 24 hours ago
     recent_failed_runs_count = 6
     one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
-    _create_runs(client, project_name, recent_failed_runs_count, mlrun.runtimes.constants.RunStates.error, one_hour_ago)
+    _create_runs(
+        client,
+        project_name,
+        recent_failed_runs_count,
+        mlrun.runtimes.constants.RunStates.error,
+        one_hour_ago,
+    )
 
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly count them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
-    _create_runs(client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago)
+    _create_runs(
+        client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago
+    )
 
     # list projects with summary format
     response = client.get(
@@ -91,7 +108,14 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         if project_summary.name == empty_project_name:
             _assert_project_summary(project_summary, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
-            _assert_project_summary(project_summary, functions_count, feature_sets_count, models_count, recent_failed_runs_count, running_runs_count)
+            _assert_project_summary(
+                project_summary,
+                functions_count,
+                feature_sets_count,
+                models_count,
+                recent_failed_runs_count,
+                running_runs_count,
+            )
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
 
@@ -263,12 +287,14 @@ def _assert_project_response(
     _assert_project(expected_project, project, extra_exclude)
 
 
-def _assert_project_summary(project_summary: mlrun.api.schemas.ProjectSummary,
-                            functions_count: int,
-                            feature_sets_count: int,
-                            models_count: int,
-                            runs_failed_recent_count: int,
-                            runs_running_count: int):
+def _assert_project_summary(
+    project_summary: mlrun.api.schemas.ProjectSummary,
+    functions_count: int,
+    feature_sets_count: int,
+    models_count: int,
+    runs_failed_recent_count: int,
+    runs_running_count: int,
+):
     assert project_summary.functions_count == functions_count
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count
@@ -303,12 +329,11 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
             uid = str(uuid4())
             artifact = {
                 "kind": kind,
-                "metadata": {
-                    "key": key,
-                    "project": project_name,
-                }
+                "metadata": {"key": key, "project": project_name},
             }
-            response = client.post(f"/api/artifact/{project_name}/{uid}/{key}", json=artifact)
+            response = client.post(
+                f"/api/artifact/{project_name}/{uid}/{key}", json=artifact
+            )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
@@ -319,18 +344,13 @@ def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
         # sets (unique name)
         for _ in range(3):
             feature_set = {
-                "metadata": {
-                    "name": feature_set_name,
-                    "project": project_name,
-                },
-                "spec": {
-                    "entities": [],
-                    "features": [],
-                    "some_field": str(uuid4())
-                },
-                "status": {}
+                "metadata": {"name": feature_set_name, "project": project_name},
+                "spec": {"entities": [], "features": [], "some_field": str(uuid4())},
+                "status": {},
             }
-            response = client.post(f"/api/projects/{project_name}/feature-sets", json=feature_set)
+            response = client.post(
+                f"/api/projects/{project_name}/feature-sets", json=feature_set
+            )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
@@ -341,19 +361,20 @@ def _create_functions(client: TestClient, project_name, functions_count):
         # (unique name)
         for _ in range(3):
             function = {
-                "metadata": {
-                    "name": function_name,
-                    "project": project_name,
-                },
-                "spec": {
-                    "some_field": str(uuid4())
-                }
+                "metadata": {"name": function_name, "project": project_name},
+                "spec": {"some_field": str(uuid4())},
             }
-            response = client.post(f"/api/func/{project_name}/{function_name}", json=function, params={'versioned': True})
+            response = client.post(
+                f"/api/func/{project_name}/{function_name}",
+                json=function,
+                params={"versioned": True},
+            )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
-def _create_runs(client: TestClient, project_name, runs_count, state=None, start_time=None):
+def _create_runs(
+    client: TestClient, project_name, runs_count, state=None, start_time=None
+):
     for index in range(runs_count):
         run_name = f"run-name-{str(uuid4())}"
         # create several runs of the same name to verify we're not counting all instances, just all unique run names
@@ -375,4 +396,3 @@ def _create_runs(client: TestClient, project_name, runs_count, state=None, start
                 run.setdefault("status", {})["start_time"] = start_time.isoformat()
             response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
             assert response.status_code == HTTPStatus.OK.value, response.json()
-

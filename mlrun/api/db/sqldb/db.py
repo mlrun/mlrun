@@ -1,12 +1,12 @@
+import collections
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
+import humanfriendly
 import mergedeep
 import pytz
-import collections
-import humanfriendly
-from sqlalchemy import and_, func, or_, distinct
+from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -61,10 +61,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {
-            "project_resources_counters": {
-                "value": None,
-                "ttl": datetime.min,
-            }
+            "project_resources_counters": {"value": None, "ttl": datetime.min}
         }
 
     def initialize(self, session):
@@ -857,7 +854,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     projects = project_names
                 elif format_ == mlrun.api.schemas.Format.full:
                     projects.append(
-                        self._transform_project_record_to_schema(session, project_record)
+                        self._transform_project_record_to_schema(
+                            session, project_record
+                        )
                     )
                 else:
                     raise NotImplementedError(
@@ -867,21 +866,39 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def _get_project_resources_counters(self, session: Session):
         now = datetime.now()
-        if not self._cache["project_resources_counters"]["ttl"] or self._cache["project_resources_counters"]["ttl"] < now:
-            logger.debug("Project resources counter cache expired. Calculating", ttl=self._cache["project_resources_counters"]["ttl"])
+        if (
+            not self._cache["project_resources_counters"]["ttl"]
+            or self._cache["project_resources_counters"]["ttl"] < now
+        ):
+            logger.debug(
+                "Project resources counter cache expired. Calculating",
+                ttl=self._cache["project_resources_counters"]["ttl"],
+            )
             import mlrun.artifacts
-            functions_count_per_project = session.query(Function.project, func.count(distinct(Function.name))).group_by(
-                Function.project).all()
-            project_to_function_count = {result[0]: result[1] for result in functions_count_per_project}
-            feature_sets_count_per_project = session.query(FeatureSet.project,
-                                                           func.count(distinct(FeatureSet.name))).group_by(
-                FeatureSet.project).all()
-            project_to_feature_set_count = {result[0]: result[1] for result in feature_sets_count_per_project}
-            # the kind filter is applied post the query to the DB (manually in python code), so counting should be that way
-            # as well, therefore we're doing it here, and can't do it with sql as the above
-            # we're using the "latest" which gives us only one version of each artifact key, which is what we want to count
-            # (artifact count, not artifact versions count)
-            model_artifacts = self._find_artifacts(session, None, "latest", kind=mlrun.artifacts.model.ModelArtifact.kind)
+
+            functions_count_per_project = (
+                session.query(Function.project, func.count(distinct(Function.name)))
+                .group_by(Function.project)
+                .all()
+            )
+            project_to_function_count = {
+                result[0]: result[1] for result in functions_count_per_project
+            }
+            feature_sets_count_per_project = (
+                session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
+                .group_by(FeatureSet.project)
+                .all()
+            )
+            project_to_feature_set_count = {
+                result[0]: result[1] for result in feature_sets_count_per_project
+            }
+            # The kind filter is applied post the query to the DB (manually in python code), so counting should be that
+            # way as well, therefore we're doing it here, and can't do it with sql as the above
+            # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
+            # count (artifact count, not artifact versions count)
+            model_artifacts = self._find_artifacts(
+                session, None, "latest", kind=mlrun.artifacts.model.ModelArtifact.kind
+            )
             project_to_models_count = collections.defaultdict(int)
             for model_artifact in model_artifacts:
                 project_to_models_count[model_artifact.project] += 1
@@ -895,37 +912,75 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             runs = runs.all()
             for run in runs:
                 run_json = run.struct
-                if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states()):
-                    if run_json.get("metadata", {}).get("name") and run_json['metadata']['name'] not in \
-                            project_to_running_run_names[run.project]:
-                        project_to_running_run_names[run.project].add(run_json['metadata']['name'])
+                if self._is_run_matching_state(
+                    run,
+                    run_json,
+                    mlrun.runtimes.constants.RunStates.non_terminal_states(),
+                ):
+                    if (
+                        run_json.get("metadata", {}).get("name")
+                        and run_json["metadata"]["name"]
+                        not in project_to_running_run_names[run.project]
+                    ):
+                        project_to_running_run_names[run.project].add(
+                            run_json["metadata"]["name"]
+                        )
                         project_to_running_runs_count[run.project] += 1
-                if self._is_run_matching_state(run, run_json, mlrun.runtimes.constants.RunStates.error):
+                if self._is_run_matching_state(
+                    run, run_json, mlrun.runtimes.constants.RunStates.error
+                ):
                     one_day_ago = datetime.now() - timedelta(hours=24)
                     if run.start_time and run.start_time >= one_day_ago:
-                        if run_json.get("metadata", {}).get("name") and run_json['metadata']['name'] not in \
-                                project_to_recent_failed_run_names[run.project]:
-                            project_to_recent_failed_run_names[run.project].add(run_json['metadata']['name'])
+                        if (
+                            run_json.get("metadata", {}).get("name")
+                            and run_json["metadata"]["name"]
+                            not in project_to_recent_failed_run_names[run.project]
+                        ):
+                            project_to_recent_failed_run_names[run.project].add(
+                                run_json["metadata"]["name"]
+                            )
                             project_to_recent_failed_runs_count[run.project] += 1
 
-            self._cache["project_resources_counters"]["result"] = (project_to_function_count, project_to_feature_set_count, project_to_models_count, project_to_recent_failed_runs_count, project_to_running_runs_count)
-            ttl_time = datetime.now() + timedelta(seconds=humanfriendly.parse_timespan(config.httpdb.projects.counters_cache_ttl))
+            self._cache["project_resources_counters"]["result"] = (
+                project_to_function_count,
+                project_to_feature_set_count,
+                project_to_models_count,
+                project_to_recent_failed_runs_count,
+                project_to_running_runs_count,
+            )
+            ttl_time = datetime.now() + timedelta(
+                seconds=humanfriendly.parse_timespan(
+                    config.httpdb.projects.counters_cache_ttl
+                )
+            )
             self._cache["project_resources_counters"]["ttl"] = ttl_time
 
         return self._cache["project_resources_counters"]["result"]
 
-    def _generate_projects_summaries(self, session: Session, projects: List[str]) -> List[mlrun.api.schemas.ProjectSummary]:
-        project_to_function_count, project_to_feature_set_count, project_to_models_count, project_to_recent_failed_runs_count, project_to_running_runs_count = self._get_project_resources_counters(session)
+    def _generate_projects_summaries(
+        self, session: Session, projects: List[str]
+    ) -> List[mlrun.api.schemas.ProjectSummary]:
+        (
+            project_to_function_count,
+            project_to_feature_set_count,
+            project_to_models_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+        ) = self._get_project_resources_counters(session)
         project_summaries = []
         for project in projects:
-            project_summaries.append(mlrun.api.schemas.ProjectSummary(
-                name=project,
-                functions_count=project_to_function_count.get(project, 0),
-                feature_sets_count=project_to_feature_set_count.get(project, 0),
-                models_count=project_to_models_count.get(project, 0),
-                runs_failed_recent_count=project_to_recent_failed_runs_count.get(project, 0),
-                runs_running_count=project_to_running_runs_count.get(project, 0),
-            ))
+            project_summaries.append(
+                mlrun.api.schemas.ProjectSummary(
+                    name=project,
+                    functions_count=project_to_function_count.get(project, 0),
+                    feature_sets_count=project_to_feature_set_count.get(project, 0),
+                    models_count=project_to_models_count.get(project, 0),
+                    runs_failed_recent_count=project_to_recent_failed_runs_count.get(
+                        project, 0
+                    ),
+                    runs_running_count=project_to_running_runs_count.get(project, 0),
+                )
+            )
         return project_summaries
 
     def _update_project_record_from_project(
@@ -1943,9 +1998,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         record_state = run.state
         json_state = None
         if (
-                run_json
-                and isinstance(run_json, dict)
-                and run_json.get("status", {}).get("state")
+            run_json
+            and isinstance(run_json, dict)
+            and run_json.get("status", {}).get("state")
         ):
             json_state = run_json.get("status", {}).get("state")
         if not record_state and not json_state:

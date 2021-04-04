@@ -104,6 +104,8 @@ setup(
         "mlrun.feature_store",
         "mlrun.feature_store.retrieval",
         "mlrun.api",
+        "mlrun.api.migrations",
+        "mlrun.api.migrations.versions",
         "mlrun.api.api",
         "mlrun.api.api.endpoints",
         "mlrun.api.db",

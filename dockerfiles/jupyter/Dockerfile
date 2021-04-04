@@ -31,8 +31,7 @@ RUN chown -R $NB_UID:$NB_GID $HOME
 
 USER $NB_UID
 
-ENV MLRUN_DBPATH=http://localhost:8080 \
-    MLRUN_ARTIFACT_PATH=$HOME/data \
+ENV MLRUN_ARTIFACT_PATH=$HOME/data \
     JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
@@ -40,7 +39,7 @@ ENV MLRUN_DBPATH=http://localhost:8080 \
     MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data
 
 # run the mlrun db (api) and the notebook in parallel
-CMD mlrun db & start-notebook.sh \
+CMD python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \
     --NotebookApp.token='' \

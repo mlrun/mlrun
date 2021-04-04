@@ -121,6 +121,8 @@ class TestFeatureStore(TestMLRunSystem):
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
 
+        resp = svc.get([{"ticker": "a"}])
+        assert(resp[0] == {None})
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
         resp = svc.get([{"ticker": "AAPL"}])
         assert (

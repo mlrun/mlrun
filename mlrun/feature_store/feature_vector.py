@@ -325,6 +325,8 @@ class OnlineVectorService:
             for key in self._index_columns:
                 if key in data:
                     del data[key]
+            if not data:
+                data = {None}
             if as_list:
                 data = [
                     result.body[key]

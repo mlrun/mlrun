@@ -16,7 +16,7 @@ COPY ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-st
 COPY ./examples $HOME/examples/
 
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch release/v0.6.x-latest https://github.com/mlrun/demos.git $HOME/demos
 RUN git clone https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data

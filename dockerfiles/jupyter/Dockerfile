@@ -21,11 +21,16 @@ RUN git clone https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data
 
-COPY ./dockerfiles/jupyter/requirements.txt /tmp
-RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
+COPY ./dockerfiles/jupyter/requirements.txt /tmp/requirements/jupyter-requirements.txt
+COPY ./dockerfiles/mlrun-api/requirements.txt /tmp/requirements/mlrun-api-requirements.txt
+COPY ./requirements.txt /tmp/requirements/requirement.txt
+RUN python -m pip install \
+    -r /tmp/requirements/jupyter-requirements.txt \
+    -r /tmp/requirements/mlrun-api-requirements.txt \
+    -r /tmp/requirements/requirement.txt
 
 COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete-api]" && cd /tmp && rm -rf mlrun
+RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
 RUN chown -R $NB_UID:$NB_GID $HOME
 

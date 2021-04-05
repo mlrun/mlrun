@@ -519,11 +519,27 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 def enrich_image_url(image_url: str) -> str:
     tag = config.images_tag or mlrun.utils.version.Version().get()["version"]
     registry = config.images_registry
-    if image_url.startswith("mlrun/") or "/mlrun/" in image_url:
-        if tag and ":" not in image_url:
-            image_url = f"{image_url}:{tag}"
-        if registry and "/mlrun/" not in image_url:
-            image_url = f"{registry}{image_url}"
+
+    # it's an mlrun image if the repository is mlrun
+    is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
+
+    enrich_registry = False
+    # enrich registry - if images_to_enrich_registry provided, only these images should be enriched
+    if config.images_to_enrich_registry:
+        images_to_enrich_registry = config.images_to_enrich_registry.split(",")
+        for image in images_to_enrich_registry:
+            if image_url.startswith(image):
+                enrich_registry = True
+    # else enrich only if the image repository is mlrun and registry is not specified (in which case /mlrun/ will be
+    # part of the url)
+    elif is_mlrun_image and "/mlrun/" not in image_url:
+        enrich_registry = True
+    if enrich_registry:
+        image_url = f"{registry}{image_url}"
+
+    if is_mlrun_image and tag and ":" not in image_url:
+        image_url = f"{image_url}:{tag}"
+
     return image_url
 
 

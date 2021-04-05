@@ -50,6 +50,10 @@ default_config = {
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
+    # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
+    # registry when used. default to empty which means any image which is of the mlrun repository (mlrun/mlrun,
+    # mlrun/ml-base, etc...)
+    "images_to_enrich_registry": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)

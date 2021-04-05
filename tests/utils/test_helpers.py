@@ -122,10 +122,42 @@ def test_enrich_image():
         },
         {"image": "fake_mlrun/ml-models", "expected_output": "fake_mlrun/ml-models"},
         {"image": "some_repo/some_image", "expected_output": "some_repo/some_image"},
+        {
+            "image": "some-repo/some-image",
+            "expected_output": "ghcr.io/some-repo/some-image",
+            "images_to_enrich_registry": "some-repo/some-image"
+        },
+        {
+            "image": "some-repo/some-image:some-tag",
+            "expected_output": "ghcr.io/some-repo/some-image:some-tag",
+            "images_to_enrich_registry": "some-repo/some-image"
+        },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "mlrun/mlrun:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "some-repo/some-image"
+        },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "ghcr.io/mlrun/mlrun:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "some-repo/some-image,mlrun/mlrun"
+        },
+        {
+            "image": "mlrun/mlrun:some-tag",
+            "expected_output": "ghcr.io/mlrun/mlrun:some-tag",
+            "images_to_enrich_registry": "some-repo/some-image,mlrun/mlrun"
+        },
+        {
+            "image": "mlrun/ml-base",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "mlrun/mlrun,mlrun/ml-base,mlrun/ml-models"
+        },
     ]
     config.images_registry = "ghcr.io/"
     config.images_tag = "0.5.2-unstable-adsf76s"
     for case in cases:
+        if case.get('images_to_enrich_registry'):
+            config.images_to_enrich_registry = case['images_to_enrich_registry']
         image = case["image"]
         expected_output = case["expected_output"]
         output = enrich_image_url(image)

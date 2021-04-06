@@ -11,8 +11,6 @@ RUN apt update -qqq \
     build-essential \
     cmake \
     graphviz \
-    && apt clean \
-    && apt autoremove \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade pip~=20.2.0

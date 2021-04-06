@@ -15,13 +15,13 @@
 import concurrent
 import copy
 import json
-from datetime import datetime
 from enum import Enum
 from io import BytesIO
 
 from numpy.core.fromnumeric import mean
 
 import mlrun
+from mlrun.utils import now_date
 
 from .v2_serving import _ModelLogPusher
 
@@ -492,7 +492,7 @@ class VotingEnsemble(BaseModelRouter):
         Response
             Event repsonse after running the requested logic
         """
-        start = datetime.now()
+        start = now_date()
 
         # Handle and verify the request
         event = self.preprocess(event)

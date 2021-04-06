@@ -13,16 +13,9 @@ RUN apt update -qqq \
     graphviz \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip~=20.2.0
+COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 
-WORKDIR /mlrun
-
-COPY ./dockerfiles/base/requirements.txt ./
-
-RUN python -m pip install -r requirements.txt
-
-COPY . .
-RUN python -m pip install .[complete]
+RUN python -m pip install -r base-image-requirements.txt
 
 ARG MLRUN_MLUTILS_GITHUB_TAG=development
 ARG MLRUN_MLUTILS_CACHE_DATE=initial

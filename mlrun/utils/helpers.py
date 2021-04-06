@@ -528,7 +528,11 @@ def enrich_image_url(image_url: str) -> str:
     if config.images_to_enrich_registry:
         # "mlrun/*" means enrich only if the image repository is mlrun and registry is not specified (in which case
         # /mlrun/ will be part of the url)
-        if config.images_to_enrich_registry == "mlrun/*" and is_mlrun_image and "/mlrun/" not in image_url:
+        if (
+            config.images_to_enrich_registry == "mlrun/*"
+            and is_mlrun_image
+            and "/mlrun/" not in image_url
+        ):
             enrich_registry = True
         # else it's a comma separated list of images that only them should be enriched
         else:

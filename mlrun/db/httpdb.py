@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import tempfile
 import time
 from datetime import datetime
 from os import path, remove
-from typing import List, Dict, Union
+from typing import Dict, List, Optional, Union
 
 import kfp
 import requests
@@ -28,11 +29,13 @@ import mlrun
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
-from .base import RunDBError, RunDBInterface
+
+from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
-from ..lists import RunList, ArtifactList
-from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
+from ..lists import ArtifactList, RunList
+from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
+from .base import RunDBError, RunDBInterface
 
 default_project = config.default_project
 
@@ -228,6 +231,7 @@ class HTTPRunDB(RunDBInterface):
                 config.httpdb.builder.docker_registry
                 or server_cfg.get("docker_registry")
             )
+            config.httpdb.api_url = config.httpdb.api_url or server_cfg.get("api_url")
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -236,6 +240,11 @@ class HTTPRunDB(RunDBInterface):
             config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
+            )
+            config.scrape_metrics = (
+                server_cfg.get("scrape_metrics")
+                if server_cfg.get("scrape_metrics") is not None
+                else config.kfp_image
             )
         except Exception:
             pass
@@ -335,6 +344,17 @@ class HTTPRunDB(RunDBInterface):
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body)
+
+    def abort_run(self, uid, project="", iter=0):
+        """
+        Abort a running run - will remove the run's runtime resources and mark its state as aborted
+        """
+        self.update_run(
+            {"status.state": mlrun.runtimes.constants.RunStates.aborted},
+            uid,
+            project,
+            iter,
+        )
 
     def read_run(self, uid, project="", iter=0):
         """ Read the details of a stored run from the DB.
@@ -1351,10 +1371,19 @@ class HTTPRunDB(RunDBInterface):
             headers=headers,
         )
 
-    def delete_feature_set(self, name, project=""):
-        """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB. """
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
+        """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+        If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
+        """
         project = project or default_project
         path = f"projects/{project}/feature-sets/{name}"
+
+        if tag or uid:
+            reference = self._resolve_reference(tag, uid)
+            path = path + f"/references/{reference}"
+
         error_message = f"Failed deleting feature-set {name}"
         self.api_call("DELETE", path, error_message)
 
@@ -1521,11 +1550,18 @@ class HTTPRunDB(RunDBInterface):
             headers=headers,
         )
 
-    def delete_feature_vector(self, name, project=""):
-        """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB. """
-
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
+        """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+        If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
+        """
         project = project or default_project
         path = f"projects/{project}/feature-vectors/{name}"
+        if tag or uid:
+            reference = self._resolve_reference(tag, uid)
+            path = path + f"/references/{reference}"
+
         error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
 
@@ -1789,6 +1825,157 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
+
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key: Optional[str] = None,
+    ):
+        """
+        Creates or updates a KV record with the given model_endpoint record
+
+        :param project: The name of the project
+        :param endpoint_id: The id of the endpoint
+        :param model_endpoint: An object representing the model endpoint
+        :param access_key: V3IO access key, when None, will be look for in environ
+        """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        self.api_call(
+            method="PUT",
+            path=path,
+            body=model_endpoint.dict(),
+            headers={"X-V3io-Session-Key": access_key},
+        )
+
+    def delete_endpoint_record(
+        self, project: str, endpoint_id: str, access_key: Optional[str] = None,
+    ):
+        """
+        Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
+
+        :param project: The name of the project
+        :param endpoint_id: The id of the endpoint
+        :param access_key: V3IO access key, when None, will be look for in environ
+        """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        self.api_call(
+            method="DELETE", path=path, headers={"X-V3io-Session-Key": access_key},
+        )
+
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+        access_key: Optional[str] = None,
+    ) -> schemas.ModelEndpointList:
+        """
+        Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
+        This functions supports filtering by the following parameters:
+        1) model
+        2) function
+        3) labels
+        By default, when no filters are applied, all available endpoints for the given project will be listed.
+
+        In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
+        and depends on the 'start' and 'end' parameters. By default, when the metrics parameter is None, no metrics are
+        added to the output of this function.
+
+        :param project: The name of the project
+        :param model: The name of the model to filter by
+        :param function: The name of the function to filter by
+        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
+        (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
+        :param start: The start time of the metrics
+        :param end: The end time of the metrics
+        :param access_key: V3IO access key, when None, will be look for in environ
+        """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
+        path = f"projects/{project}/model-endpoints"
+        response = self.api_call(
+            method="GET",
+            path=path,
+            params={
+                "model": model,
+                "function": function,
+                "labels": labels,
+                "start": start,
+                "end": end,
+                "metrics": metrics,
+            },
+            headers={"X-V3io-Session-Key": access_key},
+        )
+        return schemas.ModelEndpointList(**response.json())
+
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        feature_analysis: bool = False,
+        access_key: Optional[str] = None,
+    ) -> schemas.ModelEndpoint:
+        """
+        Returns a ModelEndpoint object with additional metrics and feature related data.
+
+        :param project: The name of the project
+        :param endpoint_id: The id of the model endpoint
+        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
+        :param start: The start time of the metrics
+        :param end: The end time of the metrics
+        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+        the output of the resulting object
+        :param access_key: V3IO access key, when None, will be look for in environ
+        """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        response = self.api_call(
+            method="GET",
+            path=path,
+            params={
+                "start": start,
+                "end": end,
+                "metrics": metrics,
+                "feature_analysis": feature_analysis,
+            },
+            headers={"X-V3io-Session-Key": access_key},
+        )
+        return schemas.ModelEndpoint(**response.json())
 
 
 def _as_json(obj):

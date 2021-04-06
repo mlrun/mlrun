@@ -1,8 +1,8 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
 from .data_types import InferOptions, pd_schema_to_value_type
-from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
 default_num_bins = 20
 
@@ -54,8 +54,6 @@ def infer_schema_from_df(
                 if value_type == "datetime":
                     timestamp_fields.append(name)
 
-    if len(timestamp_fields) == 1 and not timestamp_key:
-        return timestamp_fields[0]
     return timestamp_key
 
 

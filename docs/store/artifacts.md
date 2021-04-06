@@ -41,8 +41,8 @@ You can set the default artifact_path for your environment using the {py:func}`~
 
 You can override the default artifact_path configuration by setting the artifact_path parameter of 
 the {py:func}`~mlrun.set_environment` function. You can use variables in the artifacts path, 
-such as {{run.project}} for the name of the running project or {{run.uid}} for the current job/pipeline run UID. 
-(The default artifacts path uses {{run.project}}.) The following example configures the artifacts path to an 
+such as {{project}} for the name of the running project or {{run.uid}} for the current job/pipeline run UID. 
+(The default artifacts path uses {{project}}.) The following example configures the artifacts path to an 
 artifacts directory in the current active directory (./artifacts)
 
     set_environment(project=project_name, artifact_path='./artifacts')

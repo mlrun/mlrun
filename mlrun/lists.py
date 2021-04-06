@@ -16,8 +16,8 @@
 import pandas as pd
 
 from .config import config
-from .utils import get_in, flatten
-from .render import runs_to_html, artifacts_to_html
+from .render import artifacts_to_html, runs_to_html
+from .utils import flatten, get_in
 
 
 class RunList(list):

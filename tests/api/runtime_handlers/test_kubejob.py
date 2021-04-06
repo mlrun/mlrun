@@ -3,11 +3,11 @@ from datetime import timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import RunStates, PodPhases
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
@@ -40,6 +40,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.job, expected_pods=pods
+        )
+
+    def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
+        pods = self._mock_list_resources_pods()
+        self._assert_runtime_handler_list_resources(
+            RuntimeKinds.job,
+            expected_pods=pods,
+            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
         )
 
     def test_delete_resources_completed_pod(self, db: Session, client: TestClient):

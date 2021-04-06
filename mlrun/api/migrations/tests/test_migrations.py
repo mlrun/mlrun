@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.orm import sessionmaker
 
 from mlrun.api.db.sqldb.models import Schedule
+from mlrun.config import config
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +17,9 @@ class Constants:
 
     last_run_uri_revision = "1c954f8cb32d"
     last_run_uri_project = "last-run-uri-project"
+
+    schedule_concurrency_limit_revision = "e1dd5983c06b"
+    schedule_concurrency_limit_project = "schedule-concurrency-limit-project"
 
 
 @pytest.fixture
@@ -37,6 +41,14 @@ def alembic_config():
                     "name": name,
                 }
                 for name in ["test-schedule3", "test-schedule4"]
+            ],
+            Constants.schedule_concurrency_limit_revision: [
+                {
+                    "__tablename__": Constants.schedule_table,
+                    "project": Constants.schedule_concurrency_limit_project,
+                    "name": name,
+                }
+                for name in ["test-schedule5", "test-schedule6"]
             ],
         },
     }
@@ -84,3 +96,28 @@ def test_schedule_last_run_uri_column(alembic_runner, alembic_session, alembic_c
         assert instance.name == revision_data[index]["name"]
         assert instance.project == revision_data[index]["project"]
         assert instance.last_run_uri is None
+
+
+@pytest.mark.alembic
+def test_schedule_concurrency_limit_column(
+    alembic_runner, alembic_session, alembic_config
+):
+    alembic_runner.migrate_up_to(Constants.schedule_concurrency_limit_revision)
+
+    revision_data = alembic_config["before_revision_data"][
+        Constants.schedule_concurrency_limit_revision
+    ]
+
+    for index, instance in enumerate(
+        alembic_session.query(
+            Schedule.name, Schedule.project, Schedule.concurrency_limit
+        )
+        .filter_by(project=Constants.schedule_concurrency_limit_project)
+        .order_by(Schedule.id)
+    ):
+        assert instance.name == revision_data[index]["name"]
+        assert instance.project == revision_data[index]["project"]
+        assert (
+            instance.concurrency_limit
+            == config.httpdb.scheduling.default_concurrency_limit
+        )

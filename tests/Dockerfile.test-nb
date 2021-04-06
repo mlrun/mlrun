@@ -13,8 +13,9 @@
 # limitations under the License.
 
 FROM python:3.6-slim
+ENV PIP_NO_CACHE_DIR=1
 RUN apt-get update && apt-get install -y g++ make git-core
-RUN python -m pip install --upgrade --no-cache pip
+RUN python -m pip install --upgrade pip~=20.2.0
 WORKDIR /mlrun
 
 COPY ./requirements.txt ./
@@ -28,3 +29,6 @@ RUN pip install \
 COPY . .
 ENV PYTHONPATH=/mlrun
 RUN python -m pip install .[complete]
+{args}
+{pip}
+RUN jupyter nbconvert --execute {notebook} --to html

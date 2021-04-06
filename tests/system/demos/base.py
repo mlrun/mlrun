@@ -1,7 +1,6 @@
 import os
 
 import mlrun
-
 from tests.system.base import TestMLRunSystem
 
 

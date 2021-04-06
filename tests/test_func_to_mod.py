@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from mlrun import function_to_module, get_or_create_ctx, new_task
 from tests.conftest import examples_path
-from mlrun import function_to_module, new_task, get_or_create_ctx
 
 
 def test_local_py():

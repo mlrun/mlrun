@@ -33,19 +33,19 @@ from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .projects import load_project
-from .run import new_function, import_function_to_dict, import_function, get_object
+from .run import get_object, import_function, import_function_to_dict, new_function
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
+    RunNotifications,
+    dict_to_yaml,
+    get_in,
     list2dict,
     logger,
+    parse_versioned_object_uri,
+    pr_comment,
     run_keys,
     update_in,
-    get_in,
-    parse_versioned_object_uri,
-    dict_to_yaml,
-    pr_comment,
-    RunNotifications,
 )
 from .utils.version import Version
 
@@ -98,9 +98,12 @@ def main():
     help="how to select the best result from a list, e.g. max.accuracy",
 )
 @click.option(
-    "--tuning-strategy",
+    "--hyper-param-strategy",
     default="",
     help="hyperparam tuning strategy list | grid | random",
+)
+@click.option(
+    "--hyper-param-options", default="", help="hyperparam options json string",
 )
 @click.option(
     "--func-url",
@@ -145,7 +148,8 @@ def run(
     hyperparam,
     param_file,
     selector,
-    tuning_strategy,
+    hyper_param_strategy,
+    hyper_param_options,
     func_url,
     task,
     handler,
@@ -231,10 +235,13 @@ def run(
         update_in(runtime, "spec.image", image)
     set_item(runobj.spec, handler, "handler")
     set_item(runobj.spec, param, "parameters", fill_params(param))
+
     set_item(runobj.spec, hyperparam, "hyperparams", fill_params(hyperparam))
-    set_item(runobj.spec, param_file, "param_file")
-    set_item(runobj.spec, tuning_strategy, "tuning_strategy")
-    set_item(runobj.spec, selector, "selector")
+    if hyper_param_options:
+        runobj.spec.hyper_param_options = py_eval(hyper_param_options)
+    set_item(runobj.spec.hyper_param_options, param_file, "param_file")
+    set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
+    set_item(runobj.spec.hyper_param_options, selector, "selector")
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
     set_item(runobj.spec, in_path, run_keys.input_path)

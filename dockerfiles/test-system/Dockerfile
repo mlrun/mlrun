@@ -17,9 +17,10 @@ FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
   git-core \
+  graphviz \
  && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade pip~=20.2.0

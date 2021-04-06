@@ -12,29 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
+import typing
+from datetime import datetime
 from os import environ
 from time import sleep
 
+import nuclio
 import requests
-from datetime import datetime
-import asyncio
 from aiohttp.client import ClientSession
+from kubernetes import client
+from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 from mlrun.db import RunDBError
-from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
-import nuclio
 
-from .pod import KubeResourceSpec, KubeResource
+from ..config import config as mlconf
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io, split_path
-from .base import RunError, FunctionStatus
-from .utils import log_std, get_item_name
-from ..utils import logger, update_in, get_in, enrich_image_url
 from ..lists import RunList
 from ..model import RunObject
-from ..config import config as mlconf
+from ..platforms.iguazio import mount_v3io, split_path
+from ..utils import enrich_image_url, get_in, logger, update_in
+from .base import FunctionStatus, RunError
+from .pod import KubeResource, KubeResourceSpec
+from .utils import get_item_name, log_std
 
 default_max_replicas = 4
 
@@ -249,6 +251,10 @@ class RemoteRuntime(KubeResource):
         self.spec.min_replicas = shards
         self.spec.max_replicas = shards
 
+    def add_vault_config_to_spec(self):
+        # Currently secrets are only handled in Serving runtime.
+        pass
+
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,
     ):
@@ -302,6 +308,14 @@ class RemoteRuntime(KubeResource):
         logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
 
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        raise NotImplementedError("Node selection is not supported for nuclio runtime")
+
     def _get_state(
         self,
         dashboard="",
@@ -337,7 +351,9 @@ class RemoteRuntime(KubeResource):
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
-        runtime_env = {}
+        runtime_env = {
+            "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
+        }
         if self.spec.rundb or mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:
@@ -362,8 +378,7 @@ class RemoteRuntime(KubeResource):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
         if use_function_from_db:
-            hash_key = self.save(versioned=True, refresh=True)
-            url = "db://" + self._function_uri(hash_key=hash_key)
+            url = self.save(versioned=True, refresh=True)
         else:
             url = None
 
@@ -453,8 +468,9 @@ class RemoteRuntime(KubeResource):
 
         return self._update_state(resp.json())
 
-    def _run_many(self, tasks, execution, runobj: RunObject):
+    def _run_many(self, generator, execution, runobj: RunObject):
         self._pre_run_validations()
+        tasks = generator.generate(runobj)
         secrets = self._secrets.to_serial() if self._secrets else None
         log_level = execution.log_level
         headers = {"x-nuclio-log-level": log_level}
@@ -544,6 +560,11 @@ def get_fullname(name, project, tag):
 
 def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     function.set_config("metadata.labels.mlrun/class", function.kind)
+
+    # Add vault configurations to function's pod spec, if vault secret source was added.
+    # Needs to be here, since it adds env params, which are handled in the next lines.
+    function.add_vault_config_to_spec()
+
     env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
     for key, value in function._get_runtime_env().items():
         env_dict[key] = value

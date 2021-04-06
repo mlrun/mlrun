@@ -15,46 +15,48 @@
 import importlib.util as imputil
 import json
 import socket
-from typing import Union, List, Tuple, Optional
 import uuid
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
+from typing import List, Optional, Tuple, Union
 
 import yaml
 from kfp import Client
 from nuclio import build_file
 
-import mlrun.errors
 import mlrun.api.schemas
+import mlrun.errors
+import mlrun.utils.helpers
+
 from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .k8s_utils import get_k8s_helper
-from .model import RunObject, BaseMetadata, RunTemplate
+from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
     HandlerRuntime,
     LocalRuntime,
     RemoteRuntime,
     RuntimeKinds,
-    get_runtime_class,
     ServingRuntime,
+    get_runtime_class,
 )
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
+    extend_hub_uri_if_needed,
     get_in,
     logger,
-    parse_versioned_object_uri,
-    update_in,
     new_pipe_meta,
-    extend_hub_uri_if_needed,
+    parse_versioned_object_uri,
+    retry_until_successful,
+    update_in,
 )
-from .utils import retry_until_successful
 
 
 class RunStatuses(object):
@@ -268,7 +270,12 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
 
 def get_or_create_ctx(
-    name: str, event=None, spec=None, with_env: bool = True, rundb: str = ""
+    name: str,
+    event=None,
+    spec=None,
+    with_env: bool = True,
+    rundb: str = "",
+    project: str = "",
 ):
     """called from within the user program to obtain a run context
 
@@ -284,6 +291,7 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
+    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
 
     :return: execution context
 
@@ -342,6 +350,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
 
+    newspec.setdefault("metadata", {})
     update_in(newspec, "metadata.name", name, replace=False)
     autocommit = False
     tmp = environ.get("MLRUN_META_TMPFILE")
@@ -349,6 +358,10 @@ def get_or_create_ctx(
     if out:
         autocommit = True
         logger.info(f"logging run results to: {out}")
+
+    newspec["metadata"]["project"] = (
+        project or newspec["metadata"].get("project") or mlconf.default_project
+    )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
@@ -778,15 +791,11 @@ def run_pipeline(
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
 
     artifact_path = artifact_path or mlconf.artifact_path
+    artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+        artifact_path, project
+    )
     if artifact_path and "{{run.uid}}" in artifact_path:
         artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")
-    if artifact_path and "{{run.project}}" in artifact_path:
-        if not project:
-            raise ValueError(
-                "project name must be specified with this"
-                + f" artifact_path template {artifact_path}"
-            )
-        artifact_path.replace("{{run.project}}", project)
     if not artifact_path:
         raise ValueError("artifact path was not specified")
 

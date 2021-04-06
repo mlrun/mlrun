@@ -1,13 +1,13 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Response, Query, Header
+from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.api.utils import parse_reference
+from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
 
@@ -86,10 +86,17 @@ def get_feature_set(
 
 
 @router.delete("/projects/{project}/feature-sets/{name}")
+@router.delete("/projects/{project}/feature-sets/{name}/references/{reference}")
 def delete_feature_set(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    reference: str = None,
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().delete_feature_set(db_session, project, name)
+    tag = uid = None
+    if reference:
+        tag, uid = parse_reference(reference)
+    get_db().delete_feature_set(db_session, project, name, tag, uid)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -231,8 +238,15 @@ def patch_feature_vector(
 
 
 @router.delete("/projects/{project}/feature-vectors/{name}")
+@router.delete("/projects/{project}/feature-vectors/{name}/references/{reference}")
 def delete_feature_vector(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    reference: str = None,
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().delete_feature_vector(db_session, project, name)
+    tag = uid = None
+    if reference:
+        tag, uid = parse_reference(reference)
+    get_db().delete_feature_vector(db_session, project, name, tag, uid)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

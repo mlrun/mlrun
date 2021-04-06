@@ -1,13 +1,15 @@
 import os
 import unittest
-from tests.api.runtimes.base import TestRuntimeBase
+
+from dask import distributed
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 import mlrun
-from mlrun.platforms import auto_mount
-from dask import distributed
 from mlrun import mlconf
+from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestDaskRuntime(TestRuntimeBase):
@@ -93,3 +95,28 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_requests=expected_requests,
         )
         self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
+
+    def test_dask_with_node_selection(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        node_name = "some-node-name"
+        runtime.with_node_selection(node_name)
+        node_selector = {
+            "label-a": "val1",
+            "label-2": "val2",
+        }
+        runtime.with_node_selection(node_selector=node_selector)
+        affinity = self._generate_affinity()
+        runtime.with_node_selection(affinity=affinity)
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_node_name=node_name,
+            expected_node_selector=node_selector,
+            expected_affinity=affinity,
+        )

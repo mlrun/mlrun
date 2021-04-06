@@ -3,11 +3,11 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import RunStates, PodPhases
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes.constants import PodPhases, RunStates
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -69,18 +69,27 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             driver_pod_name, driver_pod_labels, PodPhases.running,
         )
 
-        run_label_selector = self.runtime_handler._get_run_label_selector(
-            self.project, self.run_uid
+        self.pod_label_selector = self._generate_get_logger_pods_label_selector(
+            self.runtime_handler
         )
-        self.pod_label_selector = f"mlrun/class,{run_label_selector}"
 
-    def test_list_sparkjob_resources(self):
+    def test_list_resources(self):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.spark,
             expected_crds=mocked_responses[0]["items"],
             expected_pods=pods,
+        )
+
+    def test_list_resources_grouped_by_job(self):
+        mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])
+        pods = self._mock_list_resources_pods()
+        self._assert_runtime_handler_list_resources(
+            RuntimeKinds.spark,
+            expected_crds=mocked_responses[0]["items"],
+            expected_pods=pods,
+            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
         )
 
     def test_delete_resources_completed_crd(self, db: Session, client: TestClient):

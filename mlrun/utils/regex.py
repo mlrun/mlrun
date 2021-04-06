@@ -16,6 +16,9 @@ dns_1123_label = [
     r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
 ]
 
+# https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go#L136
+k8s_resource_quantity_regex = [r"^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"]
+
 run_name = label_value
 
 # A project name have the following restrictions:

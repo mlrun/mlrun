@@ -117,13 +117,16 @@ RUN conda config --add channels conda-forge && \
         scikit-plot \
         scipy \
         seaborn \
-        tensorflow-gpu \
-        wrapt
+        tensorflow-gpu=2.2.0 \
+        wrapt \
+    && conda clean -aqy
 
 RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7
+    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7 \
+    && conda clean -aqy
 
-RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
+RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1 \
+    && conda clean -aqy
 
 RUN python -m pip install --upgrade pip~=20.2.0
 
@@ -133,8 +136,6 @@ RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
         python -m pip install 'horovod~=0.20.0' && \
     ldconfig
-
-RUN conda clean -aqy
 
 WORKDIR /mlrun
 

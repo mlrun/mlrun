@@ -15,30 +15,33 @@
 import json
 import pathlib
 from datetime import datetime, timedelta, timezone
-from os import makedirs, path, remove, scandir, listdir
-from typing import List, Union
+from os import listdir, makedirs, path, remove, scandir
+from typing import List, Optional, Union
 
 import yaml
 from dateutil.parser import parse as parse_time
 
 import mlrun.api.schemas
 import mlrun.errors
-from .base import RunDBError, RunDBInterface
+
+from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
+    fill_function_hash,
+    generate_object_uri,
     get_in,
     logger,
     match_labels,
-    match_value,
     match_times,
+    match_value,
+    match_value_options,
     update_in,
-    fill_function_hash,
-    generate_object_uri,
 )
+from .base import RunDBError, RunDBInterface
 
 run_logs = "runs"
 artifacts_dir = "artifacts"
@@ -101,6 +104,9 @@ class FileRunDB(RunDBInterface):
                 update_in(run, key, val)
         self.store_run(run, uid, project, iter=iter)
 
+    def abort_run(self, uid, project="", iter=0):
+        raise NotImplementedError()
+
     def read_run(self, uid, project="", iter=0):
         filepath = (
             self._filepath(run_logs, project, self._run_path(uid, iter), "")
@@ -135,7 +141,7 @@ class FileRunDB(RunDBInterface):
             if (
                 match_value(name, run, "metadata.name")
                 and match_labels(get_in(run, "metadata.labels", {}), labels)
-                and match_value(state, run, "status.state")
+                and match_value_options(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
                 and match_times(
                     start_time_from, start_time_to, run, "status.start_time",
@@ -560,7 +566,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         raise NotImplementedError()
 
     def create_feature_vector(self, feature_vector, project="", versioned=True) -> dict:
@@ -597,7 +603,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         raise NotImplementedError()
 
     def list_pipelines(
@@ -640,6 +646,43 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def list_artifact_tags(self, project=None):
+        raise NotImplementedError()
+
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+        raise NotImplementedError()
+
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
+        access_key=None,
+    ):
         raise NotImplementedError()
 
 

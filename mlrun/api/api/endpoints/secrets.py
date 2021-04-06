@@ -1,11 +1,13 @@
 from http import HTTPStatus
-from fastapi import APIRouter, Response, Header, Query
 from typing import List
+
+from fastapi import APIRouter, Header, Query, Response
+
 from mlrun.api import schemas
 from mlrun.utils.vault import (
     VaultStore,
-    add_vault_user_secrets,
     add_vault_project_secrets,
+    add_vault_user_secrets,
     init_project_vault_configuration,
 )
 

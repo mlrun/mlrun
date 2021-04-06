@@ -13,18 +13,30 @@
 # limitations under the License.
 from typing import List
 
-import mlrun
 import pandas as pd
 
-from ..features import Feature, Entity
-from ..model import VersionedObjMetadata
-from ..datastore.targets import get_offline_target, default_target_names, TargetTypes
-from ..model import ModelObj, ObjectList, DataSource, DataTarget, DataTargetBase
+import mlrun
+
+from ..config import config as mlconf
+from ..datastore import get_store_uri
+from ..datastore.targets import (
+    TargetTypes,
+    default_target_names,
+    get_offline_target,
+    validate_target_placement,
+)
+from ..features import Entity, Feature
+from ..model import (
+    DataSource,
+    DataTarget,
+    DataTargetBase,
+    ModelObj,
+    ObjectList,
+    VersionedObjMetadata,
+)
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseState, RootFlowState, previous_step
-from ..config import config as mlconf
 from ..utils import StorePrefix
-from ..datastore import get_store_uri
 
 aggregates_step = "Aggregates"
 
@@ -232,12 +244,15 @@ class FeatureSet(ModelObj):
         if target:
             return target.path
 
-    def set_targets(self, targets=None, with_defaults=True):
+    def set_targets(self, targets=None, with_defaults=True, default_final_state=None):
         """set the desired target list or defaults
 
         :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
                          CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
         :param with_defaults: add the default targets (as defined in the central config)
+        :param default_final_state: the final graph state after which we add the
+                                    target writers, used when the graph branches and
+                                    the end cant be determined automatically
         """
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -255,6 +270,8 @@ class FeatureSet(ModelObj):
             if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
+        if default_final_state:
+            self.spec.graph.final_state = default_final_state
 
     def add_entity(self, entity, name=None):
         """add/set an entity"""
@@ -347,6 +364,7 @@ class FeatureSet(ModelObj):
         _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
         if with_targets:
+            validate_target_placement(graph, default_final_state, self.spec.targets)
             targets = [
                 BaseState(
                     target.kind,

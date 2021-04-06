@@ -1,10 +1,11 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.utils.singletons.db import get_db
@@ -51,9 +52,8 @@ async def update_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.info("Updating run", data=data)
     await run_in_threadpool(
-        get_db().update_run, db_session, data, uid, project, iter=iter
+        mlrun.api.crud.Runs().update_run, db_session, project, uid, iter, data,
     )
     return {}
 

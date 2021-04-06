@@ -1,16 +1,14 @@
-import os
-
 import json
-import pandas as pd
-import numpy as np
+import os
 from collections import defaultdict
 
+import numpy as np
+import pandas as pd
 from cloudpickle import dumps
-
 from sklearn.preprocessing import LabelEncoder
 
-from mlrun.execution import MLClientCtx
 from mlrun.datastore import DataItem
+from mlrun.execution import MLClientCtx
 
 
 def data_clean(

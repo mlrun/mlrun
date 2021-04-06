@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.db.sqldb.helpers import to_dict as db2dict, table2cls
+from mlrun.api.db.sqldb.helpers import table2cls
 from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
@@ -62,7 +62,7 @@ def get_tagged(
     return {
         "project": project,
         "tag": name,
-        "objects": [db2dict(obj) for obj in objs],
+        "objects": [obj.to_dict() for obj in objs],
     }
 
 

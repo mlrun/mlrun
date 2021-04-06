@@ -13,26 +13,29 @@
 # limitations under the License.
 
 import time
+import typing
 from copy import deepcopy
 from datetime import datetime
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
+from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-from mlrun.db import get_run_db
 from mlrun.api.db.base import DBInterface
+from mlrun.config import config
+from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import SparkApplicationStates
-from mlrun.config import config
+
+from ..execution import MLClientCtx
+from ..model import RunObject
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ..utils import get_in, logger, update_in
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from .utils import generate_resources
-from ..execution import MLClientCtx
-from ..model import RunObject
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import update_in, logger, get_in
 
 igz_deps = {
     "jars": [
@@ -82,6 +85,7 @@ _sparkjob_template = {
             "volumeMounts": [],
             "env": [],
         },
+        "nodeSelector": {},
     },
 }
 
@@ -116,6 +120,7 @@ class SparkJobSpec(KubeResourceSpec):
         build=None,
         spark_conf=None,
         hadoop_conf=None,
+        node_selector=None,
     ):
 
         super().__init__(
@@ -136,6 +141,7 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
+            node_selector=node_selector,
         )
 
         self.driver_resources = driver_resources or {}
@@ -175,7 +181,14 @@ class SparkRuntime(KubejobRuntime):
             )
         return None
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config
         get_run_db()
@@ -186,6 +199,7 @@ class SparkRuntime(KubejobRuntime):
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
+            mlrun_version_specifier=mlrun_version_specifier,
         )
 
     @staticmethod
@@ -243,6 +257,7 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
+        update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
         if (not self.spec.image) and self._default_image:
             self.spec.image = self._default_image
@@ -448,6 +463,22 @@ class SparkRuntime(KubejobRuntime):
         raise NotImplementedError(
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
         )
+
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        if node_name:
+            raise NotImplementedError(
+                "Setting node name is not supported for spark runtime"
+            )
+        if affinity:
+            raise NotImplementedError(
+                "Setting affinity is not supported for spark runtime"
+            )
+        super().with_node_selection(node_name, node_selector, affinity)
 
     def with_executor_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"

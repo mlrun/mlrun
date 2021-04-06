@@ -6,6 +6,7 @@ import deepdiff
 import pytest
 import sqlalchemy.orm
 
+import mlrun.api.initial_data
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
 import mlrun.config
@@ -13,18 +14,17 @@ import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import (
-    _classes,
+    Artifact,
+    Entity,
+    Feature,
+    FeatureSet,
+    FeatureVector,
     Function,
     Project,
     Run,
-    Artifact,
-    FeatureSet,
-    Feature,
-    Entity,
     Schedule,
-    FeatureVector,
+    _classes,
 )
-import mlrun.api.initial_data
 from tests.api.db.conftest import dbs
 
 
@@ -576,6 +576,7 @@ def _create_resources_of_all_kinds(
             schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
+            mlrun.config.config.httpdb.scheduling.default_concurrency_limit,
             labels,
         )
 

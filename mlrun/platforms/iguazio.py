@@ -13,15 +13,15 @@
 # limitations under the License.
 import json
 import os
-import requests
 import warnings
-import urllib3
-from http import HTTPStatus
-from datetime import datetime
 from collections import namedtuple
+from datetime import datetime
+from http import HTTPStatus
+
+import requests
+import urllib3
 
 import mlrun.errors
-
 
 _cached_control_session = None
 
@@ -291,8 +291,9 @@ def v3io_cred(api="", user="", access_key=""):
     """
 
     def _use_v3io_cred(task):
-        from kubernetes import client as k8s_client
         from os import environ
+
+        from kubernetes import client as k8s_client
 
         web_api = api or environ.get("V3IO_API")
         _user = user or environ.get("V3IO_USERNAME")
@@ -322,6 +323,7 @@ def split_path(mntpath=""):
 
 def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
     from os import environ
+
     from kubernetes import client
 
     access_key = access_key or environ.get("V3IO_ACCESS_KEY")

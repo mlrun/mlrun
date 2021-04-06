@@ -1,8 +1,7 @@
-from typing import List, Any, Dict
+from typing import Any, Dict, List
 
 from mlrun.api import schemas
-from mlrun.api.db.base import DBError
-from mlrun.api.db.base import DBInterface
+from mlrun.api.db.base import DBError, DBInterface
 from mlrun.db.base import RunDBError
 from mlrun.db.filedb import FileRunDB
 
@@ -243,7 +242,7 @@ class FileDB(DBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_set(self, session, project, name):
+    def delete_feature_set(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
     def create_feature_vector(
@@ -292,7 +291,7 @@ class FileDB(DBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_vector(self, session, project, name):
+    def delete_feature_vector(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
     def list_artifact_tags(self, session, project):
@@ -306,6 +305,7 @@ class FileDB(DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
         labels: Dict = None,
     ):
         raise NotImplementedError()
@@ -319,6 +319,7 @@ class FileDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
+        concurrency_limit: int = None,
     ):
         raise NotImplementedError()
 

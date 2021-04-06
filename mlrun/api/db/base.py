@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Any, Dict
+from typing import Any, Dict, List
 
 from mlrun.api import schemas
 
@@ -144,6 +144,7 @@ class DBInterface(ABC):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
         labels: Dict = None,
     ):
         pass
@@ -158,6 +159,7 @@ class DBInterface(ABC):
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
+        concurrency_limit: int = None,
     ):
         pass
 
@@ -301,7 +303,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_set(self, session, project, name):
+    def delete_feature_set(self, session, project, name, tag=None, uid=None):
         pass
 
     @abstractmethod
@@ -356,7 +358,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_vector(self, session, project, name):
+    def delete_feature_vector(
+        self, session, project, name, tag=None, uid=None,
+    ):
         pass
 
     def list_artifact_tags(self, session, project):

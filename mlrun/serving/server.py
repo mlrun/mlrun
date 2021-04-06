@@ -24,20 +24,15 @@ import uuid
 from typing import Union
 
 import mlrun
-from mlrun.secrets import SecretsStore
 from mlrun.config import config
+from mlrun.secrets import SecretsStore
 
-from .states import (
-    RouterState,
-    RootFlowState,
-    get_function,
-    graph_root_setter,
-)
 from ..datastore import get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
+from .states import RootFlowState, RouterState, get_function, graph_root_setter
 
 
 class _StreamContext:
@@ -77,6 +72,7 @@ class GraphServer(ModelObj):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
+        secret_sources=None,
     ):
         self._graph = None
         self.graph: Union[RouterState, RootFlowState] = graph
@@ -92,7 +88,8 @@ class GraphServer(ModelObj):
         self.error_stream = error_stream
         self.track_models = track_models
         self._error_stream_object = None
-        self._secrets = SecretsStore()
+        self.secret_sources = secret_sources
+        self._secrets = SecretsStore.from_list(secret_sources)
         self._db_conn = None
         self.resource_cache = None
 
@@ -124,10 +121,15 @@ class GraphServer(ModelObj):
     ):
         """for internal use, initialize all states (recursively)"""
 
+        if self.secret_sources:
+            self._secrets = SecretsStore.from_list(self.secret_sources)
+
         if self.error_stream:
             self._error_stream_object = get_stream_pusher(self.error_stream)
         self.resource_cache = resource_cache or ResourceCache()
+
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
+        context.root = self.graph
 
         context.stream = _StreamContext(
             self.track_models, self.parameters, self.function_uri
@@ -182,10 +184,36 @@ class GraphServer(ModelObj):
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type
         )
-        resp = v2_serving_handler(self.context, event, get_body=get_body)
+        resp = self.run(event, get_body=get_body)
         if hasattr(resp, "status_code") and resp.status_code >= 300 and not silent:
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
         return resp
+
+    def run(self, event, context=None, get_body=False):
+        server_context = self.context
+        context = context or server_context
+        try:
+            response = self.graph.run(event)
+        except Exception as exc:
+            message = str(exc)
+            if server_context.verbose:
+                message += "\n" + str(traceback.format_exc())
+            context.logger.error(f"run error, {traceback.format_exc()}")
+            server_context.push_error(event, message, source="_handler")
+            return context.Response(
+                body=message, content_type="text/plain", status_code=400
+            )
+
+        body = response.body
+        if isinstance(body, context.Response) or get_body:
+            return body
+
+        if body and not isinstance(body, (str, bytes)):
+            body = json.dumps(body)
+            return context.Response(
+                body=body, content_type="application/json", status_code=200
+            )
+        return body
 
     def wait_for_completion(self):
         """wait for async operation to complete"""
@@ -206,8 +234,7 @@ def v2_serving_init(context, namespace=None):
     serving_handler = server.init(context, namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
-    setattr(context, "root", server.graph)
-    setattr(context, "server_context", server.context)
+    setattr(context, "server", server)
     context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())
@@ -215,29 +242,7 @@ def v2_serving_init(context, namespace=None):
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
-
-    try:
-        response = context.root.run(event)
-    except Exception as exc:
-        message = str(exc)
-        if context.server_context.verbose:
-            message += "\n" + str(traceback.format_exc())
-        context.logger.error(f"run error, {traceback.format_exc()}")
-        context.server_context.push_error(event, message, source="_handler")
-        return context.Response(
-            body=message, content_type="text/plain", status_code=400
-        )
-
-    body = response.body
-    if isinstance(body, context.Response) or get_body:
-        return body
-
-    if body and not isinstance(body, (str, bytes)):
-        body = json.dumps(body)
-        return context.Response(
-            body=body, content_type="application/json", status_code=200
-        )
-    return body
+    return context.server.run(event, context, get_body)
 
 
 def create_graph_server(
@@ -343,7 +348,7 @@ class GraphContext:
 
     def get_secret(self, key: str):
         if self._server and self._server._secrets:
-            return self._secrets.get(key)
+            return self._server._secrets.get(key)
         return None
 
 

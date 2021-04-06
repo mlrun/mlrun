@@ -17,13 +17,14 @@ import time
 import typing
 
 from kubernetes import client
+
 from mlrun.config import config
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
+from mlrun.runtimes.pod import KubeResourceSpec
 from mlrun.runtimes.utils import AsyncLogWriter, RunError
 from mlrun.utils import get_in, logger
-from mlrun.runtimes.pod import KubeResourceSpec
 
 
 class MPIResourceSpec(KubeResourceSpec):
@@ -47,6 +48,9 @@ class MPIResourceSpec(KubeResourceSpec):
         build=None,
         image_pull_secret=None,
         mpi_args=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -66,6 +70,9 @@ class MPIResourceSpec(KubeResourceSpec):
             service_account=service_account,
             image_pull_secret=image_pull_secret,
             args=args,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
         self.mpi_args = mpi_args or [
             "-x",

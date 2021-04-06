@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import requests
+import json
 import os
 from os.path import expanduser
-import json
-from .helpers import logger
+
+import requests
+
+from mlrun.errors import MLRunInvalidArgumentError
+
 from ..config import config as mlconf
 from ..k8s_utils import get_k8s_helper
-from mlrun.errors import MLRunInvalidArgumentError
+from .helpers import logger
 
 vault_default_prefix = "v1/secret/data"
 
@@ -102,10 +105,8 @@ class VaultStore:
 
         headers = {"X-Vault-Token": self._token}
         full_url = self.url + "/" + url
-        if data:
-            data = json.dumps(data)
 
-        response = requests.request(method, full_url, headers=headers, data=data)
+        response = requests.request(method, full_url, headers=headers, json=data)
 
         if not response:
             logger.error(
@@ -145,6 +146,7 @@ class VaultStore:
     def get_secrets(self, keys, user=None, project=None):
         secret_path = VaultStore._generate_path(user=user, project=project)
         secrets = {}
+
         response = self._api_call("GET", secret_path)
 
         if not response:
@@ -192,10 +194,10 @@ class VaultStore:
         policy_str = (
             f'path "secret/data/mlrun/projects/{project}" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
-            + "}}\n"
+            + "}\n"
             + f'path "secret/data/mlrun/projects/{project}/*" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
-            + "}}"
+            + "}"
         )
 
         data_object = {"policy": policy_str}

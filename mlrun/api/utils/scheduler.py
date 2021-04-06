@@ -1,19 +1,21 @@
 import asyncio
 import copy
 from datetime import datetime, timedelta
-from typing import Any, Callable, List, Tuple, Dict, Union, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import fastapi.concurrency
 import humanfriendly
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
-from mlrun.api.db.session import create_session, close_session
+from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.model import RunObject
+from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
 
 
@@ -55,6 +57,7 @@ class Scheduler:
         scheduled_object: Union[Dict, Callable],
         cron_trigger: Union[str, schemas.ScheduleCronTrigger],
         labels: Dict = None,
+        concurrency_limit: int = config.httpdb.scheduling.default_concurrency_limit,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
@@ -69,13 +72,21 @@ class Scheduler:
             scheduled_object=scheduled_object,
             cron_trigger=cron_trigger,
             labels=labels,
+            concurrency_limit=concurrency_limit,
         )
         get_project_member().ensure_project(db_session, project)
         get_db().create_schedule(
-            db_session, project, name, kind, scheduled_object, cron_trigger, labels
+            db_session,
+            project,
+            name,
+            kind,
+            scheduled_object,
+            cron_trigger,
+            concurrency_limit,
+            labels,
         )
         self._create_schedule_in_scheduler(
-            project, name, kind, scheduled_object, cron_trigger
+            project, name, kind, scheduled_object, cron_trigger, concurrency_limit,
         )
 
     def update_schedule(
@@ -86,6 +97,7 @@ class Scheduler:
         scheduled_object: Union[Dict, Callable] = None,
         cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
         labels: Dict = None,
+        concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
@@ -100,9 +112,16 @@ class Scheduler:
             scheduled_object=scheduled_object,
             cron_trigger=cron_trigger,
             labels=labels,
+            concurrency_limit=concurrency_limit,
         )
         get_db().update_schedule(
-            db_session, project, name, scheduled_object, cron_trigger, labels
+            db_session,
+            project,
+            name,
+            scheduled_object,
+            cron_trigger,
+            labels,
+            concurrency_limit,
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
         updated_schedule = self._transform_and_enrich_db_schedule(
@@ -115,6 +134,7 @@ class Scheduler:
             updated_schedule.kind,
             updated_schedule.scheduled_object,
             updated_schedule.cron_trigger,
+            updated_schedule.concurrency_limit,
         )
 
     def list_schedules(
@@ -154,14 +174,23 @@ class Scheduler:
     def delete_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Deleting schedule", project=project, name=name)
         job_id = self._resolve_job_id(project, name)
-        self._scheduler.remove_job(job_id)
+        # don't fail on delete if job doesn't exist
+        job = self._scheduler.get_job(job_id)
+        if job:
+            self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
     async def invoke_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Invoking schedule", project=project, name=name)
-        db_schedule = get_db().get_schedule(db_session, project, name)
+        db_schedule = await fastapi.concurrency.run_in_threadpool(
+            get_db().get_schedule, db_session, project, name
+        )
         function, args, kwargs = self._resolve_job_function(
-            db_schedule.kind, db_schedule.scheduled_object, name
+            db_schedule.kind,
+            db_schedule.scheduled_object,
+            project,
+            name,
+            db_schedule.concurrency_limit,
         )
         return await function(*args, **kwargs)
 
@@ -223,12 +252,17 @@ class Scheduler:
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
-            kind, scheduled_object, name
+            kind, scheduled_object, project, name, concurrency_limit,
         )
+
+        # we use max_instances as well as our logic in the run wrapper for concurrent jobs
+        # in order to allow concurrency for triggering the jobs (max_instances), and concurrency
+        # of the jobs themselves (our logic in the run wrapper).
         self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -237,6 +271,7 @@ class Scheduler:
             args,
             kwargs,
             job_id,
+            max_instances=concurrency_limit,
         )
 
     def _update_schedule_in_scheduler(
@@ -246,11 +281,12 @@ class Scheduler:
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
-            kind, scheduled_object, name
+            kind, scheduled_object, project, name, concurrency_limit,
         )
         trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
             cron_trigger
@@ -278,6 +314,7 @@ class Scheduler:
                     db_schedule.kind,
                     db_schedule.scheduled_object,
                     db_schedule.cron_trigger,
+                    db_schedule.concurrency_limit,
                 )
             except Exception as exc:
                 logger.warn(
@@ -324,7 +361,9 @@ class Scheduler:
         self,
         scheduled_kind: schemas.ScheduleKinds,
         scheduled_object: Any,
+        project_name: str,
         schedule_name: str,
+        schedule_concurrency_limit: int,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -334,7 +373,12 @@ class Scheduler:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
             return (
                 Scheduler.submit_run_wrapper,
-                [scheduled_object_copy, schedule_name],
+                [
+                    scheduled_object_copy,
+                    project_name,
+                    schedule_name,
+                    schedule_concurrency_limit,
+                ],
                 {},
             )
         if scheduled_kind == schemas.ScheduleKinds.local_function:
@@ -352,7 +396,9 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
-    async def submit_run_wrapper(scheduled_object, schedule_name):
+    async def submit_run_wrapper(
+        scheduled_object, project_name, schedule_name, schedule_concurrency_limit
+    ):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run
 
@@ -364,7 +410,29 @@ class Scheduler:
         # otherwise all runs will have the same uid
         scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
 
+        if "task" in scheduled_object and "metadata" in scheduled_object["task"]:
+            scheduled_object["task"]["metadata"].setdefault("labels", {})
+            scheduled_object["task"]["metadata"]["labels"][
+                schemas.constants.LabelNames.schedule_name
+            ] = schedule_name
+
         db_session = create_session()
+
+        active_runs = get_db().list_runs(
+            db_session,
+            state=RunStates.non_terminal_states(),
+            project=project_name,
+            labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
+        )
+        if len(active_runs) >= schedule_concurrency_limit:
+            logger.warn(
+                "Schedule exceeded concurrency limit, skipping this run",
+                project=project_name,
+                schedule_name=schedule_name,
+                schedule_concurrency_limit=schedule_concurrency_limit,
+                active_runs=len(active_runs),
+            )
+            return
 
         response = await submit_run(db_session, scheduled_object)
 

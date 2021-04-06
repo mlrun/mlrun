@@ -21,43 +21,51 @@ from base64 import b64encode
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
 import mlrun.errors
-import mlrun.utils.regex
 import mlrun.utils.helpers
+import mlrun.utils.regex
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
-from mlrun.utils.helpers import verify_field_regex, generate_object_uri
+from mlrun.utils.helpers import generate_object_uri, verify_field_regex
+
+from ..config import config
+from ..datastore import store_manager
+from ..db import RunDBError, get_or_set_dburl, get_run_db
+from ..execution import MLClientCtx
+from ..k8s_utils import get_k8s_helper
+from ..kfpops import mlrun_op, write_kfpmeta
+from ..lists import RunList
+from ..model import (
+    BaseMetadata,
+    HyperParamOptions,
+    ImageBuilder,
+    ModelObj,
+    RunObject,
+    RunTemplate,
+)
+from ..secrets import SecretsStore
+from ..utils import (
+    dict_to_json,
+    dict_to_yaml,
+    enrich_image_url,
+    get_in,
+    get_parsed_docker_registry,
+    is_ipython,
+    logger,
+    now_date,
+    update_in,
+)
 from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
 from .generators import get_generator
-from .utils import calc_hash, RunError, results_to_iter
-from ..config import config
-from ..datastore import store_manager
-from ..db import get_run_db, get_or_set_dburl, RunDBError
-from ..execution import MLClientCtx
-from ..k8s_utils import get_k8s_helper
-from ..kfpops import write_kfpmeta, mlrun_op
-from ..lists import RunList
-from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
-from ..secrets import SecretsStore
-from ..utils import (
-    get_in,
-    update_in,
-    logger,
-    is_ipython,
-    now_date,
-    enrich_image_url,
-    dict_to_yaml,
-    dict_to_json,
-    get_parsed_docker_registry,
-)
+from .utils import RunError, calc_hash, results_to_iter
 
 
 class FunctionStatus(ModelObj):
@@ -164,6 +172,10 @@ class BaseRuntime(ModelObj):
         return self
 
     @property
+    def uri(self):
+        return self._function_uri()
+
+    @property
     def is_deployed(self):
         return True
 
@@ -214,8 +226,10 @@ class BaseRuntime(ModelObj):
         artifact_path: str = "",
         watch: bool = True,
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
+        hyperparams: Dict[str, list] = None,
+        hyper_param_options: HyperParamOptions = None,
         verbose=None,
-        scrape_metrics=False,
+        scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
     ):
@@ -234,6 +248,11 @@ class BaseRuntime(ModelObj):
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string (which
         will be converted to the class using its `from_crontab` constructor. see this link for help:
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
+                               the default strategy is grid search, can specify strategy (grid, list, random)
+                               and other options in the hyper_param_options parameter
+        :param hyper_param_options:  dict or :py:class:`~mlrun.model.HyperParamOptions` struct of
+                                     hyper parameter options
         :param verbose:        add verbose prints/logs
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
@@ -244,6 +263,11 @@ class BaseRuntime(ModelObj):
         """
 
         if local:
+
+            if schedule is not None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "local and schedule cannot be used together"
+                )
             # allow local run simulation with a flip of a flag
             command = self
             if local_code_path:
@@ -297,8 +321,17 @@ class BaseRuntime(ModelObj):
         )
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
+        runspec.spec.hyper_param_options = (
+            hyper_param_options or runspec.spec.hyper_param_options
+        )
         runspec.spec.verbose = verbose or runspec.spec.verbose
-        runspec.spec.scrape_metrics = scrape_metrics or runspec.spec.scrape_metrics
+        if scrape_metrics is None:
+            if runspec.spec.scrape_metrics is None:
+                scrape_metrics = config.scrape_metrics
+            else:
+                scrape_metrics = runspec.spec.scrape_metrics
+        runspec.spec.scrape_metrics = scrape_metrics
         runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir
@@ -321,8 +354,8 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.uid}}", meta.uid
             )
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.project}}", runspec.metadata.project
+            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+                runspec.spec.output_path, runspec.metadata.project
             )
         if is_local(runspec.spec.output_path):
             logger.warning(
@@ -409,8 +442,10 @@ class BaseRuntime(ModelObj):
         last_err = None
         if task_generator:
             # multiple runs (based on hyper params or params file)
-            generator = task_generator.generate(runspec)
-            results = self._run_many(generator, execution, runspec)
+            runner = self._run_many
+            if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
+                runner = self._parallel_run_many
+            results = runner(task_generator, execution, runspec)
             results_to_iter(results, runspec, execution)
             result = execution.to_dict()
 
@@ -484,7 +519,12 @@ class BaseRuntime(ModelObj):
             return task.to_dict()
 
     def _generate_runtime_env(self, runobj: RunObject):
-        runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
+        runtime_env = {
+            "MLRUN_EXEC_CONFIG": runobj.to_json(),
+            "MLRUN_DEFAULT_PROJECT": runobj.metadata.project
+            or self.metadata.project
+            or config.default_project,
+        }
         if runobj.spec.verbose:
             runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:
@@ -524,18 +564,35 @@ class BaseRuntime(ModelObj):
     def _run(self, runspec: RunObject, execution) -> dict:
         pass
 
-    def _run_many(self, tasks, execution, runobj: RunObject) -> RunList:
+    def _run_many(self, generator, execution, runobj: RunObject) -> RunList:
         results = RunList()
+        num_errors = 0
+        tasks = generator.generate(runobj)
         for task in tasks:
             try:
                 # self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
+                run_results = resp["status"].get("results", {})
+                if generator.eval_stop_condition(run_results):
+                    logger.info(
+                        f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                    )
+                    results.append(resp)
+                    break
+
             except RunError as err:
                 task.status.state = "error"
                 task.status.error = str(err)
                 resp = self._post_run(task=task, err=err)
+                num_errors += 1
+                if num_errors > generator.max_errors:
+                    logger.error("too many errors, stopping iterations!")
+                    results.append(resp)
+                    break
+
             results.append(resp)
+
         return results
 
     def store_run(self, runobj: RunObject):
@@ -623,6 +680,7 @@ class BaseRuntime(ModelObj):
         params: dict = None,
         hyperparams=None,
         selector="",
+        hyper_param_options: HyperParamOptions = None,
         inputs: dict = None,
         outputs: dict = None,
         workdir: str = "",
@@ -659,8 +717,7 @@ class BaseRuntime(ModelObj):
         #     image = self.full_image_path()
 
         if use_db:
-            hash_key = self.save(versioned=True, refresh=True)
-            url = "db://" + self._function_uri(hash_key=hash_key)
+            url = self.save(versioned=True, refresh=True)
         else:
             url = None
 
@@ -679,6 +736,7 @@ class BaseRuntime(ModelObj):
             params=params,
             hyperparams=hyperparams,
             selector=selector,
+            hyper_param_options=hyper_param_options,
             inputs=inputs,
             outputs=outputs,
             job_image=image,
@@ -707,7 +765,7 @@ class BaseRuntime(ModelObj):
         if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
 
-            _, _, body = build_file(from_file)
+            _, _, body = build_file(from_file, name=self.metadata.name)
 
         else:
             if from_file:
@@ -761,7 +819,7 @@ class BaseRuntime(ModelObj):
         logger.info(f"function spec saved to path: {target}")
         return self
 
-    def save(self, tag="", versioned=False, refresh=False):
+    def save(self, tag="", versioned=False, refresh=False) -> str:
         db = self._get_db()
         if not db:
             logger.error("database connection is not configured")
@@ -789,7 +847,8 @@ class BaseRuntime(ModelObj):
         hash_key = db.store_function(
             obj, self.metadata.name, self.metadata.project, tag, versioned
         )
-        return hash_key
+        hash_key = hash_key if versioned else None
+        return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)
@@ -834,17 +893,28 @@ class BaseRuntimeHandler(ABC):
         """
         pass
 
-    def list_resources(self, label_selector: str = None) -> Dict:
+    def list_resources(
+        self,
+        project: str,
+        label_selector: str = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+        if project and project == "*" and group_by is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Group by can not be used across projects"
+            )
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(label_selector)
+        label_selector = self._resolve_label_selector(project, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
         crd_objects = self._list_crd_objects(namespace, label_selector)
         crd_resources = self._build_crd_resources(crd_objects)
-        response = self._build_list_resources_response(pod_resources, crd_resources)
+        response = self._build_list_resources_response(
+            pod_resources, crd_resources, group_by
+        )
         response = self._enrich_list_resources_response(
-            response, namespace, label_selector
+            response, namespace, label_selector, group_by
         )
         return response
 
@@ -858,7 +928,7 @@ class BaseRuntimeHandler(ABC):
     ):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(label_selector)
+        label_selector = self._resolve_label_selector("*", label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
@@ -927,8 +997,12 @@ class BaseRuntimeHandler(ABC):
                 )
 
     def _enrich_list_resources_response(
-        self, response: Dict, namespace: str, label_selector: str = None
-    ) -> Dict:
+        self,
+        response: Dict,
+        namespace: str,
+        label_selector: str = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
         """
         Override this to list resources other then pods or CRDs (which are handled by the base class)
         """
@@ -1045,13 +1119,16 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
-    def _resolve_label_selector(self, label_selector: str = None) -> str:
+    def _resolve_label_selector(self, project: str, label_selector: str = None) -> str:
         default_label_selector = self._get_default_label_selector()
 
         if label_selector:
             label_selector = ",".join([default_label_selector, label_selector])
         else:
             label_selector = default_label_selector
+
+        if project and project != "*":
+            label_selector = ",".join([label_selector, f"mlrun/project={project}"])
 
         return label_selector
 
@@ -1319,6 +1396,60 @@ class BaseRuntimeHandler(ABC):
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
+    def _build_list_resources_response(
+        self,
+        pod_resources: List = None,
+        crd_resources: List = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+        if crd_resources is None:
+            crd_resources = []
+        if pod_resources is None:
+            pod_resources = []
+
+        if group_by is None:
+            return {
+                "crd_resources": crd_resources,
+                "pod_resources": pod_resources,
+            }
+        else:
+            if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+                return self._build_grouped_by_job_list_resources_response(
+                    pod_resources, crd_resources
+                )
+            else:
+                raise NotImplementedError(
+                    f"Provided format is not supported. group_by={group_by}"
+                )
+
+    def _build_grouped_by_job_list_resources_response(
+        self, pod_resources: List = None, crd_resources: List = None
+    ) -> mlrun.api.schemas.GroupedRuntimeResourcesOutput:
+        resources = {}
+        for pod_resource in pod_resources:
+            self._add_resource_to_grouped_by_job_resources_response(
+                resources, "pod_resources", pod_resource
+            )
+        for crd_resource in crd_resources:
+            self._add_resource_to_grouped_by_job_resources_response(
+                resources, "crd_resources", crd_resource
+            )
+        return resources
+
+    @staticmethod
+    def _add_resource_to_grouped_by_job_resources_response(
+        resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        resource_field_name: str,
+        resource: dict,
+    ):
+        if "mlrun/uid" in resource["labels"]:
+            uid = resource["labels"]["mlrun/uid"]
+            if uid not in resources:
+                resources[uid] = mlrun.api.schemas.RuntimeResourcesOutput(
+                    pod_resources=[], crd_resources=[]
+                )
+            getattr(resources[uid], resource_field_name).append(resource)
+
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
         return f"mlrun/project={project},mlrun/uid={run_uid}"
@@ -1476,16 +1607,3 @@ class BaseRuntimeHandler(ABC):
                 }
             )
         return crd_resources
-
-    @staticmethod
-    def _build_list_resources_response(
-        pod_resources: List = None, crd_resources: List = None
-    ) -> Dict:
-        if crd_resources is None:
-            crd_resources = []
-        if pod_resources is None:
-            pod_resources = []
-        return {
-            "crd_resources": crd_resources,
-            "pod_resources": pod_resources,
-        }

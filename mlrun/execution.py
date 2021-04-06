@@ -12,31 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import uuid
 from copy import deepcopy
 from datetime import datetime
-from typing import List
+from typing import List, Union
 
 import numpy as np
-import uuid
-import os
 
 import mlrun
 from mlrun.artifacts import ModelArtifact
-
-from mlrun.errors import MLRunInvalidArgumentError
-from .artifacts import ArtifactManager, DatasetArtifact
 from mlrun.datastore.store_resources import get_store_resource
+from mlrun.errors import MLRunInvalidArgumentError
+
+from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import store_manager
-from .features import Feature
-from .secrets import SecretsStore
 from .db import get_run_db
+from .features import Feature
+from .model import HyperParamOptions
+from .secrets import SecretsStore
 from .utils import (
-    run_keys,
-    get_in,
-    dict_to_yaml,
-    logger,
     dict_to_json,
+    dict_to_yaml,
+    get_in,
+    logger,
     now_date,
+    run_keys,
     to_date_str,
     update_in,
 )
@@ -82,6 +83,8 @@ class MLClientCtx(object):
 
         self._function = ""
         self._parameters = {}
+        self._hyperparams = {}
+        self._hyper_param_options = HyperParamOptions()
         self._in_path = ""
         self.artifact_path = ""
         self._inputs = {}
@@ -210,6 +213,8 @@ class MLClientCtx(object):
                 self._rundb = get_run_db(rundb, secrets=self._secrets_manager)
             else:
                 self._rundb = rundb
+        else:
+            self._rundb = mlrun.get_run_db()
         self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(db=self._rundb)
 
@@ -248,6 +253,15 @@ class MLClientCtx(object):
             self._log_level = spec.get("log_level", self._log_level)
             self._function = spec.get("function", self._function)
             self._parameters = spec.get("parameters", self._parameters)
+            if not self._iteration:
+                self._hyperparams = spec.get("hyperparams", self._hyperparams)
+                self._hyper_param_options = spec.get(
+                    "hyper_param_options", self._hyper_param_options
+                )
+                if isinstance(self._hyper_param_options, dict):
+                    self._hyper_param_options = HyperParamOptions.from_dict(
+                        self._hyper_param_options
+                    )
             self._outputs = spec.get("outputs", self._outputs)
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
@@ -661,6 +675,7 @@ class MLClientCtx(object):
         tag="",
         model_dir=None,
         model_file=None,
+        algorithm=None,
         metrics=None,
         parameters=None,
         artifact_path=None,
@@ -671,7 +686,7 @@ class MLClientCtx(object):
         feature_vector: str = None,
         feature_weights: list = None,
         training_set=None,
-        label_column=None,
+        label_column: Union[str, list] = None,
         extra_data=None,
         db_key=None,
     ):
@@ -695,6 +710,7 @@ class MLClientCtx(object):
                                 to define a subpath under the default location use:
                                 `artifact_path=context.artifact_subpath('data')`
         :param framework:       name of the ML framework
+        :param algorithm:       training algorithm name
         :param tag:             version tag
         :param metrics:         key/value dict of model metrics
         :param parameters:      key/value dict of model parameters
@@ -729,6 +745,7 @@ class MLClientCtx(object):
             inputs=inputs,
             outputs=outputs,
             framework=framework,
+            algorithm=algorithm,
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
@@ -835,6 +852,10 @@ class MLClientCtx(object):
                 "last_update": to_date_str(self._last_update),
             },
         }
+
+        if not self._iteration:
+            struct["spec"]["hyperparams"] = self._hyperparams
+            struct["spec"]["hyper_param_options"] = self._hyper_param_options.to_dict()
 
         set_if_valid(struct["status"], "error", self._error)
         set_if_valid(struct["status"], "commit", self._commit)

@@ -13,29 +13,30 @@
 # limitations under the License.
 
 import hashlib
+import inspect
 import json
 import re
 import sys
 import time
-from types import ModuleType
-from typing import Optional, Tuple
 from datetime import datetime, timezone
-from dateutil import parser
-from os import path, environ
 from importlib import import_module
-import inspect
+from os import environ, path
+from types import ModuleType
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import requests
 import yaml
+from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-import mlrun.utils.version.version
 import mlrun.errors
-from .logger import create_logger
+import mlrun.utils.version.version
+
 from ..config import config
+from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -256,6 +257,13 @@ def match_value(value, obj, key):
     return get_in(obj, key, _missing) == value
 
 
+def match_value_options(value_options, obj, key):
+    if not value_options:
+        return True
+
+    return get_in(obj, key, _missing) in as_list(value_options)
+
+
 def flatten(df, col, prefix=""):
     params = []
     for r in df[col]:
@@ -385,6 +393,31 @@ def parse_versioned_object_uri(uri, default_project=""):
     return project, uri, tag, hash_key
 
 
+def parse_artifact_uri(uri, default_project=""):
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    match = re.match(uri_pattern, uri)
+    if not match:
+        raise ValueError(
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+        )
+    group_dict = match.groupdict()
+    iteration = group_dict["iteration"]
+    if iteration is not None:
+        try:
+            iteration = int(iteration)
+        except ValueError:
+            raise ValueError(
+                f"illegal store path {uri}, iteration must be integer value"
+            )
+    return (
+        group_dict["project"] or default_project,
+        group_dict["key"],
+        iteration,
+        group_dict["tag"],
+        group_dict["uid"],
+    )
+
+
 def generate_object_uri(project, name, tag=None, hash_key=None):
     uri = f"{project}/{name}"
 
@@ -394,6 +427,15 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     elif tag:
         uri += f":{tag}"
     return uri
+
+
+def generate_artifact_uri(project, key, tag=None, iter=None):
+    artifact_uri = f"{project}/{key}"
+    if iter is not None:
+        artifact_uri = f"{artifact_uri}#{iter}"
+    if tag is not None:
+        artifact_uri = f"{artifact_uri}:{tag}"
+    return artifact_uri
 
 
 def extend_hub_uri_if_needed(uri):
@@ -758,7 +800,7 @@ def _module_to_namespace(namespace):
     return namespace
 
 
-def get_class(class_name, namespace):
+def get_class(class_name, namespace=None):
     """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name
@@ -804,3 +846,33 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     if not time_obj:
         return
     return time_obj.isoformat()
+
+
+def as_list(element: Any) -> List[Any]:
+    return element if isinstance(element, list) else [element]
+
+
+def calculate_local_file_hash(filename):
+    h = hashlib.sha1()
+    b = bytearray(128 * 1024)
+    mv = memoryview(b)
+    with open(filename, "rb", buffering=0) as f:
+        for n in iter(lambda: f.readinto(mv), 0):
+            h.update(mv[:n])
+    return h.hexdigest()
+
+
+def fill_artifact_path_template(artifact_path, project):
+    # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
+    # {{run.project}} so we're supporting it too for backwards compatibility
+    if artifact_path and (
+        "{{run.project}}" in artifact_path or "{{project}}" in artifact_path
+    ):
+        if not project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "project name must be specified with this"
+                + f" artifact_path template {artifact_path}"
+            )
+        artifact_path = artifact_path.replace("{{run.project}}", project)
+        artifact_path = artifact_path.replace("{{project}}", project)
+    return artifact_path

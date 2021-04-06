@@ -1,15 +1,15 @@
-import click
 import json
-import paramiko
 import pathlib
-import requests
 import subprocess
 import sys
-import yaml
 import time
 
-import mlrun.utils
+import click
+import paramiko
+import requests
+import yaml
 
+import mlrun.utils
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 
@@ -26,6 +26,7 @@ class SystemTestPreparer:
 
         git_url = "https://github.com/mlrun/mlrun.git"
         provctl_releases = "https://api.github.com/repos/iguazio/provazio/releases"
+        provctl_release_search_amount = 3
         provctl_binary_format = "provctl-{release_name}-linux-amd64"
 
     def __init__(
@@ -252,20 +253,25 @@ class SystemTestPreparer:
         stable_provazio_releases = list(
             filter(lambda release: release["tag_name"] != "unstable", provazio_releases)
         )
-        latest_provazio_release = stable_provazio_releases[0]
-        for asset in latest_provazio_release["assets"]:
-            if asset["name"] == self.Constants.provctl_binary_format.format(
-                release_name=latest_provazio_release["name"]
-            ):
-                self._logger.debug(
-                    "Got provctl release url",
-                    release=latest_provazio_release["name"],
-                    name=asset["name"],
-                    url=asset["url"],
-                )
-                return asset["name"], asset["url"]
+        latest_provazio_releases = stable_provazio_releases[
+            : self.Constants.provctl_release_search_amount
+        ]
+        for provazio_release in latest_provazio_releases:
+            for asset in provazio_release["assets"]:
+                if asset["name"] == self.Constants.provctl_binary_format.format(
+                    release_name=provazio_release["name"]
+                ):
+                    self._logger.debug(
+                        "Got provctl release url",
+                        release=provazio_release["name"],
+                        name=asset["name"],
+                        url=asset["url"],
+                    )
+                    return asset["name"], asset["url"]
 
-        raise RuntimeError("provctl binary not found")
+        raise RuntimeError(
+            f"provctl binary not found in {self.Constants.provctl_release_search_amount} latest releases"
+        )
 
     def _prepare_test_env(self):
 

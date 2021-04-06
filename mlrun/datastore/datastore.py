@@ -16,12 +16,13 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
-from .base import DataItem, HttpStore, DataStore
+
+from ..utils import DB_SCHEMA, run_keys
+from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
 from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
-from ..utils import run_keys, DB_SCHEMA
 
 in_memory_store = InMemoryStore()
 

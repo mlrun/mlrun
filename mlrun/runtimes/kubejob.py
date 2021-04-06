@@ -13,18 +13,20 @@
 # limitations under the License.
 
 import time
+
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 from mlrun.runtimes.base import BaseRuntimeHandler
-from .base import RunError
-from .pod import KubeResource
-from .utils import AsyncLogWriter, generate_function_image_name
+
 from ..builder import build_runtime
 from ..db import RunDBError
 from ..kfpops import build_op
 from ..model import RunObject
-from ..utils import logger, get_in
+from ..utils import get_in, logger
+from .base import RunError
+from .pod import KubeResource, kube_resource_spec_to_pod_spec
+from .utils import AsyncLogWriter, generate_function_image_name
 
 
 class KubejobRuntime(KubeResource):
@@ -121,7 +123,12 @@ class KubejobRuntime(KubeResource):
         )
         self.status.state = ""
 
-        if self._is_remote_api() and not is_kfp:
+        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
+        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
+        if is_kfp:
+            watch = True
+
+        if self._is_remote_api():
             db = self._get_db()
             logger.info(f"starting remote build, image: {self.spec.build.image}")
             data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
@@ -134,9 +141,7 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(
-                self, with_mlrun, mlrun_version_specifier, watch or is_kfp
-            )
+            ready = build_runtime(self, with_mlrun, mlrun_version_specifier, watch)
             self.save(versioned=False)
 
         return ready
@@ -213,49 +218,6 @@ class KubejobRuntime(KubeResource):
             skip_deployed=skip_deployed,
         )
 
-    def _add_vault_params_to_spec(self, runobj):
-        from ..config import config as mlconf
-
-        project_name = runobj.metadata.project
-        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
-            project=project_name
-        )
-
-        project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(
-            project_name, service_account_name
-        )
-        if project_vault_secret_name is None:
-            logger.info(f"No vault secret associated with project {project_name}")
-            return
-
-        volumes = [
-            {
-                "name": "vault-secret",
-                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
-            }
-        ]
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
-
-        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
-
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-        self.spec.env.append(
-            {
-                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
-                "value": f"project:{project_name}",
-            }
-        )
-        # In case remote URL is different than local URL, use it. Else, use the local URL
-        vault_url = mlconf.secret_stores.vault.remote_url
-        if vault_url == "":
-            vault_url = mlconf.secret_stores.vault.url
-
-        self.spec.env.append(
-            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
-        )
-
     def _run(self, runobj: RunObject, execution):
 
         with_mlrun = (not self.spec.mode) or (self.spec.mode != "pass")
@@ -306,12 +268,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         resources=runtime.spec.resources,
     )
 
-    pod_spec = client.V1PodSpec(
-        containers=[container],
-        restart_policy="Never",
-        volumes=runtime.spec.volumes,
-        service_account=runtime.spec.service_account,
-    )
+    pod_spec = kube_resource_spec_to_pod_spec(runtime.spec, container)
 
     if runtime.spec.image_pull_secret:
         pod_spec.image_pull_secrets = [

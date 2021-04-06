@@ -12,21 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
 import uuid
 from copy import deepcopy
 
-from kubernetes import client
 from kfp.dsl import ContainerOp
+from kubernetes import client
 
+import mlrun.errors
+import mlrun.utils.regex
+
+from ..utils import logger, normalize_name, update_in, verify_field_regex
+from .base import BaseRuntime, FunctionSpec
 from .utils import (
     apply_kfp,
-    set_named_item,
+    generate_resources,
     get_item_name,
     get_resource_labels,
-    generate_resources,
+    set_named_item,
 )
-from ..utils import normalize_name, update_in
-from .base import BaseRuntime, FunctionSpec
 
 
 class KubeResourceSpec(FunctionSpec):
@@ -49,6 +53,9 @@ class KubeResourceSpec(FunctionSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -71,6 +78,9 @@ class KubeResourceSpec(FunctionSpec):
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self.image_pull_secret = image_pull_secret
+        self.node_name = node_name
+        self.node_selector = node_selector
+        self.affinity = affinity
 
     @property
     def volumes(self) -> list:
@@ -94,6 +104,18 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount)
 
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude=["affinity"])
+        api = client.ApiClient()
+        struct["affinity"] = api.sanitize_for_serialization(self.affinity)
+        return struct
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None):
+        new_instance = super().from_dict(struct, fields)
+        new_instance.affinity = new_instance._get_affinity_as_k8s_class_instance()
+        return new_instance
+
     def update_vols_and_mounts(self, volumes, volume_mounts):
         if volumes:
             for vol in volumes:
@@ -102,6 +124,39 @@ class KubeResourceSpec(FunctionSpec):
         if volume_mounts:
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount)
+
+    def _get_affinity_as_k8s_class_instance(self):
+        if not self.affinity:
+            return None
+        affinity = self.affinity
+        if isinstance(affinity, dict):
+            api = client.ApiClient()
+            # not ideal to use their private method, but looks like that's the only option
+            # Taken from https://github.com/kubernetes-client/python/issues/977
+            affinity = api._ApiClient__deserialize(self.affinity, "V1Affinity")
+        return affinity
+
+    def _get_sanitized_affinity(self):
+        """
+        When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
+        Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
+        apply directly. For that we need the sanitized (CamelCase) version.
+        """
+        if not self.affinity:
+            return {}
+        if isinstance(self.affinity, dict):
+            # if node_affinity is part of the dict it means to_dict on the kubernetes object performed, there's nothing
+            # we can do at that point to transform it to the sanitized version
+            if "node_affinity" in self.affinity:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Affinity must be instance of kubernetes' V1Affinity class"
+                )
+            elif "nodeAffinity" in self.affinity:
+                # then it's already the sanitized version
+                return self.affinity
+        api = client.ApiClient()
+        affinity = self._get_affinity_as_k8s_class_instance()
+        return api.sanitize_for_serialization(affinity)
 
     def _set_volume_mount(self, volume_mount):
         # calculate volume mount hash
@@ -181,6 +236,24 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
+        if mem:
+            verify_field_regex(
+                "function.limits.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                "function.limits.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if gpus:
+            verify_field_regex(
+                "function.limits.gpus",
+                gpus,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
         update_in(
             self.spec.resources,
             "limits",
@@ -189,7 +262,43 @@ class KubeResource(BaseRuntime):
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
-        update_in(self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu))
+        if mem:
+            verify_field_regex(
+                "function.requests.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                "function.requests.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
+        )
+
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        """
+        Enables to control on which k8s node the job will run
+
+        :param node_name:       The name of the k8s node
+        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param affinity:        Expands the types of constraints you can express - see
+                                https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+                                for details
+        """
+        if node_name:
+            self.spec.node_name = node_name
+        if node_selector:
+            self.spec.node_selector = node_selector
+        if affinity:
+            self.spec.affinity = affinity
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
@@ -213,3 +322,67 @@ class KubeResource(BaseRuntime):
         self._cop = ContainerOp("name", "image")
         fn._cop = ContainerOp("name", "image")
         return fn
+
+    def _add_vault_params_to_spec(self, runobj=None, project=None):
+        from ..config import config as mlconf
+
+        project_name = project or runobj.metadata.project
+        if project_name is None:
+            logger.warning("No project provided. Cannot add vault parameters")
+            return
+
+        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
+            project=project_name
+        )
+
+        project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(
+            project_name, service_account_name
+        )
+        if project_vault_secret_name is None:
+            logger.info(f"No vault secret associated with project {project_name}")
+            return
+
+        volumes = [
+            {
+                "name": "vault-secret",
+                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
+            }
+        ]
+        # We cannot use expanduser() here, since the user in question is the user running in the pod
+        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
+        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
+
+        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
+
+        self.spec.update_vols_and_mounts(volumes, volume_mounts)
+        self.spec.env.append(
+            {
+                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
+                "value": f"project:{project_name}",
+            }
+        )
+        # In case remote URL is different than local URL, use it. Else, use the local URL
+        vault_url = mlconf.secret_stores.vault.remote_url
+        if vault_url == "":
+            vault_url = mlconf.secret_stores.vault.url
+
+        self.spec.env.append(
+            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
+        )
+
+
+def kube_resource_spec_to_pod_spec(
+    kube_resource_spec: KubeResourceSpec, container: client.V1Container
+):
+    affinity = kube_resource_spec.affinity
+    if kube_resource_spec.affinity and isinstance(kube_resource_spec.affinity, dict):
+        affinity = kube_resource_spec._get_affinity_as_k8s_class_instance()
+    return client.V1PodSpec(
+        containers=[container],
+        restart_policy="Never",
+        volumes=kube_resource_spec.volumes,
+        service_account=kube_resource_spec.service_account,
+        node_name=kube_resource_spec.node_name,
+        node_selector=kube_resource_spec.node_selector,
+        affinity=affinity,
+    )

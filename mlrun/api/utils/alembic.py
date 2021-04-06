@@ -1,9 +1,10 @@
-import alembic.config
-import alembic.command
 import os
 import pathlib
 import shutil
 import typing
+
+import alembic.command
+import alembic.config
 
 from mlrun import mlconf
 

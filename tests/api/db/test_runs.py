@@ -1,10 +1,11 @@
-import pytest
-from mlrun.config import config
 from datetime import datetime, timezone
+
+import pytest
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import Run
+from mlrun.config import config
 from tests.api.db.conftest import dbs
 
 
@@ -124,10 +125,6 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
 
     runs = db.list_runs(db_session)
     assert len(runs) == 5
-
-    runs = db.list_runs(db_session, state="some_")
-    assert len(runs) == 4
-    assert run_without_state_uid not in [run["metadata"]["uid"] for run in runs]
 
     runs = db.list_runs(db_session, state=run_with_json_state_state)
     assert len(runs) == 1

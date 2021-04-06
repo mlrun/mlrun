@@ -11,8 +11,6 @@ RUN apt update -qqq \
     build-essential \
     cmake \
     graphviz \
-    ca-certificates \
-    && update-ca-certificates --fresh \
     && apt clean \
     && apt autoremove \
     && rm -rf /var/lib/apt/lists/*

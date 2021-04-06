@@ -13,6 +13,7 @@ RUN apt update -qqq \
     curl \
     build-essential \
     cmake \
+    graphviz \
     ca-certificates \
     && update-ca-certificates --fresh \
     && apt clean \

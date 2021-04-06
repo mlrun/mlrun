@@ -152,11 +152,16 @@ def test_enrich_image():
             "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
             "images_to_enrich_registry": "mlrun/mlrun,mlrun/ml-base,mlrun/ml-models",
         },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "mlrun/mlrun:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "",
+        },
     ]
     config.images_registry = "ghcr.io/"
     config.images_tag = "0.5.2-unstable-adsf76s"
     for case in cases:
-        if case.get("images_to_enrich_registry"):
+        if case.get("images_to_enrich_registry") is not None:
             config.images_to_enrich_registry = case["images_to_enrich_registry"]
         image = case["image"]
         expected_output = case["expected_output"]

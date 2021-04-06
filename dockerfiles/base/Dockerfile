@@ -4,9 +4,6 @@ FROM mlrun/mlrun:${MLRUN_VERSION}
 
 ENV PIP_NO_CACHE_DIR=1
 
-LABEL maintainer="yashab@iguazio.com"
-LABEL org="iguazio.com"
-
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -y \

@@ -15,8 +15,6 @@ RUN apt update -qqq \
 
 RUN python -m pip install --upgrade pip~=20.2.0
 
-ENV SSL_CERT_DIR /etc/ssl/certs
-
 WORKDIR /mlrun
 
 COPY ./dockerfiles/base/requirements.txt ./

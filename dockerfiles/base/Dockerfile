@@ -10,7 +10,6 @@ LABEL org="iguazio.com"
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -y \
-    git \
     curl \
     build-essential \
     cmake \

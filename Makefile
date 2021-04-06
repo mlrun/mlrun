@@ -125,7 +125,7 @@ base: update-version-file ## Build base docker image
 	$(MLRUN_BASE_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/base/Dockerfile \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG) \

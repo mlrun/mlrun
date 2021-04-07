@@ -246,7 +246,7 @@ class FileDB(DBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_set(self, session, project, name):
+    def delete_feature_set(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
     def create_feature_vector(
@@ -299,7 +299,7 @@ class FileDB(DBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_feature_vector(self, session, project, name):
+    def delete_feature_vector(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
     def list_artifact_tags(self, session, project):

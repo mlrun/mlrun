@@ -256,6 +256,7 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
+        update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
         if (not self.spec.image) and self._default_image:

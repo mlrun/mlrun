@@ -41,14 +41,17 @@ from .model_endpoints import (
     Features,
     FeatureValues,
     GrafanaColumn,
+    GrafanaDataPoint,
+    GrafanaNumberColumn,
+    GrafanaStringColumn,
     GrafanaTable,
-    Histogram,
+    GrafanaTimeSeriesTarget,
     Metric,
     ModelEndpoint,
+    ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointSpec,
-    ModelEndpointState,
-    ModelEndpointStateList,
+    ModelEndpointStatus,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination
@@ -59,6 +62,7 @@ from .project import (
     ProjectSpec,
     ProjectState,
     ProjectStatus,
+    ProjectSummary,
 )
 from .runtime_resource import (
     GroupedRuntimeResourcesOutput,

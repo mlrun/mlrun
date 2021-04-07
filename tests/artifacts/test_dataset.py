@@ -72,6 +72,19 @@ def test_dataset_upload_csv():
     artifact.upload()
 
 
+def test_dataset_upload_with_src_path_filling_hash():
+    data_frame = pandas.DataFrame({"x": [1, 2]})
+    src_path = pathlib.Path(tests.conftest.results) / "dataset"
+    target_path = pathlib.Path(tests.conftest.results) / "target-dataset"
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=data_frame, target_path=str(target_path), format="csv",
+    )
+    data_frame.to_csv(src_path)
+    artifact.src_path = src_path
+    artifact.upload()
+    assert artifact.hash is not None
+
+
 def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"

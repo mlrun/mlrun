@@ -17,6 +17,7 @@ from typing import List
 import pandas as pd
 
 import mlrun
+import mlrun.errors
 
 from ...utils import logger
 from ..feature_vector import OfflineVectorResponse
@@ -72,7 +73,7 @@ class LocalFeatureMerger:
                 if field not in index_columns:
                     index_columns.append(field)
 
-            self._result_df.drop(columns=index_columns, inplace=True)
+            self._result_df.drop(columns=index_columns, inplace=True, errors="ignore")
 
         if target:
             is_persistent_vector = self.vector.metadata.name is not None

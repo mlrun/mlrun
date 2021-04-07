@@ -41,6 +41,7 @@ class ModelArtifact(Artifact):
         "inputs",
         "outputs",
         "framework",
+        "algorithm",
         "extra_data",
         "feature_vector",
         "feature_weights",
@@ -60,6 +61,7 @@ class ModelArtifact(Artifact):
         inputs=None,
         outputs=None,
         framework=None,
+        algorithm=None,
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
@@ -76,6 +78,7 @@ class ModelArtifact(Artifact):
         self.outputs: List[Feature] = outputs or []
         self.extra_data = extra_data or {}
         self.framework = framework
+        self.algorithm = algorithm
         self.feature_vector = feature_vector
         self.feature_weights = feature_weights
         self.feature_stats = None

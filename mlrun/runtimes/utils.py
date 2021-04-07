@@ -131,7 +131,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True):
             line = "> " + "-" * 15 + f" Iteration: ({iteration}) " + "-" * 15 + "\n"
             out = line + out
         if show:
-            print(out)
+            print(out, flush=True)
         if db and not skip:
             uid = runobj.metadata.uid
             project = runobj.metadata.project or ""

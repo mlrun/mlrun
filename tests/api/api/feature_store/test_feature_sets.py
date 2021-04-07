@@ -291,6 +291,54 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 2)
 
 
+def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set"
+    feature_set = _generate_feature_set(name)
+
+    count = 5
+    uids = {}
+    for i in range(count):
+        # Store different copies of the feature set with different uids and tags
+        feature_set["metadata"]["extra_metadata"] = i * 100
+        tag = f"tag{i}"
+        result = _store_and_assert_feature_set(
+            client, project_name, name, f"tag{i}", feature_set
+        )
+        uids[result["metadata"]["uid"]] = tag
+
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name}", count
+    )
+
+    delete_by_tag = True
+    objects_left = count
+    for uid, tag in uids.items():
+        reference = tag if delete_by_tag else uid
+        delete_by_tag = not delete_by_tag
+
+        response = client.delete(
+            f"/api/projects/{project_name}/feature-sets/{name}/references/{reference}"
+        )
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
+        objects_left = objects_left - 1
+        _list_and_assert_objects(
+            client, "feature_sets", project_name, f"name={name}", objects_left
+        )
+
+    for i in range(count):
+        feature_set["metadata"]["extra_metadata"] = i * 100
+        _store_and_assert_feature_set(
+            client, project_name, name, f"tag{i}", feature_set
+        )
+
+    # Now delete by name
+    response = client.delete(f"/api/projects/{project_name}/feature-sets/{name}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 0)
+
+
 def test_feature_set_create_failure_already_exists(
     db: Session, client: TestClient
 ) -> None:

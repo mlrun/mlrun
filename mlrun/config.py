@@ -72,7 +72,7 @@ default_config = {
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
-    "runs_monitoring_interval": "5",
+    "runs_monitoring_interval": "30",
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
@@ -108,6 +108,7 @@ default_config = {
             "leader": "mlrun",
             "followers": "",
             "periodic_sync_interval": "1 minute",
+            "counters_cache_ttl": "10 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -144,6 +145,11 @@ default_config = {
             "token_ttl": 180000,
             # This config is for debug/testing purposes only!
             "user_token": "",
+        },
+        "azure_vault": {
+            "url": "https://{name}.vault.azure.net",
+            "default_secret_name": None,
+            "secret_path": "~/.mlrun/azure_vault",
         },
     },
     "feature_store": {

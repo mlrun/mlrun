@@ -6,6 +6,8 @@ This guide outlines the steps for installing and running MLRun locally.
   - [Prerequisites](#prerequisites)
   - [Chart Details](#chart-details)
   - [Installing the Chart](#installing-the-chart)
+    - [Basic Installation](#basic-installation)
+    - [Installing on Minikube/VM](#minikube-vm-installation)
   - [Install Kubeflow](#install-kubeflow)
   - [Usage](#usage)
   - [Start Working](#start-working)
@@ -37,7 +39,11 @@ The MLRun Kit chart includes the following stack:
 - NFS: <https://github.com/kubernetes-retired/external-storage/tree/master/nfs>
 - MPI Operator: <https://github.com/kubeflow/mpi-operator>
 
+<a id="installing-the-chart"></a>
 ### Installing the Chart
+
+<a id="basic-installation"></a>
+#### Basic installation
 
 Create a namespace for the deployed components:
 
@@ -81,8 +87,29 @@ helm --namespace mlrun \
 ```
 
 Where:
-
 - `<registry-url` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub>).
+
+<a id="minikube-vm-installation"></a>
+#### Installing on Minikube/VM
+The Open source MLRun kit uses node ports for simplicity. If your kubernetes cluster is running inside a VM, 
+as is usually the case when using minikube, the kubernetes services exposed over node ports would not be available on 
+your local host interface, but instead, on the virtual machine's interface.
+To accommodate for this, use the `global.externalHostAddress` value on the chart. For example, if you're using 
+the kit inside a minikube cluster (with some non-empty `vm-driver`), pass the VM address in the chart installation 
+command like so:
+
+```bash
+$ helm --namespace mlrun \
+    install my-mlrun \
+    --wait \
+    --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
+    --set global.registry.secretName=registry-credentials \
+    --set global.externalHostAddress=$(minikube ip) \
+    v3io-stable/mlrun-kit
+```
+
+Where:
+- `$(minikube ip)` shell command resolving the external node address of the k8s node VM
 
 ### Install Kubeflow
 
@@ -94,9 +121,14 @@ Refer to the [**Kubeflow documentation**](https://www.kubeflow.org/docs/started/
 
 Your applications are now available in your local browser:
 
-- Jupyter-Lab - <http://localhost:30040>
-- MLRun - <http://localhost:30050>
-- Nuclio - <http://localhost:30060>
+- Jupyter-notebook - http://localhost:30040
+- Nuclio - http://localhost:30050
+- MLRun UI - http://locahost:30060
+- MLRun API (external) - http://locahost:30070
+> **Note:**
+> The above links assume your Kubernetes cluster is exposed on localhost.
+> If that's not the case, the different components will be available on the provided `externalHostAddress`
+
 
 ### Start Working
 
@@ -128,10 +160,10 @@ Define your MLRun configuration. As a minimum requirement:
     MLRUN_DBPATH=<API endpoint of the MLRun APIs service engpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
 
-2. In order to store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your artifact. You can use `{{run.project}}` to include the project name in the path `{{run.uid}}` to include the specific run uid in the artifact path. For example:
+2. In order to store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your artifact. You can use `{{project}}` to include the project name in the path `{{run.uid}}` to include the specific run uid in the artifact path. For example:
 
     ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{run.project}}
+    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
     ```
 
 3. If the remote service is on an instance of the Iguazio Data Science Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
@@ -151,7 +183,7 @@ Configurable values are documented in the `values.yaml`, and the `values.yaml` o
 ### Uninstalling the Chart
 
 ```bash
-helm --namespace mlrun uninstall -mlrun-kit
+helm --namespace mlrun uninstall mlrun-kit
 ```
 
 > **Note on terminating pods and hanging resources:**
@@ -205,18 +237,18 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 
 > **Note:**
 > - Using Docker is limited to local runtimes.
-> - By default the MLRun API service will run inside the Jupyter server, set the MLRUN_DBPATH env var in Jupyter to point to an alternative service address.
+> - By default, the MLRun API service will run inside the Jupyter server, set the MLRUN_DBPATH env var in Jupyter to point to an alternative service address.
 > - The artifacts and DB will be stored under **/home/jovyan/data**, use docker -v option to persist the content on the host (e.g. `-v $(SHARED_DIR}:/home/jovyan/data`)
 
 ```sh
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:0.6.1
-docker pull mlrun/mlrun-ui:0.6.1
+docker pull mlrun/jupyter:0.6.2
+docker pull mlrun/mlrun-ui:0.6.2
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.1
-docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.1
+docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.2
+docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.2
 ```
 
 When the execution completes &mdash;

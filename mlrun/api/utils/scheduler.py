@@ -3,6 +3,7 @@ import copy
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import fastapi.concurrency
 import humanfriendly
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
@@ -181,7 +182,9 @@ class Scheduler:
 
     async def invoke_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Invoking schedule", project=project, name=name)
-        db_schedule = get_db().get_schedule(db_session, project, name)
+        db_schedule = await fastapi.concurrency.run_in_threadpool(
+            get_db().get_schedule, db_session, project, name
+        )
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,
@@ -421,7 +424,7 @@ class Scheduler:
             project=project_name,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
         )
-        if len(active_runs) > schedule_concurrency_limit:
+        if len(active_runs) >= schedule_concurrency_limit:
             logger.warn(
                 "Schedule exceeded concurrency limit, skipping this run",
                 project=project_name,

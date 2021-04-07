@@ -326,7 +326,7 @@ class OnlineVectorService:
                 if key in data:
                     del data[key]
             if not data:
-                data = {None}
+                data = None
             if as_list:
                 data = [
                     result.body[key]

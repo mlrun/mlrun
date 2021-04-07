@@ -122,7 +122,7 @@ class TestFeatureStore(TestMLRunSystem):
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"ticker": "a"}])
-        assert resp[0] == {None}
+        assert resp[0] is None
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
         resp = svc.get([{"ticker": "AAPL"}])
         assert (

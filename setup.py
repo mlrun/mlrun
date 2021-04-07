@@ -63,6 +63,7 @@ extras_require = {
     "s3": ["boto3~=1.9, <1.16.53", "botocore>=1.19.52, <1.19.53", "s3fs~=0.5.0"],
     # <12.7.0 from adlfs 0.6.3
     "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.0"],
+    "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
 }
 extras_require["complete"] = sorted(
     {

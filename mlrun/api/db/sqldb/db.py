@@ -1363,10 +1363,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        group_by: schemas.FeatureStorePartitionByField = None,
-        rows_per_group: int = 1,
-        sort: schemas.SortField = None,
-        order: schemas.OrderType = schemas.OrderType.desc,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
@@ -1386,10 +1386,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if labels:
             query = self._add_labels_filter(session, query, FeatureSet, labels)
 
-        if group_by:
-            self._assert_partition_by_parameters(group_by, sort)
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort)
             query = self._create_partitioned_query(
-                session, query, FeatureSet, group_by, order, rows_per_group
+                session,
+                query,
+                FeatureSet,
+                partition_by,
+                partition_order,
+                rows_per_partition,
             )
 
         feature_sets = []

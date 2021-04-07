@@ -525,7 +525,7 @@ class MlrunProject(ModelObj):
 
     @property
     def name(self) -> str:
-        """This is a property of the spec, look there for documentation
+        """This is a property of the metadata, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
         warnings.warn(
             "This is a property of the metadata, use project.metadata.name instead"
@@ -544,6 +544,28 @@ class MlrunProject(ModelObj):
             PendingDeprecationWarning,
         )
         self.metadata.name = name
+
+    @property
+    def artifact_path(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifact_path instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.artifact_path
+
+    @artifact_path.setter
+    def artifact_path(self, artifact_path):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifact_path instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.artifact_path = artifact_path
 
     @property
     def source(self) -> str:
@@ -780,6 +802,9 @@ class MlrunProject(ModelObj):
     ):
         am = self._get_artifact_manager()
         artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            artifact_path, self.metadata.name
+        )
         producer = ArtifactProducer(
             "project",
             self.metadata.name,
@@ -878,6 +903,7 @@ class MlrunProject(ModelObj):
         tag="",
         model_dir=None,
         model_file=None,
+        algorithm=None,
         metrics=None,
         parameters=None,
         artifact_path=None,
@@ -911,6 +937,7 @@ class MlrunProject(ModelObj):
                                 to define a subpath under the default location use:
                                 `artifact_path=context.artifact_subpath('data')`
         :param framework:       name of the ML framework
+        :param algorithm:       training algorithm name
         :param tag:             version tag
         :param metrics:         key/value dict of model metrics
         :param parameters:      key/value dict of model parameters
@@ -942,6 +969,7 @@ class MlrunProject(ModelObj):
             inputs=inputs,
             outputs=outputs,
             framework=framework,
+            algorithm=algorithm,
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,

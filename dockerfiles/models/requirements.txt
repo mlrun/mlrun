@@ -8,7 +8,7 @@ dask-ml~=1.4
 dask[complete]~=2.12
 # see main requirements.txt for reasoning the resrictions
 distributed>=2.23, <3
-fsspec~=0.8.0
+fsspec>=0.8.2, <=0.8.7
 gnureadline~=8.0
 kubernetes~=11.0
 lifelines~=0.25.0

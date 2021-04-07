@@ -13,13 +13,17 @@
 # limitations under the License.
 import os
 import sys
+import typing
 from copy import copy
-from typing import Dict
 
 import mlrun
+import mlrun.utils.helpers
+from mlrun.config import config
 from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
+from mlrun.utils.v3io_clients import get_frames_client
 
+from ..platforms.iguazio import split_path
 from .utils import store_path_to_spark
 from .v3io import parse_v3io_path
 
@@ -72,7 +76,7 @@ def validate_target_placement(graph, final_step, targets):
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     """add the target states to the graph"""
     targets = targets or []
-    key_column = resource.spec.entities[0].name
+    key_columns = list(resource.spec.entities.keys())
     timestamp_key = resource.spec.timestamp_key
     features = resource.spec.features
     table = None
@@ -85,7 +89,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
             graph,
             target.after_state or final_state,
             features=features,
-            key_column=key_column,
+            key_columns=key_columns,
             timestamp_key=timestamp_key,
         )
     if to_df:
@@ -95,7 +99,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
             graph,
             final_state,
             features=features,
-            key_column=key_column,
+            key_columns=key_columns,
             timestamp_key=timestamp_key,
         )
 
@@ -148,7 +152,7 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: typing.Dict[str, str] = None,
         after_state=None,
     ):
         self.name = name
@@ -164,7 +168,9 @@ class BaseStoreTarget(DataTargetBase):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, **kwargs,
+    ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -226,7 +232,7 @@ class BaseStoreTarget(DataTargetBase):
         return target
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         """add storey writer state to graph"""
         raise NotImplementedError()
@@ -255,7 +261,7 @@ class ParquetTarget(BaseStoreTarget):
             df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         column_list = list(features.keys())
         if timestamp_key and timestamp_key not in column_list:
@@ -268,7 +274,7 @@ class ParquetTarget(BaseStoreTarget):
             class_name="storey.WriteToParquet",
             path=self._target_path,
             columns=column_list,
-            index_cols=key_column,
+            index_cols=key_columns,
             storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )
@@ -299,13 +305,14 @@ class CSVTarget(BaseStoreTarget):
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
-        if key_column not in column_list:
-            column_list.insert(0, key_column)
+        for key in reversed(key_columns):
+            if key not in column_list:
+                column_list.insert(0, key)
         graph.add_step(
             name="WriteToCSV",
             after=after,
@@ -314,7 +321,7 @@ class CSVTarget(BaseStoreTarget):
             path=self._target_path,
             columns=column_list,
             header=True,
-            index_cols=key_column,
+            index_cols=key_columns,
             storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )
@@ -342,14 +349,15 @@ class NoSqlTarget(BaseStoreTarget):
         return Table(uri, V3ioDriver(webapi=endpoint))
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
         column_list = [
             key for key, feature in features.items() if not feature.aggregate
         ]
-        if key_column not in column_list:
-            column_list.insert(0, key_column)
+        for key in reversed(key_columns):
+            if key not in column_list:
+                column_list.insert(0, key)
         graph.add_step(
             name="WriteToTable",
             after=after,
@@ -370,6 +378,25 @@ class NoSqlTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
 
+    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+        if hasattr(df, "rdd"):
+            options = self.get_spark_options(key_column, timestamp_key)
+            options.update(kwargs)
+            df.write.mode("overwrite").save(**options)
+        else:
+            access_key = self._secrets.get(
+                "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+            )
+
+            _, path_with_container = parse_v3io_path(self._target_path)
+            container, path = split_path(path_with_container)
+
+            frames_client = get_frames_client(
+                token=access_key, address=config.v3io_framesd, container=container
+            )
+
+            frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
+
 
 class StreamTarget(BaseStoreTarget):
     kind = TargetTypes.stream
@@ -379,7 +406,7 @@ class StreamTarget(BaseStoreTarget):
     support_storey = True
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         from storey import V3ioDriver
 
@@ -387,8 +414,9 @@ class StreamTarget(BaseStoreTarget):
         column_list = list(features.keys())
         if timestamp_key and timestamp_key not in column_list:
             column_list = [timestamp_key] + column_list
-        if key_column not in column_list:
-            column_list.insert(0, key_column)
+        for key in reversed(key_columns):
+            if key not in column_list:
+                column_list.insert(0, key)
         graph.add_step(
             name="WriteToStream",
             after=after,
@@ -412,7 +440,7 @@ class TSDBTarget(BaseStoreTarget):
     support_storey = True
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         endpoint, uri = parse_v3io_path(self._target_path)
         column_list = list(features.keys())
@@ -420,8 +448,9 @@ class TSDBTarget(BaseStoreTarget):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
             )
-        if key_column not in column_list:
-            column_list.insert(0, key_column)
+        for key in reversed(key_columns):
+            if key not in column_list:
+                column_list.insert(0, key)
         graph.add_step(
             name="WriteToTSDB",
             class_name="storey.WriteToTSDB",
@@ -429,13 +458,35 @@ class TSDBTarget(BaseStoreTarget):
             graph_shape="cylinder",
             path=uri,
             time_col=timestamp_key,
-            index_cols=key_column,
+            index_cols=key_columns,
             columns=column_list,
             **self.attributes,
         )
 
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
+
+    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+        access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
+
+        new_index = []
+        if timestamp_key:
+            new_index.append(timestamp_key)
+        if key_column:
+            if isinstance(key_column, str):
+                key_column = [key_column]
+            new_index.extend(key_column)
+
+        _, path_with_container = parse_v3io_path(self._target_path)
+        container, path = split_path(path_with_container)
+
+        frames_client = get_frames_client(
+            token=access_key, address=config.v3io_framesd, container=container,
+        )
+
+        frames_client.write(
+            "tsdb", path, df, index_cols=new_index if new_index else None, **kwargs
+        )
 
 
 class CustomTarget(BaseStoreTarget):
@@ -453,7 +504,7 @@ class CustomTarget(BaseStoreTarget):
         super().__init__(name, "", attributes, after_state=after_state)
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
@@ -480,7 +531,7 @@ class DFTarget(BaseStoreTarget):
         pass
 
     def add_writer_state(
-        self, graph, after, features, key_column=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         # todo: column filter
         graph.add_step(
@@ -488,8 +539,8 @@ class DFTarget(BaseStoreTarget):
             after=after,
             graph_shape="cylinder",
             class_name="storey.ReduceToDataFrame",
-            index=key_column,
-            insert_key_column_as=key_column,
+            index=key_columns,
+            insert_key_column_as=key_columns,
             insert_time_column_as=timestamp_key,
         )
 

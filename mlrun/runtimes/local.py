@@ -28,7 +28,7 @@ from subprocess import PIPE, Popen
 from sys import executable
 from tempfile import mktemp
 
-from distributed import Client
+from distributed import Client, as_completed
 from nuclio import Event
 
 import mlrun
@@ -65,7 +65,6 @@ class ParallelRunner:
         client, function_name = self._get_dask_client(generator.options)
         parallel_runs = generator.options.parallel_runs or 4
         queued_runs = 0
-        result_index = 0
         num_errors = 0
 
         def process_result(future):
@@ -73,7 +72,7 @@ class ParallelRunner:
             resp, sout, serr = future.result()
             runobj = RunObject.from_dict(resp)
             try:
-                log_std(self._db_conn, runobj, sout, serr)
+                log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
                 resp = self._post_run(resp)
             except RunError as err:
                 resp = self._post_run(resp, err=str(err))
@@ -86,25 +85,25 @@ class ParallelRunner:
             stop = generator.eval_stop_condition(run_results)
             if stop:
                 logger.info(
-                    f"reached early stop condition ({generator.stop_condition}), stopping iterations!"
+                    f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
                 )
             return stop
 
-        futures = []
+        completed_iter = as_completed([])
         for task in tasks:
             resp = client.submit(
                 remote_handler_wrapper, task.to_json(), handler, self.spec.workdir
             )
-            futures.append(resp)
+            completed_iter.add(resp)
             queued_runs += 1
             if queued_runs >= parallel_runs:
-                early_stop = process_result(futures[result_index])
+                future = next(completed_iter)
+                early_stop = process_result(future)
                 queued_runs -= 1
-                result_index += 1
                 if early_stop:
                     break
 
-        for future in futures[result_index:]:
+        for future in completed_iter:
             process_result(future)
 
         client.close()
@@ -294,7 +293,7 @@ class _DupStdout(object):
         self.buf.write(message)
 
     def flush(self):
-        pass
+        self.terminal.flush()
 
 
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
@@ -320,6 +319,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)
 
+    stdout.flush()
     if cwd:
         os.chdir(old_dir)
     context.set_logger_stream(sys.stdout)

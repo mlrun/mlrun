@@ -17,6 +17,7 @@ from typing import List
 import pandas as pd
 
 import mlrun
+import mlrun.errors
 
 from ...utils import logger
 from ..feature_vector import OfflineVectorResponse

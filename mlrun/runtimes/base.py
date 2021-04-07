@@ -354,8 +354,8 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.uid}}", meta.uid
             )
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.project}}", runspec.metadata.project
+            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+                runspec.spec.output_path, runspec.metadata.project
             )
         if is_local(runspec.spec.output_path):
             logger.warning(

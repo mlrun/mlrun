@@ -310,7 +310,7 @@ class OnlineVectorService:
 
     @property
     def status(self):
-        """vector prep function status (ready, running, error)"""
+        """vector merger function status (ready, running, error)"""
         return "ready"
 
     def get(self, entity_rows: List[dict], as_list=False):
@@ -325,6 +325,8 @@ class OnlineVectorService:
             for key in self._index_columns:
                 if key in data:
                     del data[key]
+            if not data:
+                data = None
             if as_list:
                 data = [
                     result.body[key]
@@ -360,10 +362,12 @@ class OfflineVectorResponse:
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        return ParquetTarget(path=target_path).write_dataframe(
+        size = ParquetTarget(path=target_path).write_dataframe(
             self._merger.get_df(), **kw
         )
+        return size
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
+        size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
+        return size

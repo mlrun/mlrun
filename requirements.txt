@@ -50,4 +50,4 @@ fastapi~=0.62.0
 v3iofs~=0.1.5
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.3.2
-storey~=0.3.4; python_version >= '3.7'
+storey~=0.4.0; python_version >= '3.7'

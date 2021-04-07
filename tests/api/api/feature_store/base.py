@@ -62,7 +62,7 @@ def _assert_diff_as_expected_except_for_specific_metadata(
     assert diff == expected_diff
 
 
-def _test_group_by_for_feature_store_objects(
+def _test_partition_by_for_feature_store_objects(
     client: TestClient, object_name, project_name, count
 ):
     # Basic list, establishing baseline -
@@ -74,7 +74,7 @@ def _test_group_by_for_feature_store_objects(
         client,
         object_name,
         project_name,
-        "group-by=name&sort-by=updated&rows-per-group=1&order=desc",
+        "partition-by=name&partition-sort-by=updated&rows-per-partition=1&partition-order=desc",
         count,
     )[object_name]
 
@@ -86,7 +86,7 @@ def _test_group_by_for_feature_store_objects(
         client,
         object_name,
         project_name,
-        "group-by=name&sort-by=updated&rows-per-group=1&order=asc",
+        "partition-by=name&partition-sort-by=updated&rows-per-partition=1&partition-order=asc",
         count,
     )[object_name]
 
@@ -98,7 +98,7 @@ def _test_group_by_for_feature_store_objects(
         client,
         object_name,
         project_name,
-        "group-by=name&sort-by=updated&rows-per-group=2&order=desc",
+        "partition-by=name&partition-sort-by=updated&rows-per-partition=2&partition-order=desc",
         count * 2,
     )[object_name]
 
@@ -110,7 +110,7 @@ def _test_group_by_for_feature_store_objects(
         client,
         object_name,
         project_name,
-        "entity=ticker&feature=bid&label=owner&group-by=name&sort-by=updated",
+        "entity=ticker&feature=bid&label=owner&partition-by=name&partition-sort-by=updated",
         count,
     )[object_name]
     for result_object in results:
@@ -119,11 +119,11 @@ def _test_group_by_for_feature_store_objects(
     # Some negative testing - no sort field
     object_url_name = object_name.replace("_", "-")
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_name}?group-by=name"
+        f"/api/projects/{project_name}/{object_url_name}?partition-by=name"
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid group-by field - will be failed by fastapi due to schema validation.
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_name}?group-by=key&sort-by=updated"
+        f"/api/projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=updated"
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

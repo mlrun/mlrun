@@ -1247,19 +1247,19 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["entities"]
 
     @staticmethod
-    def _generate_group_by_params(group_by, rows_per_group, sort_by, order):
-        if isinstance(group_by, schemas.FeatureStoreGroupByField):
-            group_by = group_by.value
+    def _generate_partition_by_params(partition_by, rows_per_partition, sort_by, order):
+        if isinstance(partition_by, schemas.FeatureStorePartitionByField):
+            partition_by = partition_by.value
         if isinstance(sort_by, schemas.SortField):
             sort_by = sort_by.value
         if isinstance(order, schemas.OrderType):
             order = order.value
 
         return {
-            "group-by": group_by,
-            "rows-per-group": rows_per_group,
-            "sort-by": sort_by,
-            "order": order,
+            "partition-by": partition_by,
+            "rows-per-partition": rows_per_partition,
+            "partition-sort-by": sort_by,
+            "partition-order": order,
         }
 
     def list_feature_sets(
@@ -1271,10 +1271,10 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        group_by: Union[schemas.FeatureStoreGroupByField, str] = None,
-        rows_per_group: int = 1,
-        sort_by: Union[schemas.SortField, str] = None,
-        order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[FeatureSet]:
         """ Retrieve a list of feature-sets matching the criteria provided.
 
@@ -1285,13 +1285,13 @@ class HTTPRunDB(RunDBInterface):
         :param entities: Match feature-sets which contain entities whose name is in this list.
         :param features: Match feature-sets which contain features whose name is in this list.
         :param labels: Match feature-sets which have these labels.
-        :param group_by: Field to group results by. Only allowed value is `name`. When `group_by` is specified,
-            the `sort_by` parameter must be provided as well.
-        :param rows_per_group: How many top rows (per sorting defined by `sort_by` and `order`) to return per
-            group. Default value is 1.
-        :param sort_by: What field to sort the results by, within each partition defined by `group_by`. Currently
-            the only allowed value is `updated`.
-        :param order: Order of sorting - `asc` or `desc`. Default is `desc`.
+        :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
+            the `partition_sort_by` parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed value is `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
 
@@ -1305,9 +1305,11 @@ class HTTPRunDB(RunDBInterface):
             "feature": features or [],
             "label": labels or [],
         }
-        if group_by:
+        if partition_by:
             params.update(
-                self._generate_group_by_params(group_by, rows_per_group, sort_by, order)
+                self._generate_partition_by_params(
+                    partition_by, rows_per_partition, partition_sort_by, partition_order
+                )
             )
 
         path = f"projects/{project}/feature-sets"
@@ -1464,10 +1466,10 @@ class HTTPRunDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        group_by: Union[schemas.FeatureStoreGroupByField, str] = None,
-        rows_per_group: int = 1,
-        sort_by: Union[schemas.SortField, str] = None,
-        order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[FeatureVector]:
         """ Retrieve a list of feature-vectors matching the criteria provided.
 
@@ -1476,13 +1478,13 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Match feature-vectors with specific tag.
         :param state: Match feature-vectors with a specific state.
         :param labels: Match feature-vectors which have these labels.
-        :param group_by: Field to group results by. Only allowed value is `name`. When `group_by` is specified,
-            the `sort_by` parameter must be provided as well.
-        :param rows_per_group: How many top rows (per sorting defined by `sort_by` and `order`) to return per
-            group. Default value is 1.
-        :param sort_by: What field to sort the results by, within each partition defined by `group_by`. Currently
-            the only allowed value is `updated`.
-        :param order: Order of sorting - `asc` or `desc`. Default is `desc`.
+        :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
+            the `partition_sort_by` parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed value is `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureVector` objects.
         """
 
@@ -1494,9 +1496,11 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
             "label": labels or [],
         }
-        if group_by:
+        if partition_by:
             params.update(
-                self._generate_group_by_params(group_by, rows_per_group, sort_by, order)
+                self._generate_partition_by_params(
+                    partition_by, rows_per_partition, partition_sort_by, partition_order
+                )
             )
 
         path = f"projects/{project}/feature-vectors"

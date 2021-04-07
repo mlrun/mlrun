@@ -8,7 +8,7 @@ from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
     _patch_object,
-    _test_group_by_for_feature_store_objects,
+    _test_partition_by_for_feature_store_objects,
 )
 
 
@@ -164,7 +164,7 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     # _assert_list_objects(client, "feature_sets", project_name, "label=owner=bob&label=color=red", 2)
 
 
-def test_feature_set_list_group_by(db: Session, client: TestClient) -> None:
+def test_feature_set_list_partition_by(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     count = 5
     for i in range(count):
@@ -177,7 +177,7 @@ def test_feature_set_list_group_by(db: Session, client: TestClient) -> None:
         feature_set["metadata"]["extra_metadata"] = 300
         _store_and_assert_feature_set(client, project_name, name, "newest", feature_set)
 
-    _test_group_by_for_feature_store_objects(
+    _test_partition_by_for_feature_store_objects(
         client, "feature_sets", project_name, count
     )
 

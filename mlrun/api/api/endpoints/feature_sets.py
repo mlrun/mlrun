@@ -104,10 +104,12 @@ def list_feature_sets(
     entities: List[str] = Query(None, alias="entity"),
     features: List[str] = Query(None, alias="feature"),
     labels: List[str] = Query(None, alias="label"),
-    group_by: schemas.FeatureStoreGroupByField = Query(None, alias="group-by"),
-    rows_per_group: int = Query(1, alias="rows-per-group", gt=0),
-    sort: schemas.SortField = Query(None, alias="sort-by"),
-    order: schemas.OrderType = schemas.OrderType.desc,
+    partition_by: schemas.FeatureStorePartitionByField = Query(
+        None, alias="partition-by"
+    ),
+    rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
+    sort: schemas.SortField = Query(None, alias="partition-sort-by"),
+    order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_sets = get_db().list_feature_sets(
@@ -119,8 +121,8 @@ def list_feature_sets(
         entities,
         features,
         labels,
-        group_by,
-        rows_per_group,
+        partition_by,
+        rows_per_partition,
         sort,
         order,
     )
@@ -198,10 +200,12 @@ def list_feature_vectors(
     state: str = None,
     tag: str = None,
     labels: List[str] = Query(None, alias="label"),
-    group_by: schemas.FeatureStoreGroupByField = Query(None, alias="group-by"),
-    rows_per_group: int = Query(1, alias="rows-per-group", gt=0),
-    sort: schemas.SortField = Query(None, alias="sort-by"),
-    order: schemas.OrderType = schemas.OrderType.desc,
+    partition_by: schemas.FeatureStorePartitionByField = Query(
+        None, alias="partition-by"
+    ),
+    rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
+    sort: schemas.SortField = Query(None, alias="partition-sort-by"),
+    order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_vectors = get_db().list_feature_vectors(
@@ -211,8 +215,8 @@ def list_feature_vectors(
         tag,
         state,
         labels,
-        group_by,
-        rows_per_group,
+        partition_by,
+        rows_per_partition,
         sort,
         order,
     )

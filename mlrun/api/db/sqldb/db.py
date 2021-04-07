@@ -1191,15 +1191,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod
-    def _assert_group_by_parameters(group_by, sort):
+    def _assert_partition_by_parameters(partition_by, sort):
         if sort is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "sort parameter must be provided when group_by is used."
+                "sort parameter must be provided when partition_by is used."
             )
         # For now, name is the only supported value. Remove once more fields are added.
-        if group_by != schemas.FeatureStoreGroupByField.name:
+        if partition_by != schemas.FeatureStorePartitionByField.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"group_by for feature-store objects must be 'name'. Value given: '{group_by.value}'"
+                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
             )
 
     @staticmethod
@@ -1207,7 +1207,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         row_number_column = (
             func.row_number()
             .over(
-                partition_by=group_by.to_group_by_db_field(cls),
+                partition_by=group_by.to_partition_by_db_field(cls),
                 order_by=order.to_order_by_predicate(cls.updated),
             )
             .label("row_number")
@@ -1230,7 +1230,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        group_by: schemas.FeatureStoreGroupByField = None,
+        group_by: schemas.FeatureStorePartitionByField = None,
         rows_per_group: int = 1,
         sort: schemas.SortField = None,
         order: schemas.OrderType = schemas.OrderType.desc,
@@ -1254,7 +1254,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             query = self._add_labels_filter(session, query, FeatureSet, labels)
 
         if group_by:
-            self._assert_group_by_parameters(group_by, sort)
+            self._assert_partition_by_parameters(group_by, sort)
             query = self._create_partitioned_query(
                 session, query, FeatureSet, group_by, order, rows_per_group
             )
@@ -1590,10 +1590,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        group_by: schemas.FeatureStoreGroupByField = None,
-        rows_per_group: int = 1,
-        sort: schemas.SortField = None,
-        order: schemas.OrderType = schemas.OrderType.desc,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureVector, project, tag, name
@@ -1609,10 +1609,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if labels:
             query = self._add_labels_filter(session, query, FeatureVector, labels)
 
-        if group_by:
-            self._assert_group_by_parameters(group_by, sort)
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort_by)
             query = self._create_partitioned_query(
-                session, query, FeatureVector, group_by, order, rows_per_group
+                session,
+                query,
+                FeatureVector,
+                partition_by,
+                partition_order,
+                rows_per_partition,
             )
 
         feature_vectors = []

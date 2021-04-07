@@ -426,10 +426,10 @@ def test_feature_sets(create_server):
 
     feature_sets = db.list_feature_sets(
         project=project,
-        group_by="name",
-        rows_per_group=1,
-        sort_by="updated",
-        order="desc",
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
     )
     assert len(feature_sets) == count, "bad list results - wrong number of members"
 
@@ -508,10 +508,10 @@ def test_feature_vectors(create_server):
 
     feature_vectors = db.list_feature_vectors(
         project=project,
-        group_by="name",
-        rows_per_group=1,
-        sort_by="updated",
-        order="desc",
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
     )
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
 

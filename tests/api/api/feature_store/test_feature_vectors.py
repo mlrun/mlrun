@@ -8,7 +8,7 @@ from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
     _patch_object,
-    _test_group_by_for_feature_store_objects,
+    _test_partition_by_for_feature_store_objects,
 )
 
 
@@ -324,7 +324,7 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
     )
 
 
-def test_feature_vector_list_group_by(db: Session, client: TestClient) -> None:
+def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     count = 5
     for i in range(count):
@@ -343,6 +343,6 @@ def test_feature_vector_list_group_by(db: Session, client: TestClient) -> None:
             client, project_name, name, "newest", feature_vector
         )
 
-    _test_group_by_for_feature_store_objects(
+    _test_partition_by_for_feature_store_objects(
         client, "feature_vectors", project_name, count
     )

@@ -54,11 +54,11 @@ class HeaderNames:
     secret_store_token = f"{headers_prefix}secret-store-token"
 
 
-class FeatureStoreGroupByField(str, Enum):
+class FeatureStorePartitionByField(str, Enum):
     name = "name"  # Supported for feature-store objects
 
-    def to_group_by_db_field(self, db_cls):
-        if self.value == FeatureStoreGroupByField.name:
+    def to_partition_by_db_field(self, db_cls):
+        if self.value == FeatureStorePartitionByField.name:
             return db_cls.name
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

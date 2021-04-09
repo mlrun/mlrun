@@ -278,6 +278,10 @@ class SQLDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
+        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
         return self._transform_db_error(
             self.db.list_feature_sets,
@@ -289,6 +293,10 @@ class SQLDB(RunDBInterface):
             entities,
             features,
             labels,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
         )
 
     def store_feature_set(
@@ -348,6 +356,10 @@ class SQLDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
+        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
         return self._transform_db_error(
             self.db.list_feature_vectors,
@@ -357,6 +369,10 @@ class SQLDB(RunDBInterface):
             tag,
             state,
             labels,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
         )
 
     def store_feature_vector(

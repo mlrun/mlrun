@@ -16,6 +16,8 @@ import time
 import traceback
 from typing import Dict
 
+from mlrun.datastore import _DummyStream
+
 import mlrun
 from mlrun.api.schemas import (
     ModelEndpoint,
@@ -109,7 +111,9 @@ class V2ModelServer:
             else:
                 self._load_and_update_state()
 
-        if self._model_logger is not None:
+        if self._model_logger is not None and not isinstance(
+            self._model_logger.output_stream, _DummyStream
+        ):
             self._model_logger.init_endpoint_record()
 
     def get_param(self, key: str, default=None):

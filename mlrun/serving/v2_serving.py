@@ -16,8 +16,6 @@ import time
 import traceback
 from typing import Dict
 
-from mlrun.datastore import _DummyStream
-
 import mlrun
 from mlrun.api.schemas import (
     ModelEndpoint,
@@ -25,6 +23,7 @@ from mlrun.api.schemas import (
     ModelEndpointSpec,
     ModelEndpointStatus,
 )
+from mlrun.datastore import _DummyStream
 from mlrun.utils import now_date, parse_versioned_object_uri
 
 

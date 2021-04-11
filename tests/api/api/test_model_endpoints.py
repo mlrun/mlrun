@@ -14,13 +14,14 @@ from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
 from mlrun.api.crud.model_endpoints import (
-    ENDPOINT_EVENTS_TABLE_PATH,
-    ENDPOINTS_TABLE_PATH,
+    ENDPOINTS,
+    EVENTS,
     ModelEndpoints,
     build_kv_cursor_filter_expression,
     get_access_key,
     get_endpoint_features,
     get_endpoint_metrics,
+    parse_store_prefix,
     write_endpoint_to_kv,
 )
 from mlrun.api.schemas import (
@@ -38,6 +39,7 @@ from mlrun.errors import (
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
+TEST_PROJECT = "test3"
 
 
 def _build_skip_message():
@@ -129,7 +131,7 @@ async def test_list_endpoints(db: Session, client: TestClient):
 
     response = await run_in_threadpool(
         client.get,
-        url="/api/projects/test/model-endpoints",
+        url=f"/api/projects/{TEST_PROJECT}/model-endpoints",
         headers={"X-V3io-Session-Key": _get_access_key()},
     )
 
@@ -164,35 +166,28 @@ async def test_list_endpoints_filter(db: Session, client: TestClient):
 
     filter_model = await run_in_threadpool(
         client.get,
-        "/api/projects/test/model-endpoints/?model=filterme",
+        f"/api/projects/{TEST_PROJECT}/model-endpoints/?model=filterme",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_model.json()["endpoints"]) == 1
 
-    # filter_function = await run_in_threadpool(
-    #     client.get,
-    #     "/api/projects/test/model-endpoints/?function=test/filterme",
-    #     headers={"X-V3io-Session-Key": access_key},
-    # )
-    # assert len(filter_function.json()["endpoints"]) == 2
-
     filter_labels = await run_in_threadpool(
         client.get,
-        "/api/projects/test/model-endpoints/?label=filtermex=1",
+        f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermex=1",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_labels.json()["endpoints"]) == 4
 
     filter_labels = await run_in_threadpool(
         client.get,
-        "/api/projects/test/model-endpoints/?label=filtermex=1&label=filtermey=2",
+        f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermex=1&label=filtermey=2",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_labels.json()["endpoints"]) == 4
 
     filter_labels = await run_in_threadpool(
         client.get,
-        "/api/projects/test/model-endpoints/?label=filtermey=2",
+        f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermey=2",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_labels.json()["endpoints"]) == 4
@@ -203,8 +198,13 @@ async def test_list_endpoints_filter(db: Session, client: TestClient):
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 async def test_get_endpoint_metrics(db: Session, client: TestClient):
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=TEST_PROJECT, kind=EVENTS
+    )
+    _, container, path = parse_store_prefix(path)
+
     frames = get_frames_client(
-        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+        token=_get_access_key(), container=container, address=config.v3io_framesd,
     )
 
     start = datetime.utcnow()
@@ -213,11 +213,7 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
         endpoint = _mock_random_endpoint()
         await write_endpoint_to_kv(_get_access_key(), endpoint)
         await run_in_threadpool(
-            frames.create,
-            backend="tsdb",
-            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
-            rate="10/m",
-            if_exists=1,
+            frames.create, backend="tsdb", table=path, rate="10/m", if_exists=1,
         )
 
         total = 0
@@ -238,14 +234,14 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
         await run_in_threadpool(
             frames.write,
             backend="tsdb",
-            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+            table=path,
             dfs=dfs,
             index_cols=["timestamp", "endpoint_id"],
         )
 
         response = await run_in_threadpool(
             client.get,
-            url=f"/api/projects/test/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",
+            url=f"/api/projects/{TEST_PROJECT}/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",
             headers={"X-V3io-Session-Key": _get_access_key()},
         )
 
@@ -269,8 +265,13 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 async def test_get_endpoint_metric_function():
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=TEST_PROJECT, kind=EVENTS
+    )
+    _, container, path = parse_store_prefix(path)
+
     frames = get_frames_client(
-        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+        token=_get_access_key(), container=container, address=config.v3io_framesd,
     )
 
     start = datetime.utcnow()
@@ -279,11 +280,7 @@ async def test_get_endpoint_metric_function():
     await write_endpoint_to_kv(_get_access_key(), endpoint)
 
     await run_in_threadpool(
-        frames.create,
-        backend="tsdb",
-        table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
-        rate="10/m",
-        if_exists=1,
+        frames.create, backend="tsdb", table=path, rate="10/m", if_exists=1,
     )
 
     total = 0
@@ -303,14 +300,14 @@ async def test_get_endpoint_metric_function():
     await run_in_threadpool(
         frames.write,
         backend="tsdb",
-        table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
+        table=path,
         dfs=dfs,
         index_cols=["timestamp", "endpoint_id"],
     )
 
     endpoint_metrics = await get_endpoint_metrics(
         access_key=_get_access_key(),
-        project="test",
+        project=TEST_PROJECT,
         endpoint_id=endpoint.metadata.uid,
         metrics=["predictions_per_second_count_1s"],
     )
@@ -329,24 +326,29 @@ def test_build_kv_cursor_filter_expression():
     with pytest.raises(MLRunInvalidArgumentError):
         build_kv_cursor_filter_expression("")
 
-    filter_expression = build_kv_cursor_filter_expression(project="test")
-    assert filter_expression == "project=='test'"
+    filter_expression = build_kv_cursor_filter_expression(project=TEST_PROJECT)
+    assert filter_expression == f"project=='{TEST_PROJECT}'"
 
     filter_expression = build_kv_cursor_filter_expression(
-        project="test", function="test_function", model="test_model"
+        project=TEST_PROJECT, function="test_function", model="test_model"
     )
-    expected = "project=='test' AND function=='test_function' AND model=='test_model'"
+    expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
     filter_expression = build_kv_cursor_filter_expression(
-        project="test", labels=["lbl1", "lbl2"]
+        project=TEST_PROJECT, labels=["lbl1", "lbl2"]
     )
-    assert filter_expression == "project=='test' AND exists(_lbl1) AND exists(_lbl2)"
+    assert (
+        filter_expression
+        == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
+    )
 
     filter_expression = build_kv_cursor_filter_expression(
-        project="test", labels=["lbl1=1", "lbl2=2"]
+        project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
     )
-    assert filter_expression == "project=='test' AND _lbl1=='1' AND _lbl2=='2'"
+    assert (
+        filter_expression == f"project=='{TEST_PROJECT}' AND _lbl1=='1' AND _lbl2=='2'"
+    )
 
 
 def test_get_access_key():
@@ -556,14 +558,17 @@ def cleanup_endpoints(db: Session, client: TestClient):
 
     v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=TEST_PROJECT, kind=ENDPOINTS
+    )
+    _, container, path = parse_store_prefix(path)
+
     frames = get_frames_client(
-        token=_get_access_key(), container="projects", address=config.v3io_framesd,
+        token=_get_access_key(), container=container, address=config.v3io_framesd,
     )
     try:
         all_records = v3io.kv.new_cursor(
-            container="projects",
-            table_path=f"test/{ENDPOINTS_TABLE_PATH}",
-            raise_for_status=RaiseForStatus.never,
+            container=container, table_path=path, raise_for_status=RaiseForStatus.never,
         ).all()
 
         all_records = [r["__name"] for r in all_records]
@@ -571,8 +576,8 @@ def cleanup_endpoints(db: Session, client: TestClient):
         # Cleanup KV
         for record in all_records:
             v3io.kv.delete(
-                container="projects",
-                table_path=f"test/{ENDPOINTS_TABLE_PATH}",
+                container=container,
+                table_path=path,
                 key=record,
                 raise_for_status=RaiseForStatus.never,
             )
@@ -582,9 +587,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
     try:
         # Cleanup TSDB
         frames.delete(
-            backend="tsdb",
-            table=f"test/{ENDPOINT_EVENTS_TABLE_PATH}",
-            if_missing=fpb2.IGNORE,
+            backend="tsdb", table=path, if_missing=fpb2.IGNORE,
         )
     except CreateError:
         pass
@@ -595,11 +598,11 @@ def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
 
     return ModelEndpoint(
-        metadata=ModelEndpointMetadata(project="test", labels=random_labels()),
+        metadata=ModelEndpointMetadata(project=TEST_PROJECT, labels=random_labels()),
         spec=ModelEndpointSpec(
             function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
             model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
             model_class="classifier",
         ),
-        status=ModelEndpointStatus(state=state,),
+        status=ModelEndpointStatus(state=state),
     )

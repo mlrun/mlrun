@@ -134,8 +134,9 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
-        "container": "projects",
-        "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
+        "store_prefixes": {
+            "default": "v3io:///projects/{project}/model-endpoints/{kind}"
+        }
     },
     "secret_stores": {
         "vault": {

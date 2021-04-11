@@ -17,7 +17,13 @@ import traceback
 from typing import Dict
 
 import mlrun
-from mlrun.utils import now_date
+from mlrun.api.schemas import (
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
+)
+from mlrun.utils import now_date, parse_versioned_object_uri
 
 
 class V2ModelServer:
@@ -102,6 +108,9 @@ class V2ModelServer:
                 self.context.logger.info(f"started async model loading for {self.name}")
             else:
                 self._load_and_update_state()
+
+        if self._model_logger is not None:
+            self._model_logger.init_endpoint_record()
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -298,6 +307,35 @@ class _ModelLogPusher:
         self._sample_iter = 0
         self._batch_iter = 0
         self._batch = []
+
+    def init_endpoint_record(self):
+        project, uri, tag, hash_key = parse_versioned_object_uri(self.function_uri)
+
+        if self.model.version:
+            model = f"{self.model.model}:{self.model.version}"
+        else:
+            model = self.model.model
+
+        model_endpoint = ModelEndpoint(
+            metadata=ModelEndpointMetadata(project=project, labels=self.model.labels),
+            spec=ModelEndpointSpec(
+                function_uri=self.function_uri,
+                model=model,
+                model_class=self.model.__class__.__name__,
+                model_uri=self.model_spec.feature_stats,
+                stream_path=self.output_stream.stream_uri,
+                active=True,
+            ),
+            status=ModelEndpointStatus(),
+        )
+
+        db = mlrun.get_run_db()
+
+        db.create_or_patch(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
 
     def base_data(self):
         base_data = {

@@ -65,7 +65,11 @@ async def test_grafana_list_endpoints(db: Session, client: TestClient):
         client.post,
         url="/api/grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
-        json={"targets": [{"target": f"project={TEST_PROJECT};target_endpoint=list_endpoints"}]},
+        json={
+            "targets": [
+                {"target": f"project={TEST_PROJECT};target_endpoint=list_endpoints"}
+            ]
+        },
     )
 
     response_json = response.json()
@@ -132,7 +136,7 @@ async def test_grafana_individual_feature_analysis(db: Session, client: TestClie
         json={
             "targets": [
                 {
-                    "target": f"project={TEST_PROJECT};endpoint_id=test.test_id;target_endpoint=individual_feature_analysis"
+                    "target": f"project={TEST_PROJECT};endpoint_id=test.test_id;target_endpoint=individual_feature_analysis"  # noqa
                 }
             ]
         },
@@ -191,7 +195,7 @@ async def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
         json={
             "targets": [
                 {
-                    "target": f"project={TEST_PROJECT};endpoint_id=test.test_id;target_endpoint=individual_feature_analysis"
+                    "target": f"project={TEST_PROJECT};endpoint_id=test.test_id;target_endpoint=individual_feature_analysis"  # noqa
                 }
             ]
         },
@@ -253,7 +257,7 @@ async def test_grafana_overall_feature_analysis(db: Session, client: TestClient)
         json={
             "targets": [
                 {
-                    "target": f"project={TEST_PROJECT};endpoint_id=test.test_id;target_endpoint=overall_feature_analysis"
+                    "target": f"project={TEST_PROJECT};endpoint_id=test.test_id;target_endpoint=overall_feature_analysis"  # noqa
                 }
             ]
         },
@@ -434,7 +438,7 @@ async def test_grafana_incoming_features(db: Session, client: TestClient):
             json={
                 "targets": [
                     {
-                        "target": f"project={TEST_PROJECT};endpoint_id={endpoint.metadata.uid};target_endpoint=incoming_features"
+                        "target": f"project={TEST_PROJECT};endpoint_id={endpoint.metadata.uid};target_endpoint=incoming_features"  # noqa
                     }
                 ]
             },

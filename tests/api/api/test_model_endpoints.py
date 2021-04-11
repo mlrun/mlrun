@@ -241,7 +241,7 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         response = await run_in_threadpool(
             client.get,
-            url=f"/api/projects/{TEST_PROJECT}/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",
+            url=f"/api/projects/{TEST_PROJECT}/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",  # noqa
             headers={"X-V3io-Session-Key": _get_access_key()},
         )
 

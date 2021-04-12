@@ -1904,7 +1904,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             method="PUT",
             path=path,
-            body=model_endpoint.dict(),
+            body=model_endpoint.json(),
             headers={"X-V3io-Session-Key": access_key},
         )
 

@@ -7,7 +7,7 @@ ARG OMPI=4.1.0
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
     cd /tmp/openmpi && \
-    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-${OMPI}.tar.gz && \
+    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
     tar zxf openmpi-${OMPI}.tar.gz && \
     cd openmpi-${OMPI} && \
     ./configure --enable-orterun-prefix-by-default && \

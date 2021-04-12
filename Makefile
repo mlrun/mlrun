@@ -121,7 +121,7 @@ MLRUN_BASE_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docke
 DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 
 .PHONY: base
-base: update-version-file ## Build base docker image
+base: mlrun ## Build base docker image
 	$(MLRUN_BASE_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/base/Dockerfile \
@@ -171,12 +171,11 @@ MLRUN_MODELS_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),doc
 DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
 
 .PHONY: models
-models: update-version-file ## Build models docker image
+models: base ## Build models docker image
 	$(MLRUN_MODELS_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models/Dockerfile \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
+		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		$(MLRUN_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) .
 

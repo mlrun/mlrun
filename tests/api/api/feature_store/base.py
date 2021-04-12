@@ -60,3 +60,70 @@ def _assert_diff_as_expected_except_for_specific_metadata(
         expected_object, actual_object, ignore_order=True, exclude_paths=exclude_paths,
     )
     assert diff == expected_diff
+
+
+def _test_partition_by_for_feature_store_objects(
+    client: TestClient, object_name, project_name, count
+):
+    # Basic list, establishing baseline -
+    # Each object should have 3 versions, tagged "older", "newer" and "newest"
+    _list_and_assert_objects(client, object_name, project_name, None, count * 3)
+
+    # Testing group-by with desc order (newest first)
+    results = _list_and_assert_objects(
+        client,
+        object_name,
+        project_name,
+        "partition-by=name&partition-sort-by=updated&rows-per-partition=1&partition-order=desc",
+        count,
+    )[object_name]
+
+    for result_object in results:
+        assert result_object["metadata"]["tag"] == "newest"
+
+    # Testing group-by with asc order (oldest first)
+    results = _list_and_assert_objects(
+        client,
+        object_name,
+        project_name,
+        "partition-by=name&partition-sort-by=updated&rows-per-partition=1&partition-order=asc",
+        count,
+    )[object_name]
+
+    for result_object in results:
+        assert result_object["metadata"]["tag"] == "older"
+
+    # Test more than 1 row per group.
+    results = _list_and_assert_objects(
+        client,
+        object_name,
+        project_name,
+        "partition-by=name&partition-sort-by=updated&rows-per-partition=2&partition-order=desc",
+        count * 2,
+    )[object_name]
+
+    for result_object in results:
+        assert result_object["metadata"]["tag"] != "older"
+
+    # Query on additional fields, to force DB joins on these tables
+    results = _list_and_assert_objects(
+        client,
+        object_name,
+        project_name,
+        "entity=ticker&feature=bid&label=owner&partition-by=name&partition-sort-by=updated",
+        count,
+    )[object_name]
+    for result_object in results:
+        assert result_object["metadata"]["tag"] == "newest"
+
+    # Some negative testing - no sort field
+    object_url_name = object_name.replace("_", "-")
+    response = client.get(
+        f"/api/projects/{project_name}/{object_url_name}?partition-by=name"
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    # An invalid group-by field - will be failed by fastapi due to schema validation.
+    response = client.get(
+        f"/api/projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=updated"
+    )
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

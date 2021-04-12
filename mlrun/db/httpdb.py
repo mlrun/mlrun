@@ -244,7 +244,7 @@ class HTTPRunDB(RunDBInterface):
             config.scrape_metrics = (
                 server_cfg.get("scrape_metrics")
                 if server_cfg.get("scrape_metrics") is not None
-                else config.kfp_image
+                else config.scrape_metrics
             )
         except Exception:
             pass

@@ -303,6 +303,7 @@ class _ModelLogPusher:
         self.verbose = context.verbose
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
+        self.stream_path = context.stream.stream_uri
         self.stream_batch = int(context.get_param("log_stream_batch", 1))
         self.stream_sample = int(context.get_param("log_stream_sample", 1))
         self.output_stream = output_stream or context.stream.output_stream
@@ -326,7 +327,7 @@ class _ModelLogPusher:
                 model=model,
                 model_class=self.model.__class__.__name__,
                 model_uri=self.model.model_spec.feature_stats,
-                stream_path=self.output_stream.stream_uri,
+                stream_path=self.stream_path,
                 active=True,
             ),
             status=ModelEndpointStatus(),

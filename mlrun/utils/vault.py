@@ -101,6 +101,9 @@ class VaultStore:
         return jwt_token
 
     def _api_call(self, method, url, data=None):
+        if not self.url:
+            return None
+
         self._login()
 
         headers = {"X-Vault-Token": self._token}
@@ -149,6 +152,8 @@ class VaultStore:
 
         response = self._api_call("GET", secret_path)
 
+        # We handle a failure here gracefully, as this may be called on client-side and client doesn't need
+        # to be configured for vault access.
         if not response:
             return secrets
 

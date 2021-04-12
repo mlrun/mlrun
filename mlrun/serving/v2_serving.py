@@ -325,7 +325,7 @@ class _ModelLogPusher:
                 function_uri=self.function_uri,
                 model=model,
                 model_class=self.model.__class__.__name__,
-                model_uri=self.model_spec.feature_stats,
+                model_uri=self.model.model_spec.feature_stats,
                 stream_path=self.output_stream.stream_uri,
                 active=True,
             ),

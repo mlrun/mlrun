@@ -316,9 +316,9 @@ class _ModelLogPusher:
         project, uri, tag, hash_key = parse_versioned_object_uri(self.function_uri)
 
         if self.model.version:
-            model = f"{self.model.model}:{self.model.version}"
+            model = f"{self.model.name}:{self.model.version}"
         else:
-            model = self.model.model
+            model = self.model.name
 
         model_endpoint = ModelEndpoint(
             metadata=ModelEndpointMetadata(project=project, labels=self.model.labels),

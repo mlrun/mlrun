@@ -20,7 +20,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 # pytorch caused cuda download, this guarantees cpu version:
-RUN python -m pip install torch==1.7.0+cpu torchvision==0.5.0+cpu \
+RUN python -m pip install torch==1.7.0+cpu torchvision==0.8.1+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
 RUN python -m pip install -U 'intel-tensorflow<2' keras mxnet

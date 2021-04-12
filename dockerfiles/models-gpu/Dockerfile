@@ -17,9 +17,6 @@ FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
 ENV PIP_NO_CACHE_DIR=1
 
-LABEL maintainer="yashab@iguazio.com"
-LABEL org="iguazio.com"
-
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
 
@@ -31,52 +28,20 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         build-essential \
-        bzip2 \
         cmake \
         curl \
-        git \
-        ibverbs-providers \
-        libboost-dev \
-        libboost-filesystem-dev \
-        libboost-system-dev \
-        libc6 \
-        libglib2.0-0 \
-        libibverbs1\
-        libjpeg-dev \
-        libnvinfer-plugin6=6.0.1-1+cuda10.1 \
-        libnvinfer6=6.0.1-1+cuda10.1 \
-        libpng-dev \
-        librdmacm1 \
-        libreadline-dev \
-        libreadline7 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        mercurial \
-        openssh-client \
-        openssh-server \
-        subversion \
-        wget && \
-    apt install -y ca-certificates  && \
-    update-ca-certificates --fresh && \
+        wget \
+        graphviz \
     apt clean && \
     apt autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-ENV SSL_CERT_DIR /etc/ssl/certs
-
-RUN mkdir -p /var/run/sshd && \
-    # Allow OpenSSH to talk to containers without asking for confirmation
-    cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
-    echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
-    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
-
-ARG OMPI=4.0.3
+ARG OMPI=4.1.0
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
     cd /tmp/openmpi && \
-    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-${OMPI}.tar.gz && \
+    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
     tar zxf openmpi-${OMPI}.tar.gz && \
     cd openmpi-${OMPI} && \
     ./configure --enable-orterun-prefix-by-default && \
@@ -99,26 +64,10 @@ RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
     conda update -n base conda && \
     conda install -n base \
-        bokeh \
         cmake \
         cudatoolkit=10.1 \
         cython \
-        fsspec \
-        lifelines \
-        matplotlib \
-        numba \
-        numpy \
-        pandas \
-        pyarrow \
-        pytest \
-        scikit-build \
-        scikit-learn \
-        scikit-optimize \
-        scikit-plot \
-        scipy \
-        seaborn \
         tensorflow-gpu=2.2.0 \
-        wrapt \
     && conda clean -aqy
 
 RUN conda install -n base -c rapidsai -c nvidia \
@@ -139,10 +88,16 @@ RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
 
 WORKDIR /mlrun
 
-# do the dask package pinning with pip / faster
-COPY ./dockerfiles/models-gpu/requirements.txt ./
+COPY ./requirements.txt ./
+COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
+COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
+COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 
-RUN python -m pip install -r requirements.txt
+RUN python -m pip install \
+    -r requirements.txt \
+    -r mlrun-image-requirements.txt
+    -r base-image-requirements.txt
+    -r models-image-requirements.txt
 
 COPY . .
 RUN python -m pip install .[complete]

@@ -20,3 +20,5 @@ pymysql~=0.10.0
 # statsmodels~=0.12.0
 lightgbm~=3.0
 graphviz~=0.16.0
+pyhive @ git+https://github.com/v3io/PyHive.git@v0.6.999
+v3io-generator @ git+https://github.com/v3io/data-science.git#subdirectory=generator

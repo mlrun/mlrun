@@ -150,7 +150,7 @@ base-legacy: mlrun-legacy ## Build base legacy docker image
 	$(MLRUN_LEGACY_BASE_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/base/Dockerfile \
-		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
+		--build-arg MLRUN_VERSION=$(MLRUN_VERSION)-py36 \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_LEGACY_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG) \
@@ -198,7 +198,7 @@ models-legacy: base-legacy ## Build models legacy docker image
 	$(MLRUN_LEGACY_MODELS_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
-		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
+		--build-arg MLRUN_VERSION=$(MLRUN_VERSION)-py36 \
 		$(MLRUN_LEGACY_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME_TAGGED) .
 

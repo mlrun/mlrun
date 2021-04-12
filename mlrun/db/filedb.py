@@ -553,6 +553,10 @@ class FileRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: str = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: str = None,
+        partition_order: str = "desc",
     ):
         raise NotImplementedError()
 
@@ -584,6 +588,10 @@ class FileRunDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: str = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: str = None,
+        partition_order: str = "desc",
     ) -> List[dict]:
         raise NotImplementedError()
 

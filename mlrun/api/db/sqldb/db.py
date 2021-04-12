@@ -8,7 +8,7 @@ import mergedeep
 import pytz
 from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 import mlrun.api.utils.projects.remotes.member
 import mlrun.errors
@@ -1323,6 +1323,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 )
         return schemas.EntitiesOutput(entities=entities_results)
 
+    @staticmethod
+    def _assert_partition_by_parameters(partition_by, sort):
+        if sort is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "sort parameter must be provided when partition_by is used."
+            )
+        # For now, name is the only supported value. Remove once more fields are added.
+        if partition_by != schemas.FeatureStorePartitionByField.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
+            )
+
+    @staticmethod
+    def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
+        row_number_column = (
+            func.row_number()
+            .over(
+                partition_by=group_by.to_partition_by_db_field(cls),
+                order_by=order.to_order_by_predicate(cls.updated),
+            )
+            .label("row_number")
+        )
+
+        # Need to generate a subquery so we can filter based on the row_number, since it
+        # is a window function using over().
+        subquery = query.add_column(row_number_column).subquery()
+        return session.query(aliased(cls, subquery)).filter(
+            subquery.c.row_number <= rows_per_group
+        )
+
     def list_feature_sets(
         self,
         session,
@@ -1333,6 +1363,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
@@ -1351,6 +1385,17 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             query = query.join(FeatureSet.features).filter(Feature.name.in_(features))
         if labels:
             query = self._add_labels_filter(session, query, FeatureSet, labels)
+
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort)
+            query = self._create_partitioned_query(
+                session,
+                query,
+                FeatureSet,
+                partition_by,
+                partition_order,
+                rows_per_partition,
+            )
 
         feature_sets = []
         for feature_set_record in query:
@@ -1712,6 +1757,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureVector, project, tag, name
@@ -1726,6 +1775,17 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             query = query.filter(FeatureVector.id.in_(obj_id_tags.keys()))
         if labels:
             query = self._add_labels_filter(session, query, FeatureVector, labels)
+
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort_by)
+            query = self._create_partitioned_query(
+                session,
+                query,
+                FeatureVector,
+                partition_by,
+                partition_order,
+                rows_per_partition,
+            )
 
         feature_vectors = []
         for feature_vector_record in query:

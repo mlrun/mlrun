@@ -147,6 +147,12 @@ class VaultStore:
         secret_path = VaultStore._generate_path(user=user, project=project)
         secrets = {}
 
+        # Since this method is called both on the client side (when constructing VaultStore before persisting to
+        # pod configuration) and on server side and in execution pods, we let this method fail gracefully in this case.
+        # Should replace with something that will explode on server-side, once we have a way to do that.
+        if not self.url:
+            return secrets
+
         response = self._api_call("GET", secret_path)
 
         if not response:

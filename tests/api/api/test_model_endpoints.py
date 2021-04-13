@@ -35,7 +35,7 @@ from mlrun.errors import (
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
 )
-from mlrun.utils import parse_model_endpoint_store_prefix
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}

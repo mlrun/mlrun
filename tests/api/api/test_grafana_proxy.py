@@ -25,7 +25,7 @@ from mlrun.api.crud.model_endpoints import (
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils import parse_model_endpoint_store_prefix
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 from tests.api.api.test_model_endpoints import _mock_random_endpoint
 

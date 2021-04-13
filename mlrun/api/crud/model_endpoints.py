@@ -20,7 +20,8 @@ from mlrun.errors import (
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
 )
-from mlrun.utils.helpers import logger, parse_model_endpoint_store_prefix
+from mlrun.utils.helpers import logger
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENDPOINTS = "endpoints"

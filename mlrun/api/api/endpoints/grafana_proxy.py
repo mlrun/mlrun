@@ -20,7 +20,8 @@ from mlrun.api.schemas import (
 )
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils import config, logger, parse_model_endpoint_store_prefix
+from mlrun.utils import config, logger
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client
 
 router = APIRouter()

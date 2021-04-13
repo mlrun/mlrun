@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.utils import create_model_endpoint_id
+from mlrun.utils.model_monitoring import create_model_endpoint_id
 
 
 class ModelEndpointMetadata(BaseModel):

@@ -118,7 +118,7 @@ class ModelEndpoints:
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind=ENDPOINTS
         )
-        _, container, path = parse_store_prefix(path)
+        _, container, path = parse_model_endpoint_store_prefix(path)
 
         await run_in_threadpool(
             client.kv.delete,
@@ -180,7 +180,7 @@ class ModelEndpoints:
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind=ENDPOINTS
         )
-        _, container, path = parse_store_prefix(path)
+        _, container, path = parse_model_endpoint_store_prefix(path)
 
         cursor = client.kv.new_cursor(
             container=container,
@@ -241,7 +241,7 @@ class ModelEndpoints:
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind=ENDPOINTS
         )
-        _, container, path = parse_store_prefix(path)
+        _, container, path = parse_model_endpoint_store_prefix(path)
 
         endpoint = await run_in_threadpool(
             client.kv.get,
@@ -402,7 +402,7 @@ async def get_endpoint_metrics(
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind=EVENTS
     )
-    _, container, path = parse_store_prefix(path)
+    _, container, path = parse_model_endpoint_store_prefix(path)
 
     client = get_frames_client(
         token=access_key, address=config.v3io_framesd, container=container,

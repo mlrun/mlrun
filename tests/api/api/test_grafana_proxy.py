@@ -21,11 +21,11 @@ from mlrun.api.crud.model_endpoints import (
     ENDPOINTS,
     EVENTS,
     ModelEndpoints,
-    parse_store_prefix,
     write_endpoint_to_kv,
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
+from mlrun.utils import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 from tests.api.api.test_model_endpoints import _mock_random_endpoint
 
@@ -334,12 +334,12 @@ def cleanup_endpoints(db: Session, client: TestClient):
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT, kind=ENDPOINTS
         )
-        _, kv_container, kv_path = parse_store_prefix(kv_path)
+        _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT, kind=EVENTS
         )
-        _, tsdb_container, tsdb_path = parse_store_prefix(tsdb_path)
+        _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
         v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
@@ -386,7 +386,7 @@ async def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=EVENTS
     )
-    _, container, path = parse_store_prefix(path)
+    _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
         token=_get_access_key(), container=container, address=config.v3io_framesd,

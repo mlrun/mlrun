@@ -21,7 +21,6 @@ from mlrun.api.crud.model_endpoints import (
     get_access_key,
     get_endpoint_features,
     get_endpoint_metrics,
-    parse_store_prefix,
     write_endpoint_to_kv,
 )
 from mlrun.api.schemas import (
@@ -36,6 +35,7 @@ from mlrun.errors import (
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
 )
+from mlrun.utils import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
@@ -201,7 +201,7 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=EVENTS
     )
-    _, container, path = parse_store_prefix(path)
+    _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
         token=_get_access_key(), container=container, address=config.v3io_framesd,
@@ -268,7 +268,7 @@ async def test_get_endpoint_metric_function():
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=EVENTS
     )
-    _, container, path = parse_store_prefix(path)
+    _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
         token=_get_access_key(), container=container, address=config.v3io_framesd,
@@ -561,7 +561,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=ENDPOINTS
     )
-    _, container, path = parse_store_prefix(path)
+    _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
         token=_get_access_key(), container=container, address=config.v3io_framesd,

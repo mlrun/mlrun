@@ -244,7 +244,7 @@ class HTTPRunDB(RunDBInterface):
             config.scrape_metrics = (
                 server_cfg.get("scrape_metrics")
                 if server_cfg.get("scrape_metrics") is not None
-                else config.kfp_image
+                else config.scrape_metrics
             )
         except Exception:
             pass
@@ -1904,7 +1904,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             method="PUT",
             path=path,
-            body=model_endpoint.dict(),
+            body=model_endpoint.json(),
             headers={"X-V3io-Session-Key": access_key},
         )
 

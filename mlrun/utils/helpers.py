@@ -156,7 +156,6 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
     return scheme, container, path
 
 
-
 def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     if kind in ["dataset", "model"] and item.get("db_key"):

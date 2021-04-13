@@ -9,11 +9,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from mlrun.api.api import deps
-from mlrun.api.crud.model_endpoints import (
-    EVENTS,
-    ModelEndpoints,
-    get_access_key,
-)
+from mlrun.api.crud.model_endpoints import EVENTS, ModelEndpoints, get_access_key
 from mlrun.api.schemas import (
     Format,
     GrafanaColumn,

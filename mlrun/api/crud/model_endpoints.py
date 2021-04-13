@@ -20,23 +20,22 @@ from mlrun.errors import (
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
 )
-from mlrun.utils.helpers import logger
+from mlrun.utils.helpers import logger, parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
-ENDPOINTS_TABLE_PATH = "model-endpoints/endpoints"
-ENDPOINT_EVENTS_TABLE_PATH = "model-endpoints/events"
+ENDPOINTS = "endpoints"
+EVENTS = "events"
 
 
 class ModelEndpoints:
     @staticmethod
     async def create_or_patch(access_key: str, model_endpoint: ModelEndpoint):
         """
-        Creates or updates a KV record with the given model_endpoint record
+        Creates or patch a KV record with the given model_endpoint record
 
         :param access_key: V3IO access key for managing user permissions
         :param model_endpoint: An object representing a model endpoint
         """
-
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
             logger.info(
                 "Getting feature metadata",
@@ -116,10 +115,15 @@ class ModelEndpoints:
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
 
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=ENDPOINTS
+        )
+        _, container, path = parse_store_prefix(path)
+
         await run_in_threadpool(
             client.kv.delete,
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+            container=container,
+            table_path=path,
             key=endpoint_id,
             access_key=access_key,
         )
@@ -172,9 +176,15 @@ class ModelEndpoints:
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
+
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=ENDPOINTS
+        )
+        _, container, path = parse_store_prefix(path)
+
         cursor = client.kv.new_cursor(
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+            container=container,
+            table_path=path,
             access_key=access_key,
             filter_expression=build_kv_cursor_filter_expression(
                 project, function, model, labels
@@ -227,10 +237,16 @@ class ModelEndpoints:
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
+
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=ENDPOINTS
+        )
+        _, container, path = parse_store_prefix(path)
+
         endpoint = await run_in_threadpool(
             client.kv.get,
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+            container=container,
+            table_path=path,
             key=endpoint_id,
             access_key=access_key,
             raise_for_status=RaiseForStatus.never,
@@ -327,10 +343,16 @@ async def write_endpoint_to_kv(
 
     client = get_v3io_client(endpoint=config.v3io_api)
     function = client.kv.update if update else client.kv.put
+
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=endpoint.metadata.project, kind=ENDPOINTS
+    )
+    _, container, path = parse_model_endpoint_store_prefix(path)
+
     await run_in_threadpool(
         function,
-        container=config.model_endpoint_monitoring.container,
-        table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}",
+        container=container,
+        table_path=path,
         key=endpoint.metadata.uid,
         access_key=access_key,
         attributes={
@@ -377,16 +399,19 @@ async def get_endpoint_metrics(
     if not metrics:
         raise MLRunInvalidArgumentError("Metric names must be provided")
 
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind=EVENTS
+    )
+    _, container, path = parse_store_prefix(path)
+
     client = get_frames_client(
-        token=access_key,
-        address=config.v3io_framesd,
-        container=config.model_endpoint_monitoring.container,
+        token=access_key, address=config.v3io_framesd, container=container,
     )
 
     data = await run_in_threadpool(
         client.read,
         backend="tsdb",
-        table=f"{project}/{ENDPOINT_EVENTS_TABLE_PATH}",
+        table=path,
         columns=["endpoint_id", *metrics],
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,

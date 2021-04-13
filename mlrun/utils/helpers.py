@@ -150,6 +150,13 @@ def create_model_endpoint_id(function_uri: str, versioned_model: str):
     return uid
 
 
+def parse_model_endpoint_store_prefix(store_prefix: str):
+    scheme, path = store_prefix.split("///", 1)
+    container, path = path.split("/", 1)
+    return scheme, container, path
+
+
+
 def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     if kind in ["dataset", "model"] and item.get("db_key"):

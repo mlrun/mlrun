@@ -927,7 +927,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                         )
                         project_to_running_runs_count[run.project] += 1
                 if self._is_run_matching_state(
-                    run, run_json, mlrun.runtimes.constants.RunStates.error
+                    run,
+                    run_json,
+                    [
+                        mlrun.runtimes.constants.RunStates.error,
+                        mlrun.runtimes.constants.RunStates.aborted,
+                    ],
                 ):
                     one_day_ago = datetime.now() - timedelta(hours=24)
                     if run.start_time and run.start_time >= one_day_ago:

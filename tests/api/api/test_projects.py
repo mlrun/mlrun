@@ -93,6 +93,17 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         one_hour_ago,
     )
 
+    # create aborted runs for the project for less than 24 hours ago - make sure we count them as well
+    recent_aborted_runs_count = 6
+    one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+    _create_runs(
+        client,
+        project_name,
+        recent_failed_runs_count,
+        mlrun.runtimes.constants.RunStates.aborted,
+        one_hour_ago,
+    )
+
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly count them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
     _create_runs(
@@ -113,7 +124,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
                 functions_count,
                 feature_sets_count,
                 models_count,
-                recent_failed_runs_count,
+                recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
             )
         else:

@@ -88,7 +88,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
         driver.add_writer_state(
             graph,
             target.after_state or final_state,
-            features=features,
+            features=features if not target.after_state else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
         )
@@ -263,9 +263,12 @@ class ParquetTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = list(features.keys())
-        if timestamp_key and timestamp_key not in column_list:
-            column_list = [timestamp_key] + column_list
+        if features:
+            column_list = list(features.keys())
+            if timestamp_key and timestamp_key not in column_list:
+                column_list = [timestamp_key] + column_list
+        else:
+            column_list = None
 
         graph.add_step(
             name="WriteToParquet",
@@ -307,12 +310,15 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = list(features.keys())
-        if timestamp_key:
-            column_list = [timestamp_key] + column_list
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        if features:
+            column_list = list(features.keys())
+            if timestamp_key:
+                column_list = [timestamp_key] + column_list
+            for key in reversed(key_columns):
+                if key not in column_list:
+                    column_list.insert(0, key)
+        else:
+            column_list = None
         graph.add_step(
             name="WriteToCSV",
             after=after,

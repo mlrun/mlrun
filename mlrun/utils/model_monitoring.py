@@ -2,6 +2,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
+from mlrun.datastore import parse_v3io_path
 from mlrun.utils import parse_versioned_object_uri
 
 
@@ -81,6 +82,6 @@ def create_model_endpoint_id(function_uri: str, versioned_model: str):
 
 
 def parse_model_endpoint_store_prefix(store_prefix: str):
-    scheme, path = store_prefix.split("///", 1)
-    container, path = path.split("/", 1)
-    return scheme, container, path
+    endpoint, parsed_url = parse_v3io_path(store_prefix)
+    container, path = parsed_url.split("/", 1)
+    return endpoint, container, path

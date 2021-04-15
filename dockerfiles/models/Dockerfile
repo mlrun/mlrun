@@ -34,8 +34,9 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     rm ~/installconda.sh && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc && \
-    conda install python=3.7
+    echo "conda activate base" >> ~/.bashrc
+
+RUN conda install python=3.7
 
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 

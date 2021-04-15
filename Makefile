@@ -25,7 +25,7 @@ MLRUN_MLUTILS_GITHUB_TAG ?= development
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
-# 2. add the --cache-from falg to the docker build
+# 2. add the --cache-from flag to the docker build
 # 3. docker tag and push (also) the (updated) cache image
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
 MLRUN_GIT_ORG ?= mlrun

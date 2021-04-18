@@ -287,6 +287,10 @@ class DBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         pass
 
@@ -328,6 +332,10 @@ class DBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         pass
 

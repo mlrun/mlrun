@@ -8,7 +8,15 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
-from .constants import DeletionStrategy, Format, HeaderNames, PatchMode
+from .constants import (
+    DeletionStrategy,
+    FeatureStorePartitionByField,
+    Format,
+    HeaderNames,
+    OrderType,
+    PatchMode,
+    SortField,
+)
 from .feature_store import (
     EntitiesOutput,
     Entity,
@@ -54,6 +62,7 @@ from .project import (
     ProjectSpec,
     ProjectState,
     ProjectStatus,
+    ProjectSummary,
 )
 from .runtime_resource import (
     GroupedRuntimeResourcesOutput,

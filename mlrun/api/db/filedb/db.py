@@ -228,6 +228,10 @@ class FileDB(DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         raise NotImplementedError()
 
@@ -264,6 +268,10 @@ class FileDB(DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         raise NotImplementedError()
 

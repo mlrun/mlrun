@@ -126,10 +126,6 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     runs = db.list_runs(db_session)
     assert len(runs) == 5
 
-    runs = db.list_runs(db_session, state="some_")
-    assert len(runs) == 4
-    assert run_without_state_uid not in [run["metadata"]["uid"] for run in runs]
-
     runs = db.list_runs(db_session, state=run_with_json_state_state)
     assert len(runs) == 1
     assert runs[0]["metadata"]["uid"] == run_with_json_state_uid

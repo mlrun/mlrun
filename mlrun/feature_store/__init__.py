@@ -23,10 +23,15 @@ __all__ = [
     "deploy_ingestion_service",
     "delete_feature_set",
     "delete_feature_vector",
+    "get_feature_set",
+    "get_feature_vector",
     "Feature",
     "Entity",
     "FeatureSet",
     "FeatureVector",
+    "RunConfig",
+    "OfflineVectorResponse",
+    "OnlineVectorService",
 ]
 
 
@@ -36,6 +41,8 @@ from .api import (
     delete_feature_set,
     delete_feature_vector,
     deploy_ingestion_service,
+    get_feature_set,
+    get_feature_vector,
     get_offline_features,
     get_online_feature_service,
     infer,
@@ -44,4 +51,4 @@ from .api import (
 )
 from .common import RunConfig
 from .feature_set import FeatureSet
-from .feature_vector import FeatureVector
+from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService

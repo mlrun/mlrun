@@ -121,6 +121,8 @@ class TestFeatureStore(TestMLRunSystem):
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
 
+        resp = svc.get([{"ticker": "a"}])
+        assert resp[0] is None
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
         resp = svc.get([{"ticker": "AAPL"}])
         assert (
@@ -167,7 +169,7 @@ class TestFeatureStore(TestMLRunSystem):
         sets = db.list_feature_sets(self.project_name, name)
         assert len(sets) == 1, "bad number of results"
 
-        feature_set = db.get_feature_set(name, self.project_name)
+        feature_set = fs.get_feature_set(name, self.project_name)
         assert feature_set.metadata.name == name, "bad feature set response"
 
         fs.delete_feature_set(name, self.project_name)
@@ -188,7 +190,7 @@ class TestFeatureStore(TestMLRunSystem):
         vecs = db.list_feature_vectors(self.project_name, name)
         assert len(vecs) == 1, "bad number of results"
 
-        feature_vec = db.get_feature_vector(name, self.project_name)
+        feature_vec = fs.get_feature_vector(name, self.project_name)
         assert feature_vec.metadata.name == name, "bad feature set response"
 
         fs.delete_feature_vector(name, self.project_name)

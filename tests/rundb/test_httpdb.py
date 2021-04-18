@@ -255,12 +255,16 @@ def test_artifacts(create_server):
     artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
+    db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 1, "bad number of artifacs"
+    assert len(artifacts) == 2, "bad number of artifacts"
+
+    artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
+    assert len(artifacts) == 1, "bad number of artifacts"
 
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 0, "bad number of artifacs after del"
+    assert len(artifacts) == 0, "bad number of artifacts after del"
 
 
 def test_basic_auth(create_server):

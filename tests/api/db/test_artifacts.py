@@ -53,7 +53,7 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
-def test_list_artifact_root_iter_only(db: DBInterface, db_session: Session):
+def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_name_2 = "artifact_name_2"
     artifact_1 = _generate_artifact(artifact_name_1)
@@ -67,16 +67,23 @@ def test_list_artifact_root_iter_only(db: DBInterface, db_session: Session):
         db.store_artifact(db_session, artifact_name_1, artifact_1, uid, iter)
         db.store_artifact(db_session, artifact_name_2, artifact_2, uid, iter)
 
+    # No filter on iter. All are expected
     artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == len(test_iters) * 2
 
-    # When all_iters is False, only iter 0 is expected to return.
-    artifacts = db.list_artifacts(db_session, all_iters=False)
-    assert len(artifacts) == 2
-    for artifact in artifacts:
-        assert artifact["iter"] == 0
+    # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
+    for iter in test_iters:
+        artifacts = db.list_artifacts(db_session, iter=iter)
+        assert len(artifacts) == 2
+        for artifact in artifacts:
+            assert artifact["iter"] == iter
 
-    artifacts = db.list_artifacts(db_session, name=artifact_name_1, all_iters=False)
+    # Negative test
+    artifacts = db.list_artifacts(db_session, iter=666)
+    assert len(artifacts) == 0
+
+    # Iter filter and a name filter, make sure query composition works
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1, iter=2102)
     assert len(artifacts) == 1
 
 

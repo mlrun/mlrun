@@ -94,7 +94,7 @@ class RunDBInterface(ABC):
         labels=None,
         since=None,
         until=None,
-        all_iters=True,
+        iter: int = None,
     ):
         pass
 

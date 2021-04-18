@@ -233,8 +233,13 @@ class FileRunDB(RunDBInterface):
         labels=None,
         since=None,
         until=None,
-        all_iters=True,
+        iter: int = None,
     ):
+        if iter:
+            raise NotImplementedError(
+                "iter parameter not supported for filedb implementation"
+            )
+
         labels = [] if labels is None else labels
         tag = tag or "latest"
         name = name or ""

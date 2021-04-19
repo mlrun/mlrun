@@ -134,6 +134,9 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
+        "drift_thresholds": {
+            "default": 0.7,
+        },
         "store_prefixes": {
             "default": "v3io:///projects/{project}/model-endpoints/{kind}"
         }

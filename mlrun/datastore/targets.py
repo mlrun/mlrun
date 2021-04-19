@@ -106,6 +106,19 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     return table
 
 
+def _get_column_list(features, timestamp_key, key_columns):
+    column_list = None
+    if features:
+        column_list = list(features.keys())
+        if timestamp_key and timestamp_key not in column_list:
+            column_list = [timestamp_key] + column_list
+        if key_columns:
+            for key in reversed(key_columns):
+                if key not in column_list:
+                    column_list.insert(0, key)
+    return column_list
+
+
 offline_lookup_order = [TargetTypes.parquet, TargetTypes.csv]
 online_lookup_order = [TargetTypes.nosql]
 
@@ -263,12 +276,9 @@ class ParquetTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        if features:
-            column_list = list(features.keys())
-            if timestamp_key and timestamp_key not in column_list:
-                column_list = [timestamp_key] + column_list
-        else:
-            column_list = None
+        column_list = _get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=None
+        )
 
         graph.add_step(
             name="WriteToParquet",
@@ -310,15 +320,10 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        if features:
-            column_list = list(features.keys())
-            if timestamp_key:
-                column_list = [timestamp_key] + column_list
-            for key in reversed(key_columns):
-                if key not in column_list:
-                    column_list.insert(0, key)
-        else:
-            column_list = None
+        column_list = _get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
         graph.add_step(
             name="WriteToCSV",
             after=after,
@@ -358,12 +363,14 @@ class NoSqlTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
-        column_list = [
-            key for key, feature in features.items() if not feature.aggregate
-        ]
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = None
+        if features:
+            column_list = [
+                key for key, feature in features.items() if not feature.aggregate
+            ]
+            for key in reversed(key_columns):
+                if key not in column_list:
+                    column_list.insert(0, key)
         graph.add_step(
             name="WriteToTable",
             after=after,
@@ -417,12 +424,10 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         endpoint, uri = parse_v3io_path(self._target_path)
-        column_list = list(features.keys())
-        if timestamp_key and timestamp_key not in column_list:
-            column_list = [timestamp_key] + column_list
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = _get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
         graph.add_step(
             name="WriteToStream",
             after=after,
@@ -449,14 +454,15 @@ class TSDBTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         endpoint, uri = parse_v3io_path(self._target_path)
-        column_list = list(features.keys())
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
             )
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+
+        column_list = _get_column_list(
+            features=features, timestamp_key=None, key_columns=key_columns
+        )
+
         graph.add_step(
             name="WriteToTSDB",
             class_name="storey.WriteToTSDB",

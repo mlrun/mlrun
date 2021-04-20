@@ -26,6 +26,7 @@ class ModelEndpointSpec(ObjectSpec):
     feature_names: Optional[List[str]]
     label_names: Optional[List[str]]
     stream_path: Optional[str]
+    algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
 

@@ -45,10 +45,8 @@ class ModelEndpoints:
                 model_uri=model_endpoint.spec.model_uri,
             )
 
-        # If model artifact was supplied but feature_stats was not, grab model artifact and get feature_stats
-        if model_endpoint.spec.model_uri and not (
-            model_endpoint.status.feature_stats or model_endpoint.spec.label_names
-        ):
+        # If model artifact was supplied, grab model meta data from artifact
+        if model_endpoint.spec.model_uri:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
@@ -65,6 +63,10 @@ class ModelEndpoints:
                     _clean_feature_name(f.name) for f in model_obj.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
+
+            if not model_endpoint.spec.algorithm:
+                model_endpoint.spec.algorithm = model_obj.algorithm
+
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
         # sure to keep a clean version of the names
@@ -300,6 +302,7 @@ class ModelEndpoints:
                 feature_names=feature_names or None,
                 label_names=label_names or None,
                 stream_path=endpoint.get("stream_path") or None,
+                algorithm=endpoint.get("algorithm") or None,
                 monitor_configuration=monitor_configuration or None,
                 active=endpoint.get("active") or None,
             ),

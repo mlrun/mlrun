@@ -106,17 +106,6 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     return table
 
 
-def _get_column_list(features, timestamp_key, key_columns):
-    column_list = None
-    if features:
-        column_list = list(features.keys())
-        if timestamp_key and timestamp_key not in column_list:
-            column_list = [timestamp_key] + column_list
-        if key_columns:
-            for key in reversed(key_columns):
-                if key not in column_list:
-                    column_list.insert(0, key)
-    return column_list
 
 
 offline_lookup_order = [TargetTypes.parquet, TargetTypes.csv]
@@ -167,11 +156,13 @@ class BaseStoreTarget(DataTargetBase):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
+        columns_override=None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.columns_override = columns_override or []
 
         self._target = None
         self._resource = None
@@ -180,6 +171,20 @@ class BaseStoreTarget(DataTargetBase):
     def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
+
+    def _get_column_list(self, features, timestamp_key, key_columns):
+        column_list = None
+        if self.columns_override:
+            return self.columns_override
+        elif features:
+            column_list = list(features.keys())
+            if timestamp_key and timestamp_key not in column_list:
+                column_list = [timestamp_key] + column_list
+            if key_columns:
+                for key in reversed(key_columns):
+                    if key not in column_list:
+                        column_list.insert(0, key)
+        return column_list
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, **kwargs,
@@ -276,7 +281,7 @@ class ParquetTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = _get_column_list(
+        column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=None
         )
 
@@ -320,7 +325,7 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = _get_column_list(
+        column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
 
@@ -363,15 +368,12 @@ class NoSqlTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
-        column_list = _get_column_list(
+        column_list = self._get_column_list(
             features=features, timestamp_key=None, key_columns=key_columns
         )
-        aggregate_features = (
-            [key for key, feature in features.items() if feature.aggregate]
-            if features
-            else []
-        )
-        column_list = [col for col in column_list if col in aggregate_features]
+        if not self.columns_override:
+            aggregate_features = ([key for key, feature in features.items() if feature.aggregate] if features else [])
+            column_list = [col for col in column_list if col in aggregate_features]
 
         graph.add_step(
             name="WriteToTable",
@@ -426,7 +428,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         endpoint, uri = parse_v3io_path(self._target_path)
-        column_list = _get_column_list(
+        column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
 
@@ -461,7 +463,7 @@ class TSDBTarget(BaseStoreTarget):
                 "feature set timestamp_key must be specified for TSDBTarget writer"
             )
 
-        column_list = _get_column_list(
+        column_list = self._get_column_list(
             features=features, timestamp_key=None, key_columns=key_columns
         )
 

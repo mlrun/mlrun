@@ -35,6 +35,8 @@ from .feature_store import (
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,
+    FeatureSetIngestOutput,
+    FeatureSetIngest,
 )
 from .frontend_spec import FrontendSpec
 from .model_endpoints import (

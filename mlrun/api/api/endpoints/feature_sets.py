@@ -9,6 +9,11 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import parse_reference
 from mlrun.api.utils.singletons.db import get_db
 
+from mlrun.data_types import InferOptions
+
+import mlrun.feature_store
+from mlrun.feature_store.api import ingest, RunConfig
+
 router = APIRouter()
 
 
@@ -135,6 +140,33 @@ def list_feature_sets(
     )
 
     return feature_sets
+
+
+@router.post(
+    "/projects/{project}/feature-sets/{name}/references/{reference}/ingest",
+    response_model=schemas.FeatureSetIngestOutput,
+)
+def feature_set_ingest(
+        project: str,
+        name: str,
+        reference: str,
+        ingest_parameters: schemas.FeatureSetIngest,
+        infer_options: InferOptions = Query(None, alias="infer-options"),
+        db_session: Session = Depends(deps.get_db_session),
+):
+    tag, uid = parse_reference(reference)
+    feature_set_record = get_db().get_feature_set(db_session, project, name, tag, uid)
+
+    feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
+    run_params = ingest(
+        feature_set,
+        ingest_parameters.source,
+        ingest_parameters.targets,
+        infer_options=infer_options,
+        return_df=False,
+        run_config=RunConfig()
+    )
+    return schemas.FeatureSetIngestOutput(feature_set.to_dict(), run_params)
 
 
 @router.get("/projects/{project}/features", response_model=schemas.FeaturesOutput)

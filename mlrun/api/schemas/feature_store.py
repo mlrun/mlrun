@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from pydantic import BaseModel, Extra, Field
 
@@ -10,6 +10,7 @@ from .object import (
     ObjectSpec,
     ObjectStatus,
 )
+from ...model import DataSource, DataTargetBase
 
 
 class Feature(BaseModel):
@@ -113,3 +114,13 @@ class FeatureVectorRecord(ObjectRecord):
 
 class FeatureVectorsOutput(BaseModel):
     feature_vectors: List[FeatureVector]
+
+
+class FeatureSetIngest(BaseModel):
+    source: DataSource
+    targets: List[DataTargetBase]
+
+
+class FeatureSetIngestOutput(BaseModel):
+    feature_set: FeatureSet
+    run_object: Dict[any, any]

@@ -34,6 +34,7 @@ MLRUN_RELEASE_BRANCH ?= master
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
+MLRUN_CORE_DOCKER_TAG_SUFFIX := -core
 MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
@@ -112,20 +113,38 @@ print-docker-images: ## Print all docker images
 	done
 
 
+.PHONY: pull-cache
+pull-cache: ## Pull images to be used as cache for build
+	if [ "$(MLRUN_DOCKER_CACHE_FROM_TAG)" != "" ]; \
+		then \
+			for target in "$(MAKECMDGOALS)"; do \
+				docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/$$target:$(MLRUN_DOCKER_CACHE_FROM_TAG) ; \
+			done \
+	fi;
+
+
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
 MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
+MLRUN_CORE_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_CORE_DOCKER_TAG_SUFFIX)
 MLRUN_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_CACHE_IMAGE_PULL_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docker tag $(MLRUN_IMAGE_NAME_TAGGED) $(MLRUN_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
 
-.PHONY: mlrun
-mlrun: update-version-file ## Build mlrun docker image
-	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
+
+.PHONY: mlrun-core
+mlrun-core: pull-cache update-version-file ## Build mlrun core docker image
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		--tag $(MLRUN_CORE_IMAGE_NAME_TAGGED) .
+
+.PHONY: mlrun
+mlrun: mlrun-core ## Build mlrun docker image
+	docker build \
+		--file dockerfiles/common/Dockerfile \
+		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_IMAGE_NAME_TAGGED) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 

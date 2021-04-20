@@ -363,14 +363,16 @@ class NoSqlTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
-        column_list = None
-        if features:
-            column_list = [
-                key for key, feature in features.items() if not feature.aggregate
-            ]
-            for key in reversed(key_columns):
-                if key not in column_list:
-                    column_list.insert(0, key)
+        column_list = _get_column_list(
+            features=features, timestamp_key=None, key_columns=key_columns
+        )
+        aggregate_features = (
+            [key for key, feature in features.items() if feature.aggregate]
+            if features
+            else []
+        )
+        column_list = [col for col in column_list if col in aggregate_features]
+
         graph.add_step(
             name="WriteToTable",
             after=after,

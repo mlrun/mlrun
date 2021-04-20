@@ -316,6 +316,7 @@ def infer(
 
 # keep for backwards compatibility
 infer_metadata = infer
+preview = infer
 
 
 def _run_ingestion_job(

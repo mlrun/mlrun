@@ -9,20 +9,33 @@ The graph contains steps which represent data sources and targets, and may also 
 purpose is transformations and enrichment of the data passed through the feature set. These transformations
 can be provided in one of 3 ways:
 
-* **Aggregations** - MLRun supports adding aggregate features to a feature set through the 
+* [**Aggregations**](#aggregations) - MLRun supports adding aggregate features to a feature set through the 
   {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` function.
 
-* **Built-in transformations** - MLRun is equipped with a set of transformations provided through the 
-  {py:mod}`storey.flow` package. These transformations can be added to the execution graph to perform common 
-  operations and transformations.
+* [**Built-in transformations**](#built-in-transformations) - MLRun is equipped with a set of transformations 
+  provided through the {py:mod}`storey.flow` package. These transformations can be added to the execution graph to 
+  perform common operations and transformations.
   
-* **Custom transformations** - It is possible to extend the built-in functionality by adding new classes which perform any 
-  custom operation and using them in the serving graph.
+* [**Custom transformations**](#custom-transformations) - It is possible to extend the built-in functionality by 
+  adding new classes which perform any custom operation and using them in the serving graph.
+
+Once a feature-set was created, its internal execution graph can be observed by calling the feature-set's 
+{py:func}`~mlrun.feature_store.FeatureSet.plot` function, which generates a `graphviz` plot based on the internal
+graph. This is very useful when running within a Jupyter notebook, and will produce a graph such as the 
+following example:
+
+<br><img src="../_static/images/feature-store-graph.svg" alt="feature-store-graph" width="800"/><br>
+
+This plot shows various transformations and aggregations being used as part of the feature-set processing, as well as 
+the targets where results are saved to (in this case two targets). Feature-sets can also be observed in the MLRun
+UI, where the full graph can be seen and specific step properties can be observed:
+
+<br><img src="../_static/images/mlrun-ui-feature-set-graph.png" alt="ui-feature-set-graph" width="800"/><br>
 
 For a full end-to-end example of feature-store and usage of the functionality described in this page, please refer
 to the [feature store example](./feature-store-demo.ipynb).
 
-## Aggregations
+### Aggregations
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations allow adding a new feature to the 
@@ -45,10 +58,21 @@ parameters, using this format: `{name}_{operation}_{window}`. Thus, the example 
 `bid_min_1h` and `bid_max_1h`. These features can then be fed into predictive models or be used for additional 
 processing and feature generation.
 
-For a full documentation of this method, please visit the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
+Aggregations which are supported using this function are:
+- `sum`
+- `sqr` (sum of squares)
+- `max`
+- `min`
+- `first`
+- `last`
+- `avg`
+- `stdvar`
+- `stddev`
+
+For a full documentation of this function, please visit the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
 documentation.
 
-## Built-in transformations
+### Built-in transformations
 
 MLRun, and the associated `storey` package, have a built-in library of transformation functions that can be 
 applied as steps in the feature-set's internal execution graph. In order to add steps to the graph, it should be 
@@ -82,7 +106,7 @@ class as the parameter `fn`. The callable parameter may also be a Python functio
 parentheses around it. This call generates a step in the graph called `filter` which will call the expression provided
 with the event being propagated through the graph as data is fed to the feature-set.
 
-## Custom transformations
+### Custom transformations
 
 When a transformation is needed that is not provided by the built-in functions, new classes that implement 
 transformations can be created and added to the execution graph. Such classes should extend the 
@@ -109,3 +133,20 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
 that was added previously. The class will be initialized with a multiplier of 3.
+
+## Using Spark for transformations
+
+The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
+using Spark, the internal execution graph is not used, replaced by transformation code that fed to the 
+{py:func}`~mlrun.feature_store.ingest` function through the following parameters:
+
+1. A Spark session context, as the `spark_context` parameter. If the value `True` is passed here, a new Spark session
+   will be created by the feature store code and will be used for execution.
+   
+2. Transformation runnable as the `transformer` parameter. This code will be invoked with a data-frame containing the 
+   full data obtained from the source. It then should perform required transformations on the data-frame and return
+   it as output.
+   
+The feature-store code would use Spark to read the data from the source, producing a data-frame. This data-frame will
+be fed to the `transformer` provided, and then the resulting data-frame will be used to infer feature-set metadata
+and it will be written using Spark to the targets. At the end of processing, the Spark session will be stopped.

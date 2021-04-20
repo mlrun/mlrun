@@ -118,7 +118,7 @@ pull-cache: ## Pull images to be used as cache for build
 	if [ "$(MLRUN_DOCKER_CACHE_FROM_TAG)" != "" ]; \
 		then \
 			for target in "$(MAKECMDGOALS)"; do \
-				target=${target#"push-"} ; \
+				target=${{target#"push-"}} ; \
 				docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/$$target:$(MLRUN_DOCKER_CACHE_FROM_TAG) || true ; \
 			done \
 	fi;

@@ -19,6 +19,7 @@ class ProjectMetadata(pydantic.BaseModel):
 
 class ProjectState(str, enum.Enum):
     online = "online"
+    offline = "offline"
     archived = "archived"
 
 

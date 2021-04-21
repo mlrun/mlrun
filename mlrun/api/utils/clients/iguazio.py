@@ -1,5 +1,7 @@
 import copy
+import datetime
 import http
+import json
 import typing
 
 import requests.adapters
@@ -69,7 +71,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 raise
             self._post_project_to_iguazio(session_cookie, body)
         else:
-            self._put_project_to_iguazio(session_cookie, body)
+            self._put_project_to_iguazio(session_cookie, name, body)
 
     def delete_project(
         self,
@@ -82,18 +84,13 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             name=name,
             deletion_strategy=deletion_strategy,
         )
-        body = self._generate_request_body(
-            mlrun.api.schemas.Project(
-                metadata=mlrun.api.schemas.ProjectMetadata(name=name)
-            )
-        )
         # TODO: verify header name
         headers = {
             "x-iguazio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
         }
         try:
             self._send_request_to_api(
-                "DELETE", "projects", session_cookie, json=body, headers=headers
+                "DELETE", f"projects/{name}", session_cookie, headers=headers
             )
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
@@ -110,8 +107,10 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         response = self._send_request_to_api("GET", "projects", session_cookie)
         response_body = response.json()
         projects = []
-        for iguazio_project in response_body.values():
-            projects.append(self._transform_iguazio_project_to_schema(iguazio_project))
+        for iguazio_project in response_body["data"]:
+            projects.append(
+                self._transform_iguazio_project_to_mlrun_project(iguazio_project)
+            )
         return projects
 
     def _post_project_to_iguazio(
@@ -120,13 +119,13 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         response = self._send_request_to_api(
             "POST", "projects", session_cookie, json=body
         )
-        return self._transform_iguazio_project_to_schema(response)
+        return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _put_project_to_iguazio(self, session_cookie: str, body: dict):
+    def _put_project_to_iguazio(self, session_cookie: str, name: str, body: dict):
         response = self._send_request_to_api(
-            "PUT", "projects", session_cookie, json=body
+            "PUT", f"projects/{name}", session_cookie, json=body
         )
-        return self._transform_iguazio_project_to_schema(response)
+        return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _get_project_from_iguazio(self, name):
         return self._send_request_to_api("GET", f"projects/{name}")
@@ -164,20 +163,71 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
 
     @staticmethod
     def _generate_request_body(project: mlrun.api.schemas.Project):
-        # TODO: when I have stable schema
-        body = {}
+        body = {
+            "data": {
+                "type": "project",
+                "attributes": {
+                    "name": project.metadata.name,
+                    "description": project.metadata.name,
+                    "admin_status": project.spec.desired_state,
+                    "mlrun_project": json.dumps(project.dict(exclude_unset=True)),
+                },
+            }
+        }
+        if project.metadata.labels:
+            body["data"]["attributes"][
+                "labels"
+            ] = Client._transform_mlrun_labels_to_iguazio_labels(
+                project.metadata.labels
+            )
+        if project.metadata.annotations:
+            body["data"]["attributes"][
+                "annotations"
+            ] = Client._transform_mlrun_labels_to_iguazio_labels(
+                project.metadata.annotations
+            )
         return body
 
     @staticmethod
-    def _transform_iguazio_project_to_schema(iguazio_project):
-        # TODO: when I have stable schema
-        return mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
-                # name=nuclio_project["metadata"]["name"],
-                # labels=nuclio_project["metadata"].get("labels"),
-                # annotations=nuclio_project["metadata"].get("annotations"),
-            ),
-            spec=mlrun.api.schemas.ProjectSpec(
-                # description=nuclio_project["spec"].get("description")
-            ),
+    def _transform_mlrun_labels_to_iguazio_labels(
+        mlrun_labels: dict,
+    ) -> typing.List[dict]:
+        iguazio_labels = []
+        for label_key, label_value in mlrun_labels.items():
+            iguazio_labels.append(
+                {"name": label_key, "value": label_value,}
+            )
+        return iguazio_labels
+
+    @staticmethod
+    def _transform_iguazio_labels_to_mlrun_labels(
+        iguazio_labels: typing.List[dict],
+    ) -> dict:
+        return {label["name"]: label["value"] for label in iguazio_labels}
+
+    @staticmethod
+    def _transform_iguazio_project_to_mlrun_project(
+        iguazio_project,
+    ) -> mlrun.api.schemas.Project:
+        mlrun_project_without_common_fields = json.loads(
+            iguazio_project["attributes"].get("mlrun_project", "{}")
         )
+        # name is mandatory in the mlrun schema, without adding it the schema initialization will fail
+        mlrun_project_without_common_fields.setdefault("metadata", {})[
+            "name"
+        ] = iguazio_project["attributes"]["name"]
+        mlrun_project = mlrun.api.schemas.Project(**mlrun_project_without_common_fields)
+        mlrun_project.metadata.created = datetime.datetime.fromisoformat(
+            iguazio_project["attributes"]["created_at"]
+        )
+        mlrun_project.spec.desired_state = iguazio_project["attributes"]["admin_status"]
+        mlrun_project.status.state = iguazio_project["attributes"]["operational_status"]
+        if iguazio_project["attributes"].get("labels"):
+            mlrun_project.metadata.labels = Client._transform_iguazio_labels_to_mlrun_labels(
+                iguazio_project["attributes"]["labels"]
+            )
+        if iguazio_project["attributes"].get("annotations"):
+            mlrun_project.metadata.annotations = Client._transform_iguazio_labels_to_mlrun_labels(
+                iguazio_project["attributes"]["annotations"]
+            )
+        return mlrun_project

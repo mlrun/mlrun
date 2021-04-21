@@ -628,7 +628,11 @@ endif
 pull-cache: ## Pull images to be used as cache for build
 ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	for target in "$(MAKECMDGOALS)"; do \
-		target=$${target#"push-"} ; \
+		image_name=$${target#"push-"} ; \
+		case "$$image_name" in \
+		*models*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
+		*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
+		esac; \
 		docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/$$target:$(MLRUN_DOCKER_CACHE_FROM_TAG) || true ; \
 	done;
     ifneq (,$(findstring models-legacy,$(MAKECMDGOALS)))

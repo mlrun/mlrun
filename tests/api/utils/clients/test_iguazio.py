@@ -89,6 +89,63 @@ def test_get_grafana_service_url_no_urls(
     assert grafana_url is None
 
 
+def test_list_project(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    mock_projects = [
+        {"name": "project-name-1"},
+        {"name": "project-name-2", "description": "project-description-2"},
+        {"name": "project-name-3", "labels": {"key": "value"}},
+        {
+            "name": "project-name-4",
+            "annotations": {"annotation-key": "annotation-value"},
+        },
+        {
+            "name": "project-name-5",
+            "description": "project-description-4",
+            "labels": {"key2": "value2"},
+            "annotations": {"annotation-key2": "annotation-value2"},
+        },
+    ]
+    response_body = {
+        "data": [
+            _build_project_response(
+                iguazio_client,
+                _generate_project(
+                    mock_project["name"],
+                    mock_project.get("description", ""),
+                    mock_project.get("labels", {}),
+                    mock_project.get("annotations", {}),
+                ),
+            )
+            for mock_project in mock_projects
+        ]
+    }
+    requests_mock.get(f"{api_url}/api/projects", json=response_body)
+    projects = iguazio_client.list_projects(None)
+    for index, project in enumerate(projects):
+        assert project.metadata.name == mock_projects[index]["name"]
+        assert project.spec.description == mock_projects[index].get("description")
+        assert (
+            deepdiff.DeepDiff(
+                mock_projects[index].get("labels"),
+                project.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
+        )
+        assert (
+            deepdiff.DeepDiff(
+                mock_projects[index].get("annotations"),
+                project.metadata.annotations,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+
 def test_create_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
@@ -99,7 +156,7 @@ def test_create_project(
     def verify_creation(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.CREATED.value
-        return _build_project_response(iguazio_client, project)
+        return {"data": _build_project_response(iguazio_client, project)}
 
     requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
     created_project = iguazio_client.create_project(None, project,)
@@ -125,7 +182,7 @@ def test_store_project_creation(
     def verify_store_creation(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.CREATED.value
-        return _build_project_response(iguazio_client, project)
+        return {"data": _build_project_response(iguazio_client, project)}
 
     # mock project not found so store will create
     requests_mock.get(
@@ -145,21 +202,34 @@ def test_store_project_creation(
     )
 
 
-def _generate_project() -> mlrun.api.schemas.Project:
+def _generate_project(
+    name="project-name",
+    description="project description",
+    labels=None,
+    annotations=None,
+) -> mlrun.api.schemas.Project:
+    if labels is None:
+        labels = {
+            "some-label": "some-label-value",
+        }
+    if annotations is None:
+        annotations = {
+            "some-annotation": "some-annotation-value",
+        }
     return mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(
-            name="project-name",
+            name=name,
             created=datetime.datetime.utcnow(),
-            labels={"some-label": "some-label-value", },
-            annotations={"some-annotation": "some-annotation-value", },
+            labels=labels,
+            annotations=annotations,
             some_extra_field="some value",
         ),
         spec=mlrun.api.schemas.ProjectSpec(
-            description="project description",
+            description=description,
             desired_state=mlrun.api.schemas.ProjectState.online,
             some_extra_field="some value",
         ),
-        status=mlrun.api.schemas.ProjectStatus(some_extra_field="some value", ),
+        status=mlrun.api.schemas.ProjectStatus(some_extra_field="some value",),
     )
 
 
@@ -168,39 +238,35 @@ def _build_project_response(
     project: mlrun.api.schemas.Project,
 ):
     body = {
-        "data": {
-            "type": "project",
-            "attributes": {
-                "name": project.metadata.name,
-                "created_at": project.metadata.created.isoformat()
-                if project.metadata.created
-                else datetime.datetime.utcnow().isoformat(),
-                "updated_at": datetime.datetime.utcnow().isoformat(),
-                "admin_status": project.spec.desired_state
-                or mlrun.api.schemas.ProjectState.online,
-                "mlrun_project": iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
-                    project
-                ),
-            },
-        }
+        "type": "project",
+        "attributes": {
+            "name": project.metadata.name,
+            "created_at": project.metadata.created.isoformat()
+            if project.metadata.created
+            else datetime.datetime.utcnow().isoformat(),
+            "updated_at": datetime.datetime.utcnow().isoformat(),
+            "admin_status": project.spec.desired_state
+            or mlrun.api.schemas.ProjectState.online,
+            "mlrun_project": iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
+                project
+            ),
+        },
     }
     if project.spec.description:
-        body["data"]["attributes"]["description"] = project.spec.description
+        body["attributes"]["description"] = project.spec.description
     if project.metadata.labels:
-        body["data"]["attributes"][
+        body["attributes"][
             "labels"
         ] = iguazio_client._transform_mlrun_labels_to_iguazio_labels(
             project.metadata.labels
         )
     if project.metadata.annotations:
-        body["data"]["attributes"][
+        body["attributes"][
             "annotations"
         ] = iguazio_client._transform_mlrun_labels_to_iguazio_labels(
             project.metadata.annotations
         )
-    body["data"]["attributes"]["operational_status"] = body["data"]["attributes"][
-        "admin_status"
-    ]
+    body["attributes"]["operational_status"] = body["attributes"]["admin_status"]
     return body
 
 

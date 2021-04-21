@@ -1,6 +1,6 @@
-ARG MLRUN_VERSION=unstable
+ARG MLRUN_BASE_IMAGE=mlrun/mlrun:unstable-core
 
-FROM mlrun/mlrun:${MLRUN_VERSION}
+FROM ${MLRUN_BASE_IMAGE}
 
 ENV PIP_NO_CACHE_DIR=1
 

@@ -187,7 +187,7 @@ DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 base-core: mlrun-core ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
-		--build-arg MLRUN_VERSION=$(MLRUN_VERSION)-core \
+		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_IMAGE_NAME_TAGGED) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
@@ -219,7 +219,7 @@ DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME_TAGGED)
 base-legacy-core: mlrun-legacy-core ## Build base legacy core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
-		--build-arg MLRUN_VERSION=$(MLRUN_VERSION)-py36-core \
+		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
@@ -251,7 +251,7 @@ DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
 models-core: base-core ## Build models core docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
-		--build-arg MLRUN_VERSION=$(MLRUN_VERSION)-core \
+		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
 
@@ -282,7 +282,7 @@ DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_IMAGE_NAME_TAGGED)
 models-legacy-core: base-legacy-core ## Build models legacy core docker image
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
-		--build-arg MLRUN_VERSION=$(MLRUN_VERSION)-py36-core \
+		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_LEGACY_MODELS_IMAGE_NAME_TAGGED) .
 

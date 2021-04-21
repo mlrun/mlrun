@@ -1,6 +1,6 @@
-ARG MLRUN_VERSION=unstable
+ARG MLRUN_BASE_IMAGE=mlrun/ml-base:unstable-core
 
-FROM mlrun/ml-base:${MLRUN_VERSION}
+FROM ${MLRUN_BASE_IMAGE}
 
 ARG OMPI=4.1.0
 

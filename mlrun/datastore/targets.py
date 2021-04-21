@@ -106,8 +106,6 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     return table
 
 
-
-
 offline_lookup_order = [TargetTypes.parquet, TargetTypes.csv]
 online_lookup_order = [TargetTypes.nosql]
 
@@ -372,7 +370,11 @@ class NoSqlTarget(BaseStoreTarget):
             features=features, timestamp_key=None, key_columns=key_columns
         )
         if not self.columns_override:
-            aggregate_features = ([key for key, feature in features.items() if feature.aggregate] if features else [])
+            aggregate_features = (
+                [key for key, feature in features.items() if feature.aggregate]
+                if features
+                else []
+            )
             column_list = [col for col in column_list if col in aggregate_features]
 
         graph.add_step(

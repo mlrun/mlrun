@@ -31,9 +31,7 @@ RUN apt-get update && \
         cmake \
         curl \
         wget \
-        graphviz \
-    apt clean && \
-    apt autoremove && \
+        graphviz && \
     rm -rf /var/lib/apt/lists/*
 
 ARG OMPI=4.1.0

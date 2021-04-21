@@ -21,6 +21,7 @@ from mlrun.errors import (
     MLRunNotFoundError,
 )
 from mlrun.utils.helpers import logger
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ENDPOINTS = "endpoints"
@@ -118,7 +119,7 @@ class ModelEndpoints:
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind=ENDPOINTS
         )
-        _, container, path = parse_store_prefix(path)
+        _, container, path = parse_model_endpoint_store_prefix(path)
 
         await run_in_threadpool(
             client.kv.delete,
@@ -180,7 +181,7 @@ class ModelEndpoints:
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind=ENDPOINTS
         )
-        _, container, path = parse_store_prefix(path)
+        _, container, path = parse_model_endpoint_store_prefix(path)
 
         cursor = client.kv.new_cursor(
             container=container,
@@ -241,7 +242,7 @@ class ModelEndpoints:
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind=ENDPOINTS
         )
-        _, container, path = parse_store_prefix(path)
+        _, container, path = parse_model_endpoint_store_prefix(path)
 
         endpoint = await run_in_threadpool(
             client.kv.get,
@@ -347,7 +348,7 @@ async def write_endpoint_to_kv(
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=endpoint.metadata.project, kind=ENDPOINTS
     )
-    _, container, path = parse_store_prefix(path)
+    _, container, path = parse_model_endpoint_store_prefix(path)
 
     await run_in_threadpool(
         function,
@@ -402,7 +403,7 @@ async def get_endpoint_metrics(
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind=EVENTS
     )
-    _, container, path = parse_store_prefix(path)
+    _, container, path = parse_model_endpoint_store_prefix(path)
 
     client = get_frames_client(
         token=access_key, address=config.v3io_framesd, container=container,
@@ -479,12 +480,6 @@ def build_kv_cursor_filter_expression(
                 filter_expression.append(f"exists({label})")
 
     return " AND ".join(filter_expression)
-
-
-def parse_store_prefix(store_prefix: str):
-    scheme, path = store_prefix.split("///", 1)
-    container, path = path.split("/", 1)
-    return scheme, container, path
 
 
 def get_access_key(request_headers: Mapping):

@@ -189,7 +189,6 @@ base-core: mlrun-core ## Build base core docker image
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_IMAGE_NAME_TAGGED) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .
 
@@ -221,7 +220,6 @@ base-legacy-core: mlrun-legacy-core ## Build base legacy core docker image
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) .
 
@@ -315,7 +313,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
 
@@ -339,7 +336,6 @@ models-gpu-legacy: update-version-file ## Build models-gpu legacy docker image
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_LEGACY_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME_TAGGED) .
 

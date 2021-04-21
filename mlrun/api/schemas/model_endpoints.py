@@ -211,7 +211,7 @@ class GrafanaStringColumn(GrafanaColumn):
 
 class GrafanaTable(BaseModel):
     columns: List[GrafanaColumn]
-    rows: List[List[Optional[Union[int, float, str]]]] = []
+    rows: List[List[Optional[Union[float, int, str]]]] = []
     type: str = "table"
 
     def add_row(self, *args):

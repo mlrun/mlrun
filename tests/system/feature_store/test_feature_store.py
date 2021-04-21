@@ -11,7 +11,7 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget, TargetTypes
+from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
@@ -489,6 +489,16 @@ class TestFeatureStore(TestMLRunSystem):
             == side_file_out.sort_index(axis=1).round(2)
         )
 
+    def test_forced_columns_target(self):
+        columns = ["time", "ask"]
+        targets = [ParquetTarget(columns_override=columns)]
+        quotes_set, _ = prepare_feature_set(
+            "forced-columns", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+
+        df = pd.read_parquet(quotes_set.get_target_path())
+        assert all(df.columns.values == columns)
+
 
 def verify_ingest(
     base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
@@ -512,12 +522,14 @@ def verify_ingest(
         assert all(df.values[idx] == data.values[idx])
 
 
-def prepare_feature_set(name: str, entity: str, data: pd.DataFrame, timestamp_key=None):
+def prepare_feature_set(
+    name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
+):
     df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
 
     feature_set = fs.FeatureSet(
         name, entities=[fs.Entity(entity)], timestamp_key=timestamp_key
     )
-    feature_set.set_targets()
+    feature_set.set_targets(targets=targets, with_defaults=False if targets else True)
     df = fs.ingest(feature_set, df_source, infer_options=fs.InferOptions.default())
     return feature_set, df

@@ -221,6 +221,8 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+        if hasattr(spec, "columns_override"):
+            driver.columns_override = spec.columns_override
         driver._resource = resource
         return driver
 

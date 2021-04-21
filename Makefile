@@ -627,7 +627,7 @@ endif
 .PHONY: pull-cache
 pull-cache: ## Pull images to be used as cache for build
 ifdef MLRUN_DOCKER_CACHE_FROM_TAG
-	targets="$(MAKECMDGOALS)" \
+	targets="$(MAKECMDGOALS)" ; \
 	for target in $$targets; do \
 		image_name=$${target#"push-"} ; \
 		case "$$image_name" in \

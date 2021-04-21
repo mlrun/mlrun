@@ -8,7 +8,6 @@ RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -y \
     curl \
-    wget \
     build-essential \
     cmake \
     graphviz \

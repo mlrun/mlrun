@@ -639,7 +639,7 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 		*models*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
 		*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
 		esac; \
-		docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/$$image_name:$(MLRUN_DOCKER_CACHE_FROM_TAG) || true ; \
+		docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/$$image_name:$$tag || true ; \
 	done;
     ifneq (,$(findstring models-legacy,$(MAKECMDGOALS)))
         MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_LEGACY_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG)

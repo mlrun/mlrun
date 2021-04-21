@@ -13,7 +13,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.api.schemas.model_endpoints import ModelEndpointList
-from mlrun.artifacts import get_model
+from mlrun.artifacts import ModelArtifact, get_model
 from mlrun.config import config
 from mlrun.errors import (
     MLRunBadRequestError,
@@ -46,15 +46,27 @@ class ModelEndpoints:
                 model_uri=model_endpoint.spec.model_uri,
             )
 
-        # If model artifact was supplied but feature_stats was not, grab model artifact and get feature_stats
-        if model_endpoint.spec.model_uri and not model_endpoint.status.feature_stats:
+        # If model artifact was supplied, grab model meta data from artifact
+        if model_endpoint.spec.model_uri:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            model_obj = await run_in_threadpool(
+            model_obj: tuple = await run_in_threadpool(
                 get_model, model_endpoint.spec.model_uri
             )
-            model_endpoint.status.feature_stats = model_obj[1].feature_stats
+            model_obj: ModelArtifact = model_obj[1]
+
+            if not model_endpoint.status.feature_stats:
+                model_endpoint.status.feature_stats = model_obj.feature_stats
+
+            if not model_endpoint.spec.label_names:
+                model_label_names = [
+                    _clean_feature_name(f.name) for f in model_obj.outputs
+                ]
+                model_endpoint.spec.label_names = model_label_names
+
+            if not model_endpoint.spec.algorithm:
+                model_endpoint.spec.algorithm = model_obj.algorithm
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
@@ -261,14 +273,21 @@ class ModelEndpoints:
 
         feature_names = endpoint.get("feature_names")
         feature_names = _json_loads_if_not_none(feature_names)
+
+        label_names = endpoint.get("label_names")
+        label_names = _json_loads_if_not_none(label_names)
+
         feature_stats = endpoint.get("feature_stats")
         feature_stats = _json_loads_if_not_none(feature_stats)
+
         current_stats = endpoint.get("current_stats")
         current_stats = _json_loads_if_not_none(current_stats)
+
         drift_measures = endpoint.get("drift_measures")
         drift_measures = _json_loads_if_not_none(drift_measures)
 
         monitor_configuration = endpoint.get("monitor_configuration")
+        monitor_configuration = _json_loads_if_not_none(monitor_configuration)
 
         endpoint = ModelEndpoint(
             metadata=ModelEndpointMetadata(
@@ -282,8 +301,10 @@ class ModelEndpoints:
                 model_class=endpoint.get("model_class") or None,
                 model_uri=endpoint.get("model_uri") or None,
                 feature_names=feature_names or None,
+                label_names=label_names or None,
                 stream_path=endpoint.get("stream_path") or None,
-                monitor_configuration=_json_loads_if_not_none(monitor_configuration),
+                algorithm=endpoint.get("algorithm") or None,
+                monitor_configuration=monitor_configuration or None,
                 active=endpoint.get("active") or None,
             ),
             status=ModelEndpointStatus(
@@ -338,6 +359,7 @@ async def write_endpoint_to_kv(
     searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
 
     feature_names = endpoint.spec.feature_names or []
+    label_names = endpoint.spec.label_names or []
     feature_stats = endpoint.status.feature_stats or {}
     current_stats = endpoint.status.current_stats or {}
     monitor_configuration = endpoint.spec.monitor_configuration or {}
@@ -370,6 +392,7 @@ async def write_endpoint_to_kv(
             "feature_stats": json.dumps(feature_stats),
             "current_stats": json.dumps(current_stats),
             "feature_names": json.dumps(feature_names),
+            "label_names": json.dumps(label_names),
             "monitor_configuration": json.dumps(monitor_configuration),
             **searchable_labels,
         },

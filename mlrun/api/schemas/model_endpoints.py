@@ -22,7 +22,9 @@ class ModelEndpointSpec(ObjectSpec):
     model_class: Optional[str]
     model_uri: Optional[str]
     feature_names: Optional[List[str]]
+    label_names: Optional[List[str]]
     stream_path: Optional[str]
+    algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
 
@@ -132,7 +134,7 @@ class GrafanaStringColumn(GrafanaColumn):
 
 class GrafanaTable(BaseModel):
     columns: List[GrafanaColumn]
-    rows: List[List[Optional[Union[int, float, str]]]] = []
+    rows: List[List[Optional[Union[float, int, str]]]] = []
     type: str = "table"
 
     def add_row(self, *args):

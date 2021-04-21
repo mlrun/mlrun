@@ -26,7 +26,10 @@ def initialize_project_secrets(
 
     # Init is idempotent and will do nothing if infra is already in place
     init_project_vault_configuration(project)
-    add_vault_project_secrets(project, secrets.secrets)
+
+    # If no secrets were passed, no need to touch the actual secrets.
+    if secrets.secrets:
+        add_vault_project_secrets(project, secrets.secrets)
     return Response(status_code=HTTPStatus.CREATED.value)
 
 

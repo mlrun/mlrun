@@ -525,7 +525,7 @@ class MlrunProject(ModelObj):
 
     @property
     def name(self) -> str:
-        """This is a property of the spec, look there for documentation
+        """This is a property of the metadata, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
         warnings.warn(
             "This is a property of the metadata, use project.metadata.name instead"
@@ -544,6 +544,28 @@ class MlrunProject(ModelObj):
             PendingDeprecationWarning,
         )
         self.metadata.name = name
+
+    @property
+    def artifact_path(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifact_path instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.artifact_path
+
+    @artifact_path.setter
+    def artifact_path(self, artifact_path):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifact_path instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.artifact_path = artifact_path
 
     @property
     def source(self) -> str:
@@ -1211,7 +1233,7 @@ class MlrunProject(ModelObj):
             logger.warning(
                 "get_vault_secrets executed locally. This is not recommended and may become deprecated soon"
             )
-            self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
+            return self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
 
         run_db = get_run_db(secrets=self._secrets)
         project_secrets = run_db.get_project_secrets(

@@ -226,8 +226,20 @@ class FileRunDB(RunDBInterface):
         return self._loads(data)
 
     def list_artifacts(
-        self, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
     ):
+        if iter:
+            raise NotImplementedError(
+                "iter parameter not supported for filedb implementation"
+            )
+
         labels = [] if labels is None else labels
         tag = tag or "latest"
         name = name or ""
@@ -553,6 +565,10 @@ class FileRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: str = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: str = None,
+        partition_order: str = "desc",
     ):
         raise NotImplementedError()
 
@@ -584,6 +600,10 @@ class FileRunDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: str = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: str = None,
+        partition_order: str = "desc",
     ) -> List[dict]:
         raise NotImplementedError()
 

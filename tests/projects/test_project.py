@@ -76,6 +76,8 @@ def test_create_project_from_file_with_legacy_structure():
     # assert accessible from the project as well
     assert project.description == description
     assert project.spec.artifact_path == artifact_path
+    # assert accessible from the project as well
+    assert project.artifact_path == artifact_path
     assert deepdiff.DeepDiff(params, project.spec.params, ignore_order=True,) == {}
     # assert accessible from the project as well
     assert deepdiff.DeepDiff(params, project.params, ignore_order=True,) == {}

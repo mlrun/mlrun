@@ -16,6 +16,7 @@ from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
+from mlrun.utils.azure_vault import AzureVaultStore
 from mlrun.utils.vault import VaultStore
 
 logger = create_logger(level="debug", name="test-runtime")
@@ -37,6 +38,10 @@ class TestRuntimeBase:
         self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
         self.vault_secret_value = "secret123!@"
         self.vault_secret_name = "vault-secret"
+
+        self.azure_vault_secrets = ["azure_secret1", "azure_secret2"]
+        self.azure_secret_value = "azure-secret-123!@"
+        self.azure_vault_secret_name = "k8s-vault-secret"
 
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -186,6 +191,11 @@ class TestRuntimeBase:
     def _mock_vault_functionality(self):
         secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
         VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
+
+        azure_secret_dict = {
+            key: self.azure_secret_value for key in self.azure_vault_secrets
+        }
+        AzureVaultStore.get_secrets = unittest.mock.Mock(return_value=azure_secret_dict)
 
         object_meta = client.V1ObjectMeta(
             name="test-service-account", namespace=self.namespace

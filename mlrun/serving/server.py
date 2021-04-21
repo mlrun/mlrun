@@ -39,22 +39,30 @@ class _StreamContext:
     def __init__(self, enabled, parameters, function_uri):
         self.enabled = False
         self.hostname = socket.gethostname()
-        self.output_stream = None
         self.function_uri = function_uri
         self.output_stream = None
+        self.stream_uri = None
 
         log_stream = parameters.get("log_stream", "")
-        stream_url = config.model_endpoint_monitoring.stream_url
-        if ((enabled and stream_url) or log_stream) and function_uri:
+        stream_uri = config.model_endpoint_monitoring.store_prefixes.default
+
+        if ((enabled and stream_uri) or log_stream) and function_uri:
             self.enabled = True
-            log_stream = log_stream or stream_url
+
             project, _, _, _ = parse_versioned_object_uri(
                 function_uri, config.default_project
             )
+
+            stream_uri = stream_uri.format(project=project, kind="stream")
+
+            if log_stream:
+                stream_uri = log_stream.format(project=project)
+
             stream_args = parameters.get("stream_args", {})
-            self.output_stream = get_stream_pusher(
-                log_stream.format(project=project), **stream_args
-            )
+
+            self.stream_uri = stream_uri
+
+            self.output_stream = get_stream_pusher(stream_uri, **stream_args)
 
 
 class GraphServer(ModelObj):

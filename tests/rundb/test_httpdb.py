@@ -255,12 +255,16 @@ def test_artifacts(create_server):
     artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
+    db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 1, "bad number of artifacs"
+    assert len(artifacts) == 2, "bad number of artifacts"
+
+    artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
+    assert len(artifacts) == 1, "bad number of artifacts"
 
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 0, "bad number of artifacs after del"
+    assert len(artifacts) == 0, "bad number of artifacts after del"
 
 
 def test_basic_auth(create_server):
@@ -422,7 +426,15 @@ def test_feature_sets(create_server):
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
+    assert len(feature_sets) == count, "bad list results - wrong number of members"
 
+    feature_sets = db.list_feature_sets(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+    )
     assert len(feature_sets) == count, "bad list results - wrong number of members"
 
     feature_set = db.get_feature_set(name, project)
@@ -496,7 +508,15 @@ def test_feature_vectors(create_server):
         patch_mode=schemas.PatchMode.additive,
     )
     feature_vectors = db.list_feature_vectors(project=project)
+    assert len(feature_vectors) == count, "bad list results - wrong number of members"
 
+    feature_vectors = db.list_feature_vectors(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+    )
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
 
     feature_vector = db.get_feature_vector(name, project)

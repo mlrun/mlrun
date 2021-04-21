@@ -9,11 +9,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from mlrun.api.api import deps
-from mlrun.api.crud.model_endpoints import (
-    ENDPOINT_EVENTS_TABLE_PATH,
-    ModelEndpoints,
-    get_access_key,
-)
+from mlrun.api.crud.model_endpoints import EVENTS, ModelEndpoints, get_access_key
 from mlrun.api.schemas import (
     Format,
     GrafanaColumn,
@@ -25,6 +21,7 @@ from mlrun.api.schemas import (
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client
 
 router = APIRouter()
@@ -292,16 +289,19 @@ async def grafana_incoming_features(
         )
         return time_series
 
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind=EVENTS
+    )
+    _, container, path = parse_model_endpoint_store_prefix(path)
+
     client = get_frames_client(
-        token=access_key,
-        address=config.v3io_framesd,
-        container=config.model_endpoint_monitoring.container,
+        token=access_key, address=config.v3io_framesd, container=container,
     )
 
     data: pd.DataFrame = await run_in_threadpool(
         client.read,
         backend="tsdb",
-        table=f"{project}/{ENDPOINT_EVENTS_TABLE_PATH}",
+        table=path,
         columns=feature_names,
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,

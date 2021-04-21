@@ -1,12 +1,15 @@
+import collections
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
+import humanfriendly
 import mergedeep
 import pytz
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 import mlrun.api.utils.projects.remotes.member
 import mlrun.errors
@@ -58,6 +61,10 @@ unversioned_tagged_object_uid_prefix = "unversioned-"
 class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
+        self._cache = {
+            "project_resources_counters": {"value": None, "ttl": datetime.min}
+        }
+        self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
         return
@@ -316,6 +323,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter: int = None,
     ):
         project = project or config.default_project
 
@@ -332,8 +340,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         artifacts = ArtifactList()
         for artifact in self._find_artifacts(
-            session, project, ids, labels, since, until, name, kind, category
+            session, project, ids, labels, since, until, name, kind, category, iter
         ):
+            # We need special handling for the case where iter==0, since in that case no iter prefix will exist.
+            # Regex support is db-specific, and SQLAlchemy actually implements Python regex for SQLite anyway,
+            # and even that only in SA 1.4. So doing this here rather than in the query.
+            if iter == 0 and self._name_with_iter_regex.match(artifact.key):
+                continue
+
             artifact_struct = artifact.struct
             if ids != "latest":
                 artifacts_with_tag = self._add_tags_to_artifact_struct(
@@ -836,19 +850,152 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, Project, owner=owner, state=state)
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
+        project_records = query.all()
+        project_names = [project_record.name for project_record in project_records]
         projects = []
-        for project_record in query:
-            if format_ == mlrun.api.schemas.Format.name_only:
-                projects.append(project_record.name)
-            elif format_ == mlrun.api.schemas.Format.full:
-                projects.append(
-                    self._transform_project_record_to_schema(session, project_record)
-                )
-            else:
-                raise NotImplementedError(
-                    f"Provided format is not supported. format={format_}"
-                )
+        # calculating the project summary data is done by doing cross project queries (and not per project) so we're
+        # building it outside of the loop
+        if format_ == mlrun.api.schemas.Format.summary:
+            projects = self._generate_projects_summaries(session, project_names)
+        else:
+            for project_record in project_records:
+                if format_ == mlrun.api.schemas.Format.name_only:
+                    projects = project_names
+                elif format_ == mlrun.api.schemas.Format.full:
+                    projects.append(
+                        self._transform_project_record_to_schema(
+                            session, project_record
+                        )
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Provided format is not supported. format={format_}"
+                    )
         return schemas.ProjectsOutput(projects=projects)
+
+    def _get_project_resources_counters(self, session: Session):
+        now = datetime.now()
+        if (
+            not self._cache["project_resources_counters"]["ttl"]
+            or self._cache["project_resources_counters"]["ttl"] < now
+        ):
+            logger.debug(
+                "Project resources counter cache expired. Calculating",
+                ttl=self._cache["project_resources_counters"]["ttl"],
+            )
+            import mlrun.artifacts
+
+            functions_count_per_project = (
+                session.query(Function.project, func.count(distinct(Function.name)))
+                .group_by(Function.project)
+                .all()
+            )
+            project_to_function_count = {
+                result[0]: result[1] for result in functions_count_per_project
+            }
+            feature_sets_count_per_project = (
+                session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
+                .group_by(FeatureSet.project)
+                .all()
+            )
+            project_to_feature_set_count = {
+                result[0]: result[1] for result in feature_sets_count_per_project
+            }
+            # The kind filter is applied post the query to the DB (manually in python code), so counting should be that
+            # way as well, therefore we're doing it here, and can't do it with sql as the above
+            # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
+            # count (artifact count, not artifact versions count)
+            model_artifacts = self._find_artifacts(
+                session, None, "latest", kind=mlrun.artifacts.model.ModelArtifact.kind
+            )
+            project_to_models_count = collections.defaultdict(int)
+            for model_artifact in model_artifacts:
+                project_to_models_count[model_artifact.project] += 1
+            runs = self._find_runs(session, None, "*", None)
+            project_to_recent_failed_runs_count = collections.defaultdict(int)
+            project_to_running_runs_count = collections.defaultdict(int)
+            # we want to count unique run names, and not all occurrences of all runs, therefore we're keeping set of
+            # names and only count new names
+            project_to_recent_failed_run_names = collections.defaultdict(set)
+            project_to_running_run_names = collections.defaultdict(set)
+            runs = runs.all()
+            for run in runs:
+                run_json = run.struct
+                if self._is_run_matching_state(
+                    run,
+                    run_json,
+                    mlrun.runtimes.constants.RunStates.non_terminal_states(),
+                ):
+                    if (
+                        run_json.get("metadata", {}).get("name")
+                        and run_json["metadata"]["name"]
+                        not in project_to_running_run_names[run.project]
+                    ):
+                        project_to_running_run_names[run.project].add(
+                            run_json["metadata"]["name"]
+                        )
+                        project_to_running_runs_count[run.project] += 1
+                if self._is_run_matching_state(
+                    run,
+                    run_json,
+                    [
+                        mlrun.runtimes.constants.RunStates.error,
+                        mlrun.runtimes.constants.RunStates.aborted,
+                    ],
+                ):
+                    one_day_ago = datetime.now() - timedelta(hours=24)
+                    if run.start_time and run.start_time >= one_day_ago:
+                        if (
+                            run_json.get("metadata", {}).get("name")
+                            and run_json["metadata"]["name"]
+                            not in project_to_recent_failed_run_names[run.project]
+                        ):
+                            project_to_recent_failed_run_names[run.project].add(
+                                run_json["metadata"]["name"]
+                            )
+                            project_to_recent_failed_runs_count[run.project] += 1
+
+            self._cache["project_resources_counters"]["result"] = (
+                project_to_function_count,
+                project_to_feature_set_count,
+                project_to_models_count,
+                project_to_recent_failed_runs_count,
+                project_to_running_runs_count,
+            )
+            ttl_time = datetime.now() + timedelta(
+                seconds=humanfriendly.parse_timespan(
+                    config.httpdb.projects.counters_cache_ttl
+                )
+            )
+            self._cache["project_resources_counters"]["ttl"] = ttl_time
+
+        return self._cache["project_resources_counters"]["result"]
+
+    def _generate_projects_summaries(
+        self, session: Session, projects: List[str]
+    ) -> List[mlrun.api.schemas.ProjectSummary]:
+        (
+            project_to_function_count,
+            project_to_feature_set_count,
+            project_to_models_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+        ) = self._get_project_resources_counters(session)
+        project_summaries = []
+        for project in projects:
+            project_summaries.append(
+                mlrun.api.schemas.ProjectSummary(
+                    name=project,
+                    functions_count=project_to_function_count.get(project, 0),
+                    feature_sets_count=project_to_feature_set_count.get(project, 0),
+                    models_count=project_to_models_count.get(project, 0),
+                    runs_failed_recent_count=project_to_recent_failed_runs_count.get(
+                        project, 0
+                    ),
+                    runs_running_count=project_to_running_runs_count.get(project, 0),
+                )
+            )
+        return project_summaries
 
     def _update_project_record_from_project(
         self, session: Session, project_record: Project, project: schemas.Project
@@ -1190,6 +1337,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 )
         return schemas.EntitiesOutput(entities=entities_results)
 
+    @staticmethod
+    def _assert_partition_by_parameters(partition_by, sort):
+        if sort is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "sort parameter must be provided when partition_by is used."
+            )
+        # For now, name is the only supported value. Remove once more fields are added.
+        if partition_by != schemas.FeatureStorePartitionByField.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
+            )
+
+    @staticmethod
+    def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
+        row_number_column = (
+            func.row_number()
+            .over(
+                partition_by=group_by.to_partition_by_db_field(cls),
+                order_by=order.to_order_by_predicate(cls.updated),
+            )
+            .label("row_number")
+        )
+
+        # Need to generate a subquery so we can filter based on the row_number, since it
+        # is a window function using over().
+        subquery = query.add_column(row_number_column).subquery()
+        return session.query(aliased(cls, subquery)).filter(
+            subquery.c.row_number <= rows_per_group
+        )
+
     def list_feature_sets(
         self,
         session,
@@ -1200,6 +1377,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
@@ -1218,6 +1399,17 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             query = query.join(FeatureSet.features).filter(Feature.name.in_(features))
         if labels:
             query = self._add_labels_filter(session, query, FeatureSet, labels)
+
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort)
+            query = self._create_partitioned_query(
+                session,
+                query,
+                FeatureSet,
+                partition_by,
+                partition_order,
+                rows_per_partition,
+            )
 
         feature_sets = []
         for feature_set_record in query:
@@ -1579,6 +1771,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureVector, project, tag, name
@@ -1593,6 +1789,17 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             query = query.filter(FeatureVector.id.in_(obj_id_tags.keys()))
         if labels:
             query = self._add_labels_filter(session, query, FeatureVector, labels)
+
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort_by)
+            query = self._create_partitioned_query(
+                session,
+                query,
+                FeatureVector,
+                partition_by,
+                partition_order,
+                rows_per_partition,
+            )
 
         feature_vectors = []
         for feature_vector_record in query:
@@ -1845,34 +2052,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 ):
                     continue
             if state:
-                requested_states = as_list(state)
-                record_state = run.state
-                json_state = None
-                if (
-                    run_json
-                    and isinstance(run_json, dict)
-                    and run_json.get("status", {}).get("state")
-                ):
-                    json_state = run_json.get("status", {}).get("state")
-                if not record_state and not json_state:
+                if not self._is_run_matching_state(run, run_json, state):
                     continue
-                # json_state has precedence over record state
-                if json_state:
-                    if all(
-                        [
-                            requested_state not in json_state
-                            for requested_state in requested_states
-                        ]
-                    ):
-                        continue
-                else:
-                    if all(
-                        [
-                            requested_state not in record_state
-                            for requested_state in requested_states
-                        ]
-                    ):
-                        continue
             if last_update_time_from or last_update_time_to:
                 if not match_times(
                     last_update_time_from,
@@ -1885,6 +2066,27 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             filtered_runs.append(run)
 
         return filtered_runs
+
+    def _is_run_matching_state(self, run, run_json, state):
+        requested_states = as_list(state)
+        record_state = run.state
+        json_state = None
+        if (
+            run_json
+            and isinstance(run_json, dict)
+            and run_json.get("status", {}).get("state")
+        ):
+            json_state = run_json.get("status", {}).get("state")
+        if not record_state and not json_state:
+            return False
+        # json_state has precedence over record state
+        if json_state:
+            if json_state in requested_states:
+                return True
+        else:
+            if record_state in requested_states:
+                return True
+        return False
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
@@ -1920,6 +2122,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         name=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter=None,
     ):
         """
         TODO: refactor this method
@@ -1952,8 +2155,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
+        name_query = ""
+        if iter:
+            # Note that this only covers cases where iter>0
+            name_query = f"{iter}-"
         if name is not None:
-            query = query.filter(Artifact.key.ilike(f"%{name}%"))
+            name_query = name_query + f"%{name}"
+        if name_query != "":
+            query = query.filter(Artifact.key.ilike(f"{name_query}%"))
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])

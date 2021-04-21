@@ -22,6 +22,7 @@ from kubernetes import client
 import mlrun.errors
 import mlrun.utils.regex
 
+from ..config import config as mlconf
 from ..utils import logger, normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec
 from .utils import (
@@ -323,9 +324,29 @@ class KubeResource(BaseRuntime):
         fn._cop = ContainerOp("name", "image")
         return fn
 
-    def _add_vault_params_to_spec(self, runobj=None, project=None):
-        from ..config import config as mlconf
+    def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
+        secret_name = (
+            k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
+        )
+        if not secret_name:
+            logger.warning(
+                "No k8s secret provided. Azure key vault will not be available"
+            )
+            return
 
+        # We cannot use expanduser() here, since the user in question is the user running in the pod
+        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
+        secret_path = mlconf.secret_stores.azure_vault.secret_path.replace("~", "/root")
+        volumes = [
+            {
+                "name": "azure-vault-secret",
+                "secret": {"defaultMode": 420, "secretName": secret_name},
+            }
+        ]
+        volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
+        self.spec.update_vols_and_mounts(volumes, volume_mounts)
+
+    def _add_vault_params_to_spec(self, runobj=None, project=None):
         project_name = project or runobj.metadata.project
         if project_name is None:
             logger.warning("No project provided. Cannot add vault parameters")

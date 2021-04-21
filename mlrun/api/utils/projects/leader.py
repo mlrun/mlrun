@@ -30,6 +30,7 @@ class Member(
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
         )
+        self._projects_in_deletion = set()
         # run one sync to start off on the right foot
         self._sync_projects()
         self._start_periodic_sync()
@@ -77,9 +78,13 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
-        self._run_on_all_followers(
-            False, "delete_project", session, name, deletion_strategy
-        )
+        self._projects_in_deletion.add(name)
+        try:
+            self._run_on_all_followers(
+                False, "delete_project", session, name, deletion_strategy
+            )
+        finally:
+            self._projects_in_deletion.remove(name)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -153,6 +158,8 @@ class Member(
             all_project.update(project_follower_names_map.keys())
 
             for project in all_project:
+                if project in self._projects_in_deletion:
+                    continue
                 self._ensure_project_synced(
                     session,
                     leader_project_names,

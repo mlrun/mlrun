@@ -1,12 +1,10 @@
-from dataclasses import dataclass
-from hashlib import sha1
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.utils import parse_versioned_object_uri
+from mlrun.utils.model_monitoring import create_model_endpoint_id
 
 
 class ModelEndpointMetadata(BaseModel):
@@ -24,7 +22,9 @@ class ModelEndpointSpec(ObjectSpec):
     model_class: Optional[str]
     model_uri: Optional[str]
     feature_names: Optional[List[str]]
+    label_names: Optional[List[str]]
     stream_path: Optional[str]
+    algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
 
@@ -107,85 +107,10 @@ class ModelEndpoint(BaseModel):
     def __init__(self, **data: Any):
         super().__init__(**data)
         if self.metadata.uid is None:
-            uid = self.create_endpoint_id(
+            uid = create_model_endpoint_id(
                 function_uri=self.spec.function_uri, versioned_model=self.spec.model,
             )
             self.metadata.uid = str(uid)
-
-    @staticmethod
-    def create_endpoint_id(function_uri: str, versioned_model: str):
-        function_uri = ModelEndpoint.FunctionURI.from_string(function_uri)
-        versioned_model = ModelEndpoint.VersionedModel.from_string(versioned_model)
-
-        if (
-            not function_uri.project
-            or not function_uri.function
-            or not versioned_model.model
-        ):
-            raise ValueError(
-                "Both function_uri and versioned_model have to be initialized"
-            )
-
-        uid = ModelEndpoint.EndpointUID(
-            function_uri.project,
-            function_uri.function,
-            function_uri.tag,
-            function_uri.hash_key,
-            versioned_model.model,
-            versioned_model.version,
-        )
-
-        return uid
-
-    @dataclass
-    class FunctionURI:
-        project: str
-        function: str
-        tag: Optional[str] = None
-        hash_key: Optional[str] = None
-
-        @classmethod
-        def from_string(cls, function_uri):
-            project, uri, tag, hash_key = parse_versioned_object_uri(function_uri)
-            return cls(
-                project=project,
-                function=uri,
-                tag=tag or None,
-                hash_key=hash_key or None,
-            )
-
-    @dataclass
-    class VersionedModel:
-        model: str
-        version: Optional[str]
-
-        @classmethod
-        def from_string(cls, model):
-            try:
-                model, version = model.split(":")
-            except ValueError:
-                model, version = model, None
-
-            return cls(model, version)
-
-    @dataclass
-    class EndpointUID:
-        project: str
-        function: str
-        function_tag: str
-        function_hash_key: str
-        model: str
-        model_version: str
-        uid: Optional[str] = None
-
-        def __post_init__(self):
-            function_ref = f"{self.function}_{self.function_tag or self.function_hash_key or 'N/A'}"
-            versioned_model = f"{self.model}_{self.model_version or 'N/A'}"
-            unique_string = f"{self.project}_{function_ref}_{versioned_model}"
-            self.uid = sha1(unique_string.encode("utf-8")).hexdigest()
-
-        def __str__(self):
-            return self.uid
 
 
 class ModelEndpointList(BaseModel):
@@ -209,7 +134,7 @@ class GrafanaStringColumn(GrafanaColumn):
 
 class GrafanaTable(BaseModel):
     columns: List[GrafanaColumn]
-    rows: List[List[Optional[Union[int, float, str]]]] = []
+    rows: List[List[Optional[Union[float, int, str]]]] = []
     type: str = "table"
 
     def add_row(self, *args):

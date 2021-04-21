@@ -36,8 +36,7 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
-# Set default shell to /bin/bash for conda to work
-SHELL ["/bin/bash", "-cu"]
+ENV PATH /opt/conda/bin:$PATH
 
 RUN conda install python=3.6
 

@@ -85,9 +85,9 @@ COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.t
 
 RUN python -m pip install \
     -r requirements.txt \
-    -r mlrun-image-requirements.txt
-    -r base-image-requirements.txt
-    -r models-image-requirements.txt
+    -r mlrun-image-requirements.txt \
+    -r base-image-requirements.txt \
+    -r models-image-requirements.txt \
     -r models-gpu-image-requirements.txt
 
 COPY . .

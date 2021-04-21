@@ -61,7 +61,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
 
     def store_project(
         self, session_cookie: str, name: str, project: mlrun.api.schemas.Project,
-    ):
+    ) -> mlrun.api.schemas.Project:
         logger.debug("Storing project in Iguazio", name=name, project=project)
         body = self._generate_request_body(project)
         try:
@@ -69,9 +69,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
-            self._post_project_to_iguazio(session_cookie, body)
+            return self._post_project_to_iguazio(session_cookie, body)
         else:
-            self._put_project_to_iguazio(session_cookie, name, body)
+            return self._put_project_to_iguazio(session_cookie, name, body)
 
     def delete_project(
         self,

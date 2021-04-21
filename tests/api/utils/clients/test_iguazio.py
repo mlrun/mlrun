@@ -94,21 +94,7 @@ def test_create_project(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(
-            name="project-name",
-            created=datetime.datetime.utcnow(),
-            labels={"some-label": "some-label-value",},
-            annotations={"some-annotation": "some-annotation-value",},
-            some_extra_field="some value",
-        ),
-        spec=mlrun.api.schemas.ProjectSpec(
-            description="project description",
-            desired_state=mlrun.api.schemas.ProjectState.online,
-            some_extra_field="some value",
-        ),
-        status=mlrun.api.schemas.ProjectStatus(some_extra_field="some value",),
-    )
+    project = _generate_project()
 
     def verify_creation(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
@@ -127,6 +113,54 @@ def test_create_project(
         == {}
     )
     assert created_project.status.state == project.spec.desired_state
+
+
+def test_store_project_creation(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project()
+
+    def verify_store_creation(request, context):
+        _assert_project_creation(iguazio_client, request.json(), project)
+        context.status_code = http.HTTPStatus.CREATED.value
+        return _build_project_response(iguazio_client, project)
+
+    # mock project not found so store will create
+    requests_mock.get(
+        f"{api_url}/api/projects/{project.metadata.name}",
+        status_code=http.HTTPStatus.NOT_FOUND.value,
+    )
+    requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
+    created_project = iguazio_client.store_project(None, project.metadata.name, project)
+    exclude = {"status": {"state"}}
+    assert (
+        deepdiff.DeepDiff(
+            project.dict(exclude=exclude),
+            created_project.dict(exclude=exclude),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def _generate_project() -> mlrun.api.schemas.Project:
+    return mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(
+            name="project-name",
+            created=datetime.datetime.utcnow(),
+            labels={"some-label": "some-label-value", },
+            annotations={"some-annotation": "some-annotation-value", },
+            some_extra_field="some value",
+        ),
+        spec=mlrun.api.schemas.ProjectSpec(
+            description="project description",
+            desired_state=mlrun.api.schemas.ProjectState.online,
+            some_extra_field="some value",
+        ),
+        status=mlrun.api.schemas.ProjectStatus(some_extra_field="some value", ),
+    )
 
 
 def _build_project_response(

@@ -97,6 +97,7 @@ class DBInterface(ABC):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter: int = None,
     ):
         pass
 

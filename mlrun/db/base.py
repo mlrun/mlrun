@@ -87,7 +87,14 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
     ):
         pass
 

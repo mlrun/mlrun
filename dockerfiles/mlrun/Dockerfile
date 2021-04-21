@@ -25,7 +25,18 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 WORKDIR /mlrun
 
-RUN python -m pip install --upgrade pip~=20.2.0
+# install miniconda
+RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
+    /bin/bash ~/installconda.sh -b -p /opt/conda && \
+    rm ~/installconda.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc
+
+ENV PATH /opt/conda/bin:$PATH
+
+RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=20.2.0
+
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./requirements.txt ./
 RUN python -m pip install \

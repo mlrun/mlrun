@@ -28,18 +28,6 @@ RUN python -m pip install -U 'intel-tensorflow==2.2.0' mxnet
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install 'horovod~=0.20.0'
 
-# install miniconda
-RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
-    /bin/bash ~/installconda.sh -b -p /opt/conda && \
-    rm ~/installconda.sh && \
-    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc
-
-ENV PATH /opt/conda/bin:$PATH
-
-RUN conda install python=3.7
-
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 
 RUN python -m pip install -r models-image-requirements.txt

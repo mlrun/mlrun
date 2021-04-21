@@ -630,11 +630,11 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	targets="$(MAKECMDGOALS)" ; \
 	for target in $$targets; do \
 		image_name=$${target#"push-"} ; \
-		image_name=$${image_name%"-legacy"} ; \
 		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG) ; \
 		case "$$image_name" in \
 		*legacy*) tag=$$tag$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX) ;; \
 		esac; \
+		image_name=$${image_name%"-legacy"} ; \
 		case "$$image_name" in \
 		*models*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
 		*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \

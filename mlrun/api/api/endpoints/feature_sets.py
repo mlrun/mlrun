@@ -4,15 +4,14 @@ from typing import List
 from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session
 
+import mlrun.feature_store
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import parse_reference
 from mlrun.api.utils.singletons.db import get_db
-
 from mlrun.data_types import InferOptions
-
-import mlrun.feature_store
-from mlrun.feature_store.api import ingest, RunConfig
+from mlrun.feature_store.api import RunConfig, ingest
+from mlrun.model import DataSource, DataTargetBase
 
 router = APIRouter()
 
@@ -147,26 +146,39 @@ def list_feature_sets(
     response_model=schemas.FeatureSetIngestOutput,
 )
 def feature_set_ingest(
-        project: str,
-        name: str,
-        reference: str,
-        ingest_parameters: schemas.FeatureSetIngest,
-        infer_options: InferOptions = Query(None, alias="infer-options"),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    reference: str,
+    ingest_parameters: schemas.FeatureSetIngest,
+    infer_options: int = Query(None, alias="infer-options"),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
     feature_set_record = get_db().get_feature_set(db_session, project, name, tag, uid)
 
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
+    # Need to override the default rundb since we're in the server.
+    feature_set._override_run_db(db_session)
+
+    data_source = DataSource.from_dict(ingest_parameters.source.dict())
+    data_targets = [
+        DataTargetBase.from_dict(data_target.dict())
+        for data_target in ingest_parameters.targets
+    ]
+    infer_options = infer_options or InferOptions.default()
+
     run_params = ingest(
         feature_set,
-        ingest_parameters.source,
-        ingest_parameters.targets,
+        data_source,
+        data_targets,
         infer_options=infer_options,
         return_df=False,
-        run_config=RunConfig()
+        run_config=RunConfig(),
     )
-    return schemas.FeatureSetIngestOutput(feature_set.to_dict(), run_params)
+    result_feature_set = schemas.FeatureSet(**feature_set.to_dict())
+    return schemas.FeatureSetIngestOutput(
+        feature_set=result_feature_set, run_object=run_params.to_dict()
+    )
 
 
 @router.get("/projects/{project}/features", response_model=schemas.FeaturesOutput)

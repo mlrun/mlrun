@@ -17,6 +17,7 @@ import pandas as pd
 
 import mlrun
 
+from ..api.api.utils import get_run_db_instance
 from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import (
@@ -71,6 +72,7 @@ class FeatureSetSpec(ModelObj):
         function=None,
         analysis=None,
         engine=None,
+        output_path=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -93,6 +95,7 @@ class FeatureSetSpec(ModelObj):
         self.function = function
         self.analysis = analysis or {}
         self.engine = engine
+        self.output_path = output_path or mlconf.artifact_path
 
     @property
     def entities(self) -> List[Entity]:
@@ -237,6 +240,15 @@ class FeatureSet(ModelObj):
         if self._metadata.tag:
             uri += ":" + self._metadata.tag
         return uri
+
+    def _override_run_db(self, session):
+        self._run_db = get_run_db_instance(session)
+
+    def _get_run_db(self):
+        if self._run_db:
+            return self._run_db
+        else:
+            return mlrun.get_run_db()
 
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
@@ -391,9 +403,9 @@ class FeatureSet(ModelObj):
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
-        db = mlrun.get_run_db()
+        db = self._get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
-        tag = tag or self.metadata.tag
+        tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
         as_dict["spec"]["features"] = as_dict["spec"].get(
             "features", []
@@ -402,9 +414,12 @@ class FeatureSet(ModelObj):
 
     def reload(self, update_spec=True):
         """reload/sync the feature vector status and spec from the DB"""
-        from_db = mlrun.get_run_db().get_feature_set(
+        from_db = self._get_run_db().get_feature_set(
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
+        if isinstance(from_db, dict):
+            from_db = FeatureSet.from_dict(from_db)
+
         self.status = from_db.status
         if update_spec:
             self.spec = from_db.spec

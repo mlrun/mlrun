@@ -499,6 +499,31 @@ class TestFeatureStore(TestMLRunSystem):
         df = pd.read_parquet(quotes_set.get_target_path())
         assert all(df.columns.values == columns)
 
+    def test_csv_parquet_index_alignment(self):
+        targets = [CSVTarget()]
+        csv_align_set, _ = prepare_feature_set(
+            "csv-align", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+        csv_df = csv_align_set.to_dataframe()
+
+        features = ["csv-align.*"]
+        csv_vec = fs.FeatureVector("csv-align-vector", features)
+        resp = fs.get_offline_features(csv_vec)
+        csv_vec_df = resp.to_dataframe()
+
+        targets = [ParquetTarget()]
+        parquet_align_set, _ = prepare_feature_set(
+            "parquet-align", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+        parquet_df = parquet_align_set.to_dataframe()
+        features = ["parquet-align.*"]
+        parquet_vec = fs.FeatureVector("parquet-align-vector", features)
+        resp = fs.get_offline_features(parquet_vec)
+        parquet_vec_df = resp.to_dataframe()
+
+        assert all(csv_df == parquet_df)
+        assert all(csv_vec_df == parquet_vec_df)
+
 
 def verify_ingest(
     base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()

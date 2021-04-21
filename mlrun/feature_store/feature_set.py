@@ -377,8 +377,8 @@ class FeatureSet(ModelObj):
 
     def to_dataframe(self, columns=None, df_module=None, target_name=None):
         """return featureset (offline) data as dataframe"""
+        entities = list(self.spec.entities.keys())
         if columns:
-            entities = list(self.spec.entities.keys())
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
             columns = entities + columns
@@ -387,7 +387,7 @@ class FeatureSet(ModelObj):
             raise mlrun.errors.MLRunNotFoundError(
                 "there are no offline targets for this feature set"
             )
-        return driver.as_df(columns=columns, df_module=df_module)
+        return driver.as_df(columns=columns, df_module=df_module, entities=entities)
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""

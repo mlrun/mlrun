@@ -81,12 +81,14 @@ COPY ./requirements.txt ./
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
+COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.txt
 
 RUN python -m pip install \
     -r requirements.txt \
     -r mlrun-image-requirements.txt
     -r base-image-requirements.txt
     -r models-image-requirements.txt
+    -r models-gpu-image-requirements.txt
 
 COPY . .
 RUN python -m pip install .[complete]

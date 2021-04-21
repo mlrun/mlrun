@@ -154,13 +154,13 @@ class BaseStoreTarget(DataTargetBase):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
-        columns_override=None,
+        columns=None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
-        self.columns_override = columns_override or []
+        self.columns = columns or []
 
         self._target = None
         self._resource = None
@@ -172,8 +172,8 @@ class BaseStoreTarget(DataTargetBase):
 
     def _get_column_list(self, features, timestamp_key, key_columns):
         column_list = None
-        if self.columns_override:
-            return self.columns_override
+        if self.columns:
+            return self.columns
         elif features:
             column_list = list(features.keys())
             if timestamp_key and timestamp_key not in column_list:
@@ -221,8 +221,8 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
-        if hasattr(spec, "columns_override"):
-            driver.columns_override = spec.columns_override
+        if hasattr(spec, "columns"):
+            driver.columns = spec.columns
         driver._resource = resource
         return driver
 
@@ -371,7 +371,7 @@ class NoSqlTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=None, key_columns=key_columns
         )
-        if not self.columns_override:
+        if not self.columns:
             aggregate_features = (
                 [key for key, feature in features.items() if feature.aggregate]
                 if features

@@ -168,12 +168,18 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 "type": "project",
                 "attributes": {
                     "name": project.metadata.name,
-                    "description": project.metadata.name,
+                    "description": project.spec.description,
                     "admin_status": project.spec.desired_state,
-                    "mlrun_project": json.dumps(project.dict(exclude_unset=True)),
+                    "mlrun_project": Client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
+                        project
+                    ),
                 },
             }
         }
+        if project.metadata.created:
+            body["data"]["attributes"][
+                "created_at"
+            ] = project.metadata.created.isoformat()
         if project.metadata.labels:
             body["data"]["attributes"][
                 "labels"
@@ -187,6 +193,21 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 project.metadata.annotations
             )
         return body
+
+    @staticmethod
+    def _transform_mlrun_project_to_iguazio_mlrun_project_attribute(
+        project: mlrun.api.schemas.Project,
+    ):
+        return json.dumps(
+            project.dict(
+                exclude_unset=True,
+                exclude={
+                    "metadata": {"name", "created", "labels", "annotations"},
+                    "spec": {"description", "desired_state"},
+                    "status": {"state"},
+                },
+            )
+        )
 
     @staticmethod
     def _transform_mlrun_labels_to_iguazio_labels(
@@ -220,8 +241,16 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         mlrun_project.metadata.created = datetime.datetime.fromisoformat(
             iguazio_project["attributes"]["created_at"]
         )
-        mlrun_project.spec.desired_state = iguazio_project["attributes"]["admin_status"]
-        mlrun_project.status.state = iguazio_project["attributes"]["operational_status"]
+        mlrun_project.spec.desired_state = mlrun.api.schemas.ProjectState(
+            iguazio_project["attributes"]["admin_status"]
+        )
+        mlrun_project.status.state = mlrun.api.schemas.ProjectState(
+            iguazio_project["attributes"]["operational_status"]
+        )
+        if iguazio_project["attributes"].get("description"):
+            mlrun_project.spec.description = iguazio_project["attributes"][
+                "description"
+            ]
         if iguazio_project["attributes"].get("labels"):
             mlrun_project.metadata.labels = Client._transform_iguazio_labels_to_mlrun_labels(
                 iguazio_project["attributes"]["labels"]

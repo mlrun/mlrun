@@ -29,8 +29,16 @@ from ..runtimes.function_reference import FunctionReference
 from ..serving.server import create_graph_server
 
 
-def init_featureset_graph(source, featureset, namespace, targets=None, return_df=True, filter_start=None,
-                          filter_end=None, filter_column=None):
+def init_featureset_graph(
+    source,
+    featureset,
+    namespace,
+    targets=None,
+    return_df=True,
+    filter_start=None,
+    filter_end=None,
+    filter_column=None,
+):
     """create storey ingestion graph/DAG from feature set object"""
 
     cache = ResourceCache()
@@ -39,8 +47,15 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
     # init targets (and table)
     targets = targets or []
     _add_data_states(
-        graph, cache, featureset, targets=targets, source=source, return_df=return_df, filter_start=filter_start,
-        filter_end=filter_end, filter_column=filter_column,
+        graph,
+        cache,
+        featureset,
+        targets=targets,
+        source=source,
+        return_df=return_df,
+        filter_start=filter_start,
+        filter_end=filter_end,
+        filter_column=filter_column,
     )
 
     server = create_graph_server(graph=graph, parameters={})
@@ -83,7 +98,15 @@ def context_to_ingestion_params(context):
 
 
 def _add_data_states(
-    graph, cache, featureset, targets, source, return_df=False, filter_start=None, filter_end=None, filter_column=None
+    graph,
+    cache,
+    featureset,
+    targets,
+    source,
+    return_df=False,
+    filter_start=None,
+    filter_end=None,
+    filter_column=None,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
     validate_target_placement(graph, default_final_state, targets)
@@ -99,8 +122,12 @@ def _add_data_states(
 
     if source is not None:
         source = get_source_step(
-            source, key_fields=key_fields, time_field=featureset.spec.timestamp_key, filter_start=filter_start,
-            filter_end=filter_end, filter_column=filter_column
+            source,
+            key_fields=key_fields,
+            time_field=featureset.spec.timestamp_key,
+            filter_start=filter_start,
+            filter_end=filter_end,
+            filter_column=filter_column,
         )
     graph.set_flow_source(source)
 

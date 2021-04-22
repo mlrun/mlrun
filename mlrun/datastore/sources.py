@@ -28,13 +28,22 @@ def get_source_from_dict(source):
     return source_kind_to_driver[kind].from_dict(source)
 
 
-def get_source_step(source, key_fields=None, time_field=None, filter_start=None, filter_end=None, filter_column=None):
+def get_source_step(
+    source,
+    key_fields=None,
+    time_field=None,
+    filter_start=None,
+    filter_end=None,
+    filter_column=None,
+):
     """initialize the source driver"""
     if hasattr(source, "to_csv"):
         source = DataFrameSource(source)
     if not key_fields and not source.key_fields:
         raise mlrun.errors.MLRunInvalidArgumentError("key column is not defined")
-    return source.to_step(key_fields, time_field, filter_start, filter_end, filter_column)
+    return source.to_step(
+        key_fields, time_field, filter_start, filter_end, filter_column
+    )
 
 
 class BaseSourceDriver(DataSource):
@@ -45,7 +54,14 @@ class BaseSourceDriver(DataSource):
         store, _ = mlrun.store_manager.get_or_create_store(self.path)
         return store
 
-    def to_step(self, key_field=None, time_field=None, filter_start=None, filter_end=None, filter_column=None):
+    def to_step(
+        self,
+        key_field=None,
+        time_field=None,
+        filter_start=None,
+        filter_end=None,
+        filter_column=None,
+    ):
         import storey
 
         if filter_start or filter_end or filter_column:
@@ -89,7 +105,14 @@ class CSVSource(BaseSourceDriver):
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
-    def to_step(self, key_field=None, time_field=None, filter_start=None, filter_end=None, filter_column=None):
+    def to_step(
+        self,
+        key_field=None,
+        time_field=None,
+        filter_start=None,
+        filter_end=None,
+        filter_column=None,
+    ):
         import storey
 
         if filter_start or filter_end or filter_column:
@@ -131,7 +154,14 @@ class ParquetSource(BaseSourceDriver):
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
-    def to_step(self, key_field=None, time_field=None, filter_start=None, filter_end=None, filter_column=None):
+    def to_step(
+        self,
+        key_field=None,
+        time_field=None,
+        filter_start=None,
+        filter_end=None,
+        filter_column=None,
+    ):
         import storey
 
         attributes = self.attributes or {}
@@ -140,7 +170,9 @@ class ParquetSource(BaseSourceDriver):
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
-            end_filter=filter_end, start_filter=filter_start, filter_column=filter_column,
+            end_filter=filter_end,
+            start_filter=filter_start,
+            filter_column=filter_column,
             **attributes,
         )
 
@@ -182,11 +214,20 @@ class DataFrameSource:
         self.key_fields = key_fields
         self.time_field = time_field
 
-    def to_step(self, key_fields=None, time_field=None, filter_start=None, filter_end=None, filter_column=None):
+    def to_step(
+        self,
+        key_fields=None,
+        time_field=None,
+        filter_start=None,
+        filter_end=None,
+        filter_column=None,
+    ):
         import storey
 
         if filter_start or filter_end or filter_column:
-            raise NotImplementedError("DataFrameSource does not support filtering by time")
+            raise NotImplementedError(
+                "DataFrameSource does not support filtering by time"
+            )
 
         return storey.DataframeSource(
             dfs=self._df,
@@ -226,7 +267,14 @@ class OnlineSource(BaseSourceDriver):
         self.online = True
         self.workers = workers
 
-    def to_step(self, key_field=None, time_field=None, filter_start=None, filter_end=None, filter_column=None):
+    def to_step(
+        self,
+        key_field=None,
+        time_field=None,
+        filter_start=None,
+        filter_end=None,
+        filter_column=None,
+    ):
         import storey
 
         if filter_start or filter_end or filter_column:

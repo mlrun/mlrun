@@ -253,8 +253,14 @@ def ingest(
     if filter_start or filter_end and filter_column is None:
         filter_column = featureset.spec.timestamp_key
     graph = init_featureset_graph(
-        source, featureset, namespace, targets=targets, return_df=return_df, filter_start=filter_start,
-        filter_end=filter_end, filter_column=filter_column
+        source,
+        featureset,
+        namespace,
+        targets=targets,
+        return_df=return_df,
+        filter_start=filter_start,
+        filter_end=filter_end,
+        filter_column=filter_column,
     )
     df = graph.wait_for_completion()
     infer_from_static_df(df, featureset, options=infer_stats)

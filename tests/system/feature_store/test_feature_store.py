@@ -280,8 +280,14 @@ class TestFeatureStore(TestMLRunSystem):
             time_field="timestamp",
         )
 
-        resp = fs.ingest(measurements, source, filter_start='2020-12-01 17:33:15', filter_end='2020-12-01 17:33:16',
-                         filter_column='timestamp', return_df=True)
+        resp = fs.ingest(
+            measurements,
+            source,
+            filter_start="2020-12-01 17:33:15",
+            filter_end="2020-12-01 17:33:16",
+            filter_column="timestamp",
+            return_df=True,
+        )
         assert len(resp) == 10
 
     def test_ordered_pandas_asof_merge(self):

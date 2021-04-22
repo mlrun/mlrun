@@ -22,7 +22,7 @@ import requests
 import urllib3
 
 import mlrun.errors
-from mlrun import mlconf
+from mlrun import config as mlconf
 
 _cached_control_session = None
 

@@ -33,9 +33,7 @@ class Member(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio access key must be configured when the leader is Iguazio"
                 )
-            self._iguazio_cookie = (
-                f'j:{{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}}'
-            )
+            self._iguazio_cookie = f'j:{{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}}'
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(

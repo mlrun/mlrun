@@ -1,17 +1,21 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Header, Query, Response
+from fastapi import APIRouter, Depends, Header, Query, Response, Request
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store
+from mlrun.api.api.utils import get_secrets, log_and_raise
+from mlrun import mount_v3io
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import parse_reference
 from mlrun.api.utils.singletons.db import get_db
+
 from mlrun.data_types import InferOptions
 from mlrun.feature_store.api import RunConfig, ingest
 from mlrun.model import DataSource, DataTargetBase
+from mlrun.datastore.targets import get_default_prefix_for_target
 
 router = APIRouter()
 
@@ -141,16 +145,27 @@ def list_feature_sets(
     return feature_sets
 
 
+def _needs_v3io_mount(data_source, data_targets):
+    paths = []
+    for target in data_targets:
+        # If the target does not have a path (i.e. default target), then retrieve the default path from config.
+        paths.append(target.path or get_default_prefix_for_target(target.kind))
+    paths.append(data_source.path)
+
+    return any(path.startswith("v3io://") or path.startswith("v3ios://") for path in paths)
+
+
 @router.post(
     "/projects/{project}/feature-sets/{name}/references/{reference}/ingest",
     response_model=schemas.FeatureSetIngestOutput,
 )
 def feature_set_ingest(
+    request: Request,
     project: str,
     name: str,
     reference: str,
     ingest_parameters: schemas.FeatureSetIngest,
-    infer_options: int = Query(None, alias="infer-options"),
+    username: str = Header(None, alias="x-remote-user"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -165,7 +180,18 @@ def feature_set_ingest(
         DataTargetBase.from_dict(data_target.dict())
         for data_target in ingest_parameters.targets
     ]
-    infer_options = infer_options or InferOptions.default()
+
+    run_config = RunConfig()
+    if _needs_v3io_mount(data_source, data_targets):
+        secrets = get_secrets(request)
+        access_key = secrets.get("V3IO_ACCESS_KEY", None)
+
+        if not access_key or not username:
+            log_and_raise(HTTPStatus.BAD_REQUEST.value,
+                          reason="Request needs v3io access key and username in header")
+        run_config = run_config.apply(mount_v3io(access_key=access_key, user=username))
+
+    infer_options = ingest_parameters.infer_options or InferOptions.default()
 
     run_params = ingest(
         feature_set,
@@ -173,7 +199,7 @@ def feature_set_ingest(
         data_targets,
         infer_options=infer_options,
         return_df=False,
-        run_config=RunConfig(),
+        run_config=run_config,
     )
     result_feature_set = schemas.FeatureSet(**feature_set.to_dict())
     return schemas.FeatureSetIngestOutput(

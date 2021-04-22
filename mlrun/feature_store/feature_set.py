@@ -17,7 +17,6 @@ import pandas as pd
 
 import mlrun
 
-from ..api.api.utils import get_run_db_instance
 from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import (
@@ -242,6 +241,9 @@ class FeatureSet(ModelObj):
         return uri
 
     def _override_run_db(self, session):
+        # import only if needed, since otherwise it causes import issues in execution pods
+        from ..api.api.utils import get_run_db_instance
+
         self._run_db = get_run_db_instance(session)
 
     def _get_run_db(self):

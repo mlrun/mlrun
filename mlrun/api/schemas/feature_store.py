@@ -118,10 +118,7 @@ class FeatureVectorsOutput(BaseModel):
 class DataSourceObject(BaseModel):
     kind: str
     name: str
-    path: Optional[str]
-    key_field: Optional[str]
-    time_field: Optional[str]
-    schedule: Optional[str]
+    path: str
 
     class Config:
         extra = Extra.allow
@@ -139,6 +136,7 @@ class DataTargetObject(BaseModel):
 class FeatureSetIngest(BaseModel):
     source: DataSourceObject
     targets: List[DataTargetObject]
+    infer_options: Optional[int]
 
 
 class FeatureSetIngestOutput(BaseModel):

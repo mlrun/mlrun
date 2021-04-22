@@ -100,7 +100,7 @@ def mount_v3io_extended(
             )
 
         if not secret:
-            task = v3io_cred(access_key=access_key)(task)
+            task = v3io_cred(access_key=access_key, user=user)(task)
         return task
 
     return _mount_v3io_extended

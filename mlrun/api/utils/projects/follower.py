@@ -34,7 +34,7 @@ class Member(
                     "Iguazio access key must be configured when the leader is Iguazio"
                 )
             self._iguazio_cookie = (
-                f'j:{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}'
+                f'j:{{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}}'
             )
         else:
             raise NotImplementedError("Unsupported project leader")

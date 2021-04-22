@@ -14,7 +14,7 @@
 import threading
 import time
 import traceback
-from typing import Dict
+from typing import Dict, Optional
 
 import mlrun
 from mlrun.api.schemas import (
@@ -110,10 +110,7 @@ class V2ModelServer:
             else:
                 self._load_and_update_state()
 
-        if self._model_logger is not None and not isinstance(
-            self._model_logger.output_stream, _DummyStream
-        ):
-            self._model_logger.init_endpoint_record()
+        _init_endpoint_record(self.context, self._model_logger)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -312,35 +309,6 @@ class _ModelLogPusher:
         self._batch_iter = 0
         self._batch = []
 
-    def init_endpoint_record(self):
-        project, uri, tag, hash_key = parse_versioned_object_uri(self.function_uri)
-
-        if self.model.version:
-            model = f"{self.model.name}:{self.model.version}"
-        else:
-            model = self.model.name
-
-        model_endpoint = ModelEndpoint(
-            metadata=ModelEndpointMetadata(project=project, labels=self.model.labels),
-            spec=ModelEndpointSpec(
-                function_uri=self.function_uri,
-                model=model,
-                model_class=self.model.__class__.__name__,
-                model_uri=self.model.model_path,
-                stream_path=self.stream_path,
-                active=True,
-            ),
-            status=ModelEndpointStatus(),
-        )
-
-        db = mlrun.get_run_db()
-
-        db.create_or_patch(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            model_endpoint=model_endpoint,
-        )
-
     def base_data(self):
         base_data = {
             "class": self.model.__class__.__name__,
@@ -401,3 +369,43 @@ class _ModelLogPusher:
                 if getattr(self.model, "metrics", None):
                     data["metrics"] = self.model.metrics
                 self.output_stream.push([data])
+
+
+def _init_endpoint_record(context, model_logger: Optional[_ModelLogPusher]):
+    if model_logger is None or isinstance(model_logger.output_stream, _DummyStream):
+        return
+
+    try:
+        project, uri, tag, hash_key = parse_versioned_object_uri(
+            model_logger.function_uri
+        )
+
+        if model_logger.model.version:
+            model = f"{model_logger.model.name}:{model_logger.model.version}"
+        else:
+            model = model_logger.model.name
+
+        model_endpoint = ModelEndpoint(
+            metadata=ModelEndpointMetadata(
+                project=project, labels=model_logger.model.labels
+            ),
+            spec=ModelEndpointSpec(
+                function_uri=model_logger.function_uri,
+                model=model,
+                model_class=model_logger.model.__class__.__name__,
+                model_uri=model_logger.model.model_path,
+                stream_path=model_logger.stream_path,
+                active=True,
+            ),
+            status=ModelEndpointStatus(),
+        )
+
+        db = mlrun.get_run_db()
+
+        db.create_or_patch(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
+    except Exception as e:
+        context.logger.error("Failed to create endpoint record", exc=e)

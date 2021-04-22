@@ -302,6 +302,13 @@ def infer(
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
+        _, default_final_state, _ = featureset.graph.check_and_process_graph(
+            allow_empty=True
+        )
+        if not default_final_state:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Split flow graph must have a default final state defined"
+            )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
             infer_from_static_df(
@@ -319,6 +326,7 @@ def infer(
 
 # keep for backwards compatibility
 infer_metadata = infer
+preview = infer
 
 
 def _run_ingestion_job(

@@ -53,8 +53,8 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            if stream_uri:
-                stream_uri = stream_uri.format(project=project, kind="stream")
+            stream_uri = stream_uri.format(project=project, kind="stream")
+
             if log_stream:
                 stream_uri = log_stream.format(project=project)
 

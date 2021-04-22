@@ -33,8 +33,8 @@ class Member(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio access key must be configured when the leader is Iguazio"
                 )
-            self._iguazio_access_key = (
-                mlrun.config.config.httpdb.projects.iguazio_access_key
+            self._iguazio_cookie = (
+                f'j:{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}'
             )
         else:
             raise NotImplementedError("Unsupported project leader")
@@ -61,7 +61,7 @@ class Member(
             self._projects[project.metadata.name] = project
             return project
         else:
-            return self._leader_client.create_project(self._iguazio_access_key, project)
+            return self._leader_client.create_project(self._iguazio_cookie, project)
 
     def store_project(
         self,
@@ -75,7 +75,7 @@ class Member(
             return project
         else:
             return self._leader_client.store_project(
-                self._iguazio_access_key, name, project
+                self._iguazio_cookie, name, project
             )
 
     def patch_project(
@@ -101,7 +101,7 @@ class Member(
                 del self._projects[name]
         else:
             return self._leader_client.delete_project(
-                self._iguazio_access_key, name, deletion_strategy
+                self._iguazio_cookie, name, deletion_strategy
             )
 
     def get_project(
@@ -165,7 +165,7 @@ class Member(
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     def _sync_projects(self):
-        projects = self._leader_client.list_projects(self._iguazio_access_key)
+        projects = self._leader_client.list_projects(self._iguazio_cookie)
         # This might cause some "concurrency" issues, might need to use some locking
         self._projects = {project.metadata.name: project for project in projects}
 

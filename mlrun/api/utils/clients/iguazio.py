@@ -93,7 +93,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
         # TODO: verify header name and values
         headers = {
-            "x-iguazio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
+            "igz-project-deletion-strategy": deletion_strategy.to_iguazio_deletion_strategy(),
         }
         try:
             response = self._send_request_to_api(
@@ -133,12 +133,12 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
 
     def _put_project_to_iguazio(self, session_cookie: str, name: str, body: dict):
         response = self._send_request_to_api(
-            "PUT", f"projects/{name}", session_cookie, json=body
+            "PUT", f"projects/__name__/{name}", session_cookie, json=body
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _get_project_from_iguazio(self, session_cookie: str, name):
-        return self._send_request_to_api("GET", f"projects/{name}", session_cookie)
+        return self._send_request_to_api("GET", f"projects/__name__/{name}", session_cookie)
 
     def _wait_for_job_completion(self, session_cookie: str, job_id: str):
         def _verify_job_in_terminal_state():

@@ -45,6 +45,16 @@ class DeletionStrategy(str, Enum):
                 f"Unknown deletion strategy: {self.value}"
             )
 
+    def to_iguazio_deletion_strategy(self) -> str:
+        if self.value == DeletionStrategy.restrict:
+            return "restricted"
+        elif self.value == DeletionStrategy.cascade:
+            return "cascading"
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown deletion strategy: {self.value}"
+            )
+
 
 headers_prefix = "x-mlrun-"
 

@@ -192,7 +192,7 @@ def test_store_project_creation(
 
     # mock project not found so store will create
     requests_mock.get(
-        f"{api_url}/api/projects/{project.metadata.name}",
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
         status_code=http.HTTPStatus.NOT_FOUND.value,
     )
     requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
@@ -228,11 +228,11 @@ def test_store_project_update(
     empty_project = _generate_project(description="", labels={}, annotations={})
     # mock project response so store will update
     requests_mock.get(
-        f"{api_url}/api/projects/{project.metadata.name}",
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json=_build_project_response(iguazio_client, empty_project),
     )
     requests_mock.put(
-        f"{api_url}/api/projects/{project.metadata.name}", json=verify_store_update
+        f"{api_url}/api/projects/__name__/{project.metadata.name}", json=verify_store_update
     )
     updated_project = iguazio_client.store_project(
         session_cookie, project.metadata.name, project,
@@ -261,8 +261,8 @@ def test_delete_project(
     def verify_deletion(request, context):
         assert request.json()["data"]["attributes"]["name"] == project_name
         assert (
-            request.headers["x-iguazio-delete-project-strategy"]
-            == mlrun.api.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
+            request.headers["igz-project-deletion-strategy"]
+            == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
         )
         assert request.headers["Cookie"] == f"session={session_cookie}"
         context.status_code = http.HTTPStatus.ACCEPTED.value

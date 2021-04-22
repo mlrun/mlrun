@@ -392,7 +392,7 @@ class NoSqlTarget(BaseStoreTarget):
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
-                token=access_key, address=config.v3io_framesd, container=container
+                token=access_key, address=resolve_framesd(), container=container
             )
 
             frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
@@ -481,7 +481,7 @@ class TSDBTarget(BaseStoreTarget):
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(
-            token=access_key, address=config.v3io_framesd, container=container,
+            token=access_key, address=resolve_framesd(), container=container,
         )
 
         frames_client.write(
@@ -579,3 +579,7 @@ def _get_target_path(driver, resource):
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
+
+
+def resolve_framesd():
+    return os.environ.get("V3IO_FRAMESD") or config.v3io_framesd

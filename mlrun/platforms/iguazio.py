@@ -22,6 +22,7 @@ import requests
 import urllib3
 
 import mlrun.errors
+from mlrun import mlconf
 
 _cached_control_session = None
 
@@ -106,7 +107,7 @@ def mount_v3io_extended(
 
 
 def _resolve_mount_user(user=None):
-    return os.environ.get("V3IO_USERNAME", user)
+    return user or os.environ.get("V3IO_USERNAME")
 
 
 def mount_v3io(
@@ -295,7 +296,7 @@ def v3io_cred(api="", user="", access_key=""):
 
         from kubernetes import client as k8s_client
 
-        web_api = api or environ.get("V3IO_API")
+        web_api = api or environ.get("V3IO_API") or mlconf.v3io_api
         _user = user or environ.get("V3IO_USERNAME")
         _access_key = access_key or environ.get("V3IO_ACCESS_KEY")
 

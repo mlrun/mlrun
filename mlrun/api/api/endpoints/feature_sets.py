@@ -1,21 +1,19 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Header, Query, Response, Request
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store
-from mlrun.api.api.utils import get_secrets, log_and_raise
 from mlrun import mount_v3io
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import parse_reference
+from mlrun.api.api.utils import get_secrets, log_and_raise, parse_reference
 from mlrun.api.utils.singletons.db import get_db
-
 from mlrun.data_types import InferOptions
+from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
 from mlrun.model import DataSource, DataTargetBase
-from mlrun.datastore.targets import get_default_prefix_for_target
 
 router = APIRouter()
 
@@ -152,7 +150,9 @@ def _needs_v3io_mount(data_source, data_targets):
         paths.append(target.path or get_default_prefix_for_target(target.kind))
     paths.append(data_source.path)
 
-    return any(path.startswith("v3io://") or path.startswith("v3ios://") for path in paths)
+    return any(
+        path.startswith("v3io://") or path.startswith("v3ios://") for path in paths
+    )
 
 
 @router.post(
@@ -187,8 +187,10 @@ def feature_set_ingest(
         access_key = secrets.get("V3IO_ACCESS_KEY", None)
 
         if not access_key or not username:
-            log_and_raise(HTTPStatus.BAD_REQUEST.value,
-                          reason="Request needs v3io access key and username in header")
+            log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason="Request needs v3io access key and username in header",
+            )
         run_config = run_config.apply(mount_v3io(access_key=access_key, user=username))
 
     infer_options = ingest_parameters.infer_options or InferOptions.default()

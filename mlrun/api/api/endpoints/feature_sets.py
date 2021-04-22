@@ -182,6 +182,10 @@ def feature_set_ingest(
     ]
 
     run_config = RunConfig()
+
+    # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and
+    # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are
+    # user-context parameters, we cannot use the api context.
     if _needs_v3io_mount(data_source, data_targets):
         secrets = get_secrets(request)
         access_key = secrets.get("V3IO_ACCESS_KEY", None)
@@ -203,6 +207,7 @@ def feature_set_ingest(
         return_df=False,
         run_config=run_config,
     )
+    # ingest may modify the feature-set contents, so returning the updated feature-set.
     result_feature_set = schemas.FeatureSet(**feature_set.to_dict())
     return schemas.FeatureSetIngestOutput(
         feature_set=result_feature_set, run_object=run_params.to_dict()

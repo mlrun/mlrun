@@ -117,7 +117,7 @@ class Member(
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        projects = self._projects.values()
+        projects = list(self._projects.values())
         # filter projects
         if owner:
             raise NotImplementedError(

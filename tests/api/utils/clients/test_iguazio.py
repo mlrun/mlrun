@@ -200,6 +200,43 @@ def test_store_project_creation(
         )
         == {}
     )
+    assert created_project.status.state == project.spec.desired_state
+
+
+def test_store_project_update(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project()
+
+    def verify_store_update(request, context):
+        _assert_project_creation(iguazio_client, request.json(), project)
+        context.status_code = http.HTTPStatus.OK.value
+        return {"data": _build_project_response(iguazio_client, project)}
+
+    empty_project = _generate_project(description="", labels={}, annotations={})
+    # mock project response so store will update
+    requests_mock.get(
+        f"{api_url}/api/projects/{project.metadata.name}",
+        json=_build_project_response(iguazio_client, empty_project),
+    )
+    requests_mock.put(
+        f"{api_url}/api/projects/{project.metadata.name}", json=verify_store_update
+    )
+    updated_project = iguazio_client.store_project(
+        None, project.metadata.name, project,
+    )
+    exclude = {"status": {"state"}}
+    assert (
+        deepdiff.DeepDiff(
+            project.dict(exclude=exclude),
+            updated_project.dict(exclude=exclude),
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert updated_project.status.state == project.spec.desired_state
 
 
 def _generate_project(

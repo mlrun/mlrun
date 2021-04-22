@@ -232,7 +232,8 @@ def test_store_project_update(
         json=_build_project_response(iguazio_client, empty_project),
     )
     requests_mock.put(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}", json=verify_store_update
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json=verify_store_update,
     )
     updated_project = iguazio_client.store_project(
         session_cookie, project.metadata.name, project,

@@ -15,6 +15,7 @@ from .constants import (
     HeaderNames,
     OrderType,
     PatchMode,
+    ProjectsRole,
     SortField,
 )
 from .feature_store import (

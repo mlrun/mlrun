@@ -40,7 +40,10 @@ class Member(
         self._stop_periodic_sync()
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.api.schemas.Project,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ) -> mlrun.api.schemas.Project:
         self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers(True, "create_project", session, project)
@@ -51,6 +54,7 @@ class Member(
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.api.schemas.Project,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
         self._enrich_project(project)
         self.validate_project_name(name)
@@ -64,6 +68,7 @@ class Member(
         name: str,
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
@@ -77,6 +82,7 @@ class Member(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
         self._projects_in_deletion.add(name)
         try:

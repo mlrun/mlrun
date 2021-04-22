@@ -27,7 +27,8 @@ class Member(
     def initialize(self):
         logger.info("Initializing projects follower")
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
-        if mlrun.config.config.httpdb.projects.leader == "iguazio":
+        self._leader_name = mlrun.config.config.httpdb.projects.leader
+        if self._leader_name == "iguazio":
             self._leader_client = mlrun.api.utils.clients.iguazio.Client()
             if not mlrun.config.config.httpdb.projects.iguazio_access_key:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -51,9 +52,9 @@ class Member(
         self,
         session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
-        request_from_leader: bool = False,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ) -> mlrun.api.schemas.Project:
-        if request_from_leader:
+        if self._is_request_from_leader(projects_role):
             if project.metadata.name in self._projects:
                 raise mlrun.errors.MLRunConflictError("Project already exists")
             self._projects[project.metadata.name] = project
@@ -66,9 +67,9 @@ class Member(
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.api.schemas.Project,
-        request_from_leader: bool = False,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
-        if request_from_leader:
+        if self._is_request_from_leader(projects_role):
             self._projects[project.metadata.name] = project
             return project
         else:
@@ -82,7 +83,7 @@ class Member(
         name: str,
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-        request_from_leader: bool = False,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
         # TODO: think if we really want it
         raise NotImplementedError("Patch operation not supported in follower mode")
@@ -92,9 +93,9 @@ class Member(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-        request_from_leader: bool = False,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
-        if request_from_leader:
+        if self._is_request_from_leader(projects_role):
             if name in self._projects:
                 del self._projects[name]
         else:
@@ -166,6 +167,13 @@ class Member(
         projects = self._leader_client.list_projects(self._iguazio_cookie)
         # This might cause some "concurrency" issues, might need to use some locking
         self._projects = {project.metadata.name: project for project in projects}
+
+    def _is_request_from_leader(
+        self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]
+    ):
+        if projects_role and projects_role.value == self._leader_name:
+            return True
+        return False
 
     @staticmethod
     def _is_project_matching_labels(

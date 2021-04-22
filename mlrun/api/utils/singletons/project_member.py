@@ -17,6 +17,6 @@ def initialize_project_member():
         project_member.initialize()
 
 
-def get_project_member() -> mlrun.api.utils.projects.leader.Member:
+def get_project_member() -> mlrun.api.utils.projects.member.Member:
     global project_member
     return project_member

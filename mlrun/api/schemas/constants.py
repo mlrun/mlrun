@@ -12,6 +12,12 @@ class Format(str, Enum):
     summary = "summary"
 
 
+class ProjectsRole(str, Enum):
+    iguazio = "iguazio"
+    mlrun = "mlrun"
+    nuclio = "nuclio"
+
+
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
@@ -60,6 +66,7 @@ headers_prefix = "x-mlrun-"
 
 
 class HeaderNames:
+    projects_role = "x-projects-role"
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"

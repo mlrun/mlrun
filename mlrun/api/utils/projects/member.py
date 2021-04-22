@@ -34,7 +34,10 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.api.schemas.Project,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ) -> mlrun.api.schemas.Project:
         pass
 
@@ -44,6 +47,7 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.api.schemas.Project,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
         pass
 
@@ -54,6 +58,7 @@ class Member(abc.ABC):
         name: str,
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
         pass
 
@@ -63,6 +68,7 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy.default(),
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
     ):
         pass
 

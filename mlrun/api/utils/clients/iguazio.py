@@ -138,7 +138,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _get_project_from_iguazio(self, session_cookie: str, name):
-        return self._send_request_to_api("GET", f"projects/__name__/{name}", session_cookie)
+        return self._send_request_to_api(
+            "GET", f"projects/__name__/{name}", session_cookie
+        )
 
     def _wait_for_job_completion(self, session_cookie: str, job_id: str):
         def _verify_job_in_terminal_state():

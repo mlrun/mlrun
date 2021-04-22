@@ -340,7 +340,7 @@ service.vector.get_stats_table()
 User can search features across feature sets and view their metadata and statistics using the feature store dashboard. <br>
 In future versions we'll enable users to create and manage the feature set from the UI as well.
 
-<img src="./img/featureset.PNG" alt="Jobs" width="1100"/>
+<img src="./img/featureset.png" alt="Jobs" width="1100"/>
 
 
 ```python

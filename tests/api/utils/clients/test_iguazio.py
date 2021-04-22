@@ -239,6 +239,39 @@ def test_store_project_update(
     assert updated_project.status.state == project.spec.desired_state
 
 
+def test_delete_project(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+
+    def verify_deletion(request, context):
+        assert request.json()["data"]["attributes"]["name"] == project_name
+        assert (
+            request.headers["x-iguazio-delete-project-strategy"]
+            == mlrun.api.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
+        )
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
+
+    requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
+    iguazio_client.delete_project(None, project_name)
+
+    # assert ignoring (and not exploding) on not found
+    requests_mock.delete(
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
+    )
+    iguazio_client.delete_project(None, project_name)
+
+    # TODO: not sure really needed
+    # assert correctly propagating 412 errors (will be returned when project has resources)
+    requests_mock.delete(
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
+    )
+    with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+        iguazio_client.delete_project(None, project_name)
+
+
 def _generate_project(
     name="project-name",
     description="project description",

@@ -84,13 +84,18 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             name=name,
             deletion_strategy=deletion_strategy,
         )
-        # TODO: verify header name
+        body = self._generate_request_body(
+            mlrun.api.schemas.Project(
+                metadata=mlrun.api.schemas.ProjectMetadata(name=name)
+            )
+        )
+        # TODO: verify header name and values
         headers = {
             "x-iguazio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
         }
         try:
             self._send_request_to_api(
-                "DELETE", f"projects/{name}", session_cookie, headers=headers
+                "DELETE", "projects", session_cookie, headers=headers, json=body
             )
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
@@ -215,9 +220,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> typing.List[dict]:
         iguazio_labels = []
         for label_key, label_value in mlrun_labels.items():
-            iguazio_labels.append(
-                {"name": label_key, "value": label_value,}
-            )
+            iguazio_labels.append({"name": label_key, "value": label_value})
         return iguazio_labels
 
     @staticmethod

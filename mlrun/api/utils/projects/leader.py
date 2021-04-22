@@ -44,10 +44,11 @@ class Member(
         session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ) -> mlrun.api.schemas.Project:
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers(True, "create_project", session, project)
-        return self.get_project(session, project.metadata.name)
+        return self.get_project(session, project.metadata.name), False
 
     def store_project(
         self,
@@ -55,12 +56,13 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project(project)
         self.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", session, name, project)
-        return self.get_project(session, name)
+        return self.get_project(session, name), False
 
     def patch_project(
         self,
@@ -69,13 +71,14 @@ class Member(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
             True, "patch_project", session, name, project, patch_mode
         )
-        return self.get_project(session, name)
+        return self.get_project(session, name), False
 
     def delete_project(
         self,
@@ -83,7 +86,8 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> bool:
         self._projects_in_deletion.add(name)
         try:
             self._run_on_all_followers(
@@ -91,6 +95,7 @@ class Member(
             )
         finally:
             self._projects_in_deletion.remove(name)
+        return False
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

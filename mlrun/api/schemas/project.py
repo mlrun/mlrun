@@ -31,6 +31,14 @@ class ProjectState(str, enum.Enum):
     offline = "offline"
     archived = "archived"
 
+    @staticmethod
+    def terminal_states():
+        return [
+            ProjectState.online,
+            ProjectState.offline,
+            ProjectState.archived,
+        ]
+
 
 class ProjectStatus(ObjectStatus):
     state: typing.Optional[ProjectState]

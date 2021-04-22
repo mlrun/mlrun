@@ -25,6 +25,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
         self._wait_for_job_completion_retry_interval = 5
+        self._wait_for_project_terminal_state_retry_interval = 5
 
     def try_get_grafana_service_url(self, session_cookie: str) -> typing.Optional[str]:
         """
@@ -55,15 +56,24 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         return None
 
     def create_project(
-        self, session_cookie: str, project: mlrun.api.schemas.Project
-    ) -> mlrun.api.schemas.Project:
+        self,
+        session_cookie: str,
+        project: mlrun.api.schemas.Project,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._generate_request_body(project)
-        return self._post_project_to_iguazio(session_cookie, body)
+        return self._create_project_in_iguazio(
+            session_cookie, body, wait_for_completion
+        )
 
     def store_project(
-        self, session_cookie: str, name: str, project: mlrun.api.schemas.Project,
-    ) -> mlrun.api.schemas.Project:
+        self,
+        session_cookie: str,
+        name: str,
+        project: mlrun.api.schemas.Project,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Storing project in Iguazio", name=name, project=project)
         body = self._generate_request_body(project)
         try:
@@ -71,15 +81,18 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
-            return self._post_project_to_iguazio(session_cookie, body)
+            return self._create_project_in_iguazio(
+                session_cookie, body, wait_for_completion
+            )
         else:
-            return self._put_project_to_iguazio(session_cookie, name, body)
+            return self._put_project_to_iguazio(session_cookie, name, body), False
 
     def delete_project(
         self,
         session_cookie: str,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        wait_for_completion: bool = True,
     ):
         logger.debug(
             "Deleting project in Iguazio",
@@ -108,8 +121,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 deletion_strategy=deletion_strategy,
             )
         else:
-            job_id = response.json()["data"]["id"]
-            self._wait_for_job_completion(session_cookie, job_id)
+            if wait_for_completion:
+                job_id = response.json()["data"]["id"]
+                self._wait_for_job_completion(session_cookie, job_id)
 
     def list_projects(
         self, session_cookie: str,
@@ -123,24 +137,45 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             )
         return projects
 
+    def _create_project_in_iguazio(
+        self, session_cookie: str, body: dict, wait_for_completion: bool
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+        project, job_id = self._post_project_to_iguazio(session_cookie, body)
+        if wait_for_completion:
+            self._wait_for_job_completion(session_cookie, job_id)
+            return (
+                self._get_project_from_iguazio(session_cookie, project.metadata.name),
+                False,
+            )
+        return project, True
+
     def _post_project_to_iguazio(
         self, session_cookie: str, body: dict
-    ) -> mlrun.api.schemas.Project:
+    ) -> typing.Tuple[mlrun.api.schemas.Project, str]:
         response = self._send_request_to_api(
             "POST", "projects", session_cookie, json=body
         )
-        return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
+        response_body = response.json()
+        return (
+            self._transform_iguazio_project_to_mlrun_project(response_body["data"]),
+            response_body["data"]["relationships"]["last_job"]["data"]["id"],
+        )
 
-    def _put_project_to_iguazio(self, session_cookie: str, name: str, body: dict):
+    def _put_project_to_iguazio(
+        self, session_cookie: str, name: str, body: dict
+    ) -> mlrun.api.schemas.Project:
         response = self._send_request_to_api(
             "PUT", f"projects/__name__/{name}", session_cookie, json=body
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _get_project_from_iguazio(self, session_cookie: str, name):
-        return self._send_request_to_api(
+    def _get_project_from_iguazio(
+        self, session_cookie: str, name
+    ) -> mlrun.api.schemas.Project:
+        response = self._send_request_to_api(
             "GET", f"projects/__name__/{name}", session_cookie
         )
+        return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _wait_for_job_completion(self, session_cookie: str, job_id: str):
         def _verify_job_in_terminal_state():
@@ -153,10 +188,32 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
 
         mlrun.utils.helpers.retry_until_successful(
             self._wait_for_job_completion_retry_interval,
-            5,
+            360,
             logger,
             True,
             _verify_job_in_terminal_state,
+        )
+
+    def _wait_for_project_to_reach_terminal_state(
+        self, session_cookie: str, project_name: str
+    ):
+        def _verify_project_in_terminal_state():
+            project = self._get_project_from_iguazio(session_cookie, project_name)
+            if (
+                project.status.state
+                not in mlrun.api.schemas.ProjectState.terminal_states()
+            ):
+                raise Exception(
+                    f"Project not in terminal state. State: {project.status.state}"
+                )
+            return project
+
+        return mlrun.utils.helpers.retry_until_successful(
+            self._wait_for_project_terminal_state_retry_interval,
+            120,
+            logger,
+            True,
+            _verify_project_in_terminal_state,
         )
 
     def _send_request_to_api(self, method, path, session_cookie=None, **kwargs):
@@ -191,7 +248,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         return response
 
     @staticmethod
-    def _generate_request_body(project: mlrun.api.schemas.Project):
+    def _generate_request_body(project: mlrun.api.schemas.Project) -> dict:
         body = {
             "data": {
                 "type": "project",

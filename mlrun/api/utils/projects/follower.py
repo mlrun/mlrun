@@ -53,14 +53,17 @@ class Member(
         session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ) -> mlrun.api.schemas.Project:
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
             if project.metadata.name in self._projects:
                 raise mlrun.errors.MLRunConflictError("Project already exists")
             self._projects[project.metadata.name] = project
-            return project
+            return project, False
         else:
-            return self._leader_client.create_project(self._iguazio_cookie, project)
+            return self._leader_client.create_project(
+                self._iguazio_cookie, project, wait_for_completion
+            )
 
     def store_project(
         self,
@@ -68,13 +71,14 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
             self._projects[project.metadata.name] = project
-            return project
+            return project, False
         else:
             return self._leader_client.store_project(
-                self._iguazio_cookie, name, project
+                self._iguazio_cookie, name, project, wait_for_completion
             )
 
     def patch_project(
@@ -84,7 +88,8 @@ class Member(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         # TODO: think if we really want it
         raise NotImplementedError("Patch operation not supported in follower mode")
 
@@ -94,14 +99,17 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> bool:
         if self._is_request_from_leader(projects_role):
             if name in self._projects:
                 del self._projects[name]
         else:
-            return self._leader_client.delete_project(
-                self._iguazio_cookie, name, deletion_strategy
+            self._leader_client.delete_project(
+                self._iguazio_cookie, name, deletion_strategy, wait_for_completion,
             )
+            return True
+        return False
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

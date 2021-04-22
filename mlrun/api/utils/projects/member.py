@@ -18,7 +18,12 @@ class Member(abc.ABC):
     def shutdown(self):
         pass
 
-    def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
+    def ensure_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        wait_for_completion: bool = True,
+    ):
         project_names = self.list_projects(
             session, format_=mlrun.api.schemas.Format.name_only
         )
@@ -30,7 +35,7 @@ class Member(abc.ABC):
         project = mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=name),
         )
-        self.create_project(session, project)
+        self.create_project(session, project, wait_for_completion=wait_for_completion)
 
     @abc.abstractmethod
     def create_project(
@@ -38,7 +43,8 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ) -> mlrun.api.schemas.Project:
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -48,7 +54,8 @@ class Member(abc.ABC):
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -59,7 +66,8 @@ class Member(abc.ABC):
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -69,7 +77,8 @@ class Member(abc.ABC):
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-    ):
+        wait_for_completion: bool = True,
+    ) -> bool:
         pass
 
     @abc.abstractmethod

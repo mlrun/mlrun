@@ -1,4 +1,5 @@
 import datetime
+import functools
 import http
 import json
 
@@ -24,6 +25,7 @@ async def iguazio_client(api_url: str,) -> mlrun.api.utils.clients.iguazio.Clien
     client = mlrun.api.utils.clients.iguazio.Client()
     # force running init again so the configured api url will be used
     client.__init__()
+    client._wait_for_job_completion_retry_interval = 0
     return client
 
 
@@ -245,6 +247,7 @@ def test_delete_project(
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
+    job_id = "928145d5-4037-40b0-98b6-19a76626d797"
 
     def verify_deletion(request, context):
         assert request.json()["data"]["attributes"]["name"] == project_name
@@ -252,10 +255,25 @@ def test_delete_project(
             request.headers["x-iguazio-delete-project-strategy"]
             == mlrun.api.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
         )
-        context.status_code = http.HTTPStatus.NO_CONTENT.value
+        context.status_code = http.HTTPStatus.ACCEPTED.value
+        return {"data": {"type": "job", "id": job_id}}
+
+    def mock_get_job_in_progress(state, request, context):
+        context.status_code = http.HTTPStatus.OK.value
+        return {"data": {"attributes": {"state": state}}}
 
     requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
+    responses = [
+        functools.partial(mock_get_job_in_progress, "in_progress"),
+        functools.partial(mock_get_job_in_progress, "in_progress"),
+        functools.partial(mock_get_job_in_progress, "completed"),
+    ]
+    mocker = requests_mock.get(
+        f"{api_url}/api/jobs/{job_id}",
+        response_list=[{"json": response} for response in responses],
+    )
     iguazio_client.delete_project(None, project_name)
+    assert mocker.call_count == len(responses)
 
     # assert ignoring (and not exploding) on not found
     requests_mock.delete(

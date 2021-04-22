@@ -10,6 +10,7 @@ import urllib3
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.member
 import mlrun.errors
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
@@ -23,6 +24,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
+        self._wait_for_job_completion_retry_interval = 5
 
     def try_get_grafana_service_url(self, session_cookie: str) -> typing.Optional[str]:
         """
@@ -65,7 +67,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         logger.debug("Storing project in Iguazio", name=name, project=project)
         body = self._generate_request_body(project)
         try:
-            self._get_project_from_iguazio(name)
+            self._get_project_from_iguazio(session_cookie, name)
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
@@ -94,7 +96,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             "x-iguazio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
         }
         try:
-            self._send_request_to_api(
+            response = self._send_request_to_api(
                 "DELETE", "projects", session_cookie, headers=headers, json=body
             )
         except requests.HTTPError as exc:
@@ -105,6 +107,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 name=name,
                 deletion_strategy=deletion_strategy,
             )
+        else:
+            job_id = response.json()["data"]["id"]
+            self._wait_for_job_completion(session_cookie, job_id)
 
     def list_projects(
         self, session_cookie: str,
@@ -132,8 +137,25 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _get_project_from_iguazio(self, name):
-        return self._send_request_to_api("GET", f"projects/{name}")
+    def _get_project_from_iguazio(self, session_cookie: str, name):
+        return self._send_request_to_api("GET", f"projects/{name}", session_cookie)
+
+    def _wait_for_job_completion(self, session_cookie: str, job_id: str):
+        def _verify_job_in_terminal_state():
+            response = self._send_request_to_api(
+                "GET", f"jobs/{job_id}", session_cookie
+            )
+            job_state = response.json()["data"]["attributes"]["state"]
+            if job_state not in ["canceled", "failed", "completed"]:
+                raise Exception(f"Job in progress. State: {job_state}")
+
+        mlrun.utils.helpers.retry_until_successful(
+            self._wait_for_job_completion_retry_interval,
+            5,
+            logger,
+            True,
+            _verify_job_in_terminal_state,
+        )
 
     def _send_request_to_api(self, method, path, session_cookie=None, **kwargs):
         url = f"{self._api_url}/api/{path}"

@@ -2,6 +2,7 @@ import datetime
 import functools
 import http
 import json
+import typing
 
 import deepdiff
 import pytest
@@ -26,6 +27,7 @@ async def iguazio_client(api_url: str,) -> mlrun.api.utils.clients.iguazio.Clien
     # force running init again so the configured api url will be used
     client.__init__()
     client._wait_for_job_completion_retry_interval = 0
+    client._wait_for_project_terminal_state_retry_interval = 0
     return client
 
 
@@ -155,15 +157,26 @@ def test_create_project(
 ):
     project = _generate_project()
     session_cookie = "1234"
+    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
 
-    def verify_creation(request, context):
-        _assert_project_creation(iguazio_client, request.json(), project)
-        context.status_code = http.HTTPStatus.CREATED.value
-        assert request.headers["Cookie"] == f"session={session_cookie}"
-        return {"data": _build_project_response(iguazio_client, project)}
-
-    requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
-    created_project = iguazio_client.create_project(session_cookie, project,)
+    requests_mock.post(
+        f"{api_url}/api/projects",
+        json=functools.partial(
+            _verify_creation, iguazio_client, project, session_cookie, job_id
+        ),
+    )
+    mocker, num_of_calls_until_completion = _mock_job_progress(
+        api_url, requests_mock, session_cookie, job_id
+    )
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json={"data": _build_project_response(iguazio_client, project)},
+    )
+    created_project, is_running_in_background = iguazio_client.create_project(
+        session_cookie, project,
+    )
+    assert is_running_in_background is False
+    assert mocker.call_count == num_of_calls_until_completion
     exclude = {"status": {"state"}}
     assert (
         deepdiff.DeepDiff(
@@ -174,6 +187,37 @@ def test_create_project(
         == {}
     )
     assert created_project.status.state == project.spec.desired_state
+
+
+def test_create_project_without_wait(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project()
+    session_cookie = "1234"
+    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
+
+    requests_mock.post(
+        f"{api_url}/api/projects",
+        json=functools.partial(
+            _verify_creation, iguazio_client, project, session_cookie, job_id
+        ),
+    )
+    created_project, is_running_in_background = iguazio_client.create_project(
+        session_cookie, project, wait_for_completion=False
+    )
+    assert is_running_in_background is True
+    exclude = {"status": {"state"}}
+    assert (
+        deepdiff.DeepDiff(
+            project.dict(exclude=exclude),
+            created_project.dict(exclude=exclude),
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert created_project.status.state == mlrun.api.schemas.ProjectState.creating
 
 
 def test_store_project_creation(
@@ -183,22 +227,30 @@ def test_store_project_creation(
 ):
     project = _generate_project()
     session_cookie = "1234"
+    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
 
-    def verify_store_creation(request, context):
-        _assert_project_creation(iguazio_client, request.json(), project)
-        context.status_code = http.HTTPStatus.CREATED.value
-        assert request.headers["Cookie"] == f"session={session_cookie}"
-        return {"data": _build_project_response(iguazio_client, project)}
-
-    # mock project not found so store will create
+    # mock project not found so store will create - then successful response which used to get the created project
     requests_mock.get(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        status_code=http.HTTPStatus.NOT_FOUND.value,
+        response_list=[
+            {"status_code": http.HTTPStatus.NOT_FOUND.value},
+            {"json": {"data": _build_project_response(iguazio_client, project)}},
+        ],
     )
-    requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
-    created_project = iguazio_client.store_project(
+    requests_mock.post(
+        f"{api_url}/api/projects",
+        json=functools.partial(
+            _verify_creation, iguazio_client, project, session_cookie, job_id
+        ),
+    )
+    mocker, num_of_calls_until_completion = _mock_job_progress(
+        api_url, requests_mock, session_cookie, job_id
+    )
+    created_project, is_running_in_background = iguazio_client.store_project(
         session_cookie, project.metadata.name, project
     )
+    assert is_running_in_background is False
+    assert mocker.call_count == num_of_calls_until_completion
     exclude = {"status": {"state"}}
     assert (
         deepdiff.DeepDiff(
@@ -209,6 +261,45 @@ def test_store_project_creation(
         == {}
     )
     assert created_project.status.state == project.spec.desired_state
+
+
+def test_store_project_creation_without_wait(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project()
+    session_cookie = "1234"
+    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
+
+    # mock project not found so store will create - then successful response which used to get the created project
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        response_list=[
+            {"status_code": http.HTTPStatus.NOT_FOUND.value},
+            {"json": {"data": _build_project_response(iguazio_client, project)}},
+        ],
+    )
+    requests_mock.post(
+        f"{api_url}/api/projects",
+        json=functools.partial(
+            _verify_creation, iguazio_client, project, session_cookie, job_id
+        ),
+    )
+    created_project, is_running_in_background = iguazio_client.store_project(
+        session_cookie, project.metadata.name, project, wait_for_completion=False
+    )
+    assert is_running_in_background is True
+    exclude = {"status": {"state"}}
+    assert (
+        deepdiff.DeepDiff(
+            project.dict(exclude=exclude),
+            created_project.dict(exclude=exclude),
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert created_project.status.state == mlrun.api.schemas.ProjectState.creating
 
 
 def test_store_project_update(
@@ -229,7 +320,7 @@ def test_store_project_update(
     # mock project response so store will update
     requests_mock.get(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        json=_build_project_response(iguazio_client, empty_project),
+        json={"data": _build_project_response(iguazio_client, empty_project)},
     )
     requests_mock.put(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
@@ -269,23 +360,12 @@ def test_delete_project(
         context.status_code = http.HTTPStatus.ACCEPTED.value
         return {"data": {"type": "job", "id": job_id}}
 
-    def mock_get_job_in_progress(state, request, context):
-        context.status_code = http.HTTPStatus.OK.value
-        assert request.headers["Cookie"] == f"session={session_cookie}"
-        return {"data": {"attributes": {"state": state}}}
-
     requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
-    responses = [
-        functools.partial(mock_get_job_in_progress, "in_progress"),
-        functools.partial(mock_get_job_in_progress, "in_progress"),
-        functools.partial(mock_get_job_in_progress, "completed"),
-    ]
-    mocker = requests_mock.get(
-        f"{api_url}/api/jobs/{job_id}",
-        response_list=[{"json": response} for response in responses],
+    mocker, num_of_calls_until_completion = _mock_job_progress(
+        api_url, requests_mock, session_cookie, job_id
     )
     iguazio_client.delete_project(session_cookie, project_name)
-    assert mocker.call_count == len(responses)
+    assert mocker.call_count == num_of_calls_until_completion
 
     # assert ignoring (and not exploding) on not found
     requests_mock.delete(
@@ -300,6 +380,35 @@ def test_delete_project(
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
         iguazio_client.delete_project(session_cookie, project_name)
+
+
+def _verify_creation(iguazio_client, project, session_cookie, job_id, request, context):
+    _assert_project_creation(iguazio_client, request.json(), project)
+    context.status_code = http.HTTPStatus.CREATED.value
+    assert request.headers["Cookie"] == f"session={session_cookie}"
+    return {
+        "data": _build_project_response(
+            iguazio_client, project, job_id, mlrun.api.schemas.ProjectState.creating
+        )
+    }
+
+
+def _mock_job_progress(api_url, requests_mock, session_cookie: str, job_id: str):
+    def _mock_get_job(state, session_cookie, request, context):
+        context.status_code = http.HTTPStatus.OK.value
+        assert request.headers["Cookie"] == f"session={session_cookie}"
+        return {"data": {"attributes": {"state": state}}}
+
+    responses = [
+        functools.partial(_mock_get_job, "in_progress", session_cookie),
+        functools.partial(_mock_get_job, "in_progress", session_cookie),
+        functools.partial(_mock_get_job, "completed", session_cookie),
+    ]
+    mocker = requests_mock.get(
+        f"{api_url}/api/jobs/{job_id}",
+        response_list=[{"json": response} for response in responses],
+    )
+    return mocker, len(responses)
 
 
 def _generate_project(
@@ -336,6 +445,8 @@ def _generate_project(
 def _build_project_response(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     project: mlrun.api.schemas.Project,
+    job_id: typing.Optional[str] = None,
+    operational_status: typing.Optional[mlrun.api.schemas.ProjectState] = None,
 ):
     body = {
         "type": "project",
@@ -366,7 +477,15 @@ def _build_project_response(
         ] = iguazio_client._transform_mlrun_labels_to_iguazio_labels(
             project.metadata.annotations
         )
-    body["attributes"]["operational_status"] = body["attributes"]["admin_status"]
+    body["attributes"]["operational_status"] = (
+        operational_status.value
+        if operational_status
+        else body["attributes"]["admin_status"]
+    )
+    if job_id:
+        body["relationships"] = {
+            "last_job": {"data": {"id": job_id}},
+        }
     return body
 
 

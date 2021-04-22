@@ -88,7 +88,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
         driver.add_writer_state(
             graph,
             target.after_state or final_state,
-            features=features,
+            features=features if not target.after_state else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
         )
@@ -154,11 +154,13 @@ class BaseStoreTarget(DataTargetBase):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
+        columns=None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.columns = columns or []
 
         self._target = None
         self._resource = None
@@ -167,6 +169,20 @@ class BaseStoreTarget(DataTargetBase):
     def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
+
+    def _get_column_list(self, features, timestamp_key, key_columns):
+        column_list = None
+        if self.columns:
+            return self.columns
+        elif features:
+            column_list = list(features.keys())
+            if timestamp_key and timestamp_key not in column_list:
+                column_list = [timestamp_key] + column_list
+            if key_columns:
+                for key in reversed(key_columns):
+                    if key not in column_list:
+                        column_list.insert(0, key)
+        return column_list
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, **kwargs,
@@ -205,6 +221,8 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+        if hasattr(spec, "columns"):
+            driver.columns = spec.columns
         driver._resource = resource
         return driver
 
@@ -263,9 +281,9 @@ class ParquetTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = list(features.keys())
-        if timestamp_key and timestamp_key not in column_list:
-            column_list = [timestamp_key] + column_list
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=None
+        )
 
         graph.add_step(
             name="WriteToParquet",
@@ -307,12 +325,10 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = list(features.keys())
-        if timestamp_key:
-            column_list = [timestamp_key] + column_list
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
         graph.add_step(
             name="WriteToCSV",
             after=after,
@@ -352,12 +368,17 @@ class NoSqlTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
-        column_list = [
-            key for key, feature in features.items() if not feature.aggregate
-        ]
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=None, key_columns=key_columns
+        )
+        if not self.columns:
+            aggregate_features = (
+                [key for key, feature in features.items() if feature.aggregate]
+                if features
+                else []
+            )
+            column_list = [col for col in column_list if col in aggregate_features]
+
         graph.add_step(
             name="WriteToTable",
             after=after,
@@ -411,12 +432,10 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         endpoint, uri = parse_v3io_path(self._target_path)
-        column_list = list(features.keys())
-        if timestamp_key and timestamp_key not in column_list:
-            column_list = [timestamp_key] + column_list
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
         graph.add_step(
             name="WriteToStream",
             after=after,
@@ -443,14 +462,15 @@ class TSDBTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         endpoint, uri = parse_v3io_path(self._target_path)
-        column_list = list(features.keys())
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
             )
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+
+        column_list = self._get_column_list(
+            features=features, timestamp_key=None, key_columns=key_columns
+        )
+
         graph.add_step(
             name="WriteToTSDB",
             class_name="storey.WriteToTSDB",

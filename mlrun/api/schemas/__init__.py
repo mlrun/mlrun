@@ -57,6 +57,7 @@ from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     Project,
+    ProjectDesiredState,
     ProjectMetadata,
     ProjectsOutput,
     ProjectSpec,

@@ -266,7 +266,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         mlrun_project.metadata.created = datetime.datetime.fromisoformat(
             iguazio_project["attributes"]["created_at"]
         )
-        mlrun_project.spec.desired_state = mlrun.api.schemas.ProjectState(
+        mlrun_project.spec.desired_state = mlrun.api.schemas.ProjectDesiredState(
             iguazio_project["attributes"]["admin_status"]
         )
         mlrun_project.status.state = mlrun.api.schemas.ProjectState(

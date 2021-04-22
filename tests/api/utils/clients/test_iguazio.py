@@ -154,14 +154,16 @@ def test_create_project(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
+    session_cookie = "1234"
 
     def verify_creation(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.CREATED.value
+        assert request.headers["Cookie"] == f"session={session_cookie}"
         return {"data": _build_project_response(iguazio_client, project)}
 
     requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
-    created_project = iguazio_client.create_project(None, project,)
+    created_project = iguazio_client.create_project(session_cookie, project,)
     exclude = {"status": {"state"}}
     assert (
         deepdiff.DeepDiff(
@@ -180,10 +182,12 @@ def test_store_project_creation(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
+    session_cookie = "1234"
 
     def verify_store_creation(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.CREATED.value
+        assert request.headers["Cookie"] == f"session={session_cookie}"
         return {"data": _build_project_response(iguazio_client, project)}
 
     # mock project not found so store will create
@@ -192,7 +196,9 @@ def test_store_project_creation(
         status_code=http.HTTPStatus.NOT_FOUND.value,
     )
     requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
-    created_project = iguazio_client.store_project(None, project.metadata.name, project)
+    created_project = iguazio_client.store_project(
+        session_cookie, project.metadata.name, project
+    )
     exclude = {"status": {"state"}}
     assert (
         deepdiff.DeepDiff(
@@ -211,10 +217,12 @@ def test_store_project_update(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
+    session_cookie = "1234"
 
     def verify_store_update(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.OK.value
+        assert request.headers["Cookie"] == f"session={session_cookie}"
         return {"data": _build_project_response(iguazio_client, project)}
 
     empty_project = _generate_project(description="", labels={}, annotations={})
@@ -227,7 +235,7 @@ def test_store_project_update(
         f"{api_url}/api/projects/{project.metadata.name}", json=verify_store_update
     )
     updated_project = iguazio_client.store_project(
-        None, project.metadata.name, project,
+        session_cookie, project.metadata.name, project,
     )
     exclude = {"status": {"state"}}
     assert (
@@ -248,6 +256,7 @@ def test_delete_project(
 ):
     project_name = "project-name"
     job_id = "928145d5-4037-40b0-98b6-19a76626d797"
+    session_cookie = "1234"
 
     def verify_deletion(request, context):
         assert request.json()["data"]["attributes"]["name"] == project_name
@@ -255,11 +264,13 @@ def test_delete_project(
             request.headers["x-iguazio-delete-project-strategy"]
             == mlrun.api.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
         )
+        assert request.headers["Cookie"] == f"session={session_cookie}"
         context.status_code = http.HTTPStatus.ACCEPTED.value
         return {"data": {"type": "job", "id": job_id}}
 
     def mock_get_job_in_progress(state, request, context):
         context.status_code = http.HTTPStatus.OK.value
+        assert request.headers["Cookie"] == f"session={session_cookie}"
         return {"data": {"attributes": {"state": state}}}
 
     requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
@@ -272,14 +283,14 @@ def test_delete_project(
         f"{api_url}/api/jobs/{job_id}",
         response_list=[{"json": response} for response in responses],
     )
-    iguazio_client.delete_project(None, project_name)
+    iguazio_client.delete_project(session_cookie, project_name)
     assert mocker.call_count == len(responses)
 
     # assert ignoring (and not exploding) on not found
     requests_mock.delete(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
     )
-    iguazio_client.delete_project(None, project_name)
+    iguazio_client.delete_project(session_cookie, project_name)
 
     # TODO: not sure really needed
     # assert correctly propagating 412 errors (will be returned when project has resources)
@@ -287,7 +298,7 @@ def test_delete_project(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-        iguazio_client.delete_project(None, project_name)
+        iguazio_client.delete_project(session_cookie, project_name)
 
 
 def _generate_project(

@@ -30,6 +30,7 @@ RUN apt-get update && \
         build-essential \
         cmake \
         curl \
+        git \
         wget \
         graphviz && \
     rm -rf /var/lib/apt/lists/*

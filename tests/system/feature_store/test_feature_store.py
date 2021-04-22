@@ -10,7 +10,6 @@ from storey import MapClass
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
-
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet

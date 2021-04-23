@@ -326,9 +326,10 @@ def test_store_project_update(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json=verify_store_update,
     )
-    updated_project = iguazio_client.store_project(
+    updated_project, is_running_in_background = iguazio_client.store_project(
         session_cookie, project.metadata.name, project,
     )
+    assert is_running_in_background is False
     exclude = {"status": {"state"}}
     assert (
         deepdiff.DeepDiff(
@@ -350,21 +351,17 @@ def test_delete_project(
     job_id = "928145d5-4037-40b0-98b6-19a76626d797"
     session_cookie = "1234"
 
-    def verify_deletion(request, context):
-        assert request.json()["data"]["attributes"]["name"] == project_name
-        assert (
-            request.headers["igz-project-deletion-strategy"]
-            == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
-        )
-        assert request.headers["Cookie"] == f"session={session_cookie}"
-        context.status_code = http.HTTPStatus.ACCEPTED.value
-        return {"data": {"type": "job", "id": job_id}}
-
-    requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
+    requests_mock.delete(
+        f"{api_url}/api/projects",
+        json=functools.partial(_verify_deletion, project_name, session_cookie, job_id),
+    )
     mocker, num_of_calls_until_completion = _mock_job_progress(
         api_url, requests_mock, session_cookie, job_id
     )
-    iguazio_client.delete_project(session_cookie, project_name)
+    is_running_in_background = iguazio_client.delete_project(
+        session_cookie, project_name
+    )
+    assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
 
     # assert ignoring (and not exploding) on not found
@@ -380,6 +377,36 @@ def test_delete_project(
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
         iguazio_client.delete_project(session_cookie, project_name)
+
+
+def test_delete_project_without_wait(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    job_id = "928145d5-4037-40b0-98b6-19a76626d797"
+    session_cookie = "1234"
+
+    requests_mock.delete(
+        f"{api_url}/api/projects",
+        json=functools.partial(_verify_deletion, project_name, session_cookie, job_id),
+    )
+    is_running_in_background = iguazio_client.delete_project(
+        session_cookie, project_name, wait_for_completion=False
+    )
+    assert is_running_in_background is True
+
+
+def _verify_deletion(project_name, session_cookie, job_id, request, context):
+    assert request.json()["data"]["attributes"]["name"] == project_name
+    assert (
+        request.headers["igz-project-deletion-strategy"]
+        == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
+    )
+    assert request.headers["Cookie"] == f"session={session_cookie}"
+    context.status_code = http.HTTPStatus.ACCEPTED.value
+    return {"data": {"type": "job", "id": job_id}}
 
 
 def _verify_creation(iguazio_client, project, session_cookie, job_id, request, context):

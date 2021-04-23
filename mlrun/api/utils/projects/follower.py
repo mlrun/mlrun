@@ -105,10 +105,9 @@ class Member(
             if name in self._projects:
                 del self._projects[name]
         else:
-            self._leader_client.delete_project(
+            return self._leader_client.delete_project(
                 self._iguazio_cookie, name, deletion_strategy, wait_for_completion,
             )
-            return True
         return False
 
     def get_project(

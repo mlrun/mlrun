@@ -93,7 +93,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
-    ):
+    ) -> bool:
         logger.debug(
             "Deleting project in Iguazio",
             name=name,
@@ -120,10 +120,13 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 name=name,
                 deletion_strategy=deletion_strategy,
             )
+            return False
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]
                 self._wait_for_job_completion(session_cookie, job_id)
+                return False
+            return True
 
     def list_projects(
         self, session_cookie: str,

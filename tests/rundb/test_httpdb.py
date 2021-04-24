@@ -119,9 +119,9 @@ def docker_fixture():
 
         # retrieve container bind port + host
         out = run(["docker", "version"], stdout=PIPE, check=True)
-        print(f"BLABLABLA: {out}")
+        print(f"BLABLABLA: {out.stdout}")
         out = run(["docker", "port", container_id, "8080"], stdout=PIPE, check=True)
-        print(f"LOOK HERE: {out}")
+        print(f"LOOK HERE: {out.stdout}")
         host = out.stdout.decode("utf-8").strip()
 
         url = f"http://{host}"

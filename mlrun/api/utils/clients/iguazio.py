@@ -196,30 +196,8 @@ class Client(
             self._wait_for_job_completion_retry_interval,
             360,
             logger,
-            True,
+            False,
             _verify_job_in_terminal_state,
-        )
-
-    def _wait_for_project_to_reach_terminal_state(
-        self, session_cookie: str, project_name: str
-    ):
-        def _verify_project_in_terminal_state():
-            project = self._get_project_from_iguazio(session_cookie, project_name)
-            if (
-                project.status.state
-                not in mlrun.api.schemas.ProjectState.terminal_states()
-            ):
-                raise Exception(
-                    f"Project not in terminal state. State: {project.status.state}"
-                )
-            return project
-
-        return mlrun.utils.helpers.retry_until_successful(
-            self._wait_for_project_terminal_state_retry_interval,
-            120,
-            logger,
-            True,
-            _verify_project_in_terminal_state,
         )
 
     def _send_request_to_api(self, method, path, session_cookie=None, **kwargs):

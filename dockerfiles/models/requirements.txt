@@ -1,2 +1,3 @@
 gnureadline~=8.0
 transformers~=3.0
+xgboost~=1.1

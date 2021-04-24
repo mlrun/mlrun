@@ -172,11 +172,21 @@ class Member(
     def _stop_periodic_sync(self):
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
-    # TODO: !!!!!!!! continue from handle & test the poll logic
     def _sync_projects(self):
         projects = self._leader_client.list_projects(self._session_cookie)
-        # This might cause some "concurrency" issues, might need to use some locking
-        self._projects = {project.metadata.name: project for project in projects}
+        # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
+        filtered_projects = []
+        for project in projects:
+            if (
+                project.status.state
+                not in mlrun.api.schemas.ProjectState.terminal_states()
+                and project.metadata.name not in self._projects
+            ):
+                continue
+            filtered_projects.append(project)
+        self._projects = {
+            project.metadata.name: project for project in filtered_projects
+        }
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

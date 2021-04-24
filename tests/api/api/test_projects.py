@@ -26,7 +26,7 @@ def test_create_project_failure_already_exists(db: Session, client: TestClient) 
 
     # create
     response = client.post("/api/projects", json=project_1.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # create again
@@ -41,7 +41,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
     )
     response = client.post("/api/projects", json=empty_project.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
 
     # create project with resources
     project_name = "project-with-resources"
@@ -49,7 +49,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
     response = client.post("/api/projects", json=project.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
 
     # create functions for the project
     functions_count = 5
@@ -142,7 +142,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
 
     # create
     response = client.post("/api/projects", json=project_1.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # read

@@ -1,4 +1,5 @@
 import typing
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -32,6 +33,29 @@ async def nop_leader(
     projects_follower: mlrun.api.utils.projects.follower.Member,
 ) -> mlrun.api.utils.projects.remotes.leader.Member:
     return projects_follower._leader_client
+
+
+def test_sync_projects(
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+):
+    project = _generate_project(name="name-1")
+    project_in_creation = _generate_project(
+        name="name-2", state=mlrun.api.schemas.ProjectState.creating
+    )
+    project_in_deletion = _generate_project(
+        name="name-3", state=mlrun.api.schemas.ProjectState.deleting
+    )
+    for _project in [project, project_in_creation]:
+        projects_follower.create_project(None, _project)
+    original_list = nop_leader.list_projects
+    nop_leader.list_projects = unittest.mock.Mock(
+        return_value=[project, project_in_creation, project_in_deletion]
+    )
+    projects_follower._sync_projects()
+    nop_leader.list_projects = original_list
+    _assert_list_projects(projects_follower, [project, project_in_creation])
 
 
 def test_create_project(

@@ -16,6 +16,7 @@ class ProjectsRole(str, Enum):
     iguazio = "iguazio"
     mlrun = "mlrun"
     nuclio = "nuclio"
+    nop = "nop"
 
 
 class PatchMode(str, Enum):

@@ -8,14 +8,15 @@ import requests.adapters
 import urllib3
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.projects.remotes.leader
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Client(metaclass=mlrun.utils.singleton.Singleton,):
+class Client(    mlrun.api.utils.projects.remotes.leader.Member,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,):
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(

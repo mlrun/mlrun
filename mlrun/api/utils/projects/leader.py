@@ -10,7 +10,7 @@ import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.follower
-import mlrun.api.utils.projects.remotes.nop
+import mlrun.api.utils.projects.remotes.nop_follower
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -303,8 +303,8 @@ class Member(
             "mlrun": mlrun.api.crud.Projects(),
             "nuclio": mlrun.api.utils.clients.nuclio.Client(),
             # for tests
-            "nop": mlrun.api.utils.projects.remotes.nop.Member(),
-            "nop2": mlrun.api.utils.projects.remotes.nop.Member(),
+            "nop": mlrun.api.utils.projects.remotes.nop_follower.Member(),
+            "nop2": mlrun.api.utils.projects.remotes.nop_follower.Member(),
         }
         if name not in followers_classes_map:
             raise ValueError(f"Unknown follower name: {name}")

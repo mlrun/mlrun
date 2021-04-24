@@ -9,8 +9,7 @@ import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
-import mlrun.api.utils.projects.remotes.follower
-import mlrun.api.utils.projects.remotes.nop
+import mlrun.api.utils.projects.remotes.nop_leader
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -35,6 +34,8 @@ class Member(
                     "Iguazio access key must be configured when the leader is Iguazio"
                 )
             self._iguazio_cookie = f'j:{{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}}'
+        elif self._leader_name == "nop":
+            self._leader_client = mlrun.api.utils.projects.remotes.nop_leader.Member()
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(

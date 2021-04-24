@@ -51,7 +51,7 @@ class Projects(
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
-        if deletion_strategy == mlrun.api.schemas.DeletionStrategy.cascade:
+        if deletion_strategy.is_cascading():
             # delete runtime resources
             mlrun.api.crud.Runtimes().delete_runtimes(
                 session, label_selector=f"mlrun/project={name}", force=True

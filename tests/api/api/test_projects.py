@@ -252,11 +252,11 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     response = client.post(f"/api/func/{name1}/{function_name}", json=function)
     assert response.status_code == HTTPStatus.OK.value
 
-    # delete - restrict strategy, will fail because function exists
+    # delete - restricted strategy, will fail because function exists
     response = client.delete(
         f"/api/projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restrict
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -264,11 +264,11 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     # mock runtime resources deletion
     mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
 
-    # delete - cascade strategy, will succeed and delete function
+    # delete - cascading strategy, will succeed and delete function
     response = client.delete(
         f"/api/projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascade
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value

@@ -9,7 +9,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.projects.remotes.nop
 import mlrun.config
 import mlrun.errors
@@ -295,7 +295,7 @@ class Member(
 
     def _initialize_follower(
         self, name: str
-    ) -> mlrun.api.utils.projects.remotes.member.Member:
+    ) -> mlrun.api.utils.projects.remotes.follower.Member:
         # importing here to avoid circular import (db using project member using mlrun follower using db)
         import mlrun.api.crud
 

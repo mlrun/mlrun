@@ -9,7 +9,7 @@ import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.projects.remotes.nop
 import mlrun.config
 import mlrun.errors

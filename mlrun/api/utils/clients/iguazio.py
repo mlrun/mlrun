@@ -8,7 +8,7 @@ import requests.adapters
 import urllib3
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton

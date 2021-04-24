@@ -11,7 +11,7 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
@@ -58,7 +58,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
+class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {

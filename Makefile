@@ -116,63 +116,25 @@ print-docker-images: ## Print all docker images
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
 MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
-MLRUN_CORE_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME_TAGGED)$(MLRUN_CORE_DOCKER_TAG_SUFFIX)
 MLRUN_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_CACHE_IMAGE_PULL_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docker tag $(MLRUN_IMAGE_NAME_TAGGED) $(MLRUN_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
 
-
-.PHONY: mlrun-core
-mlrun-core: pull-cache update-version-file ## Build mlrun core docker image
+.PHONY: mlrun
+mlrun: update-version-file ## Build mlrun docker image
+	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
-		--tag $(MLRUN_CORE_IMAGE_NAME_TAGGED) .
-
-.PHONY: mlrun
-mlrun: mlrun-core ## Build mlrun docker image
-	docker build \
-		--file dockerfiles/common/Dockerfile \
-		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_IMAGE_NAME_TAGGED) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-mlrun
 push-mlrun: mlrun ## Push mlrun docker image
 	docker push $(MLRUN_IMAGE_NAME_TAGGED)
 	$(MLRUN_CACHE_IMAGE_PUSH_COMMAND)
-
-
-MLRUN_LEGACY_MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
-MLRUN_LEGACY_MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_LEGACY_MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
-MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_LEGACY_MLRUN_IMAGE_NAME_TAGGED)$(MLRUN_CORE_DOCKER_TAG_SUFFIX)
-MLRUN_LEGACY_MLRUN_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_LEGACY_MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
-MLRUN_LEGACY_MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),--cache-from $(strip $(MLRUN_LEGACY_MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_LEGACY_MLRUN_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docker tag $(MLRUN_LEGACY_MLRUN_IMAGE_NAME_TAGGED) $(MLRUN_LEGACY_MLRUN_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_LEGACY_MLRUN_CACHE_IMAGE_NAME_TAGGED),)
-DEFAULT_IMAGES += $(MLRUN_LEGACY_MLRUN_IMAGE_NAME_TAGGED)
-
-.PHONY: mlrun-legacy-core
-mlrun-legacy-core: pull-cache update-version-file ## Build mlrun legacy core docker image
-	docker build \
-		--file dockerfiles/mlrun/Dockerfile \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
-		--tag $(MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED) .
-
-.PHONY: mlrun-legacy
-mlrun-legacy: mlrun-legacy-core ## Build mlrun legacy docker image
-	docker build \
-		--file dockerfiles/common/Dockerfile \
-		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
-		--tag $(MLRUN_LEGACY_MLRUN_IMAGE_NAME_TAGGED) .
-
-.PHONY: push-mlrun-legacy
-push-mlrun-legacy: mlrun-legacy ## Push mlrun legacy docker image
-	docker push $(MLRUN_LEGACY_MLRUN_IMAGE_NAME_TAGGED)
-	$(MLRUN_LEGACY_MLRUN_CACHE_IMAGE_PUSH_COMMAND)
 
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
@@ -184,7 +146,7 @@ MLRUN_BASE_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docke
 DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 
 .PHONY: base-core
-base-core: mlrun-core ## Build base core docker image
+base-core: update-version-file ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_IMAGE_NAME_TAGGED) \
@@ -215,7 +177,7 @@ MLRUN_LEGACY_BASE_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG
 DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME_TAGGED)
 
 .PHONY: base-legacy-core
-base-legacy-core: mlrun-legacy-core ## Build base legacy core docker image
+base-legacy-core: update-version-file ## Build base legacy core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED) \
@@ -643,11 +605,7 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
         MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG)
     else ifneq (,$(findstring base-legacy,$(MAKECMDGOALS)))
         MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_LEGACY_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
-    else ifneq (,$(findstring base,$(MAKECMDGOALS)))
-        MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
-    else ifneq (,$(findstring mlrun-legacy,$(MAKECMDGOALS)))
-        MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_LEGACY_MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG)
     else
-        MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG)
+        MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
     endif
 endif

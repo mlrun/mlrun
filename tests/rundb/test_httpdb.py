@@ -119,7 +119,9 @@ def docker_fixture():
 
         # retrieve container bind port + host
         out = run(["docker", "port", container_id, "8080"], stdout=PIPE, check=True)
-        host = out.stdout.decode("utf-8").strip()
+        # usually the output is something like b'0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
+        # b'0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
+        host = out.stdout.decode("utf-8").splitlines()[0]
 
         url = f"http://{host}"
         print(f"api url: {url}")

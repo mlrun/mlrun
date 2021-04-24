@@ -146,7 +146,7 @@ MLRUN_BASE_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docke
 DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 
 .PHONY: base-core
-base-core: update-version-file ## Build base core docker image
+base-core: pull-cache update-version-file ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_IMAGE_NAME_TAGGED) \
@@ -177,7 +177,7 @@ MLRUN_LEGACY_BASE_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG
 DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME_TAGGED)
 
 .PHONY: base-legacy-core
-base-legacy-core: update-version-file ## Build base legacy core docker image
+base-legacy-core: pull-cache update-version-file ## Build base legacy core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED) \

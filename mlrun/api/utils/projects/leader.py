@@ -303,6 +303,7 @@ class Member(
             "mlrun": mlrun.api.crud.Projects(),
             "nuclio": mlrun.api.utils.clients.nuclio.Client(),
             # for tests
+            "nop-self-leader": mlrun.api.utils.projects.remotes.nop_follower.Member(),
             "nop": mlrun.api.utils.projects.remotes.nop_follower.Member(),
             "nop2": mlrun.api.utils.projects.remotes.nop_follower.Member(),
         }

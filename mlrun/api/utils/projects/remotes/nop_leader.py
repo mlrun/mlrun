@@ -12,32 +12,42 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         self._project_role = mlrun.api.schemas.ProjectsRole.nop
 
     def create_project(
-            self,
-            session_cookie: str,
-            project: mlrun.api.schemas.Project,
-            wait_for_completion: bool = True,
+        self,
+        session_cookie: str,
+        project: mlrun.api.schemas.Project,
+        wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        return mlrun.api.utils.singletons.project_member.get_project_member().create_project(None, project, self._project_role)
+        return mlrun.api.utils.singletons.project_member.get_project_member().create_project(
+            None, project, self._project_role
+        )
 
     def store_project(
-            self,
-            session_cookie: str,
-            name: str,
-            project: mlrun.api.schemas.Project,
-            wait_for_completion: bool = True,
+        self,
+        session_cookie: str,
+        name: str,
+        project: mlrun.api.schemas.Project,
+        wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        return mlrun.api.utils.singletons.project_member.get_project_member().store_project(None, name, project, self._project_role)
+        return mlrun.api.utils.singletons.project_member.get_project_member().store_project(
+            None, name, project, self._project_role
+        )
 
     def delete_project(
-            self,
-            session_cookie: str,
-            name: str,
-            deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-            wait_for_completion: bool = True,
+        self,
+        session_cookie: str,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        wait_for_completion: bool = True,
     ) -> bool:
-        return mlrun.api.utils.singletons.project_member.get_project_member().delete_project(None, name, deletion_strategy, self._project_role)
+        return mlrun.api.utils.singletons.project_member.get_project_member().delete_project(
+            None, name, deletion_strategy, self._project_role
+        )
 
     def list_projects(
-            self, session_cookie: str,
+        self, session_cookie: str,
     ) -> typing.List[mlrun.api.schemas.Project]:
-        return mlrun.api.utils.singletons.project_member.get_project_member().list_projects(None)
+        return (
+            mlrun.api.utils.singletons.project_member.get_project_member()
+            .list_projects(None)
+            .projects
+        )

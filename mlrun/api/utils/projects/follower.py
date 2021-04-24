@@ -27,13 +27,14 @@ class Member(
         logger.info("Initializing projects follower")
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
         self._leader_name = mlrun.config.config.httpdb.projects.leader
+        self._session_cookie = None
         if self._leader_name == "iguazio":
             self._leader_client = mlrun.api.utils.clients.iguazio.Client()
             if not mlrun.config.config.httpdb.projects.iguazio_access_key:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio access key must be configured when the leader is Iguazio"
                 )
-            self._iguazio_cookie = f'j:{{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}}'
+            self._session_cookie = f'j:{{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}}'
         elif self._leader_name == "nop":
             self._leader_client = mlrun.api.utils.projects.remotes.nop_leader.Member()
         else:
@@ -63,7 +64,7 @@ class Member(
             return project, False
         else:
             return self._leader_client.create_project(
-                self._iguazio_cookie, project, wait_for_completion
+                self._session_cookie, project, wait_for_completion
             )
 
     def store_project(
@@ -79,7 +80,7 @@ class Member(
             return project, False
         else:
             return self._leader_client.store_project(
-                self._iguazio_cookie, name, project, wait_for_completion
+                self._session_cookie, name, project, wait_for_completion
             )
 
     def patch_project(
@@ -107,7 +108,7 @@ class Member(
                 del self._projects[name]
         else:
             return self._leader_client.delete_project(
-                self._iguazio_cookie, name, deletion_strategy, wait_for_completion,
+                self._session_cookie, name, deletion_strategy, wait_for_completion,
             )
         return False
 
@@ -171,8 +172,9 @@ class Member(
     def _stop_periodic_sync(self):
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
+    # TODO: !!!!!!!! continue from handle & test the poll logic
     def _sync_projects(self):
-        projects = self._leader_client.list_projects(self._iguazio_cookie)
+        projects = self._leader_client.list_projects(self._session_cookie)
         # This might cause some "concurrency" issues, might need to use some locking
         self._projects = {project.metadata.name: project for project in projects}
 
@@ -187,6 +189,8 @@ class Member(
     def _is_project_matching_labels(
         labels: typing.List[str], project: mlrun.api.schemas.Project
     ):
+        if not project.metadata.labels:
+            return False
         for label in labels:
             if "=" in label:
                 name, value = [v.strip() for v in label.split("=", 1)]

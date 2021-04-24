@@ -7,6 +7,7 @@ import sqlalchemy.orm
 import mlrun.api.schemas
 import mlrun.api.utils.projects.leader
 import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.errors
 from mlrun.utils import logger
@@ -17,13 +18,13 @@ async def projects_leader() -> typing.Generator[
     mlrun.api.utils.projects.leader.Member, None, None
 ]:
     logger.info("Creating projects leader")
-    mlrun.config.config.httpdb.projects.leader = "nop"
+    mlrun.config.config.httpdb.projects.leader = "nop-self-leader"
     mlrun.config.config.httpdb.projects.followers = "nop,nop2"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
-    projects_leader = mlrun.api.utils.projects.leader.Member()
-    projects_leader.initialize()
+    mlrun.api.utils.singletons.project_member.initialize_project_member()
+    projects_leader = mlrun.api.utils.singletons.project_member.get_project_member()
     yield projects_leader
-    logger.info("Stopping projects manager")
+    logger.info("Stopping projects leader")
     projects_leader.shutdown()
 
 

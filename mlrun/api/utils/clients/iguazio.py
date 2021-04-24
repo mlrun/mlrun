@@ -15,8 +15,10 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Client(    mlrun.api.utils.projects.remotes.leader.Member,
-    metaclass=mlrun.utils.singleton.AbstractSingleton,):
+class Client(
+    mlrun.api.utils.projects.remotes.leader.Member,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
+):
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(

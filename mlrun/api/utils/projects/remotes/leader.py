@@ -5,7 +5,6 @@ import mlrun.api.schemas
 
 
 class Member(abc.ABC):
-
     @abc.abstractmethod
     def create_project(
         self,

@@ -149,7 +149,7 @@ DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 base-core: pull-cache update-version-file ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
-		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_IMAGE_NAME_TAGGED) \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .
@@ -180,7 +180,7 @@ DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME_TAGGED)
 base-legacy-core: pull-cache update-version-file ## Build base legacy core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
-		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_MLRUN_IMAGE_NAME_TAGGED) \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) .

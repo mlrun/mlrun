@@ -78,6 +78,7 @@ class FeatureSetSpec(ModelObj):
         self._targets: ObjectList = None
         self._graph: RootFlowState = None
         self._source = None
+        self._engine = None
         self._function: FunctionReference = None
 
         self.owner = owner
@@ -122,6 +123,21 @@ class FeatureSetSpec(ModelObj):
     @targets.setter
     def targets(self, targets: List[DataTargetBase]):
         self._targets = ObjectList.from_list(DataTargetBase, targets)
+
+    @property
+    def engine(self) -> str:
+        """feature set processing engine (storey, pandas, spark)"""
+        return self._engine
+
+    @engine.setter
+    def engine(self, engine: str):
+        engine_list = ["pandas", "spark", "storey"]
+        if engine and engine not in engine_list:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"engine must be one of {','.join(engine_list)}"
+            )
+        self.graph.engine = "sync" if engine and engine in ["pandas", "spark"] else None
+        self._engine = engine
 
     @property
     def graph(self) -> RootFlowState:
@@ -192,14 +208,24 @@ class FeatureSet(ModelObj):
     kind = mlrun.api.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, description=None, entities=None, timestamp_key=None):
+    def __init__(
+        self,
+        name=None,
+        description=None,
+        entities=None,
+        timestamp_key=None,
+        engine=None,
+    ):
         self._spec: FeatureSetSpec = None
         self._metadata = None
         self._status = None
         self._api_client = None
 
         self.spec = FeatureSetSpec(
-            description=description, entities=entities, timestamp_key=timestamp_key
+            description=description,
+            entities=entities,
+            timestamp_key=timestamp_key,
+            engine=engine,
         )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None

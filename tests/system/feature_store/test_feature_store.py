@@ -31,6 +31,12 @@ class MyMap(MapClass):
         return event
 
 
+def myfunc1(x, context=None):
+    assert context is not None, "context is none"
+    x = x.drop(columns=["exchange"])
+    return x
+
+
 def _generate_random_name():
     random_name = "".join([random.choice(string.ascii_letters) for i in range(10)])
     return random_name
@@ -543,6 +549,23 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert all(csv_df == parquet_df)
         assert all(csv_vec_df == parquet_vec_df)
+
+    def test_sync_pipeline(self):
+        stocks_set = fs.FeatureSet(
+            "stocks-sync",
+            entities=[Entity("ticker", ValueType.STRING)],
+            engine="pandas",
+        )
+
+        stocks_set.graph.to(name="s1", handler="myfunc1")
+        # df = fs.infer(my_set, df.head())
+        df = fs.ingest(stocks_set, stocks)
+        self._logger.info(f"output df:\n{df}")
+
+        features = list(stocks_set.spec.features.keys())
+        assert len(features) == 1, "wrong num of features"
+        assert "exchange" not in features, "field was not dropped"
+        assert len(df) == len(stocks), "dataframe size doesnt match"
 
 
 def verify_ingest(

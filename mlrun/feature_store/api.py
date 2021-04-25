@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Union
+
+from typing import List, Optional, Union
 
 import pandas as pd
 
@@ -57,6 +58,8 @@ def get_offline_features(
     target: DataTargetBase = None,
     run_config: RunConfig = None,
     drop_columns: List[str] = None,
+    start_time: Optional[pd.Timestamp] = None,
+    end_time: Optional[pd.Timestamp] = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -87,6 +90,10 @@ def get_offline_features(
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
     :param run_config:     function and/or run configuration
                            see :py:class:`~mlrun.feature_store.RunConfig`
+    :param start_time      datetime, low limit of time needed to be filtered. Optional.
+        entity_timestamp_column must be passed when using time filtering.
+    :param end_time        datetime, high limit of time needed to be filtered. Optional.
+        entity_timestamp_column must be passed when using time filtering.
     """
     feature_vector = _features_to_vector(feature_vector)
 
@@ -103,9 +110,18 @@ def get_offline_features(
             drop_columns=drop_columns,
         )
 
+    if (start_time or end_time) and not entity_timestamp_column:
+        raise TypeError(
+            "entity_timestamp_column or feature_vector.spec.timestamp_field is required when passing start/end time"
+        )
     merger = LocalFeatureMerger(feature_vector)
     return merger.start(
-        entity_rows, entity_timestamp_column, target=target, drop_columns=drop_columns,
+        entity_rows,
+        entity_timestamp_column,
+        target=target,
+        drop_columns=drop_columns,
+        start_time=start_time,
+        end_time=end_time,
     )
 
 

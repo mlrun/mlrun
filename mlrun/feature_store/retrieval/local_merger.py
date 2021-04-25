@@ -34,6 +34,8 @@ class LocalFeatureMerger:
         entity_timestamp_column=None,
         target=None,
         drop_columns=None,
+        start_time=None,
+        end_time=None,
     ):
         index_columns = []
         drop_indexes = False if self.vector.spec.with_indexes else True
@@ -56,8 +58,13 @@ class LocalFeatureMerger:
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            df = feature_set.to_dataframe(columns=column_names, df_module=df_module)
-
+            df = feature_set.to_dataframe(
+                columns=column_names,
+                df_module=df_module,
+                start_time=start_time,
+                end_time=end_time,
+                filter_column=entity_timestamp_column,
+            )
             # rename columns with aliases
             df.rename(
                 columns={name: alias for name, alias in columns if alias}, inplace=True

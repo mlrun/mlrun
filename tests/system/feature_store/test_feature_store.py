@@ -363,6 +363,15 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert partitions == expected_partitions
 
+        resp = fs.get_offline_features(
+            vector,
+            start_time=datetime(2020, 12, 1, 17, 33, 15),
+            end_time=datetime(2020, 12, 1, 17, 33, 16),
+            entity_timestamp_column="timestamp",
+        )
+        resp2 = resp.to_dataframe()
+        assert len(resp2) == 10
+
     def test_ordered_pandas_asof_merge(self):
         left_set, left = prepare_feature_set(
             "left", "ticker", trades, timestamp_key="time"

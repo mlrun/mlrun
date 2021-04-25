@@ -18,8 +18,10 @@ from tempfile import mktemp
 
 import fsspec
 import pandas as pd
+import pyarrow.parquet as pq
 import requests
 import urllib3
+from storey.utils import find_filters
 
 import mlrun.errors
 from mlrun.utils import logger
@@ -121,7 +123,18 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
+    def as_df(
+        self,
+        url,
+        subpath,
+        columns=None,
+        df_module=None,
+        format="",
+        start_time=None,
+        end_time=None,
+        filter_column=None,
+        **kwargs,
+    ):
         df_module = df_module or pd
         if url.endswith(".csv") or format == "csv":
             if columns:
@@ -132,6 +145,33 @@ class DataStore:
                 kwargs["columns"] = columns
 
             def reader(*args, **kwargs):
+                if start_time or end_time:
+                    dataset = pq.ParquetDataset(args[0], filesystem=fs)
+                    if dataset.partitions:
+                        partitions = dataset.partitions.partition_names
+                        time_attributes = [
+                            "year",
+                            "month",
+                            "day",
+                            "hour",
+                            "minute",
+                            "second",
+                        ]
+                        partitions_time_attributes = [
+                            j for j in time_attributes if j in partitions
+                        ]
+                    else:
+                        partitions_time_attributes = []
+                    filters = []
+                    find_filters(
+                        partitions_time_attributes,
+                        start_time,
+                        end_time,
+                        filters,
+                        filter_column,
+                    )
+                    kwargs["filters"] = filters
+
                 df_from_pq = df_module.read_parquet(*args, **kwargs)
                 _drop_reserved_columns(df_from_pq)
                 return df_from_pq
@@ -278,7 +318,16 @@ class DataItem:
         self.download(self._local_path)
         return self._local_path
 
-    def as_df(self, columns=None, df_module=None, format="", **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        format="",
+        start_time=None,
+        end_time=None,
+        filter_column=None,
+        **kwargs,
+    ):
         """return a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select
@@ -291,6 +340,9 @@ class DataItem:
             columns=columns,
             df_module=df_module,
             format=format,
+            start_time=start_time,
+            end_time=end_time,
+            filter_column=filter_column,
             **kwargs,
         )
 

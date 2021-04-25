@@ -14,6 +14,7 @@
 import os
 import sys
 import typing
+from collections import Counter
 from copy import copy
 
 import mlrun
@@ -68,6 +69,49 @@ def get_default_prefix_for_target(kind):
     if not data_prefix:
         data_prefix = data_prefixes.default
     return data_prefix
+
+
+def validate_target_list(targets):
+    """Check that no target overrides another target in the list (name/path)"""
+
+    if not targets:
+        return
+    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    no_name_target_types_count = Counter(
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "name") and hasattr(target, "kind") and not target.name
+        ]
+        + targets_by_kind_name
+    )
+    overriding_name_target_types = [
+        t[0] for t in no_name_target_types_count.items() if t[1] > 1
+    ]
+    if overriding_name_target_types:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Only one default name per target type is allowed (please specify name for {0} target)".format(
+                overriding_name_target_types
+            )
+        )
+
+    no_path_target_types_count = Counter(
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "path") and hasattr(target, "kind") and not target.path
+        ]
+        + targets_by_kind_name
+    )
+    overriding_path_target_types = [
+        t[0] for t in no_path_target_types_count.items() if t[1] > 1
+    ]
+    if overriding_path_target_types:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Only one default path per target type is allowed (please specify path for {0} target)".format(
+                overriding_path_target_types
+            )
+        )
 
 
 def validate_target_placement(graph, final_step, targets):
@@ -308,7 +352,7 @@ class ParquetTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToParquet",
+            name=self.name or "WriteToParquet",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToParquet",
@@ -352,7 +396,7 @@ class CSVTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToCSV",
+            name=self.name or "WriteToCSV",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToCSV",
@@ -407,7 +451,7 @@ class NoSqlTarget(BaseStoreTarget):
             column_list = [col for col in column_list if col in aggregate_features]
 
         graph.add_step(
-            name="WriteToTable",
+            name=self.name or "WriteToTable",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToTable",
@@ -464,7 +508,7 @@ class StreamTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToStream",
+            name=self.name or "WriteToStream",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToV3IOStream",
@@ -499,7 +543,7 @@ class TSDBTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToTSDB",
+            name=self.name or "WriteToTSDB",
             class_name="storey.WriteToTSDB",
             after=after,
             graph_shape="cylinder",
@@ -582,7 +626,7 @@ class DFTarget(BaseStoreTarget):
     ):
         # todo: column filter
         graph.add_step(
-            name="WriteToDataFrame",
+            name=self.name or "WriteToDataFrame",
             after=after,
             graph_shape="cylinder",
             class_name="storey.ReduceToDataFrame",

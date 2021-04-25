@@ -254,10 +254,10 @@ class SQLDB(RunDBInterface):
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
-        from_db = self._transform_db_error(
+        feature_set = self._transform_db_error(
             self.db.get_feature_set, self.session, project, name, tag, uid
         )
-        return from_db.dict()
+        return feature_set.dict()
 
     def list_features(
         self,

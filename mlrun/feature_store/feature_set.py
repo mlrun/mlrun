@@ -417,12 +417,12 @@ class FeatureSet(ModelObj):
 
     def reload(self, update_spec=True):
         """reload/sync the feature vector status and spec from the DB"""
-        from_db = self._get_run_db().get_feature_set(
+        feature_set = self._get_run_db().get_feature_set(
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
-        if isinstance(from_db, dict):
-            from_db = FeatureSet.from_dict(from_db)
+        if isinstance(feature_set, dict):
+            feature_set = FeatureSet.from_dict(feature_set)
 
-        self.status = from_db.status
+        self.status = feature_set.status
         if update_spec:
-            self.spec = from_db.spec
+            self.spec = feature_set.spec

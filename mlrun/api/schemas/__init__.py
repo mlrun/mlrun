@@ -28,7 +28,7 @@ from .feature_store import (
     FeatureSet,
     FeatureSetDigestOutput,
     FeatureSetDigestSpec,
-    FeatureSetIngest,
+    FeatureSetIngestInput,
     FeatureSetIngestOutput,
     FeatureSetRecord,
     FeatureSetsOutput,

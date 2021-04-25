@@ -143,28 +143,41 @@ def list_feature_sets(
     return feature_sets
 
 
-def _needs_v3io_mount(data_source, data_targets):
+def _has_v3io_path(data_source, data_targets, feature_set):
     paths = []
-    for target in data_targets:
-        # If the target does not have a path (i.e. default target), then retrieve the default path from config.
-        paths.append(target.path or get_default_prefix_for_target(target.kind))
-    paths.append(data_source.path)
+
+    # If no data targets received, then use targets from the feature-set spec. In case it's empty as well, use
+    # default targets (by calling set_targets())
+    if not data_targets:
+        if not feature_set.spec.targets:
+            feature_set.set_targets()
+        data_targets = feature_set.spec.targets
+
+    if data_targets:
+        for target in data_targets:
+            # If the target does not have a path (i.e. default target), then retrieve the default path from config.
+            paths.append(target.path or get_default_prefix_for_target(target.kind))
+
+    if data_source:
+        paths.append(data_source.path)
 
     return any(
-        path.startswith("v3io://") or path.startswith("v3ios://") for path in paths
+        path and (path.startswith("v3io://") or path.startswith("v3ios://"))
+        for path in paths
     )
 
 
 @router.post(
     "/projects/{project}/feature-sets/{name}/references/{reference}/ingest",
     response_model=schemas.FeatureSetIngestOutput,
+    status_code=HTTPStatus.ACCEPTED.value,
 )
-def feature_set_ingest(
+def ingest_feature_set(
     request: Request,
     project: str,
     name: str,
     reference: str,
-    ingest_parameters: schemas.FeatureSetIngest,
+    ingest_parameters: schemas.FeatureSetIngestInput,
     username: str = Header(None, alias="x-remote-user"),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -176,17 +189,19 @@ def feature_set_ingest(
     feature_set._override_run_db(db_session)
 
     data_source = DataSource.from_dict(ingest_parameters.source.dict())
-    data_targets = [
-        DataTargetBase.from_dict(data_target.dict())
-        for data_target in ingest_parameters.targets
-    ]
+    data_targets = None
+    if ingest_parameters.targets:
+        data_targets = [
+            DataTargetBase.from_dict(data_target.dict())
+            for data_target in ingest_parameters.targets
+        ]
 
     run_config = RunConfig()
 
     # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and
     # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are
     # user-context parameters, we cannot use the api context.
-    if _needs_v3io_mount(data_source, data_targets):
+    if _has_v3io_path(data_source, data_targets, feature_set):
         secrets = get_secrets(request)
         access_key = secrets.get("V3IO_ACCESS_KEY", None)
 

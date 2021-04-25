@@ -115,7 +115,7 @@ class FeatureVectorsOutput(BaseModel):
     feature_vectors: List[FeatureVector]
 
 
-class DataSourceObject(BaseModel):
+class DataSource(BaseModel):
     kind: str
     name: str
     path: str
@@ -124,7 +124,7 @@ class DataSourceObject(BaseModel):
         extra = Extra.allow
 
 
-class DataTargetObject(BaseModel):
+class DataTarget(BaseModel):
     kind: str
     name: str
     path: Optional[str]
@@ -133,9 +133,9 @@ class DataTargetObject(BaseModel):
         extra = Extra.allow
 
 
-class FeatureSetIngest(BaseModel):
-    source: DataSourceObject
-    targets: List[DataTargetObject]
+class FeatureSetIngestInput(BaseModel):
+    source: DataSource
+    targets: Optional[List[DataTarget]]
     infer_options: Optional[int]
 
 

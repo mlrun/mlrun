@@ -32,6 +32,7 @@ from .config import config as mlconf
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
+from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
 from .run import get_object, import_function, import_function_to_dict, new_function
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
@@ -48,7 +49,6 @@ from .utils import (
     update_in,
 )
 from .utils.version import Version
-from .platforms import auto_mount as auto_mount_modifier
 
 
 @click.group()
@@ -124,7 +124,9 @@ def main():
 @click.option("--kind", default="", help="serverless runtime kind")
 @click.option("--source", default="", help="source code archive/git")
 @click.option("--local", is_flag=True, help="run the task locally (ignore runtime)")
-@click.option("--auto-mount", is_flag=True, help="add volume mount to job using auto mount option")
+@click.option(
+    "--auto-mount", is_flag=True, help="add volume mount to job using auto mount option"
+)
 @click.option("--workdir", default="", help="run working directory")
 @click.option("--label", multiple=True, help="run labels (key=val)")
 @click.option("--watch", "-w", is_flag=True, help="watch/tail run log")
@@ -287,9 +289,16 @@ def run(
         if auto_mount:
             fn.apply(auto_mount_modifier())
         if source:
-            supported_runtimes = ["", "local", RuntimeKinds.job, RuntimeKinds.remotespark]
+            supported_runtimes = [
+                "",
+                "local",
+                RuntimeKinds.job,
+                RuntimeKinds.remotespark,
+            ]
             if fn.kind not in supported_runtimes:
-                print(f"source flag only works with the {','.join(supported_runtimes)} runtimes")
+                print(
+                    f"source flag only works with the {','.join(supported_runtimes)} runtimes"
+                )
                 exit(1)
             fn.spec.build.source = source
             fn.spec.build.load_source_on_run = True
@@ -773,7 +782,7 @@ def project(
             print(message)
         print(f"run id: {run}")
 
-        gitops = git_issue or environ.get('CI_MERGE_REQUEST_IID')
+        gitops = git_issue or environ.get("CI_MERGE_REQUEST_IID")
         if gitops:
             if not had_error:
                 message = f"Pipeline started id={run}"

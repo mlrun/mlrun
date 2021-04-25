@@ -18,7 +18,7 @@ import socket
 import time
 import uuid
 from base64 import b64decode
-from copy import deepcopy, copy
+from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp

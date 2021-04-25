@@ -24,7 +24,7 @@ from typing import Dict, Tuple, Union
 import mlrun
 
 from .config import config
-from .utils import dict_to_json, dict_to_yaml, get_artifact_target, get_in
+from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
 
 class ModelObj:

@@ -33,11 +33,11 @@ from nuclio import Event
 
 import mlrun
 from mlrun.lists import RunList
-from ..utils.clones import extract_source
 
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import logger
+from ..utils.clones import extract_source
 from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime

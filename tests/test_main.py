@@ -16,7 +16,7 @@ from subprocess import PIPE, run
 from sys import executable, stderr
 
 import mlrun
-from tests.conftest import examples_path, tests_root_directory, out_path
+from tests.conftest import examples_path, out_path, tests_root_directory
 
 
 def exec_main(op, args):
@@ -74,16 +74,18 @@ def test_main_run_noctx():
 
 
 def test_main_run_archive():
-    args = f'--source {examples_path}/archive.zip --handler handler'
-    out = exec_run("./myfunc.py", args.split(), 'test_main_run_archive')
+    args = f"--source {examples_path}/archive.zip --handler handler"
+    out = exec_run("./myfunc.py", args.split(), "test_main_run_archive")
     assert out.find("state: completed") != -1, out
 
 
 def test_main_local_flag():
-    fn = mlrun.code_to_function(filename=f"{examples_path}/handler.py", kind="job", handler='my_func')
-    yaml_path = f'{out_path}/myfunc.yaml'
+    fn = mlrun.code_to_function(
+        filename=f"{examples_path}/handler.py", kind="job", handler="my_func"
+    )
+    yaml_path = f"{out_path}/myfunc.yaml"
     fn.export(yaml_path)
-    args = f'-f {yaml_path} --local'
-    out = exec_run("", args.split(), 'test_main_local_flag')
+    args = f"-f {yaml_path} --local"
+    out = exec_run("", args.split(), "test_main_local_flag")
     print(out)
     assert out.find("state: completed") != -1, out

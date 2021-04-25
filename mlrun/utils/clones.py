@@ -1,13 +1,13 @@
 import shutil
 import tarfile
 import zipfile
-from os import remove, path, chdir
+from os import chdir, path, remove
+from tempfile import mktemp
 from urllib.parse import urlparse
 
 from git import Repo
 
 import mlrun
-from tempfile import mktemp
 
 
 def _prep_dir(source, target_dir, suffix, secrets, clone):
@@ -22,14 +22,14 @@ def _prep_dir(source, target_dir, suffix, secrets, clone):
 
 def clone_zip(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".zip", secrets, clone)
-    with zipfile.ZipFile(tmpfile, 'r') as zf:
+    with zipfile.ZipFile(tmpfile, "r") as zf:
         zf.extractall(target_dir)
     remove(tmpfile)  # delete zipped file
 
 
 def clone_tgz(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".tar.gz", secrets, clone)
-    with tarfile.TarFile.open(tmpfile, 'r:*') as tf:
+    with tarfile.TarFile.open(tmpfile, "r:*") as tf:
         tf.extractall(path=target_dir)
     remove(tmpfile)  # delete zipped file
 
@@ -92,17 +92,17 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
     if not source:
         return
     clone = clone if workdir else False
-    target_dir = workdir or './'
-    if source.endswith('.zip'):
+    target_dir = workdir or "./"
+    if source.endswith(".zip"):
         clone_zip(source, target_dir, secrets, clone)
     elif source.endswith(".tar.gz"):
         clone_tgz(source, target_dir, secrets, clone)
-    elif source.startswith('git://'):
+    elif source.startswith("git://"):
         clone_git(source, target_dir, secrets, clone)
     else:
         if path.exists(source) and path.isdir(source):
             if workdir:
-                raise ValueError('cannot specify both source and workdir')
+                raise ValueError("cannot specify both source and workdir")
             chdir(source)
             return
-        raise ValueError(f'unsupported source format/path {source}')
+        raise ValueError(f"unsupported source format/path {source}")

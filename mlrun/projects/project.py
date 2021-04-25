@@ -26,7 +26,6 @@ from kfp import compiler
 import mlrun.api.schemas
 import mlrun.api.utils.projects.leader
 import mlrun.errors
-from ..utils.clones import get_repo_url, clone_tgz, clone_git, clone_zip
 
 from ..artifacts import (
     ArtifactManager,
@@ -42,7 +41,6 @@ from ..features import Feature
 from ..model import ModelObj
 from ..run import (
     code_to_function,
-    download_object,
     get_object,
     import_function,
     new_function,
@@ -52,6 +50,7 @@ from ..run import (
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
+from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 
 
 class ProjectError(Exception):

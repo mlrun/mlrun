@@ -30,7 +30,15 @@ from ..serving.server import MockEvent, create_graph_server
 from ..utils import logger
 
 
-def init_featureset_graph(source, featureset, namespace, targets=None, return_df=True):
+def init_featureset_graph(
+    source,
+    featureset,
+    namespace,
+    targets=None,
+    return_df=True,
+    start_time=None,
+    end_time=None,
+):
     """create storey ingestion graph/DAG from feature set object"""
 
     cache = ResourceCache()
@@ -46,6 +54,8 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
             targets=targets,
             source=source,
             return_df=return_df,
+            start_time=start_time,
+            end_time=end_time,
         )
 
     server = create_graph_server(graph=graph, parameters={})
@@ -119,7 +129,14 @@ def context_to_ingestion_params(context):
 
 
 def _add_data_states(
-    graph, cache, featureset, targets, source, return_df=False,
+    graph,
+    cache,
+    featureset,
+    targets,
+    source,
+    return_df=False,
+    start_time=None,
+    end_time=None,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
     validate_target_placement(graph, default_final_state, targets)
@@ -135,7 +152,11 @@ def _add_data_states(
 
     if source is not None:
         source = get_source_step(
-            source, key_fields=key_fields, time_field=featureset.spec.timestamp_key,
+            source,
+            key_fields=key_fields,
+            time_field=featureset.spec.timestamp_key,
+            start_time=start_time,
+            end_time=end_time,
         )
     graph.set_flow_source(source)
 

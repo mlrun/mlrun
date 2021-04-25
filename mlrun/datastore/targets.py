@@ -269,7 +269,9 @@ class ParquetTarget(BaseStoreTarget):
         legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
         if time_partitioning is not None and time_partitioning not in legal_time_units:
-            raise ValueError(f"time_partitioning parameter must be one of {','.join(legal_time_units)}, not {time_partitioning}.")
+            raise ValueError(
+                f"time_partitioning parameter must be one of {','.join(legal_time_units)}, not {time_partitioning}."
+            )
 
         self.time_partitioning = []
         for time_unit in legal_time_units:

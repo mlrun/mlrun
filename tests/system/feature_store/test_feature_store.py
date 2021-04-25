@@ -253,7 +253,6 @@ class TestFeatureStore(TestMLRunSystem):
         measurements.set_targets(targets=[ParquetTarget(time_partitioning="hour")], with_defaults=False)
         fs.ingest(measurements, source)
 
-
     def test_featureset_column_types(self):
         data = pd.DataFrame(
             {

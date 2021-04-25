@@ -15,9 +15,10 @@
 import importlib.util as imputil
 import json
 import socket
+import time
 import uuid
 from base64 import b64decode
-from copy import deepcopy
+from copy import deepcopy, copy
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
@@ -998,3 +999,27 @@ def download_object(url, target, secrets=None):
     """download mlrun dataitem (from path/url to target path)"""
     stores = store_manager.set(secrets)
     stores.object(url=url).download(target_path=target)
+
+
+def wait_for_runs_completion(runs: list, sleep=3, timeout=0):
+    """wait for multiple runs to complete"""
+    completed = []
+    total_time = 0
+    while True:
+        running = []
+        for run in runs:
+            state = run.state()
+            if state not in ["running", "pending"]:
+                running.append(run)
+            else:
+                completed.append(run)
+        if len(running) == 0:
+            break
+        time.sleep(sleep)
+        total_time += sleep
+        if total_time > timeout:
+            print("exit after timout")
+            break
+        runs = running
+
+    return completed

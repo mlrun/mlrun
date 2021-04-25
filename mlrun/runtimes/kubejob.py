@@ -53,6 +53,11 @@ class KubejobRuntime(KubeResource):
             return True
         return False
 
+    def with_source_archive(self, source, at_runtime=True):
+        """load the code from git/tar/zip archive at runtime or build"""
+        self.spec.build.load_source_on_run = at_runtime
+        self.spec.build.source = source
+
     def build_config(
         self,
         image="",

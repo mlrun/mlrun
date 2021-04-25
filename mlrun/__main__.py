@@ -203,11 +203,16 @@ def run(
     if db:
         mlconf.dbpath = db
 
-    if func_url:
-        runtime = func_url_to_runtime(func_url)
-        if runtime is None:
-            exit(1)
-        kind = get_in(runtime, "kind", kind or "job")
+    if func_url or kind or image:
+        if func_url:
+            runtime = func_url_to_runtime(func_url)
+            kind = get_in(runtime, "kind", kind or "job")
+            if runtime is None:
+                exit(1)
+        else:
+            kind = kind or "job"
+            runtime = {"kind": kind, "spec": {"image": image}}
+
         if kind not in ["", "local", "dask"] and url:
             if path.isfile(url) and url.endswith(".py"):
                 with open(url) as fp:
@@ -237,7 +242,11 @@ def run(
         url = url or "main.py"
 
     if url:
+        if not name and not runtime:
+            name = path.splitext(path.basename(url))[0]
+            runobj.metadata.name = runobj.metadata.name or name
         update_in(runtime, "spec.command", url)
+
     if run_args:
         update_in(runtime, "spec.args", list(run_args))
     if image:
@@ -261,6 +270,8 @@ def run(
     )
     set_item(runobj.spec, verbose, "verbose")
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
+    update_in(runtime, "metadata.name", name, replace=False)
+    update_in(runtime, "metadata.project", project, replace=False)
 
     if kfp or runobj.spec.verbose or verbose:
         print(f"MLRun version: {str(Version().get())}")
@@ -270,17 +281,18 @@ def run(
         pprint(runobj.to_dict())
 
     try:
-        update_in(runtime, "metadata.name", name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         if workdir:
             fn.spec.workdir = workdir
         if auto_mount:
             fn.apply(auto_mount_modifier())
         if source:
-            if fn.kind not in ["", "local"]:
-                print("source flag only works with local runtime")
+            supported_runtimes = ["", "local", RuntimeKinds.job, RuntimeKinds.remotespark]
+            if fn.kind not in supported_runtimes:
+                print(f"source flag only works with the {','.join(supported_runtimes)} runtimes")
                 exit(1)
             fn.spec.build.source = source
+            fn.spec.build.load_source_on_run = True
         fn.is_child = from_env and not kfp
         resp = fn.run(runobj, watch=watch, schedule=schedule, local=local)
         if resp and dump:

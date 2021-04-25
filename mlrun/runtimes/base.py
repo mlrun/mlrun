@@ -556,6 +556,10 @@ class BaseRuntime(ModelObj):
                 args += [command]
             command = "mlrun"
 
+        if self.spec.build.load_source_on_run and self.spec.build.source:
+            if code:
+                raise ValueError('cannot use specify both code and source archive')
+            args += ["--source", self.spec.build.source]
         if runobj.spec.handler:
             args += ["--handler", runobj.spec.handler]
         if self.spec.args:

@@ -17,14 +17,13 @@ def _prep_dir(source, target_dir, suffix, secrets, clone):
         shutil.rmtree(target_dir)
     tmpfile = mktemp(suffix)
     mlrun.get_dataitem(source, secrets).download(tmpfile)
-    return
+    return tmpfile
 
 
 def clone_zip(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".zip", secrets, clone)
-    zip_ref = zipfile.ZipFile(tmpfile)  # create zipfile object
-    zip_ref.extractall(target_dir)  # extract file to dir
-    zip_ref.close()  # close file
+    with zipfile.ZipFile(tmpfile, 'r') as zf:
+        zf.extractall(target_dir)
     remove(tmpfile)  # delete zipped file
 
 
@@ -92,6 +91,7 @@ def clone_git(url, context, secrets=None, clone=True):
 def extract_source(source: str, workdir=None, secrets=None, clone=True):
     if not source:
         return
+    clone = clone if workdir else False
     target_dir = workdir or './'
     if source.endswith('.zip'):
         clone_zip(source, target_dir, secrets, clone)

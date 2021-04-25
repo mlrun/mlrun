@@ -14,6 +14,7 @@
 
 import inspect
 import re
+import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
@@ -725,6 +726,11 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
+        self.refresh()
+        return self.status.state or "unknown"
+
+    def refresh(self):
+        """refresh run state from the db"""
         db = mlrun.get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
@@ -732,7 +738,8 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            return get_in(run, "status.state", "unknown")
+            self.status.from_dict(run.get("status", {}))
+            return self
 
     def show(self):
         """show the current status widget, in jupyter notebook"""
@@ -756,6 +763,20 @@ class RunObject(RunTemplate):
 
         if state:
             print(f"final state: {state}")
+        return state
+
+    def wait_for_completion(self, sleep=3, timeout=0):
+        """wait for async run to complete"""
+        total_time = 0
+        while True:
+            state = self.state()
+            if state not in ["running", "pending"]:
+                break
+            time.sleep(sleep)
+            total_time += sleep
+            if total_time > timeout:
+                print("exit after timout")
+                break
         return state
 
     @staticmethod

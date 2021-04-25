@@ -169,7 +169,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         return load_module(self.spec.command, handler)
 
     def _pre_run(self, runobj: RunObject, execution):
-        extract_source(self.spec.build.source, self.spec.workdir)
+        if self.spec.build.load_source_on_run:
+            extract_source(self.spec.build.source, self.spec.workdir)
 
     def _run(self, runobj: RunObject, execution):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()

@@ -567,6 +567,63 @@ class TestFeatureStore(TestMLRunSystem):
         assert "exchange" not in features, "field was not dropped"
         assert len(df) == len(stocks), "dataframe size doesnt match"
 
+    def test_target_list_validation(self):
+        targets = [ParquetTarget()]
+        verify_target_list_fail(targets, with_defaults=True)
+
+        targets = [ParquetTarget(path="path1"), ParquetTarget(path="path2")]
+        verify_target_list_fail(targets, with_defaults=False)
+
+        targets = [ParquetTarget(name="parquet1"), ParquetTarget(name="parquet2")]
+        verify_target_list_fail(targets)
+
+        targets = [
+            ParquetTarget(name="same-name", path="path1"),
+            ParquetTarget(name="same-name", path="path2"),
+        ]
+        verify_target_list_fail(targets, with_defaults=False)
+
+        targets = [
+            ParquetTarget(name="parquet1", path="same-path"),
+            ParquetTarget(name="parquet2", path="same-path"),
+        ]
+        verify_target_list_fail(targets)
+
+    def test_same_target_type(self):
+        parquet_path1 = str(
+            self.results_path / _generate_random_name() / "par1.parquet"
+        )
+        parquet_path2 = str(
+            self.results_path / _generate_random_name() / "par2.parquet"
+        )
+
+        targets = [
+            ParquetTarget(name="parquet1", path=parquet_path1),
+            ParquetTarget(name="parquet2", path=parquet_path2),
+        ]
+        feature_set, _ = prepare_feature_set(
+            "same-target-type", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+        parquet1 = pd.read_parquet(feature_set.get_target_path(name="parquet1"))
+        parquet2 = pd.read_parquet(feature_set.get_target_path(name="parquet2"))
+
+        assert all(parquet1 == quotes.set_index("ticker"))
+        assert all(parquet1 == parquet2)
+
+        os.remove(parquet_path1)
+        os.remove(parquet_path2)
+
+
+def verify_target_list_fail(targets, with_defaults=None):
+    feature_set = fs.FeatureSet(name="target-list-fail", entities=[fs.Entity("ticker")])
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        if with_defaults:
+            feature_set.set_targets(targets=targets, with_defaults=with_defaults)
+        else:
+            feature_set.set_targets(targets=targets)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fs.ingest(feature_set, quotes, targets=targets)
+
 
 def verify_ingest(
     base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()

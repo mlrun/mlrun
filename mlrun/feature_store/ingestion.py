@@ -19,6 +19,7 @@ from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
     add_target_states,
     get_target_driver,
+    validate_target_list,
     validate_target_placement,
 )
 
@@ -139,6 +140,7 @@ def _add_data_states(
     end_time=None,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
+    validate_target_list(targets=targets)
     validate_target_placement(graph, default_final_state, targets)
     cache.cache_resource(featureset.uri, featureset, True)
     table = add_target_states(

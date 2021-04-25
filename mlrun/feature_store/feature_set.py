@@ -23,6 +23,7 @@ from ..datastore.targets import (
     TargetTypes,
     default_target_names,
     get_offline_target,
+    validate_target_list,
     validate_target_placement,
 )
 from ..features import Entity, Feature
@@ -303,6 +304,9 @@ class FeatureSet(ModelObj):
         targets = targets or []
         if with_defaults:
             targets.extend(default_target_names())
+
+        validate_target_list(targets=targets)
+
         for target in targets:
             kind = target.kind if hasattr(target, "kind") else target
             if kind not in TargetTypes.all():
@@ -406,6 +410,7 @@ class FeatureSet(ModelObj):
         _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
         if with_targets:
+            validate_target_list(targets=targets)
             validate_target_placement(graph, default_final_state, self.spec.targets)
             targets = [
                 BaseState(

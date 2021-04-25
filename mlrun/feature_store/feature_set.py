@@ -197,6 +197,7 @@ class FeatureSet(ModelObj):
         self._metadata = None
         self._status = None
         self._api_client = None
+        self._run_db = None
 
         self.spec = FeatureSetSpec(
             description=description, entities=entities, timestamp_key=timestamp_key

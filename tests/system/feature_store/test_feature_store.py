@@ -283,7 +283,7 @@ class TestFeatureStore(TestMLRunSystem):
             measurements,
             source,
             start_time="2020-12-01 17:33:15",
-            end_time="2020-12-01 17:33:16",
+            end_time=pd.Timestamp("2020-12-01 17:33:16"),
             return_df=True,
         )
         assert len(resp) == 10

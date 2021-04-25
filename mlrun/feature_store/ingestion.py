@@ -35,8 +35,8 @@ def init_featureset_graph(
     namespace,
     targets=None,
     return_df=True,
-    filter_start=None,
-    filter_end=None,
+    start_time=None,
+    end_time=None,
 ):
     """create storey ingestion graph/DAG from feature set object"""
 
@@ -52,8 +52,8 @@ def init_featureset_graph(
         targets=targets,
         source=source,
         return_df=return_df,
-        filter_start=filter_start,
-        filter_end=filter_end,
+        start_time=start_time,
+        end_time=end_time,
     )
 
     server = create_graph_server(graph=graph, parameters={})
@@ -102,8 +102,8 @@ def _add_data_states(
     targets,
     source,
     return_df=False,
-    filter_start=None,
-    filter_end=None,
+    start_time=None,
+    end_time=None,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
     validate_target_placement(graph, default_final_state, targets)
@@ -122,9 +122,8 @@ def _add_data_states(
             source,
             key_fields=key_fields,
             time_field=featureset.spec.timestamp_key,
-            filter_start=filter_start,
-            filter_end=filter_end,
-            filter_column=featureset.spec.timestamp_key,
+            start_time=start_time,
+            end_time=end_time,
         )
     graph.set_flow_source(source)
 

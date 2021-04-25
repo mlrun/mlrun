@@ -254,8 +254,8 @@ def ingest(
         namespace,
         targets=targets,
         return_df=return_df,
-        filter_start=start_time,
-        filter_end=end_time,
+        start_time=start_time,
+        end_time=end_time,
     )
     df = graph.wait_for_completion()
     infer_from_static_df(df, featureset, options=infer_stats)

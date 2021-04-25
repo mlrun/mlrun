@@ -144,9 +144,8 @@ def ingest(
     mlrun_context=None,
     spark_context=None,
     transformer=None,  # temporary, will be merged into the graph
-    filter_start=None,
-    filter_end=None,
-    filter_column=None,
+    start_time=None,
+    end_time=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -182,9 +181,8 @@ def ingest(
     :param spark_context: local spark session or True to create one, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
     :param transformer:   custom transformation function which accepts dataframe and **kwargs as input
-    :param filter_start   datetime, low limit of time needed to be filtered. format '2020-12-01 17:33:15'
-    :param filter_end     datetime, high limit of time needed to be filtered. format '2020-12-01 17:33:15'
-    :param filter_column  name of the column on which data is filtered. If None, featureset.spec.timestamp_key is taken
+    :param start_time     datetime/string, low limit of time needed to be filtered. format '2020-11-01 17:33:15'
+    :param end_time       datetime/string, high limit of time needed to be filtered. format '2020-12-01 17:33:15'
     """
     if not mlrun_context and (not featureset or source is None):
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -250,17 +248,14 @@ def ingest(
     featureset.save()
 
     targets = targets or featureset.spec.targets or get_default_targets()
-    if filter_start or filter_end and filter_column is None:
-        filter_column = featureset.spec.timestamp_key
     graph = init_featureset_graph(
         source,
         featureset,
         namespace,
         targets=targets,
         return_df=return_df,
-        filter_start=filter_start,
-        filter_end=filter_end,
-        filter_column=filter_column,
+        filter_start=start_time,
+        filter_end=end_time,
     )
     df = graph.wait_for_completion()
     infer_from_static_df(df, featureset, options=infer_stats)

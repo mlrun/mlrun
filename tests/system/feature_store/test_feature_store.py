@@ -282,9 +282,8 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.ingest(
             measurements,
             source,
-            filter_start="2020-12-01 17:33:15",
-            filter_end="2020-12-01 17:33:16",
-            filter_column="timestamp",
+            start_time="2020-12-01 17:33:15",
+            end_time="2020-12-01 17:33:16",
             return_df=True,
         )
         assert len(resp) == 10

@@ -85,13 +85,32 @@ def validate_target_list(targets):
         ]
         + targets_by_kind_name
     )
-    overriding_name_target_types = [
-        t[0] for t in no_name_target_types_count.items() if t[1] > 1
+    target_types_requiring_name = [
+        target_type
+        for target_type, target_type_count in no_name_target_types_count.items()
+        if target_type_count > 1
     ]
-    if overriding_name_target_types:
+    if target_types_requiring_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Only one default name per target type is allowed (please specify name for {0} target)".format(
-                overriding_name_target_types
+                target_types_requiring_name
+            )
+        )
+
+    target_names_count = Counter(
+        [target.name for target in targets if hasattr(target, "name") and target.name]
+    )
+
+    targets_with_same_name = [
+        target_name
+        for target_name, target_name_count in target_names_count.items()
+        if target_name_count > 1
+    ]
+
+    if targets_with_same_name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Each target must have a unique name (more than one target with those names found {0})".format(
+                targets_with_same_name
             )
         )
 
@@ -103,13 +122,32 @@ def validate_target_list(targets):
         ]
         + targets_by_kind_name
     )
-    overriding_path_target_types = [
-        t[0] for t in no_path_target_types_count.items() if t[1] > 1
+    target_types_requiring_path = [
+        target_type
+        for target_type, target_type_count in no_path_target_types_count.items()
+        if target_type_count > 1
     ]
-    if overriding_path_target_types:
+    if target_types_requiring_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Only one default path per target type is allowed (please specify path for {0} target)".format(
-                overriding_path_target_types
+                target_types_requiring_path
+            )
+        )
+
+    target_paths_count = Counter(
+        [target.path for target in targets if hasattr(target, "path") and target.path]
+    )
+
+    targets_with_same_path = [
+        target_path
+        for target_path, target_path_count in target_paths_count.items()
+        if target_path_count > 1
+    ]
+
+    if targets_with_same_path:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Each target must have a unique path (more than one target with those names found {0})".format(
+                targets_with_same_path
             )
         )
 

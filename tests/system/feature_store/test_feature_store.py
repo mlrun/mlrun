@@ -577,6 +577,18 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [ParquetTarget(name="parquet1"), ParquetTarget(name="parquet2")]
         verify_target_list_fail(targets)
 
+        targets = [
+            ParquetTarget(name="same-name", path="path1"),
+            ParquetTarget(name="same-name", path="path2"),
+        ]
+        verify_target_list_fail(targets, with_defaults=False)
+
+        targets = [
+            ParquetTarget(name="parquet1", path="same-path"),
+            ParquetTarget(name="parquet2", path="same-path"),
+        ]
+        verify_target_list_fail(targets)
+
     def test_same_target_type(self):
         parquet_path1 = str(
             self.results_path / _generate_random_name() / "par1.parquet"

@@ -563,14 +563,27 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
         )
 
 
-def pr_comment(repo: str, issue: int, message: str, token=None):
-    token = token or environ.get("GITHUB_TOKEN")
-    headers = {
-        "Accept": "application/vnd.github.v3+json",
-        "Authorization": f"token {token}",
-    }
-    url = f"https://api.github.com/repos/{repo}/issues/{issue}/comments"
+def pr_comment(repo: str, issue: int, message: str, token=None, server=None, gitlab=False):
+    if 'CI_PROJECT_ID' in environ:
+        gitlab = True
 
+    if gitlab:
+        server = server or 'gitlab.com'
+        headers = {"PRIVATE-TOKEN": token}
+        repo = repo or environ.get('CI_PROJECT_ID')
+        issue = issue or environ.get('CI_MERGE_REQUEST_IID')
+        repo = repo.replace('/', '%2F')
+        url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
+    else:
+        server = server or 'api.github.com'
+        token = token or environ.get("GITHUB_TOKEN")
+        repo = repo or environ.get("GITHUB_REPOSITORY")
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {token}",
+        }
+        url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
+    print(url)
     resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
     if not resp.ok:
         errmsg = f"bad pr comment resp!!\n{resp.text}"
@@ -759,13 +772,15 @@ class RunNotifications:
         self._hooks.append(_slack)
         return self
 
-    def git_comment(self, git_repo=None, git_issue=None, token=None):
+    def git_comment(self, git_repo=None, git_issue=None, token=None, server=None, gitlab=False):
         def _comment(message, runs):
             pr_comment(
                 git_repo or self._get_param("git_repo"),
                 git_issue or self._get_param("git_issue"),
                 self._get_html(message, runs),
                 token=token,
+                server=server,
+                gitlab=gitlab,
             )
 
         self._hooks.append(_comment)

@@ -433,6 +433,7 @@ class BaseRuntime(ModelObj):
             )
 
         execution = MLClientCtx.from_dict(runspec.to_dict(), db, autocommit=False)
+        self._pre_run(runspec, execution)  # hook for runtime specific prep
 
         # create task generator (for child runs) from spec
         task_generator = None
@@ -561,7 +562,10 @@ class BaseRuntime(ModelObj):
             args += self.spec.args
         return command, args, extra_env
 
-    def _run(self, runspec: RunObject, execution) -> dict:
+    def _pre_run(self, runspec: RunObject, execution):
+        pass
+
+    def _run(self, runobj: RunObject, execution) -> dict:
         pass
 
     def _run_many(self, generator, execution, runobj: RunObject) -> RunList:

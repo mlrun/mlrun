@@ -285,10 +285,11 @@ class ImageBuilder(ModelObj):
         secret=None,
         code_origin=None,
         registry=None,
+        load_source_on_run=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
-        self.source = source  #: course
+        self.source = source  #: source
         self.code_origin = code_origin  #: code_origin
         self.image = image  #: image
         self.base_image = base_image  #: base_image
@@ -296,6 +297,7 @@ class ImageBuilder(ModelObj):
         self.extra = extra  #: extra
         self.secret = secret  #: secret
         self.registry = registry  #: registry
+        self.load_source_on_run = load_source_on_run  #: load_source_on_run
         self.build_pod = None
 
 

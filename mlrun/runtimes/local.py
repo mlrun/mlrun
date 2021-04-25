@@ -33,6 +33,7 @@ from nuclio import Event
 
 import mlrun
 from mlrun.lists import RunList
+from ..utils.clones import extract_source
 
 from ..execution import MLClientCtx
 from ..model import RunObject
@@ -166,6 +167,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
     def _get_handler(self, handler):
         return load_module(self.spec.command, handler)
+
+    def _pre_run(self, runobj: RunObject, execution):
+        extract_source(self.spec.build.source, self.spec.workdir)
 
     def _run(self, runobj: RunObject, execution):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()

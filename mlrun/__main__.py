@@ -48,6 +48,7 @@ from .utils import (
     update_in,
 )
 from .utils.version import Version
+from .platforms import auto_mount as auto_mount_modifier
 
 
 @click.group()
@@ -120,6 +121,10 @@ def main():
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
 @click.option("--dump", is_flag=True, help="dump run results as YAML")
 @click.option("--image", default="", help="container image")
+@click.option("--kind", default="", help="serverless runtime kind")
+@click.option("--source", default="", help="source code archive/git")
+@click.option("--local", is_flag=True, help="run the task locally (ignore runtime)")
+@click.option("--auto-mount", is_flag=True, help="add volume mount to job using auto mount option")
 @click.option("--workdir", default="", help="run working directory")
 @click.option("--label", multiple=True, help="run labels (key=val)")
 @click.option("--watch", "-w", is_flag=True, help="watch/tail run log")
@@ -158,6 +163,10 @@ def run(
     from_env,
     dump,
     image,
+    kind,
+    source,
+    local,
+    auto_mount,
     workdir,
     label,
     watch,
@@ -198,7 +207,7 @@ def run(
         runtime = func_url_to_runtime(func_url)
         if runtime is None:
             exit(1)
-        kind = get_in(runtime, "kind", "")
+        kind = get_in(runtime, "kind", kind or "job")
         if kind not in ["", "local", "dask"] and url:
             if path.isfile(url) and url.endswith(".py"):
                 with open(url) as fp:
@@ -265,8 +274,15 @@ def run(
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         if workdir:
             fn.spec.workdir = workdir
+        if auto_mount:
+            fn.apply(auto_mount_modifier())
+        if source:
+            if fn.kind not in ["", "local"]:
+                print("source flag only works with local runtime")
+                exit(1)
+            fn.spec.build.source = source
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj, watch=watch, schedule=schedule)
+        resp = fn.run(runobj, watch=watch, schedule=schedule, local=local)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -745,7 +761,7 @@ def project(
             print(message)
         print(f"run id: {run}")
 
-        gitops = git_repo and git_issue
+        gitops = git_issue or environ.get('CI_MERGE_REQUEST_IID')
         if gitops:
             if not had_error:
                 message = f"Pipeline started id={run}"

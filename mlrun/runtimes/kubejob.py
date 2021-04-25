@@ -61,6 +61,7 @@ class KubejobRuntime(KubeResource):
         secret=None,
         source=None,
         extra=None,
+        load_source_on_run=None,
     ):
         if image:
             self.spec.build.image = image
@@ -77,6 +78,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.base_image = base_image
         if source:
             self.spec.build.source = source
+        if load_source_on_run:
+            self.spec.build.load_source_on_run = load_source_on_run
 
     def build(self, **kw):
         raise ValueError(".build() is deprecated, use .deploy() instead")

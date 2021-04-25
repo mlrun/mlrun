@@ -62,6 +62,14 @@ def get_default_targets():
     ]
 
 
+def get_default_prefix_for_target(kind):
+    data_prefixes = mlrun.mlconf.feature_store.data_prefixes
+    data_prefix = getattr(data_prefixes, kind, None)
+    if not data_prefix:
+        data_prefix = data_prefixes.default
+    return data_prefix
+
+
 def validate_target_placement(graph, final_step, targets):
     if final_step or graph.is_empty():
         return True
@@ -610,11 +618,7 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefixes = mlrun.mlconf.feature_store.data_prefixes
-    data_prefix = getattr(data_prefixes, kind, None)
-    if not data_prefix:
-        data_prefix = data_prefixes.default
-    data_prefix = data_prefix.format(project=project, kind=kind)
+    data_prefix = get_default_prefix_for_target(kind).format(project=project, kind=kind)
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

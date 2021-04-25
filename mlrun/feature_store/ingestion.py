@@ -173,7 +173,10 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
     task = mlrun.new_task(
-        name=name, params=run_config.parameters, handler=run_config.handler
+        name=name,
+        params=run_config.parameters,
+        handler=run_config.handler,
+        out_path=featureset.spec.output_path,
     )
     task.spec.secret_sources = run_config.secret_sources
     task.set_label("job-type", "feature-ingest").set_label(

@@ -2,7 +2,6 @@ from http import HTTPStatus
 from typing import List, Optional
 
 from fastapi import APIRouter, Query, Request, Response
-from starlette.concurrency import run_in_threadpool
 
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
@@ -15,7 +14,7 @@ router = APIRouter()
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-async def create_or_patch(
+def create_or_patch(
     request: Request, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
 ) -> Response:
     """
@@ -31,10 +30,8 @@ async def create_or_patch(
             f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
-    await run_in_threadpool(
-        ModelEndpoints.create_or_patch,
-        access_key=access_key,
-        model_endpoint=model_endpoint,
+    ModelEndpoints.create_or_patch(
+        access_key=access_key, model_endpoint=model_endpoint,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -43,24 +40,21 @@ async def create_or_patch(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-async def delete_endpoint_record(
+def delete_endpoint_record(
     request: Request, project: str, endpoint_id: str
 ) -> Response:
     """
     Clears endpoint record from KV by endpoint_id
     """
     access_key = get_access_key(request.headers)
-    await run_in_threadpool(
-        ModelEndpoints.delete_endpoint_record,
-        access_key=access_key,
-        project=project,
-        endpoint_id=endpoint_id,
+    ModelEndpoints.delete_endpoint_record(
+        access_key=access_key, project=project, endpoint_id=endpoint_id,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/projects/{project}/model-endpoints", response_model=ModelEndpointList)
-async def list_endpoints(
+def list_endpoints(
     request: Request,
     project: str,
     model: Optional[str] = Query(None),
@@ -85,8 +79,7 @@ async def list_endpoints(
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
      """
     access_key = get_access_key(request.headers)
-    endpoints = await run_in_threadpool(
-        ModelEndpoints.list_endpoints,
+    endpoints = ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
         model=model,
@@ -102,7 +95,7 @@ async def list_endpoints(
 @router.get(
     "/projects/{project}/model-endpoints/{endpoint_id}", response_model=ModelEndpoint
 )
-async def get_endpoint(
+def get_endpoint(
     request: Request,
     project: str,
     endpoint_id: str,
@@ -112,8 +105,7 @@ async def get_endpoint(
     feature_analysis: bool = Query(default=False),
 ) -> ModelEndpoint:
     access_key = get_access_key(request.headers)
-    endpoint = await run_in_threadpool(
-        ModelEndpoints.get_endpoint,
+    endpoint = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,
         endpoint_id=endpoint_id,

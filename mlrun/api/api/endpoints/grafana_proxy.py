@@ -28,7 +28,7 @@ router = APIRouter()
 
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
-async def grafana_proxy_model_endpoints_check_connection(request: Request):
+def grafana_proxy_model_endpoints_check_connection(request: Request):
     """
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
@@ -227,7 +227,7 @@ def grafana_individual_feature_analysis(
     return [table]
 
 
-async def grafana_overall_feature_analysis(
+def grafana_overall_feature_analysis(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")

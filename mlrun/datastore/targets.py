@@ -205,6 +205,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+        driver.time_partitioning = spec.time_partitioning
         driver._resource = resource
         return driver
 
@@ -255,6 +256,27 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
 
+    def __init__(
+        self,
+        name: str = "",
+        path=None,
+        attributes: typing.Dict[str, str] = None,
+        after_state=None,
+        time_partitioning: typing.Optional[str] = None
+    ):
+        super().__init__(name, path, attributes, after_state)
+
+        legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
+
+        if time_partitioning is not None and time_partitioning not in legal_time_units:
+            raise ValueError(f"time_partitioning parameter must be one of {','.join(legal_time_units)}, not {time_partitioning}.")
+
+        self.time_partitioning = []
+        for time_unit in legal_time_units:
+            self.time_partitioning.append(f"${time_unit}")
+            if time_unit == time_partitioning:
+                break
+
     @staticmethod
     def _write_dataframe(df, fs, target_path, **kwargs):
         with fs.open(target_path, "wb") as fp:
@@ -275,6 +297,7 @@ class ParquetTarget(BaseStoreTarget):
             path=self._target_path,
             columns=column_list,
             index_cols=key_columns,
+            partition_cols=self.time_partitioning,
             storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )

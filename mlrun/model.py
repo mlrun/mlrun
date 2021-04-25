@@ -956,6 +956,7 @@ class DataTargetBase(ModelObj):
     """data target spec, specify a destination for the feature set data"""
 
     _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
+    time_partitioning = None
 
     def __init__(
         self,

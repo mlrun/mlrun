@@ -11,7 +11,7 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget, TargetTypes
+from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
@@ -239,6 +239,20 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
             "2020-12-01 17:24:15.906352"
         )
+
+    def test_ingest_partitioned(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements", entities=[Entity(key)]
+        )
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+        measurements.set_targets(targets=[ParquetTarget(time_partitioning="hour")], with_defaults=False)
+        fs.ingest(measurements, source)
+
 
     def test_featureset_column_types(self):
         data = pd.DataFrame(

@@ -154,11 +154,13 @@ class BaseStoreTarget(DataTargetBase):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
+        suffix="",
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.suffix = suffix
 
         self._target = None
         self._resource = None
@@ -205,6 +207,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+        driver.suffix = spec.suffix
         driver.time_partitioning = spec.time_partitioning
         driver._resource = resource
         return driver
@@ -251,7 +254,6 @@ class BaseStoreTarget(DataTargetBase):
 
 class ParquetTarget(BaseStoreTarget):
     kind = TargetTypes.parquet
-    suffix = ".parquet"
     is_offline = True
     support_spark = True
     support_storey = True
@@ -262,16 +264,18 @@ class ParquetTarget(BaseStoreTarget):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
-        time_partitioning: typing.Optional[str] = None
+        time_partitioning: typing.Optional[str] = None,
+        hash_partitioning: typing.Optional[int] = None,
     ):
-        super().__init__(name, path, attributes, after_state)
-
         legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
         if time_partitioning is not None and time_partitioning not in legal_time_units:
             raise ValueError(
                 f"time_partitioning parameter must be one of {','.join(legal_time_units)}, not {time_partitioning}."
             )
+
+        suffix = "" if time_partitioning else ".parquet"
+        super().__init__(name, path, attributes, after_state, suffix)
 
         self.time_partitioning = []
         for time_unit in legal_time_units:
@@ -309,6 +313,12 @@ class ParquetTarget(BaseStoreTarget):
             "path": store_path_to_spark(self._target_path),
             "format": "parquet",
         }
+
+    def as_df(self, columns=None, df_module=None):
+        """return the target data as dataframe"""
+        return mlrun.get_dataitem(self._target_path).as_df(
+            columns=columns, df_module=df_module, format="parquet"
+        )
 
 
 class CSVTarget(BaseStoreTarget):

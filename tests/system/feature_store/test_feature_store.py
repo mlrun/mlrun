@@ -1,6 +1,7 @@
 import os
 import random
 import string
+import uuid
 from datetime import datetime
 
 import pandas as pd
@@ -10,7 +11,7 @@ from storey import MapClass
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.steps import FeaturesetValidator
@@ -242,8 +243,9 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_ingest_partitioned(self):
         key = "patient_id"
+        name = f"measurements{uuid.uuid4()}"
         measurements = fs.FeatureSet(
-            "measurements", entities=[Entity(key)]
+            name, entities=[Entity(key)]
         )
         source = CSVSource(
             "mycsv",
@@ -251,7 +253,14 @@ class TestFeatureStore(TestMLRunSystem):
             time_field="timestamp",
         )
         measurements.set_targets(targets=[ParquetTarget(time_partitioning="hour")], with_defaults=False)
-        fs.ingest(measurements, source)
+        resp1 = fs.ingest(measurements, source)
+
+        source = ParquetSource("mypq", f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest")
+        measurements = fs.FeatureSet(
+            "measurements", entities=[Entity(key)]
+        )
+        resp2 = fs.ingest(measurements, source)
+        assert resp1.to_dict() == resp2.to_dict()
 
     def test_featureset_column_types(self):
         data = pd.DataFrame(

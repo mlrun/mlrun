@@ -20,6 +20,7 @@ import fsspec
 import pandas as pd
 import requests
 import urllib3
+from storey.utils import _drop_reserved_columns
 
 import mlrun.errors
 from mlrun.utils import logger
@@ -130,7 +131,11 @@ class DataStore:
         elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns
-            reader = df_module.read_parquet
+
+            def reader(*args, **kwargs):
+                df_from_pq = df_module.read_parquet(*args, **kwargs)
+                _drop_reserved_columns(df_from_pq)
+                return df_from_pq
         elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
 
@@ -139,7 +144,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            return reader(fs.open(url), **kwargs)
+            return reader(url, **kwargs)
 
         tmp = mktemp()
         self.download(self._join(subpath), tmp)

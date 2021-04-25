@@ -965,12 +965,14 @@ class DataTargetBase(ModelObj):
         path=None,
         attributes: Dict[str, str] = None,
         after_state=None,
+        suffix="",
     ):
         self.name = name
         self.kind: str = kind
         self.path = path
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.suffix = ""
 
 
 class FeatureSetProducer(ModelObj):

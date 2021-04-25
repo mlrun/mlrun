@@ -10,7 +10,7 @@ from storey import MapClass
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.steps import FeaturesetValidator
@@ -267,6 +267,26 @@ class TestFeatureStore(TestMLRunSystem):
         for key in ["key", "timedelta"]:
             verify_ingest(data, key, targets=[TargetTypes.nosql])
             verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
+
+    def test_filtering_parquet_by_time(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        source = ParquetSource(
+            "myparquet",
+            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
+        )
+
+        resp = fs.ingest(
+            measurements,
+            source,
+            start_time=datetime(2020, 12, 1, 17, 33, 15),
+            end_time="2020-12-01 17:33:16",
+            return_df=True,
+        )
+        assert len(resp) == 10
 
     def test_ordered_pandas_asof_merge(self):
         left_set, left = prepare_feature_set(

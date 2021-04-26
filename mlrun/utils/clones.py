@@ -1,3 +1,4 @@
+import os
 import shutil
 import tarfile
 import zipfile
@@ -94,6 +95,7 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
     clone = clone if workdir else False
     target_dir = workdir or "./"
     print(f'extracting source from {source} to {target_dir}')
+    print(f'cwd={os.getcwd()}, workdir={workdir}')
     if source.endswith(".zip"):
         clone_zip(source, target_dir, secrets, clone)
     elif source.endswith(".tar.gz"):
@@ -107,3 +109,4 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
             chdir(source)
             return
         raise ValueError(f"unsupported source format/path {source}")
+    print(os.listdir(target_dir))

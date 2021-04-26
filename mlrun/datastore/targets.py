@@ -14,6 +14,7 @@
 import os
 import sys
 import typing
+from collections import Counter
 from copy import copy
 
 import mlrun
@@ -60,6 +61,95 @@ def get_default_targets():
     return [
         DataTargetBase(target, name=str(target)) for target in default_target_names()
     ]
+
+
+def get_default_prefix_for_target(kind):
+    data_prefixes = mlrun.mlconf.feature_store.data_prefixes
+    data_prefix = getattr(data_prefixes, kind, None)
+    if not data_prefix:
+        data_prefix = data_prefixes.default
+    return data_prefix
+
+
+def validate_target_list(targets):
+    """Check that no target overrides another target in the list (name/path)"""
+
+    if not targets:
+        return
+    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    no_name_target_types_count = Counter(
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "name") and hasattr(target, "kind") and not target.name
+        ]
+        + targets_by_kind_name
+    )
+    target_types_requiring_name = [
+        target_type
+        for target_type, target_type_count in no_name_target_types_count.items()
+        if target_type_count > 1
+    ]
+    if target_types_requiring_name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Only one default name per target type is allowed (please specify name for {0} target)".format(
+                target_types_requiring_name
+            )
+        )
+
+    target_names_count = Counter(
+        [target.name for target in targets if hasattr(target, "name") and target.name]
+    )
+
+    targets_with_same_name = [
+        target_name
+        for target_name, target_name_count in target_names_count.items()
+        if target_name_count > 1
+    ]
+
+    if targets_with_same_name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Each target must have a unique name (more than one target with those names found {0})".format(
+                targets_with_same_name
+            )
+        )
+
+    no_path_target_types_count = Counter(
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "path") and hasattr(target, "kind") and not target.path
+        ]
+        + targets_by_kind_name
+    )
+    target_types_requiring_path = [
+        target_type
+        for target_type, target_type_count in no_path_target_types_count.items()
+        if target_type_count > 1
+    ]
+    if target_types_requiring_path:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Only one default path per target type is allowed (please specify path for {0} target)".format(
+                target_types_requiring_path
+            )
+        )
+
+    target_paths_count = Counter(
+        [target.path for target in targets if hasattr(target, "path") and target.path]
+    )
+
+    targets_with_same_path = [
+        target_path
+        for target_path, target_path_count in target_paths_count.items()
+        if target_path_count > 1
+    ]
+
+    if targets_with_same_path:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Each target must have a unique path (more than one target with those names found {0})".format(
+                targets_with_same_path
+            )
+        )
 
 
 def validate_target_placement(graph, final_step, targets):
@@ -300,7 +390,7 @@ class ParquetTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToParquet",
+            name=self.name or "WriteToParquet",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToParquet",
@@ -344,7 +434,7 @@ class CSVTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToCSV",
+            name=self.name or "WriteToCSV",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToCSV",
@@ -399,7 +489,7 @@ class NoSqlTarget(BaseStoreTarget):
             column_list = [col for col in column_list if col in aggregate_features]
 
         graph.add_step(
-            name="WriteToTable",
+            name=self.name or "WriteToTable",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToTable",
@@ -456,7 +546,7 @@ class StreamTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToStream",
+            name=self.name or "WriteToStream",
             after=after,
             graph_shape="cylinder",
             class_name="storey.WriteToV3IOStream",
@@ -491,7 +581,7 @@ class TSDBTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name="WriteToTSDB",
+            name=self.name or "WriteToTSDB",
             class_name="storey.WriteToTSDB",
             after=after,
             graph_shape="cylinder",
@@ -574,7 +664,7 @@ class DFTarget(BaseStoreTarget):
     ):
         # todo: column filter
         graph.add_step(
-            name="WriteToDataFrame",
+            name=self.name or "WriteToDataFrame",
             after=after,
             graph_shape="cylinder",
             class_name="storey.ReduceToDataFrame",
@@ -610,11 +700,7 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefixes = mlrun.mlconf.feature_store.data_prefixes
-    data_prefix = getattr(data_prefixes, kind, None)
-    if not data_prefix:
-        data_prefix = data_prefixes.default
-    data_prefix = data_prefix.format(project=project, kind=kind)
+    data_prefix = get_default_prefix_for_target(kind).format(project=project, kind=kind)
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

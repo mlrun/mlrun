@@ -19,7 +19,7 @@ import os
 import pathlib
 import traceback
 from copy import copy, deepcopy
-from inspect import getfullargspec
+from inspect import getfullargspec, signature
 from typing import Union
 
 import requests
@@ -280,6 +280,7 @@ class TaskState(BaseState):
         self.responder = responder
         self.full_event = full_event
         self.on_error = None
+        self._inject_context = False
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
@@ -295,6 +296,9 @@ class TaskState(BaseState):
                 self.handler = self.handler.__name__
             else:
                 self._handler = get_function(self.handler, namespace)
+            args = signature(self._handler).parameters
+            if args and "context" in list(args.keys()):
+                self._inject_context = True
             return
 
         if isinstance(self.class_name, type):
@@ -394,6 +398,12 @@ class TaskState(BaseState):
 
         if self.context.verbose:
             self.context.logger.info(f"state {self.name} got event {event.body}")
+
+        # inject context parameter if it is expected by the handler
+        if self._inject_context:
+            kwargs["context"] = self.context
+        elif kwargs and "context" in kwargs:
+            del kwargs["context"]
 
         try:
             if self.full_event:

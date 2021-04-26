@@ -10,7 +10,7 @@ from storey import MapClass
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.steps import FeaturesetValidator
@@ -29,6 +29,12 @@ class MyMap(MapClass):
         event["xx"] = event["bid"] * self._multiplier
         event["zz"] = 9
         return event
+
+
+def myfunc1(x, context=None):
+    assert context is not None, "context is none"
+    x = x.drop(columns=["exchange"])
+    return x
 
 
 def _generate_random_name():
@@ -267,6 +273,26 @@ class TestFeatureStore(TestMLRunSystem):
         for key in ["key", "timedelta"]:
             verify_ingest(data, key, targets=[TargetTypes.nosql])
             verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
+
+    def test_filtering_parquet_by_time(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        source = ParquetSource(
+            "myparquet",
+            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
+        )
+
+        resp = fs.ingest(
+            measurements,
+            source,
+            start_time=datetime(2020, 12, 1, 17, 33, 15),
+            end_time="2020-12-01 17:33:16",
+            return_df=True,
+        )
+        assert len(resp) == 10
 
     def test_ordered_pandas_asof_merge(self):
         left_set, left = prepare_feature_set(
@@ -523,6 +549,80 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert all(csv_df == parquet_df)
         assert all(csv_vec_df == parquet_vec_df)
+
+    def test_sync_pipeline(self):
+        stocks_set = fs.FeatureSet(
+            "stocks-sync",
+            entities=[Entity("ticker", ValueType.STRING)],
+            engine="pandas",
+        )
+
+        stocks_set.graph.to(name="s1", handler="myfunc1")
+        # df = fs.infer(my_set, df.head())
+        df = fs.ingest(stocks_set, stocks)
+        self._logger.info(f"output df:\n{df}")
+
+        features = list(stocks_set.spec.features.keys())
+        assert len(features) == 1, "wrong num of features"
+        assert "exchange" not in features, "field was not dropped"
+        assert len(df) == len(stocks), "dataframe size doesnt match"
+
+    def test_target_list_validation(self):
+        targets = [ParquetTarget()]
+        verify_target_list_fail(targets, with_defaults=True)
+
+        targets = [ParquetTarget(path="path1"), ParquetTarget(path="path2")]
+        verify_target_list_fail(targets, with_defaults=False)
+
+        targets = [ParquetTarget(name="parquet1"), ParquetTarget(name="parquet2")]
+        verify_target_list_fail(targets)
+
+        targets = [
+            ParquetTarget(name="same-name", path="path1"),
+            ParquetTarget(name="same-name", path="path2"),
+        ]
+        verify_target_list_fail(targets, with_defaults=False)
+
+        targets = [
+            ParquetTarget(name="parquet1", path="same-path"),
+            ParquetTarget(name="parquet2", path="same-path"),
+        ]
+        verify_target_list_fail(targets)
+
+    def test_same_target_type(self):
+        parquet_path1 = str(
+            self.results_path / _generate_random_name() / "par1.parquet"
+        )
+        parquet_path2 = str(
+            self.results_path / _generate_random_name() / "par2.parquet"
+        )
+
+        targets = [
+            ParquetTarget(name="parquet1", path=parquet_path1),
+            ParquetTarget(name="parquet2", path=parquet_path2),
+        ]
+        feature_set, _ = prepare_feature_set(
+            "same-target-type", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+        parquet1 = pd.read_parquet(feature_set.get_target_path(name="parquet1"))
+        parquet2 = pd.read_parquet(feature_set.get_target_path(name="parquet2"))
+
+        assert all(parquet1 == quotes.set_index("ticker"))
+        assert all(parquet1 == parquet2)
+
+        os.remove(parquet_path1)
+        os.remove(parquet_path2)
+
+
+def verify_target_list_fail(targets, with_defaults=None):
+    feature_set = fs.FeatureSet(name="target-list-fail", entities=[fs.Entity("ticker")])
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        if with_defaults:
+            feature_set.set_targets(targets=targets, with_defaults=with_defaults)
+        else:
+            feature_set.set_targets(targets=targets)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fs.ingest(feature_set, quotes, targets=targets)
 
 
 def verify_ingest(

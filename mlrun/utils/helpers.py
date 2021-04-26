@@ -18,7 +18,6 @@ import json
 import re
 import sys
 import time
-import mlrun
 from datetime import datetime, timezone
 from importlib import import_module
 from os import environ, path
@@ -33,6 +32,7 @@ from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
+import mlrun
 import mlrun.errors
 import mlrun.utils.version.version
 
@@ -564,7 +564,12 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
 
 
 def pr_comment(
-    message: str, repo: str = None, issue: int = None, token=None, server=None, gitlab=False
+    message: str,
+    repo: str = None,
+    issue: int = None,
+    token=None,
+    server=None,
+    gitlab=False,
 ):
     if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
         gitlab = True
@@ -674,18 +679,49 @@ class RunNotifications:
         if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
 
-    def push(self, message, runs):
+    def push_start_message(self, project, commit_id=None):
+        message = f"Pipeline started in project {project}"
+        if commit_id:
+            message += f", commit={commit_id}"
+        if mlrun.mlconf.resolve_ui_url():
+            url = "{}/{}/{}/jobs".format(
+                mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
+            )
+            html = (
+                message
+                + f'<div><a href="{url}" target="_blank">click here to check progress</a></div>'
+            )
+            message = message + f", check progress in {url}"
+        self.push(message, html=html)
+
+    def push_run_results(self, runs):
+        had_errors = 0
+        runs_list = []
+        for r in runs:
+            if r.status.state == "error":
+                had_errors += 1
+            runs_list.append(r.to_dict())
+
+        text = "pipeline run finished"
+        if had_errors:
+            text += f" with {had_errors} errors"
+        self.push(text, runs_list)
+
+    def push(self, message, runs=None, html=None):
         if isinstance(runs, list):
             runs = mlrun.lists.RunList(runs)
+        self._html = None
         for h in self._hooks:
             try:
-                h(message, runs)
+                h(message, runs, html)
             except Exception as exc:
                 logger.warning(f"failed to push notification, {exc}")
         if self.with_ipython and is_ipython:
             import IPython
 
-            IPython.display.display(IPython.display.HTML(self._get_html(message, runs)))
+            IPython.display.display(
+                IPython.display.HTML(self._get_html(html or message, runs))
+            )
 
     def _get_html(self, message, runs):
         if self._html:
@@ -700,7 +736,7 @@ class RunNotifications:
         return html
 
     def print(self):
-        def _print(message, runs):
+        def _print(message, runs, html=None):
             if not runs:
                 print(message)
                 return
@@ -739,9 +775,9 @@ class RunNotifications:
         def row(text):
             return {"type": "mrkdwn", "text": text}
 
-        def _slack(message, runs):
+        def _slack(message, runs, html=None):
             fields = [row("*Runs*"), row("*Results*")]
-            for r in runs:
+            for r in runs or []:
                 meta = r["metadata"]
                 if config.resolve_ui_url():
                     url = (
@@ -771,7 +807,9 @@ class RunNotifications:
 
             if runs:
                 for i in range(0, len(fields), 8):
-                    data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
+                    data["blocks"].append(
+                        {"type": "section", "fields": fields[i : i + 8]}
+                    )
             response = requests.post(
                 webhook,
                 data=json.dumps(data),
@@ -785,11 +823,11 @@ class RunNotifications:
     def git_comment(
         self, git_repo=None, git_issue=None, token=None, server=None, gitlab=False
     ):
-        def _comment(message, runs):
+        def _comment(message, runs, html=None):
             pr_comment(
-                self._get_html(message, runs),
-                git_repo or self._get_param("git_repo"),
-                git_issue or self._get_param("git_issue"),
+                self._get_html(html or message, runs),
+                git_repo,
+                git_issue,
                 token=token,
                 server=server,
                 gitlab=gitlab,

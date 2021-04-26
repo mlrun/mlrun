@@ -44,7 +44,6 @@ from .utils import (
     list2dict,
     logger,
     parse_versioned_object_uri,
-    pr_comment,
     run_keys,
     update_in,
 )
@@ -747,6 +746,13 @@ def project(
         proj.params["git_repo"] = git_repo
     if git_issue:
         proj.params["git_issue"] = git_issue
+    commit = (
+        proj.params.get("commit")
+        or environ.get("GITHUB_SHA")
+        or environ.get("CI_COMMIT_SHA")
+    )
+    if commit:
+        proj.params["commit"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         proj._secrets = SecretsStore.from_list(secrets)
@@ -782,33 +788,22 @@ def project(
             print(message)
         print(f"run id: {run}")
 
-        gitops = git_issue or environ.get("CI_MERGE_REQUEST_IID")
+        gitops = (
+            git_issue
+            or environ.get("GITHUB_EVENT_PATH")
+            or environ.get("CI_MERGE_REQUEST_IID")
+        )
+        n = RunNotifications(with_slack=True, secrets=proj._secrets).print()
         if gitops:
-            if not had_error:
-                message = f"Pipeline started id={run}"
-                if proj.params and "commit" in proj.params:
-                    message += f", commit={proj.params['commit']}"
-                if mlconf.resolve_ui_url():
-                    message_template = (
-                        '<div><a href="{}/{}/{}/jobs" target='
-                        + ' "_blank">click here to check progress</a></div>'
-                    )
-                    message += message_template.format(
-                        mlconf.resolve_ui_url(), mlconf.ui.projects_prefix, proj.name
-                    )
-            pr_comment(
-                message, git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
-            )
-
+            n.git_comment(git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN"))
+        if not had_error:
+            n.push_start_message(proj.name, commit, run)
+        else:
+            n.push(message)
         if had_error:
             exit(1)
 
         if watch:
-            n = RunNotifications(with_slack=True).print()
-            if gitops:
-                n.git_comment(
-                    git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
-                )
             proj.get_run_status(run, notifiers=n)
 
     elif sync:

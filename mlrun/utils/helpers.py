@@ -585,6 +585,11 @@ def pr_comment(
     else:
         server = server or "api.github.com"
         repo = repo or environ.get("GITHUB_REPOSITORY")
+        if not issue and "GITHUB_EVENT_PATH" in environ:
+            with open(environ["GITHUB_EVENT_PATH"]) as fp:
+                data = fp.read()
+                event = json.loads(data)
+                issue = event["pull_request"].get("number")
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {token}",
@@ -672,15 +677,21 @@ def retry_until_successful(
 
 
 class RunNotifications:
-    def __init__(self, with_ipython=True, with_slack=False):
+    def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
         self._html = ""
+        self._secrets = secrets or {}
         self.with_ipython = with_ipython
         if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
 
-    def push_start_message(self, project, commit_id=None):
+    def push_start_message(self, project, commit_id=None, id=None):
         message = f"Pipeline started in project {project}"
+        if id:
+            message += f" id={id}"
+        commit_id = (
+            commit_id or environ.get("GITHUB_SHA") or environ.get("CI_COMMIT_SHA")
+        )
         if commit_id:
             message += f", commit={commit_id}"
         if mlrun.mlconf.resolve_ui_url():
@@ -768,7 +779,11 @@ class RunNotifications:
 
     def slack(self, webhook=""):
         emoji = {"completed": ":smiley:", "running": ":man-running:", "error": ":x:"}
-        webhook = webhook or environ.get("SLACK_WEBHOOK")
+        webhook = (
+            webhook
+            or environ.get("SLACK_WEBHOOK")
+            or self._secrets.get("SLACK_WEBHOOK")
+        )
         if not webhook:
             raise ValueError("Slack webhook is not set")
 
@@ -828,7 +843,9 @@ class RunNotifications:
                 self._get_html(html or message, runs),
                 git_repo,
                 git_issue,
-                token=token,
+                token=token
+                or self._secrets.get("GIT_TOKEN")
+                or self._secrets.get("GITHUB_TOKEN"),
                 server=server,
                 gitlab=gitlab,
             )

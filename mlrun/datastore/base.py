@@ -136,6 +136,7 @@ class DataStore:
                 df_from_pq = df_module.read_parquet(*args, **kwargs)
                 _drop_reserved_columns(df_from_pq)
                 return df_from_pq
+
         elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
 

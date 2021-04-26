@@ -244,21 +244,22 @@ class TestFeatureStore(TestMLRunSystem):
     def test_ingest_partitioned(self):
         key = "patient_id"
         name = f"measurements{uuid.uuid4()}"
-        measurements = fs.FeatureSet(
-            name, entities=[Entity(key)]
-        )
+        measurements = fs.FeatureSet(name, entities=[Entity(key)])
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
             time_field="timestamp",
         )
-        measurements.set_targets(targets=[ParquetTarget(time_partitioning="hour")], with_defaults=False)
+        measurements.set_targets(
+            targets=[ParquetTarget(time_partitioning="hour")], with_defaults=False
+        )
         resp1 = fs.ingest(measurements, source)
 
-        source = ParquetSource("mypq", f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest")
-        measurements = fs.FeatureSet(
-            "measurements", entities=[Entity(key)]
+        source = ParquetSource(
+            "mypq",
+            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
         )
+        measurements = fs.FeatureSet("measurements", entities=[Entity(key)])
         resp2 = fs.ingest(measurements, source)
         assert resp1.to_dict() == resp2.to_dict()
 

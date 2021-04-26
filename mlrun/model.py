@@ -18,7 +18,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-from typing import Dict, Tuple, Union, Optional
+from typing import Dict, Optional, Tuple, Union
 
 import mlrun
 

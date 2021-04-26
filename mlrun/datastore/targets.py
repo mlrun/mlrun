@@ -276,7 +276,8 @@ class ParquetTarget(BaseStoreTarget):
             and time_partitioning not in self._legal_time_units
         ):
             raise ValueError(
-                f"time_partitioning parameter must be one of {','.join(self._legal_time_units)}, not {time_partitioning}."
+                f"time_partitioning parameter must be one of {','.join(self._legal_time_units)}, "
+                f"not {time_partitioning}."
             )
 
         self.time_partitioning = time_partitioning

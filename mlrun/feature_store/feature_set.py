@@ -380,7 +380,7 @@ class FeatureSet(ModelObj):
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
         else:
-            graph.add_step(
+            state = graph.add_step(
                 name=state_name,
                 after=after or previous_step,
                 before=before,
@@ -392,6 +392,8 @@ class FeatureSet(ModelObj):
         for operation in operations:
             for window in windows:
                 upsert_feature(f"{name}_{operation}_{window}")
+
+        return state
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""

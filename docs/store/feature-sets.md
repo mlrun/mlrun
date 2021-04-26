@@ -3,11 +3,11 @@
 In Iguazio, features are kept in a logical group called feature set. Feature set has meta data and a list of features that are associated with it. <br>
 You can think about feature set in a similar way as a table in a database.
 The feature set contains the following information:
-- Metadata - general information which is helpful for search and organization. examples are project, name, owner, last update, description, labels and etc..
-- Key attributes - entity (the join key), timestamp key
-- Transformation - the transformation logic (e.g. aggregation, enrichment etc..)
-- Target stores - The type and path the feature set are saved 
-- Source - the source of the data (e.g. file, dataframe, databaset etc..)
+- Metadata - General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels and etc..
+- Key attributes - Entity (the join key), timestamp key (optional).
+- Transformation - The transformation logic (e.g. aggregation, enrichment etc..).
+- Data source - The source of the data before it gets into the feature store (e.g. file, dataframe, database etc..)
+- Target stores - The type (i.e. parquet/csv or key value) and location for saving the feature set. 
 - Statistics - Feature set is saved with statistics for each features such as min,max,count etc..
 
 
@@ -19,13 +19,9 @@ The feature set contains the following information:
 * Calculate features in real time - run real time feature engineering on live events
 
 
-### Key attributes:
-* `name` &mdash; - The feature set is a unique name within a project. 
-* `entities` &mdash; - Each feature set must be associated with one or more index column. when joining feature sets the entity is used as the key column.
-
 ## Create a feature set
 Creating a feature set comprises of the following steps:
-- Feature set creation:  Creates a feature set object with basic definition of its name, entity and timestamp key (optional) <br>
+- Basic definition of a Feature set object:  Creates a feature set object with a basic definition such as name, entity , description (optional) and timestamp key (optional) <br>
 
 - Add transformation:  The feature store provides the option to create a variety of transformations such as aggregations, joins, filter as well as adding custom logic. <br>
 The Transformation can be done both as a batch process or in real time by processing live events. <br>
@@ -33,15 +29,30 @@ There are two engines that can be used for transformation:
     - A graph engine called storey which is an asynchronous streaming library, for real time event <br> processing and feature extraction. Add link to the transformation section.<br>
     -Using spark <br><br>
 
-- Data ingestion: Ingest the data to the feature sets - ingesting data could be done as batch or in real time. <br>
-in this step the users defines the data source, scheduling, target data stores and the ingestion type
+- Create a source: source could be a dataframe, file/directory or a database table
 
+- Data ingestion: Ingest the data to the feature sets - ingesting data could be done as batch or in real time. <br>
+in this step the users defines the data source, target data stores and the ingestion type
+
+
+### Key attributes:
+* `name` &mdash; The feature set name is a unique name within a project. 
+* `entities` &mdash; Each feature set must be associated with one or more index column. when joining feature sets the entity is used as the key column.
+* `timestamp_key` &mdash; (optional) - it is used for specifiying the time field when joining by time
+
+
+```python
+#Create a basic feature set example
+stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
+```
+
+To learn more about FeatureSet go to [Feature set](https://docs.mlrun.org/en/latest/api/mlrun.feature_store.html?highlight=FeatureSet#mlrun.feature_store.FeatureSet) 
 
 ### Batch Ingestion
 
-Ingest data into the feature store from various sources. the source could be a local DataFrame or files (e.g. csv, parquet) or files residing in a remote URL (e.g. S3, Azure blob). Then, run the graph transformations, infers metadata and stats and writes the results to a target data store.
-When targets are not specified data is stored in the configured default targets (will usually be NoSQL for real-time and Parquet for offline).
-
+Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job.
+The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io) or remote (e.g. S3, Azure blob). If the user defines a transfomration graph then when running an ingestion process it runs the graph transformations, infers metadata and stats and writes the results to a target data store.
+When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
 #### Ingest data (locally)
@@ -61,12 +72,14 @@ targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
 ingest(measurements, source, targets)
 ```
 
+To learn more about ingest go to [ingest](https://docs.mlrun.org/en/latest/api/mlrun.feature_store.html?highlight=ingest#mlrun.feature_store.ingest) 
+
 #### Ingest data using an MLRun job
 
 Use the ingest method with run_config parameter for running the ingestion process using an MLrun job. <br>
-By doing it the ingestion process is running on its own pod on the kubernetes cluster. <br>
-Using this option is more robust as it can leverage the cluster resources as opposed running within the jupyter pod.<br>
-It also enable users to schedule the job.
+By doing that, the ingestion process is running on its own pod on the kubernetes cluster. <br>
+Using this option is more robust as it can leverage the cluster resources as opposed to running within the jupyter pod.<br>
+It also enables users to schedule the job.
 
 
 ```python
@@ -78,11 +91,11 @@ df = ingest(stocks_set, stocks, run_config=config)
 
 ### Real time ingestion
 
-With real time use cases (e.g. real time fraud detection) users need to create features on live data (e.g. z-score calculation) coming from a streaming engine such as kafka. <br>
+Real time use cases (e.g. real time fraud detection) requires feature engineering on live data (e.g. z-score calculation) while the data is coming from a streaming engine (e.g. kafka). <br>
 The feature store enables users to start real-time ingestion service. <br>
-When running the deploy_ingestion_service the feature store creates a real time function (AKA nuclio functio). <br>
-The function trigger's support the following sources: http, kafka, v3io stream <br>
-The trigger as well as other parameters can be configured in the Nuclio UI. <br> 
+When running the deploy_ingestion_service the feature store creates a real time function (AKA nuclio functio) and by default the data is stored in the "offline" and "online" feature store. <br>
+Here are the supported sources for the online service: http, kafka, v3io stream <br>
+
 
 
 ```python
@@ -94,9 +107,11 @@ config = RunConfig(function=func)
 fs.deploy_ingestion_service(my_set, source, run_config=config)
 ```
 
+To learn more about deploy_ingestion_service go to [deploy ingestion service](https://docs.mlrun.org/en/latest/api/mlrun.feature_store.html?highlight=deploy_ingestion#mlrun.feature_store.deploy_ingestion_service) 
+
 ### Simulation
 During the development phase it's pretty common to check the feature set definition and simulate the creation of the feature set before ingesting the entire dataset which can take time. <br>
-This allows to get a preview of the results.The simulation method is called infer_metadata, it infer the source data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
+This allows to get a preview of the results.The simulation method is called infer_metadata, it infers the source data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
 
 
 
@@ -112,17 +127,17 @@ fs.infer_metadata(
 
 ### Data sources
 
-For the batch ingestion the feature store supports dataframes or files (i.e. csv & parquet). <br>
+For batch ingestion the feature store supports dataframes or files (i.e. csv & parquet). <br>
 The files can reside on S3 or Azure blob storage or on Iguazio platform. <br>
-For the real time ingestion the source could be http, kafk and v3io stream etc.
+For real time ingestion the source could be http, kafka or v3io stream.
 When defining a source  it maps to a nuclio event triggers. <br>
 Note that users can also create a custom source.
 
 ### Target stores
 By default the feature sets are stored as both parquet file for training and as a key value table (in Iguazio platform) for online serving. <br>
-The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application as it supports low latency data retrieval. <br>
+The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application as it supports low latency data retrieval based on key access. <br>
 
-> **Note:** When working with Iguazio platform the parquet files is stored under "Projects" container --> <project name>/fs/parquet folder. <br>
+> **Note:** When working with Iguazio platform the parquet files are stored under "Projects" container --> <project name>/fs/parquet folder. <br>
 The key value table is stored under --> "Projects" container --> <project name>/fs/nosql folder. <br>
 In addition to Iguazio, users can use Azure blob storage and S3 as target stores for parquet/csv files.
 
@@ -137,8 +152,11 @@ To learn more about setting transformation process go to [Feature set transforma
 
 In order to retrieve the feature set one needs to create a feature vector. <br>
 A feature vector is a logical definition of a list of features that are based on one or more feature sets. <br>
-By default the feature vector is saved just as a logical definition, yet users can persist it by using "target=" parameter.
- 
+In the example below, we create a vector that comprises of features across two feature sets. <br>
+By default the vector is not saved as an object and can be used for experimntal work. Once the user has a good sense of a vector he wants to use for building a model then he can use .save() for saving the vector object. <br> 
+By default the feature vector is saved just as a logical definition, yet users can persist it by using "target=" parameter. <br>
+To learn more about FeatureVector go to [Feature vector](https://docs.mlrun.org/en/latest/api/mlrun.feature_store.html?highlight=Featurevector#mlrun.feature_store.FeatureVector)
+
 
 
 ```python
@@ -151,11 +169,15 @@ features = [
 ]
 
 vector = fs.FeatureVector("stocks-vec", features)
+
+# Use vectore.save() for storing the vector object
+vector.save()
 ```
 
-Once we have a feature vector we can run the get_offline_features method to retireve our feature set. <br>
+Once we have a feature vector in place we can run get_offline_features method to retireve data from the feature set. <br>
 This command fetch the data from the "offline" feature store and return a dataframe. <br>
-you can also write  the result as a parquet file. <br>
+Note that you can also write  the result as a parquet file. <br>
+To learn more about get_offline_features go to [get offline features](https://docs.mlrun.org/en/latest/api/mlrun.feature_store.html?highlight=get_offline_features#mlrun.feature_store.get_offline_features) API
 
 
 
@@ -178,8 +200,10 @@ resp.to_dataframe()
 
 By default feature set are ingested to both "offline" and "Online" target store. To consume the features for online applications use the get_online_feature_service method. <br>
 In order to do that we need to initialize the online service and then get the relevant features. <br>
-in a single get request you can get features for one or more keys. <br>
-The get_online_features retrieves the data from Iguazio key value database fetching the features using the entity as a key and therefore it can returns data in few milliseconds.
+In a single get request you can retrieve features for one or more keys. <br>
+The get_online_features retrieves the data from Iguazio key value database fetching the features using the entity as a key and therefore it can returns data in few milliseconds. <br>
+To learn more about get_online_feature_service go to [get online feature service](https://docs.mlrun.org/en/latest/api/mlrun.feature_store.html?highlight=get_online_#mlrun.feature_store.get_online_feature_service)
+
 
 
 ```python
@@ -211,7 +235,8 @@ service.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
 
 ## Show statistics and metadata
 
-By running get_stats_table() you can view the feature set or feature vector statistics: count, mean, min, max, std, his (histogram), unique value, top, frequency
+By running get_stats_table() you can view the feature set or feature vector statistics: count, mean, min, max, std, his (histogram), unique value, top, frequency. <br>
+To learn more about get_stats_table go to [get stats table](https://docs.mlrun.org/en/latest/api/mlrun.feature_store.html?highlight=get_stats_table#mlrun.feature_store.FeatureSet.get_stats_table)
 
 
 ```python

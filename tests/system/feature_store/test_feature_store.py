@@ -251,7 +251,8 @@ class TestFeatureStore(TestMLRunSystem):
             time_field="timestamp",
         )
         measurements.set_targets(
-            targets=[ParquetTarget(time_partitioning="hour")], with_defaults=False
+            targets=[ParquetTarget(time_partitioning_granularity="hour")],
+            with_defaults=False,
         )
         resp1 = fs.ingest(measurements, source)
 

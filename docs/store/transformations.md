@@ -48,6 +48,7 @@ the bids in the last hour, per stock ticker (which is the entity in question). T
 can be used:
 
 ```python
+import mlrun.feature_store as fs
 # create a new feature set
 quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])
 quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
@@ -134,19 +135,54 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
 that was added previously. The class will be initialized with a multiplier of 3.
 
-## Using Spark for transformations
+## Using Spark
 
 The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
-using Spark, the internal execution graph is not used, replaced by transformation code that fed to the 
-{py:func}`~mlrun.feature_store.ingest` function through the following parameters:
+using Spark, the internal execution graph is executed synchronously, by utilizing a Spark session to perform read and
+write operations, as well as potential transformations on the data. Note that executing synchronously means that the 
+source data is fully read into a data-frame which is processed, writing the output to the targets defined.
 
-1. A Spark session context, as the `spark_context` parameter. If the value `True` is passed here, a new Spark session
-   will be created by the feature store code and will be used for execution.
+Spark execution may be done locally, utilizing a local Spark session provided to the ingestion call, or remotely. To 
+use Spark as the transformation engine in ingestion, follow these steps:
+
+1. When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
+   to `spark`. For example:
    
-2. Transformation runnable as the `transformer` parameter. This code will be invoked with a data-frame containing the 
-   full data obtained from the source. It then should perform required transformations on the data-frame and return
-   it as output.
+    ```python
+    feature_set = fs.FeatureSet("stocks", entities=[fs.Entity("ticker")], engine="spark")
+    ```
+
+2. To use a local Spark session, pass a Spark session context when calling the 
+   {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session will be used for
+   data operations and transformations.
    
-The feature-store code would use Spark to read the data from the source, producing a data-frame. This data-frame will
-be fed to the `transformer` provided, and then the resulting data-frame will be used to infer feature-set metadata
-and it will be written using Spark to the targets. At the end of processing, the Spark session will be stopped.
+3. To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for the `ingest` API. The 
+   actual remote function to execute depends on the object passed:
+   
+    1. A default `RunConfig`, in which case the ingestion code would generate a new MLRun function runtime
+       of type `remote-spark`, or will utilize the function specified in `feature_set.spec.function` (in which case,
+       it has to be of runtime type `remote-spark`).
+      
+    2. A `RunConfig` which has a function configured within it. As mentioned, the function runtime must be of 
+       type `remote-spark`.
+       
+For example, the following code will execute data ingestion using Spark:
+
+```python
+    from mlrun.datastore.sources import CSVSource
+    from mlrun.datastore.targets import CSVTarget
+    
+    feature_set = fs.FeatureSet("stocks", entities=[fs.Entity("ticker")], engine="spark")
+
+    source = CSVSource("mycsv", path="stocks.csv")
+    targets = [CSVTarget("mycsv", path="./my_result_stocks.csv")]
+
+    # Execution using a local Spark session
+    spark = SparkSession.builder.appName("Spark function").getOrCreate()
+    fs.ingest(feature_set, source, targets, spark_session=spark)
+
+    # Remote execution using a remote-spark runtime
+    fs.ingest(feature_set, source, targets, run_config=fs.RunConfig())
+```
+When using a local Spark session, the `ingest` API would wait for its completion, while when using remote execution 
+the MLRun run execution details would be returned, allowing tracking of its status and results.

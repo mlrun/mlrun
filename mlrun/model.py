@@ -18,7 +18,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, Optional
 
 import mlrun
 
@@ -955,8 +955,14 @@ class DataSource(ModelObj):
 class DataTargetBase(ModelObj):
     """data target spec, specify a destination for the feature set data"""
 
-    _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
-    time_partitioning = None
+    _dict_fields = [
+        "name",
+        "kind",
+        "path",
+        "after_state",
+        "attributes",
+        "time_partitioning",
+    ]
 
     def __init__(
         self,
@@ -965,14 +971,14 @@ class DataTargetBase(ModelObj):
         path=None,
         attributes: Dict[str, str] = None,
         after_state=None,
-        suffix="",
+        time_partitioning: Optional[str] = None,
     ):
         self.name = name
         self.kind: str = kind
         self.path = path
         self.after_state = after_state
         self.attributes = attributes or {}
-        self.suffix = ""
+        self.time_partitioning = time_partitioning
 
 
 class FeatureSetProducer(ModelObj):

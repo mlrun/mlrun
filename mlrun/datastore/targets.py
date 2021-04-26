@@ -154,13 +154,13 @@ class BaseStoreTarget(DataTargetBase):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
-        suffix="",
+        time_partitioning: typing.Optional[str] = None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
-        self.suffix = suffix
+        self.time_partitioning = time_partitioning
 
         self._target = None
         self._resource = None
@@ -207,8 +207,8 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
-        driver.suffix = spec.suffix
         driver.time_partitioning = spec.time_partitioning
+        driver.suffix = ".parquet" if spec.time_partitioning is None else ""
         driver._resource = resource
         return driver
 
@@ -258,6 +258,8 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
 
+    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
+
     def __init__(
         self,
         name: str = "",
@@ -265,23 +267,20 @@ class ParquetTarget(BaseStoreTarget):
         attributes: typing.Dict[str, str] = None,
         after_state=None,
         time_partitioning: typing.Optional[str] = None,
-        hash_partitioning: typing.Optional[int] = None,
+        # hash_partitioning: typing.Optional[int] = None,
     ):
-        legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
+        super().__init__(name, path, attributes, after_state, time_partitioning)
 
-        if time_partitioning is not None and time_partitioning not in legal_time_units:
+        if (
+            time_partitioning is not None
+            and time_partitioning not in self._legal_time_units
+        ):
             raise ValueError(
-                f"time_partitioning parameter must be one of {','.join(legal_time_units)}, not {time_partitioning}."
+                f"time_partitioning parameter must be one of {','.join(self._legal_time_units)}, not {time_partitioning}."
             )
 
-        suffix = "" if time_partitioning else ".parquet"
-        super().__init__(name, path, attributes, after_state, suffix)
-
-        self.time_partitioning = []
-        for time_unit in legal_time_units:
-            self.time_partitioning.append(f"${time_unit}")
-            if time_unit == time_partitioning:
-                break
+        self.time_partitioning = time_partitioning
+        self.suffix = ".parquet" if time_partitioning is None else ""
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, **kwargs):
@@ -295,6 +294,14 @@ class ParquetTarget(BaseStoreTarget):
         if timestamp_key and timestamp_key not in column_list:
             column_list = [timestamp_key] + column_list
 
+        time_partitioning = None
+        if self.time_partitioning is not None:
+            time_partitioning = []
+            for time_unit in self._legal_time_units:
+                time_partitioning.append(f"${time_unit}")
+                if time_unit == time_partitioning:
+                    break
+
         graph.add_step(
             name="WriteToParquet",
             after=after,
@@ -303,7 +310,7 @@ class ParquetTarget(BaseStoreTarget):
             path=self._target_path,
             columns=column_list,
             index_cols=key_columns,
-            partition_cols=self.time_partitioning,
+            partition_cols=time_partitioning,
             storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )

@@ -797,7 +797,7 @@ def project(
                         mlconf.resolve_ui_url(), mlconf.ui.projects_prefix, proj.name
                     )
             pr_comment(
-                git_repo, git_issue, message, token=proj.get_secret("GITHUB_TOKEN")
+                message, git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
             )
 
         if had_error:

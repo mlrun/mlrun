@@ -232,7 +232,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
-    ):
+    ) -> RunObject:
         """Run a local or remote task.
 
         :param runspec:        run template object or dict (see RunTemplate)
@@ -258,8 +258,7 @@ class BaseRuntime(ModelObj):
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
 
-        :return: run context object (dict) with run metadata, results and
-            status
+        :return: run context object (RunObject) with run metadata, results and status
         """
 
         if local:

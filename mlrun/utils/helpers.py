@@ -18,6 +18,7 @@ import json
 import re
 import sys
 import time
+import mlrun
 from datetime import datetime, timezone
 from importlib import import_module
 from os import environ, path
@@ -271,7 +272,6 @@ def flatten(df, col, prefix=""):
             for k in r.keys():
                 if k not in params:
                     params += [k]
-    params
     for p in params:
         df[prefix + p] = df[col].apply(lambda x: x.get(p, "") if x else "")
     df.drop(col, axis=1, inplace=True)
@@ -564,10 +564,11 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
 
 
 def pr_comment(
-    repo: str, issue: int, message: str, token=None, server=None, gitlab=False
+    message: str, repo: str = None, issue: int = None, token=None, server=None, gitlab=False
 ):
-    if "CI_PROJECT_ID" in environ:
+    if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
         gitlab = True
+    token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
 
     if gitlab:
         server = server or "gitlab.com"
@@ -578,14 +579,12 @@ def pr_comment(
         url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
     else:
         server = server or "api.github.com"
-        token = token or environ.get("GITHUB_TOKEN")
         repo = repo or environ.get("GITHUB_REPOSITORY")
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {token}",
         }
         url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
-    print(url)
     resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
     if not resp.ok:
         errmsg = f"bad pr comment resp!!\n{resp.text}"
@@ -676,6 +675,8 @@ class RunNotifications:
             self.slack()
 
     def push(self, message, runs):
+        if isinstance(runs, list):
+            runs = mlrun.lists.RunList(runs)
         for h in self._hooks:
             try:
                 h(message, runs)
@@ -689,6 +690,8 @@ class RunNotifications:
     def _get_html(self, message, runs):
         if self._html:
             return self._html
+        if not runs:
+            return message
 
         html = "<h2>Run Results</h2>" + message
         html += "<br>click the hyper links below to see detailed results<br>"
@@ -698,6 +701,10 @@ class RunNotifications:
 
     def print(self):
         def _print(message, runs):
+            if not runs:
+                print(message)
+                return
+
             table = []
             for r in runs:
                 state = r["status"].get("state", "")
@@ -762,8 +769,9 @@ class RunNotifications:
                 ]
             }
 
-            for i in range(0, len(fields), 8):
-                data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
+            if runs:
+                for i in range(0, len(fields), 8):
+                    data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
             response = requests.post(
                 webhook,
                 data=json.dumps(data),
@@ -779,9 +787,9 @@ class RunNotifications:
     ):
         def _comment(message, runs):
             pr_comment(
+                self._get_html(message, runs),
                 git_repo or self._get_param("git_repo"),
                 git_issue or self._get_param("git_issue"),
-                self._get_html(message, runs),
                 token=token,
                 server=server,
                 gitlab=gitlab,

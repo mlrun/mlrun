@@ -19,6 +19,7 @@ from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
     add_target_states,
     get_target_driver,
+    validate_target_list,
     validate_target_placement,
 )
 
@@ -26,10 +27,19 @@ from ..data_types import InferOptions
 from ..datastore.store_resources import ResourceCache
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
-from ..serving.server import create_graph_server
+from ..serving.server import MockEvent, create_graph_server
+from ..utils import logger
 
 
-def init_featureset_graph(source, featureset, namespace, targets=None, return_df=True):
+def init_featureset_graph(
+    source,
+    featureset,
+    namespace,
+    targets=None,
+    return_df=True,
+    start_time=None,
+    end_time=None,
+):
     """create storey ingestion graph/DAG from feature set object"""
 
     cache = ResourceCache()
@@ -37,13 +47,38 @@ def init_featureset_graph(source, featureset, namespace, targets=None, return_df
 
     # init targets (and table)
     targets = targets or []
-    _add_data_states(
-        graph, cache, featureset, targets=targets, source=source, return_df=return_df,
-    )
+    if graph.engine != "sync":
+        _add_data_states(
+            graph,
+            cache,
+            featureset,
+            targets=targets,
+            source=source,
+            return_df=return_df,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     server = create_graph_server(graph=graph, parameters={})
     server.init(None, namespace, cache)
-    return graph
+
+    if graph.engine != "sync":
+        return graph.wait_for_completion()
+
+    if hasattr(source, "to_dataframe"):
+        source = source.to_dataframe()
+    elif not hasattr(source, "to_csv"):
+        raise mlrun.errors.MLRunInvalidArgumentError("illegal source")
+
+    event = MockEvent(body=source)
+    data = server.run(event, get_body=True)
+    for target in targets:
+        target = get_target_driver(target, featureset)
+        size = target.write_dataframe(data)
+        target_status = target.update_resource_status("ready", size=size)
+        logger.info(f"wrote target: {target_status}")
+
+    return data
 
 
 def featureset_initializer(server):
@@ -51,13 +86,27 @@ def featureset_initializer(server):
 
     context = server.context
     cache = server.resource_cache
-    featureset, source, targets, infer_options = context_to_ingestion_params(context)
+    featureset, source, targets, _ = context_to_ingestion_params(context)
     graph = featureset.spec.graph.copy()
     _add_data_states(
         graph, cache, featureset, targets=targets, source=source,
     )
     featureset.save()
     server.graph = graph
+
+
+def run_spark_graph(df, featureset, namespace, spark):
+    """run spark (sync) pipeline"""
+    cache = ResourceCache()
+    graph = featureset.spec.graph.copy()
+    if graph.engine != "sync":
+        raise mlrun.errors.MLRunInvalidArgumentError("spark must use sync graph")
+
+    server = create_graph_server(graph=graph, parameters={})
+    server.init(None, namespace, cache)
+    server.context.spark = spark
+    event = MockEvent(body=df)
+    return server.run(event, get_body=True)
 
 
 def context_to_ingestion_params(context):
@@ -81,9 +130,17 @@ def context_to_ingestion_params(context):
 
 
 def _add_data_states(
-    graph, cache, featureset, targets, source, return_df=False,
+    graph,
+    cache,
+    featureset,
+    targets,
+    source,
+    return_df=False,
+    start_time=None,
+    end_time=None,
 ):
     _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
+    validate_target_list(targets=targets)
     validate_target_placement(graph, default_final_state, targets)
     cache.cache_resource(featureset.uri, featureset, True)
     table = add_target_states(
@@ -97,33 +154,41 @@ def _add_data_states(
 
     if source is not None:
         source = get_source_step(
-            source, key_fields=key_fields, time_field=featureset.spec.timestamp_key,
+            source,
+            key_fields=key_fields,
+            time_field=featureset.spec.timestamp_key,
+            start_time=start_time,
+            end_time=end_time,
         )
     graph.set_flow_source(source)
 
 
 def run_ingestion_job(name, featureset, run_config, schedule=None):
     name = name or f"{featureset.metadata.name}_ingest"
+    use_spark = featureset.spec.engine == "spark"
+    default_kind = RuntimeKinds.remotespark if use_spark else RuntimeKinds.job
+    spark_runtimes = [RuntimeKinds.remotespark]  # may support spark operator in future
 
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():
-            function_ref = FunctionReference(name=name, kind=RuntimeKinds.job)
+            function_ref = FunctionReference(name=name, kind=default_kind)
         if not function_ref.url:
-            code = function_ref.code or ""
-            if run_config.kind == RuntimeKinds.remotespark:
-                function_ref.code = code + _default_spark_handler
-            else:
-                function_ref.code = code + _default_job_handler
+            function_ref.code = (function_ref.code or "") + _default_job_handler
         run_config.function = function_ref
         run_config.handler = "handler"
 
     image = (
         _default_spark_image()
-        if run_config.kind == RuntimeKinds.remotespark
+        if use_spark
         else mlrun.mlconf.feature_store.default_job_image
     )
-    function = run_config.to_function("job", image)
+    function = run_config.to_function(default_kind, image)
+    if use_spark and function.kind not in spark_runtimes:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "ingest with spark engine require spark function kind"
+        )
+
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
 
@@ -131,7 +196,10 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
     task = mlrun.new_task(
-        name=name, params=run_config.parameters, handler=run_config.handler
+        name=name,
+        params=run_config.parameters,
+        handler=run_config.handler,
+        out_path=featureset.spec.output_path,
     )
     task.spec.secret_sources = run_config.secret_sources
     task.set_label("job-type", "feature-ingest").set_label(
@@ -162,11 +230,4 @@ _default_job_handler = """
 from mlrun.feature_store.api import ingest
 def handler(context):
     ingest(mlrun_context=context)
-"""
-
-
-_default_spark_handler = """
-from mlrun.feature_store.api import ingest
-def handler(context):
-    ingest(mlrun_context=context, spark_context=True)
 """

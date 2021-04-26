@@ -197,11 +197,11 @@ class GraphServer(ModelObj):
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
         return resp
 
-    def run(self, event, context=None, get_body=False):
+    def run(self, event, context=None, get_body=False, extra_args=None):
         server_context = self.context
         context = context or server_context
         try:
-            response = self.graph.run(event)
+            response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
             message = str(exc)
             if server_context.verbose:

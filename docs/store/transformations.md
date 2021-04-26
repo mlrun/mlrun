@@ -61,7 +61,7 @@ parameter which determines on what column to perform the aggregations. These fea
 processing and feature generation.
 
 ```{admonition} Note
-Internally, the graph step that is created to perform these aggregations is named `"Aggregations"`. If more than one
+Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
 aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
 ```
 

@@ -1,4 +1,5 @@
 import collections
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
@@ -63,6 +64,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self._cache = {
             "project_resources_counters": {"value": None, "ttl": datetime.min}
         }
+        self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
         return
@@ -321,6 +323,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter: int = None,
     ):
         project = project or config.default_project
 
@@ -337,8 +340,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         artifacts = ArtifactList()
         for artifact in self._find_artifacts(
-            session, project, ids, labels, since, until, name, kind, category
+            session, project, ids, labels, since, until, name, kind, category, iter
         ):
+            # We need special handling for the case where iter==0, since in that case no iter prefix will exist.
+            # Regex support is db-specific, and SQLAlchemy actually implements Python regex for SQLite anyway,
+            # and even that only in SA 1.4. So doing this here rather than in the query.
+            if iter == 0 and self._name_with_iter_regex.match(artifact.key):
+                continue
+
             artifact_struct = artifact.struct
             if ids != "latest":
                 artifacts_with_tag = self._add_tags_to_artifact_struct(
@@ -927,7 +936,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                         )
                         project_to_running_runs_count[run.project] += 1
                 if self._is_run_matching_state(
-                    run, run_json, mlrun.runtimes.constants.RunStates.error
+                    run,
+                    run_json,
+                    [
+                        mlrun.runtimes.constants.RunStates.error,
+                        mlrun.runtimes.constants.RunStates.aborted,
+                    ],
                 ):
                     one_day_ago = datetime.now() - timedelta(hours=24)
                     if run.start_time and run.start_time >= one_day_ago:
@@ -2108,6 +2122,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         name=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter=None,
     ):
         """
         TODO: refactor this method
@@ -2140,8 +2155,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
+        name_query = ""
+        if iter:
+            # Note that this only covers cases where iter>0
+            name_query = f"{iter}-"
         if name is not None:
-            query = query.filter(Artifact.key.ilike(f"%{name}%"))
+            name_query = name_query + f"%{name}"
+        if name_query != "":
+            query = query.filter(Artifact.key.ilike(f"{name_query}%"))
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])

@@ -76,7 +76,11 @@ class ResourceCache:
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
             endpoint, uri = parse_v3io_path(uri)
-            self._tabels[uri] = Table(uri, V3ioDriver(webapi=endpoint))
+            self._tabels[uri] = Table(
+                uri,
+                V3ioDriver(webapi=endpoint),
+                flush_interval_secs=mlrun.mlconf.feature_store.default_flush_interval,
+            )
             return self._tabels[uri]
 
         if is_store_uri(uri):

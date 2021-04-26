@@ -226,8 +226,20 @@ class FileRunDB(RunDBInterface):
         return self._loads(data)
 
     def list_artifacts(
-        self, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
     ):
+        if iter:
+            raise NotImplementedError(
+                "iter parameter not supported for filedb implementation"
+            )
+
         labels = [] if labels is None else labels
         tag = tag or "latest"
         name = name or ""

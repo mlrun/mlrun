@@ -270,7 +270,7 @@ def generate_function_image_name(function):
     _, repository = helpers.get_parsed_docker_registry()
     if not repository:
         repository = "mlrun"
-    return f".{repository}/func-{project}-{function.metadata.name}-{tag}"
+    return f".{repository}/func-{project}-{function.metadata.name}:{tag}"
 
 
 def set_named_item(obj, item):

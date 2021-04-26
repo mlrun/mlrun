@@ -47,10 +47,8 @@ kubernetes~=11.0
 #  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2
 fastapi~=0.62.0
-# adlfs 0.7.0 has fsspec>=0.8.2, <=0.8.7, replicating it here since v3iofs 0.1.6 has fsspec>=0.6.2 which installs 0.9.0
-# which is incompatible
-fsspec>=0.8.2, <=0.8.7
+fsspec~=0.9.0
 v3iofs~=0.1.5
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.3.2
-storey~=0.4.0; python_version >= '3.7'
+storey~=0.4.5; python_version >= '3.7'

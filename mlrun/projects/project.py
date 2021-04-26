@@ -1233,7 +1233,7 @@ class MlrunProject(ModelObj):
             logger.warning(
                 "get_vault_secrets executed locally. This is not recommended and may become deprecated soon"
             )
-            self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
+            return self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
 
         run_db = get_run_db(secrets=self._secrets)
         project_secrets = run_db.get_project_secrets(

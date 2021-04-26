@@ -9,11 +9,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from mlrun.api.api import deps
-from mlrun.api.crud.model_endpoints import (
-    ENDPOINT_EVENTS_TABLE_PATH,
-    ModelEndpoints,
-    get_access_key,
-)
+from mlrun.api.crud.model_endpoints import EVENTS, ModelEndpoints, get_access_key
 from mlrun.api.schemas import (
     Format,
     GrafanaColumn,
@@ -25,13 +21,14 @@ from mlrun.api.schemas import (
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client
 
 router = APIRouter()
 
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
-async def grafana_proxy_model_endpoints_check_connection(request: Request):
+def grafana_proxy_model_endpoints_check_connection(request: Request):
     """
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
@@ -64,7 +61,7 @@ async def grafana_proxy_model_endpoints_query(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint]
-    result = await function(body, query_parameters, access_key)
+    result = await run_in_threadpool(function, body, query_parameters, access_key)
     return result
 
 
@@ -89,20 +86,18 @@ async def grafana_proxy_model_endpoints_search(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
-    result = await function(db_session)
+    result = await run_in_threadpool(function, db_session)
     return result
 
 
-async def grafana_list_projects(db_session: Session) -> List[str]:
+def grafana_list_projects(db_session: Session) -> List[str]:
     db = get_db()
 
-    projects_output = await run_in_threadpool(
-        db.list_projects, session=db_session, format_=Format.name_only,
-    )
+    projects_output = db.list_projects(session=db_session, format_=Format.name_only)
     return projects_output.projects
 
 
-async def grafana_list_endpoints(
+def grafana_list_endpoints(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ) -> List[GrafanaTable]:
     project = query_parameters.get("project")
@@ -121,7 +116,7 @@ async def grafana_list_endpoints(
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
 
-    endpoint_list = await ModelEndpoints.list_endpoints(
+    endpoint_list = ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
         model=model,
@@ -179,13 +174,13 @@ async def grafana_list_endpoints(
     return [table]
 
 
-async def grafana_individual_feature_analysis(
+def grafana_individual_feature_analysis(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = await ModelEndpoints.get_endpoint(
+    endpoint = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,
         endpoint_id=endpoint_id,
@@ -232,13 +227,13 @@ async def grafana_individual_feature_analysis(
     return [table]
 
 
-async def grafana_overall_feature_analysis(
+def grafana_overall_feature_analysis(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
 
-    endpoint = await ModelEndpoints.get_endpoint(
+    endpoint = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,
         endpoint_id=endpoint_id,
@@ -269,7 +264,7 @@ async def grafana_overall_feature_analysis(
     return [table]
 
 
-async def grafana_incoming_features(
+def grafana_incoming_features(
     body: Dict[str, Any], query_parameters: Dict[str, str], access_key: str
 ):
     endpoint_id = query_parameters.get("endpoint_id")
@@ -277,7 +272,7 @@ async def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    endpoint = await ModelEndpoints.get_endpoint(
+    endpoint = ModelEndpoints.get_endpoint(
         access_key=access_key, project=project, endpoint_id=endpoint_id
     )
 
@@ -292,16 +287,18 @@ async def grafana_incoming_features(
         )
         return time_series
 
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind=EVENTS
+    )
+    _, container, path = parse_model_endpoint_store_prefix(path)
+
     client = get_frames_client(
-        token=access_key,
-        address=config.v3io_framesd,
-        container=config.model_endpoint_monitoring.container,
+        token=access_key, address=config.v3io_framesd, container=container,
     )
 
-    data: pd.DataFrame = await run_in_threadpool(
-        client.read,
+    data: pd.DataFrame = client.read(
         backend="tsdb",
-        table=f"{project}/{ENDPOINT_EVENTS_TABLE_PATH}",
+        table=path,
         columns=feature_names,
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,

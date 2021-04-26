@@ -244,7 +244,7 @@ class HTTPRunDB(RunDBInterface):
             config.scrape_metrics = (
                 server_cfg.get("scrape_metrics")
                 if server_cfg.get("scrape_metrics") is not None
-                else config.kfp_image
+                else config.scrape_metrics
             )
         except Exception:
             pass
@@ -513,7 +513,14 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error, params=params)
 
     def list_artifacts(
-        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        name=None,
+        project=None,
+        tag=None,
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
     ):
         """ List artifacts filtered by various parameters.
 
@@ -529,9 +536,10 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels.
-        :param since: Return artifacts that were updated between ``[since, until]``. If only ``since`` is specified,
-            use the time range ``[since, now]``
-        :param until: See above. If only ``until`` is specified, return every artifact updated before ``until``.
+        :param since: Not in use in :py:class:`HTTPRunDB`.
+        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
+            ``None`` (default) return artifacts from all iterations.
         """
 
         project = project or default_project
@@ -540,6 +548,7 @@ class HTTPRunDB(RunDBInterface):
             "project": project,
             "tag": tag,
             "label": labels or [],
+            "iter": iter,
         }
         error = "list artifacts"
         resp = self.api_call("GET", "artifacts", error, params=params)
@@ -1904,7 +1913,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             method="PUT",
             path=path,
-            body=model_endpoint.dict(),
+            body=model_endpoint.json(),
             headers={"X-V3io-Session-Key": access_key},
         )
 

@@ -259,16 +259,16 @@ class BaseStoreTarget(DataTargetBase):
         attributes: typing.Dict[str, str] = None,
         after_state=None,
         columns=None,
-        time_partitioning_granularity: typing.Optional[str] = None,
         key_bucketing_number: typing.Optional[int] = None,
+        time_partitioning_granularity: typing.Optional[str] = None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
         self.columns = columns or []
-        self.time_partitioning_granularity = time_partitioning_granularity
         self.key_bucketing_number = key_bucketing_number
+        self.time_partitioning_granularity = time_partitioning_granularity
 
         self._target = None
         self._resource = None
@@ -329,6 +329,12 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+
+        if hasattr(spec, "columns"):
+            driver.columns = spec.columns
+
+        driver.key_bucketing_number = spec.key_bucketing_number
+
         driver.time_partitioning_granularity = spec.time_partitioning_granularity
         if spec.kind == "parquet":
             driver.suffix = (
@@ -337,9 +343,7 @@ class BaseStoreTarget(DataTargetBase):
                 and spec.key_bucketing_number is None
                 else ""
             )
-        driver.key_bucketing_number = spec.key_bucketing_number
-        if hasattr(spec, "columns"):
-            driver.columns = spec.columns
+
         driver._resource = resource
         return driver
 
@@ -389,8 +393,6 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
 
-    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
-
     def __init__(
         self,
         name: str = "",
@@ -398,8 +400,8 @@ class ParquetTarget(BaseStoreTarget):
         attributes: typing.Dict[str, str] = None,
         after_state=None,
         columns=None,
-        time_partitioning_granularity: typing.Optional[str] = None,
         key_bucketing_number: typing.Optional[int] = None,
+        time_partitioning_granularity: typing.Optional[str] = None,
     ):
         super().__init__(
             name,
@@ -407,8 +409,8 @@ class ParquetTarget(BaseStoreTarget):
             attributes,
             after_state,
             columns,
-            time_partitioning_granularity,
             key_bucketing_number,
+            time_partitioning_granularity,
         )
 
         if (
@@ -421,6 +423,8 @@ class ParquetTarget(BaseStoreTarget):
             )
 
         self.suffix = ".parquet" if time_partitioning_granularity is None else ""
+
+    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, **kwargs):

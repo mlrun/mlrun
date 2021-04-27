@@ -961,8 +961,8 @@ class DataTargetBase(ModelObj):
         "path",
         "after_state",
         "attributes",
-        "time_partitioning_granularity",
         "key_bucketing_number",
+        "time_partitioning_granularity",
     ]
 
     def __init__(
@@ -972,16 +972,16 @@ class DataTargetBase(ModelObj):
         path=None,
         attributes: Dict[str, str] = None,
         after_state=None,
-        time_partitioning_granularity: Optional[str] = None,
         key_bucketing_number: Optional[int] = None,
+        time_partitioning_granularity: Optional[str] = None,
     ):
         self.name = name
         self.kind: str = kind
         self.path = path
         self.after_state = after_state
         self.attributes = attributes or {}
-        self.time_partitioning_granularity = time_partitioning_granularity
         self.key_bucketing_number = key_bucketing_number
+        self.time_partitioning_granularity = time_partitioning_granularity
 
 
 class FeatureSetProducer(ModelObj):

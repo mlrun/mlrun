@@ -296,10 +296,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert len(resp) == 10
 
-    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day", "hour"])
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
+    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day", "hour"])
     def test_ingest_partitioned_by_key_and_time(
-        self, time_partitioning_granularity, key_bucketing_number
+        self, key_bucketing_number, time_partitioning_granularity
     ):
         if time_partitioning_granularity is None and key_bucketing_number is None:
             return
@@ -314,8 +314,8 @@ class TestFeatureStore(TestMLRunSystem):
         measurements.set_targets(
             targets=[
                 ParquetTarget(
-                    time_partitioning_granularity=time_partitioning_granularity,
                     key_bucketing_number=key_bucketing_number,
+                    time_partitioning_granularity=time_partitioning_granularity,
                 )
             ],
             with_defaults=False,

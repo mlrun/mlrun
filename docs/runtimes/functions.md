@@ -16,7 +16,7 @@ use in your projects.
 Functions (function objects) can be created by using any of the following methods:
 
 - **`new_function`** - creates a function "from scratch" or from another function.
-- **`code_to_function`** - creates a function from local or remote source code or from a web notebook.
+- **`code_to_function`** - creates a function from local or remote source code or from a notebook.
 - **`import_function`** - imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
   or from the function marketplace (e.g. `hub://describe`).
@@ -40,6 +40,28 @@ hyper-parameter or AutoML jobs.
 **MLRun Functions and Tasks**
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="800"/>
+
+## Specify/Import Function Code
+
+In MLRun code can be provided in several ways:
+1. inline as part of the function object 
+2. loaded into the function container as part of the build/deploy process 
+3. loaded from git/zip/tar archive into the function at runtime 
+
+the first option is great for small and single file functions or for using code derived from notebooks, we use mlrun 
+:py:func:`~mlrun.code_to_function` method to create functions from code files or notebooks.
+
+the build/deploy option is good for making sure we have an integrated code + dependencies container package and avoid 
+the dependency or overhead of loading code at runtime. We need to make sure we add the source archive into our container or use the `function.deploy()` method which will build a container for us, we can specify the build configuration using the `function.build_config()` method. 
+
+when doing iterative development with multiple code files and packages the 3rd option is the most efficient, we want 
+to make small code changes and re-run our job without building containers etc.
+
+the `local`, `job` and `remote-spark` runtimes support dynamic load from archive or file shares (other runtimes will 
+be added later), this is enabled by setting the `spec.build.source=<archive>` and `spec.build.load_source_on_run=True` 
+or by using the `function.from_source_archive()` method. in the CLI we use the `--source` flag. 
+
+see more details and examples on [**running jobs with code from Archives or shares**](./code-archive.ipynb)
 
 ## Running Tasks Using Functions
 

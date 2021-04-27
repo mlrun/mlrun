@@ -46,6 +46,7 @@ class KubeResourceSpec(FunctionSpec):
         env=None,
         resources=None,
         default_handler=None,
+        pythonpath=None,
         entry_points=None,
         description=None,
         workdir=None,
@@ -68,6 +69,7 @@ class KubeResourceSpec(FunctionSpec):
             description=description,
             workdir=workdir,
             default_handler=default_handler,
+            pythonpath=pythonpath,
         )
         self._volumes = {}
         self._volume_mounts = {}

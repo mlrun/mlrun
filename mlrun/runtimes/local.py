@@ -161,6 +161,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             obj.spec.image = image
         return obj
 
+    def from_source_archive(self, source):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:  valid path to git, zip, or tar file, e.g.
+                        git://github.com/mlrun/something.git
+                        http://some/url/file.zip
+        """
+        self.spec.build.source = source
+
     @property
     def is_deployed(self):
         return True
@@ -170,7 +179,17 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
     def _pre_run(self, runobj: RunObject, execution):
         if self.spec.build.load_source_on_run:
-            extract_source(self.spec.build.source, self.spec.workdir)
+            workdir = extract_source(self.spec.build.source, self.spec.workdir)
+            if not self.spec.pythonpath:
+                self.spec.pythonpath = workdir or './'
+
+        if (
+            runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
+            and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
+        ):
+            from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
+
+            igz_spark_pre_hook()
 
     def _run(self, runobj: RunObject, execution):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
@@ -182,14 +201,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         handler = runobj.spec.handler
         handler_str = handler or "main"
         logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
-
-        if (
-            runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
-            and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
-        ):
-            from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
-
-            igz_spark_pre_hook()
 
         if handler:
             if self.spec.pythonpath:

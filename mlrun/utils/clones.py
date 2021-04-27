@@ -107,6 +107,7 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
             if workdir:
                 raise ValueError("cannot specify both source and workdir")
             chdir(source)
-            return
+            return source
         raise ValueError(f"unsupported source format/path {source}")
     print(os.listdir(target_dir))
+    return target_dir

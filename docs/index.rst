@@ -68,7 +68,6 @@ Table Of Content
    projects
    serving/index
    model_monitoring/model-monitoring-deployment
-
 |
 |
 .. toctree::

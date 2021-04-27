@@ -54,7 +54,9 @@ class ParallelRunner:
             return function.client, function.metadata.name
         return Client(), None
 
-    def _parallel_run_many(self, generator, execution, runobj: RunObject) -> RunList:
+    def _parallel_run_many(
+        self, generator, execution: MLClientCtx, runobj: RunObject
+    ) -> RunList:
         results = RunList()
         tasks = generator.generate(runobj)
         handler = runobj.spec.handler
@@ -129,7 +131,7 @@ def remote_handler_wrapper(task, handler, workdir=None):
 class HandlerRuntime(BaseRuntime, ParallelRunner):
     kind = "handler"
 
-    def _run(self, runobj: RunObject, execution):
+    def _run(self, runobj: RunObject, execution: MLClientCtx):
         handler = runobj.spec.handler
         self._force_handler(handler)
         tmp = mktemp(".json")
@@ -177,11 +179,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def _get_handler(self, handler):
         return load_module(self.spec.command, handler)
 
-    def _pre_run(self, runobj: RunObject, execution):
+    def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
         if self.spec.build.load_source_on_run:
-            workdir = extract_source(self.spec.build.source, self.spec.workdir)
+            workdir = extract_source(
+                self.spec.build.source,
+                self.spec.workdir,
+                secrets=execution._secrets_manager,
+            )
             if not self.spec.pythonpath:
-                self.spec.pythonpath = workdir or './'
+                self.spec.pythonpath = workdir or "./"
 
         if (
             runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
@@ -191,7 +197,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             igz_spark_pre_hook()
 
-    def _run(self, runobj: RunObject, execution):
+    def _run(self, runobj: RunObject, execution: MLClientCtx):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
         tmp = mktemp(".json")
         environ["MLRUN_META_TMPFILE"] = tmp

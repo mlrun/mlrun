@@ -53,6 +53,7 @@ def get_repo_url(repo):
 
 def clone_git(url, context, secrets=None, clone=True):
     url_obj = urlparse(url)
+    secrets = secrets or {}
     if not context:
         raise ValueError("please specify a target (context) directory for clone")
 
@@ -94,8 +95,10 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
         return
     clone = clone if workdir else False
     target_dir = workdir or "./"
-    print(f'extracting source from {source} to {target_dir}')
-    print(f'cwd={os.getcwd()}, workdir={workdir}')
+    message = f"extracting source from {source} to {target_dir}"
+    if not workdir:
+        message += f" ({os.getcwd()})"
+    print(message)
     if source.endswith(".zip"):
         clone_zip(source, target_dir, secrets, clone)
     elif source.endswith(".tar.gz"):
@@ -109,5 +112,4 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
             chdir(source)
             return source
         raise ValueError(f"unsupported source format/path {source}")
-    print(os.listdir(target_dir))
     return target_dir

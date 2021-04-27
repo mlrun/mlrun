@@ -57,9 +57,6 @@ Table Of Content
    install
    howto/index
 
-|
-|
-
 .. toctree::
    :maxdepth: 1
    :caption: ML Pipelines:
@@ -69,7 +66,6 @@ Table Of Content
    projects
    serving/index
    model_monitoring/model-monitoring-deployment
-|
 
 .. toctree::
    :maxdepth: 1

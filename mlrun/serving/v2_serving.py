@@ -24,7 +24,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.datastore import _DummyStream
-from mlrun.utils import now_date, parse_versioned_object_uri, logger
+from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 
 class V2ModelServer:

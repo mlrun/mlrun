@@ -342,7 +342,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     def test_read_csv(self):
-        from storey import ReadCSV, ReduceToDataFrame, build_flow
+        from storey import CSVSource, ReduceToDataFrame, build_flow
 
         csv_path = str(self.results_path / _generate_random_name() / ".csv")
         targets = [CSVTarget("mycsv", path=csv_path)]
@@ -354,7 +354,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         # reading csv file
-        controller = build_flow([ReadCSV(csv_path), ReduceToDataFrame()]).run()
+        controller = build_flow([CSVSource(csv_path), ReduceToDataFrame()]).run()
         termination_result = controller.await_termination()
 
         expected = pd.DataFrame(

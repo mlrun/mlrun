@@ -248,7 +248,7 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
-    def test_ingest_partitioned(self):
+    def test_ingest_partitioned_by_time(self):
         key = "patient_id"
         name = f"measurements{uuid.uuid4()}"
         measurements = fs.FeatureSet(name, entities=[Entity(key)])
@@ -269,6 +269,29 @@ class TestFeatureStore(TestMLRunSystem):
         )
         measurements = fs.FeatureSet("measurements", entities=[Entity(key)])
         resp2 = fs.ingest(measurements, source)
+        assert resp1.to_dict() == resp2.to_dict()
+
+    def test_ingest_partitioned_by_key(self):
+        key = "patient_id"
+        name = f"measurements{uuid.uuid4()}"
+        measurements = fs.FeatureSet(name, entities=[Entity(key)])
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+        measurements.set_targets(
+            targets=[ParquetTarget(key_bucketing_number=0)], with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source)
+
+        source = ParquetSource(
+            "mypq",
+            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
+        )
+        measurements = fs.FeatureSet("measurements", entities=[Entity(key)])
+        resp2 = fs.ingest(measurements, source)
+
         assert resp1.to_dict() == resp2.to_dict()
 
     def test_featureset_column_types(self):

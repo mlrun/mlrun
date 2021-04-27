@@ -180,15 +180,21 @@ def ingest(
     :param mlrun_context: mlrun context (when running as a job), for internal use !
     :param spark_context: local spark session for spark ingestion, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
-    :param start_time     datetime/string, low limit of time needed to be filtered. format '2020-11-01 17:33:15'
-    :param end_time       datetime/string, high limit of time needed to be filtered. format '2020-12-01 17:33:15'
+    :param start_time:    datetime/string, low limit of time needed to be filtered. format '2020-11-01 17:33:15'
+    :param end_time:      datetime/string, high limit of time needed to be filtered. format '2020-12-01 17:33:15'
     """
+    if featureset:
+        if isinstance(featureset, str):
+            featureset = get_feature_set_by_uri(featureset)
+        # feature-set spec always has a source property that is not None. It may be default-constructed, in which
+        # case the path will be 'None'. That's why we need a special check
+        if source is None and featureset.has_valid_source():
+            source = featureset.spec.source
+
     if not mlrun_context and (not featureset or source is None):
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-    if featureset and isinstance(featureset, str):
-        featureset = get_feature_set_by_uri(featureset)
 
     if run_config:
         # remote job execution

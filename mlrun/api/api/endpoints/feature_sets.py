@@ -158,8 +158,9 @@ def _has_v3io_path(data_source, data_targets, feature_set):
             # If the target does not have a path (i.e. default target), then retrieve the default path from config.
             paths.append(target.path or get_default_prefix_for_target(target.kind))
 
-    if data_source:
-        paths.append(data_source.path)
+    source = data_source or feature_set.spec.source
+    if source:
+        paths.append(source.path)
 
     return any(
         path and (path.startswith("v3io://") or path.startswith("v3ios://"))
@@ -188,8 +189,9 @@ def ingest_feature_set(
     # Need to override the default rundb since we're in the server.
     feature_set._override_run_db(db_session)
 
-    data_source = DataSource.from_dict(ingest_parameters.source.dict())
-    data_targets = None
+    data_source = data_targets = None
+    if ingest_parameters.source:
+        data_source = DataSource.from_dict(ingest_parameters.source.dict())
     if ingest_parameters.targets:
         data_targets = [
             DataTargetBase.from_dict(data_target.dict())

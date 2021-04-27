@@ -319,6 +319,11 @@ class FeatureSet(ModelObj):
         if default_final_state:
             self.spec.graph.final_state = default_final_state
 
+    def has_valid_source(self):
+        """check if object's spec has a valid (non empty) source definition"""
+        source = self.spec.source
+        return source is not None and source.path is not None and source.path != "None"
+
     def add_entity(self, entity, name=None):
         """add/set an entity"""
         self._spec.entities.update(entity, name)

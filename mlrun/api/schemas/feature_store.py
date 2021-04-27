@@ -134,7 +134,7 @@ class DataTarget(BaseModel):
 
 
 class FeatureSetIngestInput(BaseModel):
-    source: DataSource
+    source: Optional[DataSource]
     targets: Optional[List[DataTarget]]
     infer_options: Optional[int]
 

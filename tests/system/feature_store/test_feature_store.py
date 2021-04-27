@@ -248,52 +248,6 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
-    def test_ingest_partitioned_by_time(self):
-        key = "patient_id"
-        name = f"measurements{uuid.uuid4()}"
-        measurements = fs.FeatureSet(name, entities=[Entity(key)])
-        source = CSVSource(
-            "mycsv",
-            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",
-        )
-        measurements.set_targets(
-            targets=[ParquetTarget(time_partitioning_granularity="hour")],
-            with_defaults=False,
-        )
-        resp1 = fs.ingest(measurements, source)
-
-        source = ParquetSource(
-            "mypq",
-            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
-        )
-        measurements = fs.FeatureSet("measurements", entities=[Entity(key)])
-        resp2 = fs.ingest(measurements, source)
-        assert resp1.to_dict() == resp2.to_dict()
-
-    def test_ingest_partitioned_by_key(self):
-        key = "patient_id"
-        name = f"measurements{uuid.uuid4()}"
-        measurements = fs.FeatureSet(name, entities=[Entity(key)])
-        source = CSVSource(
-            "mycsv",
-            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",
-        )
-        measurements.set_targets(
-            targets=[ParquetTarget(key_bucketing_number=0)], with_defaults=False,
-        )
-        resp1 = fs.ingest(measurements, source)
-
-        source = ParquetSource(
-            "mypq",
-            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
-        )
-        measurements = fs.FeatureSet("measurements", entities=[Entity(key)])
-        resp2 = fs.ingest(measurements, source)
-
-        assert resp1.to_dict() == resp2.to_dict()
-
     def test_featureset_column_types(self):
         data = pd.DataFrame(
             {
@@ -341,6 +295,41 @@ class TestFeatureStore(TestMLRunSystem):
             return_df=True,
         )
         assert len(resp) == 10
+
+    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day", "hour"])
+    @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
+    def test_ingest_partitioned_by_key_and_time(
+        self, time_partitioning_granularity, key_bucketing_number
+    ):
+        if time_partitioning_granularity is None and key_bucketing_number is None:
+            return
+        key = "patient_id"
+        name = f"measurements{uuid.uuid4()}"
+        measurements = fs.FeatureSet(name, entities=[Entity(key)])
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+        measurements.set_targets(
+            targets=[
+                ParquetTarget(
+                    time_partitioning_granularity=time_partitioning_granularity,
+                    key_bucketing_number=key_bucketing_number,
+                )
+            ],
+            with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source)
+
+        source = ParquetSource(
+            "mypq",
+            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
+        )
+        measurements = fs.FeatureSet("measurements", entities=[Entity(key)])
+        resp2 = fs.ingest(measurements, source)
+
+        assert resp1.to_dict() == resp2.to_dict()
 
     def test_ordered_pandas_asof_merge(self):
         left_set, left = prepare_feature_set(

@@ -388,11 +388,12 @@ class ParquetTarget(BaseStoreTarget):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
+        columns=None,
         time_partitioning_granularity: typing.Optional[str] = None,
         # hash_partitioning: typing.Optional[int] = None,
     ):
         super().__init__(
-            name, path, attributes, after_state, time_partitioning_granularity
+            name, path, attributes, after_state, columns, time_partitioning_granularity
         )
 
         if (
@@ -446,7 +447,7 @@ class ParquetTarget(BaseStoreTarget):
             "format": "parquet",
         }
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, entities=None):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
             columns=columns, df_module=df_module, format="parquet"

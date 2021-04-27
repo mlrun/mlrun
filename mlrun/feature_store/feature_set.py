@@ -319,6 +319,11 @@ class FeatureSet(ModelObj):
         if default_final_state:
             self.spec.graph.final_state = default_final_state
 
+    def has_valid_source(self):
+        """check if object's spec has a valid (non empty) source definition"""
+        source = self.spec.source
+        return source is not None and source.path is not None and source.path != "None"
+
     def add_entity(self, entity, name=None):
         """add/set an entity"""
         self._spec.entities.update(entity, name)
@@ -380,7 +385,7 @@ class FeatureSet(ModelObj):
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
         else:
-            graph.add_step(
+            state = graph.add_step(
                 name=state_name,
                 after=after or previous_step,
                 before=before,
@@ -392,6 +397,8 @@ class FeatureSet(ModelObj):
         for operation in operations:
             for window in windows:
                 upsert_feature(f"{name}_{operation}_{window}")
+
+        return state
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""

@@ -869,7 +869,7 @@ class FlowState(BaseState):
             if hasattr(state, "async_object"):
                 if state.kind == StateKinds.queue:
                     if state.path:
-                        state._async_object = storey.WriteToV3IOStream(
+                        state._async_object = storey.StreamTarget(
                             storey.V3ioDriver(), state.path
                         )
                     else:
@@ -891,7 +891,7 @@ class FlowState(BaseState):
                     self._wait_for_result = True
 
         # todo: allow source array (e.g. data->json loads..)
-        source = self._source or storey.Source()
+        source = self._source or storey.SyncEmitSource()
         for next_state in self._start_states:
             next_step = source.to(next_state.async_object)
             process_step(next_state, next_step, self)

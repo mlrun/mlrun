@@ -432,10 +432,10 @@ class ParquetTarget(BaseStoreTarget):
                     break
 
         graph.add_step(
-            name=self.name or "WriteToParquet",
+            name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToParquet",
+            class_name="storey.ParquetTarget",
             path=self._target_path,
             columns=column_list,
             index_cols=key_columns,
@@ -483,10 +483,10 @@ class CSVTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name=self.name or "WriteToCSV",
+            name=self.name or "CSVTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToCSV",
+            class_name="storey.CSVTarget",
             path=self._target_path,
             columns=column_list,
             header=True,
@@ -538,10 +538,10 @@ class NoSqlTarget(BaseStoreTarget):
             column_list = [col for col in column_list if col in aggregate_features]
 
         graph.add_step(
-            name=self.name or "WriteToTable",
+            name=self.name or "NoSqlTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToTable",
+            class_name="storey.NoSqlTarget",
             columns=column_list,
             table=table,
             **self.attributes,
@@ -595,10 +595,10 @@ class StreamTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name=self.name or "WriteToStream",
+            name=self.name or "StreamTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToV3IOStream",
+            class_name="storey.StreamTarget",
             columns=column_list,
             storage=V3ioDriver(webapi=endpoint),
             stream_path=uri,
@@ -630,8 +630,8 @@ class TSDBTarget(BaseStoreTarget):
         )
 
         graph.add_step(
-            name=self.name or "WriteToTSDB",
-            class_name="storey.WriteToTSDB",
+            name=self.name or "TSDBTarget",
+            class_name="storey.TSDBTarget",
             after=after,
             graph_shape="cylinder",
             path=uri,

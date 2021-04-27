@@ -85,6 +85,7 @@ Table Of Content
    store/artifacts
    store/models
    store/feature-store-demo
+   store/transformations
 
 .. toctree::
    :maxdepth: 1

@@ -14,6 +14,7 @@ from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
 from mlrun.feature_store import Entity, FeatureSet
+from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
@@ -365,7 +366,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     def test_read_csv(self):
-        from storey import ReadCSV, ReduceToDataFrame, build_flow
+        from storey import CSVSource, ReduceToDataFrame, build_flow
 
         csv_path = str(self.results_path / _generate_random_name() / ".csv")
         targets = [CSVTarget("mycsv", path=csv_path)]
@@ -377,7 +378,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         # reading csv file
-        controller = build_flow([ReadCSV(csv_path), ReduceToDataFrame()]).run()
+        controller = build_flow([CSVSource(csv_path), ReduceToDataFrame()]).run()
         termination_result = controller.await_termination()
 
         expected = pd.DataFrame(
@@ -636,6 +637,18 @@ class TestFeatureStore(TestMLRunSystem):
 
         os.remove(parquet_path1)
         os.remove(parquet_path2)
+
+    def test_post_aggregation_step(self):
+        quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
+        agg_step = quotes_set.add_aggregation(
+            "asks", "ask", ["sum", "max"], ["1h", "5h"], "10m"
+        )
+        agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
+
+        # Make sure the map step was added right after the aggregation step
+        assert len(quotes_set.graph.states) == 2
+        assert quotes_set.graph.states[aggregates_step].after is None
+        assert quotes_set.graph.states["somemap1"].after == [aggregates_step]
 
 
 def verify_target_list_fail(targets, with_defaults=None):

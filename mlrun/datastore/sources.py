@@ -55,7 +55,7 @@ class BaseSourceDriver(DataSource):
         if start_time or end_time:
             raise NotImplementedError("BaseSource does not support filtering by time")
 
-        return storey.Source()
+        return storey.SyncEmitSource()
 
     def get_table_object(self):
         """get storey Table object"""
@@ -102,7 +102,7 @@ class CSVSource(BaseSourceDriver):
             raise NotImplementedError("CSVSource does not support filtering by time")
 
         attributes = self.attributes or {}
-        return storey.ReadCSV(
+        return storey.CSVSource(
             paths=self.path,
             header=True,
             build_dict=True,
@@ -143,7 +143,7 @@ class ParquetSource(BaseSourceDriver):
         import storey
 
         attributes = self.attributes or {}
-        return storey.ReadParquet(
+        return storey.ParquetSource(
             paths=self.path,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
@@ -251,7 +251,7 @@ class OnlineSource(BaseSourceDriver):
         if start_time or end_time:
             raise NotImplementedError("Source does not support filtering by time")
 
-        return storey.Source(
+        return storey.SyncEmitSource(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             full_event=True,

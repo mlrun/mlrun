@@ -328,7 +328,10 @@ class BaseStoreTarget(DataTargetBase):
         driver.path = spec.path
         driver.attributes = spec.attributes
         driver.time_partitioning_granularity = spec.time_partitioning_granularity
-        driver.suffix = ".parquet" if spec.time_partitioning_granularity is None else ""
+        if spec.kind == "parquet":
+            driver.suffix = (
+                ".parquet" if spec.time_partitioning_granularity is None else ""
+            )
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
         driver._resource = resource

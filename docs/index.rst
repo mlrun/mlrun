@@ -59,6 +59,7 @@ Table Of Content
 
 |
 |
+
 .. toctree::
    :maxdepth: 1
    :caption: ML Pipelines:
@@ -69,7 +70,7 @@ Table Of Content
    serving/index
    model_monitoring/model-monitoring-deployment
 |
-|
+
 .. toctree::
    :maxdepth: 1
    :caption: Serverless Runtimes:

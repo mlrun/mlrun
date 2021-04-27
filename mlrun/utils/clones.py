@@ -94,10 +94,8 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
     if not source:
         return
     clone = clone if workdir else False
-    target_dir = workdir or "./"
+    target_dir = workdir or os.path.realpath('./code')
     message = f"extracting source from {source} to {target_dir}"
-    if not workdir:
-        message += f" ({os.getcwd()})"
     print(message)
     if source.endswith(".zip"):
         clone_zip(source, target_dir, secrets, clone)

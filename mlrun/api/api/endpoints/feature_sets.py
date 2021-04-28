@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
@@ -178,7 +178,9 @@ def ingest_feature_set(
     project: str,
     name: str,
     reference: str,
-    ingest_parameters: schemas.FeatureSetIngestInput,
+    ingest_parameters: Optional[
+        schemas.FeatureSetIngestInput
+    ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
     db_session: Session = Depends(deps.get_db_session),
 ):

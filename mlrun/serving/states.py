@@ -809,7 +809,7 @@ class FlowState(BaseState):
                     return returned_state
 
         current_function = get_current_function(self.context)
-        if current_function:
+        if current_function and current_function != "*":
             new_start_states = []
             for from_state in self._start_states:
                 state = get_first_function_state(from_state, current_function)
@@ -866,7 +866,7 @@ class FlowState(BaseState):
                 process_step(next_state, next_step, root)
 
         for state in self._states.values():
-            if hasattr(state, "async_object"):
+            if hasattr(state, "async_object") and state._is_local_function(self.context):
                 if state.kind == StateKinds.queue:
                     if state.path:
                         state._async_object = storey.StreamTarget(

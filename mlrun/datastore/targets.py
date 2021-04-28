@@ -260,6 +260,7 @@ class BaseStoreTarget(DataTargetBase):
         after_state=None,
         columns=None,
         key_bucketing_number: typing.Optional[int] = None,
+        partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
     ):
         self.name = name
@@ -268,6 +269,7 @@ class BaseStoreTarget(DataTargetBase):
         self.attributes = attributes or {}
         self.columns = columns or []
         self.key_bucketing_number = key_bucketing_number
+        self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
 
         self._target = None
@@ -334,13 +336,18 @@ class BaseStoreTarget(DataTargetBase):
             driver.columns = spec.columns
 
         driver.key_bucketing_number = spec.key_bucketing_number
+        driver.partition_cols = spec.partition_cols
 
         driver.time_partitioning_granularity = spec.time_partitioning_granularity
         if spec.kind == "parquet":
             driver.suffix = (
                 ".parquet"
-                if spec.time_partitioning_granularity is None
-                and spec.key_bucketing_number is None
+                if [
+                    spec.key_bucketing_number,
+                    spec.partition_cols,
+                    spec.time_partitioning_granularity,
+                ]
+                == [None] * 3
                 else ""
             )
 
@@ -401,6 +408,7 @@ class ParquetTarget(BaseStoreTarget):
         after_state=None,
         columns=None,
         key_bucketing_number: typing.Optional[int] = None,
+        partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
     ):
         super().__init__(
@@ -410,6 +418,7 @@ class ParquetTarget(BaseStoreTarget):
             after_state,
             columns,
             key_bucketing_number,
+            partition_cols,
             time_partitioning_granularity,
         )
 
@@ -422,7 +431,12 @@ class ParquetTarget(BaseStoreTarget):
                 f"not {time_partitioning_granularity}."
             )
 
-        self.suffix = ".parquet" if time_partitioning_granularity is None else ""
+        self.suffix = (
+            ".parquet"
+            if [key_bucketing_number, partition_cols, time_partitioning_granularity]
+            == [None] * 3
+            else ""
+        )
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
@@ -445,6 +459,9 @@ class ParquetTarget(BaseStoreTarget):
                 if self.key_bucketing_number == 0
                 else ("$key", self.key_bucketing_number)
             ]
+        if self.partition_cols:
+            partition_cols = partition_cols or []
+            partition_cols.extend(self.partition_cols)
         if self.time_partitioning_granularity is not None:
             partition_cols = partition_cols or []
             for time_unit in self._legal_time_units:

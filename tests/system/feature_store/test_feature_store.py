@@ -297,14 +297,17 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp) == 10
 
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
-    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day", "hour"])
+    @pytest.mark.parametrize("partition_cols", [None, ["department"]])
+    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
     def test_ingest_partitioned_by_key_and_time(
-        self, key_bucketing_number, time_partitioning_granularity
+        self, key_bucketing_number, partition_cols, time_partitioning_granularity
     ):
-        if time_partitioning_granularity is None and key_bucketing_number is None:
+        if [key_bucketing_number, partition_cols, time_partitioning_granularity] == [
+            None
+        ] * 3:
             return
         key = "patient_id"
-        name = f"measurements{uuid.uuid4()}"
+        name = f"measurements_{uuid.uuid4()}"
         measurements = fs.FeatureSet(name, entities=[Entity(key)])
         source = CSVSource(
             "mycsv",
@@ -315,6 +318,7 @@ class TestFeatureStore(TestMLRunSystem):
             targets=[
                 ParquetTarget(
                     key_bucketing_number=key_bucketing_number,
+                    partition_cols=partition_cols,
                     time_partitioning_granularity=time_partitioning_granularity,
                 )
             ],

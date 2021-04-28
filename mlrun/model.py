@@ -18,7 +18,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
@@ -962,6 +962,7 @@ class DataTargetBase(ModelObj):
         "after_state",
         "attributes",
         "key_bucketing_number",
+        "partition_cols",
         "time_partitioning_granularity",
     ]
 
@@ -973,6 +974,7 @@ class DataTargetBase(ModelObj):
         attributes: Dict[str, str] = None,
         after_state=None,
         key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
     ):
         self.name = name
@@ -981,6 +983,7 @@ class DataTargetBase(ModelObj):
         self.after_state = after_state
         self.attributes = attributes or {}
         self.key_bucketing_number = key_bucketing_number
+        self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
 
 

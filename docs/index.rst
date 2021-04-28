@@ -65,6 +65,7 @@ Table Of Content
    hyper-params
    projects
    serving/index
+   model_monitoring/model-monitoring-deployment
 
 .. toctree::
    :maxdepth: 1

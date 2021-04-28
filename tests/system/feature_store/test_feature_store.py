@@ -285,15 +285,11 @@ class TestFeatureStore(TestMLRunSystem):
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
             time_field="timestamp",
-        )
-
-        resp = fs.ingest(
-            measurements,
-            source,
             start_time=datetime(2020, 12, 1, 17, 33, 15),
             end_time="2020-12-01 17:33:16",
-            return_df=True,
         )
+
+        resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
 
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])

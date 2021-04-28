@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
-from typing import Dict, Optional, Union
 from datetime import datetime
+from typing import Dict, Optional, Union
 
 import mlrun
 

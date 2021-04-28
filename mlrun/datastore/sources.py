@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
-from typing import Dict
+from typing import Dict, Optional, Union
+from datetime import datetime
 
 import mlrun
 
@@ -28,15 +29,13 @@ def get_source_from_dict(source):
     return source_kind_to_driver[kind].from_dict(source)
 
 
-def get_source_step(
-    source, key_fields=None, time_field=None, start_time=None, end_time=None,
-):
+def get_source_step(source, key_fields=None, time_field=None):
     """initialize the source driver"""
     if hasattr(source, "to_csv"):
         source = DataFrameSource(source)
     if not key_fields and not source.key_fields:
         raise mlrun.errors.MLRunInvalidArgumentError("key column is not defined")
-    return source.to_step(key_fields, time_field, start_time, end_time)
+    return source.to_step(key_fields, time_field)
 
 
 class BaseSourceDriver(DataSource):
@@ -47,13 +46,8 @@ class BaseSourceDriver(DataSource):
         store, _ = mlrun.store_manager.get_or_create_store(self.path)
         return store
 
-    def to_step(
-        self, key_field=None, time_field=None, start_time=None, end_time=None,
-    ):
+    def to_step(self, key_field=None, time_field=None):
         import storey
-
-        if start_time or end_time:
-            raise NotImplementedError("BaseSource does not support filtering by time")
 
         return storey.SyncEmitSource()
 
@@ -93,13 +87,8 @@ class CSVSource(BaseSourceDriver):
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
-    def to_step(
-        self, key_field=None, time_field=None, start_time=None, end_time=None,
-    ):
+    def to_step(self, key_field=None, time_field=None):
         import storey
-
-        if start_time or end_time:
-            raise NotImplementedError("CSVSource does not support filtering by time")
 
         attributes = self.attributes or {}
         return storey.CSVSource(
@@ -134,8 +123,12 @@ class ParquetSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time: Optional[Union[str, datetime]] = None,
+        end_time: Optional[Union[str, datetime]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
+        self.start_time = start_time
+        self.end_time = end_time
 
     def to_step(
         self, key_field=None, time_field=None, start_time=None, end_time=None,
@@ -148,8 +141,8 @@ class ParquetSource(BaseSourceDriver):
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
-            end_filter=end_time,
-            start_filter=start_time,
+            end_filter=self.end_time,
+            start_filter=self.start_time,
             filter_column=self.time_field or time_field,
             **attributes,
         )
@@ -192,15 +185,8 @@ class DataFrameSource:
         self.key_fields = key_fields
         self.time_field = time_field
 
-    def to_step(
-        self, key_fields=None, time_field=None, start_time=None, end_time=None,
-    ):
+    def to_step(self, key_fields=None, time_field=None):
         import storey
-
-        if start_time or end_time:
-            raise NotImplementedError(
-                "DataFrameSource does not support filtering by time"
-            )
 
         return storey.DataframeSource(
             dfs=self._df,
@@ -241,12 +227,9 @@ class OnlineSource(BaseSourceDriver):
         self.workers = workers
 
     def to_step(
-        self, key_field=None, time_field=None, start_time=None, end_time=None,
+        self, key_field=None, time_field=None,
     ):
         import storey
-
-        if start_time or end_time:
-            raise NotImplementedError("Source does not support filtering by time")
 
         return storey.SyncEmitSource(
             key_field=self.key_field or key_field,

@@ -862,8 +862,9 @@ class FlowState(BaseState):
                 return
             for item in state.next or []:
                 next_state = root[item]
-                next_step = step.to(next_state.async_object)
-                process_step(next_state, next_step, root)
+                if next_state.async_object:
+                    next_step = step.to(next_state.async_object)
+                    process_step(next_state, next_step, root)
 
         for state in self._states.values():
             if hasattr(state, "async_object") and state._is_local_function(self.context):

@@ -5,7 +5,8 @@ from datetime import datetime
 
 import pandas as pd
 import pytest
-from storey import MapClass
+from storey import MapClass, EmitAfterMaxEvent
+
 
 import mlrun
 import mlrun.feature_store as fs
@@ -396,6 +397,7 @@ class TestFeatureStore(TestMLRunSystem):
             operations=["sum", "max"],
             windows=["1h"],
             period="10m",
+            emit_policy = EmitAfterMaxEvent(1),
         )
         fs.infer_metadata(
             data_set,

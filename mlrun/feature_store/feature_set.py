@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 
@@ -38,6 +38,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseState, RootFlowState, previous_step
 from ..utils import StorePrefix
+from storey import EmitPolicy
 
 aggregates_step = "Aggregates"
 
@@ -351,6 +352,7 @@ class FeatureSet(ModelObj):
         state_name=None,
         after=None,
         before=None,
+        emit_policy: Optional[EmitPolicy] = None,
     ):
         """add feature aggregation rule
 
@@ -366,6 +368,7 @@ class FeatureSet(ModelObj):
         :param state_name: optional, graph state name
         :param after:      optional, after which graph state it runs
         :param before:     optional, comes before graph state
+        :param emit_policy optional. Define emit policy of the aggregations
         """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -384,15 +387,28 @@ class FeatureSet(ModelObj):
             aggregations = state.class_args.get("aggregates", [])
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
+            if emit_policy:
+                state.class_args["emit_policy"] = emit_policy
         else:
-            state = graph.add_step(
-                name=state_name,
-                after=after or previous_step,
-                before=before,
-                class_name="storey.AggregateByKey",
-                aggregates=[aggregation],
-                table=".",
-            )
+            if emit_policy:
+                state = graph.add_step(
+                    name=state_name,
+                    after=after or previous_step,
+                    before=before,
+                    class_name="storey.AggregateByKey",
+                    aggregates=[aggregation],
+                    table=".",
+                    emit_policy=emit_policy,
+                )
+            else:
+                state = graph.add_step(
+                    name=state_name,
+                    after=after or previous_step,
+                    before=before,
+                    class_name="storey.AggregateByKey",
+                    aggregates=[aggregation],
+                    table=".",
+                )
 
         for operation in operations:
             for window in windows:

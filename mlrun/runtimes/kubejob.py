@@ -135,7 +135,7 @@ class KubejobRuntime(KubeResource):
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
-            if watch:
+            if watch and not ready:
                 state = self._build_watch(watch)
                 ready = state == "ready"
                 self.status.state = state

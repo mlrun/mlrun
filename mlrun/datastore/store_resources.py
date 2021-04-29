@@ -20,7 +20,7 @@ from mlrun.utils.helpers import parse_artifact_uri, parse_versioned_object_uri
 
 from ..utils import DB_SCHEMA, StorePrefix
 from .targets import get_online_target
-from .v3io import parse_v3io_path
+from ..platforms.iguazio import parse_v3io_path
 
 
 def is_store_uri(url):

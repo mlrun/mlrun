@@ -209,7 +209,7 @@ class BaseState(ModelObj):
         graph.to('URLDownloader')\
              .to('ToParagraphs')\
              .to(name='to_json', handler='json.dumps')\
-             .to('>', 'to_v3io', path=stream_path)\
+             .to('>>', 'to_v3io', path=stream_path)\
 
         :param class_name:  class name or state object to build the state from
                             for router states the class name should start with '*'

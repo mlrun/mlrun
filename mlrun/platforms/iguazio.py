@@ -17,6 +17,7 @@ import warnings
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
+from urllib.parse import urlparse
 
 import requests
 import urllib3
@@ -479,3 +480,22 @@ def add_or_refresh_credentials(
     control_session = create_control_session(iguazio_dashboard_url, username, password)
     _cached_control_session = (control_session, now, username, password)
     return username, control_session, ""
+
+
+def parse_v3io_path(url):
+    """return v3io table path from url"""
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme.lower()
+    if scheme != "v3io" and scheme != "v3ios":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "url must start with v3io://[host]/{container}/{path}, got " + url
+        )
+    endpoint = parsed_url.hostname
+    if endpoint:
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        prefix = "https" if scheme == "v3ios" else "http"
+        endpoint = f"{prefix}://{endpoint}"
+    else:
+        endpoint = None
+    return endpoint, parsed_url.path.strip("/") + "/"

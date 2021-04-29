@@ -14,6 +14,9 @@
 import json
 import os
 import warnings
+from time import sleep
+
+import v3io
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
@@ -24,6 +27,8 @@ import urllib3
 
 import mlrun.errors
 from mlrun.config import config as mlconf
+from v3io.dataplane import Client
+from pprint import pprint
 
 _cached_control_session = None
 
@@ -370,8 +375,6 @@ class OutputStream:
         create=True,
         endpoint=None,
     ):
-        import v3io
-
         self._v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         self._container, self._stream_path = split_path(stream_path)
         if create:
@@ -394,6 +397,56 @@ class OutputStream:
         self._v3io_client.put_records(
             container=self._container, path=self._stream_path, records=records
         )
+
+
+class StreamWatcher:
+    def __init__(self, stream_path: str, shard_id: int = 0, seek_to: str = None, endpoint: str = None):
+        seek_to = seek_to or 'EARLIEST'
+        self._container, self._stream_path = split_path(stream_path)
+        self._shard_id = shard_id
+        self._seek_to = seek_to
+        self._client = v3io.dataplane.Client(endpoint=endpoint)
+        self._seek_done = False
+        self._location = ""
+
+    def seek(self, seek_to: str = None):
+        seek_to = seek_to or self._seek_to
+        response = self.client.stream.seek(self._container, self._stream_path, self._shard_id, seek_to)
+        self._location = response.output.location
+        self._seek_done = True
+        return response.status_code
+
+    def get_records(self):
+        if not self._seek_done:
+            self.seek()
+        response = self._client.stream.get_records(
+            self._container, self._stream_path, self._shard_id, self._location
+        )
+        response.raise_for_status()
+        self._location = response.output.next_location
+        return response.output.records
+
+
+def watch_stream(url, shard_ids: list = None, seek_to: str = None, interval=3, is_json=False):
+    """watch on a v3io stream and print data every interval
+
+    example::
+        watch_stream('v3io:///users/admin/mystream')
+    """
+    endpoint, stream_path = parse_v3io_path(url)
+    shard_ids = shard_ids or [0]
+    if not isinstance(shard_ids, list):
+        shard_ids = [shard_ids]
+    watchers = [StreamWatcher(stream_path, id, seek_to, endpoint) for id in shard_ids]
+    while True:
+        for watcher in watchers:
+            records = watcher.get_records()
+            print(f"{watcher._container}/{watcher._stream_path}:{watcher._shard_id}>> ")
+            for record in records:
+                print(f"(#{record.sequence_number}) >> ")
+                data = json.loads(record.data) if is_json else record.data.decode()
+                pprint(data)
+        sleep(interval)
 
 
 def create_control_session(url, username, password):

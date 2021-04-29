@@ -28,6 +28,11 @@ RUN python -m pip install -U 'intel-tensorflow==2.2.0' mxnet
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install 'horovod~=0.20.0'
 
+# When running mpijob the launcher trigger the worker with something like PATH=/usr/local/bin:$PATH so we need to make
+# sure the python in /usr/local/bin is pointing to the conda env python (which "knows" horovod)
+# TODO: find nicer solution
+RUN ln -sf /opt/conda/bin/python3 /usr/local/bin/python3
+
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 
 RUN python -m pip install -r models-image-requirements.txt

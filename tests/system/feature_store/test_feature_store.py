@@ -397,7 +397,7 @@ class TestFeatureStore(TestMLRunSystem):
             operations=["sum", "max"],
             windows=["1h"],
             period="10m",
-            emit_policy = EmitAfterMaxEvent(1),
+            emit_policy=EmitAfterMaxEvent(1),
         )
         fs.infer_metadata(
             data_set,

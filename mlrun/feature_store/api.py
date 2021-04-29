@@ -144,8 +144,6 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    start_time=None,
-    end_time=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -180,8 +178,6 @@ def ingest(
     :param mlrun_context: mlrun context (when running as a job), for internal use !
     :param spark_context: local spark session for spark ingestion, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
-    :param start_time:    datetime/string, low limit of time needed to be filtered. format '2020-11-01 17:33:15'
-    :param end_time:      datetime/string, high limit of time needed to be filtered. format '2020-12-01 17:33:15'
     """
     if featureset:
         if isinstance(featureset, str):
@@ -257,13 +253,7 @@ def ingest(
 
     targets = targets or featureset.spec.targets or get_default_targets()
     df = init_featureset_graph(
-        source,
-        featureset,
-        namespace,
-        targets=targets,
-        return_df=return_df,
-        start_time=start_time,
-        end_time=end_time,
+        source, featureset, namespace, targets=targets, return_df=return_df,
     )
     infer_from_static_df(df, featureset, options=infer_stats)
     _post_ingestion(mlrun_context, featureset, spark_context)

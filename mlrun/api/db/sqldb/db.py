@@ -1546,7 +1546,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureSet, project, name, tag, uid
         )
 
-        feature_set_dict = feature_set.dict()
+        feature_set_dict = feature_set.dict(exclude_none=True)
 
         if not existing_feature_set:
             # Check if this is a re-tag of existing object - search by uid only
@@ -1600,7 +1600,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         get_project_member().ensure_project(session, project)
         tag = new_object.metadata.tag or "latest"
 
-        object_dict = new_object.dict()
+        object_dict = new_object.dict(exclude_none=True)
         hash_key = fill_object_hash(object_dict, "uid", tag)
 
         if versioned:
@@ -1654,7 +1654,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 f"Feature-set not found {feature_set_uri}"
             )
 
-        feature_set_struct = feature_set_record.dict()
+        feature_set_struct = feature_set_record.dict(exclude_none=True)
         # using mergedeep for merging the patch content into the existing dictionary
         strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
@@ -1832,7 +1832,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureVector, project, name, tag, uid
         )
 
-        feature_vector_dict = feature_vector.dict()
+        feature_vector_dict = feature_vector.dict(exclude_none=True)
 
         if not existing_feature_vector:
             # Check if this is a re-tag of existing object - search by uid only
@@ -1886,7 +1886,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 f"Feature-vector not found {feature_vector_uri}"
             )
 
-        feature_vector_struct = feature_vector_record.dict()
+        feature_vector_struct = feature_vector_record.dict(exclude_none=True)
         # using mergedeep for merging the patch content into the existing dictionary
         strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_vector_struct, feature_vector_update, strategy=strategy)

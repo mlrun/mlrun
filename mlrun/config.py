@@ -63,7 +63,7 @@ default_config = {
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
-    "default_image": "python:3.6-jessie",
+    "default_image": "python:3.7",
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)

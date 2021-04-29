@@ -26,6 +26,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+from ..platforms.iguazio import parse_v3io_path
 from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
@@ -870,8 +871,13 @@ class FlowState(BaseState):
             if hasattr(state, "async_object") and state._is_local_function(self.context):
                 if state.kind == StateKinds.queue:
                     if state.path:
+                        stream_path = state.path
+                        endpoint = None
+                        if '://' in stream_path:
+                            endpoint, stream_path = parse_v3io_path(state.path)
+                            stream_path = stream_path.strip("/")
                         state._async_object = storey.StreamTarget(
-                            storey.V3ioDriver(), state.path
+                            storey.V3ioDriver(endpoint), stream_path
                         )
                     else:
                         state._async_object = storey.Map(lambda x: x)

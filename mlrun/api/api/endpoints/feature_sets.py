@@ -1,13 +1,19 @@
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, Query, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
+import mlrun.feature_store
+from mlrun import mount_v3io
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import parse_reference
+from mlrun.api.api.utils import get_secrets, log_and_raise, parse_reference
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.data_types import InferOptions
+from mlrun.datastore.targets import get_default_prefix_for_target
+from mlrun.feature_store.api import RunConfig, ingest
+from mlrun.model import DataSource, DataTargetBase
 
 router = APIRouter()
 
@@ -135,6 +141,96 @@ def list_feature_sets(
     )
 
     return feature_sets
+
+
+def _has_v3io_path(data_source, data_targets, feature_set):
+    paths = []
+
+    # If no data targets received, then use targets from the feature-set spec. In case it's empty as well, use
+    # default targets (by calling set_targets())
+    if not data_targets:
+        if not feature_set.spec.targets:
+            feature_set.set_targets()
+        data_targets = feature_set.spec.targets
+
+    if data_targets:
+        for target in data_targets:
+            # If the target does not have a path (i.e. default target), then retrieve the default path from config.
+            paths.append(target.path or get_default_prefix_for_target(target.kind))
+
+    source = data_source or feature_set.spec.source
+    if source:
+        paths.append(source.path)
+
+    return any(
+        path and (path.startswith("v3io://") or path.startswith("v3ios://"))
+        for path in paths
+    )
+
+
+@router.post(
+    "/projects/{project}/feature-sets/{name}/references/{reference}/ingest",
+    response_model=schemas.FeatureSetIngestOutput,
+    status_code=HTTPStatus.ACCEPTED.value,
+)
+def ingest_feature_set(
+    request: Request,
+    project: str,
+    name: str,
+    reference: str,
+    ingest_parameters: Optional[
+        schemas.FeatureSetIngestInput
+    ] = schemas.FeatureSetIngestInput(),
+    username: str = Header(None, alias="x-remote-user"),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    tag, uid = parse_reference(reference)
+    feature_set_record = get_db().get_feature_set(db_session, project, name, tag, uid)
+
+    feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
+    # Need to override the default rundb since we're in the server.
+    feature_set._override_run_db(db_session)
+
+    data_source = data_targets = None
+    if ingest_parameters.source:
+        data_source = DataSource.from_dict(ingest_parameters.source.dict())
+    if ingest_parameters.targets:
+        data_targets = [
+            DataTargetBase.from_dict(data_target.dict())
+            for data_target in ingest_parameters.targets
+        ]
+
+    run_config = RunConfig()
+
+    # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and
+    # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are
+    # user-context parameters, we cannot use the api context.
+    if _has_v3io_path(data_source, data_targets, feature_set):
+        secrets = get_secrets(request)
+        access_key = secrets.get("V3IO_ACCESS_KEY", None)
+
+        if not access_key or not username:
+            log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason="Request needs v3io access key and username in header",
+            )
+        run_config = run_config.apply(mount_v3io(access_key=access_key, user=username))
+
+    infer_options = ingest_parameters.infer_options or InferOptions.default()
+
+    run_params = ingest(
+        feature_set,
+        data_source,
+        data_targets,
+        infer_options=infer_options,
+        return_df=False,
+        run_config=run_config,
+    )
+    # ingest may modify the feature-set contents, so returning the updated feature-set.
+    result_feature_set = schemas.FeatureSet(**feature_set.to_dict())
+    return schemas.FeatureSetIngestOutput(
+        feature_set=result_feature_set, run_object=run_params.to_dict()
+    )
 
 
 @router.get("/projects/{project}/features", response_model=schemas.FeaturesOutput)

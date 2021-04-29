@@ -792,7 +792,7 @@ class BaseRuntime(ModelObj):
         """
         if isinstance(requirements, str):
             with open(requirements, "r") as fp:
-                requirements = fp.readlines()
+                requirements = fp.read().splitlines()
         commands = self.spec.build.commands or []
         commands.append("python -m pip install " + " ".join(requirements))
         self.spec.build.commands = commands

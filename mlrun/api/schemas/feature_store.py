@@ -31,8 +31,8 @@ class Entity(BaseModel):
 
 
 class FeatureSetSpec(ObjectSpec):
-    entities: Optional[List[Entity]]
-    features: Optional[List[Feature]]
+    entities: List[Entity] = []
+    features: List[Feature] = []
 
 
 class FeatureSet(BaseModel):

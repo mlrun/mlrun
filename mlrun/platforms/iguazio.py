@@ -411,7 +411,7 @@ class StreamWatcher:
 
     def seek(self, seek_to: str = None):
         seek_to = seek_to or self._seek_to
-        response = self.client.stream.seek(self._container, self._stream_path, self._shard_id, seek_to)
+        response = self._client.stream.seek(self._container, self._stream_path, self._shard_id, seek_to)
         self._location = response.output.location
         self._seek_done = True
         return response.status_code

@@ -244,7 +244,7 @@ class RemoteRuntime(KubeResource):
             V3IOStreamTrigger(
                 name=name,
                 container=container,
-                path=path[:-1],
+                path=path[1:-1],
                 consumerGroup=group,
                 seekTo=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",

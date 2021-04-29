@@ -287,7 +287,7 @@ def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=Fals
     )
     runtime.status.build_pod = None
     if status == "skipped":
-        runtime.spec.image = build.base_image
+        runtime.spec.image = base_image
         runtime.status.state = "ready"
         return True
 

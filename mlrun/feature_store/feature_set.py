@@ -14,6 +14,7 @@
 from typing import List, Optional
 
 import pandas as pd
+from storey import EmitPolicy
 
 import mlrun
 
@@ -38,7 +39,6 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseState, RootFlowState, previous_step
 from ..utils import StorePrefix
-from storey import EmitPolicy
 
 aggregates_step = "Aggregates"
 

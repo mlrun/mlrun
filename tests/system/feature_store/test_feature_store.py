@@ -5,8 +5,7 @@ from datetime import datetime
 
 import pandas as pd
 import pytest
-from storey import MapClass, EmitAfterMaxEvent
-
+from storey import EmitAfterMaxEvent, MapClass
 
 import mlrun
 import mlrun.feature_store as fs

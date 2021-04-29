@@ -87,3 +87,10 @@ class S3Store(DataStore):
         key_length = len(key)
         bucket = self.s3.Bucket(self.endpoint)
         return [obj.key[key_length:] for obj in bucket.objects.filter(Prefix=key)]
+
+
+def parse_s3_bucket_and_key(s3_path):
+    path_parts = s3_path.replace("s3://", "").split("/")
+    bucket = path_parts.pop(0)
+    key = "/".join(path_parts)
+    return bucket, key

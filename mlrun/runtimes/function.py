@@ -16,7 +16,7 @@ import asyncio
 import json
 import typing
 from datetime import datetime
-from os import environ
+from os import environ, getenv
 from time import sleep
 
 import nuclio
@@ -37,6 +37,7 @@ from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
+from mlrun.datastore import parse_v3io_path, parse_s3_bucket_and_key
 
 default_max_replicas = 4
 
@@ -165,6 +166,68 @@ class RemoteRuntime(KubeResource):
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
         self.spec.config[f"spec.triggers.{name}"] = spec
+        return self
+
+    def from_remote_source(self,
+                           source,
+                           code_entry_type="",
+                           work_dir="",
+                           branch="",
+                           tag="",
+                           reference="",
+                           username="",
+                           password="",
+                           s3_region="",
+                           s3_access_key_id="",
+                           s3_secret_access_key="",
+                           s3_session_token="",
+                           v3io_access_key=""):
+        code_entry_attributes = {
+            "workDir": work_dir,
+            "branch": branch,
+            "tag": tag,
+            "reference": reference,
+            "username": username,
+            "password": password,
+            "s3Region": s3_region,
+            "s3AccessKeyId": s3_access_key_id,
+            "s3SecretAccessKey": s3_secret_access_key,
+            "s3SessionToken": s3_session_token,
+        }
+        code_entry_type = code_entry_type or self._resolve_code_entry_type(source)
+        if code_entry_type == "":
+            raise ValueError("Couldn't resolve code entry type from source")
+
+        # archive
+        if code_entry_type == "archive":
+            if source.startswith("v3io://"):
+                source = parse_v3io_path(source)
+
+            v3io_access_key = v3io_access_key or getenv("V3IO_ACCESS_KEY")
+            if v3io_access_key:
+                code_entry_attributes["headers"] = {"headers": {"X-V3io-Session-Key": v3io_access_key}}
+
+        # s3
+        if code_entry_type == "s3":
+            try:
+                bucket, item_key = parse_s3_bucket_and_key(source)
+            except Exception as exc:
+                raise RuntimeError(f"failed to parse s3 bucket and key. {exc}")
+
+            code_entry_attributes["s3Bucket"] = bucket
+            code_entry_attributes["s3ItemKey"] = item_key
+
+        # git
+        if code_entry_type == "git":
+
+            # change git:// to https:// as nuclio expects it to be
+            if source.startswith("git://"):
+                source = source.replace("git://", "https://")
+
+        # populate spec with relevant fields
+        self.spec.build.source = source
+        self.spec.build.codeEntryType = code_entry_type
+        self.spec.build.codeEntryAttributes = code_entry_attributes
         return self
 
     def with_v3io(self, local="", remote=""):
@@ -348,6 +411,18 @@ class RemoteRuntime(KubeResource):
                 return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
+
+    @staticmethod
+    def _resolve_code_entry_type(source):
+        if source.startswith("s3://"):
+            return "s3"
+        if source.startswith("git://"):
+            return "git"
+
+        for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
+            if source.startswith[archive_prefix]:
+                return "archive"
+        return ""
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
@@ -588,6 +663,13 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     else:
         spec.set_config("spec.minReplicas", function.spec.min_replicas)
         spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+
+    # set external code entry type when given
+    if function.spec.build.codeEntryType != "":
+        spec.set_config("spec.build.codeEntryType", function.spec.build.codeEntryType)
+        spec.set_config("spec.build.codeEntryAttributes", function.spec.build.codeEntryAttributes)
+        if function.spec.build.source != "":
+            spec.set_config("spec.build.path", function.spec.build.source)
 
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     if function.spec.base_spec:

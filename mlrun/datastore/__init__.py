@@ -22,6 +22,7 @@ from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
 from .store_resources import get_store_resource, get_store_uri, is_store_uri
 from .v3io import parse_v3io_path
+from .s3 import parse_s3_bucket_and_key
 
 store_manager = StoreManager()
 

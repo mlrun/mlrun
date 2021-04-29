@@ -441,11 +441,12 @@ def watch_stream(url, shard_ids: list = None, seek_to: str = None, interval=3, i
     while True:
         for watcher in watchers:
             records = watcher.get_records()
-            print(f"{watcher._container}/{watcher._stream_path}:{watcher._shard_id}>> ")
-            for record in records:
-                print(f"(#{record.sequence_number}) >> ")
-                data = json.loads(record.data) if is_json else record.data.decode()
-                pprint(data)
+            if records:
+                print(f"{watcher._container}/{watcher._stream_path}:{watcher._shard_id}>> ")
+                for record in records:
+                    print(f"(#{record.sequence_number}) >> ")
+                    data = json.loads(record.data) if is_json else record.data.decode()
+                    pprint(data)
         sleep(interval)
 
 

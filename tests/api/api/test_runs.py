@@ -32,11 +32,20 @@ def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
 
 def test_abort_run(db: Session, client: TestClient) -> None:
     project = "some-project"
-    run_in_progress = {"status": {"state": mlrun.runtimes.constants.RunStates.running}}
+    run_in_progress = {
+        "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.job}},
+        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+    }
     run_in_progress_uid = "in-progress-uid"
-    run_completed = {"status": {"state": mlrun.runtimes.constants.RunStates.completed}}
+    run_completed = {
+        "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.job}},
+        "status": {"state": mlrun.runtimes.constants.RunStates.completed},
+    }
     run_completed_uid = "completed-uid"
-    run_aborted = {"status": {"state": mlrun.runtimes.constants.RunStates.aborted}}
+    run_aborted = {
+        "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.job}},
+        "status": {"state": mlrun.runtimes.constants.RunStates.aborted},
+    }
     run_aborted_uid = "aborted-uid"
     run_dask = {
         "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.dask}},
@@ -59,7 +68,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     # aborted is terminal state - should fail
     response = client.patch(f"/api/run/{project}/{run_aborted_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.CONFLICT.value
-    # kind dask - should fail
+    # dask kind not abortable - should fail
     response = client.patch(f"/api/run/{project}/{run_dask_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # running is ok - should succeed

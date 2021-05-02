@@ -1,7 +1,7 @@
 import http
-import deepdiff
 import unittest.mock
 
+import deepdiff
 import fastapi.testclient
 import sqlalchemy.orm
 
@@ -21,7 +21,13 @@ def test_get_frontend_spec(
     response = client.get("/api/frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
-    assert deepdiff.DeepDiff(frontend_spec.abortable_function_kinds, mlrun.runtimes.RuntimeKinds.abortable_runtimes()) == {}
+    assert (
+        deepdiff.DeepDiff(
+            frontend_spec.abortable_function_kinds,
+            mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
+        )
+        == {}
+    )
 
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(

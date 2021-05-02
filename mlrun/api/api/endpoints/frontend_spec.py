@@ -16,7 +16,10 @@ def get_frontend_spec(session: typing.Optional[str] = fastapi.Cookie(None)):
     jobs_dashboard_url = None
     if session:
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
-    return mlrun.api.schemas.FrontendSpec(jobs_dashboard_url=jobs_dashboard_url, abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes())
+    return mlrun.api.schemas.FrontendSpec(
+        jobs_dashboard_url=jobs_dashboard_url,
+        abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
+    )
 
 
 def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:

@@ -170,6 +170,8 @@ class RemoteRuntime(KubeResource):
 
     def from_remote_source(self,
                            source,
+                           runtime,
+                           handler="",
                            code_entry_type="",
                            work_dir="",
                            branch="",
@@ -182,6 +184,18 @@ class RemoteRuntime(KubeResource):
                            s3_secret_access_key="",
                            s3_session_token="",
                            v3io_access_key=""):
+
+        code_entry_type = code_entry_type or self._resolve_code_entry_type(source)
+        if code_entry_type == "":
+            raise ValueError("Couldn't resolve code entry type from source. "
+                             "(Try passing it explicitly using 'code_entry_type' kwarg)")
+
+        handler = handler or self.spec.function_handler
+        if handler == "":
+            raise ValueError("Handler must be set to a non empty value")
+        if runtime == "":
+            raise ValueError("Runtime must be set to a non empty value")
+
         code_entry_attributes = {
             "workDir": work_dir,
             "branch": branch,
@@ -190,13 +204,10 @@ class RemoteRuntime(KubeResource):
             "username": username,
             "password": password,
             "s3Region": s3_region,
-            "s3AccessKeyId": s3_access_key_id,
-            "s3SecretAccessKey": s3_secret_access_key,
+            "s3AccessKeyId": s3_access_key_id or getenv("AWS_ACCESS_KEY_ID"),
+            "s3SecretAccessKey": s3_secret_access_key or getenv("AWS_SECRET_ACCESS_KEY"),
             "s3SessionToken": s3_session_token,
         }
-        code_entry_type = code_entry_type or self._resolve_code_entry_type(source)
-        if code_entry_type == "":
-            raise ValueError("Couldn't resolve code entry type from source")
 
         # archive
         if code_entry_type == "archive":
@@ -225,9 +236,14 @@ class RemoteRuntime(KubeResource):
                 source = source.replace("git://", "https://")
 
         # populate spec with relevant fields
-        self.spec.build.source = source
-        self.spec.build.codeEntryType = code_entry_type
-        self.spec.build.codeEntryAttributes = code_entry_attributes
+        config = nuclio.config.new_config()
+        update_in(config, "spec.handler", handler)
+        update_in(config, "spec.runtime", runtime)
+        update_in(config, "spec.build.path", source)
+        update_in(config, "spec.build.codeEntryType", code_entry_type)
+        update_in(config, "spec.build.codeEntryAttributes", code_entry_attributes)
+        self.spec.base_spec = config
+
         return self
 
     def with_v3io(self, local="", remote=""):
@@ -663,13 +679,6 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     else:
         spec.set_config("spec.minReplicas", function.spec.min_replicas)
         spec.set_config("spec.maxReplicas", function.spec.max_replicas)
-
-    # set external code entry type when given
-    if function.spec.build.codeEntryType != "":
-        spec.set_config("spec.build.codeEntryType", function.spec.build.codeEntryType)
-        spec.set_config("spec.build.codeEntryAttributes", function.spec.build.codeEntryAttributes)
-        if function.spec.build.source != "":
-            spec.set_config("spec.build.path", function.spec.build.source)
 
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     if function.spec.base_spec:

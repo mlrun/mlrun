@@ -16,6 +16,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         config.mpijob_crd_version = MPIJobCRDVersions.v1
         self.runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
+        self.runtime_handler.wait_for_deletion_interval = 0
 
         # initializing them here to save space in tests
         self.active_crd_dict = self._generate_mpijob_crd(
@@ -94,11 +95,18 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_delete_resources_succeeded_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.succeeded_crd_dict],
+            # 2 additional time for wait for pods deletion
+            [self.succeeded_crd_dict],
+            [self.succeeded_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # for the get_logger_pods
             [self.launcher_pod, self.worker_pod],
+            # additional time for wait for pods deletion - simulate pods not removed yet
+            [self.launcher_pod, self.worker_pod],
+            # additional time for wait for pods deletion - simulate pods gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
@@ -164,11 +172,15 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.active_crd_dict],
+            # additional time for wait for pods deletion
+            [self.active_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # for the get_logger_pods
             [self.launcher_pod, self.worker_pod],
+            # additional time for wait for pods deletion - simulate pods gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()

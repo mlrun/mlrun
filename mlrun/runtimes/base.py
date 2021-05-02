@@ -885,6 +885,9 @@ def is_local(url):
 
 
 class BaseRuntimeHandler(ABC):
+    # setting here to allow tests to override
+    wait_for_deletion_interval = 3
+
     @staticmethod
     @abstractmethod
     def _get_object_label_selector(object_id: str) -> str:
@@ -899,10 +902,6 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
-        if project and project == "*" and group_by is not None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Group by can not be used across projects"
-            )
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(project, label_selector)
@@ -1151,12 +1150,10 @@ class BaseRuntimeHandler(ABC):
                     f"Pods are still in deletion process: {still_in_deletion_pods}"
                 )
 
-        # setting here to allow tests to override
-        self._wait_for_deletion_interval = self._wait_for_deletion_interval or 3
-
-        mlrun.utils.retry_until_successful(
-            self._wait_for_deletion_interval, 180, logger, True, _verify_pods_removed
-        )
+        if deleted_pod_names:
+            mlrun.utils.retry_until_successful(
+                self.wait_for_deletion_interval, 180, logger, True, _verify_pods_removed
+            )
 
     def _wait_for_crds_underlying_pods_deletion(
         self, deleted_crds: List[Dict], label_selector: str = None,
@@ -1206,17 +1203,14 @@ class BaseRuntimeHandler(ABC):
                 raise RuntimeError(
                     f"CRD underlying pods are still in deletion process: {still_in_deletion_crds_to_pod_names}"
                 )
-
-        # setting here to allow tests to override
-        self._wait_for_deletion_interval = self._wait_for_deletion_interval or 3
-
-        mlrun.utils.retry_until_successful(
-            self._wait_for_deletion_interval,
-            180,
-            logger,
-            True,
-            _verify_crds_underlying_pods_removed,
-        )
+        if deleted_crds:
+            mlrun.utils.retry_until_successful(
+                self.wait_for_deletion_interval,
+                180,
+                logger,
+                True,
+                _verify_crds_underlying_pods_removed,
+            )
 
     def _delete_pod_resources(
         self,

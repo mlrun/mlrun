@@ -508,6 +508,14 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         """
         Handling listing service resources
         """
+        # Dask runtime resources are per function (and not per job) therefore, when grouping by job we're simply
+        # omitting the dask runtime resources
+        if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+            return response
+        elif group_by is not None:
+            raise NotImplementedError(
+                f"Provided group by field is not supported. group_by={group_by}"
+            )
         k8s_helper = get_k8s_helper()
         services = k8s_helper.v1api.list_namespaced_service(
             namespace, label_selector=label_selector
@@ -517,17 +525,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             service_resources.append(
                 {"name": service.metadata.name, "labels": service.metadata.labels}
             )
-        if group_by is None:
-            response["service_resources"] = service_resources
-        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
-            for service_resource in service_resources:
-                self._add_resource_to_grouped_by_job_resources_response(
-                    response, "service_resources", service_resource
-                )
-        else:
-            raise NotImplementedError(
-                f"Provided group by field is not supported. group_by={group_by}"
-            )
+        response["service_resources"] = service_resources
         return response
 
     def _delete_resources(

@@ -1151,8 +1151,18 @@ class BaseRuntimeHandler(ABC):
                 )
 
         if deleted_pod_names:
+            timeout = 180
+            logger.debug(
+                "Waiting for pods deletion",
+                timeout=timeout,
+                interval=self.wait_for_deletion_interval,
+            )
             mlrun.utils.retry_until_successful(
-                self.wait_for_deletion_interval, 180, logger, True, _verify_pods_removed
+                self.wait_for_deletion_interval,
+                timeout,
+                logger,
+                True,
+                _verify_pods_removed,
             )
 
     def _wait_for_crds_underlying_pods_deletion(
@@ -1205,9 +1215,15 @@ class BaseRuntimeHandler(ABC):
                 )
 
         if deleted_crds:
+            timeout = 180
+            logger.debug(
+                "Waiting for CRDs underlying pods deletion",
+                timeout=timeout,
+                interval=self.wait_for_deletion_interval,
+            )
             mlrun.utils.retry_until_successful(
                 self.wait_for_deletion_interval,
-                180,
+                timeout,
                 logger,
                 True,
                 _verify_crds_underlying_pods_removed,

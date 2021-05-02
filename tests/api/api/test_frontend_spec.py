@@ -1,4 +1,5 @@
 import http
+import deepdiff
 import unittest.mock
 
 import fastapi.testclient
@@ -8,9 +9,22 @@ import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.errors
+import mlrun.runtimes
 
 
 def test_get_frontend_spec(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+        unittest.mock.Mock()
+    )
+    response = client.get("/api/frontend-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    assert deepdiff.DeepDiff(frontend_spec.abortable_function_kinds, mlrun.runtimes.RuntimeKinds.abortable_runtimes()) == {}
+
+
+def test_get_frontend_spec_jobs_dashboard_url_resolution(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (

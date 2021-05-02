@@ -26,6 +26,7 @@ from kubernetes import client
 from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+from mlrun.datastore import parse_s3_bucket_and_key, parse_v3io_path
 from mlrun.db import RunDBError
 
 from ..config import config as mlconf
@@ -37,7 +38,6 @@ from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
-from mlrun.datastore import parse_v3io_path, parse_s3_bucket_and_key
 
 default_max_replicas = 4
 
@@ -168,27 +168,31 @@ class RemoteRuntime(KubeResource):
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
 
-    def from_remote_source(self,
-                           source,
-                           runtime,
-                           handler="",
-                           code_entry_type="",
-                           work_dir="",
-                           branch="",
-                           tag="",
-                           reference="",
-                           username="",
-                           password="",
-                           s3_region="",
-                           s3_access_key_id="",
-                           s3_secret_access_key="",
-                           s3_session_token="",
-                           v3io_access_key=""):
+    def from_remote_source(
+        self,
+        source,
+        runtime,
+        handler="",
+        code_entry_type="",
+        work_dir="",
+        branch="",
+        tag="",
+        reference="",
+        username="",
+        password="",
+        s3_region="",
+        s3_access_key_id="",
+        s3_secret_access_key="",
+        s3_session_token="",
+        v3io_access_key="",
+    ):
 
         code_entry_type = code_entry_type or self._resolve_code_entry_type(source)
         if code_entry_type == "":
-            raise ValueError("Couldn't resolve code entry type from source. "
-                             "(Try passing it explicitly using 'code_entry_type' kwarg)")
+            raise ValueError(
+                "Couldn't resolve code entry type from source. "
+                "(Try passing it explicitly using 'code_entry_type' kwarg)"
+            )
 
         handler = handler or self.spec.function_handler
         if handler == "":
@@ -205,7 +209,8 @@ class RemoteRuntime(KubeResource):
             "password": password,
             "s3Region": s3_region,
             "s3AccessKeyId": s3_access_key_id or getenv("AWS_ACCESS_KEY_ID"),
-            "s3SecretAccessKey": s3_secret_access_key or getenv("AWS_SECRET_ACCESS_KEY"),
+            "s3SecretAccessKey": s3_secret_access_key
+            or getenv("AWS_SECRET_ACCESS_KEY"),
             "s3SessionToken": s3_session_token,
         }
 
@@ -216,7 +221,9 @@ class RemoteRuntime(KubeResource):
 
             v3io_access_key = v3io_access_key or getenv("V3IO_ACCESS_KEY")
             if v3io_access_key:
-                code_entry_attributes["headers"] = {"headers": {"X-V3io-Session-Key": v3io_access_key}}
+                code_entry_attributes["headers"] = {
+                    "headers": {"X-V3io-Session-Key": v3io_access_key}
+                }
 
         # s3
         if code_entry_type == "s3":

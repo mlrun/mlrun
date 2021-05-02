@@ -17,4 +17,6 @@ class RuntimeResourcesOutput(pydantic.BaseModel):
 
 
 # project name -> job uid -> runtime resources
-GroupedRuntimeResourcesOutput = typing.Dict[str, typing.Dict[str, RuntimeResourcesOutput]]
+GroupedRuntimeResourcesOutput = typing.Dict[
+    str, typing.Dict[str, RuntimeResourcesOutput]
+]

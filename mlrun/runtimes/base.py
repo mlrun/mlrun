@@ -1133,10 +1133,7 @@ class BaseRuntimeHandler(ABC):
         return label_selector
 
     def _wait_for_pods_deletion(
-            self,
-            namespace: str,
-            deleted_pods: List[Dict],
-            label_selector: str = None,
+        self, namespace: str, deleted_pods: List[Dict], label_selector: str = None,
     ):
         k8s_helper = get_k8s_helper()
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
@@ -1146,25 +1143,23 @@ class BaseRuntimeHandler(ABC):
                 namespace, label_selector=label_selector
             )
             existing_pod_names = [pod.metadata.name for pod in pods.items]
-            still_in_deletion_pods = set(existing_pod_names).intersection(deleted_pod_names)
+            still_in_deletion_pods = set(existing_pod_names).intersection(
+                deleted_pod_names
+            )
             if still_in_deletion_pods:
-                raise RuntimeError(f"Pods are still in deletion process: {still_in_deletion_pods}")
+                raise RuntimeError(
+                    f"Pods are still in deletion process: {still_in_deletion_pods}"
+                )
 
         # setting here to allow tests to override
         self._wait_for_deletion_interval = self._wait_for_deletion_interval or 3
 
         mlrun.utils.retry_until_successful(
-            self._wait_for_deletion_interval,
-            180,
-            logger,
-            True,
-            _verify_pods_removed
+            self._wait_for_deletion_interval, 180, logger, True, _verify_pods_removed
         )
 
     def _wait_for_crds_underlying_pods_deletion(
-            self,
-            deleted_crds: List[Dict],
-            label_selector: str = None,
+        self, deleted_crds: List[Dict], label_selector: str = None,
     ):
         # we're using here the run identifier as the common ground to identify which pods are relevant to which CRD, so
         # if they are not coupled we are not able to wait - simply return
@@ -1172,6 +1167,7 @@ class BaseRuntimeHandler(ABC):
         # non of the runtimes using CRDs is like that, so not handling it now
         if not self._are_resources_coupled_to_run_object():
             return
+
         def _verify_crds_underlying_pods_removed():
             project_uid_crd_map = {}
             for crd in deleted_crds:
@@ -1182,19 +1178,34 @@ class BaseRuntimeHandler(ABC):
                         crd=crd,
                     )
                     continue
-                project_uid_crd_map.setdefault(project, {})[uid] = crd['metadata']['name']
+                project_uid_crd_map.setdefault(project, {})[uid] = crd["metadata"][
+                    "name"
+                ]
             still_in_deletion_crds_to_pod_names = {}
-            jobs_runtime_resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput = self.list_resources("*", label_selector, mlrun.api.schemas.ListRuntimeResourcesGroupByField.job)
+            jobs_runtime_resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput = self.list_resources(
+                "*",
+                label_selector,
+                mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            )
             for project, project_jobs in jobs_runtime_resources.items():
                 if project not in project_uid_crd_map:
                     continue
-                for job_uid, job_runtime_resources in jobs_runtime_resources[project].items():
+                for job_uid, job_runtime_resources in jobs_runtime_resources[
+                    project
+                ].items():
                     if job_uid not in project_uid_crd_map[project]:
                         continue
                     if job_runtime_resources.pod_resources:
-                        still_in_deletion_crds_to_pod_names[project_uid_crd_map[project][job_uid]] = [pod_resource["name"] for pod_resource in job_runtime_resources.pod_resources]
+                        still_in_deletion_crds_to_pod_names[
+                            project_uid_crd_map[project][job_uid]
+                        ] = [
+                            pod_resource["name"]
+                            for pod_resource in job_runtime_resources.pod_resources
+                        ]
             if still_in_deletion_crds_to_pod_names:
-                raise RuntimeError(f"CRD underlying pods are still in deletion process: {still_in_deletion_crds_to_pod_names}")
+                raise RuntimeError(
+                    f"CRD underlying pods are still in deletion process: {still_in_deletion_crds_to_pod_names}"
+                )
 
         # setting here to allow tests to override
         self._wait_for_deletion_interval = self._wait_for_deletion_interval or 3
@@ -1204,7 +1215,7 @@ class BaseRuntimeHandler(ABC):
             180,
             logger,
             True,
-            _verify_crds_underlying_pods_removed
+            _verify_crds_underlying_pods_removed,
         )
 
     def _delete_pod_resources(

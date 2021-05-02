@@ -1161,7 +1161,7 @@ class BaseRuntimeHandler(ABC):
         # we're using here the run identifier as the common ground to identify which pods are relevant to which CRD, so
         # if they are not coupled we are not able to wait - simply return
         # NOTE - there are surely smarter ways to do this, without depending on the run object, but as of writing this
-        # non of the runtimes using CRDs is like that, so not handling it now
+        # none of the runtimes using CRDs are like that, so not handling it now
         if not self._are_resources_coupled_to_run_object():
             return
 

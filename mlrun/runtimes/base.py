@@ -1203,6 +1203,7 @@ class BaseRuntimeHandler(ABC):
                 raise RuntimeError(
                     f"CRD underlying pods are still in deletion process: {still_in_deletion_crds_to_pod_names}"
                 )
+
         if deleted_crds:
             mlrun.utils.retry_until_successful(
                 self.wait_for_deletion_interval,

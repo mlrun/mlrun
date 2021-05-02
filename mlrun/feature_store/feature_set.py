@@ -368,7 +368,8 @@ class FeatureSet(ModelObj):
         :param state_name: optional, graph state name
         :param after:      optional, after which graph state it runs
         :param before:     optional, comes before graph state
-        :param emit_policy optional. Define emit policy of the aggregations
+        :param emit_policy optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
+                            the Nth event). The default behaviour is emitting every event
         """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -390,25 +391,18 @@ class FeatureSet(ModelObj):
             if emit_policy:
                 state.class_args["emit_policy"] = emit_policy
         else:
+            class_args = {}
             if emit_policy:
-                state = graph.add_step(
-                    name=state_name,
-                    after=after or previous_step,
-                    before=before,
-                    class_name="storey.AggregateByKey",
-                    aggregates=[aggregation],
-                    table=".",
-                    emit_policy=emit_policy,
-                )
-            else:
-                state = graph.add_step(
-                    name=state_name,
-                    after=after or previous_step,
-                    before=before,
-                    class_name="storey.AggregateByKey",
-                    aggregates=[aggregation],
-                    table=".",
-                )
+                class_args["emit_policy"] = emit_policy
+            state = graph.add_step(
+                name=state_name,
+                after=after or previous_step,
+                before=before,
+                class_name="storey.AggregateByKey",
+                aggregates=[aggregation],
+                table=".",
+                **class_args,
+            )
 
         for operation in operations:
             for window in windows:

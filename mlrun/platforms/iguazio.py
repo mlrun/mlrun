@@ -429,15 +429,21 @@ class StreamWatcher:
             self._stream_path,
             self._shard_id,
             self._seek_to,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
             **self._kwargs,
         )
+        if response.status_code == 404 and "ResourceNotFound" in str(response.body):
+            return 0
+        response.raise_for_status()
         self._location = response.output.location
         self._seek_done = True
         return response.status_code
 
     def get_records(self):
         if not self._seek_done:
-            self.seek()
+            resp = self.seek()
+            if resp == 0:
+                return []
         response = self._client.stream.get_records(
             self._container, self._stream_path, self._shard_id, self._location
         )

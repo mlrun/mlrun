@@ -125,7 +125,12 @@ class GraphServer(ModelObj):
         return mlrun.get_run_db(secrets=self._secrets)
 
     def init(
-        self, context, namespace, resource_cache: ResourceCache = None, logger=None
+        self,
+        context,
+        namespace,
+        resource_cache: ResourceCache = None,
+        logger=None,
+        is_mock=False,
     ):
         """for internal use, initialize all states (recursively)"""
 
@@ -137,6 +142,7 @@ class GraphServer(ModelObj):
         self.resource_cache = resource_cache or ResourceCache()
 
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
+        context.is_mock = is_mock
         context.root = self.graph
 
         context.stream = _StreamContext(
@@ -339,6 +345,7 @@ class GraphContext:
         self.current_function = None
         self.get_store_resource = None
         self.get_table = None
+        self.is_mock = False
 
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:

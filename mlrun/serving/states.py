@@ -872,7 +872,8 @@ class FlowState(BaseState):
                 self.context
             ):
                 if state.kind == StateKinds.queue:
-                    if state.path:
+                    skip_stream = self.context.is_mock and state.next
+                    if state.path and not skip_stream:
                         stream_path = state.path
                         endpoint = None
                         if "://" in stream_path:

@@ -508,9 +508,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         """
         Handling listing service resources
         """
-        # TODO: add support for enrichment also with group by
-        if group_by is not None:
-            return response
         k8s_helper = get_k8s_helper()
         services = k8s_helper.v1api.list_namespaced_service(
             namespace, label_selector=label_selector
@@ -520,7 +517,17 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             service_resources.append(
                 {"name": service.metadata.name, "labels": service.metadata.labels}
             )
-        response["service_resources"] = service_resources
+        if group_by is None:
+            response["service_resources"] = service_resources
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+            for service_resource in service_resources:
+                self._add_resource_to_grouped_by_job_resources_response(
+                    response, "service_resources", service_resource
+                )
+        else:
+            raise NotImplementedError(
+                f"Provided group by field is not supported. group_by={group_by}"
+            )
         return response
 
     def _delete_resources(

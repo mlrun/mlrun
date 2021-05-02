@@ -32,7 +32,7 @@ from ..config import config as mlconf
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, split_path, parse_v3io_path
+from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .pod import KubeResource, KubeResourceSpec

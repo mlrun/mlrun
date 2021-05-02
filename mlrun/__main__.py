@@ -32,6 +32,7 @@ from .config import config as mlconf
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
+from .platforms.iguazio import watch_stream
 from .projects import load_project
 from .run import get_object, import_function, import_function_to_dict, new_function
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
@@ -845,6 +846,35 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
         mldb.delete_runtimes(
             label_selector=label_selector, force=force, grace_period=grace_period
         )
+
+
+@main.command(name="watch-stream")
+@click.argument("url", type=str)
+@click.option(
+    "--shard-ids",
+    "-s",
+    multiple=True,
+    type=int,
+    help="shard id to listen on (can be multiple)",
+)
+@click.option("--seek", help="where to start/seek (EARLIEST or LATEST)")
+@click.option(
+    "--interval",
+    "-i",
+    default=3,
+    show_default=True,
+    help="interval in seconds",
+    type=int,
+)
+@click.option(
+    "--is-json",
+    "-j",
+    is_flag=True,
+    help="indicate the payload is json (will be deserialized)",
+)
+def stream_watcher(url, shard_ids, seek, interval, is_json):
+    """watch on a stream and print data every interval"""
+    watch_stream(url, shard_ids, seek, interval=interval, is_json=is_json)
 
 
 @main.command(name="config")

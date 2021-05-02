@@ -14,21 +14,19 @@
 import json
 import os
 import warnings
-from time import sleep
-
-import v3io
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
+from pprint import pprint
+from time import sleep
 from urllib.parse import urlparse
 
 import requests
 import urllib3
+import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
-from v3io.dataplane import Client
-from pprint import pprint
 
 _cached_control_session = None
 
@@ -400,18 +398,39 @@ class OutputStream:
 
 
 class StreamWatcher:
-    def __init__(self, stream_path: str, shard_id: int = 0, seek_to: str = None, endpoint: str = None):
-        seek_to = seek_to or 'EARLIEST'
+    def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
+        endpoint, stream_path = parse_v3io_path(url)
+        seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
+        seek_to = seek_to or "LATEST"
+        seek_to = seek_to.upper()
+        if seek_to not in seek_options:
+            raise ValueError(f'seek_to must be one of {", ".join(seek_options)}')
+
+        self._url = url
         self._container, self._stream_path = split_path(stream_path)
         self._shard_id = shard_id
         self._seek_to = seek_to
         self._client = v3io.dataplane.Client(endpoint=endpoint)
         self._seek_done = False
         self._location = ""
+        self._kwargs = kwargs
 
-    def seek(self, seek_to: str = None):
-        seek_to = seek_to or self._seek_to
-        response = self._client.stream.seek(self._container, self._stream_path, self._shard_id, seek_to)
+    @property
+    def url(self):
+        return self._url
+
+    @property
+    def shard_id(self):
+        return self._shard_id
+
+    def seek(self):
+        response = self._client.stream.seek(
+            self._container,
+            self._stream_path,
+            self._shard_id,
+            self._seek_to,
+            **self._kwargs,
+        )
         self._location = response.output.location
         self._seek_done = True
         return response.status_code
@@ -427,26 +446,43 @@ class StreamWatcher:
         return response.output.records
 
 
-def watch_stream(url, shard_ids: list = None, seek_to: str = None, interval=3, is_json=False):
+def watch_stream(
+    url,
+    shard_ids: list = None,
+    seek_to: str = None,
+    interval=None,
+    is_json=False,
+    **kwargs,
+):
     """watch on a v3io stream and print data every interval
 
     example::
         watch_stream('v3io:///users/admin/mystream')
+
+    :param url:        stream url
+    :param shard_ids:  range or list of shard IDs
+    :param seek_to:    where to start/seek ('EARLIEST', 'LATEST', 'TIME', 'SEQUENCE')
+    :param interval    watch interval time in seconds, 0 to run once and return
+    :param is_json:    indicate the payload is json (will be deserialized)
     """
-    endpoint, stream_path = parse_v3io_path(url)
+    interval = 3 if interval is None else interval
     shard_ids = shard_ids or [0]
-    if not isinstance(shard_ids, list):
+    if isinstance(shard_ids, int):
         shard_ids = [shard_ids]
-    watchers = [StreamWatcher(stream_path, id, seek_to, endpoint) for id in shard_ids]
+    watchers = [
+        StreamWatcher(url, shard_id, seek_to, **kwargs) for shard_id in list(shard_ids)
+    ]
     while True:
         for watcher in watchers:
             records = watcher.get_records()
-            if records:
-                print(f"{watcher._container}/{watcher._stream_path}:{watcher._shard_id}>> ")
-                for record in records:
-                    print(f"(#{record.sequence_number}) >> ")
-                    data = json.loads(record.data) if is_json else record.data.decode()
-                    pprint(data)
+            for record in records:
+                print(
+                    f"{watcher.url}:{watcher.shard_id} (#{record.sequence_number}) >> "
+                )
+                data = json.loads(record.data) if is_json else record.data.decode()
+                pprint(data)
+        if interval <= 0:
+            break
         sleep(interval)
 
 

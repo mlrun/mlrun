@@ -26,10 +26,10 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from ..platforms.iguazio import parse_v3io_path
 from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
+from ..platforms.iguazio import parse_v3io_path
 from ..utils import get_class, get_function
 
 callable_prefix = "_"
@@ -868,12 +868,14 @@ class FlowState(BaseState):
                     process_step(next_state, next_step, root)
 
         for state in self._states.values():
-            if hasattr(state, "async_object") and state._is_local_function(self.context):
+            if hasattr(state, "async_object") and state._is_local_function(
+                self.context
+            ):
                 if state.kind == StateKinds.queue:
                     if state.path:
                         stream_path = state.path
                         endpoint = None
-                        if '://' in stream_path:
+                        if "://" in stream_path:
                             endpoint, stream_path = parse_v3io_path(state.path)
                             stream_path = stream_path.strip("/")
                         state._async_object = storey.StreamTarget(

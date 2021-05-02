@@ -15,7 +15,6 @@
 import time
 from copy import deepcopy
 from datetime import datetime
-from urllib.parse import urlparse
 
 import fsspec
 import v3io.dataplane

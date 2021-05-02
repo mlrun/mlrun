@@ -38,12 +38,13 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
                 raise mlrun.errors.MLRunConflictError(
                     "Run is already in terminal state, can not be aborted"
                 )
+            runtime_kind = current_run.get("metadata", {}).get("labels", {}).get("kind")
             if (
-                current_run.get("metadata", {}).get("labels", {}).get("kind")
-                == mlrun.runtimes.RuntimeKinds.dask
+                runtime_kind not in
+                mlrun.runtimes.RuntimeKinds.abortable_runtimes()
             ):
                 raise mlrun.errors.MLRunBadRequestError(
-                    "Run of a dask function can not be aborted"
+                    f"Run of kind {runtime_kind} can not be aborted"
                 )
             # aborting the run meaning deleting its runtime resources
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the

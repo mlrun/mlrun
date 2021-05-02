@@ -59,7 +59,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     # aborted is terminal state - should fail
     response = client.patch(f"/api/run/{project}/{run_aborted_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.CONFLICT.value
-    # kind dask - should fail
+    # dask kind not abortable - should fail
     response = client.patch(f"/api/run/{project}/{run_dask_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # running is ok - should succeed

@@ -1,5 +1,6 @@
 import os
 
+import deepdiff
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -241,3 +242,14 @@ def my_func(context):
         runtime = self._generate_runtime()
         self._execute_run(runtime, runspec=task)
         self._assert_pod_creation_config(expected_labels=labels)
+
+    def test_with_requirements(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.with_requirements(self.requirements_file)
+        expected_commands = ["python -m pip install faker python-dotenv"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands, runtime.spec.build.commands, ignore_order=True,
+            )
+            == {}
+        )

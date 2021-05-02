@@ -22,6 +22,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
+import mlrun.errors
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 
@@ -210,12 +211,22 @@ class DaskCluster(KubejobRuntime):
                         background_task.status.state
                         in mlrun.api.schemas.BackgroundTaskState.terminal_states()
                     ):
-                        function = db.get_function(
-                            self.metadata.name, self.metadata.project, self.metadata.tag
-                        )
-                        if function and function.get("status"):
-                            self.status = function.get("status")
-                        return
+                        if (
+                            background_task.status.state
+                            == mlrun.api.schemas.BackgroundTaskState.failed
+                        ):
+                            raise mlrun.errors.MLRunRuntimeError(
+                                "Failed bringing up dask cluster"
+                            )
+                        else:
+                            function = db.get_function(
+                                self.metadata.name,
+                                self.metadata.project,
+                                self.metadata.tag,
+                            )
+                            if function and function.get("status"):
+                                self.status = function.get("status")
+                            return
                     time.sleep(5)
                     now = datetime.datetime.utcnow()
         else:

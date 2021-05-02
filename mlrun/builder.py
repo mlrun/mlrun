@@ -171,7 +171,6 @@ def build_image(
         requirements_list = None
         requirements_path = requirements
 
-    base_image = base_image or config.default_image
     if with_mlrun:
         commands = commands or []
         commands.append(_resolve_mlrun_install_command(mlrun_version_specifier))
@@ -266,7 +265,7 @@ def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=Fals
     logger.info(f"building image ({build.image})")
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
-    base_image = enrich_image_url(build.base_image or "mlrun/mlrun")
+    base_image = enrich_image_url(build.base_image or config.default_base_image)
     if not build.base_image:
         with_mlrun = False
 
@@ -287,7 +286,7 @@ def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=Fals
     )
     runtime.status.build_pod = None
     if status == "skipped":
-        runtime.spec.image = build.base_image
+        runtime.spec.image = base_image
         runtime.status.state = "ready"
         return True
 

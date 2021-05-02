@@ -322,12 +322,12 @@ class TestFeatureStore(TestMLRunSystem):
         )
         resp1 = fs.ingest(measurements, source)
 
-        source = ParquetSource(
-            "mypq",
-            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
-        )
-        measurements = fs.FeatureSet("measurements", entities=[Entity(key)])
-        resp2 = fs.ingest(measurements, source)
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp = fs.get_offline_features(vector)
+        resp2 = resp.to_dataframe()
 
         assert resp1.to_dict() == resp2.to_dict()
 

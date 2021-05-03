@@ -379,11 +379,11 @@ class DaskCluster(KubejobRuntime):
 
     def with_scheduler_requests(self, mem=None, cpu=None):
         """set scheduler pod resources requests"""
-        self._verify_and_set_limits("scheduler_resources", mem, cpu)
+        self._verify_and_set_requests("scheduler_resources", mem, cpu)
 
     def with_worker_requests(self, mem=None, cpu=None):
         """set worker pod resources requests"""
-        self._verify_and_set_limits("worker_resources", mem, cpu)
+        self._verify_and_set_requests("worker_resources", mem, cpu)
 
     def _run(self, runobj: RunObject, execution):
 

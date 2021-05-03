@@ -4,7 +4,9 @@ import string
 import uuid
 from datetime import datetime
 
+import fsspec
 import pandas as pd
+import pyarrow.parquet as pq
 import pytest
 from storey import MapClass
 
@@ -330,6 +332,28 @@ class TestFeatureStore(TestMLRunSystem):
         resp2 = resp.to_dataframe()
 
         assert resp1.to_dict() == resp2.to_dict()
+
+        file_system = fsspec.filesystem("v3io")
+        dataset = pq.ParquetDataset(
+            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
+            filesystem=file_system,
+        )
+        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+
+        if key_bucketing_number is None:
+            expected_partitions = []
+        elif key_bucketing_number == 0:
+            expected_partitions = ["key"]
+        else:
+            expected_partitions = [f"hash_{key_bucketing_number}_key"]
+        expected_partitions += partition_cols or []
+        if time_partitioning_granularity:
+            for unit in ["year", "month", "day", "hour"]:
+                expected_partitions.append(unit)
+                if unit == time_partitioning_granularity:
+                    break
+
+        assert partitions == expected_partitions
 
     def test_ordered_pandas_asof_merge(self):
         left_set, left = prepare_feature_set(

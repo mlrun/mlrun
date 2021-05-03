@@ -466,7 +466,7 @@ class ParquetTarget(BaseStoreTarget):
             partition_cols = partition_cols or []
             for time_unit in self._legal_time_units:
                 partition_cols.append(f"${time_unit}")
-                if time_unit == partition_cols:
+                if time_unit == self.time_partitioning_granularity:
                     break
 
         graph.add_step(

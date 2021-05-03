@@ -428,7 +428,9 @@ class TestRuntimeBase:
 
         container_spec = pod.spec.containers[0]
 
-        self._assert_container_resources(container_spec, expected_limits, expected_requests)
+        self._assert_container_resources(
+            container_spec, expected_limits, expected_requests
+        )
 
         pod_env = container_spec.env
 
@@ -483,7 +485,9 @@ class TestRuntimeBase:
 
         assert pod.spec.containers[0].image == self.image_name
 
-    def _assert_container_resources(self, container_spec, expected_limits, expected_requests):
+    def _assert_container_resources(
+        self, container_spec, expected_limits, expected_requests
+    ):
         if expected_limits:
             assert (
                 deepdiff.DeepDiff(

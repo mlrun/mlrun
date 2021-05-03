@@ -77,16 +77,26 @@ class TestDaskRuntime(TestRuntimeBase):
 
         return dask_cluster
 
-    def _assert_pods_resources(self, expected_worker_requests, expected_worker_limits, expected_scheduler_requests, expected_scheduler_limits):
+    def _assert_pods_resources(
+        self,
+        expected_worker_requests,
+        expected_worker_limits,
+        expected_scheduler_requests,
+        expected_scheduler_limits,
+    ):
         worker_pod = self._get_pod_creation_args()
         worker_container_spec = worker_pod.spec.containers[0]
-        # self._assert_container_resources(worker_container_spec, expected_worker_limits, expected_worker_requests)
+        self._assert_container_resources(
+            worker_container_spec, expected_worker_limits, expected_worker_requests
+        )
         _, kwargs = self.kube_cluster_mock.call_args
         scheduler_pod = kwargs["scheduler_pod_template"]
         scheduler_container_spec = scheduler_pod.spec.containers[0]
-        self._assert_container_resources(scheduler_container_spec, expected_scheduler_limits, expected_scheduler_requests)
-
-
+        self._assert_container_resources(
+            scheduler_container_spec,
+            expected_scheduler_limits,
+            expected_scheduler_requests,
+        )
 
     def test_dask_runtime(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
@@ -97,12 +107,17 @@ class TestDaskRuntime(TestRuntimeBase):
         )
         expected_scheduler_limits = generate_resources(mem="4G", cpu=5)
         gpu_type = "nvidia.com/gpu"
-        expected_worker_limits = generate_resources(mem="4G", cpu=5, gpus=2, gpu_type=gpu_type)
+        expected_worker_limits = generate_resources(
+            mem="4G", cpu=5, gpus=2, gpu_type=gpu_type
+        )
         runtime.with_scheduler_limits(
-            mem=expected_scheduler_limits["memory"], cpu=expected_scheduler_limits["cpu"]
+            mem=expected_scheduler_limits["memory"],
+            cpu=expected_scheduler_limits["cpu"],
         )
         runtime.with_worker_limits(
-            mem=expected_worker_limits["memory"], cpu=expected_worker_limits["cpu"], gpus=expected_worker_limits[gpu_type]
+            mem=expected_worker_limits["memory"],
+            cpu=expected_worker_limits["cpu"],
+            gpus=expected_worker_limits[gpu_type],
         )
         _ = runtime.client
 
@@ -114,7 +129,12 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
         )
         self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
-        self._assert_pods_resources(expected_requests, expected_worker_limits, expected_requests, expected_scheduler_limits)
+        self._assert_pods_resources(
+            expected_requests,
+            expected_worker_limits,
+            expected_requests,
+            expected_scheduler_limits,
+        )
 
     def test_dask_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

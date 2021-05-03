@@ -70,6 +70,7 @@ Table Of Content
    :maxdepth: 1
    :caption: Feature Store:
 
+   feature-store/feature-store
    feature-store/feature-store-demo
    feature-store/end-to-end-demo/index
 

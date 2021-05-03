@@ -238,91 +238,100 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def test_load_function_from_remote_source_git(self):
         fn = self._generate_runtime("nuclio")
-        fn.from_remote_source("git://github.com/org/repo#my-branch",
-                              handler="path/inside/repo#main:handler",
-                              credentials={"GIT_PASSWORD": "my-access-token"})
+        fn.from_remote_source(
+            "git://github.com/org/repo#my-branch",
+            handler="path/inside/repo#main:handler",
+            credentials={"GIT_PASSWORD": "my-access-token"},
+        )
 
         assert fn.spec.base_spec == {
-            'apiVersion': 'nuclio.io/v1',
-            'kind': 'Function',
-            'metadata': {'name': 'notebook', 'labels': {}, 'annotations': {}},
-            'spec': {
-                'runtime': 'python:3.7',
-                'handler': 'main:handler',
-                'env': [],
-                'volumes': [],
-                'build': {
-                    'commands': [],
-                    'noBaseImagesPull': True,
-                    'path': 'https://github.com/org/repo',
-                    'codeEntryType': 'git',
-                    'codeEntryAttributes': {
-                        'workDir': 'path/inside/repo',
-                        'reference': 'refs/heads/my-branch',
-                        'username': '',
-                        'password': 'my-access-token'
-                    }
-                }
-            }
+            "apiVersion": "nuclio.io/v1",
+            "kind": "Function",
+            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+            "spec": {
+                "runtime": "python:3.7",
+                "handler": "main:handler",
+                "env": [],
+                "volumes": [],
+                "build": {
+                    "commands": [],
+                    "noBaseImagesPull": True,
+                    "path": "https://github.com/org/repo",
+                    "codeEntryType": "git",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/repo",
+                        "reference": "refs/heads/my-branch",
+                        "username": "",
+                        "password": "my-access-token",
+                    },
+                },
+            },
         }
 
     def test_load_function_from_remote_source_s3(self):
         fn = self._generate_runtime("nuclio")
-        fn.from_remote_source("s3://my-bucket/path/in/bucket/my-functions-archive",
-                              handler="path/inside/functions/archive#main:Handler",
-                              runtime="golang",
-                              credentials={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
+        fn.from_remote_source(
+            "s3://my-bucket/path/in/bucket/my-functions-archive",
+            handler="path/inside/functions/archive#main:Handler",
+            runtime="golang",
+            credentials={
+                "AWS_ACCESS_KEY_ID": "some-id",
+                "AWS_SECRET_ACCESS_KEY": "some-secret",
+            },
+        )
 
         assert fn.spec.base_spec == {
-            'apiVersion': 'nuclio.io/v1',
-            'kind': 'Function',
-            'metadata': {'name': 'notebook', 'labels': {}, 'annotations': {}},
-            'spec': {
-                'runtime': 'golang',
-                'handler': 'main:Handler',
-                'env': [],
-                'volumes': [],
-                'build': {
-                    'commands': [],
-                    'noBaseImagesPull': True,
-                    'path': 's3://my-bucket/path/in/bucket/my-functions-archive',
-                    'codeEntryType': 's3',
-                    'codeEntryAttributes': {
-                        'workDir': 'path/inside/functions/archive',
-                        's3Bucket': 'my-bucket',
-                        's3ItemKey': 'path/in/bucket/my-functions-archive',
-                        's3AccessKeyId': 'some-id',
-                        's3SecretAccessKey': 'some-secret',
-                        's3SessionToken': ''
-                    }
-                }
-            }
+            "apiVersion": "nuclio.io/v1",
+            "kind": "Function",
+            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+            "spec": {
+                "runtime": "golang",
+                "handler": "main:Handler",
+                "env": [],
+                "volumes": [],
+                "build": {
+                    "commands": [],
+                    "noBaseImagesPull": True,
+                    "path": "s3://my-bucket/path/in/bucket/my-functions-archive",
+                    "codeEntryType": "s3",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/functions/archive",
+                        "s3Bucket": "my-bucket",
+                        "s3ItemKey": "path/in/bucket/my-functions-archive",
+                        "s3AccessKeyId": "some-id",
+                        "s3SecretAccessKey": "some-secret",
+                        "s3SessionToken": "",
+                    },
+                },
+            },
         }
 
     def test_load_function_from_remote_source_v3io(self):
         fn = self._generate_runtime("nuclio")
-        fn.from_remote_source("v3ios://host.com/container/my-functions-archive.zip",
-                              handler="path/inside/functions/archive#main:handler",
-                              credentials={"V3IO_ACCESS_KEY": "ma-access-key"})
+        fn.from_remote_source(
+            "v3ios://host.com/container/my-functions-archive.zip",
+            handler="path/inside/functions/archive#main:handler",
+            credentials={"V3IO_ACCESS_KEY": "ma-access-key"},
+        )
 
         assert fn.spec.base_spec == {
-            'apiVersion': 'nuclio.io/v1',
-            'kind': 'Function',
-            'metadata': {'name': 'notebook', 'labels': {}, 'annotations': {}},
-            'spec': {
-                'runtime': 'python:3.7',
-                'handler': 'main:handler',
-                'env': [],
-                'volumes': [],
-                'build': {
-                    'commands': [],
-                    'noBaseImagesPull': True,
-                    'path': 'https://host.com/container/my-functions-archive.zip',
-                    'codeEntryType': 'archive',
-                    'codeEntryAttributes': {
-                        'workDir': 'path/inside/functions/archive',
-                        'headers': {'headers': {'X-V3io-Session-Key': 'ma-access-key'}}
-                    }
-                }
-            }
+            "apiVersion": "nuclio.io/v1",
+            "kind": "Function",
+            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+            "spec": {
+                "runtime": "python:3.7",
+                "handler": "main:handler",
+                "env": [],
+                "volumes": [],
+                "build": {
+                    "commands": [],
+                    "noBaseImagesPull": True,
+                    "path": "https://host.com/container/my-functions-archive.zip",
+                    "codeEntryType": "archive",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/functions/archive",
+                        "headers": {"headers": {"X-V3io-Session-Key": "ma-access-key"}},
+                    },
+                },
+            },
         }

@@ -26,7 +26,7 @@ from kubernetes import client
 from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
-from mlrun.datastore import parse_s3_bucket_and_key, parse_v3io_path
+from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
 
 from ..config import config as mlconf

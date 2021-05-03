@@ -239,19 +239,19 @@ class KubeResource(BaseRuntime):
         """set pod cpu/memory/gpu limits"""
         if mem:
             verify_field_regex(
-                "function.limits.memory",
+                "function.spec.resources.limits.memory",
                 mem,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
         if cpu:
             verify_field_regex(
-                "function.limits.cpu",
+                "function.spec.resources.limits.cpu",
                 cpu,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
         if gpus:
             verify_field_regex(
-                "function.limits.gpus",
+                "function.spec.resources.limits.gpus",
                 gpus,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
@@ -265,13 +265,13 @@ class KubeResource(BaseRuntime):
         """set requested (desired) pod cpu/memory/gpu resources"""
         if mem:
             verify_field_regex(
-                "function.requests.memory",
+                "function.spec.resources.requests.memory",
                 mem,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
         if cpu:
             verify_field_regex(
-                "function.requests.cpu",
+                "function.spec.resources.requests.cpu",
                 cpu,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )

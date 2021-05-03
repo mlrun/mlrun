@@ -237,47 +237,11 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        if mem:
-            verify_field_regex(
-                "function.spec.resources.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                "function.spec.resources.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if gpus:
-            verify_field_regex(
-                "function.spec.resources.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            self.spec.resources,
-            "limits",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
-        )
+        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
 
     def with_requests(self, mem=None, cpu=None):
-        """set requested (desired) pod cpu/memory/gpu resources"""
-        if mem:
-            verify_field_regex(
-                "function.spec.resources.requests.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                "function.spec.resources.requests.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
-        )
+        """set requested (desired) pod cpu/memory resources"""
+        self._verify_and_set_requests("resources", mem, cpu)
 
     def with_node_selection(
         self,
@@ -300,6 +264,48 @@ class KubeResource(BaseRuntime):
             self.spec.node_selector = node_selector
         if affinity:
             self.spec.affinity = affinity
+
+    def _verify_and_set_limits(self, resources_field_name, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        if mem:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if gpus:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.gpus",
+                gpus,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            getattr(self.spec, resources_field_name),
+            "limits",
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
+
+    def _verify_and_set_requests(self, resources_field_name, mem=None, cpu=None):
+        if mem:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            getattr(self.spec, resources_field_name), "requests", generate_resources(mem=mem, cpu=cpu),
+        )
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()

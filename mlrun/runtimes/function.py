@@ -169,11 +169,7 @@ class RemoteRuntime(KubeResource):
         return self
 
     def from_remote_source(
-        self,
-        source,
-        handler="",
-        runtime="",
-        credentials=None,
+        self, source, handler="", runtime="", credentials=None,
     ):
         """
         Load nuclio function from remote source
@@ -221,7 +217,9 @@ class RemoteRuntime(KubeResource):
             if source.startswith("v3io://"):
                 source = parse_v3io_path(source)
 
-            v3io_access_key = credentials.get("V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY"))
+            v3io_access_key = credentials.get(
+                "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY")
+            )
             if v3io_access_key:
                 code_entry_attributes["headers"] = {
                     "headers": {"X-V3io-Session-Key": v3io_access_key}
@@ -237,10 +235,15 @@ class RemoteRuntime(KubeResource):
             code_entry_attributes["s3Bucket"] = bucket
             code_entry_attributes["s3ItemKey"] = item_key
 
-            code_entry_attributes["s3AccessKeyId"] = credentials.get("AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID"))
-            code_entry_attributes["s3SecretAccessKey"] = credentials.get("AWS_SECRET_ACCESS_KEY",
-                                                                         getenv("AWS_SECRET_ACCESS_KEY"))
-            code_entry_attributes["s3SessionToken"] = credentials.get("AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN"))
+            code_entry_attributes["s3AccessKeyId"] = credentials.get(
+                "AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID")
+            )
+            code_entry_attributes["s3SecretAccessKey"] = credentials.get(
+                "AWS_SECRET_ACCESS_KEY", getenv("AWS_SECRET_ACCESS_KEY")
+            )
+            code_entry_attributes["s3SessionToken"] = credentials.get(
+                "AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN")
+            )
 
         # git
         if code_entry_type == "git":
@@ -254,7 +257,9 @@ class RemoteRuntime(KubeResource):
                 code_entry_attributes["reference"] = reference
 
             code_entry_attributes["username"] = credentials.get("GIT_USERNAME")
-            code_entry_attributes["password"] = credentials.get("GIT_PASSWORD", getenv("GITHUB_TOKEN"))
+            code_entry_attributes["password"] = credentials.get(
+                "GIT_PASSWORD", getenv("GITHUB_TOKEN")
+            )
 
         # update handler in function_handler
         self.spec.function_handler = handler
@@ -481,7 +486,7 @@ class RemoteRuntime(KubeResource):
         if len(split_handler) == 1:
             return "", handler
 
-        return '/'.join(split_handler[:-1]), split_handler[-1]
+        return "/".join(split_handler[:-1]), split_handler[-1]
 
     @staticmethod
     def _resolve_code_entry_type(source):

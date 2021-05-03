@@ -24,6 +24,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.utils
+import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 
@@ -37,9 +39,7 @@ from .base import FunctionStatus
 from .kubejob import KubejobRuntime
 from .local import exec_from_params, load_module
 from .pod import KubeResourceSpec, kube_resource_spec_to_pod_spec
-from .utils import RunError, get_func_selector, get_resource_labels, log_std, generate_resources
-import mlrun.utils
-import mlrun.utils.regex
+from .utils import RunError, get_func_selector, get_resource_labels, log_std
 
 
 def get_dask_resource():
@@ -353,11 +353,15 @@ class DaskCluster(KubejobRuntime):
         self.with_scheduler_limits(mem, cpu, gpus, gpu_type)
         self.with_worker_limits(mem, cpu, gpus, gpu_type)
 
-    def with_scheduler_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    def with_scheduler_limits(
+        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+    ):
         """set scheduler pod resources limits"""
         self._verify_and_set_limits("scheduler_resources", mem, cpu, gpus, gpu_type)
 
-    def with_worker_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    def with_worker_limits(
+        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+    ):
         """set worker pod resources limits"""
         self._verify_and_set_limits("worker_resources", mem, cpu, gpus, gpu_type)
 

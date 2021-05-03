@@ -265,7 +265,14 @@ class KubeResource(BaseRuntime):
         if affinity:
             self.spec.affinity = affinity
 
-    def _verify_and_set_limits(self, resources_field_name, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    def _verify_and_set_limits(
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+    ):
         if mem:
             verify_field_regex(
                 f"function.spec.{resources_field_name}.limits.memory",
@@ -304,7 +311,9 @@ class KubeResource(BaseRuntime):
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
         update_in(
-            getattr(self.spec, resources_field_name), "requests", generate_resources(mem=mem, cpu=cpu),
+            getattr(self.spec, resources_field_name),
+            "requests",
+            generate_resources(mem=mem, cpu=cpu),
         )
 
     def _get_meta(self, runobj, unique=False):

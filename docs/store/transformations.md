@@ -142,7 +142,7 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
 that was added previously. The class will be initialized with a multiplier of 3.
 
-# Using Spark execution engine
+## Using Spark execution engine
 
 The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
 using Spark, the internal execution graph is executed synchronously, by utilizing a Spark session to perform read and

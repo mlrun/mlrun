@@ -1603,7 +1603,7 @@ class BaseRuntimeHandler(ABC):
                 {
                     "name": custom_object["metadata"]["name"],
                     "labels": custom_object["metadata"]["labels"],
-                    "status": custom_object["status"],
+                    "status": custom_object.get("status", {}),
                 }
             )
         return crd_resources

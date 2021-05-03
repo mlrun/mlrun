@@ -235,7 +235,7 @@ class TestRuntimeHandlerBase:
             assert (
                 resources["crd_resources"][index]["labels"] == crd["metadata"]["labels"]
             )
-            assert resources["crd_resources"][index]["status"] == crd["status"]
+            assert resources["crd_resources"][index]["status"] == crd.get("status", {})
         assert len(resources["pod_resources"]) == len(expected_pods)
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()

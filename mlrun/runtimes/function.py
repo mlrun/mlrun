@@ -192,6 +192,7 @@ class RemoteRuntime(KubeResource):
         s3:
         ("s3://my-bucket/path/in/bucket/my-functions-archive",
          handler="path/inside/functions/archive#main:Handler",
+         runtime="golang",
          credentials={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
         """
         code_entry_type = self._resolve_code_entry_type(source)
@@ -214,11 +215,11 @@ class RemoteRuntime(KubeResource):
 
         # archive
         if code_entry_type == "archive":
-            if source.startswith("v3io://"):
-                source = parse_v3io_path(source)
+            if source.startswith("v3io"):
+                source = f"http{source[4:]}"
 
             v3io_access_key = credentials.get(
-                "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY")
+                "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY", "")
             )
             if v3io_access_key:
                 code_entry_attributes["headers"] = {
@@ -236,13 +237,13 @@ class RemoteRuntime(KubeResource):
             code_entry_attributes["s3ItemKey"] = item_key
 
             code_entry_attributes["s3AccessKeyId"] = credentials.get(
-                "AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID")
+                "AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID", "")
             )
             code_entry_attributes["s3SecretAccessKey"] = credentials.get(
-                "AWS_SECRET_ACCESS_KEY", getenv("AWS_SECRET_ACCESS_KEY")
+                "AWS_SECRET_ACCESS_KEY", getenv("AWS_SECRET_ACCESS_KEY", "")
             )
             code_entry_attributes["s3SessionToken"] = credentials.get(
-                "AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN")
+                "AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN", "")
             )
 
         # git
@@ -252,13 +253,13 @@ class RemoteRuntime(KubeResource):
             if source.startswith("git://"):
                 source = source.replace("git://", "https://")
 
-            reference = self._resolve_git_reference_from_source(source)
+            source, reference = self._resolve_git_reference_from_source(source)
             if reference:
                 code_entry_attributes["reference"] = reference
 
-            code_entry_attributes["username"] = credentials.get("GIT_USERNAME")
+            code_entry_attributes["username"] = credentials.get("GIT_USERNAME", "")
             code_entry_attributes["password"] = credentials.get(
-                "GIT_PASSWORD", getenv("GITHUB_TOKEN")
+                "GIT_PASSWORD", getenv("GITHUB_TOKEN", "")
             )
 
         # update handler in function_handler
@@ -463,13 +464,13 @@ class RemoteRuntime(KubeResource):
 
         # no reference was passed
         if len(split_source) != 2:
-            return ""
+            return source
 
         reference = split_source[1]
         if reference.startswith("refs"):
-            return reference
+            return split_source, reference
 
-        return f"refs/heads/{reference}"
+        return split_source[0], f"refs/heads/{reference}"
 
     def _resolve_work_dir_and_handler(self, handler):
         """
@@ -496,7 +497,7 @@ class RemoteRuntime(KubeResource):
             return "git"
 
         for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
-            if source.startswith[archive_prefix]:
+            if source.startswith(archive_prefix):
                 return "archive"
         return ""
 

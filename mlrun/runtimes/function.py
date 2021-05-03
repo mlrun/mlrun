@@ -171,55 +171,57 @@ class RemoteRuntime(KubeResource):
     def from_remote_source(
         self,
         source,
-        runtime,
         handler="",
-        code_entry_type="",
-        work_dir="",
-        branch="",
-        tag="",
-        reference="",
-        username="",
-        password="",
-        s3_region="",
-        s3_access_key_id="",
-        s3_secret_access_key="",
-        s3_session_token="",
-        v3io_access_key="",
+        runtime="",
+        credentials=None,
     ):
+        """
+        Load nuclio function from remote source
+        :param source: a full path to the nuclio function source (code entry) to load the function from
+        :param handler: a path to the function's handler, including path inside archive/git repo
+        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        :param credentials: a dictionary of credentials to be used to fetch the function from the source, options:
+         ["V3IO_ACCESS_KEY",
+         "GIT_USERNAME",
+         "GIT_PASSWORD",
+         "AWS_ACCESS_KEY_ID",
+         "AWS_SECRET_ACCESS_KEY",
+         "AWS_SESSION_TOKEN"]
 
-        code_entry_type = code_entry_type or self._resolve_code_entry_type(source)
+        Examples:
+        git:
+        ("git://github.com/org/repo#my-branch",
+         handler="path/inside/repo#main:handler",
+         credentials={"GIT_PASSWORD": "my-access-token"})
+        s3:
+        ("s3://my-bucket/path/in/bucket/my-functions-archive",
+         handler="path/inside/functions/archive#main:Handler",
+         credentials={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
+        """
+        code_entry_type = self._resolve_code_entry_type(source)
         if code_entry_type == "":
-            raise ValueError(
-                "Couldn't resolve code entry type from source. "
-                "(Try passing it explicitly using 'code_entry_type' kwarg)"
-            )
+            raise ValueError("Couldn't resolve code entry type from source")
 
-        handler = handler or self.spec.function_handler
-        if handler == "":
-            raise ValueError("Handler must be set to a non empty value")
+        code_entry_attributes = {}
+
+        # resolve work_dir and handler
+        work_dir, handler = self._resolve_work_dir_and_handler(handler)
+        if work_dir != "":
+            code_entry_attributes["workDir"] = work_dir
+
+        if credentials is None:
+            credentials = {}
+
+        # set default runtime if not specified otherwise
         if runtime == "":
-            raise ValueError("Runtime must be set to a non empty value")
-
-        code_entry_attributes = {
-            "workDir": work_dir,
-            "branch": branch,
-            "tag": tag,
-            "reference": reference,
-            "username": username,
-            "password": password,
-            "s3Region": s3_region,
-            "s3AccessKeyId": s3_access_key_id or getenv("AWS_ACCESS_KEY_ID"),
-            "s3SecretAccessKey": s3_secret_access_key
-            or getenv("AWS_SECRET_ACCESS_KEY"),
-            "s3SessionToken": s3_session_token,
-        }
+            runtime = "python:3.7"
 
         # archive
         if code_entry_type == "archive":
             if source.startswith("v3io://"):
                 source = parse_v3io_path(source)
 
-            v3io_access_key = v3io_access_key or getenv("V3IO_ACCESS_KEY")
+            v3io_access_key = credentials.get("V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY"))
             if v3io_access_key:
                 code_entry_attributes["headers"] = {
                     "headers": {"X-V3io-Session-Key": v3io_access_key}
@@ -235,12 +237,27 @@ class RemoteRuntime(KubeResource):
             code_entry_attributes["s3Bucket"] = bucket
             code_entry_attributes["s3ItemKey"] = item_key
 
+            code_entry_attributes["s3AccessKeyId"] = credentials.get("AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID"))
+            code_entry_attributes["s3SecretAccessKey"] = credentials.get("AWS_SECRET_ACCESS_KEY",
+                                                                         getenv("AWS_SECRET_ACCESS_KEY"))
+            code_entry_attributes["s3SessionToken"] = credentials.get("AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN"))
+
         # git
         if code_entry_type == "git":
 
             # change git:// to https:// as nuclio expects it to be
             if source.startswith("git://"):
                 source = source.replace("git://", "https://")
+
+            reference = self._resolve_git_reference_from_source(source)
+            if reference:
+                code_entry_attributes["reference"] = reference
+
+            code_entry_attributes["username"] = credentials.get("GIT_USERNAME")
+            code_entry_attributes["password"] = credentials.get("GIT_PASSWORD", getenv("GITHUB_TOKEN"))
+
+        # update handler in function_handler
+        self.spec.function_handler = handler
 
         # populate spec with relevant fields
         config = nuclio.config.new_config()
@@ -434,6 +451,37 @@ class RemoteRuntime(KubeResource):
                 return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
+
+    @staticmethod
+    def _resolve_git_reference_from_source(source):
+        split_source = source.split("#")
+
+        # no reference was passed
+        if len(split_source) != 2:
+            return ""
+
+        reference = split_source[1]
+        if reference.startswith("refs"):
+            return reference
+
+        return f"refs/heads/{reference}"
+
+    def _resolve_work_dir_and_handler(self, handler):
+        """
+        Resolves a nuclio function working dir and handler inside an archive/git repo
+        :param handler: a path describing working dir and handler of a nuclio function
+        :return: (wokring_dir, handler) tuple, as nuclio expects to get it
+
+        Example: ("a/b/c#main:Handler) -> ("a/b/c", "main:Handler")
+        """
+        if handler == "":
+            return "", self.spec.function_handler or "main:handler"
+
+        split_handler = handler.split("#")
+        if len(split_handler) == 1:
+            return "", handler
+
+        return '/'.join(split_handler[:-1]), split_handler[-1]
 
     @staticmethod
     def _resolve_code_entry_type(source):

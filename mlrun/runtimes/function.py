@@ -236,7 +236,9 @@ class RemoteRuntime(KubeResource):
         self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
     ):
         """add v3io stream trigger to the function"""
-        endpoint, stream_path = parse_v3io_path(stream_path)
+        endpoint = None
+        if "://" in stream_path:
+            endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
         self.add_trigger(
@@ -244,7 +246,7 @@ class RemoteRuntime(KubeResource):
             V3IOStreamTrigger(
                 name=name,
                 container=container,
-                path=path[1:-1],
+                path=path[1:],
                 consumerGroup=group,
                 seekTo=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",

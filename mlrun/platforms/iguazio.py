@@ -578,7 +578,7 @@ def add_or_refresh_credentials(
     return username, control_session, ""
 
 
-def parse_v3io_path(url):
+def parse_v3io_path(url, suffix="/"):
     """return v3io table path from url"""
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme.lower()
@@ -594,4 +594,4 @@ def parse_v3io_path(url):
         endpoint = f"{prefix}://{endpoint}"
     else:
         endpoint = None
-    return endpoint, parsed_url.path.strip("/") + "/"
+    return endpoint, parsed_url.path.strip("/") + suffix

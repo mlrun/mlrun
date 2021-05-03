@@ -27,9 +27,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self.failed_crd_dict = self._generate_mpijob_crd(
             self.project, self.run_uid, self._get_failed_crd_status(),
         )
-        self.no_status_crd_dict = self._generate_mpijob_crd(
-            self.project, self.run_uid,
-        )
+        self.no_status_crd_dict = self._generate_mpijob_crd(self.project, self.run_uid,)
 
         launcher_pod_labels = {
             "group-name": "kubeflow.org",

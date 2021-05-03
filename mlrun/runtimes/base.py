@@ -886,7 +886,7 @@ def is_local(url):
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
-    wait_for_deletion_interval = 3
+    wait_for_deletion_interval = 10
 
     @staticmethod
     @abstractmethod

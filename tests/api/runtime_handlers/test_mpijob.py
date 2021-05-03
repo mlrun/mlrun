@@ -27,6 +27,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self.failed_crd_dict = self._generate_mpijob_crd(
             self.project, self.run_uid, self._get_failed_crd_status(),
         )
+        self.no_status_crd_dict = self._generate_mpijob_crd(
+            self.project, self.run_uid,
+        )
 
         launcher_pod_labels = {
             "group-name": "kubeflow.org",
@@ -74,6 +77,15 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_list_resources(self):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
+        pods = self._mock_list_resources_pods()
+        self._assert_runtime_handler_list_resources(
+            RuntimeKinds.mpijob,
+            expected_crds=mocked_responses[0]["items"],
+            expected_pods=pods,
+        )
+
+    def test_list_resources_with_crds_without_status(self):
+        mocked_responses = self._mock_list_namespaced_crds([[self.no_status_crd_dict]])
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.mpijob,
@@ -266,8 +278,6 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):
-        if status is None:
-            status = TestMPIjobRuntimeHandler._get_succeeded_crd_status()
         crd_dict = {
             "metadata": {
                 "name": "train-eaf63df8",
@@ -282,8 +292,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                     "mlrun/uid": uid,
                 },
             },
-            "status": status,
         }
+        if status is not None:
+            crd_dict["status"] = status
         return crd_dict
 
     @staticmethod

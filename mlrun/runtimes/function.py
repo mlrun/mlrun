@@ -169,31 +169,31 @@ class RemoteRuntime(KubeResource):
         return self
 
     def from_remote_source(
-        self, source, handler="", runtime="", credentials=None,
+        self, source, handler="", runtime="", secrets=None,
     ):
-        """
-        Load nuclio function from remote source
+        """Load nuclio function from remote source
         :param source: a full path to the nuclio function source (code entry) to load the function from
         :param handler: a path to the function's handler, including path inside archive/git repo
         :param runtime: (optional) the runtime of the function (defaults to python:3.7)
-        :param credentials: a dictionary of credentials to be used to fetch the function from the source, options:
-         ["V3IO_ACCESS_KEY",
-         "GIT_USERNAME",
-         "GIT_PASSWORD",
-         "AWS_ACCESS_KEY_ID",
-         "AWS_SECRET_ACCESS_KEY",
-         "AWS_SESSION_TOKEN"]
+        :param secrets: a dictionary of secrets to be used to fetch the function from the source.
+               (can also be passed using env vars). options:
+               ["V3IO_ACCESS_KEY",
+               "GIT_USERNAME",
+               "GIT_PASSWORD",
+               "AWS_ACCESS_KEY_ID",
+               "AWS_SECRET_ACCESS_KEY",
+               "AWS_SESSION_TOKEN"]
 
-        Examples:
-        git:
-        ("git://github.com/org/repo#my-branch",
-         handler="path/inside/repo#main:handler",
-         credentials={"GIT_PASSWORD": "my-access-token"})
-        s3:
-        ("s3://my-bucket/path/in/bucket/my-functions-archive",
-         handler="path/inside/functions/archive#main:Handler",
-         runtime="golang",
-         credentials={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
+        Examples::
+            git:
+                ("git://github.com/org/repo#my-branch",
+                 handler="path/inside/repo#main:handler",
+                 secrets={"GIT_PASSWORD": "my-access-token"})
+            s3:
+                ("s3://my-bucket/path/in/bucket/my-functions-archive",
+                 handler="path/inside/functions/archive#main:Handler",
+                 runtime="golang",
+                 secrets={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
         """
         code_entry_type = self._resolve_code_entry_type(source)
         if code_entry_type == "":
@@ -206,8 +206,8 @@ class RemoteRuntime(KubeResource):
         if work_dir != "":
             code_entry_attributes["workDir"] = work_dir
 
-        if credentials is None:
-            credentials = {}
+        if secrets is None:
+            secrets = {}
 
         # set default runtime if not specified otherwise
         if runtime == "":
@@ -218,7 +218,7 @@ class RemoteRuntime(KubeResource):
             if source.startswith("v3io"):
                 source = f"http{source[4:]}"
 
-            v3io_access_key = credentials.get(
+            v3io_access_key = secrets.get(
                 "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY", "")
             )
             if v3io_access_key:
@@ -236,13 +236,13 @@ class RemoteRuntime(KubeResource):
             code_entry_attributes["s3Bucket"] = bucket
             code_entry_attributes["s3ItemKey"] = item_key
 
-            code_entry_attributes["s3AccessKeyId"] = credentials.get(
+            code_entry_attributes["s3AccessKeyId"] = secrets.get(
                 "AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID", "")
             )
-            code_entry_attributes["s3SecretAccessKey"] = credentials.get(
+            code_entry_attributes["s3SecretAccessKey"] = secrets.get(
                 "AWS_SECRET_ACCESS_KEY", getenv("AWS_SECRET_ACCESS_KEY", "")
             )
-            code_entry_attributes["s3SessionToken"] = credentials.get(
+            code_entry_attributes["s3SessionToken"] = secrets.get(
                 "AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN", "")
             )
 
@@ -257,8 +257,8 @@ class RemoteRuntime(KubeResource):
             if reference:
                 code_entry_attributes["reference"] = reference
 
-            code_entry_attributes["username"] = credentials.get("GIT_USERNAME", "")
-            code_entry_attributes["password"] = credentials.get(
+            code_entry_attributes["username"] = secrets.get("GIT_USERNAME", "")
+            code_entry_attributes["password"] = secrets.get(
                 "GIT_PASSWORD", getenv("GITHUB_TOKEN", "")
             )
 

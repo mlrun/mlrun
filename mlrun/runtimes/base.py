@@ -885,6 +885,9 @@ def is_local(url):
 
 
 class BaseRuntimeHandler(ABC):
+    # setting here to allow tests to override
+    wait_for_deletion_interval = 10
+
     @staticmethod
     @abstractmethod
     def _get_object_label_selector(object_id: str) -> str:
@@ -899,10 +902,6 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
-        if project and project == "*" and group_by is not None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Group by can not be used across projects"
-            )
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(project, label_selector)
@@ -1080,11 +1079,11 @@ class BaseRuntimeHandler(ABC):
         return "", "", ""
 
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         """
         Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Funtion of the job kind
         a kubernetes job is being generated, on the opposite a Function of the daskjob kind generates a dask cluster,
-        and every Run is being excuted using this cluster, i.e. no resources are created for the Run.
+        and every Run is being executed using this cluster, i.e. no resources are created for the Run.
         This function should return true for runtimes in which Run are coupled to the underlying resources and therefore
         aspects of the Run (like its state) should be taken into consideration on resources deletion
         """
@@ -1132,6 +1131,104 @@ class BaseRuntimeHandler(ABC):
 
         return label_selector
 
+    def _wait_for_pods_deletion(
+        self, namespace: str, deleted_pods: List[Dict], label_selector: str = None,
+    ):
+        k8s_helper = get_k8s_helper()
+        deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
+
+        def _verify_pods_removed():
+            pods = k8s_helper.v1api.list_namespaced_pod(
+                namespace, label_selector=label_selector
+            )
+            existing_pod_names = [pod.metadata.name for pod in pods.items]
+            still_in_deletion_pods = set(existing_pod_names).intersection(
+                deleted_pod_names
+            )
+            if still_in_deletion_pods:
+                raise RuntimeError(
+                    f"Pods are still in deletion process: {still_in_deletion_pods}"
+                )
+
+        if deleted_pod_names:
+            timeout = 180
+            logger.debug(
+                "Waiting for pods deletion",
+                timeout=timeout,
+                interval=self.wait_for_deletion_interval,
+            )
+            mlrun.utils.retry_until_successful(
+                self.wait_for_deletion_interval,
+                timeout,
+                logger,
+                True,
+                _verify_pods_removed,
+            )
+
+    def _wait_for_crds_underlying_pods_deletion(
+        self, deleted_crds: List[Dict], label_selector: str = None,
+    ):
+        # we're using here the run identifier as the common ground to identify which pods are relevant to which CRD, so
+        # if they are not coupled we are not able to wait - simply return
+        # NOTE - there are surely smarter ways to do this, without depending on the run object, but as of writing this
+        # none of the runtimes using CRDs are like that, so not handling it now
+        if not self._are_resources_coupled_to_run_object():
+            return
+
+        def _verify_crds_underlying_pods_removed():
+            project_uid_crd_map = {}
+            for crd in deleted_crds:
+                project, uid = self._resolve_runtime_resource_run(crd)
+                if not uid or not project:
+                    logger.warning(
+                        "Could not resolve run uid from crd. Skipping waiting for pods deletion",
+                        crd=crd,
+                    )
+                    continue
+                project_uid_crd_map.setdefault(project, {})[uid] = crd["metadata"][
+                    "name"
+                ]
+            still_in_deletion_crds_to_pod_names = {}
+            jobs_runtime_resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput = self.list_resources(
+                "*",
+                label_selector,
+                mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            )
+            for project, project_jobs in jobs_runtime_resources.items():
+                if project not in project_uid_crd_map:
+                    continue
+                for job_uid, job_runtime_resources in jobs_runtime_resources[
+                    project
+                ].items():
+                    if job_uid not in project_uid_crd_map[project]:
+                        continue
+                    if job_runtime_resources.pod_resources:
+                        still_in_deletion_crds_to_pod_names[
+                            project_uid_crd_map[project][job_uid]
+                        ] = [
+                            pod_resource["name"]
+                            for pod_resource in job_runtime_resources.pod_resources
+                        ]
+            if still_in_deletion_crds_to_pod_names:
+                raise RuntimeError(
+                    f"CRD underlying pods are still in deletion process: {still_in_deletion_crds_to_pod_names}"
+                )
+
+        if deleted_crds:
+            timeout = 180
+            logger.debug(
+                "Waiting for CRDs underlying pods deletion",
+                timeout=timeout,
+                interval=self.wait_for_deletion_interval,
+            )
+            mlrun.utils.retry_until_successful(
+                self.wait_for_deletion_interval,
+                timeout,
+                logger,
+                True,
+                _verify_crds_underlying_pods_removed,
+            )
+
     def _delete_pod_resources(
         self,
         db: DBInterface,
@@ -1168,7 +1265,9 @@ class BaseRuntimeHandler(ABC):
                     ):
                         continue
 
-                if self._consider_run_on_resources_deletion():
+                # if resources are tightly coupled to the run object - we want to perform some actions on the run object
+                # before deleting them
+                if self._are_resources_coupled_to_run_object():
                     try:
                         self._pre_deletion_runtime_resource_run_actions(
                             db, db_session, pod_dict, run_state
@@ -1187,6 +1286,7 @@ class BaseRuntimeHandler(ABC):
                 logger.warning(
                     f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
+        self._wait_for_pods_deletion(namespace, deleted_pods, label_selector)
         return deleted_pods
 
     def _delete_crd_resources(
@@ -1235,7 +1335,9 @@ class BaseRuntimeHandler(ABC):
                         ):
                             continue
 
-                    if self._consider_run_on_resources_deletion():
+                    # if resources are tightly coupled to the run object - we want to perform some actions on the run
+                    # object before deleting them
+                    if self._are_resources_coupled_to_run_object():
 
                         try:
                             self._pre_deletion_runtime_resource_run_actions(
@@ -1259,6 +1361,7 @@ class BaseRuntimeHandler(ABC):
                     logger.warning(
                         f"Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing"
                     )
+        self._wait_for_crds_underlying_pods_deletion(deleted_crds, label_selector)
         return deleted_crds
 
     def _pre_deletion_runtime_resource_run_actions(
@@ -1419,7 +1522,7 @@ class BaseRuntimeHandler(ABC):
                 )
             else:
                 raise NotImplementedError(
-                    f"Provided format is not supported. group_by={group_by}"
+                    f"Provided group by field is not supported. group_by={group_by}"
                 )
 
     def _build_grouped_by_job_list_resources_response(
@@ -1443,12 +1546,17 @@ class BaseRuntimeHandler(ABC):
         resource: dict,
     ):
         if "mlrun/uid" in resource["labels"]:
+            project = resource["labels"].get("mlrun/project", config.default_project)
             uid = resource["labels"]["mlrun/uid"]
-            if uid not in resources:
-                resources[uid] = mlrun.api.schemas.RuntimeResourcesOutput(
+            if project not in resources:
+                resources[project] = {}
+            if uid not in resources[project]:
+                resources[project][uid] = mlrun.api.schemas.RuntimeResourcesOutput(
                     pod_resources=[], crd_resources=[]
                 )
-            getattr(resources[uid], resource_field_name).append(resource)
+            if not hasattr(resources[project][uid], resource_field_name):
+                setattr(resources[project][uid], resource_field_name, [])
+            getattr(resources[project][uid], resource_field_name).append(resource)
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):

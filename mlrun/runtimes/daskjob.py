@@ -508,9 +508,14 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         """
         Handling listing service resources
         """
-        # TODO: add support for enrichment also with group by
-        if group_by is not None:
+        # Dask runtime resources are per function (and not per job) therefore, when grouping by job we're simply
+        # omitting the dask runtime resources
+        if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
             return response
+        elif group_by is not None:
+            raise NotImplementedError(
+                f"Provided group by field is not supported. group_by={group_by}"
+            )
         k8s_helper = get_k8s_helper()
         services = k8s_helper.v1api.list_namespaced_service(
             namespace, label_selector=label_selector

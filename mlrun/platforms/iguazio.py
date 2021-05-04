@@ -17,8 +17,6 @@ import warnings
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
-from pprint import pprint
-from time import sleep
 from urllib.parse import urlparse
 
 import requests
@@ -397,7 +395,7 @@ class OutputStream:
         )
 
 
-class StreamWatcher:
+class V3ioStreamClient:
     def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
         endpoint, stream_path = parse_v3io_path(url)
         seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
@@ -450,46 +448,6 @@ class StreamWatcher:
         response.raise_for_status()
         self._location = response.output.next_location
         return response.output.records
-
-
-def watch_stream(
-    url,
-    shard_ids: list = None,
-    seek_to: str = None,
-    interval=None,
-    is_json=False,
-    **kwargs,
-):
-    """watch on a v3io stream and print data every interval
-
-    example::
-        watch_stream('v3io:///users/admin/mystream')
-
-    :param url:        stream url
-    :param shard_ids:  range or list of shard IDs
-    :param seek_to:    where to start/seek ('EARLIEST', 'LATEST', 'TIME', 'SEQUENCE')
-    :param interval    watch interval time in seconds, 0 to run once and return
-    :param is_json:    indicate the payload is json (will be deserialized)
-    """
-    interval = 3 if interval is None else interval
-    shard_ids = shard_ids or [0]
-    if isinstance(shard_ids, int):
-        shard_ids = [shard_ids]
-    watchers = [
-        StreamWatcher(url, shard_id, seek_to, **kwargs) for shard_id in list(shard_ids)
-    ]
-    while True:
-        for watcher in watchers:
-            records = watcher.get_records()
-            for record in records:
-                print(
-                    f"{watcher.url}:{watcher.shard_id} (#{record.sequence_number}) >> "
-                )
-                data = json.loads(record.data) if is_json else record.data.decode()
-                pprint(data)
-        if interval <= 0:
-            break
-        sleep(interval)
 
 
 def create_control_session(url, username, password):

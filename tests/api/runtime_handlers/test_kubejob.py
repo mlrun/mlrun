@@ -15,6 +15,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.job)
+        self.runtime_handler.wait_for_deletion_interval = 0
 
         labels = {
             "mlrun/class": self._get_class_name(),
@@ -55,6 +56,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             [self.completed_pod],
             # additional time for the get_logger_pods
             [self.completed_pod],
+            # additional time for wait for pods deletion - simulate pod not removed yet
+            [self.completed_pod],
+            # additional time for wait for pods deletion - simulate pod gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
@@ -106,6 +111,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             [self.running_pod],
             # additional time for the get_logger_pods
             [self.running_pod],
+            # additional time for wait for pods deletion - simulate pod gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()

@@ -16,12 +16,11 @@
 
 __all__ = ["DataItem", "get_store_resource"]
 
-from ..platforms.iguazio import OutputStream
+from ..platforms.iguazio import OutputStream, parse_v3io_path
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
 from .store_resources import get_store_resource, get_store_uri, is_store_uri
-from .v3io import parse_v3io_path
 
 store_manager = StoreManager()
 

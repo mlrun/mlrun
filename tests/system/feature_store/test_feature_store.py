@@ -127,6 +127,8 @@ class TestFeatureStore(TestMLRunSystem):
         # test real-time query
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
+        # check non existing column
+        resp = svc.get([{"bb": "AAPL"}])
 
         resp = svc.get([{"ticker": "a"}])
         assert resp[0] is None

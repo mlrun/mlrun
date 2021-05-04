@@ -241,7 +241,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn.from_remote_source(
             "git://github.com/org/repo#my-branch",
             handler="path/inside/repo#main:handler",
-            credentials={"GIT_PASSWORD": "my-access-token"},
+            secrets={"GIT_PASSWORD": "my-access-token"},
         )
 
         assert fn.spec.base_spec == {
@@ -274,7 +274,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "s3://my-bucket/path/in/bucket/my-functions-archive",
             handler="path/inside/functions/archive#main:Handler",
             runtime="golang",
-            credentials={
+            secrets={
                 "AWS_ACCESS_KEY_ID": "some-id",
                 "AWS_SECRET_ACCESS_KEY": "some-secret",
             },
@@ -311,7 +311,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn.from_remote_source(
             "v3ios://host.com/container/my-functions-archive.zip",
             handler="path/inside/functions/archive#main:handler",
-            credentials={"V3IO_ACCESS_KEY": "ma-access-key"},
+            secrets={"V3IO_ACCESS_KEY": "ma-access-key"},
         )
 
         assert fn.spec.base_spec == {

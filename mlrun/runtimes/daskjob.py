@@ -440,26 +440,26 @@ def deploy_function(function: DaskCluster, secrets=None):
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
-    args = ["dask-worker", "--nthreads", str(spec.nthreads)]
+    worker_args = ["dask-worker", "--nthreads", str(spec.nthreads)]
     memory_limit = spec.resources.get("limits", {}).get("memory")
     if memory_limit:
-        args.extend(["--memory-limit", str(memory_limit)])
+        worker_args.extend(["--memory-limit", str(memory_limit)])
     if spec.args:
-        args.extend(spec.args)
+        worker_args.extend(spec.args)
+    scheduler_args = ["dask-scheduler"]
 
     container_kwargs = {
         "name": "base",
         "image": image,
         "env": env,
-        "args": args,
         "image_pull_policy": spec.image_pull_policy,
         "volume_mounts": spec.volume_mounts,
     }
     scheduler_container = client.V1Container(
-        resources=spec.scheduler_resources, **container_kwargs
+        resources=spec.scheduler_resources, args=scheduler_args, **container_kwargs
     )
     worker_container = client.V1Container(
-        resources=spec.worker_resources, **container_kwargs
+        resources=spec.worker_resources, args=worker_args, **container_kwargs
     )
 
     scheduler_pod_spec = kube_resource_spec_to_pod_spec(spec, scheduler_container)

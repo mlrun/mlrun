@@ -45,8 +45,15 @@ class TestDaskRuntime(TestRuntimeBase):
         unittest.mock.patch.stopall()
 
     def _get_pod_creation_args(self):
+        return self._get_worker_pod_creation_args()
+
+    def _get_worker_pod_creation_args(self):
         args, _ = self.kube_cluster_mock.call_args
         return args[0]
+
+    def _get_scheduler_pod_creation_args(self):
+        _, kwargs = self.kube_cluster_mock.call_args
+        return kwargs["scheduler_pod_template"]
 
     def _get_namespace_arg(self):
         _, kwargs = self.kube_cluster_mock.call_args
@@ -77,6 +84,11 @@ class TestDaskRuntime(TestRuntimeBase):
 
         return dask_cluster
 
+    def _assert_scheduler_pod_args(self,):
+        scheduler_pod = self._get_scheduler_pod_creation_args()
+        scheduler_container_spec = scheduler_pod.spec.containers[0]
+        assert scheduler_container_spec.args == ["dask-scheduler"]
+
     def _assert_pods_resources(
         self,
         expected_worker_requests,
@@ -89,8 +101,7 @@ class TestDaskRuntime(TestRuntimeBase):
         self._assert_container_resources(
             worker_container_spec, expected_worker_limits, expected_worker_requests
         )
-        _, kwargs = self.kube_cluster_mock.call_args
-        scheduler_pod = kwargs["scheduler_pod_template"]
+        scheduler_pod = self._get_scheduler_pod_creation_args()
         scheduler_container_spec = scheduler_pod.spec.containers[0]
         self._assert_container_resources(
             scheduler_container_spec,
@@ -135,6 +146,7 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_requests,
             expected_scheduler_limits,
         )
+        self._assert_scheduler_pod_args()
 
     def test_dask_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

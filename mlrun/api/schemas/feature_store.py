@@ -31,8 +31,8 @@ class Entity(BaseModel):
 
 
 class FeatureSetSpec(ObjectSpec):
-    entities: List[Entity]
-    features: List[Feature]
+    entities: List[Entity] = []
+    features: List[Feature] = []
 
 
 class FeatureSet(BaseModel):
@@ -134,7 +134,7 @@ class DataTarget(BaseModel):
 
 
 class FeatureSetIngestInput(BaseModel):
-    source: DataSource
+    source: Optional[DataSource]
     targets: Optional[List[DataTarget]]
     infer_options: Optional[int]
 

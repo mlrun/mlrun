@@ -1,11 +1,11 @@
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store
-from mlrun import mount_v3io
+from mlrun import v3io_cred
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_secrets, log_and_raise, parse_reference
@@ -158,8 +158,9 @@ def _has_v3io_path(data_source, data_targets, feature_set):
             # If the target does not have a path (i.e. default target), then retrieve the default path from config.
             paths.append(target.path or get_default_prefix_for_target(target.kind))
 
-    if data_source:
-        paths.append(data_source.path)
+    source = data_source or feature_set.spec.source
+    if source:
+        paths.append(source.path)
 
     return any(
         path and (path.startswith("v3io://") or path.startswith("v3ios://"))
@@ -177,7 +178,9 @@ def ingest_feature_set(
     project: str,
     name: str,
     reference: str,
-    ingest_parameters: schemas.FeatureSetIngestInput,
+    ingest_parameters: Optional[
+        schemas.FeatureSetIngestInput
+    ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -188,8 +191,9 @@ def ingest_feature_set(
     # Need to override the default rundb since we're in the server.
     feature_set._override_run_db(db_session)
 
-    data_source = DataSource.from_dict(ingest_parameters.source.dict())
-    data_targets = None
+    data_source = data_targets = None
+    if ingest_parameters.source:
+        data_source = DataSource.from_dict(ingest_parameters.source.dict())
     if ingest_parameters.targets:
         data_targets = [
             DataTargetBase.from_dict(data_target.dict())
@@ -210,7 +214,7 @@ def ingest_feature_set(
                 HTTPStatus.BAD_REQUEST.value,
                 reason="Request needs v3io access key and username in header",
             )
-        run_config = run_config.apply(mount_v3io(access_key=access_key, user=username))
+        run_config = run_config.apply(v3io_cred(access_key=access_key, user=username))
 
     infer_options = ingest_parameters.infer_options or InferOptions.default()
 

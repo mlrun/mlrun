@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
+from storey import EmitPolicy
 
 import mlrun
 
@@ -319,6 +320,11 @@ class FeatureSet(ModelObj):
         if default_final_state:
             self.spec.graph.final_state = default_final_state
 
+    def has_valid_source(self):
+        """check if object's spec has a valid (non empty) source definition"""
+        source = self.spec.source
+        return source is not None and source.path is not None and source.path != "None"
+
     def add_entity(self, entity, name=None):
         """add/set an entity"""
         self._spec.entities.update(entity, name)
@@ -346,6 +352,7 @@ class FeatureSet(ModelObj):
         state_name=None,
         after=None,
         before=None,
+        emit_policy: Optional[EmitPolicy] = None,
     ):
         """add feature aggregation rule
 
@@ -361,6 +368,8 @@ class FeatureSet(ModelObj):
         :param state_name: optional, graph state name
         :param after:      optional, after which graph state it runs
         :param before:     optional, comes before graph state
+        :param emit_policy optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
+                            the Nth event). The default behaviour is emitting every event
         """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -379,19 +388,27 @@ class FeatureSet(ModelObj):
             aggregations = state.class_args.get("aggregates", [])
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
+            if emit_policy:
+                state.class_args["emit_policy"] = emit_policy
         else:
-            graph.add_step(
+            class_args = {}
+            if emit_policy:
+                class_args["emit_policy"] = emit_policy
+            state = graph.add_step(
                 name=state_name,
                 after=after or previous_step,
                 before=before,
                 class_name="storey.AggregateByKey",
                 aggregates=[aggregation],
                 table=".",
+                **class_args,
             )
 
         for operation in operations:
             for window in windows:
                 upsert_feature(f"{name}_{operation}_{window}")
+
+        return state
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""

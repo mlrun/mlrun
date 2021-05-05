@@ -285,7 +285,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

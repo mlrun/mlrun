@@ -2174,14 +2174,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # still be a like, but no % in the query string, so a real exact match will be done.
         if name is not None and name != "":
             if name.startswith("~"):
-                query_string = f"{iter_prefix}%{name[1:]}%"
+                query = query.filter(Artifact.key.ilike(f"{iter_prefix}%{name[1:]}%"))
             else:
-                query_string = f"{iter_prefix}{name}"
-            query = query.filter(Artifact.key.ilike(query_string))
+                # Note - case sensitive (like vs. ilike)
+                query = query.filter(Artifact.key.like(f"{iter_prefix}{name}"))
         # In case no name query was asked for, but we do want to query iter, it will be
         # a like query on the iter alone.
         elif iter:
-            query = query.filter(Artifact.key.ilike(f"{iter_prefix}%"))
+            query = query.filter(Artifact.key.like(f"{iter_prefix}%"))
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])

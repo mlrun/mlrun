@@ -341,11 +341,25 @@ class DaskCluster(KubejobRuntime):
             mlrun_version_specifier=mlrun_version_specifier,
         )
 
+    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
+        warnings.warn(
+            "Dask's gpus will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
+            "with_scheduler_limits/with_worker_limits instead",
+            # TODO: In 0.8.0 deprecate and replace gpus to with_worker/scheduler_limits in examples & demos (or maybe
+            #  just change behavior ?)
+            PendingDeprecationWarning,
+        )
+        # the scheduler/worker specific functions was introduced after the general one, to keep backwards compatibility
+        # this function just sets the gpus for both of them
+        update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
+        update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
+
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         warnings.warn(
             "Dask's with_limits will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
             "with_scheduler_limits/with_worker_limits instead",
-            # TODO: In 0.8.0 deprecate and replace with_limits to with_worker/scheduler_limits in examples & demos
+            # TODO: In 0.8.0 deprecate and replace with_limits to with_worker/scheduler_limits in examples & demos (or
+            #  maybe just change behavior ?)
             PendingDeprecationWarning,
         )
         # the scheduler/worker specific function was introduced after the general one, to keep backwards compatibility
@@ -370,6 +384,7 @@ class DaskCluster(KubejobRuntime):
             "Dask's with_requests will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
             "with_scheduler_requests/with_worker_requests instead",
             # TODO: In 0.8.0 deprecate and replace with_requests to with_worker/scheduler_requests in examples & demos
+            #  (or maybe just change behavior ?)
             PendingDeprecationWarning,
         )
         # the scheduler/worker specific function was introduced after the general one, to keep backwards compatibility

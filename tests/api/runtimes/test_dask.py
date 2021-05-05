@@ -133,7 +133,9 @@ class TestDaskRuntime(TestRuntimeBase):
         )
         gpu_type = "nvidia.com/gpu"
         expected_gpus = 2
-        expected_scheduler_limits = generate_resources(mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type)
+        expected_scheduler_limits = generate_resources(
+            mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type
+        )
         expected_worker_limits = generate_resources(
             mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type
         )
@@ -142,8 +144,7 @@ class TestDaskRuntime(TestRuntimeBase):
             cpu=expected_scheduler_limits["cpu"],
         )
         runtime.with_worker_limits(
-            mem=expected_worker_limits["memory"],
-            cpu=expected_worker_limits["cpu"],
+            mem=expected_worker_limits["memory"], cpu=expected_worker_limits["cpu"],
         )
         runtime.gpus(expected_gpus, gpu_type)
         _ = runtime.client

@@ -64,7 +64,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         self._logger.info(f"stocks spec: {stocks_set.to_yaml()}")
         assert (
-                stocks_set.spec.features["name"].description == "some name"
+            stocks_set.spec.features["name"].description == "some name"
         ), "description was not set"
         assert len(df) == len(stocks), "dataframe size doesnt match"
         assert stocks_set.status.stats["exchange"], "stats not created"
@@ -109,10 +109,10 @@ class TestFeatureStore(TestMLRunSystem):
             features
         ), "unexpected num of requested features"
         assert (
-                len(vector.status.features) == features_size
+            len(vector.status.features) == features_size
         ), "unexpected num of returned features"
         assert (
-                len(vector.status.stats) == features_size
+            len(vector.status.stats) == features_size
         ), "unexpected num of feature stats"
         assert vector.status.label_column == "xx", "unexpected label_column name"
 
@@ -136,11 +136,11 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
         resp = svc.get([{"ticker": "AAPL"}])
         assert (
-                resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
+            resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
         ), "unexpected online result"
         resp2 = svc.get([{"ticker": "AAPL"}], as_list=True)
         assert (
-                len(resp2[0]) == features_size - 1
+            len(resp2[0]) == features_size - 1
         ), "unexpected online vector size"  # -1 label
         svc.close()
 
@@ -160,7 +160,7 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks.*",
         ]
         features_size = (
-                len(features) + 1 + 1
+            len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
         self._get_offline_vector(features, features_size)
 
@@ -291,14 +291,14 @@ class TestFeatureStore(TestMLRunSystem):
             end_time="2020-12-01 17:33:16",
         )
 
-        resp = fs.ingest(measurements, source, return_df=True, )
+        resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
 
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
     @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
     def test_ingest_partitioned_by_key_and_time(
-            self, key_bucketing_number, partition_cols, time_partitioning_granularity
+        self, key_bucketing_number, partition_cols, time_partitioning_granularity
     ):
         if [key_bucketing_number, partition_cols, time_partitioning_granularity] == [
             None
@@ -349,7 +349,7 @@ class TestFeatureStore(TestMLRunSystem):
         expected_partitions += partition_cols or []
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
-                expected_partitions.append(f'igzpart_{unit}')
+                expected_partitions.append(f"igzpart_{unit}")
                 if unit == time_partitioning_granularity:
                     break
 
@@ -699,7 +699,7 @@ def verify_target_list_fail(targets, with_defaults=None):
 
 
 def verify_ingest(
-        base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
+    base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
 ):
     if isinstance(keys, str):
         keys = [keys]
@@ -721,7 +721,7 @@ def verify_ingest(
 
 
 def prepare_feature_set(
-        name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
+    name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
 ):
     df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
 

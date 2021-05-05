@@ -164,9 +164,9 @@ class DataStore:
 def _drop_reserved_columns(df):
     cols_to_drop = []
     for col in df.columns:
-        if col.startswith('igzpart_'):
+        if col.startswith("igzpart_"):
             cols_to_drop.append(col)
-    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors='ignore')
+    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
 
 
 class DataItem:

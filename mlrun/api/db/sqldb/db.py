@@ -16,6 +16,7 @@ import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
+    generate_query_predicate_for_name,
     label_set,
     run_labels,
     run_start_time,
@@ -647,7 +648,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, project=project, kind=kind)
         if name is not None:
-            query = query.filter(Schedule.name.ilike(f"%{name}%"))
+            query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Schedule, labels)
 
@@ -1158,7 +1159,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # Find object IDs by tag, project and feature-set-name (which is a like query)
         tag_query = self._query(session, cls.Tag, project=project, name=tag)
         if name:
-            tag_query = tag_query.filter(cls.Tag.obj_name.ilike(f"%{name}%"))
+            tag_query = tag_query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, name)
+            )
 
         # Generate a mapping from each object id (note: not uid, it's the DB ID) to its associated tags.
         obj_id_tags = {}
@@ -1216,7 +1219,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         )
 
         if name:
-            query = query.filter(query_class.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(query_class.name, name)
+            )
         if labels:
             query = self._add_labels_filter(session, query, query_class, labels)
         if tag:
@@ -1390,7 +1395,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureSet, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureSet.name, name)
+            )
         if tag:
             query = query.filter(FeatureSet.id.in_(obj_id_tags.keys()))
         if entities:
@@ -1784,7 +1791,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureVector, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureVector.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureVector.name, name)
+            )
         if tag:
             query = query.filter(FeatureVector.id.in_(obj_id_tags.keys()))
         if labels:
@@ -1932,7 +1941,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         query = self._query(session, cls.Tag, project=project, name=tag_name)
         if obj_name:
-            query = query.filter(cls.Tag.obj_name.ilike(f"%{obj_name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, obj_name)
+            )
 
         for tag in query:
             uids.append(self._query(session, cls).get(tag.obj_id).uid)
@@ -2155,14 +2166,22 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
-        name_query = ""
-        if iter:
-            # Note that this only covers cases where iter>0
-            name_query = f"{iter}-"
-        if name is not None:
-            name_query = name_query + f"%{name}"
-        if name_query != "":
-            query = query.filter(Artifact.key.ilike(f"{name_query}%"))
+        # Note that iter_prefix will be != "" only where iter>0
+        iter_prefix = f"{iter}-" if iter else "%"
+
+        # Name query requires special handling, since even for an exact match we need to account for the
+        # iter prefix, so it's always a like query. In the case where a specific iter and an exact name it will
+        # still be a like, but no % in the query string, so a real exact match will be done.
+        if name is not None and name != "":
+            if name.startswith("~"):
+                query = query.filter(Artifact.key.ilike(f"{iter_prefix}%{name[1:]}%"))
+            else:
+                # Note - case sensitive (like vs. ilike)
+                query = query.filter(Artifact.key.like(f"{iter_prefix}{name}"))
+        # In case no name query was asked for, but we do want to query iter, it will be
+        # a like query on the iter alone.
+        elif iter:
+            query = query.filter(Artifact.key.like(f"{iter_prefix}%"))
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])
@@ -2209,7 +2228,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return filtered_artifacts
 
     def _find_functions(self, session, name, project, uids=None, labels=None):
-        query = self._query(session, Function, name=name, project=project)
+        query = self._query(session, Function, project=project)
+        if name:
+            query = query.filter(generate_query_predicate_for_name(Function.name, name))
         if uids:
             query = query.filter(Function.uid.in_(uids))
 

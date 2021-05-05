@@ -45,7 +45,7 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_2
 
-    artifacts = db.list_artifacts(db_session, name="artifact_name")
+    artifacts = db.list_artifacts(db_session, name="~artifact_name")
     assert len(artifacts) == 2
 
 

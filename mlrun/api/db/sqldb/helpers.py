@@ -62,3 +62,10 @@ def is_field(name):
     if name[0] == "_":
         return False
     return name not in ("metadata", "Tag", "Label", "body")
+
+
+def generate_query_predicate_for_name(column, query_string):
+    if query_string.startswith("~"):
+        return column.ilike(f"%{query_string[1:]}%")
+    else:
+        return column.__eq__(query_string)

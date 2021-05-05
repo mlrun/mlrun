@@ -97,6 +97,7 @@ class RuntimeKinds(object):
     remotespark = "remote-spark"
     mpijob = "mpijob"
     serving = "serving"
+    local = "local"
 
     @staticmethod
     def all():
@@ -109,12 +110,22 @@ class RuntimeKinds(object):
             RuntimeKinds.spark,
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
+            RuntimeKinds.local,
         ]
 
     @staticmethod
     def runtime_with_handlers():
         return [
             RuntimeKinds.dask,
+            RuntimeKinds.job,
+            RuntimeKinds.spark,
+            RuntimeKinds.remotespark,
+            RuntimeKinds.mpijob,
+        ]
+
+    @staticmethod
+    def abortable_runtimes():
+        return [
             RuntimeKinds.job,
             RuntimeKinds.spark,
             RuntimeKinds.remotespark,
@@ -179,6 +190,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.serving: ServingRuntime,
         RuntimeKinds.dask: DaskCluster,
         RuntimeKinds.job: KubejobRuntime,
+        RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.spark: SparkRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
     }

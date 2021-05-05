@@ -151,9 +151,10 @@ class TestRuntimeHandlerBase:
         expected_pods = expected_pods or []
         expected_services = expected_services or []
         for index, crd in enumerate(expected_crds):
+            project = crd["metadata"]["labels"]["mlrun/project"]
             job_uid = crd["metadata"]["labels"]["mlrun/uid"]
             found = False
-            for crd_resource in resources[job_uid].crd_resources:
+            for crd_resource in resources[project][job_uid].crd_resources:
                 if crd_resource["name"] == crd["metadata"]["name"]:
                     found = True
                     assert (
@@ -174,9 +175,10 @@ class TestRuntimeHandlerBase:
                 pytest.fail("Expected crd was not found in response resources")
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()
+            project = pod_dict["metadata"]["labels"]["mlrun/project"]
             job_uid = pod_dict["metadata"]["labels"]["mlrun/uid"]
             found = False
-            for pod_resource in resources[job_uid].pod_resources:
+            for pod_resource in resources[project][job_uid].pod_resources:
                 if pod_resource["name"] == pod_dict["metadata"]["name"]:
                     found = True
                     assert (
@@ -198,9 +200,10 @@ class TestRuntimeHandlerBase:
             if not found:
                 pytest.fail("Expected pod was not found in response resources")
         for index, service in enumerate(expected_services):
+            project = service["metadata"]["labels"]["mlrun/project"]
             job_uid = service["metadata"]["labels"]["mlrun/uid"]
             found = False
-            for service_resource in resources[job_uid].service_resources:
+            for service_resource in resources[project][job_uid].service_resources:
                 if service_resource["name"] == service.metadata.name:
                     found = True
                     assert (
@@ -235,7 +238,7 @@ class TestRuntimeHandlerBase:
             assert (
                 resources["crd_resources"][index]["labels"] == crd["metadata"]["labels"]
             )
-            assert resources["crd_resources"][index]["status"] == crd["status"]
+            assert resources["crd_resources"][index]["status"] == crd.get("status", {})
         assert len(resources["pod_resources"]) == len(expected_pods)
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()

@@ -29,6 +29,7 @@ from requests.packages.urllib3.util.retry import Retry
 from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
+from ..platforms.iguazio import parse_v3io_path
 from ..utils import get_class, get_function
 
 callable_prefix = "_"
@@ -209,7 +210,7 @@ class BaseState(ModelObj):
         graph.to('URLDownloader')\
              .to('ToParagraphs')\
              .to(name='to_json', handler='json.dumps')\
-             .to('>', 'to_v3io', path=stream_path)\
+             .to('>>', 'to_v3io', path=stream_path)\
 
         :param class_name:  class name or state object to build the state from
                             for router states the class name should start with '*'
@@ -809,7 +810,7 @@ class FlowState(BaseState):
                     return returned_state
 
         current_function = get_current_function(self.context)
-        if current_function:
+        if current_function and current_function != "*":
             new_start_states = []
             for from_state in self._start_states:
                 state = get_first_function_state(from_state, current_function)
@@ -862,15 +863,24 @@ class FlowState(BaseState):
                 return
             for item in state.next or []:
                 next_state = root[item]
-                next_step = step.to(next_state.async_object)
-                process_step(next_state, next_step, root)
+                if next_state.async_object:
+                    next_step = step.to(next_state.async_object)
+                    process_step(next_state, next_step, root)
 
         for state in self._states.values():
-            if hasattr(state, "async_object"):
+            if hasattr(state, "async_object") and state._is_local_function(
+                self.context
+            ):
                 if state.kind == StateKinds.queue:
-                    if state.path:
+                    skip_stream = self.context.is_mock and state.next
+                    if state.path and not skip_stream:
+                        stream_path = state.path
+                        endpoint = None
+                        if "://" in stream_path:
+                            endpoint, stream_path = parse_v3io_path(state.path)
+                            stream_path = stream_path.strip("/")
                         state._async_object = storey.StreamTarget(
-                            storey.V3ioDriver(), state.path
+                            storey.V3ioDriver(endpoint), stream_path
                         )
                     else:
                         state._async_object = storey.Map(lambda x: x)

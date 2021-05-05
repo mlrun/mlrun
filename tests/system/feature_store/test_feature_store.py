@@ -8,7 +8,7 @@ import fsspec
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
-from storey import MapClass
+from storey import EmitAfterMaxEvent, MapClass
 
 import mlrun
 import mlrun.feature_store as fs
@@ -130,6 +130,8 @@ class TestFeatureStore(TestMLRunSystem):
         # test real-time query
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
+        # check non existing column
+        resp = svc.get([{"bb": "AAPL"}])
 
         resp = svc.get([{"ticker": "a"}])
         assert resp[0] is None
@@ -460,6 +462,7 @@ class TestFeatureStore(TestMLRunSystem):
             operations=["sum", "max"],
             windows=["1h"],
             period="10m",
+            emit_policy=EmitAfterMaxEvent(1),
         )
         fs.infer_metadata(
             data_set,

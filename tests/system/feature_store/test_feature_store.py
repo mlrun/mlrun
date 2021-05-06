@@ -429,7 +429,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         data = pd.DataFrame(
             {
-                "time": [test_base_time, test_base_time - pd.Timedelta(minutes=1),],
+                "time": [test_base_time, test_base_time - pd.Timedelta(minutes=1)],
                 "first_name": ["moshe", "yosi"],
                 "last_name": ["cohen", "levi"],
                 "bid": [2000, 10],
@@ -458,10 +458,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp = svc.get([{"first_name": "moshe"}])
         expected = {"bids_sum_1h": 2000.0, "last_name": "cohen"}
-        assert (
-            resp[0] == expected,
-        ), f"actual did not match expected. \n actual: {resp[0]} \n expected: {expected}"
-
+        assert resp[0] == expected
         svc.close()
 
     _split_graph_expected_default = pd.DataFrame(

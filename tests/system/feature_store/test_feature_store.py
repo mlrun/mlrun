@@ -1,6 +1,7 @@
 import os
 import random
 import string
+import uuid
 from datetime import datetime
 
 import pandas as pd
@@ -424,26 +425,21 @@ class TestFeatureStore(TestMLRunSystem):
         svc.close()
 
     def test_unaggregated_columns(self):
+        test_base_time = datetime(2020, 12, 1, 17, 33, 15)
 
-        current_time = pd.Timestamp.now()
         data = pd.DataFrame(
             {
-                "time": [
-                    current_time,
-                    current_time - pd.Timedelta(minutes=1),
-                    current_time - pd.Timedelta(minutes=2),
-                    current_time - pd.Timedelta(minutes=3),
-                    current_time - pd.Timedelta(minutes=4),
-                    current_time - pd.Timedelta(minutes=5),
-                ],
-                "first_name": ["moshe", "yosi", "dina", "katya", "uri", "gal"],
-                "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
-                "bid": [2000, 10, 11, 12, 2500, 14],
+                "time": [test_base_time, test_base_time - pd.Timedelta(minutes=1),],
+                "first_name": ["moshe", "yosi"],
+                "last_name": ["cohen", "levi"],
+                "bid": [2000, 10],
             }
         )
 
+        name = f"measurements_{uuid.uuid4()}"
+
         # write to kv
-        data_set = fs.FeatureSet("debug2", entities=[Entity("first_name")])
+        data_set = fs.FeatureSet(name, entities=[Entity("first_name")])
 
         data_set.add_aggregation(
             name="bids",
@@ -455,13 +451,16 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.ingest(data_set, data, return_df=True)
 
-        features = ["debug2.bids_sum_1h", "debug2.last_name"]
+        features = [f"{name}.bids_sum_1h", f"{name}.last_name"]
 
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
 
-        resp = svc.get([{"first_name": "katya"}])
-        assert len(resp[0]) == 2
+        resp = svc.get([{"first_name": "moshe"}])
+        expected = {"bids_sum_1h": 2000.0, "last_name": "cohen"}
+        assert (
+            resp[0] == expected,
+        ), f"actual did not match expected. \n actual: {resp[0]} \n expected: {expected}"
 
         svc.close()
 

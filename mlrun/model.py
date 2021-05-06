@@ -1010,7 +1010,6 @@ class DataTarget(DataTargetBase):
         "start_time",
         "online",
         "status",
-        "is_dir",
         "updated",
         "size",
     ]
@@ -1025,7 +1024,6 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
-        self.is_dir = None
         self._producer = None
         self.producer = {}
 

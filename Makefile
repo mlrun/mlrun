@@ -19,8 +19,8 @@ MLRUN_DOCKER_REPO ?= mlrun
 # This will be used to tag the images built using this makefile
 MLRUN_DOCKER_REGISTRY ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
-MLRUN_PYTHON_VERSION ?= 3.7
-MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
+MLRUN_PYTHON_VERSION ?= 3.7.9
+MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6.12
 MLRUN_MLUTILS_GITHUB_TAG ?= development
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
@@ -33,8 +33,9 @@ MLRUN_RELEASE_BRANCH ?= master
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
-MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
-MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
+MLRUN_LEGACY_ML_PYTHON_VERSION_MAJOR_MINOR := $(shell cut -d. -f1-2 <<<$(MLRUN_LEGACY_ML_PYTHON_VERSION))
+MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION_MAJOR_MINOR))
+MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION_MAJOR_MINOR))
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 
@@ -45,6 +46,11 @@ help: ## Display available commands
 .PHONY: all
 all:
 	$(error please pick a target)
+
+.PHONY: hedi
+hedi:
+	@echo $(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+	@echo $(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development

@@ -135,7 +135,7 @@ class KubejobRuntime(KubeResource):
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
-            if watch:
+            if watch and not ready:
                 state = self._build_watch(watch)
                 ready = state == "ready"
                 self.status.state = state
@@ -285,7 +285,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

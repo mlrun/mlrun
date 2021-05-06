@@ -1,11 +1,11 @@
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store
-from mlrun import mount_v3io
+from mlrun import v3io_cred
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_secrets, log_and_raise, parse_reference
@@ -178,7 +178,9 @@ def ingest_feature_set(
     project: str,
     name: str,
     reference: str,
-    ingest_parameters: schemas.FeatureSetIngestInput,
+    ingest_parameters: Optional[
+        schemas.FeatureSetIngestInput
+    ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -212,7 +214,7 @@ def ingest_feature_set(
                 HTTPStatus.BAD_REQUEST.value,
                 reason="Request needs v3io access key and username in header",
             )
-        run_config = run_config.apply(mount_v3io(access_key=access_key, user=username))
+        run_config = run_config.apply(v3io_cred(access_key=access_key, user=username))
 
     infer_options = ingest_parameters.infer_options or InferOptions.default()
 

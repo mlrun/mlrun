@@ -2,7 +2,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
-from mlrun.datastore import parse_v3io_path
+from mlrun.platforms.iguazio import parse_v3io_path
 from mlrun.utils import parse_versioned_object_uri
 
 

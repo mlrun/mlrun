@@ -11,6 +11,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.dask)
+        self.runtime_handler.wait_for_deletion_interval = 0
 
         # initializing them here to save space in tests
         scheduler_pod_labels = {
@@ -78,6 +79,10 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_delete_resources_completed_cluster(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.completed_worker_pod, self.completed_scheduler_pod],
+            # additional time for wait for pods deletion - simulate pods not removed yet
+            [self.completed_worker_pod, self.completed_scheduler_pod],
+            # additional time for wait for pods deletion - simulate pods gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_list_services([self.cluster_service])

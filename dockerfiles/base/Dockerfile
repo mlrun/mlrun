@@ -1,6 +1,6 @@
 ARG MLRUN_PYTHON_VERSION=3.7
 
-FROM python:${MLRUN_PYTHON_VERSION}-slim-buster
+FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim-buster
 
 ENV PIP_NO_CACHE_DIR=1
 

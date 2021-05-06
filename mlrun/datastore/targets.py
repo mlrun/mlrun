@@ -258,6 +258,7 @@ class BaseStoreTarget(DataTargetBase):
         attributes: typing.Dict[str, str] = None,
         after_state=None,
         columns=None,
+        partitioned: bool = False,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
@@ -267,6 +268,7 @@ class BaseStoreTarget(DataTargetBase):
         self.after_state = after_state
         self.attributes = attributes or {}
         self.columns = columns or []
+        self.partitioned = partitioned
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
@@ -334,6 +336,8 @@ class BaseStoreTarget(DataTargetBase):
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
 
+        driver.partitioned = spec.partitioned
+
         driver.key_bucketing_number = spec.key_bucketing_number
         driver.partition_cols = spec.partition_cols
 
@@ -341,7 +345,8 @@ class BaseStoreTarget(DataTargetBase):
         if spec.kind == "parquet":
             driver.suffix = (
                 ".parquet"
-                if [
+                if not spec.partitioned
+                and [
                     spec.key_bucketing_number,
                     spec.partition_cols,
                     spec.time_partitioning_granularity,
@@ -406,6 +411,7 @@ class ParquetTarget(BaseStoreTarget):
         attributes: typing.Dict[str, str] = None,
         after_state=None,
         columns=None,
+        partitioned: bool = False,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
@@ -416,6 +422,7 @@ class ParquetTarget(BaseStoreTarget):
             attributes,
             after_state,
             columns,
+            partitioned,
             key_bucketing_number,
             partition_cols,
             time_partitioning_granularity,
@@ -432,7 +439,8 @@ class ParquetTarget(BaseStoreTarget):
 
         self.suffix = (
             ".parquet"
-            if [key_bucketing_number, partition_cols, time_partitioning_granularity]
+            if not partitioned
+            and [key_bucketing_number, partition_cols, time_partitioning_granularity]
             == [None] * 3
             else ""
         )
@@ -461,11 +469,18 @@ class ParquetTarget(BaseStoreTarget):
         if self.partition_cols:
             partition_cols = partition_cols or []
             partition_cols.extend(self.partition_cols)
-        if self.time_partitioning_granularity is not None:
+        time_partitioning_granularity = self.time_partitioning_granularity
+        if [
+            time_partitioning_granularity,
+            self.key_bucketing_number,
+            self.partition_cols,
+        ] == [None] * 3 and self.partitioned:
+            time_partitioning_granularity = "hour"
+        if time_partitioning_granularity is not None:
             partition_cols = partition_cols or []
             for time_unit in self._legal_time_units:
                 partition_cols.append(f"${time_unit}")
-                if time_unit == self.time_partitioning_granularity:
+                if time_unit == time_partitioning_granularity:
                     break
 
         graph.add_step(

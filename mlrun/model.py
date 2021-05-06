@@ -973,6 +973,7 @@ class DataTargetBase(ModelObj):
         path=None,
         attributes: Dict[str, str] = None,
         after_state=None,
+        partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
@@ -982,6 +983,7 @@ class DataTargetBase(ModelObj):
         self.path = path
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.partitioned = partitioned
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity

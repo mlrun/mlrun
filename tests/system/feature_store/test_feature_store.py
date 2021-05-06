@@ -302,10 +302,6 @@ class TestFeatureStore(TestMLRunSystem):
     def test_ingest_partitioned_by_key_and_time(
         self, key_bucketing_number, partition_cols, time_partitioning_granularity
     ):
-        if [key_bucketing_number, partition_cols, time_partitioning_granularity] == [
-            None
-        ] * 3:
-            return
         key = "patient_id"
         name = f"measurements_{uuid.uuid4()}"
         measurements = fs.FeatureSet(name, entities=[Entity(key)])
@@ -317,6 +313,7 @@ class TestFeatureStore(TestMLRunSystem):
         measurements.set_targets(
             targets=[
                 ParquetTarget(
+                    partitioned=True,
                     key_bucketing_number=key_bucketing_number,
                     partition_cols=partition_cols,
                     time_partitioning_granularity=time_partitioning_granularity,
@@ -349,6 +346,10 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             expected_partitions = [f"igzpart_hash{key_bucketing_number}_key"]
         expected_partitions += partition_cols or []
+        if [key_bucketing_number, partition_cols, time_partitioning_granularity] == [
+            None
+        ] * 3:
+            time_partitioning_granularity = "hour"
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
                 expected_partitions.append(f"igzpart_{unit}")

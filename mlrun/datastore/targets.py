@@ -486,7 +486,7 @@ class NoSqlTarget(BaseStoreTarget):
                 if features
                 else []
             )
-            column_list = [col for col in column_list if col in aggregate_features]
+            column_list = [col for col in column_list if col not in aggregate_features]
 
         graph.add_step(
             name=self.name or "NoSqlTarget",

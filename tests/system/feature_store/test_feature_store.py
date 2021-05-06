@@ -468,6 +468,51 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
+    def test_bla(self):
+        from datetime import timedelta
+        from mlrun.api import schemas
+
+        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("patient_id")], timestamp_key='timestamp', )
+        #        target = ParquetTarget(name='try1', path='/v3io/projects/default/blabla/blabla9')
+        target = ParquetTarget()
+        # last_updated = target.get_last_updated()
+        now = datetime.now() + timedelta(minutes=2)
+        now_plus = now + timedelta(seconds=2)
+        cron_trigger = schemas.ScheduleCronTrigger(
+            second='*/1', start_time=now, end_time=now_plus
+        )
+        source = ParquetSource(
+            "myparquet",
+            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
+            start_time=datetime(2020, 12, 1, 17, 33, 15),
+            #            end_time="2020-12-01 17:33:16",
+            schedule=cron_trigger,
+        )
+
+        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig().apply(mlrun.mount_v3io()))
+
+    def test_bla_actual_test(self):
+        from datetime import timedelta
+        from mlrun.api import schemas
+
+        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("patient_id")], timestamp_key='timestamp', )
+        target = ParquetTarget()
+        # last_updated = target.get_last_updated()
+        now = datetime.now() + timedelta(minutes=2)
+        now_plus = now + timedelta(seconds=2)
+        cron_trigger = schemas.ScheduleCronTrigger(
+            second='*/1', start_time=now, end_time=now_plus
+        )
+        source = ParquetSource(
+            "myparquet",
+            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
+            schedule=cron_trigger,
+        )
+        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig().apply(mlrun.mount_v3io()))
+
+
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])
 

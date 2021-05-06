@@ -8,7 +8,6 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
@@ -50,23 +49,21 @@ def _is_env_params_dont_exist() -> bool:
     return not all((os.environ.get(r, False) for r in ENV_PARAMS))
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-async def test_clear_endpoint(db: Session, client: TestClient):
+def test_clear_endpoint(db: Session, client: TestClient):
     access_key = _get_access_key()
     endpoint = _mock_random_endpoint()
-    await write_endpoint_to_kv(access_key, endpoint)
-    kv_record = await ModelEndpoints.get_endpoint(
+    write_endpoint_to_kv(access_key, endpoint)
+    kv_record = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
     )
 
     assert kv_record
-    response = await run_in_threadpool(
-        client.delete,
+    response = client.delete(
         url=f"/api/projects/{kv_record.metadata.project}/model-endpoints/{endpoint.metadata.uid}",
         headers={"X-V3io-Session-Key": access_key},
     )
@@ -74,23 +71,22 @@ async def test_clear_endpoint(db: Session, client: TestClient):
     assert response.status_code == 204
 
     with pytest.raises(MLRunNotFoundError):
-        await ModelEndpoints.get_endpoint(
+        ModelEndpoints.get_endpoint(
             access_key=access_key,
             project=endpoint.metadata.project,
             endpoint_id=endpoint.metadata.uid,
         )
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-async def test_store_endpoint_update_existing(db: Session, client: TestClient):
+def test_store_endpoint_update_existing(db: Session, client: TestClient):
     access_key = _get_access_key()
     endpoint = _mock_random_endpoint()
-    await write_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
+    write_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
 
-    kv_record_before_update = await ModelEndpoints.get_endpoint(
+    kv_record_before_update = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
@@ -101,8 +97,7 @@ async def test_store_endpoint_update_existing(db: Session, client: TestClient):
     endpoint_dict = endpoint.dict()
     endpoint_dict["status"]["state"] = "testing...testing...1 2 1 2"
 
-    response = await run_in_threadpool(
-        client.put,
+    response = client.put(
         url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.metadata.uid}",
         headers={"X-V3io-Session-Key": access_key},
         json=endpoint_dict,
@@ -110,7 +105,7 @@ async def test_store_endpoint_update_existing(db: Session, client: TestClient):
 
     assert response.status_code == 204
 
-    kv_record_after_update = await ModelEndpoints.get_endpoint(
+    kv_record_after_update = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
@@ -119,18 +114,16 @@ async def test_store_endpoint_update_existing(db: Session, client: TestClient):
     assert kv_record_after_update.status.state == "testing...testing...1 2 1 2"
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-async def test_list_endpoints(db: Session, client: TestClient):
+def test_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("testing") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        await write_endpoint_to_kv(_get_access_key(), endpoint)
+        write_endpoint_to_kv(_get_access_key(), endpoint)
 
-    response = await run_in_threadpool(
-        client.get,
+    response = client.get(
         url=f"/api/projects/{TEST_PROJECT}/model-endpoints",
         headers={"X-V3io-Session-Key": _get_access_key()},
     )
@@ -144,11 +137,10 @@ async def test_list_endpoints(db: Session, client: TestClient):
     assert len(endpoints_intersect) == 5
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-async def test_list_endpoints_filter(db: Session, client: TestClient):
+def test_list_endpoints_filter(db: Session, client: TestClient):
     access_key = _get_access_key()
     for i in range(5):
         endpoint_details = _mock_random_endpoint()
@@ -162,42 +154,37 @@ async def test_list_endpoints_filter(db: Session, client: TestClient):
         if i < 4:
             endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-        await write_endpoint_to_kv(_get_access_key(), endpoint_details)
+        write_endpoint_to_kv(_get_access_key(), endpoint_details)
 
-    filter_model = await run_in_threadpool(
-        client.get,
+    filter_model = client.get(
         f"/api/projects/{TEST_PROJECT}/model-endpoints/?model=filterme",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_model.json()["endpoints"]) == 1
 
-    filter_labels = await run_in_threadpool(
-        client.get,
+    filter_labels = client.get(
         f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermex=1",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_labels.json()["endpoints"]) == 4
 
-    filter_labels = await run_in_threadpool(
-        client.get,
+    filter_labels = client.get(
         f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermex=1&label=filtermey=2",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_labels.json()["endpoints"]) == 4
 
-    filter_labels = await run_in_threadpool(
-        client.get,
+    filter_labels = client.get(
         f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermey=2",
         headers={"X-V3io-Session-Key": access_key},
     )
     assert len(filter_labels.json()["endpoints"]) == 4
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-async def test_get_endpoint_metrics(db: Session, client: TestClient):
+def test_get_endpoint_metrics(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=EVENTS
     )
@@ -211,10 +198,8 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
 
     for i in range(5):
         endpoint = _mock_random_endpoint()
-        await write_endpoint_to_kv(_get_access_key(), endpoint)
-        await run_in_threadpool(
-            frames.create, backend="tsdb", table=path, rate="10/m", if_exists=1,
-        )
+        write_endpoint_to_kv(_get_access_key(), endpoint)
+        frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
 
         total = 0
 
@@ -231,16 +216,14 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
             df = pd.DataFrame(data=[data])
             dfs.append(df)
 
-        await run_in_threadpool(
-            frames.write,
+        frames.write(
             backend="tsdb",
             table=path,
             dfs=dfs,
             index_cols=["timestamp", "endpoint_id"],
         )
 
-        response = await run_in_threadpool(
-            client.get,
+        response = client.get(
             url=f"/api/projects/{TEST_PROJECT}/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",  # noqa
             headers={"X-V3io-Session-Key": _get_access_key()},
         )
@@ -260,11 +243,10 @@ async def test_get_endpoint_metrics(db: Session, client: TestClient):
         assert total == response_total
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-async def test_get_endpoint_metric_function():
+def test_get_endpoint_metric_function():
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=EVENTS
     )
@@ -277,11 +259,9 @@ async def test_get_endpoint_metric_function():
     start = datetime.utcnow()
 
     endpoint = _mock_random_endpoint()
-    await write_endpoint_to_kv(_get_access_key(), endpoint)
+    write_endpoint_to_kv(_get_access_key(), endpoint)
 
-    await run_in_threadpool(
-        frames.create, backend="tsdb", table=path, rate="10/m", if_exists=1,
-    )
+    frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
 
     total = 0
     dfs = []
@@ -297,15 +277,11 @@ async def test_get_endpoint_metric_function():
         df = pd.DataFrame(data=[data])
         dfs.append(df)
 
-    await run_in_threadpool(
-        frames.write,
-        backend="tsdb",
-        table=path,
-        dfs=dfs,
-        index_cols=["timestamp", "endpoint_id"],
+    frames.write(
+        backend="tsdb", table=path, dfs=dfs, index_cols=["timestamp", "endpoint_id"],
     )
 
-    endpoint_metrics = await get_endpoint_metrics(
+    endpoint_metrics = get_endpoint_metrics(
         access_key=_get_access_key(),
         project=TEST_PROJECT,
         endpoint_id=endpoint.metadata.uid,
@@ -531,14 +507,13 @@ def test_get_endpoint_features_function():
     assert len(features) == 3
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
-async def test_deserialize_endpoint_from_kv():
+def test_deserialize_endpoint_from_kv():
     endpoint = _mock_random_endpoint()
-    await write_endpoint_to_kv(_get_access_key(), endpoint)
-    endpoint_from_kv = await ModelEndpoints.get_endpoint(
+    write_endpoint_to_kv(_get_access_key(), endpoint)
+    endpoint_from_kv = ModelEndpoints.get_endpoint(
         access_key=_get_access_key(),
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,

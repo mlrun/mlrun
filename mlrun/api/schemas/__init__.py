@@ -28,6 +28,8 @@ from .feature_store import (
     FeatureSet,
     FeatureSetDigestOutput,
     FeatureSetDigestSpec,
+    FeatureSetIngestInput,
+    FeatureSetIngestOutput,
     FeatureSetRecord,
     FeatureSetsOutput,
     FeatureSetSpec,

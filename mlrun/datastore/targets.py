@@ -14,6 +14,7 @@
 import os
 import sys
 import typing
+from collections import Counter
 from copy import copy
 
 import mlrun
@@ -23,9 +24,8 @@ from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
-from ..platforms.iguazio import split_path
+from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
-from .v3io import parse_v3io_path
 
 
 class TargetTypes:
@@ -62,6 +62,95 @@ def get_default_targets():
     ]
 
 
+def get_default_prefix_for_target(kind):
+    data_prefixes = mlrun.mlconf.feature_store.data_prefixes
+    data_prefix = getattr(data_prefixes, kind, None)
+    if not data_prefix:
+        data_prefix = data_prefixes.default
+    return data_prefix
+
+
+def validate_target_list(targets):
+    """Check that no target overrides another target in the list (name/path)"""
+
+    if not targets:
+        return
+    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    no_name_target_types_count = Counter(
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "name") and hasattr(target, "kind") and not target.name
+        ]
+        + targets_by_kind_name
+    )
+    target_types_requiring_name = [
+        target_type
+        for target_type, target_type_count in no_name_target_types_count.items()
+        if target_type_count > 1
+    ]
+    if target_types_requiring_name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Only one default name per target type is allowed (please specify name for {0} target)".format(
+                target_types_requiring_name
+            )
+        )
+
+    target_names_count = Counter(
+        [target.name for target in targets if hasattr(target, "name") and target.name]
+    )
+
+    targets_with_same_name = [
+        target_name
+        for target_name, target_name_count in target_names_count.items()
+        if target_name_count > 1
+    ]
+
+    if targets_with_same_name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Each target must have a unique name (more than one target with those names found {0})".format(
+                targets_with_same_name
+            )
+        )
+
+    no_path_target_types_count = Counter(
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "path") and hasattr(target, "kind") and not target.path
+        ]
+        + targets_by_kind_name
+    )
+    target_types_requiring_path = [
+        target_type
+        for target_type, target_type_count in no_path_target_types_count.items()
+        if target_type_count > 1
+    ]
+    if target_types_requiring_path:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Only one default path per target type is allowed (please specify path for {0} target)".format(
+                target_types_requiring_path
+            )
+        )
+
+    target_paths_count = Counter(
+        [target.path for target in targets if hasattr(target, "path") and target.path]
+    )
+
+    targets_with_same_path = [
+        target_path
+        for target_path, target_path_count in target_paths_count.items()
+        if target_path_count > 1
+    ]
+
+    if targets_with_same_path:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Each target must have a unique path (more than one target with those names found {0})".format(
+                targets_with_same_path
+            )
+        )
+
+
 def validate_target_placement(graph, final_step, targets):
     if final_step or graph.is_empty():
         return True
@@ -88,7 +177,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
         driver.add_writer_state(
             graph,
             target.after_state or final_state,
-            features=features,
+            features=features if not target.after_state else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
         )
@@ -113,10 +202,24 @@ online_lookup_order = [TargetTypes.nosql]
 def get_offline_target(featureset, start_time=None, name=None):
     """return an optimal offline feature set target"""
     # todo: take status, start_time and lookup order into account
-    for target in featureset.status.targets:
-        driver = kind_to_driver[target.kind]
-        if driver.is_offline and (not name or name == target.name):
-            return get_target_driver(target, featureset)
+    offline_targets = [
+        target
+        for target in featureset.status.targets
+        if kind_to_driver[target.kind].is_offline
+    ]
+    target = None
+    if name:
+        target = next((t for t in offline_targets if t.name == name), None)
+    else:
+        for kind in offline_lookup_order:
+            target = next((t for t in offline_targets if t.kind == kind), None)
+            if target:
+                break
+        if target is None and offline_targets:
+            target = offline_targets[0]
+
+    if target:
+        return get_target_driver(target, featureset)
     return None
 
 
@@ -154,11 +257,13 @@ class BaseStoreTarget(DataTargetBase):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,
+        columns=None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.columns = columns or []
 
         self._target = None
         self._resource = None
@@ -167,6 +272,20 @@ class BaseStoreTarget(DataTargetBase):
     def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
+
+    def _get_column_list(self, features, timestamp_key, key_columns):
+        column_list = None
+        if self.columns:
+            return self.columns
+        elif features:
+            column_list = list(features.keys())
+            if timestamp_key and timestamp_key not in column_list:
+                column_list = [timestamp_key] + column_list
+            if key_columns:
+                for key in reversed(key_columns):
+                    if key not in column_list:
+                        column_list.insert(0, key)
+        return column_list
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, **kwargs,
@@ -205,6 +324,8 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+        if hasattr(spec, "columns"):
+            driver.columns = spec.columns
         driver._resource = resource
         return driver
 
@@ -237,7 +358,7 @@ class BaseStoreTarget(DataTargetBase):
         """add storey writer state to graph"""
         raise NotImplementedError()
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, entities=None):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
             columns=columns, df_module=df_module
@@ -263,15 +384,15 @@ class ParquetTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = list(features.keys())
-        if timestamp_key and timestamp_key not in column_list:
-            column_list = [timestamp_key] + column_list
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=None
+        )
 
         graph.add_step(
-            name="WriteToParquet",
+            name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToParquet",
+            class_name="storey.ParquetTarget",
             path=self._target_path,
             columns=column_list,
             index_cols=key_columns,
@@ -307,17 +428,15 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = list(features.keys())
-        if timestamp_key:
-            column_list = [timestamp_key] + column_list
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
         graph.add_step(
-            name="WriteToCSV",
+            name=self.name or "CSVTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToCSV",
+            class_name="storey.CSVTarget",
             path=self._target_path,
             columns=column_list,
             header=True,
@@ -332,6 +451,11 @@ class CSVTarget(BaseStoreTarget):
             "format": "csv",
             "header": "true",
         }
+
+    def as_df(self, columns=None, df_module=None, entities=None):
+        df = super().as_df(columns=columns, df_module=df_module, entities=entities)
+        df.set_index(keys=entities, inplace=True)
+        return df
 
 
 class NoSqlTarget(BaseStoreTarget):
@@ -352,17 +476,22 @@ class NoSqlTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
-        column_list = [
-            key for key, feature in features.items() if not feature.aggregate
-        ]
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=None, key_columns=key_columns
+        )
+        if not self.columns:
+            aggregate_features = (
+                [key for key, feature in features.items() if feature.aggregate]
+                if features
+                else []
+            )
+            column_list = [col for col in column_list if col not in aggregate_features]
+
         graph.add_step(
-            name="WriteToTable",
+            name=self.name or "NoSqlTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToTable",
+            class_name="storey.NoSqlTarget",
             columns=column_list,
             table=table,
             **self.attributes,
@@ -411,17 +540,15 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         endpoint, uri = parse_v3io_path(self._target_path)
-        column_list = list(features.keys())
-        if timestamp_key and timestamp_key not in column_list:
-            column_list = [timestamp_key] + column_list
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
         graph.add_step(
-            name="WriteToStream",
+            name=self.name or "StreamTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.WriteToV3IOStream",
+            class_name="storey.StreamTarget",
             columns=column_list,
             storage=V3ioDriver(webapi=endpoint),
             stream_path=uri,
@@ -443,17 +570,18 @@ class TSDBTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         endpoint, uri = parse_v3io_path(self._target_path)
-        column_list = list(features.keys())
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
             )
-        for key in reversed(key_columns):
-            if key not in column_list:
-                column_list.insert(0, key)
+
+        column_list = self._get_column_list(
+            features=features, timestamp_key=None, key_columns=key_columns
+        )
+
         graph.add_step(
-            name="WriteToTSDB",
-            class_name="storey.WriteToTSDB",
+            name=self.name or "TSDBTarget",
+            class_name="storey.TSDBTarget",
             after=after,
             graph_shape="cylinder",
             path=uri,
@@ -535,7 +663,7 @@ class DFTarget(BaseStoreTarget):
     ):
         # todo: column filter
         graph.add_step(
-            name="WriteToDataFrame",
+            name=self.name or "WriteToDataFrame",
             after=after,
             graph_shape="cylinder",
             class_name="storey.ReduceToDataFrame",
@@ -571,11 +699,7 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefixes = mlrun.mlconf.feature_store.data_prefixes
-    data_prefix = getattr(data_prefixes, kind, None)
-    if not data_prefix:
-        data_prefix = data_prefixes.default
-    data_prefix = data_prefix.format(project=project, kind=kind)
+    data_prefix = get_default_prefix_for_target(kind).format(project=project, kind=kind)
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

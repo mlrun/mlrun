@@ -65,6 +65,7 @@ Table Of Content
    hyper-params
    projects
    serving/index
+   model_monitoring/model-monitoring-deployment
 
 .. toctree::
    :maxdepth: 1
@@ -92,6 +93,8 @@ Table Of Content
    store/datastore
    store/artifacts
    store/models
+   store/feature-store-demo
+   store/transformations
 
 .. toctree::
    :maxdepth: 1

@@ -47,11 +47,6 @@ help: ## Display available commands
 all:
 	$(error please pick a target)
 
-.PHONY: hedi
-hedi:
-	@echo $(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
-	@echo $(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)
-
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
 	python -m pip install --upgrade pip~=20.2.0

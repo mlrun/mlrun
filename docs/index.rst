@@ -86,6 +86,7 @@ Table Of Content
    store/models
    store/feature-store-demo
    store/transformations
+   store/training
 
 .. toctree::
    :maxdepth: 1

@@ -490,6 +490,43 @@ class TestFeatureStore(TestMLRunSystem):
 
         svc.close()
 
+    def test_unaggregated_columns(self):
+        test_base_time = datetime(2020, 12, 1, 17, 33, 15)
+
+        data = pd.DataFrame(
+            {
+                "time": [test_base_time, test_base_time - pd.Timedelta(minutes=1)],
+                "first_name": ["moshe", "yosi"],
+                "last_name": ["cohen", "levi"],
+                "bid": [2000, 10],
+            }
+        )
+
+        name = f"measurements_{uuid.uuid4()}"
+
+        # write to kv
+        data_set = fs.FeatureSet(name, entities=[Entity("first_name")])
+
+        data_set.add_aggregation(
+            name="bids",
+            column="bid",
+            operations=["sum", "max"],
+            windows=["1h"],
+            period="10m",
+        )
+
+        fs.ingest(data_set, data, return_df=True)
+
+        features = [f"{name}.bids_sum_1h", f"{name}.last_name"]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"first_name": "moshe"}])
+        expected = {"bids_sum_1h": 2000.0, "last_name": "cohen"}
+        assert resp[0] == expected
+        svc.close()
+
     _split_graph_expected_default = pd.DataFrame(
         {
             "time": [

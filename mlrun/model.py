@@ -961,6 +961,7 @@ class DataTargetBase(ModelObj):
         "path",
         "after_state",
         "attributes",
+        "partitioned",
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",

@@ -10,6 +10,7 @@ import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.nop_leader
+import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -144,11 +145,14 @@ class Member(
                     projects,
                 )
             )
+        project_names = list(map(lambda project: project.metadata.name, projects))
         # format output
         if format_ == mlrun.api.schemas.Format.name_only:
-            projects = list(map(lambda project: project.metadata.name, projects))
+            projects = project_names
         elif format_ == mlrun.api.schemas.Format.full:
             pass
+        elif format_ == mlrun.api.schemas.Format.summary:
+            projects = mlrun.api.utils.singletons.db.get_db().generate_projects_summaries(session, project_names)
         else:
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"

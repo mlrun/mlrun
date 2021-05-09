@@ -104,7 +104,9 @@ def test_list_project_with_updated_after(
 
     def verify_list(request, context):
         assert request.qs == {
-            "filter[updated_at]": [f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()]
+            "filter[updated_at]": [
+                f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()
+            ]
         }
         context.status_code = http.HTTPStatus.OK.value
         _verify_request_headers(request.headers, session_cookie)
@@ -112,8 +114,7 @@ def test_list_project_with_updated_after(
 
     # mock project response so store will update
     requests_mock.get(
-        f"{api_url}/api/projects",
-        json=verify_list,
+        f"{api_url}/api/projects", json=verify_list,
     )
     iguazio_client.list_projects(
         session_cookie, updated_after,

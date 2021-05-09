@@ -1,4 +1,5 @@
 import abc
+import datetime
 import typing
 
 import mlrun.api.schemas
@@ -36,6 +37,6 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def list_projects(
-        self, session_cookie: str,
+        self, session_cookie: str, updated_after: typing.Optional[datetime.datetime] = None
     ) -> typing.List[mlrun.api.schemas.Project]:
         pass

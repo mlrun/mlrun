@@ -42,6 +42,7 @@ class Member(
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
         )
+        self._synced_until_datetime = None
         # run one sync to start off on the right foot
         self._sync_projects()
         self._start_periodic_sync()
@@ -179,7 +180,7 @@ class Member(
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     def _sync_projects(self):
-        projects = self._leader_client.list_projects(self._session_cookie)
+        projects = self._leader_client.list_projects(self._session_cookie, self._synced_until_datetime)
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []
         for project in projects:
@@ -190,9 +191,8 @@ class Member(
             ):
                 continue
             filtered_projects.append(project)
-        self._projects = {
-            project.metadata.name: project for project in filtered_projects
-        }
+        for project in filtered_projects:
+            self._projects[project.metadata.name] = project
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

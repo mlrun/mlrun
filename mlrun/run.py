@@ -508,7 +508,7 @@ def new_function(
         elif kind in RuntimeKinds.all():
             runner = get_runtime_class(kind).from_dict(runtime)
         else:
-            supported_runtimes = ",".join(RuntimeKinds.all() + ["local"])
+            supported_runtimes = ",".join(RuntimeKinds.all())
             raise Exception(
                 f"unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
             )
@@ -712,8 +712,6 @@ def code_to_function(
 
     if kind is None or kind in ["", "Function"]:
         raise ValueError("please specify the function kind")
-    elif kind in ["local"]:
-        r = LocalRuntime()
     elif kind in RuntimeKinds.all():
         r = get_runtime_class(kind)()
     else:

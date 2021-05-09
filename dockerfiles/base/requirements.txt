@@ -1,6 +1,6 @@
 blosc~=1.7
 dask-kubernetes~=0.11.0
-dask-ml~=1.4
+dask-ml~=1.4,<1.9.0
 dask[complete]~=2.12
 lz4~=3.0
 vaex~=2.6

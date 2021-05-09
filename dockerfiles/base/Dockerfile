@@ -1,6 +1,6 @@
 ARG MLRUN_PYTHON_VERSION=3.7
 
-FROM python:${MLRUN_PYTHON_VERSION}-slim
+FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
 # need to be redeclared since used in the from
 ARG MLRUN_PYTHON_VERSION

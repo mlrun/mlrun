@@ -69,6 +69,14 @@ Table Of Content
 
 .. toctree::
    :maxdepth: 1
+   :caption: Feature Store:
+
+   feature-store/feature-store
+   feature-store/feature-store-demo
+   feature-store/end-to-end-demo/index
+
+.. toctree::
+   :maxdepth: 1
    :caption: Serverless Runtimes:
 
    runtimes/functions
@@ -80,7 +88,7 @@ Table Of Content
 
 .. toctree::
    :maxdepth: 1
-   :caption: Feature & Artifacts Store:
+   :caption: Artifact Management:
 
    store/datastore
    store/artifacts

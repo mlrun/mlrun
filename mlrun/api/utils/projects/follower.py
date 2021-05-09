@@ -153,6 +153,7 @@ class Member(
         elif format_ == mlrun.api.schemas.Format.summary:
             # importing here to avoid circular import (db using project member using mlrun follower using db)
             from mlrun.api.utils.singletons.db import get_db
+
             projects = get_db().generate_projects_summaries(session, project_names)
         else:
             raise NotImplementedError(

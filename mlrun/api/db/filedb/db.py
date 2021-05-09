@@ -135,7 +135,7 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
     def generate_projects_summaries(
-            self, session, projects: List[str]
+        self, session, projects: List[str]
     ) -> List[schemas.ProjectSummary]:
         raise NotImplementedError()
 

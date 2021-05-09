@@ -8,8 +8,8 @@ import sqlalchemy.orm
 import mlrun.api.schemas
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.remotes.leader
-import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.errors
 from mlrun.utils import logger
@@ -215,18 +215,27 @@ def test_list_project_format_summary(
 ):
     project = _generate_project(name="name-1")
     project_summary = mlrun.api.schemas.ProjectSummary(
-                    name=project.metadata.name,
-                    functions_count=4,
-                    feature_sets_count=5,
-                    models_count=6,
-                    runs_failed_recent_count=7,
-                    runs_running_count=8,
-                )
-    mlrun.api.utils.singletons.db.get_db().generate_projects_summaries = unittest.mock.Mock(return_value=[project_summary])
-    project_summaries = projects_follower.list_projects(None, format_=mlrun.api.schemas.Format.summary)
+        name=project.metadata.name,
+        functions_count=4,
+        feature_sets_count=5,
+        models_count=6,
+        runs_failed_recent_count=7,
+        runs_running_count=8,
+    )
+    mlrun.api.utils.singletons.db.get_db().generate_projects_summaries = unittest.mock.Mock(
+        return_value=[project_summary]
+    )
+    project_summaries = projects_follower.list_projects(
+        None, format_=mlrun.api.schemas.Format.summary
+    )
     assert len(project_summaries.projects) == 1
     assert (
-            deepdiff.DeepDiff(project_summaries.projects[0].dict(), project_summary.dict(), ignore_order=True, ) == {}
+        deepdiff.DeepDiff(
+            project_summaries.projects[0].dict(),
+            project_summary.dict(),
+            ignore_order=True,
+        )
+        == {}
     )
 
 

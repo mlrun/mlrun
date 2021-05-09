@@ -101,10 +101,13 @@ def delete_project(
     deletion_strategy: schemas.DeletionStrategy = Header(
         schemas.DeletionStrategy.default(), alias=schemas.HeaderNames.deletion_strategy
     ),
+    projects_role: typing.Optional[schemas.ProjectsRole] = Header(
+        None, alias=schemas.HeaderNames.projects_role
+    ),
     db_session: Session = Depends(deps.get_db_session),
 ):
     is_running_in_background = get_project_member().delete_project(
-        db_session, name, deletion_strategy, wait_for_completion=False
+        db_session, name, deletion_strategy, projects_role, wait_for_completion=False
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)

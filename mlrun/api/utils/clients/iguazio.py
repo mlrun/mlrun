@@ -134,7 +134,7 @@ class Client(
         self,
         session_cookie: str,
         updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> typing.List[mlrun.api.schemas.Project]:
+    ) -> typing.Tuple[typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]]:
         params = {}
         if updated_after is not None:
             params = {"filter[updated_at]": f"[$gt]{updated_after.isoformat()}Z"}
@@ -147,7 +147,18 @@ class Client(
             projects.append(
                 self._transform_iguazio_project_to_mlrun_project(iguazio_project)
             )
-        return projects
+        latest_updated_at = self._find_latest_updated_at(response_body)
+        return projects, latest_updated_at
+
+    def _find_latest_updated_at(self, response_body: dict) -> typing.Optional[datetime.datetime]:
+        latest_updated_at = None
+        for iguazio_project in response_body["data"]:
+            updated_at = datetime.datetime.fromisoformat(
+                iguazio_project["attributes"]["updated_at"]
+            )
+            if latest_updated_at is None or latest_updated_at < updated_at:
+                latest_updated_at = updated_at
+        return latest_updated_at
 
     def _create_project_in_iguazio(
         self, session_cookie: str, body: dict, wait_for_completion: bool

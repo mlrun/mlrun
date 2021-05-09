@@ -40,5 +40,5 @@ class Member(abc.ABC):
         self,
         session_cookie: str,
         updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> typing.List[mlrun.api.schemas.Project]:
+    ) -> typing.Tuple[typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]]:
         pass

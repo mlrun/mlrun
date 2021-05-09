@@ -128,7 +128,7 @@ def test_list_project(
         ]
     }
     requests_mock.get(f"{api_url}/api/projects", json=response_body)
-    projects = iguazio_client.list_projects(None)
+    projects, latest_updated_at = iguazio_client.list_projects(None)
     for index, project in enumerate(projects):
         assert project.metadata.name == mock_projects[index]["name"]
         assert project.spec.description == mock_projects[index].get("description")
@@ -148,6 +148,7 @@ def test_list_project(
             )
             == {}
         )
+    assert latest_updated_at.isoformat() == response_body["data"][-1]["attributes"]["updated_at"]
 
 
 def test_create_project(

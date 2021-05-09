@@ -93,8 +93,12 @@ fv = svc.get([{<key name>: <key value>}])
 
 ## Incorporating to serving model
 
+MLRun enables you to easily serve your models using our [model server](../serving/serving-graph.md) ([example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb)).
+It enables you to define a serving model class and the computational graph required to run your entire prediction pipeline and deploy it as serverless functions using [nuclio](https://github.com/nuclio/nuclio).
+
 To embed the online feature service in your model server, all you need to do is create the feature vector service once when the model initializes and then use it to retrieve the feature vectors of incoming keys.
 
+You can import ready-made classes and functions from our [function marketplace](https://github.com/mlrun/functions) or write your own.
 As example of a scikit-learn based model server (taken from our feature store demo):
 
 ```python
@@ -143,4 +147,33 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
         feats = np.asarray(body['inputs'])
         result: np.ndarray = self.model.predict(feats)
         return result.tolist()
+```
+
+Which we can deploy with:
+
+```python
+# Create the serving function from our code above
+fn = mlrun.code_to_function(<function_name>, 
+                            kind='serving')
+
+# Add a specific model to the serving function
+fn.add_model(<model_name>, 
+             class_name='ClassifierModel',
+             model_path=<store_model_file_reference>)
+
+# Enable MLRun's model monitoring
+fn.set_tracking()
+
+# Add the system mount to the function so
+# it will have access to our model files
+fn.apply(mlrun.mount_v3io())
+
+# Deploy the function to the cluster
+fn.deploy()
+```
+
+And test using:
+
+```python
+fn.invoke('/v2/models/infer', body={<key name>: <key value>})
 ```

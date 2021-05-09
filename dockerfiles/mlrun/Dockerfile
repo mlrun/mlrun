@@ -14,7 +14,7 @@
 # limitations under the License.
 ARG MLRUN_PYTHON_VERSION=3.7
 
-FROM python:${MLRUN_PYTHON_VERSION}-slim
+FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
 

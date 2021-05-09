@@ -443,7 +443,7 @@ def _verify_creation(iguazio_client, project, session_cookie, job_id, request, c
 
 def _verify_request_headers(headers: dict, session_cookie: str):
     assert headers["Cookie"] == f"session={session_cookie}"
-    assert headers[mlrun.api.schemas.HeaderNames.projects_role] == 'mlrun'
+    assert headers[mlrun.api.schemas.HeaderNames.projects_role] == "mlrun"
 
 
 def _mock_job_progress(api_url, requests_mock, session_cookie: str, job_id: str):

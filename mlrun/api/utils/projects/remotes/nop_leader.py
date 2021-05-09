@@ -48,9 +48,12 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         self,
         session_cookie: str,
         updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> typing.Tuple[typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]]:
+    ) -> typing.Tuple[
+        typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
+    ]:
         return (
             mlrun.api.utils.singletons.project_member.get_project_member()
             .list_projects(None)
-            .projects, datetime.datetime.utcnow()
+            .projects,
+            datetime.datetime.utcnow(),
         )

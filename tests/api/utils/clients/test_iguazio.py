@@ -148,7 +148,10 @@ def test_list_project(
             )
             == {}
         )
-    assert latest_updated_at.isoformat() == response_body["data"][-1]["attributes"]["updated_at"]
+    assert (
+        latest_updated_at.isoformat()
+        == response_body["data"][-1]["attributes"]["updated_at"]
+    )
 
 
 def test_create_project(

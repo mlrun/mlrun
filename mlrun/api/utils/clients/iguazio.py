@@ -269,16 +269,16 @@ class Client(
         project: mlrun.api.schemas.Project,
     ):
         project_dict = project.dict(
-                exclude_unset=True,
-                exclude={
-                    "metadata": {"name", "created", "labels", "annotations"},
-                    "spec": {"description", "desired_state"},
-                    "status": {"state"},
-                },
-            )
+            exclude_unset=True,
+            exclude={
+                "metadata": {"name", "created", "labels", "annotations"},
+                "spec": {"description", "desired_state"},
+                "status": {"state"},
+            },
+        )
         # ensure basic fields exist (schema should take care of that but we exclude, so status might be missing for
         # example)
-        for field in ['metadata', 'spec', 'status']:
+        for field in ["metadata", "spec", "status"]:
             project_dict.setdefault(field, {})
         return json.dumps(project_dict)
 

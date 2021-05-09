@@ -139,7 +139,8 @@ class Client(
     ]:
         params = {}
         if updated_after is not None:
-            params = {"filter[updated_at]": f"[$gt]{updated_after.isoformat()}Z"}
+            time_string = updated_after.isoformat().split("+")[0]
+            params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
         response = self._send_request_to_api(
             "GET", "projects", session_cookie, params=params
         )

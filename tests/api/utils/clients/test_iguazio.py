@@ -93,6 +93,33 @@ def test_get_grafana_service_url_no_urls(
     assert grafana_url is None
 
 
+def test_list_project_with_updated_after(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project()
+    session_cookie = "1234"
+    updated_after = datetime.datetime.utcnow()
+
+    def verify_list(request, context):
+        assert request.qs == {
+            "filter[updated_at]": [f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()]
+        }
+        context.status_code = http.HTTPStatus.OK.value
+        _verify_request_headers(request.headers, session_cookie)
+        return {"data": [_build_project_response(iguazio_client, project)]}
+
+    # mock project response so store will update
+    requests_mock.get(
+        f"{api_url}/api/projects",
+        json=verify_list,
+    )
+    iguazio_client.list_projects(
+        session_cookie, updated_after,
+    )
+
+
 def test_list_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,

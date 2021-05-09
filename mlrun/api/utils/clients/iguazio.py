@@ -268,8 +268,7 @@ class Client(
     def _transform_mlrun_project_to_iguazio_mlrun_project_attribute(
         project: mlrun.api.schemas.Project,
     ):
-        return json.dumps(
-            project.dict(
+        project_dict = project.dict(
                 exclude_unset=True,
                 exclude={
                     "metadata": {"name", "created", "labels", "annotations"},
@@ -277,7 +276,11 @@ class Client(
                     "status": {"state"},
                 },
             )
-        )
+        # ensure basic fields exist (schema should take care of that but we exclude, so status might be missing for
+        # example)
+        for field in ['metadata', 'spec', 'status']:
+            project_dict.setdefault(field, {})
+        return json.dumps(project_dict)
 
     @staticmethod
     def _transform_mlrun_labels_to_iguazio_labels(

@@ -156,37 +156,20 @@ def test_create_project(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    session_cookie = "1234"
-    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
+    _create_project_and_assert(api_url, iguazio_client, requests_mock, project)
 
-    requests_mock.post(
-        f"{api_url}/api/projects",
-        json=functools.partial(
-            _verify_creation, iguazio_client, project, session_cookie, job_id
+
+def test_create_project_minimal_project(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(
+            name='some-name',
         ),
     )
-    mocker, num_of_calls_until_completion = _mock_job_progress(
-        api_url, requests_mock, session_cookie, job_id
-    )
-    requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        json={"data": _build_project_response(iguazio_client, project)},
-    )
-    created_project, is_running_in_background = iguazio_client.create_project(
-        session_cookie, project,
-    )
-    assert is_running_in_background is False
-    assert mocker.call_count == num_of_calls_until_completion
-    exclude = {"status": {"state"}}
-    assert (
-        deepdiff.DeepDiff(
-            project.dict(exclude=exclude),
-            created_project.dict(exclude=exclude),
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert created_project.status.state == project.spec.desired_state
+    _create_project_and_assert(api_url, iguazio_client, requests_mock, project)
 
 
 def test_create_project_without_wait(
@@ -398,6 +381,46 @@ def test_delete_project_without_wait(
     assert is_running_in_background is True
 
 
+def _create_project_and_assert(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+    project: mlrun.api.schemas.Project
+):
+    session_cookie = "1234"
+    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
+
+    requests_mock.post(
+        f"{api_url}/api/projects",
+        json=functools.partial(
+            _verify_creation, iguazio_client, project, session_cookie, job_id
+        ),
+    )
+    mocker, num_of_calls_until_completion = _mock_job_progress(
+        api_url, requests_mock, session_cookie, job_id
+    )
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json={"data": _build_project_response(iguazio_client, project)},
+    )
+    created_project, is_running_in_background = iguazio_client.create_project(
+        session_cookie, project,
+    )
+    assert is_running_in_background is False
+    assert mocker.call_count == num_of_calls_until_completion
+    exclude = {"metadata": {"created"}, "status": {"state"}}
+    assert (
+        deepdiff.DeepDiff(
+            project.dict(exclude=exclude),
+            created_project.dict(exclude=exclude),
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert created_project.metadata.created is not None
+    assert created_project.status.state == project.spec.desired_state
+
+
 def _verify_deletion(project_name, session_cookie, job_id, request, context):
     assert request.json()["data"]["attributes"]["name"] == project_name
     assert (
@@ -526,8 +549,8 @@ def _assert_project_creation(
     assert (
         request_body["data"]["attributes"]["admin_status"] == project.spec.desired_state
     )
-    assert request_body["data"]["attributes"]["mlrun_project"] == json.dumps(
-        project.dict(
+    mlrun_project_dict = json.loads(request_body["data"]["attributes"]["mlrun_project"])
+    expected_project_dict = project.dict(
             exclude_unset=True,
             exclude={
                 "metadata": {"name", "created", "labels", "annotations"},
@@ -535,7 +558,10 @@ def _assert_project_creation(
                 "status": {"state"},
             },
         )
-    )
+    for field in ['metadata', 'spec', 'status']:
+        assert mlrun_project_dict[field] is not None
+        expected_project_dict.setdefault(field, {})
+    assert request_body["data"]["attributes"]["mlrun_project"] == json.dumps(expected_project_dict)
     if project.metadata.created:
         assert (
             request_body["data"]["attributes"]["created_at"]

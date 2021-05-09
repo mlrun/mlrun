@@ -9,6 +9,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors
 from mlrun.utils import logger
@@ -204,6 +205,28 @@ def test_list_project(
         [archived_and_labeled_project],
         state=mlrun.api.schemas.ProjectState.archived,
         labels=[f"{label_key}={label_value}", label_key],
+    )
+
+
+def test_list_project_format_summary(
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+):
+    project = _generate_project(name="name-1")
+    project_summary = mlrun.api.schemas.ProjectSummary(
+                    name=project.metadata.name,
+                    functions_count=4,
+                    feature_sets_count=5,
+                    models_count=6,
+                    runs_failed_recent_count=7,
+                    runs_running_count=8,
+                )
+    mlrun.api.utils.singletons.db.get_db().generate_projects_summaries = unittest.mock.Mock(return_value=[project_summary])
+    project_summaries = projects_follower.list_projects(None, format_=mlrun.api.schemas.Format.summary)
+    assert len(project_summaries.projects) == 1
+    assert (
+            deepdiff.DeepDiff(project_summaries.projects[0].dict(), project_summary.dict(), ignore_order=True, ) == {}
     )
 
 

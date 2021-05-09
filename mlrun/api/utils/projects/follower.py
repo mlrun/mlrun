@@ -10,7 +10,6 @@ import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.nop_leader
-import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -152,7 +151,9 @@ class Member(
         elif format_ == mlrun.api.schemas.Format.full:
             pass
         elif format_ == mlrun.api.schemas.Format.summary:
-            projects = mlrun.api.utils.singletons.db.get_db().generate_projects_summaries(session, project_names)
+            # importing here to avoid circular import (db using project member using mlrun follower using db)
+            from mlrun.api.utils.singletons.db import get_db
+            projects = get_db().generate_projects_summaries(session, project_names)
         else:
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"

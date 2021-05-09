@@ -624,7 +624,24 @@ class RunTemplate(ModelObj):
             task.with_secrets('file', 'file.txt')
             task.with_secrets('inline', {'key': 'val'})
             task.with_secrets('env', 'ENV1,ENV2')
+
             task.with_secrets('vault', ['secret1', 'secret2'...])
+
+            # If using an empty secrets list [] then all accessible secrets will be available.
+            task.with_secrets('vault', [])
+
+            # To use with Azure key vault, a k8s secret must be created with the following keys:
+            # kubectl -n <namespace> create secret generic azure-key-vault-secret \\
+            #     --from-literal=tenant_id=<service principal tenant ID> \\
+            #     --from-literal=client_id=<service principal client ID> \\
+            #     --from-literal=secret=<service principal secret key>
+
+            task.with_secrets('azure_vault', {
+                'name': 'my-vault-name',
+                'k8s_secret': 'azure-key-vault-secret',
+                # An empty secrets list may be passed ('secrets': []) to access all vault secrets.
+                'secrets': ['secret1', 'secret2'...]
+            })
 
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)

@@ -68,6 +68,14 @@ class TestServingRuntime(TestNuclioRuntime):
         function.with_secrets("inline", self.inline_secrets)
         function.with_secrets("env", "ENV_SECRET1")
         function.with_secrets("vault", self.vault_secrets)
+        function.with_secrets(
+            "azure_vault",
+            {
+                "name": "azure-key-vault",
+                "k8s_secret": self.azure_vault_secret_name,
+                "secrets": [],
+            },
+        )
         return function
 
     def _assert_deploy_spec_has_secrets_config(self, expected_secret_sources):
@@ -77,6 +85,9 @@ class TestServingRuntime(TestNuclioRuntime):
             deploy_spec = args[0]["spec"]
 
             token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
+            azure_secret_path = mlconf.secret_stores.azure_vault.secret_path.replace(
+                "~", "/root"
+            )
             expected_volumes = [
                 {
                     "volume": {
@@ -87,7 +98,20 @@ class TestServingRuntime(TestNuclioRuntime):
                         },
                     },
                     "volumeMount": {"name": "vault-secret", "mountPath": token_path},
-                }
+                },
+                {
+                    "volume": {
+                        "name": "azure-vault-secret",
+                        "secret": {
+                            "defaultMode": 420,
+                            "secretName": self.azure_vault_secret_name,
+                        },
+                    },
+                    "volumeMount": {
+                        "name": "azure-vault-secret",
+                        "mountPath": azure_secret_path,
+                    },
+                },
             ]
             assert (
                 deepdiff.DeepDiff(
@@ -124,6 +148,14 @@ class TestServingRuntime(TestNuclioRuntime):
             {
                 "kind": "vault",
                 "source": {"project": self.project, "secrets": self.vault_secrets},
+            },
+            {
+                "kind": "azure_vault",
+                "source": {
+                    "name": "azure-key-vault",
+                    "k8s_secret": self.azure_vault_secret_name,
+                    "secrets": [],
+                },
             },
         ]
         return expected_secret_sources

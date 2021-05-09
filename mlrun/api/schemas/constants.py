@@ -55,6 +55,34 @@ class HeaderNames:
     secret_store_token = f"{headers_prefix}secret-store-token"
 
 
+class FeatureStorePartitionByField(str, Enum):
+    name = "name"  # Supported for feature-store objects
+
+    def to_partition_by_db_field(self, db_cls):
+        if self.value == FeatureStorePartitionByField.name:
+            return db_cls.name
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown group by field: {self.value}"
+            )
+
+
+# For now, we only support sorting by updated field
+class SortField(str, Enum):
+    updated = "updated"
+
+
+class OrderType(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+    def to_order_by_predicate(self, db_field):
+        if self.value == OrderType.asc:
+            return db_field.asc()
+        else:
+            return db_field.desc()
+
+
 labels_prefix = "mlrun/"
 
 

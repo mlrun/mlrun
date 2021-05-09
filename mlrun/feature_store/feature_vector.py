@@ -323,8 +323,10 @@ class OnlineVectorService:
             result = future.await_result()
             data = result.body
             for key in self._index_columns:
-                if key in data:
+                if data and key in data:
                     del data[key]
+            if not data:
+                data = None
             if as_list:
                 data = [
                     result.body[key]

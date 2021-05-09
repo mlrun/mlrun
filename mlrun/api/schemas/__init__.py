@@ -8,7 +8,15 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
-from .constants import DeletionStrategy, Format, HeaderNames, PatchMode
+from .constants import (
+    DeletionStrategy,
+    FeatureStorePartitionByField,
+    Format,
+    HeaderNames,
+    OrderType,
+    PatchMode,
+    SortField,
+)
 from .feature_store import (
     EntitiesOutput,
     Entity,
@@ -20,6 +28,8 @@ from .feature_store import (
     FeatureSet,
     FeatureSetDigestOutput,
     FeatureSetDigestSpec,
+    FeatureSetIngestInput,
+    FeatureSetIngestOutput,
     FeatureSetRecord,
     FeatureSetsOutput,
     FeatureSetSpec,

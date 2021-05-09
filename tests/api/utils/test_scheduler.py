@@ -416,7 +416,7 @@ async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
         if should_find:
             expected_schedule_names.append(name)
 
-    schedules = scheduler.list_schedules(db, project, "mlrun")
+    schedules = scheduler.list_schedules(db, project, "~mlrun")
     assert len(schedules.schedules) == len(expected_schedule_names)
     for schedule in schedules.schedules:
         assert schedule.name in expected_schedule_names

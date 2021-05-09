@@ -30,6 +30,7 @@ from .ingestion import (
     context_to_ingestion_params,
     init_featureset_graph,
     run_ingestion_job,
+    run_spark_graph,
 )
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
 
@@ -143,7 +144,6 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    transformer=None,  # temporary, will be merged into the graph
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -176,16 +176,21 @@ def ingest(
     :param run_config:    function and/or run configuration for remote jobs,
                           see :py:class:`~mlrun.feature_store.RunConfig`
     :param mlrun_context: mlrun context (when running as a job), for internal use !
-    :param spark_context: local spark session or True to create one, example for creating the spark context:
+    :param spark_context: local spark session for spark ingestion, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
-    :param transformer:   custom transformation function which accepts dataframe and **kwargs as input
     """
+    if featureset:
+        if isinstance(featureset, str):
+            featureset = get_feature_set_by_uri(featureset)
+        # feature-set spec always has a source property that is not None. It may be default-constructed, in which
+        # case the path will be 'None'. That's why we need a special check
+        if source is None and featureset.has_valid_source():
+            source = featureset.spec.source
+
     if not mlrun_context and (not featureset or source is None):
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-    if featureset and isinstance(featureset, str):
-        featureset = get_feature_set_by_uri(featureset)
 
     if run_config:
         # remote job execution
@@ -214,7 +219,11 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    if spark_context:
+    if spark_context and featureset.spec.engine != "spark":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "featureset.spec.engine must be set to 'spark' to injest with spark"
+        )
+    if featureset.spec.engine == "spark":
         # use local spark session to ingest
         return _ingest_with_spark(
             spark_context,
@@ -222,8 +231,8 @@ def ingest(
             source,
             targets,
             infer_options=infer_options,
-            transformer=transformer,
             mlrun_context=mlrun_context,
+            namespace=namespace,
         )
 
     if isinstance(source, str):
@@ -244,12 +253,12 @@ def ingest(
     featureset.save()
 
     targets = targets or featureset.spec.targets or get_default_targets()
-    graph = init_featureset_graph(
-        source, featureset, namespace, targets=targets, return_df=return_df
+    df = init_featureset_graph(
+        source, featureset, namespace, targets=targets, return_df=return_df,
     )
-    df = graph.wait_for_completion()
     infer_from_static_df(df, featureset, options=infer_stats)
     _post_ingestion(mlrun_context, featureset, spark_context)
+
     return df
 
 
@@ -292,6 +301,13 @@ def infer(
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
+        _, default_final_state, _ = featureset.graph.check_and_process_graph(
+            allow_empty=True
+        )
+        if not default_final_state:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Split flow graph must have a default final state defined"
+            )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
             infer_from_static_df(
@@ -300,8 +316,7 @@ def infer(
                 entity_columns,
                 InferOptions.get_common_options(options, InferOptions.Entities),
             )
-        graph = init_featureset_graph(source, featureset, namespace, return_df=True)
-        source = graph.wait_for_completion()
+        source = init_featureset_graph(source, featureset, namespace, return_df=True)
 
     df = infer_from_static_df(source, featureset, entity_columns, options)
     return df
@@ -309,6 +324,7 @@ def infer(
 
 # keep for backwards compatibility
 infer_metadata = infer
+preview = infer
 
 
 def _run_ingestion_job(
@@ -335,7 +351,6 @@ def deploy_ingestion_service(
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
     name: str = None,
-    infer_options: InferOptions = InferOptions.Null,
     run_config: RunConfig = None,
 ):
     """Start real-time ingestion service using nuclio function
@@ -354,7 +369,6 @@ def deploy_ingestion_service(
     :param source:        data source object describing the online or offline source
     :param targets:       list of data target objects
     :param name:          name name for the job/function
-    :param infer_options: schema and stats infer options
     :param run_config:    service runtime configuration (function object/uri, resources, etc..)
     """
     if isinstance(featureset, str):
@@ -362,7 +376,7 @@ def deploy_ingestion_service(
 
     run_config = run_config.copy() if run_config else RunConfig()
     source, run_config.parameters = set_task_params(
-        featureset, source, targets, run_config.parameters, infer_options
+        featureset, source, targets, run_config.parameters
     )
 
     name = name or f"{featureset.metadata.name}_ingest"
@@ -401,22 +415,21 @@ def _ingest_with_spark(
     targets: List[DataTargetBase] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
-    transformer=None,
     namespace=None,
 ):
     if spark is None or spark is True:
         # create spark context
         from pyspark.sql import SparkSession
 
-        spark = SparkSession.builder.appName(
-            f"{mlrun_context.name}-{mlrun_context.uid}"
-        ).getOrCreate()
+        if mlrun_context:
+            session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
+        else:
+            session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
 
-    transformer = transformer or namespace.get(spark_transform_handler, None)
+        spark = SparkSession.builder.appName(session_name).getOrCreate()
+
     df = source.to_spark_df(spark)
-
-    if transformer:
-        df = transformer(df, mlrun_context, spark)
+    df = run_spark_graph(df, featureset, namespace, spark)
     infer_from_static_df(df, featureset, options=infer_options)
 
     key_column = featureset.spec.entities[0].name

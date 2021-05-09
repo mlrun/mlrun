@@ -92,6 +92,8 @@ def docker_fixture():
             "build",
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
+            "--build-arg",
+            "MLRUN_PYTHON_VERSION=3.7.9",
             "--tag",
             docker_tag,
             ".",
@@ -119,7 +121,9 @@ def docker_fixture():
 
         # retrieve container bind port + host
         out = run(["docker", "port", container_id, "8080"], stdout=PIPE, check=True)
-        host = out.stdout.decode("utf-8").strip()
+        # usually the output is something like b'0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
+        # b'0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
+        host = out.stdout.decode("utf-8").splitlines()[0]
 
         url = f"http://{host}"
         print(f"api url: {url}")
@@ -255,12 +259,16 @@ def test_artifacts(create_server):
     artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
+    db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 1, "bad number of artifacs"
+    assert len(artifacts) == 2, "bad number of artifacts"
+
+    artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
+    assert len(artifacts) == 1, "bad number of artifacts"
 
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 0, "bad number of artifacs after del"
+    assert len(artifacts) == 0, "bad number of artifacts after del"
 
 
 def test_basic_auth(create_server):
@@ -422,7 +430,15 @@ def test_feature_sets(create_server):
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
+    assert len(feature_sets) == count, "bad list results - wrong number of members"
 
+    feature_sets = db.list_feature_sets(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+    )
     assert len(feature_sets) == count, "bad list results - wrong number of members"
 
     feature_set = db.get_feature_set(name, project)
@@ -496,7 +512,15 @@ def test_feature_vectors(create_server):
         patch_mode=schemas.PatchMode.additive,
     )
     feature_vectors = db.list_feature_vectors(project=project)
+    assert len(feature_vectors) == count, "bad list results - wrong number of members"
 
+    feature_vectors = db.list_feature_vectors(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+    )
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
 
     feature_vector = db.get_feature_vector(name, project)

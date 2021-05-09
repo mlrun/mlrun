@@ -131,14 +131,16 @@ class Client(
             return True
 
     def list_projects(
-        self, session_cookie: str, updated_after: typing.Optional[datetime.datetime] = None
+        self,
+        session_cookie: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.List[mlrun.api.schemas.Project]:
         params = {}
         if updated_after is not None:
-            params = {
-                'filter[updated_at]': f'[$gt]{updated_after.isoformat()}Z'
-            }
-        response = self._send_request_to_api("GET", "projects", session_cookie, params=params)
+            params = {"filter[updated_at]": f"[$gt]{updated_after.isoformat()}Z"}
+        response = self._send_request_to_api(
+            "GET", "projects", session_cookie, params=params
+        )
         response_body = response.json()
         projects = []
         for iguazio_project in response_body["data"]:

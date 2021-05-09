@@ -52,9 +52,14 @@ def test_sync_projects(
         name="name-4", state=mlrun.api.schemas.ProjectState.online
     )
     project_offline = _generate_project(
-        name=project_will_be_offline.metadata.name, state=mlrun.api.schemas.ProjectState.offline
+        name=project_will_be_offline.metadata.name,
+        state=mlrun.api.schemas.ProjectState.offline,
     )
-    for _project in [project_nothing_changed, project_in_creation, project_will_be_offline]:
+    for _project in [
+        project_nothing_changed,
+        project_in_creation,
+        project_will_be_offline,
+    ]:
         projects_follower.create_project(None, _project)
     original_list = nop_leader.list_projects
     nop_leader.list_projects = unittest.mock.Mock(
@@ -62,7 +67,10 @@ def test_sync_projects(
     )
     projects_follower._sync_projects()
     nop_leader.list_projects = original_list
-    _assert_list_projects(projects_follower, [project_nothing_changed, project_in_creation, project_offline])
+    _assert_list_projects(
+        projects_follower,
+        [project_nothing_changed, project_in_creation, project_offline],
+    )
 
 
 def test_create_project(

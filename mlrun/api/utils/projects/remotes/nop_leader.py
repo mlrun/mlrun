@@ -1,5 +1,5 @@
-import typing
 import datetime
+import typing
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
@@ -45,7 +45,9 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         )
 
     def list_projects(
-        self, session_cookie: str, updated_after: typing.Optional[datetime.datetime] = None
+        self,
+        session_cookie: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.List[mlrun.api.schemas.Project]:
         return (
             mlrun.api.utils.singletons.project_member.get_project_member()

@@ -180,7 +180,9 @@ class Member(
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     def _sync_projects(self):
-        projects = self._leader_client.list_projects(self._session_cookie, self._synced_until_datetime)
+        projects = self._leader_client.list_projects(
+            self._session_cookie, self._synced_until_datetime
+        )
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []
         for project in projects:

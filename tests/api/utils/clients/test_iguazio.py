@@ -294,7 +294,7 @@ def test_store_project_update(
     def verify_store_update(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.OK.value
-        assert request.headers["Cookie"] == f"session={session_cookie}"
+        _verify_request_headers(request.headers, session_cookie)
         return {"data": _build_project_response(iguazio_client, project)}
 
     empty_project = _generate_project(description="", labels={}, annotations={})
@@ -425,7 +425,7 @@ def _verify_deletion(project_name, session_cookie, job_id, request, context):
         request.headers["igz-project-deletion-strategy"]
         == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
     )
-    assert request.headers["Cookie"] == f"session={session_cookie}"
+    _verify_request_headers(request.headers, session_cookie)
     context.status_code = http.HTTPStatus.ACCEPTED.value
     return {"data": {"type": "job", "id": job_id}}
 
@@ -433,12 +433,17 @@ def _verify_deletion(project_name, session_cookie, job_id, request, context):
 def _verify_creation(iguazio_client, project, session_cookie, job_id, request, context):
     _assert_project_creation(iguazio_client, request.json(), project)
     context.status_code = http.HTTPStatus.CREATED.value
-    assert request.headers["Cookie"] == f"session={session_cookie}"
+    _verify_request_headers(request.headers, session_cookie)
     return {
         "data": _build_project_response(
             iguazio_client, project, job_id, mlrun.api.schemas.ProjectState.creating
         )
     }
+
+
+def _verify_request_headers(headers: dict, session_cookie: str):
+    assert headers["Cookie"] == f"session={session_cookie}"
+    assert headers[mlrun.api.schemas.HeaderNames.projects_role] == 'mlrun'
 
 
 def _mock_job_progress(api_url, requests_mock, session_cookie: str, job_id: str):

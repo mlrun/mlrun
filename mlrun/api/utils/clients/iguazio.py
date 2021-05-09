@@ -107,7 +107,6 @@ class Client(
                 metadata=mlrun.api.schemas.ProjectMetadata(name=name)
             )
         )
-        # TODO: verify header name and values
         headers = {
             "igz-project-deletion-strategy": deletion_strategy.to_iguazio_deletion_strategy(),
         }
@@ -214,6 +213,9 @@ class Client(
             kwargs["cookies"] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
+        if 'projects' in path:
+            if mlrun.api.schemas.HeaderNames.projects_role not in kwargs.get('headers', {}):
+                kwargs.setdefault('headers', {})[mlrun.api.schemas.HeaderNames.projects_role] = 'mlrun'
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)

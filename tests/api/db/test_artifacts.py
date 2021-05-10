@@ -45,8 +45,46 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_2
 
-    artifacts = db.list_artifacts(db_session, name="artifact_name")
+    artifacts = db.list_artifacts(db_session, name="~artifact_name")
     assert len(artifacts) == 2
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
+    artifact_name_1 = "artifact_name_1"
+    artifact_name_2 = "artifact_name_2"
+    artifact_1 = _generate_artifact(artifact_name_1)
+    artifact_2 = _generate_artifact(artifact_name_2)
+    uid = "artifact_uid"
+
+    # Use iters with multiple digits, to make sure filtering them via regex works
+    test_iters = [0, 5, 9, 42, 219, 2102]
+    for iter in test_iters:
+        artifact_1["iter"] = artifact_2["iter"] = iter
+        db.store_artifact(db_session, artifact_name_1, artifact_1, uid, iter)
+        db.store_artifact(db_session, artifact_name_2, artifact_2, uid, iter)
+
+    # No filter on iter. All are expected
+    artifacts = db.list_artifacts(db_session)
+    assert len(artifacts) == len(test_iters) * 2
+
+    # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
+    for iter in test_iters:
+        artifacts = db.list_artifacts(db_session, iter=iter)
+        assert len(artifacts) == 2
+        for artifact in artifacts:
+            assert artifact["iter"] == iter
+
+    # Negative test
+    artifacts = db.list_artifacts(db_session, iter=666)
+    assert len(artifacts) == 0
+
+    # Iter filter and a name filter, make sure query composition works
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1, iter=2102)
+    assert len(artifacts) == 1
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

@@ -97,6 +97,7 @@ class FileDB(DBInterface):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter: int = None,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until
@@ -132,6 +133,11 @@ class FileDB(DBInterface):
 
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
+
+    def generate_projects_summaries(
+        self, session, projects: List[str]
+    ) -> List[schemas.ProjectSummary]:
+        raise NotImplementedError()
 
     def list_projects(
         self,
@@ -227,6 +233,10 @@ class FileDB(DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         raise NotImplementedError()
 
@@ -263,6 +273,10 @@ class FileDB(DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         raise NotImplementedError()
 

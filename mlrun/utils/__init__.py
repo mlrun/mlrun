@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .azure_vault import AzureVaultStore  # noqa
 from .helpers import *  # noqa
 from .logger import *  # noqa
 from .vault import *  # noqa

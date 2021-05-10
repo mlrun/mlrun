@@ -39,22 +39,30 @@ class _StreamContext:
     def __init__(self, enabled, parameters, function_uri):
         self.enabled = False
         self.hostname = socket.gethostname()
-        self.output_stream = None
         self.function_uri = function_uri
         self.output_stream = None
+        self.stream_uri = None
 
         log_stream = parameters.get("log_stream", "")
-        stream_url = config.model_endpoint_monitoring.stream_url
-        if ((enabled and stream_url) or log_stream) and function_uri:
+        stream_uri = config.model_endpoint_monitoring.store_prefixes.default
+
+        if ((enabled and stream_uri) or log_stream) and function_uri:
             self.enabled = True
-            log_stream = log_stream or stream_url
+
             project, _, _, _ = parse_versioned_object_uri(
                 function_uri, config.default_project
             )
+
+            stream_uri = stream_uri.format(project=project, kind="stream")
+
+            if log_stream:
+                stream_uri = log_stream.format(project=project)
+
             stream_args = parameters.get("stream_args", {})
-            self.output_stream = get_stream_pusher(
-                log_stream.format(project=project), **stream_args
-            )
+
+            self.stream_uri = stream_uri
+
+            self.output_stream = get_stream_pusher(stream_uri, **stream_args)
 
 
 class GraphServer(ModelObj):
@@ -117,7 +125,12 @@ class GraphServer(ModelObj):
         return mlrun.get_run_db(secrets=self._secrets)
 
     def init(
-        self, context, namespace, resource_cache: ResourceCache = None, logger=None
+        self,
+        context,
+        namespace,
+        resource_cache: ResourceCache = None,
+        logger=None,
+        is_mock=False,
     ):
         """for internal use, initialize all states (recursively)"""
 
@@ -129,6 +142,7 @@ class GraphServer(ModelObj):
         self.resource_cache = resource_cache or ResourceCache()
 
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
+        context.is_mock = is_mock
         context.root = self.graph
 
         context.stream = _StreamContext(
@@ -189,11 +203,11 @@ class GraphServer(ModelObj):
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
         return resp
 
-    def run(self, event, context=None, get_body=False):
+    def run(self, event, context=None, get_body=False, extra_args=None):
         server_context = self.context
         context = context or server_context
         try:
-            response = self.graph.run(event)
+            response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
             message = str(exc)
             if server_context.verbose:
@@ -331,6 +345,7 @@ class GraphContext:
         self.current_function = None
         self.get_store_resource = None
         self.get_table = None
+        self.is_mock = False
 
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:

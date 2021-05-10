@@ -97,6 +97,7 @@ class DBInterface(ABC):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter: int = None,
     ):
         pass
 
@@ -180,6 +181,12 @@ class DBInterface(ABC):
 
     @abstractmethod
     def delete_schedule(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def generate_projects_summaries(
+        self, session, projects: List[str]
+    ) -> List[schemas.ProjectSummary]:
         pass
 
     @abstractmethod
@@ -286,6 +293,10 @@ class DBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         pass
 
@@ -327,6 +338,10 @@ class DBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         pass
 

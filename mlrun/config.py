@@ -50,6 +50,10 @@ default_config = {
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
+    # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
+    # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
+    # mlrun/ml-base, etc...)
+    "images_to_enrich_registry": "^mlrun/*",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
@@ -59,7 +63,7 @@ default_config = {
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
-    "default_image": "python:3.6-jessie",
+    "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
@@ -107,8 +111,11 @@ default_config = {
         "projects": {
             "leader": "mlrun",
             "followers": "",
+            # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
             "counters_cache_ttl": "10 seconds",
+            # access key to be used when the leader is iguazio and polling is done from it
+            "iguazio_access_key": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -130,8 +137,10 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
-        "container": "projects",
-        "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
+        "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
+        "store_prefixes": {
+            "default": "v3io:///projects/{project}/model-endpoints/{kind}"
+        },
     },
     "secret_stores": {
         "vault": {
@@ -146,6 +155,11 @@ default_config = {
             # This config is for debug/testing purposes only!
             "user_token": "",
         },
+        "azure_vault": {
+            "url": "https://{name}.vault.azure.net",
+            "default_secret_name": None,
+            "secret_path": "~/.mlrun/azure_vault",
+        },
     },
     "feature_store": {
         "data_prefixes": {
@@ -154,6 +168,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects

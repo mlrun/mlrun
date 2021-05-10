@@ -87,7 +87,14 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
     ):
         pass
 
@@ -204,6 +211,10 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 
@@ -258,6 +269,10 @@ class RunDBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 

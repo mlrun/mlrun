@@ -116,7 +116,14 @@ class SQLDB(RunDBInterface):
         )
 
     def list_artifacts(
-        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        name=None,
+        project=None,
+        tag=None,
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
     ):
         return self._transform_db_error(
             self.db.list_artifacts,
@@ -127,6 +134,7 @@ class SQLDB(RunDBInterface):
             labels,
             since,
             until,
+            iter=iter,
         )
 
     def del_artifact(self, key, tag="", project=""):
@@ -246,9 +254,10 @@ class SQLDB(RunDBInterface):
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
-        return self._transform_db_error(
+        feature_set = self._transform_db_error(
             self.db.get_feature_set, self.session, project, name, tag, uid
         )
+        return feature_set.dict()
 
     def list_features(
         self,
@@ -278,6 +287,10 @@ class SQLDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
+        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
         return self._transform_db_error(
             self.db.list_feature_sets,
@@ -289,12 +302,27 @@ class SQLDB(RunDBInterface):
             entities,
             features,
             labels,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
         )
 
     def store_feature_set(
-        self, feature_set, name=None, project="", tag=None, uid=None, versioned=True
+        self,
+        feature_set: Union[dict, mlrun.api.schemas.FeatureSet],
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
+        if isinstance(feature_set, dict):
+            feature_set = mlrun.api.schemas.FeatureSet(**feature_set)
+
         name = name or feature_set.metadata.name
+        project = project or feature_set.metadata.project
+
         return self._transform_db_error(
             self.db.store_feature_set,
             self.session,
@@ -348,6 +376,10 @@ class SQLDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
+        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
         return self._transform_db_error(
             self.db.list_feature_vectors,
@@ -357,6 +389,10 @@ class SQLDB(RunDBInterface):
             tag,
             state,
             labels,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
         )
 
     def store_feature_vector(

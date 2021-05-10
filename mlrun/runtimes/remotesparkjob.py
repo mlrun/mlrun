@@ -136,7 +136,7 @@ class RemoteSparkRuntime(KubejobRuntime):
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

@@ -16,6 +16,7 @@ from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
+from mlrun.utils.azure_vault import AzureVaultStore
 from mlrun.utils.vault import VaultStore
 
 logger = create_logger(level="debug", name="test-runtime")
@@ -33,10 +34,15 @@ class TestRuntimeBase:
         self.artifact_path = "/tmp"
         self.function_name_label = "mlrun/name"
         self.code_filename = str(self.assets_path / "sample_function.py")
+        self.requirements_file = str(self.assets_path / "requirements.txt")
 
         self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
         self.vault_secret_value = "secret123!@"
         self.vault_secret_name = "vault-secret"
+
+        self.azure_vault_secrets = ["azure_secret1", "azure_secret2"]
+        self.azure_secret_value = "azure-secret-123!@"
+        self.azure_vault_secret_name = "k8s-vault-secret"
 
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -186,6 +192,11 @@ class TestRuntimeBase:
     def _mock_vault_functionality(self):
         secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
         VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
+
+        azure_secret_dict = {
+            key: self.azure_secret_value for key in self.azure_vault_secrets
+        }
+        AzureVaultStore.get_secrets = unittest.mock.Mock(return_value=azure_secret_dict)
 
         object_meta = client.V1ObjectMeta(
             name="test-service-account", namespace=self.namespace
@@ -417,24 +428,9 @@ class TestRuntimeBase:
 
         container_spec = pod.spec.containers[0]
 
-        if expected_limits:
-            assert (
-                deepdiff.DeepDiff(
-                    container_spec.resources["limits"],
-                    expected_limits,
-                    ignore_order=True,
-                )
-                == {}
-            )
-        if expected_requests:
-            assert (
-                deepdiff.DeepDiff(
-                    container_spec.resources["requests"],
-                    expected_requests,
-                    ignore_order=True,
-                )
-                == {}
-            )
+        self._assert_container_resources(
+            container_spec, expected_limits, expected_requests
+        )
 
         pod_env = container_spec.env
 
@@ -488,3 +484,25 @@ class TestRuntimeBase:
             )
 
         assert pod.spec.containers[0].image == self.image_name
+
+    def _assert_container_resources(
+        self, container_spec, expected_limits, expected_requests
+    ):
+        if expected_limits:
+            assert (
+                deepdiff.DeepDiff(
+                    container_spec.resources["limits"],
+                    expected_limits,
+                    ignore_order=True,
+                )
+                == {}
+            )
+        if expected_requests:
+            assert (
+                deepdiff.DeepDiff(
+                    container_spec.resources["requests"],
+                    expected_requests,
+                    ignore_order=True,
+                )
+                == {}
+            )

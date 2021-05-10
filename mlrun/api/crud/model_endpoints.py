@@ -1,7 +1,6 @@
 import json
 from typing import Any, Dict, List, Mapping, Optional
 
-from starlette.concurrency import run_in_threadpool
 from v3io.dataplane import RaiseForStatus
 
 from mlrun.api.schemas import (
@@ -13,7 +12,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.api.schemas.model_endpoints import ModelEndpointList
-from mlrun.artifacts import get_model
+from mlrun.artifacts import ModelArtifact, get_model
 from mlrun.config import config
 from mlrun.errors import (
     MLRunBadRequestError,
@@ -21,22 +20,22 @@ from mlrun.errors import (
     MLRunNotFoundError,
 )
 from mlrun.utils.helpers import logger
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
-ENDPOINTS_TABLE_PATH = "model-endpoints/endpoints"
-ENDPOINT_EVENTS_TABLE_PATH = "model-endpoints/events"
+ENDPOINTS = "endpoints"
+EVENTS = "events"
 
 
 class ModelEndpoints:
     @staticmethod
-    async def create_or_patch(access_key: str, model_endpoint: ModelEndpoint):
+    def create_or_patch(access_key: str, model_endpoint: ModelEndpoint):
         """
-        Creates or updates a KV record with the given model_endpoint record
+        Creates or patch a KV record with the given model_endpoint record
 
         :param access_key: V3IO access key for managing user permissions
         :param model_endpoint: An object representing a model endpoint
         """
-
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
             logger.info(
                 "Getting feature metadata",
@@ -46,15 +45,26 @@ class ModelEndpoints:
                 model_uri=model_endpoint.spec.model_uri,
             )
 
-        # If model artifact was supplied but feature_stats was not, grab model artifact and get feature_stats
-        if model_endpoint.spec.model_uri and not model_endpoint.status.feature_stats:
+        # If model artifact was supplied, grab model meta data from artifact
+        if model_endpoint.spec.model_uri:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            model_obj = await run_in_threadpool(
-                get_model, model_endpoint.spec.model_uri
-            )
-            model_endpoint.status.feature_stats = model_obj[1].feature_stats
+            model_obj: tuple = get_model(model_endpoint.spec.model_uri)
+
+            model_obj: ModelArtifact = model_obj[1]
+
+            if not model_endpoint.status.feature_stats:
+                model_endpoint.status.feature_stats = model_obj.feature_stats
+
+            if not model_endpoint.spec.label_names:
+                model_label_names = [
+                    _clean_feature_name(f.name) for f in model_obj.outputs
+                ]
+                model_endpoint.spec.label_names = model_label_names
+
+            if not model_endpoint.spec.algorithm:
+                model_endpoint.spec.algorithm = model_obj.algorithm
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
@@ -95,7 +105,7 @@ class ModelEndpoints:
         # system
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
-        await write_endpoint_to_kv(
+        write_endpoint_to_kv(
             access_key=access_key, endpoint=model_endpoint, update=True,
         )
 
@@ -104,7 +114,7 @@ class ModelEndpoints:
         return model_endpoint
 
     @staticmethod
-    async def delete_endpoint_record(access_key: str, project: str, endpoint_id: str):
+    def delete_endpoint_record(access_key: str, project: str, endpoint_id: str):
         """
         Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
 
@@ -116,10 +126,14 @@ class ModelEndpoints:
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
 
-        await run_in_threadpool(
-            client.kv.delete,
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=ENDPOINTS
+        )
+        _, container, path = parse_model_endpoint_store_prefix(path)
+
+        client.kv.delete(
+            container=container,
+            table_path=path,
             key=endpoint_id,
             access_key=access_key,
         )
@@ -127,7 +141,7 @@ class ModelEndpoints:
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
     @staticmethod
-    async def list_endpoints(
+    def list_endpoints(
         access_key: str,
         project: str,
         model: Optional[str] = None,
@@ -172,9 +186,15 @@ class ModelEndpoints:
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
+
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=ENDPOINTS
+        )
+        _, container, path = parse_model_endpoint_store_prefix(path)
+
         cursor = client.kv.new_cursor(
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+            container=container,
+            table_path=path,
             access_key=access_key,
             filter_expression=build_kv_cursor_filter_expression(
                 project, function, model, labels
@@ -188,7 +208,7 @@ class ModelEndpoints:
             if item is None:
                 break
             endpoint_id = item["endpoint_id"]
-            endpoint = await ModelEndpoints.get_endpoint(
+            endpoint = ModelEndpoints.get_endpoint(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint_id,
@@ -200,7 +220,7 @@ class ModelEndpoints:
         return endpoint_list
 
     @staticmethod
-    async def get_endpoint(
+    def get_endpoint(
         access_key: str,
         project: str,
         endpoint_id: str,
@@ -227,10 +247,15 @@ class ModelEndpoints:
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
-        endpoint = await run_in_threadpool(
-            client.kv.get,
-            container=config.model_endpoint_monitoring.container,
-            table_path=f"{project}/{ENDPOINTS_TABLE_PATH}",
+
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=ENDPOINTS
+        )
+        _, container, path = parse_model_endpoint_store_prefix(path)
+
+        endpoint = client.kv.get(
+            container=container,
+            table_path=path,
             key=endpoint_id,
             access_key=access_key,
             raise_for_status=RaiseForStatus.never,
@@ -244,14 +269,21 @@ class ModelEndpoints:
 
         feature_names = endpoint.get("feature_names")
         feature_names = _json_loads_if_not_none(feature_names)
+
+        label_names = endpoint.get("label_names")
+        label_names = _json_loads_if_not_none(label_names)
+
         feature_stats = endpoint.get("feature_stats")
         feature_stats = _json_loads_if_not_none(feature_stats)
+
         current_stats = endpoint.get("current_stats")
         current_stats = _json_loads_if_not_none(current_stats)
+
         drift_measures = endpoint.get("drift_measures")
         drift_measures = _json_loads_if_not_none(drift_measures)
 
         monitor_configuration = endpoint.get("monitor_configuration")
+        monitor_configuration = _json_loads_if_not_none(monitor_configuration)
 
         endpoint = ModelEndpoint(
             metadata=ModelEndpointMetadata(
@@ -265,8 +297,10 @@ class ModelEndpoints:
                 model_class=endpoint.get("model_class") or None,
                 model_uri=endpoint.get("model_uri") or None,
                 feature_names=feature_names or None,
+                label_names=label_names or None,
                 stream_path=endpoint.get("stream_path") or None,
-                monitor_configuration=_json_loads_if_not_none(monitor_configuration),
+                algorithm=endpoint.get("algorithm") or None,
+                monitor_configuration=monitor_configuration or None,
                 active=endpoint.get("active") or None,
             ),
             status=ModelEndpointStatus(
@@ -292,7 +326,7 @@ class ModelEndpoints:
                 endpoint.status.drift_measures = drift_measures
 
         if metrics:
-            endpoint_metrics = await get_endpoint_metrics(
+            endpoint_metrics = get_endpoint_metrics(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint_id,
@@ -306,9 +340,7 @@ class ModelEndpoints:
         return endpoint
 
 
-async def write_endpoint_to_kv(
-    access_key: str, endpoint: ModelEndpoint, update: bool = True
-):
+def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool = True):
     """
     Writes endpoint data to KV, a prerequisite for initializing the monitoring process
 
@@ -321,16 +353,22 @@ async def write_endpoint_to_kv(
     searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
 
     feature_names = endpoint.spec.feature_names or []
+    label_names = endpoint.spec.label_names or []
     feature_stats = endpoint.status.feature_stats or {}
     current_stats = endpoint.status.current_stats or {}
     monitor_configuration = endpoint.spec.monitor_configuration or {}
 
     client = get_v3io_client(endpoint=config.v3io_api)
     function = client.kv.update if update else client.kv.put
-    await run_in_threadpool(
-        function,
-        container=config.model_endpoint_monitoring.container,
-        table_path=f"{endpoint.metadata.project}/{ENDPOINTS_TABLE_PATH}",
+
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=endpoint.metadata.project, kind=ENDPOINTS
+    )
+    _, container, path = parse_model_endpoint_store_prefix(path)
+
+    function(
+        container=container,
+        table_path=path,
         key=endpoint.metadata.uid,
         access_key=access_key,
         attributes={
@@ -347,6 +385,7 @@ async def write_endpoint_to_kv(
             "feature_stats": json.dumps(feature_stats),
             "current_stats": json.dumps(current_stats),
             "feature_names": json.dumps(feature_names),
+            "label_names": json.dumps(label_names),
             "monitor_configuration": json.dumps(monitor_configuration),
             **searchable_labels,
         },
@@ -365,7 +404,7 @@ def _clean_feature_name(feature_name):
     return feature_name.replace(" ", "_").replace("(", "").replace(")", "")
 
 
-async def get_endpoint_metrics(
+def get_endpoint_metrics(
     access_key: str,
     project: str,
     endpoint_id: str,
@@ -377,16 +416,18 @@ async def get_endpoint_metrics(
     if not metrics:
         raise MLRunInvalidArgumentError("Metric names must be provided")
 
+    path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind=EVENTS
+    )
+    _, container, path = parse_model_endpoint_store_prefix(path)
+
     client = get_frames_client(
-        token=access_key,
-        address=config.v3io_framesd,
-        container=config.model_endpoint_monitoring.container,
+        token=access_key, address=config.v3io_framesd, container=container,
     )
 
-    data = await run_in_threadpool(
-        client.read,
+    data = client.read(
         backend="tsdb",
-        table=f"{project}/{ENDPOINT_EVENTS_TABLE_PATH}",
+        table=path,
         columns=["endpoint_id", *metrics],
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,

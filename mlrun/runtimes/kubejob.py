@@ -135,7 +135,7 @@ class KubejobRuntime(KubeResource):
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
-            if watch:
+            if watch and not ready:
                 state = self._build_watch(watch)
                 ready = state == "ready"
                 self.status.state = state
@@ -229,8 +229,13 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        if self._secrets and self._secrets.has_vault_source():
-            self._add_vault_params_to_spec(runobj)
+        if self._secrets:
+            if self._secrets.has_vault_source():
+                self._add_vault_params_to_spec(runobj)
+            if self._secrets.has_azure_vault_source():
+                self._add_azure_vault_params_to_spec(
+                    self._secrets.get_azure_vault_k8s_secret()
+                )
 
         pod_spec = func_to_pod(
             self.full_image_path(), self, extra_env, command, args, self.spec.workdir
@@ -280,7 +285,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

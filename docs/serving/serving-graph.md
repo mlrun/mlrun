@@ -195,37 +195,30 @@ streaming protocols to connect those functions, in the following example we do t
 processing in the first function/container and the NLP processing in the second function 
 (for example if we need a GPU just for that part).
 
+See the [full notebook example](./distributed-graph.ipynb)
+
 ```python
-import mlrun
+# define a new real-time serving function (from code) with an async graph
+fn = mlrun.code_to_function("multi-func", filename="./data_prep.py", kind="serving", image='mlrun/mlrun')
+graph = fn.set_topology("flow", engine="async")
 
-# create a serving function from source code
-fn = mlrun.code_to_function('nlp-pipeline', filename='./nlp1.py', kind='serving', image='mlrun/mlrun')
+# define the graph steps (DAG)
+graph.to(name="load_url", handler="load_url")\
+     .to(name="to_paragraphs", handler="to_paragraphs")\
+     .to("storey.FlatMap", "flatten_paragraphs", _fn="(event)")\
+     .to(">>", "q1", path=internal_stream)\
+     .to(name="nlp", class_name="ApplyNLP", function="enrich")\
+     .to(name="extract_entities", handler="extract_entities", function="enrich")\
+     .to(name="enrich_entities", handler="enrich_entities", function="enrich")\
+     .to("storey.FlatMap", "flatten_entities", _fn="(event)", function="enrich")\
+     .to(name="printer", handler="myprint", function="enrich")\
+     .to(">>", "output_stream", path=out_stream)
 
-queue_stream = 'projects/default/mystream'
-result_stream = 'projects/default/results'
-
-graph = fn.set_topology("flow", engine="async", exist_ok=True)
-
-# define the graph, indicate that some steps run on the "enrich" function
-# use a queue (stream) between the 1st and the 2nd function, and write the results to a stream 
-graph.to('URLDownloader')\
-     .to('ToParagraphs')\
-     .to('$queue', 'to_v3io', path=queue_stream)\
-     .to("ApplyNLP", function='enrich')\
-     .to('ExtractEntities', function='enrich')\
-     .to('EnrichEntities', function='enrich')\
-     .to('storey.Flatten', 'flatten',function='enrich')\
-     .to('$queue', 'to_result', path=result_stream)
-
-# specify the "enrich" child function, built from a notebook file
-fn.add_child_function('enrich', './entity_extraction.ipynb', 'mlrun/mlrun')
-
-# plot the graph
-graph.plot(rankdir='LR')
-
-# add v3io (stream) credentials/secrets to the function and deploy (will deploy both parent and child functions)
-fn.apply(mlrun.v3io_cred())
-fn.deploy()
+# specify the "enrich" child function, add extra package requierments
+child = fn.add_child_function('enrich', './nlp.py', 'mlrun/mlrun')
+child.spec.build.commands = ["python -m pip install spacy",
+                             "python -m spacy download en_core_web_sm"]
+graph.plot()
 ```
 
 > Currently queues only support iguazio v3io stream, Kafka support will soon be added 

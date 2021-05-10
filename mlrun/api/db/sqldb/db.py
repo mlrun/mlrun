@@ -1,4 +1,5 @@
 import collections
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
@@ -8,13 +9,14 @@ import mergedeep
 import pytz
 from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
+    generate_query_predicate_for_name,
     label_set,
     run_labels,
     run_start_time,
@@ -57,12 +59,13 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
+class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {
             "project_resources_counters": {"value": None, "ttl": datetime.min}
         }
+        self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
         return
@@ -321,6 +324,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter: int = None,
     ):
         project = project or config.default_project
 
@@ -337,8 +341,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         artifacts = ArtifactList()
         for artifact in self._find_artifacts(
-            session, project, ids, labels, since, until, name, kind, category
+            session, project, ids, labels, since, until, name, kind, category, iter
         ):
+            # We need special handling for the case where iter==0, since in that case no iter prefix will exist.
+            # Regex support is db-specific, and SQLAlchemy actually implements Python regex for SQLite anyway,
+            # and even that only in SA 1.4. So doing this here rather than in the query.
+            if iter == 0 and self._name_with_iter_regex.match(artifact.key):
+                continue
+
             artifact_struct = artifact.struct
             if ids != "latest":
                 artifacts_with_tag = self._add_tags_to_artifact_struct(
@@ -638,7 +648,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, project=project, kind=kind)
         if name is not None:
-            query = query.filter(Schedule.name.ilike(f"%{name}%"))
+            query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Schedule, labels)
 
@@ -815,14 +825,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
-        if deletion_strategy == schemas.DeletionStrategy.restrict:
+        if deletion_strategy.is_restricted():
             project_record = self._get_project_record(
                 session, name, raise_on_not_found=False
             )
             if not project_record:
                 return
             self._verify_project_has_no_related_resources(session, name)
-        elif deletion_strategy == schemas.DeletionStrategy.cascade:
+        elif deletion_strategy.is_cascading():
             self._delete_project_related_resources(session, name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -847,7 +857,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # calculating the project summary data is done by doing cross project queries (and not per project) so we're
         # building it outside of the loop
         if format_ == mlrun.api.schemas.Format.summary:
-            projects = self._generate_projects_summaries(session, project_names)
+            projects = self.generate_projects_summaries(session, project_names)
         else:
             for project_record in project_records:
                 if format_ == mlrun.api.schemas.Format.name_only:
@@ -927,7 +937,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                         )
                         project_to_running_runs_count[run.project] += 1
                 if self._is_run_matching_state(
-                    run, run_json, mlrun.runtimes.constants.RunStates.error
+                    run,
+                    run_json,
+                    [
+                        mlrun.runtimes.constants.RunStates.error,
+                        mlrun.runtimes.constants.RunStates.aborted,
+                    ],
                 ):
                     one_day_ago = datetime.now() - timedelta(hours=24)
                     if run.start_time and run.start_time >= one_day_ago:
@@ -957,7 +972,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         return self._cache["project_resources_counters"]["result"]
 
-    def _generate_projects_summaries(
+    def generate_projects_summaries(
         self, session: Session, projects: List[str]
     ) -> List[mlrun.api.schemas.ProjectSummary]:
         (
@@ -1144,7 +1159,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # Find object IDs by tag, project and feature-set-name (which is a like query)
         tag_query = self._query(session, cls.Tag, project=project, name=tag)
         if name:
-            tag_query = tag_query.filter(cls.Tag.obj_name.ilike(f"%{name}%"))
+            tag_query = tag_query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, name)
+            )
 
         # Generate a mapping from each object id (note: not uid, it's the DB ID) to its associated tags.
         obj_id_tags = {}
@@ -1202,7 +1219,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         )
 
         if name:
-            query = query.filter(query_class.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(query_class.name, name)
+            )
         if labels:
             query = self._add_labels_filter(session, query, query_class, labels)
         if tag:
@@ -1323,6 +1342,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 )
         return schemas.EntitiesOutput(entities=entities_results)
 
+    @staticmethod
+    def _assert_partition_by_parameters(partition_by, sort):
+        if sort is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "sort parameter must be provided when partition_by is used."
+            )
+        # For now, name is the only supported value. Remove once more fields are added.
+        if partition_by != schemas.FeatureStorePartitionByField.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
+            )
+
+    @staticmethod
+    def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
+        row_number_column = (
+            func.row_number()
+            .over(
+                partition_by=group_by.to_partition_by_db_field(cls),
+                order_by=order.to_order_by_predicate(cls.updated),
+            )
+            .label("row_number")
+        )
+
+        # Need to generate a subquery so we can filter based on the row_number, since it
+        # is a window function using over().
+        subquery = query.add_column(row_number_column).subquery()
+        return session.query(aliased(cls, subquery)).filter(
+            subquery.c.row_number <= rows_per_group
+        )
+
     def list_feature_sets(
         self,
         session,
@@ -1333,6 +1382,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
@@ -1342,7 +1395,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureSet, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureSet.name, name)
+            )
         if tag:
             query = query.filter(FeatureSet.id.in_(obj_id_tags.keys()))
         if entities:
@@ -1351,6 +1406,17 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             query = query.join(FeatureSet.features).filter(Feature.name.in_(features))
         if labels:
             query = self._add_labels_filter(session, query, FeatureSet, labels)
+
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort)
+            query = self._create_partitioned_query(
+                session,
+                query,
+                FeatureSet,
+                partition_by,
+                partition_order,
+                rows_per_partition,
+            )
 
         feature_sets = []
         for feature_set_record in query:
@@ -1487,7 +1553,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureSet, project, name, tag, uid
         )
 
-        feature_set_dict = feature_set.dict()
+        feature_set_dict = feature_set.dict(exclude_none=True)
 
         if not existing_feature_set:
             # Check if this is a re-tag of existing object - search by uid only
@@ -1541,7 +1607,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         get_project_member().ensure_project(session, project)
         tag = new_object.metadata.tag or "latest"
 
-        object_dict = new_object.dict()
+        object_dict = new_object.dict(exclude_none=True)
         hash_key = fill_object_hash(object_dict, "uid", tag)
 
         if versioned:
@@ -1595,7 +1661,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 f"Feature-set not found {feature_set_uri}"
             )
 
-        feature_set_struct = feature_set_record.dict()
+        feature_set_struct = feature_set_record.dict(exclude_none=True)
         # using mergedeep for merging the patch content into the existing dictionary
         strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
@@ -1712,6 +1778,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureVector, project, tag, name
@@ -1721,11 +1791,24 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureVector, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureVector.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureVector.name, name)
+            )
         if tag:
             query = query.filter(FeatureVector.id.in_(obj_id_tags.keys()))
         if labels:
             query = self._add_labels_filter(session, query, FeatureVector, labels)
+
+        if partition_by:
+            self._assert_partition_by_parameters(partition_by, partition_sort_by)
+            query = self._create_partitioned_query(
+                session,
+                query,
+                FeatureVector,
+                partition_by,
+                partition_order,
+                rows_per_partition,
+            )
 
         feature_vectors = []
         for feature_vector_record in query:
@@ -1758,7 +1841,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureVector, project, name, tag, uid
         )
 
-        feature_vector_dict = feature_vector.dict()
+        feature_vector_dict = feature_vector.dict(exclude_none=True)
 
         if not existing_feature_vector:
             # Check if this is a re-tag of existing object - search by uid only
@@ -1812,7 +1895,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 f"Feature-vector not found {feature_vector_uri}"
             )
 
-        feature_vector_struct = feature_vector_record.dict()
+        feature_vector_struct = feature_vector_record.dict(exclude_none=True)
         # using mergedeep for merging the patch content into the existing dictionary
         strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_vector_struct, feature_vector_update, strategy=strategy)
@@ -1858,7 +1941,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         query = self._query(session, cls.Tag, project=project, name=tag_name)
         if obj_name:
-            query = query.filter(cls.Tag.obj_name.ilike(f"%{obj_name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, obj_name)
+            )
 
         for tag in query:
             uids.append(self._query(session, cls).get(tag.obj_id).uid)
@@ -2048,6 +2133,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         name=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter=None,
     ):
         """
         TODO: refactor this method
@@ -2080,8 +2166,22 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
-        if name is not None:
-            query = query.filter(Artifact.key.ilike(f"%{name}%"))
+        # Note that iter_prefix will be != "" only where iter>0
+        iter_prefix = f"{iter}-" if iter else "%"
+
+        # Name query requires special handling, since even for an exact match we need to account for the
+        # iter prefix, so it's always a like query. In the case where a specific iter and an exact name it will
+        # still be a like, but no % in the query string, so a real exact match will be done.
+        if name is not None and name != "":
+            if name.startswith("~"):
+                query = query.filter(Artifact.key.ilike(f"{iter_prefix}%{name[1:]}%"))
+            else:
+                # Note - case sensitive (like vs. ilike)
+                query = query.filter(Artifact.key.like(f"{iter_prefix}{name}"))
+        # In case no name query was asked for, but we do want to query iter, it will be
+        # a like query on the iter alone.
+        elif iter:
+            query = query.filter(Artifact.key.like(f"{iter_prefix}%"))
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])
@@ -2128,7 +2228,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return filtered_artifacts
 
     def _find_functions(self, session, name, project, uids=None, labels=None):
-        query = self._query(session, Function, name=name, project=project)
+        query = self._query(session, Function, project=project)
+        if name:
+            query = query.filter(generate_query_predicate_for_name(Function.name, name))
         if uids:
             query = query.filter(Function.uid.in_(uids))
 

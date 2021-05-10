@@ -26,7 +26,7 @@ def test_create_project_failure_already_exists(db: Session, client: TestClient) 
 
     # create
     response = client.post("/api/projects", json=project_1.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # create again
@@ -41,7 +41,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
     )
     response = client.post("/api/projects", json=empty_project.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
 
     # create project with resources
     project_name = "project-with-resources"
@@ -49,7 +49,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
     response = client.post("/api/projects", json=project.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
 
     # create functions for the project
     functions_count = 5
@@ -93,6 +93,17 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
         one_hour_ago,
     )
 
+    # create aborted runs for the project for less than 24 hours ago - make sure we count them as well
+    recent_aborted_runs_count = 6
+    one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+    _create_runs(
+        client,
+        project_name,
+        recent_failed_runs_count,
+        mlrun.runtimes.constants.RunStates.aborted,
+        one_hour_ago,
+    )
+
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly count them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
     _create_runs(
@@ -113,7 +124,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
                 functions_count,
                 feature_sets_count,
                 models_count,
-                recent_failed_runs_count,
+                recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
             )
         else:
@@ -131,7 +142,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
 
     # create
     response = client.post("/api/projects", json=project_1.dict())
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # read
@@ -241,11 +252,11 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     response = client.post(f"/api/func/{name1}/{function_name}", json=function)
     assert response.status_code == HTTPStatus.OK.value
 
-    # delete - restrict strategy, will fail because function exists
+    # delete - restricted strategy, will fail because function exists
     response = client.delete(
         f"/api/projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restrict
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -253,11 +264,11 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     # mock runtime resources deletion
     mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
 
-    # delete - cascade strategy, will succeed and delete function
+    # delete - cascading strategy, will succeed and delete function
     response = client.delete(
         f"/api/projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascade
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value

@@ -9,8 +9,8 @@ import mlrun.api.schemas
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
-import mlrun.api.utils.projects.remotes.member
-import mlrun.api.utils.projects.remotes.nop
+import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.projects.remotes.nop_follower
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -30,6 +30,7 @@ class Member(
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
         )
+        self._projects_in_deletion = set()
         # run one sync to start off on the right foot
         self._sync_projects()
         self._start_periodic_sync()
@@ -38,38 +39,30 @@ class Member(
         logger.info("Shutting down projects leader")
         self._stop_periodic_sync()
 
-    def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
-        project_names = self.list_projects(
-            session, format_=mlrun.api.schemas.Format.name_only
-        )
-        if name in project_names.projects:
-            return
-        logger.info(
-            "Ensure project called, but project does not exist. Creating", name=name
-        )
-        project = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=name),
-        )
-        self.create_project(session, project)
-
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
-    ) -> mlrun.api.schemas.Project:
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.api.schemas.Project,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers(True, "create_project", session, project)
-        return self.get_project(session, project.metadata.name)
+        return self.get_project(session, project.metadata.name), False
 
     def store_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.api.schemas.Project,
-    ):
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project(project)
         self.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", session, name, project)
-        return self.get_project(session, name)
+        return self.get_project(session, name), False
 
     def patch_project(
         self,
@@ -77,23 +70,32 @@ class Member(
         name: str,
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-    ):
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
             True, "patch_project", session, name, project, patch_mode
         )
-        return self.get_project(session, name)
+        return self.get_project(session, name), False
 
     def delete_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-    ):
-        self._run_on_all_followers(
-            False, "delete_project", session, name, deletion_strategy
-        )
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> bool:
+        self._projects_in_deletion.add(name)
+        try:
+            self._run_on_all_followers(
+                False, "delete_project", session, name, deletion_strategy
+            )
+        finally:
+            self._projects_in_deletion.remove(name)
+        return False
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -167,6 +169,8 @@ class Member(
             all_project.update(project_follower_names_map.keys())
 
             for project in all_project:
+                if project in self._projects_in_deletion:
+                    continue
                 self._ensure_project_synced(
                     session,
                     leader_project_names,
@@ -291,7 +295,7 @@ class Member(
 
     def _initialize_follower(
         self, name: str
-    ) -> mlrun.api.utils.projects.remotes.member.Member:
+    ) -> mlrun.api.utils.projects.remotes.follower.Member:
         # importing here to avoid circular import (db using project member using mlrun follower using db)
         import mlrun.api.crud
 
@@ -299,8 +303,9 @@ class Member(
             "mlrun": mlrun.api.crud.Projects(),
             "nuclio": mlrun.api.utils.clients.nuclio.Client(),
             # for tests
-            "nop": mlrun.api.utils.projects.remotes.nop.Member(),
-            "nop2": mlrun.api.utils.projects.remotes.nop.Member(),
+            "nop-self-leader": mlrun.api.utils.projects.remotes.nop_follower.Member(),
+            "nop": mlrun.api.utils.projects.remotes.nop_follower.Member(),
+            "nop2": mlrun.api.utils.projects.remotes.nop_follower.Member(),
         }
         if name not in followers_classes_map:
             raise ValueError(f"Unknown follower name: {name}")

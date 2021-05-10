@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 WORKDIR /mlrun
 
 RUN python -m pip install --upgrade pip~=20.2.0
+
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./requirements.txt ./
 RUN python -m pip install \

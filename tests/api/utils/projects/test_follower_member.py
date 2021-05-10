@@ -63,7 +63,7 @@ def test_sync_projects(
         projects_follower.create_project(None, _project)
     original_list = nop_leader.list_projects
     nop_leader.list_projects = unittest.mock.Mock(
-        return_value=[project_in_creation, project_in_deletion, project_offline]
+        return_value=([project_in_creation, project_in_deletion, project_offline], None)
     )
     projects_follower._sync_projects()
     nop_leader.list_projects = original_list

@@ -107,6 +107,35 @@ def test_store_project(
     _assert_project_in_follower(projects_follower, project_update)
 
 
+def test_patch_project(
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+):
+    project = _generate_project()
+
+    # project doesn't exist - store will create
+    created_project, _ = projects_follower.store_project(
+        None, project.metadata.name, project,
+    )
+    _assert_projects_equal(project, created_project)
+    _assert_project_in_follower(projects_follower, project)
+
+    patched_description = "new description"
+    # project exists - store will update
+    patched_project, _ = projects_follower.patch_project(
+        None, project.metadata.name, {
+            "spec": {
+                "description": patched_description,
+            }
+        }
+    )
+    expected_patched_project = _generate_project(description=patched_description)
+    expected_patched_project.status.state = mlrun.api.schemas.ProjectState.online.value
+    _assert_projects_equal(expected_patched_project, patched_project)
+    _assert_project_in_follower(projects_follower, expected_patched_project)
+
+
 def test_delete_project(
     db: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,

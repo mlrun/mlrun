@@ -57,3 +57,10 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
             .projects,
             datetime.datetime.utcnow(),
         )
+
+    def get_project(
+            self,
+            session_cookie: str,
+            name: str,
+    ) -> mlrun.api.schemas.Project:
+        return mlrun.api.utils.singletons.project_member.get_project_member().get_project(session_cookie, name)

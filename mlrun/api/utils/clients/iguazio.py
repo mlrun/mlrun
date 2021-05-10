@@ -153,6 +153,13 @@ class Client(
         latest_updated_at = self._find_latest_updated_at(response_body)
         return projects, latest_updated_at
 
+    def get_project(
+            self,
+            session_cookie: str,
+            name: str,
+    ) -> mlrun.api.schemas.Project:
+        return self._get_project_from_iguazio(session_cookie, name)
+
     def _find_latest_updated_at(
         self, response_body: dict
     ) -> typing.Optional[datetime.datetime]:

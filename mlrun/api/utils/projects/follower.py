@@ -93,8 +93,13 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        # TODO: think if we really want it
-        raise NotImplementedError("Patch operation not supported in follower mode")
+        if self._is_request_from_leader(projects_role):
+            # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
+            raise NotImplementedError("Patch operation not supported from leader")
+        else:
+            return self._leader_client.patch_project(
+                self._session_cookie, name, project, patch_mode, wait_for_completion,
+            )
 
     def delete_project(
         self,

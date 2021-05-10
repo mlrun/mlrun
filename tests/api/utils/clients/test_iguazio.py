@@ -355,6 +355,52 @@ def test_store_project_update(
     assert updated_project.status.state == project.spec.desired_state
 
 
+def test_patch_project(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project()
+    session_cookie = "1234"
+    patched_description = "new desc"
+
+    def verify_patch(request, context):
+        patched_project = _generate_project(description=patched_description, created=project.metadata.created)
+        _assert_project_creation(iguazio_client, request.json(), patched_project)
+        context.status_code = http.HTTPStatus.OK.value
+        _verify_request_headers(request.headers, session_cookie)
+        return {"data": _build_project_response(iguazio_client, patched_project)}
+
+    # mock project response on get (patch does get first)
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json={"data": _build_project_response(iguazio_client, project)},
+    )
+    requests_mock.put(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json=verify_patch,
+    )
+    patched_project, is_running_in_background = iguazio_client.patch_project(
+        session_cookie, project.metadata.name, {
+            "spec": {
+                "description": patched_description,
+            }
+        }, wait_for_completion=True
+    )
+    assert is_running_in_background is False
+    exclude = {"status": {"state"}, 'spec': {'description'}}
+    assert (
+        deepdiff.DeepDiff(
+            project.dict(exclude=exclude),
+            patched_project.dict(exclude=exclude),
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert patched_project.status.state == project.spec.desired_state
+    assert patched_project.spec.description == patched_description
+
+
 def test_delete_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
@@ -501,6 +547,7 @@ def _generate_project(
     description="project description",
     labels=None,
     annotations=None,
+    created=None,
 ) -> mlrun.api.schemas.Project:
     if labels is None:
         labels = {
@@ -513,7 +560,7 @@ def _generate_project(
     return mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(
             name=name,
-            created=datetime.datetime.utcnow(),
+            created=created or datetime.datetime.utcnow(),
             labels=labels,
             annotations=annotations,
             some_extra_field="some value",

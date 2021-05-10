@@ -11,7 +11,7 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
@@ -59,7 +59,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
+class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {
@@ -825,14 +825,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
-        if deletion_strategy == schemas.DeletionStrategy.restrict:
+        if deletion_strategy.is_restricted():
             project_record = self._get_project_record(
                 session, name, raise_on_not_found=False
             )
             if not project_record:
                 return
             self._verify_project_has_no_related_resources(session, name)
-        elif deletion_strategy == schemas.DeletionStrategy.cascade:
+        elif deletion_strategy.is_cascading():
             self._delete_project_related_resources(session, name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -857,7 +857,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # calculating the project summary data is done by doing cross project queries (and not per project) so we're
         # building it outside of the loop
         if format_ == mlrun.api.schemas.Format.summary:
-            projects = self._generate_projects_summaries(session, project_names)
+            projects = self.generate_projects_summaries(session, project_names)
         else:
             for project_record in project_records:
                 if format_ == mlrun.api.schemas.Format.name_only:
@@ -972,7 +972,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         return self._cache["project_resources_counters"]["result"]
 
-    def _generate_projects_summaries(
+    def generate_projects_summaries(
         self, session: Session, projects: List[str]
     ) -> List[mlrun.api.schemas.ProjectSummary]:
         (

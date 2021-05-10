@@ -1,6 +1,7 @@
 import abc
 import datetime
 import typing
+
 import mergedeep
 
 import mlrun.api.schemas
@@ -48,11 +49,7 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_project(
-            self,
-            session_cookie: str,
-            name: str,
-    ) -> mlrun.api.schemas.Project:
+    def get_project(self, session_cookie: str, name: str,) -> mlrun.api.schemas.Project:
         pass
 
     def patch_project(
@@ -69,4 +66,6 @@ class Member(abc.ABC):
         current_project_dict = current_project.dict(exclude_unset=True)
         mergedeep.merge(current_project_dict, project, strategy=strategy)
         patched_project = mlrun.api.schemas.Project(**current_project_dict)
-        return self.store_project(session_cookie, name, patched_project, wait_for_completion)
+        return self.store_project(
+            session_cookie, name, patched_project, wait_for_completion
+        )

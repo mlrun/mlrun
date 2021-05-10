@@ -124,7 +124,7 @@ def test_patch_project(
     patched_description = "new description"
     # project exists - store will update
     patched_project, _ = projects_follower.patch_project(
-        None, project.metadata.name, {"spec": {"description": patched_description,}}
+        None, project.metadata.name, {"spec": {"description": patched_description}}
     )
     expected_patched_project = _generate_project(description=patched_description)
     expected_patched_project.status.state = mlrun.api.schemas.ProjectState.online.value

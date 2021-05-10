@@ -384,7 +384,7 @@ def test_patch_project(
     patched_project, is_running_in_background = iguazio_client.patch_project(
         session_cookie,
         project.metadata.name,
-        {"spec": {"description": patched_description,}},
+        {"spec": {"description": patched_description}},
         wait_for_completion=True,
     )
     assert is_running_in_background is False

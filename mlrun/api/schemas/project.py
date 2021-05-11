@@ -17,9 +17,27 @@ class ProjectMetadata(pydantic.BaseModel):
         extra = pydantic.Extra.allow
 
 
-class ProjectState(str, enum.Enum):
+class ProjectDesiredState(str, enum.Enum):
     online = "online"
+    offline = "offline"
     archived = "archived"
+
+
+class ProjectState(str, enum.Enum):
+    unknown = "unknown"
+    creating = "creating"
+    deleting = "deleting"
+    online = "online"
+    offline = "offline"
+    archived = "archived"
+
+    @staticmethod
+    def terminal_states():
+        return [
+            ProjectState.online,
+            ProjectState.offline,
+            ProjectState.archived,
+        ]
 
 
 class ProjectStatus(ObjectStatus):
@@ -38,7 +56,7 @@ class ProjectSpec(pydantic.BaseModel):
     source: typing.Optional[str] = None
     subpath: typing.Optional[str] = None
     origin_url: typing.Optional[str] = None
-    desired_state: typing.Optional[ProjectState] = ProjectState.online
+    desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
 
     class Config:
         extra = pydantic.Extra.allow

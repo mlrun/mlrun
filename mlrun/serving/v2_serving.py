@@ -24,7 +24,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.datastore import _DummyStream
-from mlrun.utils import now_date, parse_versioned_object_uri
+from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 
 class V2ModelServer:
@@ -408,4 +408,4 @@ def _init_endpoint_record(context, model_logger: Optional[_ModelLogPusher]):
             model_endpoint=model_endpoint,
         )
     except Exception as e:
-        context.logger.error("Failed to create endpoint record", exc=e)
+        logger.error("Failed to create endpoint record", exc=e)

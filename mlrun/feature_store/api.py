@@ -232,6 +232,7 @@ def ingest(
             targets,
             infer_options=infer_options,
             mlrun_context=mlrun_context,
+            namespace=namespace,
         )
 
     if isinstance(source, str):
@@ -420,9 +421,12 @@ def _ingest_with_spark(
         # create spark context
         from pyspark.sql import SparkSession
 
-        spark = SparkSession.builder.appName(
-            f"{mlrun_context.name}-{mlrun_context.uid}"
-        ).getOrCreate()
+        if mlrun_context:
+            session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
+        else:
+            session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
+
+        spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)
     df = run_spark_graph(df, featureset, namespace, spark)

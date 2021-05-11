@@ -464,6 +464,11 @@ class SparkRuntime(KubejobRuntime):
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
         )
 
+    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
+        raise NotImplementedError(
+            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+        )
+
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
@@ -590,7 +595,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return in_terminal_state, completion_time, desired_run_state
 
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

@@ -428,24 +428,9 @@ class TestRuntimeBase:
 
         container_spec = pod.spec.containers[0]
 
-        if expected_limits:
-            assert (
-                deepdiff.DeepDiff(
-                    container_spec.resources["limits"],
-                    expected_limits,
-                    ignore_order=True,
-                )
-                == {}
-            )
-        if expected_requests:
-            assert (
-                deepdiff.DeepDiff(
-                    container_spec.resources["requests"],
-                    expected_requests,
-                    ignore_order=True,
-                )
-                == {}
-            )
+        self._assert_container_resources(
+            container_spec, expected_limits, expected_requests
+        )
 
         pod_env = container_spec.env
 
@@ -499,3 +484,25 @@ class TestRuntimeBase:
             )
 
         assert pod.spec.containers[0].image == self.image_name
+
+    def _assert_container_resources(
+        self, container_spec, expected_limits, expected_requests
+    ):
+        if expected_limits:
+            assert (
+                deepdiff.DeepDiff(
+                    container_spec.resources["limits"],
+                    expected_limits,
+                    ignore_order=True,
+                )
+                == {}
+            )
+        if expected_requests:
+            assert (
+                deepdiff.DeepDiff(
+                    container_spec.resources["requests"],
+                    expected_requests,
+                    ignore_order=True,
+                )
+                == {}
+            )

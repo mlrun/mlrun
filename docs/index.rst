@@ -72,9 +72,11 @@ Table Of Content
    :caption: Feature Store:
 
    feature-store/feature-store
-   feature-store/feature-store-demo
+   feature-store/feature-sets
+   feature-store/transformations
+   feature-store/basic-demo
    feature-store/end-to-end-demo/index
-
+   
 .. toctree::
    :maxdepth: 1
    :caption: Serverless Runtimes:
@@ -93,9 +95,7 @@ Table Of Content
    store/datastore
    store/artifacts
    store/models
-   store/feature-store-demo
-   store/transformations
-
+      
 .. toctree::
    :maxdepth: 1
    :caption: References:

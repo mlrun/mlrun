@@ -2,6 +2,7 @@ import os
 import random
 import string
 from datetime import datetime
+from time import sleep
 
 import pandas as pd
 import pytest
@@ -479,8 +480,8 @@ class TestFeatureStore(TestMLRunSystem):
         now = datetime.now() + timedelta(minutes=2)
         now_plus = now + timedelta(seconds=2)
         cron_trigger = schemas.ScheduleCronTrigger(
-            second='*/1', start_time=now, end_time=now_plus
-        )
+            second='*/1', start_time=now, end_time=now_plus)
+
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
@@ -495,22 +496,58 @@ class TestFeatureStore(TestMLRunSystem):
     def test_bla_actual_test(self):
         from datetime import timedelta
         from mlrun.api import schemas
-
-        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("patient_id")], timestamp_key='timestamp', )
-        target = ParquetTarget()
         # last_updated = target.get_last_updated()
         now = datetime.now() + timedelta(minutes=2)
         now_plus = now + timedelta(seconds=2)
         cron_trigger = schemas.ScheduleCronTrigger(
             second='*/1', start_time=now, end_time=now_plus
         )
+
+        data = pd.DataFrame(
+            {
+                "time": [now, now - pd.Timedelta(minutes=1)],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        path_to_parquet = str(self.results_path / "source.parquet")
+        print("vvvvvvvvv1 " + path_to_parquet)
+        data.to_parquet(path_to_parquet)
+
         source = ParquetSource(
             "myparquet",
-            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            time_field="timestamp",
+            path=path_to_parquet,
+            time_field="time",
             schedule=cron_trigger,
         )
+
+        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time', )
+        target = ParquetTarget()
         fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig().apply(mlrun.mount_v3io()))
+        sleep(1)
+
+        features = ["blabla.*"]
+        vec = fs.FeatureVector("blabla", features)
+        resp = fs.get_offline_features(vec)
+        vec_df = resp.to_dataframe()
+        assert len(vec_df) == 2
+        assert vec_df["moshe"]["data"] == 2000
+
+        data = pd.DataFrame(
+            {
+                "time": [now, now - pd.Timedelta(minutes=1), now - pd.Timedelta(minutes=1)],
+                "first_name": ["moshe", "dina", "katya"],
+                "data": [50, 10, 25],
+            }
+        )
+        data.to_parquet(path_to_parquet)
+        sleep(1)
+        resp = fs.get_offline_features(vec)
+        vec_df = resp.to_dataframe()
+        assert len(vec_df) == 2
+        assert vec_df["moshe"]["data"] == 50
+
+
 
 
     def test_split_graph(self):

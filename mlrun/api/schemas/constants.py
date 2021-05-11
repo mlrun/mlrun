@@ -12,6 +12,13 @@ class Format(str, Enum):
     summary = "summary"
 
 
+class ProjectsRole(str, Enum):
+    iguazio = "iguazio"
+    mlrun = "mlrun"
+    nuclio = "nuclio"
+    nop = "nop"
+
+
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
@@ -29,16 +36,38 @@ class PatchMode(str, Enum):
 
 class DeletionStrategy(str, Enum):
     restrict = "restrict"
+    restricted = "restricted"
     cascade = "cascade"
+    cascading = "cascading"
 
     @staticmethod
     def default():
-        return DeletionStrategy.restrict
+        return DeletionStrategy.restricted
+
+    def is_restricted(self):
+        if self.value in [DeletionStrategy.restrict, DeletionStrategy.restricted]:
+            return True
+        return False
+
+    def is_cascading(self):
+        if self.value in [DeletionStrategy.cascade, DeletionStrategy.cascading]:
+            return True
+        return False
 
     def to_nuclio_deletion_strategy(self) -> str:
-        if self.value == DeletionStrategy.restrict:
+        if self.is_restricted():
             return "restricted"
-        elif self.value == DeletionStrategy.cascade:
+        elif self.is_cascading():
+            return "cascading"
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown deletion strategy: {self.value}"
+            )
+
+    def to_iguazio_deletion_strategy(self) -> str:
+        if self.is_restricted():
+            return "restricted"
+        elif self.is_cascading():
             return "cascading"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -50,6 +79,7 @@ headers_prefix = "x-mlrun-"
 
 
 class HeaderNames:
+    projects_role = "x-projects-role"
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"

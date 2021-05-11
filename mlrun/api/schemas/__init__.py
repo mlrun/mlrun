@@ -15,6 +15,7 @@ from .constants import (
     HeaderNames,
     OrderType,
     PatchMode,
+    ProjectsRole,
     SortField,
 )
 from .feature_store import (
@@ -28,6 +29,8 @@ from .feature_store import (
     FeatureSet,
     FeatureSetDigestOutput,
     FeatureSetDigestSpec,
+    FeatureSetIngestInput,
+    FeatureSetIngestOutput,
     FeatureSetRecord,
     FeatureSetsOutput,
     FeatureSetSpec,
@@ -57,6 +60,7 @@ from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     Project,
+    ProjectDesiredState,
     ProjectMetadata,
     ProjectsOutput,
     ProjectSpec,

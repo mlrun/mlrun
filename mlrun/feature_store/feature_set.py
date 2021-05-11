@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
+from storey import EmitPolicy
 
 import mlrun
 
@@ -23,6 +24,7 @@ from ..datastore.targets import (
     TargetTypes,
     default_target_names,
     get_offline_target,
+    validate_target_list,
     validate_target_placement,
 )
 from ..features import Entity, Feature
@@ -71,12 +73,14 @@ class FeatureSetSpec(ModelObj):
         function=None,
         analysis=None,
         engine=None,
+        output_path=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
         self._graph: RootFlowState = None
         self._source = None
+        self._engine = None
         self._function: FunctionReference = None
 
         self.owner = owner
@@ -93,6 +97,7 @@ class FeatureSetSpec(ModelObj):
         self.function = function
         self.analysis = analysis or {}
         self.engine = engine
+        self.output_path = output_path or mlconf.artifact_path
 
     @property
     def entities(self) -> List[Entity]:
@@ -120,6 +125,21 @@ class FeatureSetSpec(ModelObj):
     @targets.setter
     def targets(self, targets: List[DataTargetBase]):
         self._targets = ObjectList.from_list(DataTargetBase, targets)
+
+    @property
+    def engine(self) -> str:
+        """feature set processing engine (storey, pandas, spark)"""
+        return self._engine
+
+    @engine.setter
+    def engine(self, engine: str):
+        engine_list = ["pandas", "spark", "storey"]
+        if engine and engine not in engine_list:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"engine must be one of {','.join(engine_list)}"
+            )
+        self.graph.engine = "sync" if engine and engine in ["pandas", "spark"] else None
+        self._engine = engine
 
     @property
     def graph(self) -> RootFlowState:
@@ -190,14 +210,25 @@ class FeatureSet(ModelObj):
     kind = mlrun.api.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, description=None, entities=None, timestamp_key=None):
+    def __init__(
+        self,
+        name=None,
+        description=None,
+        entities=None,
+        timestamp_key=None,
+        engine=None,
+    ):
         self._spec: FeatureSetSpec = None
         self._metadata = None
         self._status = None
         self._api_client = None
+        self._run_db = None
 
         self.spec = FeatureSetSpec(
-            description=description, entities=entities, timestamp_key=timestamp_key
+            description=description,
+            entities=entities,
+            timestamp_key=timestamp_key,
+            engine=engine,
         )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
@@ -238,6 +269,19 @@ class FeatureSet(ModelObj):
             uri += ":" + self._metadata.tag
         return uri
 
+    def _override_run_db(self, session):
+        # Import here, since this method only runs in API context. If this import was global, client would need
+        # API requirements and would fail.
+        from ..api.api.utils import get_run_db_instance
+
+        self._run_db = get_run_db_instance(session)
+
+    def _get_run_db(self):
+        if self._run_db:
+            return self._run_db
+        else:
+            return mlrun.get_run_db()
+
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
@@ -261,6 +305,9 @@ class FeatureSet(ModelObj):
         targets = targets or []
         if with_defaults:
             targets.extend(default_target_names())
+
+        validate_target_list(targets=targets)
+
         for target in targets:
             kind = target.kind if hasattr(target, "kind") else target
             if kind not in TargetTypes.all():
@@ -272,6 +319,11 @@ class FeatureSet(ModelObj):
             self.spec.targets.update(target)
         if default_final_state:
             self.spec.graph.final_state = default_final_state
+
+    def has_valid_source(self):
+        """check if object's spec has a valid (non empty) source definition"""
+        source = self.spec.source
+        return source is not None and source.path is not None and source.path != "None"
 
     def add_entity(self, entity, name=None):
         """add/set an entity"""
@@ -300,6 +352,7 @@ class FeatureSet(ModelObj):
         state_name=None,
         after=None,
         before=None,
+        emit_policy: Optional[EmitPolicy] = None,
     ):
         """add feature aggregation rule
 
@@ -315,6 +368,8 @@ class FeatureSet(ModelObj):
         :param state_name: optional, graph state name
         :param after:      optional, after which graph state it runs
         :param before:     optional, comes before graph state
+        :param emit_policy optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
+                            the Nth event). The default behaviour is emitting every event
         """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -333,19 +388,27 @@ class FeatureSet(ModelObj):
             aggregations = state.class_args.get("aggregates", [])
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
+            if emit_policy:
+                state.class_args["emit_policy"] = emit_policy
         else:
-            graph.add_step(
+            class_args = {}
+            if emit_policy:
+                class_args["emit_policy"] = emit_policy
+            state = graph.add_step(
                 name=state_name,
                 after=after or previous_step,
                 before=before,
                 class_name="storey.AggregateByKey",
                 aggregates=[aggregation],
                 table=".",
+                **class_args,
             )
 
         for operation in operations:
             for window in windows:
                 upsert_feature(f"{name}_{operation}_{window}")
+
+        return state
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
@@ -364,6 +427,7 @@ class FeatureSet(ModelObj):
         _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
         if with_targets:
+            validate_target_list(targets=targets)
             validate_target_placement(graph, default_final_state, self.spec.targets)
             targets = [
                 BaseState(
@@ -391,9 +455,9 @@ class FeatureSet(ModelObj):
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
-        db = mlrun.get_run_db()
+        db = self._get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
-        tag = tag or self.metadata.tag
+        tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
         as_dict["spec"]["features"] = as_dict["spec"].get(
             "features", []
@@ -402,9 +466,12 @@ class FeatureSet(ModelObj):
 
     def reload(self, update_spec=True):
         """reload/sync the feature vector status and spec from the DB"""
-        from_db = mlrun.get_run_db().get_feature_set(
+        feature_set = self._get_run_db().get_feature_set(
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
-        self.status = from_db.status
+        if isinstance(feature_set, dict):
+            feature_set = FeatureSet.from_dict(feature_set)
+
+        self.status = feature_set.status
         if update_spec:
-            self.spec = from_db.spec
+            self.spec = feature_set.spec

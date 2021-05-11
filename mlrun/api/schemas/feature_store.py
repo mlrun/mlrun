@@ -31,8 +31,8 @@ class Entity(BaseModel):
 
 
 class FeatureSetSpec(ObjectSpec):
-    entities: List[Entity]
-    features: List[Feature]
+    entities: List[Entity] = []
+    features: List[Feature] = []
 
 
 class FeatureSet(BaseModel):
@@ -113,3 +113,32 @@ class FeatureVectorRecord(ObjectRecord):
 
 class FeatureVectorsOutput(BaseModel):
     feature_vectors: List[FeatureVector]
+
+
+class DataSource(BaseModel):
+    kind: str
+    name: str
+    path: str
+
+    class Config:
+        extra = Extra.allow
+
+
+class DataTarget(BaseModel):
+    kind: str
+    name: str
+    path: Optional[str]
+
+    class Config:
+        extra = Extra.allow
+
+
+class FeatureSetIngestInput(BaseModel):
+    source: Optional[DataSource]
+    targets: Optional[List[DataTarget]]
+    infer_options: Optional[int]
+
+
+class FeatureSetIngestOutput(BaseModel):
+    feature_set: FeatureSet
+    run_object: dict

@@ -2,7 +2,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors
@@ -37,6 +37,11 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             ):
                 raise mlrun.errors.MLRunConflictError(
                     "Run is already in terminal state, can not be aborted"
+                )
+            runtime_kind = current_run.get("metadata", {}).get("labels", {}).get("kind")
+            if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Run of kind {runtime_kind} can not be aborted"
                 )
             # aborting the run meaning deleting its runtime resources
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the

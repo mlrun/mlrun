@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
-from typing import Dict
+from datetime import datetime
+from typing import Dict, Optional, Union
 
 import mlrun
 
@@ -48,7 +49,7 @@ class BaseSourceDriver(DataSource):
     def to_step(self, key_field=None, time_field=None):
         import storey
 
-        return storey.Source()
+        return storey.SyncEmitSource()
 
     def get_table_object(self):
         """get storey Table object"""
@@ -90,7 +91,7 @@ class CSVSource(BaseSourceDriver):
         import storey
 
         attributes = self.attributes or {}
-        return storey.ReadCSV(
+        return storey.CSVSource(
             paths=self.path,
             header=True,
             build_dict=True,
@@ -122,18 +123,27 @@ class ParquetSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time: Optional[Union[str, datetime]] = None,
+        end_time: Optional[Union[str, datetime]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
+        self.start_time = start_time
+        self.end_time = end_time
 
-    def to_step(self, key_field=None, time_field=None):
+    def to_step(
+        self, key_field=None, time_field=None, start_time=None, end_time=None,
+    ):
         import storey
 
         attributes = self.attributes or {}
-        return storey.ReadParquet(
+        return storey.ParquetSource(
             paths=self.path,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
+            end_filter=self.end_time,
+            start_filter=self.start_time,
+            filter_column=self.time_field or time_field,
             **attributes,
         )
 
@@ -216,10 +226,12 @@ class OnlineSource(BaseSourceDriver):
         self.online = True
         self.workers = workers
 
-    def to_step(self, key_field=None, time_field=None):
+    def to_step(
+        self, key_field=None, time_field=None,
+    ):
         import storey
 
-        return storey.Source(
+        return storey.SyncEmitSource(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             full_event=True,

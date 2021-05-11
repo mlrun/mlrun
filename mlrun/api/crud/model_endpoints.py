@@ -1,7 +1,6 @@
 import json
 from typing import Any, Dict, List, Mapping, Optional
 
-from starlette.concurrency import run_in_threadpool
 from v3io.dataplane import RaiseForStatus
 
 from mlrun.api.schemas import (
@@ -30,7 +29,7 @@ EVENTS = "events"
 
 class ModelEndpoints:
     @staticmethod
-    async def create_or_patch(access_key: str, model_endpoint: ModelEndpoint):
+    def create_or_patch(access_key: str, model_endpoint: ModelEndpoint):
         """
         Creates or patch a KV record with the given model_endpoint record
 
@@ -51,9 +50,8 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            model_obj: tuple = await run_in_threadpool(
-                get_model, model_endpoint.spec.model_uri
-            )
+            model_obj: tuple = get_model(model_endpoint.spec.model_uri)
+
             model_obj: ModelArtifact = model_obj[1]
 
             if not model_endpoint.status.feature_stats:
@@ -107,7 +105,7 @@ class ModelEndpoints:
         # system
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
-        await write_endpoint_to_kv(
+        write_endpoint_to_kv(
             access_key=access_key, endpoint=model_endpoint, update=True,
         )
 
@@ -116,7 +114,7 @@ class ModelEndpoints:
         return model_endpoint
 
     @staticmethod
-    async def delete_endpoint_record(access_key: str, project: str, endpoint_id: str):
+    def delete_endpoint_record(access_key: str, project: str, endpoint_id: str):
         """
         Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
 
@@ -133,8 +131,7 @@ class ModelEndpoints:
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
-        await run_in_threadpool(
-            client.kv.delete,
+        client.kv.delete(
             container=container,
             table_path=path,
             key=endpoint_id,
@@ -144,7 +141,7 @@ class ModelEndpoints:
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
     @staticmethod
-    async def list_endpoints(
+    def list_endpoints(
         access_key: str,
         project: str,
         model: Optional[str] = None,
@@ -211,7 +208,7 @@ class ModelEndpoints:
             if item is None:
                 break
             endpoint_id = item["endpoint_id"]
-            endpoint = await ModelEndpoints.get_endpoint(
+            endpoint = ModelEndpoints.get_endpoint(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint_id,
@@ -223,7 +220,7 @@ class ModelEndpoints:
         return endpoint_list
 
     @staticmethod
-    async def get_endpoint(
+    def get_endpoint(
         access_key: str,
         project: str,
         endpoint_id: str,
@@ -256,8 +253,7 @@ class ModelEndpoints:
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
-        endpoint = await run_in_threadpool(
-            client.kv.get,
+        endpoint = client.kv.get(
             container=container,
             table_path=path,
             key=endpoint_id,
@@ -330,7 +326,7 @@ class ModelEndpoints:
                 endpoint.status.drift_measures = drift_measures
 
         if metrics:
-            endpoint_metrics = await get_endpoint_metrics(
+            endpoint_metrics = get_endpoint_metrics(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint_id,
@@ -344,9 +340,7 @@ class ModelEndpoints:
         return endpoint
 
 
-async def write_endpoint_to_kv(
-    access_key: str, endpoint: ModelEndpoint, update: bool = True
-):
+def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool = True):
     """
     Writes endpoint data to KV, a prerequisite for initializing the monitoring process
 
@@ -372,8 +366,7 @@ async def write_endpoint_to_kv(
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
-    await run_in_threadpool(
-        function,
+    function(
         container=container,
         table_path=path,
         key=endpoint.metadata.uid,
@@ -411,7 +404,7 @@ def _clean_feature_name(feature_name):
     return feature_name.replace(" ", "_").replace("(", "").replace(")", "")
 
 
-async def get_endpoint_metrics(
+def get_endpoint_metrics(
     access_key: str,
     project: str,
     endpoint_id: str,
@@ -432,8 +425,7 @@ async def get_endpoint_metrics(
         token=access_key, address=config.v3io_framesd, container=container,
     )
 
-    data = await run_in_threadpool(
-        client.read,
+    data = client.read(
         backend="tsdb",
         table=path,
         columns=["endpoint_id", *metrics],

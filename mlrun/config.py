@@ -63,7 +63,7 @@ default_config = {
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
-    "default_image": "python:3.6-jessie",
+    "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
@@ -111,8 +111,11 @@ default_config = {
         "projects": {
             "leader": "mlrun",
             "followers": "",
+            # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
             "counters_cache_ttl": "10 seconds",
+            # access key to be used when the leader is iguazio and polling is done from it
+            "iguazio_access_key": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -165,7 +168,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": "300",
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects

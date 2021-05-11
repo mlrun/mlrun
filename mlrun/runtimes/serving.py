@@ -337,7 +337,7 @@ class ServingRuntime(RemoteRuntime):
                 group = stream.options.get("group", "serving")
 
                 child_function = self._spec.function_refs[function_name]
-                child_function.function_object().add_v3io_stream_trigger(
+                child_function.function_object.add_v3io_stream_trigger(
                     stream.path, group=group, shards=stream.shards
                 )
 
@@ -489,5 +489,7 @@ class ServingRuntime(RemoteRuntime):
             secret_sources=self.spec.secret_sources,
             **kwargs,
         )
-        server.init(None, namespace or get_caller_globals(), logger=logger)
+        server.init(
+            None, namespace or get_caller_globals(), logger=logger, is_mock=True
+        )
         return server

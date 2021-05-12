@@ -17,8 +17,9 @@ import re
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
+from datetime import datetime
 from os import environ
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, Optional
 
 import mlrun
 
@@ -924,6 +925,8 @@ class DataSource(ModelObj):
         "online",
         "workers",
         "max_age",
+        "start_time",
+        "end_time",
     ]
     kind = None
 
@@ -935,13 +938,18 @@ class DataSource(ModelObj):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time: Optional[Union[str, datetime]] = None,
+        end_time: Optional[Union[str, datetime]] = None,
     ):
+
         self.name = name
         self.path = str(path)
         self.attributes = attributes
         self.schedule = schedule
         self.key_field = key_field
         self.time_field = time_field
+        self.start_time = start_time
+        self.end_time = end_time
 
         self.online = None
         self.max_age = None

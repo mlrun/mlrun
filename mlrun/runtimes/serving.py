@@ -426,7 +426,7 @@ class ServingRuntime(RemoteRuntime):
 
         if self.spec.graph.kind != StateKinds.router:
             # initialize or create required streams/queues
-            self.spec.graph.check_and_process_graph(allow_empty=True)
+            self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()
 
         # Handle secret processing before handling child functions, since secrets are transferred to them

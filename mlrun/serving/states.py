@@ -775,11 +775,6 @@ class FlowState(BaseState):
             start_states.remove(self.on_error)
 
         if (
-            not start_states
-        ):  # for safety, not sure if its possible to get here (since its a loop)
-            raise GraphError("there are no starting states (ones without .after)")
-
-        if (
             len(responders) > 1
         ):  # should not have multiple steps which respond to request
             raise GraphError(

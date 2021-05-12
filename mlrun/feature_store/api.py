@@ -524,19 +524,31 @@ def get_feature_vector(uri, project=None):
     return get_feature_vector_by_uri(uri, project)
 
 
-def delete_feature_set(name, project=""):
+def delete_feature_set(name, project="", tag=None, uid=None):
     """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
+    :param tag: Specific object's version tag
+    :param uid: Specific object's uid
+
+    If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
     """
     db = mlrun.get_run_db()
-    return db.delete_feature_set(name=name, project=project)
+    return db.delete_feature_set(name=name, project=project, tag=tag, uid=uid)
 
 
-def delete_feature_vector(name, project=""):
+def delete_feature_vector(name, project="", tag=None, uid=None):
     """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
+    :param tag: Specific object's version tag
+    :param uid: Specific object's uid
+
+    If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
     """
     db = mlrun.get_run_db()
-    return db.delete_feature_vector(name=name, project=project)
+    return db.delete_feature_vector(name=name, project=project, tag=tag, uid=uid)

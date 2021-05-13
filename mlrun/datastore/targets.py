@@ -473,7 +473,7 @@ class NoSqlTarget(BaseStoreTarget):
         return Table(
             uri,
             V3ioDriver(webapi=endpoint),
-            flush_interval_secs=mlrun.mlconf.feature_store.default_flush_interval,
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
     def add_writer_state(

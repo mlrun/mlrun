@@ -76,7 +76,7 @@ Table Of Content
    feature-store/transformations
    feature-store/basic-demo
    feature-store/end-to-end-demo/index
-   
+
 .. toctree::
    :maxdepth: 1
    :caption: Serverless Runtimes:
@@ -95,7 +95,7 @@ Table Of Content
    store/datastore
    store/artifacts
    store/models
-      
+
 .. toctree::
    :maxdepth: 1
    :caption: References:

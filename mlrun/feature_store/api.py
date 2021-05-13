@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from datetime import datetime
 from typing import List, Union
 
 import pandas as pd
@@ -195,6 +196,10 @@ def ingest(
     if run_config:
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
+#        if source.schedule:
+#            source.end_time = datetime.now()
+        #            if featureset.status.targets[0].last_written:
+        #                featureset.status.source.start_time = featureset.status.targets[0].last_written #for now the first. later min
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options
         )

@@ -534,7 +534,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         target = ParquetTarget()
         fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
-        sleep(65)
+        sleep(60)
 
         features = ["blabla.*"]
         vec = fs.FeatureVector("blabla", features)
@@ -552,7 +552,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         fs.ingest(data_set, data, targets=[target2])
-        sleep(65)
+        sleep(60)
         resp = fs.get_offline_features(vec)
 
         vec_df = resp.to_dataframe()

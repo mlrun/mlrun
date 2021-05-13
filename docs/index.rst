@@ -72,8 +72,9 @@ Table Of Content
    :caption: Feature Store:
 
    feature-store/feature-store
+   feature-store/feature-sets
    feature-store/transformations
-   feature-store/feature-store-demo
+   feature-store/basic-demo
    feature-store/end-to-end-demo/index
 
 .. toctree::

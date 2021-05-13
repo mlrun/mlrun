@@ -470,7 +470,11 @@ class NoSqlTarget(BaseStoreTarget):
 
         # TODO use options/cred
         endpoint, uri = parse_v3io_path(self._target_path)
-        return Table(uri, V3ioDriver(webapi=endpoint), flush_interval_secs=mlrun.mlconf.feature_store.default_flush_interval)
+        return Table(
+            uri,
+            V3ioDriver(webapi=endpoint),
+            flush_interval_secs=mlrun.mlconf.feature_store.default_flush_interval,
+        )
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

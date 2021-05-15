@@ -2,13 +2,15 @@ import os
 import shutil
 import tarfile
 import zipfile
-from os import chdir, path, remove
+from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
 from git import Repo
 
 import mlrun
+
+from .helpers import logger
 
 
 def _prep_dir(source, target_dir, suffix, secrets, clone):
@@ -95,8 +97,6 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
         return
     clone = clone if workdir else False
     target_dir = workdir or os.path.realpath("./code")
-    message = f"extracting source from {source} to {target_dir}"
-    print(message)
     if source.endswith(".zip"):
         clone_zip(source, target_dir, secrets, clone)
     elif source.endswith(".tar.gz"):
@@ -107,7 +107,8 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
         if path.exists(source) and path.isdir(source):
             if workdir:
                 raise ValueError("cannot specify both source and workdir")
-            chdir(source)
-            return source
+            return path.realpath(source)
         raise ValueError(f"unsupported source format/path {source}")
+
+    logger.info(f"extracting source from {source} to {target_dir}")
     return target_dir

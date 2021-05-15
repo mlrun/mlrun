@@ -462,6 +462,8 @@ class BaseRuntime(ModelObj):
                 last_err = err
                 result = self._post_run(task=runspec, err=err)
 
+        self._clean_run(result, execution)  # hook for runtime specific cleanup
+
         return self._wrap_run_result(result, runspec, schedule=schedule, err=last_err)
 
     def _wrap_run_result(
@@ -566,6 +568,9 @@ class BaseRuntime(ModelObj):
         return command, args, extra_env
 
     def _pre_run(self, runspec: RunObject, execution):
+        pass
+
+    def _clean_run(self, results, execution):
         pass
 
     def _run(self, runobj: RunObject, execution) -> dict:

@@ -61,8 +61,7 @@ class ParallelRunner:
         tasks = generator.generate(runobj)
         handler = runobj.spec.handler
         self._force_handler(handler)
-        if self.spec.pythonpath:
-            set_paths(self.spec.pythonpath)
+        set_paths(self.spec.pythonpath)
         _, handler = self._get_handler(handler)
 
         client, function_name = self._get_dask_client(generator.options)
@@ -136,8 +135,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         self._force_handler(handler)
         tmp = mktemp(".json")
         environ["MLRUN_META_TMPFILE"] = tmp
-        if self.spec.pythonpath:
-            set_paths(self.spec.pythonpath)
+        set_paths(self.spec.pythonpath)
 
         context = MLClientCtx.from_dict(
             runobj.to_dict(),
@@ -180,14 +178,22 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         return load_module(self.spec.command, handler)
 
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
+        execution._current_workdir = self.spec.workdir
+        execution._old_workdir = None
+
         if self.spec.build.load_source_on_run:
-            workdir = extract_source(
+            execution._current_workdir = extract_source(
                 self.spec.build.source,
                 self.spec.workdir,
                 secrets=execution._secrets_manager,
             )
-            if not self.spec.pythonpath:
-                self.spec.pythonpath = workdir or "./"
+            sys.path.append(".")
+            # if not self.spec.pythonpath:
+            #     self.spec.pythonpath = workdir or "./"
+
+        if execution._current_workdir:
+            execution._old_workdir = os.getcwd()
+            os.chdir(execution._current_workdir)
 
         if (
             runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
@@ -196,6 +202,10 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
 
             igz_spark_pre_hook()
+
+    def _clean_run(self, results, execution: MLClientCtx):
+        if execution._old_workdir:
+            os.chdir(execution._old_workdir)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
@@ -207,10 +217,10 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         handler = runobj.spec.handler
         handler_str = handler or "main"
         logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
+        pythonpath = self.spec.pythonpath
 
         if handler:
-            if self.spec.pythonpath:
-                set_paths(self.spec.pythonpath)
+            set_paths(pythonpath)
 
             mod, fn = self._get_handler(handler)
             context = MLClientCtx.from_dict(
@@ -220,9 +230,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 tmp=tmp,
                 host=socket.gethostname(),
             )
-            mod.global_mlrun_context = context
             global_context.set(context)
-            sout, serr = exec_from_params(fn, runobj, context, self.spec.workdir)
+            sout, serr = exec_from_params(fn, runobj, context)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
             return context.to_dict()
 
@@ -233,17 +242,18 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 cmd = [executable, "-u", self.spec.command]
 
             env = None
-            if self.spec.pythonpath:
-                pypath = self.spec.pythonpath
+            if pythonpath:
                 if "PYTHONPATH" in environ:
-                    pypath = f"{environ['PYTHONPATH']}:{pypath}"
-                env = {"PYTHONPATH": pypath}
+                    pythonpath = f"{environ['PYTHONPATH']}:{pythonpath}"
+                env = {"PYTHONPATH": pythonpath}
             if runobj.spec.verbose:
                 if not env:
                     env = {}
                 env["MLRUN_LOG_LEVEL"] = "DEBUG"
 
-            sout, serr = run_exec(cmd, self.spec.args, env=env, cwd=self.spec.workdir)
+            sout, serr = run_exec(
+                cmd, self.spec.args, env=env, cwd=execution._current_workdir
+            )
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
             try:
@@ -259,9 +269,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
 
 def set_paths(pythonpath=""):
-    paths = pythonpath.split(":")
-    if not paths:
+    if not pythonpath:
         return
+    paths = pythonpath.split(":")
     for p in paths:
         abspath = os.path.abspath(p)
         if abspath not in sys.path:
@@ -291,6 +301,8 @@ def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
     out = ""
+    if env and "SYSTEMROOT" in os.environ:
+        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
     while True:
         nextline = process.stdout.readline()

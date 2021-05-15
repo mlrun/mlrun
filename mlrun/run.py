@@ -328,9 +328,6 @@ def get_or_create_ctx(
     if global_context.get() and not spec and not event:
         return global_context.get()
 
-    if "global_mlrun_context" in globals() and not spec and not event:
-        return globals().get("global_mlrun_context")
-
     newspec = {}
     config = environ.get("MLRUN_EXEC_CONFIG")
     if event:

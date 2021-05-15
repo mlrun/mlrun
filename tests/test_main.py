@@ -74,8 +74,23 @@ def test_main_run_noctx():
 
 
 def test_main_run_archive():
-    args = f"--source {examples_path}/archive.zip --handler handler"
+    args = f"--source {examples_path} --handler handler"
     out = exec_run("./myfunc.py", args.split(), "test_main_run_archive")
+    assert out.find("state: completed") != -1, out
+
+
+def test_main_local_source():
+    args = f"--source {examples_path} --handler my_func"
+    out = exec_run("./handler.py", args.split(), "test_main_local_source")
+    print(out)
+    assert out.find("state: completed") != -1, out
+
+
+def test_main_run_archive_subdir():
+    runtime = str({"spec": {"pythonpath": "./subdir"}})
+    args = f'--source {examples_path}/archive.zip -r "{runtime}"'
+    out = exec_run("./subdir/func2.py", args.split(), "test_main_run_archive_subdir")
+    print(out)
     assert out.find("state: completed") != -1, out
 
 

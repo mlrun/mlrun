@@ -274,7 +274,7 @@ class BaseStoreTarget(DataTargetBase):
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns):
-        column_list = None
+        column_list = []
         if self.columns:
             return self.columns
         elif features:

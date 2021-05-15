@@ -184,6 +184,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def generate_projects_summaries(
+        self, session, projects: List[str]
+    ) -> List[schemas.ProjectSummary]:
+        pass
+
+    @abstractmethod
     def list_projects(
         self,
         session,

@@ -106,7 +106,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
 
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count)
     _list_and_assert_objects(
-        client, "feature_vectors", project_name, "name=ooga", ooga_name_count
+        client, "feature_vectors", project_name, "name=~ooga", ooga_name_count
     )
     _list_and_assert_objects(
         client,
@@ -128,7 +128,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
         client,
         "feature_vectors",
         project_name,
-        "state=dead&name=booga",
+        "state=dead&name=~booga",
         ooga_name_count,
     )
     _list_and_assert_objects(client, "feature_vectors", "wrong_project", None, 0)

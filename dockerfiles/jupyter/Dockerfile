@@ -1,4 +1,4 @@
-FROM jupyter/scipy-notebook
+FROM jupyter/scipy-notebook:python-3.8.8
 
 ENV PIP_NO_CACHE_DIR=1
 

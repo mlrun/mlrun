@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import traceback
 from subprocess import PIPE, run
 from sys import executable, stderr
 
@@ -26,6 +26,8 @@ def exec_main(op, args):
     out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=examples_path)
     if out.returncode != 0:
         print(out.stderr.decode("utf-8"), file=stderr)
+        print(out.stdout.decode("utf-8"), file=stderr)
+        print(traceback.format_exc())
         raise Exception(out.stderr.decode("utf-8"))
     return out.stdout.decode("utf-8")
 
@@ -74,7 +76,7 @@ def test_main_run_noctx():
 
 
 def test_main_run_archive():
-    args = f"--source {examples_path} --handler handler"
+    args = f"--source {examples_path}/archive.zip --handler handler"
     out = exec_run("./myfunc.py", args.split(), "test_main_run_archive")
     assert out.find("state: completed") != -1, out
 
@@ -87,8 +89,8 @@ def test_main_local_source():
 
 
 def test_main_run_archive_subdir():
-    runtime = str({"spec": {"pythonpath": "./subdir"}})
-    args = f'--source {examples_path}/archive.zip -r "{runtime}"'
+    runtime = '{"spec":{"pythonpath":"./subdir"}}'
+    args = f"--source {examples_path}/archive.zip -r {runtime}"
     out = exec_run("./subdir/func2.py", args.split(), "test_main_run_archive_subdir")
     print(out)
     assert out.find("state: completed") != -1, out

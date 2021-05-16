@@ -303,7 +303,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     out = ""
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
-    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
+    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd)
     while True:
         nextline = process.stdout.readline()
         if not nextline and process.poll() is not None:

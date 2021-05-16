@@ -997,7 +997,27 @@ def download_object(url, target, secrets=None):
 
 
 def wait_for_runs_completion(runs: list, sleep=3, timeout=0):
-    """wait for multiple runs to complete"""
+    """wait for multiple runs to complete
+
+    Note: need to use `watch=False` in `.run()` so the run will not wait for completion
+
+    example::
+
+        # run two training functions in parallel and wait for the results
+        inputs = {'dataset': cleaned_data}
+        run1 = train.run(name='train_lr', inputs=inputs, watch=False,
+                         params={'model_pkg_class': 'sklearn.linear_model.LogisticRegression',
+                                 'label_column': 'label'})
+        run2 = train.run(name='train_lr', inputs=inputs, watch=False,
+                         params={'model_pkg_class': 'sklearn.ensemble.RandomForestClassifier',
+                                 'label_column': 'label'})
+        completed = wait_for_runs_completion([run1, run2])
+
+    :param runs:    list of run objects (the returned values of function.run())
+    :param sleep:   time to sleep between checks (in seconds)
+    :param timeout: maximum time to wait in seconds (0 for unlimited)
+    :return: list of completed runs
+    """
     completed = []
     total_time = 0
     while True:

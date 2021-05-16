@@ -274,7 +274,7 @@ class BaseStoreTarget(DataTargetBase):
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns):
-        column_list = None
+        column_list = []
         if self.columns:
             return self.columns
         elif features:
@@ -470,7 +470,11 @@ class NoSqlTarget(BaseStoreTarget):
 
         # TODO use options/cred
         endpoint, uri = parse_v3io_path(self._target_path)
-        return Table(uri, V3ioDriver(webapi=endpoint))
+        return Table(
+            uri,
+            V3ioDriver(webapi=endpoint),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

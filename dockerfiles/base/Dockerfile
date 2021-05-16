@@ -1,37 +1,44 @@
 ARG MLRUN_PYTHON_VERSION=3.7
 
-FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim-buster
+FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
+# need to be redeclared since used in the from
+ARG MLRUN_PYTHON_VERSION
 ENV PIP_NO_CACHE_DIR=1
-
-LABEL maintainer="yashab@iguazio.com"
-LABEL org="iguazio.com"
 
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -y \
-    git \
+    gcc \
+    git-core \
+    wget \
     curl \
     build-essential \
     cmake \
-    ca-certificates \
-    && update-ca-certificates --fresh \
-    && apt clean \
-    && apt autoremove \
+    graphviz \
     && rm -rf /var/lib/apt/lists/*
-
-RUN python -m pip install --upgrade pip~=20.2.0
-
-ENV SSL_CERT_DIR /etc/ssl/certs
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/base/requirements.txt ./
+# install miniconda
+RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
+    /bin/bash ~/installconda.sh -b -p /opt/conda && \
+    rm ~/installconda.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc
 
-RUN python -m pip install -r requirements.txt
+ENV PATH /opt/conda/bin:$PATH
 
-COPY . .
-RUN python -m pip install .[complete]
+RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=20.2.0
+
+COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
+COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
+COPY ./requirements.txt ./
+RUN python -m pip install \
+    -r requirements.txt \
+    -r mlrun-image-requirements.txt \
+    -r base-image-requirements.txt
 
 ARG MLRUN_MLUTILS_GITHUB_TAG=development
 ARG MLRUN_MLUTILS_CACHE_DATE=initial

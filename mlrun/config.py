@@ -104,17 +104,11 @@ default_config = {
         "max_workers": "",
         "authentication": {
             "mode": "none",  # one of none, basic, bearer, iguazio
-            "basic": {
-                "username": "",
-                "password": "",
-            },
-            "bearer": {
-                "token": "",
-            },
+            "basic": {"username": "", "password": ""},
+            "bearer": {"token": ""},
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
             },
-
         },
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be

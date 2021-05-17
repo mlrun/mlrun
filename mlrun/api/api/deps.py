@@ -5,9 +5,9 @@ from typing import Generator
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+import mlrun.api.utils.clients.iguazio
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.session import close_session, create_session
-import mlrun.api.utils.clients.iguazio
 from mlrun.config import config
 
 
@@ -38,8 +38,14 @@ class AuthVerifier:
                     HTTPStatus.UNAUTHORIZED.value, reason="Missing basic auth header"
                 )
             username, password = self._parse_basic_auth(header)
-            if username != config.httpdb.authentication.basic.username or password != config.httpdb.authentication.basic.password:
-                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="Username or password did not match")
+            if (
+                username != config.httpdb.authentication.basic.username
+                or password != config.httpdb.authentication.basic.password
+            ):
+                log_and_raise(
+                    HTTPStatus.UNAUTHORIZED.value,
+                    reason="Username or password did not match",
+                )
             self.username = username
             self.password = password
         elif self._bearer_auth_required():
@@ -49,19 +55,32 @@ class AuthVerifier:
                 )
             token = header[len(self._bearer_prefix) :]
             if token != config.httpdb.authentication.bearer.token:
-                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="Token did not match")
+                log_and_raise(
+                    HTTPStatus.UNAUTHORIZED.value, reason="Token did not match"
+                )
             self.token = token
         elif self._iguazio_auth_required():
             iguazio_client = mlrun.api.utils.clients.iguazio.Client()
-            self.username, self.access_key, self.uid, self.gids = iguazio_client.verify_request_session(request)
+            (
+                self.username,
+                self.access_key,
+                self.uid,
+                self.gids,
+            ) = iguazio_client.verify_request_session(request)
 
     @staticmethod
     def _basic_auth_required():
-        return config.httpdb.authentication.mode == "basic" and (config.httpdb.authentication.basic.username or config.httpdb.authentication.basic.password)
+        return config.httpdb.authentication.mode == "basic" and (
+            config.httpdb.authentication.basic.username
+            or config.httpdb.authentication.basic.password
+        )
 
     @staticmethod
     def _bearer_auth_required():
-        return config.httpdb.authentication.mode == "bearer" and config.httpdb.authentication.bearer.token
+        return (
+            config.httpdb.authentication.mode == "bearer"
+            and config.httpdb.authentication.bearer.token
+        )
 
     @staticmethod
     def _iguazio_auth_required():

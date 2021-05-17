@@ -245,9 +245,10 @@ class BaseRuntime(ModelObj):
         :param artifact_path:  default artifact output path (will replace out_path)
         :param workdir:        default input artifacts path
         :param watch:          watch/follow run log
-        :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string (which
-        will be converted to the class using its `from_crontab` constructor. see this link for help:
-        https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
+                               (which will be converted to the class using its `from_crontab` constructor.
+                               see this link for help:
+                               https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
                                the default strategy is grid search, can specify strategy (grid, list, random)
                                and other options in the hyper_param_options parameter
@@ -811,8 +812,15 @@ class BaseRuntime(ModelObj):
         return self
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
-        """save function spec to a local/remote path (default to
-        ./function.yaml)"""
+        """save function spec to a local/remote path (default to./function.yaml)
+
+        :param target:   target path/url
+        :param format:   `.yaml` (default) or `.json`
+        :param secrets:  optional secrets dict/object for target path (e.g. s3)
+        :param strip:    strip status data
+
+        :returns: self
+        """
         if self.kind == "handler":
             raise ValueError(
                 "cannot export local handler function, use "

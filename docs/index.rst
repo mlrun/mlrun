@@ -59,11 +59,18 @@ Table Of Content
 
 .. toctree::
    :maxdepth: 1
-   :caption: ML Pipelines:
+   :caption: Functions and ML Pipelines:
 
-   job-submission-and-tracking
+   runtimes/functions
    hyper-params
    projects
+   ci-pipeline
+   load-from-marketplace
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Online Pipelines & Serving:
+
    serving/index
    model_monitoring/model-monitoring-deployment
 
@@ -76,17 +83,6 @@ Table Of Content
    feature-store/transformations
    feature-store/basic-demo
    feature-store/end-to-end-demo/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Serverless Runtimes:
-
-   runtimes/functions
-   runtimes/mlrun_jobs
-   runtimes/dask-overview
-   runtimes/horovod
-   runtimes/spark-operator
-   load-from-marketplace
 
 .. toctree::
    :maxdepth: 1

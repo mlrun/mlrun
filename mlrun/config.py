@@ -102,6 +102,20 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        "authentication": {
+            "mode": "none",  # one of none, basic, bearer, iguazio
+            "basic": {
+                "username": "",
+                "password": "",
+            },
+            "bearer": {
+                "token": "",
+            },
+            "iguazio": {
+                "session_verification_endpoint": "data_sessions/verifications/app_service",
+            },
+
+        },
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable

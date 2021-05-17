@@ -12,6 +12,7 @@ import mlrun.api.utils.projects.remotes.leader
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import fastapi
 from mlrun.utils import logger
 
 
@@ -57,6 +58,18 @@ class Client(
                         if kind in url_kind_to_url:
                             return url_kind_to_url[kind]
         return None
+
+    def verify_request_session(self, request: fastapi.Request) -> typing.Tuple[str, str, typing.Optional[str], typing.Optional[typing.List[str]]]:
+        """
+        Proxy the request to one of the session verification endpoints (which will verify the session of the request)
+        """
+        response = self._send_request_to_api(
+            "POST", mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint, headers=request.headers
+        )
+        gids = response.headers.get("X-gids")
+        if gids:
+            gids = gids.split(",")
+        return response.headers["X-Remote-User"], response.headers["X-V3io-Session-Key"], response.headers.get("X-uid"), gids
 
     def create_project(
         self,

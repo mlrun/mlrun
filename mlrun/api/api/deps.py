@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.session import close_session, create_session
+import mlrun.api.utils.clients.iguazio
 from mlrun.config import config
 
 
@@ -26,37 +27,45 @@ class AuthVerifier:
         self.username = None
         self.password = None
         self.token = None
-
-        cfg = config.httpdb
+        self.access_key = None
+        self.uid = None
+        self.gids = None
 
         header = request.headers.get("Authorization", "")
-        if self._basic_auth_required(cfg):
+        if self._basic_auth_required():
             if not header.startswith(self._basic_prefix):
                 log_and_raise(
-                    HTTPStatus.UNAUTHORIZED.value, reason="missing basic auth"
+                    HTTPStatus.UNAUTHORIZED.value, reason="Missing basic auth header"
                 )
-            user, password = self._parse_basic_auth(header)
-            if user != cfg.user or password != cfg.password:
-                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="bad basic auth")
-            self.username = user
+            username, password = self._parse_basic_auth(header)
+            if username != config.httpdb.authentication.basic.username or password != config.httpdb.authentication.basic.password:
+                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="Username or password did not match")
+            self.username = username
             self.password = password
-        elif self._bearer_auth_required(cfg):
+        elif self._bearer_auth_required():
             if not header.startswith(self._bearer_prefix):
                 log_and_raise(
-                    HTTPStatus.UNAUTHORIZED.value, reason="missing bearer auth"
+                    HTTPStatus.UNAUTHORIZED.value, reason="Missing bearer auth header"
                 )
             token = header[len(self._bearer_prefix) :]
-            if token != cfg.token:
-                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="bad basic auth")
+            if token != config.httpdb.authentication.bearer.token:
+                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="Token did not match")
             self.token = token
+        elif self._iguazio_auth_required():
+            iguazio_client = mlrun.api.utils.clients.iguazio.Client()
+            self.username, self.access_key, self.uid, self.gids = iguazio_client.verify_request_session(request)
 
     @staticmethod
-    def _basic_auth_required(cfg):
-        return cfg.user or cfg.password
+    def _basic_auth_required():
+        return config.httpdb.authentication.mode == "basic" and (config.httpdb.authentication.basic.username or config.httpdb.authentication.basic.password)
 
     @staticmethod
-    def _bearer_auth_required(cfg):
-        return cfg.token
+    def _bearer_auth_required():
+        return config.httpdb.authentication.mode == "bearer" and config.httpdb.authentication.bearer.token
+
+    @staticmethod
+    def _iguazio_auth_required():
+        return config.httpdb.authentication.mode == "iguazio"
 
     @staticmethod
     def _parse_basic_auth(header):

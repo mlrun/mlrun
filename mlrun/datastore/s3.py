@@ -17,6 +17,8 @@ import time
 import boto3
 import fsspec
 
+import mlrun.errors
+
 from .base import DataStore, FileStats, get_range
 
 
@@ -90,7 +92,13 @@ class S3Store(DataStore):
 
 
 def parse_s3_bucket_and_key(s3_path):
-    path_parts = s3_path.replace("s3://", "").split("/")
-    bucket = path_parts.pop(0)
-    key = "/".join(path_parts)
+    try:
+        path_parts = s3_path.replace("s3://", "").split("/")
+        bucket = path_parts.pop(0)
+        key = "/".join(path_parts)
+    except Exception as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"failed to parse s3 bucket and key. {exc}"
+        )
+
     return bucket, key

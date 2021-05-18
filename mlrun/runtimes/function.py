@@ -26,6 +26,7 @@ from kubernetes import client
 from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.errors
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
 
@@ -197,7 +198,9 @@ class RemoteRuntime(KubeResource):
         """
         code_entry_type = self._resolve_code_entry_type(source)
         if code_entry_type == "":
-            raise ValueError("Couldn't resolve code entry type from source")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Couldn't resolve code entry type from source"
+            )
 
         code_entry_attributes = {}
 
@@ -211,12 +214,12 @@ class RemoteRuntime(KubeResource):
 
         # set default runtime if not specified otherwise
         if runtime == "":
-            runtime = "python:3.7"
+            runtime = mlrun.config.config.default_nuclio_runtime
 
         # archive
         if code_entry_type == "archive":
             if source.startswith("v3io"):
-                source = f"http{source[4:]}"
+                source = f"http{source[len('v3io'):]}"
 
             v3io_access_key = secrets.get(
                 "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY", "")
@@ -228,10 +231,7 @@ class RemoteRuntime(KubeResource):
 
         # s3
         if code_entry_type == "s3":
-            try:
-                bucket, item_key = parse_s3_bucket_and_key(source)
-            except Exception as exc:
-                raise RuntimeError(f"failed to parse s3 bucket and key. {exc}")
+            bucket, item_key = parse_s3_bucket_and_key(source)
 
             code_entry_attributes["s3Bucket"] = bucket
             code_entry_attributes["s3ItemKey"] = item_key

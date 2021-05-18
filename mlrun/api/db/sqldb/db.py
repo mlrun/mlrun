@@ -2136,7 +2136,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         if name and name.startswith("~"):
             # Like query
             iter_prefix = f"{iter}-" if iter else ""
-            return query.filter(Artifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%"))
+            return query.filter(
+                Artifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%", escape="\\")
+            )
 
         # From here on, it's either exact name match or no name
         if iter:

@@ -20,7 +20,6 @@ import fsspec
 import pandas as pd
 import requests
 import urllib3
-from storey.utils import drop_reserved_columns
 
 import mlrun.errors
 from mlrun.utils import logger
@@ -123,6 +122,8 @@ class DataStore:
         pass
 
     def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
+        from storey.utils import drop_reserved_columns
+
         df_module = df_module or pd
         if url.endswith(".csv") or format == "csv":
             if columns:

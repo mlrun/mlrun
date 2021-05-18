@@ -95,6 +95,7 @@ Table Of Content
    store/datastore
    store/artifacts
    store/models
+   store/training
 
 .. toctree::
    :maxdepth: 1

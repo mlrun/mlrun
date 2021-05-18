@@ -623,6 +623,12 @@ class TestFeatureStore(TestMLRunSystem):
         assert quotes_set.graph.states[aggregates_step].after is None
         assert quotes_set.graph.states["somemap1"].after == [aggregates_step]
 
+    def test_featureset_uri(self):
+        stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
+        # need this step to have the server in the uri to actually be created
+        fs.ingest(stocks_set, stocks)
+        fs.ingest(stocks_set.uri, stocks)
+
 
 def verify_target_list_fail(targets, with_defaults=None):
     feature_set = fs.FeatureSet(name="target-list-fail", entities=[fs.Entity("ticker")])

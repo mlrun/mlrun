@@ -7,14 +7,14 @@ import sqlalchemy.orm
 import urllib3
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
 class Client(
-    mlrun.api.utils.projects.remotes.member.Member,
+    mlrun.api.utils.projects.remotes.follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self) -> None:

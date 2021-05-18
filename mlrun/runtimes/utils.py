@@ -413,6 +413,9 @@ def enrich_function_from_dict(function, function_dict):
         "resources",
         "image_pull_policy",
         "replicas",
+        "node_name",
+        "node_selector",
+        "affinity",
     ]:
         override_value = getattr(override_function.spec, attribute, None)
         if override_value:

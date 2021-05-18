@@ -26,6 +26,7 @@ from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
     VolumeMount,
+    auto_mount,
     mount_v3io,
     mount_v3io_extended,
     mount_v3io_legacy,

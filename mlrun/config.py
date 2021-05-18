@@ -110,6 +110,7 @@ default_config = {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
             },
         },
+        "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable

@@ -6,6 +6,7 @@ import sqlalchemy.orm
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.utils.singleton
+from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -17,14 +18,33 @@ class Member(abc.ABC):
     def shutdown(self):
         pass
 
-    @abc.abstractmethod
-    def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
-        pass
+    def ensure_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        wait_for_completion: bool = True,
+    ):
+        project_names = self.list_projects(
+            session, format_=mlrun.api.schemas.Format.name_only
+        )
+        if name in project_names.projects:
+            return
+        logger.info(
+            "Ensure project called, but project does not exist. Creating", name=name
+        )
+        project = mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=name),
+        )
+        self.create_project(session, project, wait_for_completion=wait_for_completion)
 
     @abc.abstractmethod
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
-    ) -> mlrun.api.schemas.Project:
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.api.schemas.Project,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -33,7 +53,9 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.api.schemas.Project,
-    ):
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -43,7 +65,9 @@ class Member(abc.ABC):
         name: str,
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-    ):
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -52,7 +76,9 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy.default(),
-    ):
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        wait_for_completion: bool = True,
+    ) -> bool:
         pass
 
     @abc.abstractmethod

@@ -13,8 +13,8 @@ can be provided in one of 3 ways:
   {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` function.
 
 * [**Built-in transformations**](#built-in-transformations) - MLRun is equipped with a set of transformations 
-  provided through the {py:mod}`storey.flow` package. These transformations can be added to the execution graph to 
-  perform common operations and transformations.
+  provided through the {py:mod}`storey.transformations` package. These transformations can be added to the 
+  execution graph to perform common operations and transformations.
   
 * [**Custom transformations**](#custom-transformations) - It is possible to extend the built-in functionality by 
   adding new classes which perform any custom operation and using them in the serving graph.
@@ -35,7 +35,7 @@ UI, where the full graph can be seen and specific step properties can be observe
 For a full end-to-end example of feature-store and usage of the functionality described in this page, please refer
 to the [feature store example](./feature-store-demo.ipynb).
 
-### Aggregations
+## Aggregations
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations allow adding a new feature to the 
@@ -79,13 +79,14 @@ Aggregations which are supported using this function are:
 For a full documentation of this function, please visit the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
 documentation.
 
-### Built-in transformations
+## Built-in transformations
 
 MLRun, and the associated `storey` package, have a built-in library of transformation functions that can be 
 applied as steps in the feature-set's internal execution graph. In order to add steps to the graph, it should be 
 referenced from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
-functions in {py:mod}`storey.flow` (follow the link to browse the documentation and the list of existing functions).
+functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
+list of existing functions). The transformations are also accessible directly from the `storey` module.
 
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 
@@ -113,7 +114,7 @@ class as the parameter `fn`. The callable parameter may also be a Python functio
 parentheses around it. This call generates a step in the graph called `filter` which will call the expression provided
 with the event being propagated through the graph as data is fed to the feature-set.
 
-### Custom transformations
+## Custom transformations
 
 When a transformation is needed that is not provided by the built-in functions, new classes that implement 
 transformations can be created and added to the execution graph. Such classes should extend the 
@@ -141,7 +142,7 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
 that was added previously. The class will be initialized with a multiplier of 3.
 
-## Using Spark
+## Using Spark execution engine
 
 The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
 using Spark, the internal execution graph is executed synchronously, by utilizing a Spark session to perform read and

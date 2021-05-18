@@ -37,4 +37,4 @@ jobs:
           - Git sha ${{ github.sha }}
           - Updated at ${{ github.event.head_commit.timestamp}}
         draft: false
-        prerelease: true
+        prerelease: false

@@ -11,6 +11,7 @@ local code (from the repository) with MLRun marketplace functions to build an au
 * test the deployed model
 
 The pipeline uses the `RunNotifications` class for reporting the tracking information into the Git dashboard (as PR comments) and/or to Slack
+, note that the same pipeline script can be executed locally (just comment out the `notifier.git_comment()` line or place it under `if` condition)
 
 ```python
 # MLRun CI Example
@@ -31,6 +32,7 @@ import mlrun
 from mlrun.platforms import auto_mount
 
 project = "ci"
+mlrun.set_environment(project=project)
 
 # create notification object (console, Git, Slack as outputs) and push start message
 notifier = RunNotifications(with_slack=True).print()

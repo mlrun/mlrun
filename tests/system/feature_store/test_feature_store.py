@@ -513,6 +513,23 @@ class TestFeatureStore(TestMLRunSystem):
             == side_file_out.sort_index(axis=1).round(2)
         )
 
+    def test_none_value(self):
+        data = pd.DataFrame(
+            {"first_name": ["moshe", "yossi"], "bid": [2000, 10], "bool": [True, None],}
+        )
+
+        # write to kv
+        data_set = fs.FeatureSet("tests2", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, return_df=True)
+        features = ["tests2.*"]
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"first_name": "yossi"}])
+        assert resp[0] == {"bid": 10, "bool": None}
+
+        svc.close()
+
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
         targets = [ParquetTarget(columns=columns)]

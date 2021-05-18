@@ -2122,6 +2122,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             ),
         )
 
+    def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
+        if not name and not iter:
+            return query
+
+        if name and name.startswith("~"):
+            # Like query
+            iter_prefix = f"{iter}-" if iter else ""
+            return query.filter(Artifact.key.ilike(f"{iter_prefix}%{name[1:]}%"))
+
+        # From here on, it's either exact name match or no name
+        if iter:
+            if name:
+                return query.filter(Artifact.key == f"{iter}-{name}")
+            return query.filter(Artifact.key.ilike(f"{iter}-%"))
+
+        # Exact match, no iter specified
+        # Escape special chars (_,%) since we still need to do a like query because of the iter.
+        # Also limit length to len(str) + 4, assuming iter is < 100 - this helps filter the situations where
+        # we match a suffix by mistake due to the like query.
+        exact_name = name.translate(name.maketrans({"_": r"\_", "%": r"\%"}))
+        return query.filter(
+            or_(
+                Artifact.key == name,
+                and_(
+                    Artifact.key.like(f"%-{exact_name}", escape="\\"),
+                    func.length(Artifact.key) < len(name) + 4,
+                ),
+            )
+        )
+
     def _find_artifacts(
         self,
         session,
@@ -2166,22 +2196,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
-        # Note that iter_prefix will be != "" only where iter>0
-        iter_prefix = f"{iter}-" if iter else "%"
-
-        # Name query requires special handling, since even for an exact match we need to account for the
-        # iter prefix, so it's always a like query. In the case where a specific iter and an exact name it will
-        # still be a like, but no % in the query string, so a real exact match will be done.
-        if name is not None and name != "":
-            if name.startswith("~"):
-                query = query.filter(Artifact.key.ilike(f"{iter_prefix}%{name[1:]}%"))
-            else:
-                # Note - case sensitive (like vs. ilike)
-                query = query.filter(Artifact.key.like(f"{iter_prefix}{name}"))
-        # In case no name query was asked for, but we do want to query iter, it will be
-        # a like query on the iter alone.
-        elif iter:
-            query = query.filter(Artifact.key.like(f"{iter_prefix}%"))
+        query = self._add_artifact_name_and_iter_query(query, name, iter)
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])

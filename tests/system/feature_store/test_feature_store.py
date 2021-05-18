@@ -555,7 +555,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_none_value(self):
         data = pd.DataFrame(
-            {"first_name": ["moshe", "yossi"], "bid": [2000, 10], "bool": [True, None], }
+            {"first_name": ["moshe", "yossi"], "bid": [2000, 10], "bool": [True, None]}
         )
 
         # write to kv

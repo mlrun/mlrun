@@ -996,7 +996,7 @@ def download_object(url, target, secrets=None):
     stores.object(url=url).download(target_path=target)
 
 
-def wait_for_runs_completion(runs: list, sleep=3, timeout=0):
+def wait_for_runs_completion(runs: list, sleep=3, timeout=0, silent=False):
     """wait for multiple runs to complete
 
     Note: need to use `watch=False` in `.run()` so the run will not wait for completion
@@ -1016,6 +1016,7 @@ def wait_for_runs_completion(runs: list, sleep=3, timeout=0):
     :param runs:    list of run objects (the returned values of function.run())
     :param sleep:   time to sleep between checks (in seconds)
     :param timeout: maximum time to wait in seconds (0 for unlimited)
+    :param silent:  set to True for silent exit on timeout
     :return: list of completed runs
     """
     completed = []
@@ -1024,17 +1025,20 @@ def wait_for_runs_completion(runs: list, sleep=3, timeout=0):
         running = []
         for run in runs:
             state = run.state()
-            if state not in ["running", "pending"]:
-                running.append(run)
-            else:
+            if state in mlrun.runtimes.constants.RunStates.terminal_states():
                 completed.append(run)
+            else:
+                running.append(run)
         if len(running) == 0:
             break
         time.sleep(sleep)
         total_time += sleep
-        if total_time > timeout:
-            print("exit after timout")
-            break
+        if timeout and total_time > timeout:
+            if silent:
+                break
+            raise mlrun.errors.MLRunTimeoutError(
+                "some runs did not reach terminal state on time"
+            )
         runs = running
 
     return completed

@@ -421,7 +421,7 @@ class BaseRuntime(ModelObj):
                 # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
                 # but there's no run in case of schedule)
                 if not schedule:
-                    result = self._post_run(task=runspec, err=err)
+                    result = self._update_run_state(task=runspec, err=err)
                 return self._wrap_run_result(
                     result, runspec, schedule=schedule, err=err
                 )
@@ -458,12 +458,12 @@ class BaseRuntime(ModelObj):
                     state = runspec.logs(True, self._get_db())
                     if state != "succeeded":
                         logger.warning(f"run ended with state {state}")
-                result = self._post_run(resp, task=runspec)
+                result = self._update_run_state(resp, task=runspec)
             except RunError as err:
                 last_err = err
-                result = self._post_run(task=runspec, err=err)
+                result = self._update_run_state(task=runspec, err=err)
 
-        self._clean_run(result, execution)  # hook for runtime specific cleanup
+        self._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(result, runspec, schedule=schedule, err=last_err)
 
@@ -571,7 +571,7 @@ class BaseRuntime(ModelObj):
     def _pre_run(self, runspec: RunObject, execution):
         pass
 
-    def _clean_run(self, results, execution):
+    def _post_run(self, results, execution):
         pass
 
     def _run(self, runobj: RunObject, execution) -> dict:
@@ -585,7 +585,7 @@ class BaseRuntime(ModelObj):
             try:
                 # self.store_run(task)
                 resp = self._run(task, execution)
-                resp = self._post_run(resp, task=task)
+                resp = self._update_run_state(resp, task=task)
                 run_results = resp["status"].get("results", {})
                 if generator.eval_stop_condition(run_results):
                     logger.info(
@@ -597,7 +597,7 @@ class BaseRuntime(ModelObj):
             except RunError as err:
                 task.status.state = "error"
                 task.status.error = str(err)
-                resp = self._post_run(task=task, err=err)
+                resp = self._update_run_state(task=task, err=err)
                 num_errors += 1
                 if num_errors > generator.max_errors:
                     logger.error("too many errors, stopping iterations!")
@@ -622,7 +622,9 @@ class BaseRuntime(ModelObj):
             iter = get_in(rundict, "metadata.iteration", 0)
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
-    def _post_run(self, resp: dict = None, task: RunObject = None, err=None) -> dict:
+    def _update_run_state(
+        self, resp: dict = None, task: RunObject = None, err=None
+    ) -> dict:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:

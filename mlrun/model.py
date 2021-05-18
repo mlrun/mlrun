@@ -770,13 +770,14 @@ class RunObject(RunTemplate):
         total_time = 0
         while True:
             state = self.state()
-            if state not in ["running", "pending"]:
+            if state in mlrun.runtimes.constants.RunStates.terminal_states():
                 break
             time.sleep(sleep)
             total_time += sleep
-            if total_time > timeout:
-                print("exit after timout")
-                break
+            if timeout and total_time > timeout:
+                raise mlrun.errors.MLRunTimeoutError(
+                    "Run did not reach terminal state on time"
+                )
         return state
 
     @staticmethod

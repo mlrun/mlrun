@@ -75,9 +75,9 @@ class ParallelRunner:
             runobj = RunObject.from_dict(resp)
             try:
                 log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
-                resp = self._post_run(resp)
+                resp = self._update_run_state(resp)
             except RunError as err:
-                resp = self._post_run(resp, err=str(err))
+                resp = self._update_run_state(resp, err=str(err))
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:
@@ -161,13 +161,13 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             obj.spec.image = image
         return obj
 
-    def from_source_archive(self, source, pythonpath=None):
+    def with_source_archive(self, source, pythonpath=None):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:     valid path to git, zip, or tar file, e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
-        :param pythonpath: python search path ralative to the archive root or absolute (e.g. './subdir')
+        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
         """
         self.spec.build.source = source
         if pythonpath:
@@ -206,7 +206,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             igz_spark_pre_hook()
 
-    def _clean_run(self, results, execution: MLClientCtx):
+    def _post_run(self, results, execution: MLClientCtx):
         if execution._old_workdir:
             os.chdir(execution._old_workdir)
 

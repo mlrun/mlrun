@@ -95,10 +95,10 @@ to make small code changes and re-run our job without building containers etc.
 
 the `local`, `job` and `remote-spark` runtimes support dynamic load from archive or file shares (other runtimes will 
 be added later), this is enabled by setting the `spec.build.source=<archive>` and `spec.build.load_source_on_run=True` 
-or simply by using the {py:meth}`~mlrun.runtimes.KubejobRuntime.from_source_archive` method. in the CLI we use the `--source` flag. 
+or simply by using the {py:meth}`~mlrun.runtimes.KubejobRuntime.with_source_archive` method. in the CLI we use the `--source` flag. 
 
     fn = mlrun.new_function('archive', kind='job', image='mlrun/mlrun', command='./myfunc.py')
-    fn.from_source_archive('git://github.com/mlrun/ci-demo.git#master')
+    fn.with_source_archive('git://github.com/mlrun/ci-demo.git#master')
     run_results = fn.run(handler='my_func', params={"x": 100})
 
 see more details and examples on [**running jobs with code from Archives or shares**](./code-archive.ipynb)
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 When users create MLRun functions they need to specify one of the following function runtime kinds (e.g. `kind='job'`):
 * **handler** - execute python handler (used automatically in notebooks or for debug)
 * **local** - execute a Python or shell program 
-* **job** - run the code in a Kubernetes Job
+* **job** - run the code in a Kubernetes Pod
 * **dask** - run the code as a Dask Distributed job (over Kubernetes)
 * **mpijob** - run distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs 
 * **spark** - run the job as a Spark job (using Spark Kubernetes Operator)

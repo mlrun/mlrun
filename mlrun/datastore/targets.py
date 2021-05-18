@@ -460,11 +460,7 @@ class ParquetTarget(BaseStoreTarget):
 
         partition_cols = None
         if self.key_bucketing_number is not None:
-            partition_cols = [
-                "$key"
-                if self.key_bucketing_number == 0
-                else ("$key", self.key_bucketing_number)
-            ]
+            partition_cols = ("$key", self.key_bucketing_number)
         if self.partition_cols:
             partition_cols = partition_cols or []
             partition_cols.extend(self.partition_cols)

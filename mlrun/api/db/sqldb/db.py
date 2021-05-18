@@ -2129,7 +2129,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         # Escape special chars (_,%) since we still need to do a like query because of the iter.
         # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
         # this helps filter the situations where we match a suffix by mistake due to the like query.
-        exact_name = name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
+        exact_name = (
+            name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
+        )
 
         if name and name.startswith("~"):
             # Like query

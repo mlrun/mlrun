@@ -978,6 +978,7 @@ class DataTargetBase(ModelObj):
         self.path = path
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.last_written = None
 
 
 class FeatureSetProducer(ModelObj):

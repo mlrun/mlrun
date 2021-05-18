@@ -546,7 +546,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         data = pd.DataFrame(
             {
-                "time": [now, now - pd.Timedelta(minutes=1), now - pd.Timedelta(minutes=1)],
+                "time": [now, now + pd.Timedelta(minutes=1), now + pd.Timedelta(minutes=1)],
                 "first_name": ["moshe", "dina", "katya"],
                 "data": [50, 10, 25],
             }

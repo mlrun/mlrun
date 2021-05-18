@@ -43,14 +43,14 @@ def test_delete_project_with_resources(
         db, db_session, project_to_keep
     )
     _assert_resources_in_project(db, db_session, project_to_remove)
-    # deletion strategy - restrict - should fail because there are resources
+    # deletion strategy - restricted - should fail because there are resources
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
         db.delete_project(
-            db_session, project_to_remove, mlrun.api.schemas.DeletionStrategy.restrict
+            db_session, project_to_remove, mlrun.api.schemas.DeletionStrategy.restricted
         )
-    # deletion strategy - cascade - should succeed and remove all related resources
+    # deletion strategy - cascading - should succeed and remove all related resources
     db.delete_project(
-        db_session, project_to_remove, mlrun.api.schemas.DeletionStrategy.cascade
+        db_session, project_to_remove, mlrun.api.schemas.DeletionStrategy.cascading
     )
 
     project_to_keep_table_name_records_count_map_after_project_removal = _assert_resources_in_project(
@@ -68,9 +68,9 @@ def test_delete_project_with_resources(
         == {}
     )
 
-    # deletion strategy - restrict - should succeed cause no project
+    # deletion strategy - restricted - should succeed cause no project
     db.delete_project(
-        db_session, project_to_remove, mlrun.api.schemas.DeletionStrategy.restrict
+        db_session, project_to_remove, mlrun.api.schemas.DeletionStrategy.restricted
     )
 
 

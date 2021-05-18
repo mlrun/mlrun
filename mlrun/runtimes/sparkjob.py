@@ -464,6 +464,11 @@ class SparkRuntime(KubejobRuntime):
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
         )
 
+    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
+        raise NotImplementedError(
+            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+        )
+
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,

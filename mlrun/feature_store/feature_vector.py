@@ -323,10 +323,15 @@ class OnlineVectorService:
             result = future.await_result()
             data = result.body
             for key in self._index_columns:
-                if key in data:
+                if data and key in data:
                     del data[key]
             if not data:
                 data = None
+            requested_columns = self.vector.status.features.keys()
+            actual_columns = data.keys()
+            for column in requested_columns:
+                if column not in actual_columns:
+                    data[column] = None
             if as_list:
                 data = [
                     result.body[key]

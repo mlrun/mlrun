@@ -232,6 +232,7 @@ def ingest(
             targets,
             infer_options=infer_options,
             mlrun_context=mlrun_context,
+            namespace=namespace,
         )
 
     if isinstance(source, str):
@@ -420,9 +421,12 @@ def _ingest_with_spark(
         # create spark context
         from pyspark.sql import SparkSession
 
-        spark = SparkSession.builder.appName(
-            f"{mlrun_context.name}-{mlrun_context.uid}"
-        ).getOrCreate()
+        if mlrun_context:
+            session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
+        else:
+            session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
+
+        spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)
     df = run_spark_graph(df, featureset, namespace, spark)
@@ -520,19 +524,31 @@ def get_feature_vector(uri, project=None):
     return get_feature_vector_by_uri(uri, project)
 
 
-def delete_feature_set(name, project=""):
+def delete_feature_set(name, project="", tag=None, uid=None):
     """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
+    :param tag: Specific object's version tag
+    :param uid: Specific object's uid
+
+    If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
     """
     db = mlrun.get_run_db()
-    return db.delete_feature_set(name=name, project=project)
+    return db.delete_feature_set(name=name, project=project, tag=tag, uid=uid)
 
 
-def delete_feature_vector(name, project=""):
+def delete_feature_vector(name, project="", tag=None, uid=None):
     """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
+    :param tag: Specific object's version tag
+    :param uid: Specific object's uid
+
+    If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
+        is not allowed.
+        If none are specified, then all instances of the object whose name is ``name`` will be deleted.
     """
     db = mlrun.get_run_db()
-    return db.delete_feature_vector(name=name, project=project)
+    return db.delete_feature_vector(name=name, project=project, tag=tag, uid=uid)

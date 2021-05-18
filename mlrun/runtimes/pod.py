@@ -81,7 +81,7 @@ class KubeResourceSpec(FunctionSpec):
         self.image_pull_secret = image_pull_secret
         self.node_name = node_name
         self.node_selector = node_selector
-        self.affinity = affinity
+        self._affinity = affinity
 
     @property
     def volumes(self) -> list:
@@ -105,17 +105,19 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount)
 
+    @property
+    def affinity(self) -> client.V1Affinity:
+        return self._affinity
+
+    @affinity.setter
+    def affinity(self, affinity):
+        self._affinity = self._transform_affinity_to_k8s_class_instance(affinity)
+
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity"])
         api = client.ApiClient()
         struct["affinity"] = api.sanitize_for_serialization(self.affinity)
         return struct
-
-    @classmethod
-    def from_dict(cls, struct=None, fields=None):
-        new_instance = super().from_dict(struct, fields)
-        new_instance.affinity = new_instance._get_affinity_as_k8s_class_instance()
-        return new_instance
 
     def update_vols_and_mounts(self, volumes, volume_mounts):
         if volumes:
@@ -127,14 +129,16 @@ class KubeResourceSpec(FunctionSpec):
                 self._set_volume_mount(volume_mount)
 
     def _get_affinity_as_k8s_class_instance(self):
-        if not self.affinity:
+        pass
+
+    def _transform_affinity_to_k8s_class_instance(self, affinity):
+        if not affinity:
             return None
-        affinity = self.affinity
         if isinstance(affinity, dict):
             api = client.ApiClient()
             # not ideal to use their private method, but looks like that's the only option
             # Taken from https://github.com/kubernetes-client/python/issues/977
-            affinity = api._ApiClient__deserialize(self.affinity, "V1Affinity")
+            affinity = api._ApiClient__deserialize(affinity, "V1Affinity")
         return affinity
 
     def _get_sanitized_affinity(self):
@@ -146,8 +150,8 @@ class KubeResourceSpec(FunctionSpec):
         if not self.affinity:
             return {}
         if isinstance(self.affinity, dict):
-            # if node_affinity is part of the dict it means to_dict on the kubernetes object performed, there's nothing
-            # we can do at that point to transform it to the sanitized version
+            # heuristic - if node_affinity is part of the dict it means to_dict on the kubernetes object performed,
+            # there's nothing we can do at that point to transform it to the sanitized version
             if "node_affinity" in self.affinity:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Affinity must be instance of kubernetes' V1Affinity class"
@@ -156,8 +160,7 @@ class KubeResourceSpec(FunctionSpec):
                 # then it's already the sanitized version
                 return self.affinity
         api = client.ApiClient()
-        affinity = self._get_affinity_as_k8s_class_instance()
-        return api.sanitize_for_serialization(affinity)
+        return api.sanitize_for_serialization(self.affinity)
 
     def _set_volume_mount(self, volume_mount):
         # calculate volume mount hash
@@ -237,47 +240,11 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        if mem:
-            verify_field_regex(
-                "function.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                "function.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if gpus:
-            verify_field_regex(
-                "function.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            self.spec.resources,
-            "limits",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
-        )
+        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
 
     def with_requests(self, mem=None, cpu=None):
-        """set requested (desired) pod cpu/memory/gpu resources"""
-        if mem:
-            verify_field_regex(
-                "function.requests.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                "function.requests.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu),
-        )
+        """set requested (desired) pod cpu/memory resources"""
+        self._verify_and_set_requests("resources", mem, cpu)
 
     def with_node_selection(
         self,
@@ -300,6 +267,57 @@ class KubeResource(BaseRuntime):
             self.spec.node_selector = node_selector
         if affinity:
             self.spec.affinity = affinity
+
+    def _verify_and_set_limits(
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+    ):
+        if mem:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if gpus:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.gpus",
+                gpus,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            getattr(self.spec, resources_field_name),
+            "limits",
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
+
+    def _verify_and_set_requests(self, resources_field_name, mem=None, cpu=None):
+        if mem:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            getattr(self.spec, resources_field_name),
+            "requests",
+            generate_resources(mem=mem, cpu=cpu),
+        )
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
@@ -395,9 +413,6 @@ class KubeResource(BaseRuntime):
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: KubeResourceSpec, container: client.V1Container
 ):
-    affinity = kube_resource_spec.affinity
-    if kube_resource_spec.affinity and isinstance(kube_resource_spec.affinity, dict):
-        affinity = kube_resource_spec._get_affinity_as_k8s_class_instance()
     return client.V1PodSpec(
         containers=[container],
         restart_policy="Never",
@@ -405,5 +420,5 @@ def kube_resource_spec_to_pod_spec(
         service_account=kube_resource_spec.service_account,
         node_name=kube_resource_spec.node_name,
         node_selector=kube_resource_spec.node_selector,
-        affinity=affinity,
+        affinity=kube_resource_spec.affinity,
     )

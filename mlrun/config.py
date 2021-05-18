@@ -104,15 +104,18 @@ default_config = {
         "max_workers": "",
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
-            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
+            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
         },
         "projects": {
             "leader": "mlrun",
             "followers": "",
+            # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
             "counters_cache_ttl": "10 seconds",
+            # access key to be used when the leader is iguazio and polling is done from it
+            "iguazio_access_key": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -160,12 +163,12 @@ default_config = {
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/fs/{kind}",
-            "nosql": "v3io:///projects/{project}/fs/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": None,
+        "flush_interval": 300,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects

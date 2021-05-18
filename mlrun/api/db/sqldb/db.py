@@ -2126,10 +2126,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         if not name and not iter:
             return query
 
+        # Escape special chars (_,%) since we still need to do a like query because of the iter.
+        # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
+        # this helps filter the situations where we match a suffix by mistake due to the like query.
+        exact_name = name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
+
         if name and name.startswith("~"):
             # Like query
             iter_prefix = f"{iter}-" if iter else ""
-            return query.filter(Artifact.key.ilike(f"{iter_prefix}%{name[1:]}%"))
+            return query.filter(Artifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%"))
 
         # From here on, it's either exact name match or no name
         if iter:
@@ -2138,10 +2143,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             return query.filter(Artifact.key.ilike(f"{iter}-%"))
 
         # Exact match, no iter specified
-        # Escape special chars (_,%) since we still need to do a like query because of the iter.
-        # Also limit length to len(str) + 4, assuming iter is < 100 - this helps filter the situations where
-        # we match a suffix by mistake due to the like query.
-        exact_name = name.translate(name.maketrans({"_": r"\_", "%": r"\%"}))
         return query.filter(
             or_(
                 Artifact.key == name,

@@ -32,7 +32,7 @@ from ..config import config as mlconf
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, split_path
+from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .pod import KubeResource, KubeResourceSpec
@@ -236,6 +236,9 @@ class RemoteRuntime(KubeResource):
         self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
     ):
         """add v3io stream trigger to the function"""
+        endpoint = None
+        if "://" in stream_path:
+            endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
         self.add_trigger(
@@ -246,6 +249,7 @@ class RemoteRuntime(KubeResource):
                 path=path[1:],
                 consumerGroup=group,
                 seekTo=seek_to,
+                webapi=endpoint or "http://v3io-webapi:8081",
             ),
         )
         self.spec.min_replicas = shards

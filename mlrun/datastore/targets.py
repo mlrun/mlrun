@@ -24,9 +24,8 @@ from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
-from ..platforms.iguazio import split_path
+from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
-from .v3io import parse_v3io_path
 
 
 class TargetTypes:
@@ -275,7 +274,7 @@ class BaseStoreTarget(DataTargetBase):
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns):
-        column_list = None
+        column_list = []
         if self.columns:
             return self.columns
         elif features:
@@ -471,7 +470,11 @@ class NoSqlTarget(BaseStoreTarget):
 
         # TODO use options/cred
         endpoint, uri = parse_v3io_path(self._target_path)
-        return Table(uri, V3ioDriver(webapi=endpoint))
+        return Table(
+            uri,
+            V3ioDriver(webapi=endpoint),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -486,7 +489,7 @@ class NoSqlTarget(BaseStoreTarget):
                 if features
                 else []
             )
-            column_list = [col for col in column_list if col in aggregate_features]
+            column_list = [col for col in column_list if col not in aggregate_features]
 
         graph.add_step(
             name=self.name or "NoSqlTarget",

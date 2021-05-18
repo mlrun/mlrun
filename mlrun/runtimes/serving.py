@@ -452,7 +452,7 @@ class ServingRuntime(RemoteRuntime):
             "function_uri": self._function_uri(),
             "version": "v2",
             "parameters": self.spec.parameters,
-            "graph": self.spec.graph.to_dict(),
+            "graph": self.spec.graph.to_dict() if self.spec.graph else {},
             "load_mode": self.spec.load_mode,
             "functions": function_name_uri_map,
             "graph_initializer": self.spec.graph_initializer,
@@ -489,5 +489,7 @@ class ServingRuntime(RemoteRuntime):
             secret_sources=self.spec.secret_sources,
             **kwargs,
         )
-        server.init(None, namespace or get_caller_globals(), logger=logger)
+        server.init(
+            None, namespace or get_caller_globals(), logger=logger, is_mock=True
+        )
         return server

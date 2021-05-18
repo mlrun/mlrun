@@ -20,6 +20,7 @@ import fsspec
 import pandas as pd
 import requests
 import urllib3
+from storey.utils import drop_reserved_columns
 
 import mlrun.errors
 from mlrun.utils import logger
@@ -133,7 +134,7 @@ class DataStore:
 
             def reader(*args, **kwargs):
                 df_from_pq = df_module.read_parquet(*args, **kwargs)
-                _drop_reserved_columns(df_from_pq)
+                drop_reserved_columns(df_from_pq)
                 return df_from_pq
 
         elif url.endswith(".json") or format == "json":
@@ -159,14 +160,6 @@ class DataStore:
             "secret_pfx": self.secret_pfx,
             "options": self.options,
         }
-
-
-def _drop_reserved_columns(df):
-    cols_to_drop = []
-    for col in df.columns:
-        if col.startswith("igzpart_"):
-            cols_to_drop.append(col)
-    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
 
 
 class DataItem:

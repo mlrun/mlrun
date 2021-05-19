@@ -147,7 +147,7 @@ def _add_data_states(
 def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service=None):
     name = name or f"{featureset.metadata.name}_ingest"
     use_spark = featureset.spec.engine == "spark"
-    if use_spark and not spark_service:
+    if use_spark and not run_config.local and not spark_service:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Remote spark ingestion requires the spark service name to be provided"
         )
@@ -177,7 +177,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     if not use_spark and not function.spec.image:
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
-    if use_spark:
+    if use_spark and not run_config.local:
         function.with_spark_service(spark_service=spark_service)
 
     task = mlrun.new_task(

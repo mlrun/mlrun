@@ -144,9 +144,13 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            # Requires pandas >= 1.2
-            # kwargs["storage_options"] = self.get_storage_options()
-            return reader(url, **kwargs)
+            if fs.isdir(url):
+                storage_options = self.get_storage_options()
+                if storage_options:
+                    kwargs["storage_options"] = storage_options
+                return reader(url, **kwargs)
+            else:  # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not support the storage_options parameter.
+                return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()
         self.download(self._join(subpath), tmp)

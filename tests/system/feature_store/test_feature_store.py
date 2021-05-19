@@ -164,7 +164,7 @@ class TestFeatureStore(TestMLRunSystem):
         )  # (*) returns 2 features, label adds 1 feature
         self._get_offline_vector(features, features_size)
 
-        self._logger.debug("Get offline feature vector")
+        self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
 
     def test_feature_set_db(self):

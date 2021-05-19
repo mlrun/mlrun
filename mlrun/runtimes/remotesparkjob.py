@@ -15,8 +15,8 @@ import re
 from subprocess import run
 
 from mlrun.config import config
-from .. import RunObject
 
+from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
@@ -82,9 +82,12 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls):
-        from mlrun.run import new_function
         from mlrun import get_run_db
-        sj = new_function(kind='remote-spark', name='remote-spark-default-image-deploy-temp')
+        from mlrun.run import new_function
+
+        sj = new_function(
+            kind="remote-spark", name="remote-spark-default-image-deploy-temp"
+        )
         sj.spec.build.image = cls.default_image
         sj.with_spark_service(spark_service="dummy-spark")
         sj.deploy()

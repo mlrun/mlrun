@@ -159,11 +159,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
         run_config.function = function_ref
         run_config.handler = "handler"
 
-    image = (
-        None
-        if use_spark
-        else mlrun.mlconf.feature_store.default_job_image
-    )
+    image = None if use_spark else mlrun.mlconf.feature_store.default_job_image
     function = run_config.to_function(default_kind, image)
     if use_spark and function.kind not in spark_runtimes:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -198,6 +194,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
     if run_config.watch:
         featureset.reload()
     return run
+
 
 _default_job_handler = """
 from mlrun.feature_store.api import ingest

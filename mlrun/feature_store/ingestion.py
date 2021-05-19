@@ -160,7 +160,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
         run_config.handler = "handler"
 
     image = (
-        _default_spark_image()
+        None
         if use_spark
         else mlrun.mlconf.feature_store.default_job_image
     )
@@ -173,7 +173,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
 
-    if not function.spec.image:
+    if not use_spark and not function.spec.image:
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
     task = mlrun.new_task(
@@ -198,14 +198,6 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
     if run_config.watch:
         featureset.reload()
     return run
-
-
-def _default_spark_image():
-    image = mlrun.mlconf.spark_app_image
-    if mlrun.mlconf.spark_app_image_tag:
-        image += ":" + mlrun.mlconf.spark_app_image_tag
-    return image
-
 
 _default_job_handler = """
 from mlrun.feature_store.api import ingest

@@ -346,9 +346,14 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             expected_partitions = [f"igzpart_hash{key_bucketing_number}_key"]
         expected_partitions += partition_cols or []
-        if [key_bucketing_number, partition_cols, time_partitioning_granularity] == [
-            None
-        ] * 3:
+        if all(
+            value is None
+            for value in [
+                key_bucketing_number,
+                partition_cols,
+                time_partitioning_granularity,
+            ]
+        ):
             time_partitioning_granularity = "hour"
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:

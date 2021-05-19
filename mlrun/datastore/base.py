@@ -144,7 +144,8 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            kwargs["storage_options"] = self.get_storage_options()
+            # Requires pandas >= 1.2
+            # kwargs["storage_options"] = self.get_storage_options()
             return reader(url, **kwargs)
 
         tmp = mktemp()

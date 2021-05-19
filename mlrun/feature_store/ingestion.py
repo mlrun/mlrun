@@ -144,9 +144,14 @@ def _add_data_states(
     graph.set_flow_source(source)
 
 
-def run_ingestion_job(name, featureset, run_config, schedule=None):
+def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service=None):
     name = name or f"{featureset.metadata.name}_ingest"
     use_spark = featureset.spec.engine == "spark"
+    if use_spark and not spark_service:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Remote spark ingestion requires the spark service name to be provided"
+        )
+
     default_kind = RuntimeKinds.remotespark if use_spark else RuntimeKinds.job
     spark_runtimes = [RuntimeKinds.remotespark]  # may support spark operator in future
 
@@ -171,6 +176,9 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
 
     if not use_spark and not function.spec.image:
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
+
+    if use_spark:
+        function.with_spark_service(spark_service=spark_service)
 
     task = mlrun.new_task(
         name=name,

@@ -93,6 +93,16 @@ class RemoteSparkRuntime(KubejobRuntime):
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
+    @property
+    def is_deployed(self):
+        if (
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+        ):
+            return True
+        return super().is_deployed
+
     def _run(self, runobj: RunObject, execution):
         self.spec.image = self.spec.image or self.default_image
         super()._run(runobj=runobj, execution=execution)

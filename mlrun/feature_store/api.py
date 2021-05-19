@@ -198,6 +198,7 @@ def ingest(
     :param mlrun_context: mlrun context (when running as a job), for internal use !
     :param spark_context: local spark session for spark ingestion, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
+                          For remote spark ingestion, this should contain the remote spark service name
     """
     if featureset:
         if isinstance(featureset, str):
@@ -230,7 +231,9 @@ def ingest(
             featureset, source, targets, run_config.parameters, infer_options
         )
         name = f"{featureset.metadata.name}_ingest"
-        return run_ingestion_job(name, featureset, run_config, source.schedule)
+        return run_ingestion_job(
+            name, featureset, run_config, source.schedule, spark_context
+        )
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context

@@ -15,6 +15,7 @@ import re
 from subprocess import run
 
 from mlrun.config import config
+from .. import RunObject
 
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
@@ -77,6 +78,21 @@ class RemoteSparkProviders(object):
 
 class RemoteSparkRuntime(KubejobRuntime):
     kind = "remote-spark"
+    default_image = ".remote-spark-default-image"
+
+    @classmethod
+    def deploy_default_image(cls):
+        from mlrun.run import new_function
+        from mlrun import get_run_db
+        sj = new_function(kind='remote-spark', name='remote-spark-default-image-deploy-temp')
+        sj.spec.build.image = cls.default_image
+        sj.with_spark_service(spark_service="dummy-spark")
+        sj.deploy()
+        get_run_db().delete_function(name=sj.metadata.name)
+
+    def _run(self, runobj: RunObject, execution):
+        self.spec.image = self.spec.image or self.default_image
+        super()._run(runobj=runobj, execution=execution)
 
     @property
     def spec(self) -> RemoteSparkSpec:

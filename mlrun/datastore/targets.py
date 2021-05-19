@@ -24,6 +24,7 @@ from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
+from .. import errors
 from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
 
@@ -433,7 +434,7 @@ class ParquetTarget(BaseStoreTarget):
             time_partitioning_granularity is not None
             and time_partitioning_granularity not in self._legal_time_units
         ):
-            raise ValueError(
+            raise errors.MLRunInvalidArgumentError(
                 f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
                 f"not {time_partitioning_granularity}."
             )

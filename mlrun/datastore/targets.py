@@ -346,12 +346,14 @@ class BaseStoreTarget(DataTargetBase):
             driver.suffix = (
                 ".parquet"
                 if not spec.partitioned
-                and [
-                    spec.key_bucketing_number,
-                    spec.partition_cols,
-                    spec.time_partitioning_granularity,
-                ]
-                == [None] * 3
+                and all(
+                    value is None
+                    for value in [
+                        spec.key_bucketing_number,
+                        spec.partition_cols,
+                        spec.time_partitioning_granularity,
+                    ]
+                )
                 else ""
             )
 
@@ -439,8 +441,14 @@ class ParquetTarget(BaseStoreTarget):
         self.suffix = (
             ".parquet"
             if not partitioned
-            and [key_bucketing_number, partition_cols, time_partitioning_granularity]
-            == [None] * 3
+            and all(
+                value is None
+                for value in [
+                    key_bucketing_number,
+                    partition_cols,
+                    time_partitioning_granularity,
+                ]
+            )
             else ""
         )
 
@@ -465,11 +473,14 @@ class ParquetTarget(BaseStoreTarget):
             partition_cols = partition_cols or []
             partition_cols.extend(self.partition_cols)
         time_partitioning_granularity = self.time_partitioning_granularity
-        if [
-            time_partitioning_granularity,
-            self.key_bucketing_number,
-            self.partition_cols,
-        ] == [None] * 3 and self.partitioned:
+        if self.partitioned and all(
+            value is None
+            for value in [
+                time_partitioning_granularity,
+                self.key_bucketing_number,
+                self.partition_cols,
+            ]
+        ):
             time_partitioning_granularity = "hour"
         if time_partitioning_granularity is not None:
             partition_cols = partition_cols or []

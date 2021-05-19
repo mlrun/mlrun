@@ -149,7 +149,9 @@ class DataStore:
                 if storage_options:
                     kwargs["storage_options"] = storage_options
                 return reader(url, **kwargs)
-            else:  # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not support the storage_options parameter.
+            else:
+                # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
+                # support the storage_options parameter.
                 return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()

@@ -14,6 +14,7 @@
 
 import inspect
 import re
+import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
@@ -23,7 +24,7 @@ from typing import Dict, Tuple, Union
 import mlrun
 
 from .config import config
-from .utils import dict_to_json, dict_to_yaml, get_artifact_target, get_in
+from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
 
 class ModelObj:
@@ -285,10 +286,11 @@ class ImageBuilder(ModelObj):
         secret=None,
         code_origin=None,
         registry=None,
+        load_source_on_run=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
-        self.source = source  #: course
+        self.source = source  #: source
         self.code_origin = code_origin  #: code_origin
         self.image = image  #: image
         self.base_image = base_image  #: base_image
@@ -296,6 +298,7 @@ class ImageBuilder(ModelObj):
         self.extra = extra  #: extra
         self.secret = secret  #: secret
         self.registry = registry  #: registry
+        self.load_source_on_run = load_source_on_run  #: load_source_on_run
         self.build_pod = None
 
 
@@ -723,6 +726,11 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
+        self.refresh()
+        return self.status.state or "unknown"
+
+    def refresh(self):
+        """refresh run state from the db"""
         db = mlrun.get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
@@ -730,7 +738,8 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            return get_in(run, "status.state", "unknown")
+            self.status.from_dict(run.get("status", {}))
+            return self
 
     def show(self):
         """show the current status widget, in jupyter notebook"""
@@ -754,6 +763,21 @@ class RunObject(RunTemplate):
 
         if state:
             print(f"final state: {state}")
+        return state
+
+    def wait_for_completion(self, sleep=3, timeout=0):
+        """wait for async run to complete"""
+        total_time = 0
+        while True:
+            state = self.state()
+            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                break
+            time.sleep(sleep)
+            total_time += sleep
+            if timeout and total_time > timeout:
+                raise mlrun.errors.MLRunTimeoutError(
+                    "Run did not reach terminal state on time"
+                )
         return state
 
     @staticmethod

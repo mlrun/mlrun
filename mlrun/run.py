@@ -15,6 +15,7 @@
 import importlib.util as imputil
 import json
 import socket
+import time
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -326,9 +327,6 @@ def get_or_create_ctx(
 
     if global_context.get() and not spec and not event:
         return global_context.get()
-
-    if "global_mlrun_context" in globals() and not spec and not event:
-        return globals().get("global_mlrun_context")
 
     newspec = {}
     config = environ.get("MLRUN_EXEC_CONFIG")
@@ -996,3 +994,51 @@ def download_object(url, target, secrets=None):
     """download mlrun dataitem (from path/url to target path)"""
     stores = store_manager.set(secrets)
     stores.object(url=url).download(target_path=target)
+
+
+def wait_for_runs_completion(runs: list, sleep=3, timeout=0, silent=False):
+    """wait for multiple runs to complete
+
+    Note: need to use `watch=False` in `.run()` so the run will not wait for completion
+
+    example::
+
+        # run two training functions in parallel and wait for the results
+        inputs = {'dataset': cleaned_data}
+        run1 = train.run(name='train_lr', inputs=inputs, watch=False,
+                         params={'model_pkg_class': 'sklearn.linear_model.LogisticRegression',
+                                 'label_column': 'label'})
+        run2 = train.run(name='train_lr', inputs=inputs, watch=False,
+                         params={'model_pkg_class': 'sklearn.ensemble.RandomForestClassifier',
+                                 'label_column': 'label'})
+        completed = wait_for_runs_completion([run1, run2])
+
+    :param runs:    list of run objects (the returned values of function.run())
+    :param sleep:   time to sleep between checks (in seconds)
+    :param timeout: maximum time to wait in seconds (0 for unlimited)
+    :param silent:  set to True for silent exit on timeout
+    :return: list of completed runs
+    """
+    completed = []
+    total_time = 0
+    while True:
+        running = []
+        for run in runs:
+            state = run.state()
+            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                completed.append(run)
+            else:
+                running.append(run)
+        if len(running) == 0:
+            break
+        time.sleep(sleep)
+        total_time += sleep
+        if timeout and total_time > timeout:
+            if silent:
+                break
+            raise mlrun.errors.MLRunTimeoutError(
+                "some runs did not reach terminal state on time"
+            )
+        runs = running
+
+    return completed

@@ -586,7 +586,15 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def as_df(self, columns=None, df_module=None, entities=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         df = super().as_df(columns=columns, df_module=df_module, entities=entities)
         df.set_index(keys=entities, inplace=True)
         return df
@@ -810,7 +818,14 @@ class DFTarget(BaseStoreTarget):
             insert_time_column_as=timestamp_key,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         return self._df
 
 

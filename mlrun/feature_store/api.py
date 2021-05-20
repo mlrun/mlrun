@@ -121,7 +121,8 @@ def get_offline_features(
         target=target,
         drop_columns=drop_columns,
         start_time=start_time,
-        end_time=end_time,)
+        end_time=end_time,
+    )
 
 
 def get_online_feature_service(

@@ -334,7 +334,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         file_system = fsspec.filesystem("v3io")
         dataset = pq.ParquetDataset(
-            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
+            f"v3io:///projects/system-test-project/FeatureStore/{name}/parquet/sets/{name}-latest",
             filesystem=file_system,
         )
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]

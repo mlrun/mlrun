@@ -324,14 +324,7 @@ class DataItem:
         return self._local_path
 
     def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        format="",
-        start_time=None,
-        end_time=None,
-        filter_column=None,
-        **kwargs,
+        self, columns=None, df_module=None, format="", **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
 
@@ -345,9 +338,6 @@ class DataItem:
             columns=columns,
             df_module=df_module,
             format=format,
-            start_time=start_time,
-            end_time=end_time,
-            filter_column=filter_column,
             **kwargs,
         )
 

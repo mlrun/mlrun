@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import sys
 from base64 import b64encode
 from os import getenv, path, remove
 from tempfile import mktemp
@@ -21,7 +21,6 @@ import pandas as pd
 import pyarrow.parquet as pq
 import requests
 import urllib3
-from storey.utils import find_filters
 
 import mlrun.errors
 from mlrun.utils import logger
@@ -146,6 +145,12 @@ class DataStore:
 
             def reader(*args, **kwargs):
                 if start_time or end_time:
+                    if sys.version_info >= (3, 7):
+                        from storey.utils import find_filters
+                    else:
+                        raise ValueError(
+                            f"feature not supported for python version {sys.version_info}"
+                        )
                     dataset = pq.ParquetDataset(args[0], filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names

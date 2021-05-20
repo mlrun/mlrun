@@ -389,10 +389,22 @@ class BaseStoreTarget(DataTargetBase):
         """add storey writer state to graph"""
         raise NotImplementedError()
 
-    def as_df(self, columns=None, df_module=None, entities=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
-            columns=columns, df_module=df_module
+            columns=columns,
+            df_module=df_module,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -509,10 +521,23 @@ class ParquetTarget(BaseStoreTarget):
             "format": "parquet",
         }
 
-    def as_df(self, columns=None, df_module=None, entities=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
-            columns=columns, df_module=df_module, format="parquet"
+            columns=columns,
+            df_module=df_module,
+            format="parquet",
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
         )
 
 
@@ -561,7 +586,15 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def as_df(self, columns=None, df_module=None, entities=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         df = super().as_df(columns=columns, df_module=df_module, entities=entities)
         df.set_index(keys=entities, inplace=True)
         return df
@@ -785,7 +818,14 @@ class DFTarget(BaseStoreTarget):
             insert_time_column_as=timestamp_key,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         return self._df
 
 

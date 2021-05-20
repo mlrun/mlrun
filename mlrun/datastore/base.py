@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import sys
 from base64 import b64encode
 from os import getenv, path, remove
 from tempfile import mktemp
 
 import fsspec
 import pandas as pd
+import pyarrow.parquet as pq
 import requests
 import urllib3
 
@@ -121,7 +122,18 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
+    def as_df(
+        self,
+        url,
+        subpath,
+        columns=None,
+        df_module=None,
+        format="",
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
         df_module = df_module or pd
         if url.endswith(".csv") or format == "csv":
             if columns:
@@ -132,6 +144,40 @@ class DataStore:
                 kwargs["columns"] = columns
 
             def reader(*args, **kwargs):
+                if start_time or end_time:
+                    if sys.version_info < (3, 7):
+                        raise ValueError(
+                            f"feature not supported for python version {sys.version_info}"
+                        )
+
+                    from storey.utils import find_filters
+
+                    dataset = pq.ParquetDataset(args[0], filesystem=fs)
+                    if dataset.partitions:
+                        partitions = dataset.partitions.partition_names
+                        time_attributes = [
+                            "year",
+                            "month",
+                            "day",
+                            "hour",
+                            "minute",
+                            "second",
+                        ]
+                        partitions_time_attributes = [
+                            j for j in time_attributes if j in partitions
+                        ]
+                    else:
+                        partitions_time_attributes = []
+                    filters = []
+                    find_filters(
+                        partitions_time_attributes,
+                        start_time,
+                        end_time,
+                        filters,
+                        time_column,
+                    )
+                    kwargs["filters"] = filters
+
                 df_from_pq = df_module.read_parquet(*args, **kwargs)
                 _drop_reserved_columns(df_from_pq)
                 return df_from_pq
@@ -278,7 +324,9 @@ class DataItem:
         self.download(self._local_path)
         return self._local_path
 
-    def as_df(self, columns=None, df_module=None, format="", **kwargs):
+    def as_df(
+        self, columns=None, df_module=None, format="", **kwargs,
+    ):
         """return a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select

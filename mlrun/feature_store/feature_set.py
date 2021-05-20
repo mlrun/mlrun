@@ -439,7 +439,15 @@ class FeatureSet(ModelObj):
             ]
         return graph.plot(filename, format, targets=targets, **kw)
 
-    def to_dataframe(self, columns=None, df_module=None, target_name=None):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        target_name=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         """return featureset (offline) data as dataframe"""
         entities = list(self.spec.entities.keys())
         if columns:
@@ -451,7 +459,14 @@ class FeatureSet(ModelObj):
             raise mlrun.errors.MLRunNotFoundError(
                 "there are no offline targets for this feature set"
             )
-        return driver.as_df(columns=columns, df_module=df_module, entities=entities)
+        return driver.as_df(
+            columns=columns,
+            df_module=df_module,
+            entities=entities,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+        )
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""

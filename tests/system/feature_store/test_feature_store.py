@@ -625,8 +625,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_featureset_uri(self):
         stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
-        # need this step to have the server in the uri to actually be created
-        fs.ingest(stocks_set, stocks)
+        stocks_set.save()
         fs.ingest(stocks_set.uri, stocks)
 
 

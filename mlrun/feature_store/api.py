@@ -170,7 +170,8 @@ def ingest(
         targets = [CSVTarget("mycsv", path="./mycsv.csv")]
         ingest(measurements, source, targets)
 
-    :param featureset:    feature set object or featureset.uri. Make sure that featureset is in db (call ingest)
+    :param featureset:    feature set object or featureset.uri. (uri must be of a feature set that is in the DB,
+                          call `.save()` if it's not)
     :param source:        source dataframe or file path
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
@@ -189,8 +190,11 @@ def ingest(
             try:
                 featureset = get_feature_set_by_uri(stripped_name)
             except RunDBError as exc:
+                # TODO: this handling is needed because the generic httpdb error handling doesn't raise the correct
+                #  error class and doesn't propagate the correct message, until it solved we're manually handling this
+                #  case to give better user experience, remove this when the error handling is fixed.
                 log_and_raise(
-                    reason=f"{exc}. Make sure feature set is saved in db (call ingest)"
+                    reason=f"{exc}. Make sure the feature set is saved in DB (call feature_set.save())"
                 )
 
         # feature-set spec always has a source property that is not None. It may be default-constructed, in which

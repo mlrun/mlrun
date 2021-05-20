@@ -14,7 +14,12 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource, ParquetSource
-from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
+from mlrun.datastore.targets import (
+    CSVTarget,
+    ParquetTarget,
+    TargetTypes,
+    get_default_prefix_for_target,
+)
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.steps import FeaturesetValidator
@@ -333,10 +338,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp1.to_dict() == resp2.to_dict()
 
         file_system = fsspec.filesystem("v3io")
-        dataset = pq.ParquetDataset(
-            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
-            filesystem=file_system,
-        )
+        kind = TargetTypes.parquet
+        path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
+        path = path.format(name=name, kind=kind, project="system-test-project")
+        dataset = pq.ParquetDataset(path, filesystem=file_system,)
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 
         if key_bucketing_number is None:

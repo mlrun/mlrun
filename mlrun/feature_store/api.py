@@ -17,8 +17,11 @@ import pandas as pd
 
 import mlrun
 
+from ..api.api.utils import log_and_raise
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import get_default_targets, get_target_driver
+from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
@@ -167,7 +170,8 @@ def ingest(
         targets = [CSVTarget("mycsv", path="./mycsv.csv")]
         ingest(measurements, source, targets)
 
-    :param featureset:    feature set object or uri
+    :param featureset:    feature set object or featureset.uri. (uri must be of a feature set that is in the DB,
+                          call `.save()` if it's not)
     :param source:        source dataframe or file path
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
@@ -181,7 +185,18 @@ def ingest(
     """
     if featureset:
         if isinstance(featureset, str):
-            featureset = get_feature_set_by_uri(featureset)
+            # need to strip store prefix from the uri
+            _, stripped_name = parse_store_uri(featureset)
+            try:
+                featureset = get_feature_set_by_uri(stripped_name)
+            except RunDBError as exc:
+                # TODO: this handling is needed because the generic httpdb error handling doesn't raise the correct
+                #  error class and doesn't propagate the correct message, until it solved we're manually handling this
+                #  case to give better user experience, remove this when the error handling is fixed.
+                log_and_raise(
+                    reason=f"{exc}. Make sure the feature set is saved in DB (call feature_set.save())"
+                )
+
         # feature-set spec always has a source property that is not None. It may be default-constructed, in which
         # case the path will be 'None'. That's why we need a special check
         if source is None and featureset.has_valid_source():

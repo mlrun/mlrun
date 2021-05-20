@@ -149,7 +149,7 @@ class FeatureSetSpec(ModelObj):
     @graph.setter
     def graph(self, graph):
         self._graph = self._verify_dict(graph, "graph", RootFlowState)
-        self._graph.engine = "async"
+        self._graph.engine = "sync" if self.engine and self.engine in ["pandas", "spark"] else None
 
     @property
     def function(self) -> FunctionReference:

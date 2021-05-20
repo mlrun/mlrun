@@ -63,7 +63,7 @@ class LocalFeatureMerger:
                 df_module=df_module,
                 start_time=start_time,
                 end_time=end_time,
-                filter_column=entity_timestamp_column,
+                time_column=entity_timestamp_column,
             )
             # rename columns with aliases
             df.rename(

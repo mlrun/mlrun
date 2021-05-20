@@ -446,7 +446,7 @@ class FeatureSet(ModelObj):
         target_name=None,
         start_time=None,
         end_time=None,
-        filter_column=None,
+        time_column=None,
     ):
         """return featureset (offline) data as dataframe"""
         entities = list(self.spec.entities.keys())
@@ -465,7 +465,7 @@ class FeatureSet(ModelObj):
             entities=entities,
             start_time=start_time,
             end_time=end_time,
-            filter_column=filter_column,
+            time_column=time_column,
         )
 
     def save(self, tag="", versioned=False):

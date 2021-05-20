@@ -396,7 +396,7 @@ class BaseStoreTarget(DataTargetBase):
         entities=None,
         start_time=None,
         end_time=None,
-        filter_column=None,
+        time_column=None,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
@@ -404,7 +404,7 @@ class BaseStoreTarget(DataTargetBase):
             df_module=df_module,
             start_time=start_time,
             end_time=end_time,
-            filter_column=filter_column,
+            time_column=time_column,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -528,7 +528,7 @@ class ParquetTarget(BaseStoreTarget):
         entities=None,
         start_time=None,
         end_time=None,
-        filter_column=None,
+        time_column=None,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
@@ -537,7 +537,7 @@ class ParquetTarget(BaseStoreTarget):
             format="parquet",
             start_time=start_time,
             end_time=end_time,
-            filter_column=filter_column,
+            time_column=time_column,
         )
 
 

@@ -131,7 +131,7 @@ class DataStore:
         format="",
         start_time=None,
         end_time=None,
-        filter_column=None,
+        time_column=None,
         **kwargs,
     ):
         df_module = df_module or pd
@@ -145,12 +145,13 @@ class DataStore:
 
             def reader(*args, **kwargs):
                 if start_time or end_time:
-                    if sys.version_info >= (3, 7):
-                        from storey.utils import find_filters
-                    else:
+                    if sys.version_info < (3, 7):
                         raise ValueError(
                             f"feature not supported for python version {sys.version_info}"
                         )
+
+                    from storey.utils import find_filters
+
                     dataset = pq.ParquetDataset(args[0], filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names
@@ -173,7 +174,7 @@ class DataStore:
                         start_time,
                         end_time,
                         filters,
-                        filter_column,
+                        time_column,
                     )
                     kwargs["filters"] = filters
 

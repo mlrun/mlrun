@@ -4,7 +4,9 @@ import string
 import uuid
 from datetime import datetime
 
+import fsspec
 import pandas as pd
+import pyarrow.parquet as pq
 import pytest
 from storey import EmitAfterMaxEvent, MapClass
 
@@ -293,6 +295,73 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
+
+    @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
+    @pytest.mark.parametrize("partition_cols", [None, ["department"]])
+    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
+    def test_ingest_partitioned_by_key_and_time(
+        self, key_bucketing_number, partition_cols, time_partitioning_granularity
+    ):
+        key = "patient_id"
+        name = f"measurements_{uuid.uuid4()}"
+        measurements = fs.FeatureSet(name, entities=[Entity(key)])
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+        measurements.set_targets(
+            targets=[
+                ParquetTarget(
+                    partitioned=True,
+                    key_bucketing_number=key_bucketing_number,
+                    partition_cols=partition_cols,
+                    time_partitioning_granularity=time_partitioning_granularity,
+                )
+            ],
+            with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source)
+
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp = fs.get_offline_features(vector)
+        resp2 = resp.to_dataframe()
+
+        assert resp1.to_dict() == resp2.to_dict()
+
+        file_system = fsspec.filesystem("v3io")
+        dataset = pq.ParquetDataset(
+            f"v3io:///projects/system-test-project/fs/parquet/sets/{name}-latest",
+            filesystem=file_system,
+        )
+        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+
+        if key_bucketing_number is None:
+            expected_partitions = []
+        elif key_bucketing_number == 0:
+            expected_partitions = ["igzpart_key"]
+        else:
+            expected_partitions = [f"igzpart_hash{key_bucketing_number}_key"]
+        expected_partitions += partition_cols or []
+        if all(
+            value is None
+            for value in [
+                key_bucketing_number,
+                partition_cols,
+                time_partitioning_granularity,
+            ]
+        ):
+            time_partitioning_granularity = "hour"
+        if time_partitioning_granularity:
+            for unit in ["year", "month", "day", "hour"]:
+                expected_partitions.append(f"igzpart_{unit}")
+                if unit == time_partitioning_granularity:
+                    break
+
+        assert partitions == expected_partitions
 
     def test_ordered_pandas_asof_merge(self):
         left_set, left = prepare_feature_set(

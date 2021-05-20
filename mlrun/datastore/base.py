@@ -130,7 +130,12 @@ class DataStore:
         elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns
-            reader = df_module.read_parquet
+
+            def reader(*args, **kwargs):
+                df_from_pq = df_module.read_parquet(*args, **kwargs)
+                _drop_reserved_columns(df_from_pq)
+                return df_from_pq
+
         elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
 
@@ -139,7 +144,15 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            return reader(fs.open(url), **kwargs)
+            if fs.isdir(url):
+                storage_options = self.get_storage_options()
+                if storage_options:
+                    kwargs["storage_options"] = storage_options
+                return reader(url, **kwargs)
+            else:
+                # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
+                # support the storage_options parameter.
+                return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()
         self.download(self._join(subpath), tmp)
@@ -154,6 +167,14 @@ class DataStore:
             "secret_pfx": self.secret_pfx,
             "options": self.options,
         }
+
+
+def _drop_reserved_columns(df):
+    cols_to_drop = []
+    for col in df.columns:
+        if col.startswith("igzpart_"):
+            cols_to_drop.append(col)
+    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
 
 
 class DataItem:

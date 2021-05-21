@@ -16,9 +16,10 @@ jobs:
 
     - name: Delete previous unstable release
       if: github.event_name == 'push'
-      uses: dev-drprasad/delete-tag-and-release@v0.1.3
+      uses: iguazio/actions/delete-tag-and-release@main
       with:
         delete_release: true
+        delete_draft_release: true
         tag_name: unstable
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

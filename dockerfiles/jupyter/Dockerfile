@@ -1,12 +1,14 @@
 FROM jupyter/scipy-notebook:python-3.8.8
 
-ENV PIP_NO_CACHE_DIR=1
-
-RUN python -m pip install --upgrade pip~=20.2.0
-
+USER root
 RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
  && rm -rf /var/lib/apt/lists/*
+USER $NB_UID
+
+ENV PIP_NO_CACHE_DIR=1
+
+RUN python -m pip install --upgrade pip~=20.2.0
 
 WORKDIR $HOME
 

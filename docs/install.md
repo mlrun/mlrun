@@ -135,19 +135,22 @@ Your applications are now available in your local browser:
 - Nuclio - http://localhost:30050
 - MLRun UI - http://locahost:30060
 - MLRun API (external) - http://locahost:30070
+
+
 > **Note:**
+>
 > The above links assume your Kubernetes cluster is exposed on localhost.
 > If that's not the case, the different components will be available on the provided `externalHostAddress`
-
+> - You can change the ports by providing values to the helm install command.
+> - You can add and configure a k8s ingress-controller for better security and control over external access.
 
 ### Start Working
 
 Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 
-> **Note:**
+> **Important:**
 >
-> - You can change the ports by providing values to the helm install command.
-> - You can add and configure a k8s ingress-controller for better security and control over external access.
+> Make sure to save your changes in the `data` folder within the Jupyter Lab. The root folder and any other folder will not retain the changes when you restart the Jupyter Lab.
 
 ### Configuring Remote Environment
 

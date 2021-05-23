@@ -77,9 +77,9 @@ class TestFeatureStore(TestMLRunSystem):
             FeaturesetValidator()
         )
 
-        quotes_set.add_aggregation("asks1", "ask", ["sum", "max"], ["1h"], "10m")
-        quotes_set.add_aggregation("asks2", "ask", ["sum", "max"], ["5h"], "10m")
-        quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
+        quotes_set.add_aggregation("asks1", "ask", ["sum", "max"], "1h", "10m")
+        quotes_set.add_aggregation("asks2", "ask", ["sum", "max"], "5h", "10m")
+        quotes_set.add_aggregation("bids", "bid", ["min", "max"], "1h", "10m")
 
         df = fs.infer_metadata(
             quotes_set,
@@ -398,7 +398,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            windows=["1h"],
+            window="1h",
             period="10m",
             emit_policy=EmitAfterMaxEvent(1),
         )
@@ -448,7 +448,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            windows=["1h"],
+            window="1h",
             period="10m",
         )
 
@@ -672,7 +672,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_post_aggregation_step(self):
         quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
         agg_step = quotes_set.add_aggregation(
-            "asks", "ask", ["sum", "max"], ["1h"], "10m"
+            "asks", "ask", ["sum", "max"], "1h", "10m"
         )
         agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
 

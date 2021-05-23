@@ -4,13 +4,13 @@ twine~=3.1
 black<=19.10b0
 flake8~=3.8
 pytest-asyncio~=0.14
-# See jupyter-server for why we're limiting it to a specific version
+# See jupyter-server requirement for why we're limiting it to a specific version and the relation to tornado
 # The jupyter-server that we're using (1.0.8) has a bug (https://github.com/jupyter-server/jupyter_server/issues/337)
 # which makes pytest dependent on pytest-tornasync (when jupyter-server is installed) the bug was fixed
 # (https://github.com/jupyter-server/jupyter_server/pull/339) and released in 1.1.0
 # (https://github.com/jupyter-server/jupyter_server/releases/tag/1.1.0) But the change there require tornado upgrade
 # which we can't make currently
-# TODO: when tornado upgrade is possible, do it, upgrade jupyter-server and remove this
+# TODO: when tornado upgrade is possible, upgrade jupyter-server and remove this
 pytest-tornasync~=0.6.0
 deepdiff~=5.0
 pytest-alembic~=0.2

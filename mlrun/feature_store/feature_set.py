@@ -358,7 +358,7 @@ class FeatureSet(ModelObj):
 
         example::
 
-            myset.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
+            myset.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
 
         :param name:       aggregation name/prefix
         :param column:     name of column/field aggregate

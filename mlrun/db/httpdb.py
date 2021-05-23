@@ -18,7 +18,7 @@ import tempfile
 import time
 from datetime import datetime
 from os import path, remove
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import kfp
 import requests
@@ -33,13 +33,7 @@ from mlrun.errors import MLRunInvalidArgumentError
 
 from ..api.schemas import ModelEndpoint
 from ..config import config
-
-# Storey is not compatible with Python 3.6, and is imported inside feature store module
-# So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
-# executed on runtime
-if TYPE_CHECKING:
-    from ..feature_store import FeatureSet, FeatureVector
-
+from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface

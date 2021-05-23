@@ -17,6 +17,7 @@ from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import (
     CSVTarget,
     ParquetTarget,
+    NoSqlTarget,
     TargetTypes,
     get_default_prefix_for_target,
 )
@@ -768,6 +769,17 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set.save()
         fs.ingest(stocks_set.uri, stocks)
 
+    def test_spark_ingestion(self):
+        source_path = 'v3io:///bigdata/spark-ingestion-source.parquet'
+        df = stocks.set_index(['ticker'], inplace=False)
+        df.to_parquet(source_path)
+        source = ParquetSource(path=source_path)
+        parquet_target_path = 'v3io:///bigdata/spark-ingestion--parquet-target.parquet'
+        nosql_target_path = 'v3io:///bigdata/spark-ingestion-nosql-target.parquet'
+        targets = [ParquetTarget(path=parquet_target_path), NoSqlTarget(path=nosql_target_path)]
+        fset = fs.FeatureSet("spark-ingest-stocks", entities=[fs.Entity("ticker")], engine="spark")
+        config = fs.RunConfig(local=True).apply(mlrun.platforms.auto_mount())
+        fs.ingest(fset, source, targets, run_config=config, spark_context="spark-xpmfnx5dcx-5q27n")
 
 def verify_target_list_fail(targets, with_defaults=None):
     feature_set = fs.FeatureSet(name="target-list-fail", entities=[fs.Entity("ticker")])

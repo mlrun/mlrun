@@ -454,6 +454,7 @@ def _ingest_with_spark(
     if spark is None or spark is True:
         # create spark context
         from pyspark.sql import SparkSession
+        print ("UHUH - Creating SparkSession")
 
         if mlrun_context:
             session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
@@ -487,11 +488,14 @@ def _ingest_with_spark(
 
 def _post_ingestion(context, featureset, spark=None):
     featureset.save()
+    print("UHUH - _post_ingestion")
     if context:
+        print("UHUH - _post_ingestion with context")
         context.logger.info("ingestion task completed, targets:")
         context.logger.info(f"{featureset.status.targets.to_dict()}")
         context.log_result("featureset", featureset.uri)
         if spark:
+            print("UHUH - Stopping SparkSession")
             spark.stop()
 
 

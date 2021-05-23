@@ -16,7 +16,7 @@ COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_stat
 COPY --chown=$NB_UID:$NB_GID ./examples $HOME/examples/
 
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch release/v0.6.x-latest https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch hackathon https://github.com/mlrun/demos.git $HOME/demos
 RUN git clone https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data

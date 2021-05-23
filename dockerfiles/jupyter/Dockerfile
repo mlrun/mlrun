@@ -4,6 +4,10 @@ ENV PIP_NO_CACHE_DIR=1
 
 RUN python -m pip install --upgrade pip~=20.2.0
 
+RUN apt-get update && apt-get install --no-install-recommends -y \
+  graphviz \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./README.md $HOME

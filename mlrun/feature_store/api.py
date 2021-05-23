@@ -17,8 +17,8 @@ from typing import List, Optional, Union
 import pandas as pd
 
 import mlrun
+import mlrun.errors
 
-from ..api.api.utils import log_and_raise
 from ..data_types import InferOptions, get_infer_interface
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import get_default_targets, get_target_driver
@@ -210,8 +210,8 @@ def ingest(
                 # TODO: this handling is needed because the generic httpdb error handling doesn't raise the correct
                 #  error class and doesn't propagate the correct message, until it solved we're manually handling this
                 #  case to give better user experience, remove this when the error handling is fixed.
-                log_and_raise(
-                    reason=f"{exc}. Make sure the feature set is saved in DB (call feature_set.save())"
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{exc}. Make sure the feature set is saved in DB (call feature_set.save())"
                 )
 
         # feature-set spec always has a source property that is not None. It may be default-constructed, in which

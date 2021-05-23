@@ -11,10 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
-from storey import EmitPolicy
+
+# Storey is not compatible with Python 3.6. We have to import this module in httpdb.
+# So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
+# executed in runtime
+if TYPE_CHECKING:
+    from storey import EmitPolicy
 
 import mlrun
 
@@ -354,7 +359,7 @@ class FeatureSet(ModelObj):
         state_name=None,
         after=None,
         before=None,
-        emit_policy: Optional[EmitPolicy] = None,
+        emit_policy: Optional["EmitPolicy"] = None,
     ):
         """add feature aggregation rule
 

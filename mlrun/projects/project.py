@@ -531,7 +531,7 @@ class MlrunProject(ModelObj):
             "This is a property of the metadata, use project.metadata.name instead"
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.metadata.name
 

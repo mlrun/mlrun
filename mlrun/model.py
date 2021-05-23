@@ -19,7 +19,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
@@ -979,7 +979,17 @@ class DataSource(ModelObj):
 class DataTargetBase(ModelObj):
     """data target spec, specify a destination for the feature set data"""
 
-    _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
+    _dict_fields = [
+        "name",
+        "kind",
+        "path",
+        "after_state",
+        "attributes",
+        "partitioned",
+        "key_bucketing_number",
+        "partition_cols",
+        "time_partitioning_granularity",
+    ]
 
     def __init__(
         self,
@@ -988,12 +998,20 @@ class DataTargetBase(ModelObj):
         path=None,
         attributes: Dict[str, str] = None,
         after_state=None,
+        partitioned: bool = False,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
     ):
         self.name = name
         self.kind: str = kind
         self.path = path
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.partitioned = partitioned
+        self.key_bucketing_number = key_bucketing_number
+        self.partition_cols = partition_cols
+        self.time_partitioning_granularity = time_partitioning_granularity
 
 
 class FeatureSetProducer(ModelObj):
@@ -1017,7 +1035,6 @@ class DataTarget(DataTargetBase):
         "start_time",
         "online",
         "status",
-        "is_dir",
         "updated",
         "size",
     ]
@@ -1032,7 +1049,6 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
-        self.is_dir = None
         self._producer = None
         self.producer = {}
 

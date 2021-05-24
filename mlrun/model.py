@@ -290,6 +290,7 @@ class ImageBuilder(ModelObj):
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
+        self.codeEntryAttributes = ""  #: codeEntryAttributes
         self.source = source  #: source
         self.code_origin = code_origin  #: code_origin
         self.image = image  #: image

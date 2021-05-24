@@ -379,7 +379,8 @@ class FeatureSet(ModelObj):
                             the Nth event). The default behaviour is emitting every event
         """
         if not isinstance(window, str):
-            raise mlrun.errors.MLRunInvalidArgumentError("Only single window is supported. For additional windows create another aggregation")
+            raise mlrun.errors.MLRunInvalidArgumentError("Only single window is supported. For additional windows "
+                                                         "create another aggregation")
         aggregation = FeatureAggregation(
             name, column, operations, [window], period
         ).to_dict()

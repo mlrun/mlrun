@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import time
 from typing import List, Optional, Union
 
 import pandas as pd
@@ -497,6 +497,7 @@ def _post_ingestion(context, featureset, spark=None):
         if spark:
             print("UHUH - Stopping SparkSession")
             spark.stop()
+            time.sleep(5)
 
 
 def infer_from_static_df(

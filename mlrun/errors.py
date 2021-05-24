@@ -101,8 +101,16 @@ class MLRunInternalServerError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
+class MLRunRuntimeError(MLRunHTTPStatusError, RuntimeError):
+    error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
+
+
 class MLRunMissingDependencyError(MLRunInternalServerError):
     pass
+
+
+class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
+    error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
 
 
 STATUS_ERRORS = {

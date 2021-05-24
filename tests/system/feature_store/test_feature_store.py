@@ -1,17 +1,25 @@
 import os
 import random
 import string
+import uuid
 from datetime import datetime
 
+import fsspec
 import pandas as pd
+import pyarrow.parquet as pq
 import pytest
-from storey import MapClass
+from storey import EmitAfterMaxEvent, MapClass
 
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource, ParquetSource
-from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
+from mlrun.datastore.targets import (
+    CSVTarget,
+    ParquetTarget,
+    TargetTypes,
+    get_default_prefix_for_target,
+)
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.steps import FeaturesetValidator
@@ -127,6 +135,8 @@ class TestFeatureStore(TestMLRunSystem):
         # test real-time query
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
+        # check non existing column
+        resp = svc.get([{"bb": "AAPL"}])
 
         resp = svc.get([{"ticker": "a"}])
         assert resp[0] is None
@@ -161,7 +171,7 @@ class TestFeatureStore(TestMLRunSystem):
         )  # (*) returns 2 features, label adds 1 feature
         self._get_offline_vector(features, features_size)
 
-        self._logger.debug("Get offline feature vector")
+        self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
 
     def test_feature_set_db(self):
@@ -291,6 +301,82 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
 
+    @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
+    @pytest.mark.parametrize("partition_cols", [None, ["department"]])
+    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
+    def test_ingest_partitioned_by_key_and_time(
+        self, key_bucketing_number, partition_cols, time_partitioning_granularity
+    ):
+        key = "patient_id"
+        name = f"measurements_{uuid.uuid4()}"
+        measurements = fs.FeatureSet(name, entities=[Entity(key)])
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+        measurements.set_targets(
+            targets=[
+                ParquetTarget(
+                    partitioned=True,
+                    key_bucketing_number=key_bucketing_number,
+                    partition_cols=partition_cols,
+                    time_partitioning_granularity=time_partitioning_granularity,
+                )
+            ],
+            with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source)
+
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp = fs.get_offline_features(vector)
+        resp2 = resp.to_dataframe()
+
+        assert resp1.to_dict() == resp2.to_dict()
+
+        file_system = fsspec.filesystem("v3io")
+        kind = TargetTypes.parquet
+        path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
+        path = path.format(name=name, kind=kind, project="system-test-project")
+        dataset = pq.ParquetDataset(path, filesystem=file_system,)
+        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+
+        if key_bucketing_number is None:
+            expected_partitions = []
+        elif key_bucketing_number == 0:
+            expected_partitions = ["igzpart_key"]
+        else:
+            expected_partitions = [f"igzpart_hash{key_bucketing_number}_key"]
+        expected_partitions += partition_cols or []
+        if all(
+            value is None
+            for value in [
+                key_bucketing_number,
+                partition_cols,
+                time_partitioning_granularity,
+            ]
+        ):
+            time_partitioning_granularity = "hour"
+        if time_partitioning_granularity:
+            for unit in ["year", "month", "day", "hour"]:
+                expected_partitions.append(f"igzpart_{unit}")
+                if unit == time_partitioning_granularity:
+                    break
+
+        assert partitions == expected_partitions
+
+        resp = fs.get_offline_features(
+            vector,
+            start_time=datetime(2020, 12, 1, 17, 33, 15),
+            end_time=datetime(2020, 12, 1, 17, 33, 16),
+            entity_timestamp_column="timestamp",
+        )
+        resp2 = resp.to_dataframe()
+        assert len(resp2) == 10
+
     def test_ordered_pandas_asof_merge(self):
         left_set, left = prepare_feature_set(
             "left", "ticker", trades, timestamp_key="time"
@@ -396,6 +482,7 @@ class TestFeatureStore(TestMLRunSystem):
             operations=["sum", "max"],
             windows=["1h"],
             period="10m",
+            emit_policy=EmitAfterMaxEvent(1),
         )
         fs.infer_metadata(
             data_set,
@@ -420,6 +507,43 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
         print(resp[0])
 
+        svc.close()
+
+    def test_unaggregated_columns(self):
+        test_base_time = datetime(2020, 12, 1, 17, 33, 15)
+
+        data = pd.DataFrame(
+            {
+                "time": [test_base_time, test_base_time - pd.Timedelta(minutes=1)],
+                "first_name": ["moshe", "yosi"],
+                "last_name": ["cohen", "levi"],
+                "bid": [2000, 10],
+            }
+        )
+
+        name = f"measurements_{uuid.uuid4()}"
+
+        # write to kv
+        data_set = fs.FeatureSet(name, entities=[Entity("first_name")])
+
+        data_set.add_aggregation(
+            name="bids",
+            column="bid",
+            operations=["sum", "max"],
+            windows=["1h"],
+            period="10m",
+        )
+
+        fs.ingest(data_set, data, return_df=True)
+
+        features = [f"{name}.bids_sum_1h", f"{name}.last_name"]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"first_name": "moshe"}])
+        expected = {"bids_sum_1h": 2000.0, "last_name": "cohen"}
+        assert resp[0] == expected
         svc.close()
 
     _split_graph_expected_default = pd.DataFrame(
@@ -511,6 +635,23 @@ class TestFeatureStore(TestMLRunSystem):
             self._split_graph_expected_side.sort_index(axis=1)
             == side_file_out.sort_index(axis=1).round(2)
         )
+
+    def test_none_value(self):
+        data = pd.DataFrame(
+            {"first_name": ["moshe", "yossi"], "bid": [2000, 10], "bool": [True, None]}
+        )
+
+        # write to kv
+        data_set = fs.FeatureSet("tests2", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, return_df=True)
+        features = ["tests2.*"]
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"first_name": "yossi"}])
+        assert resp[0] == {"bid": 10, "bool": None}
+
+        svc.close()
 
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
@@ -621,6 +762,11 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(quotes_set.graph.states) == 2
         assert quotes_set.graph.states[aggregates_step].after is None
         assert quotes_set.graph.states["somemap1"].after == [aggregates_step]
+
+    def test_featureset_uri(self):
+        stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
+        stocks_set.save()
+        fs.ingest(stocks_set.uri, stocks)
 
 
 def verify_target_list_fail(targets, with_defaults=None):

@@ -6,7 +6,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors

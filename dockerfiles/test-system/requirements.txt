@@ -1,3 +1,5 @@
 pytest~=5.4
+# See reasoning in dev-requirements.txt
+pytest-tornasync~=0.6.0
 matplotlib~=3.0
 graphviz~=0.16.0

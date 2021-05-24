@@ -11,9 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
+
+# Storey is not compatible with Python 3.6. We have to import this module in httpdb.
+# So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
+# executed in runtime
+if TYPE_CHECKING:
+    from storey import EmitPolicy
 
 import mlrun
 
@@ -148,7 +154,9 @@ class FeatureSetSpec(ModelObj):
     @graph.setter
     def graph(self, graph):
         self._graph = self._verify_dict(graph, "graph", RootFlowState)
-        self._graph.engine = "async"
+        self._graph.engine = (
+            "sync" if self.engine and self.engine in ["pandas", "spark"] else None
+        )
 
     @property
     def function(self) -> FunctionReference:
@@ -351,6 +359,7 @@ class FeatureSet(ModelObj):
         state_name=None,
         after=None,
         before=None,
+        emit_policy: Optional["EmitPolicy"] = None,
     ):
         """add feature aggregation rule
 
@@ -366,6 +375,8 @@ class FeatureSet(ModelObj):
         :param state_name: optional, graph state name
         :param after:      optional, after which graph state it runs
         :param before:     optional, comes before graph state
+        :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
+                            the Nth event). The default behaviour is emitting every event
         """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -384,7 +395,12 @@ class FeatureSet(ModelObj):
             aggregations = state.class_args.get("aggregates", [])
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
+            if emit_policy:
+                state.class_args["emit_policy"] = emit_policy
         else:
+            class_args = {}
+            if emit_policy:
+                class_args["emit_policy"] = emit_policy
             state = graph.add_step(
                 name=state_name,
                 after=after or previous_step,
@@ -392,6 +408,7 @@ class FeatureSet(ModelObj):
                 class_name="storey.AggregateByKey",
                 aggregates=[aggregation],
                 table=".",
+                **class_args,
             )
 
         for operation in operations:
@@ -429,7 +446,15 @@ class FeatureSet(ModelObj):
             ]
         return graph.plot(filename, format, targets=targets, **kw)
 
-    def to_dataframe(self, columns=None, df_module=None, target_name=None):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        target_name=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         """return featureset (offline) data as dataframe"""
         entities = list(self.spec.entities.keys())
         if columns:
@@ -441,7 +466,14 @@ class FeatureSet(ModelObj):
             raise mlrun.errors.MLRunNotFoundError(
                 "there are no offline targets for this feature set"
             )
-        return driver.as_df(columns=columns, df_module=df_module, entities=entities)
+        return driver.as_df(
+            columns=columns,
+            df_module=df_module,
+            entities=entities,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+        )
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""

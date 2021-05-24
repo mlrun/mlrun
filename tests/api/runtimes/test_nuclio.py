@@ -236,9 +236,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config()
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
-    def test_load_function_from_remote_source_git(self):
+    def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime("nuclio")
-        fn.from_remote_source(
+        fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
             handler="path/inside/repo#main:handler",
             secrets={"GIT_PASSWORD": "my-access-token"},
@@ -268,9 +268,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def test_load_function_from_remote_source_s3(self):
+    def test_load_function_with_source_archive_s3(self):
         fn = self._generate_runtime("nuclio")
-        fn.from_remote_source(
+        fn.with_source_archive(
             "s3://my-bucket/path/in/bucket/my-functions-archive",
             handler="path/inside/functions/archive#main:Handler",
             runtime="golang",
@@ -306,9 +306,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def test_load_function_from_remote_source_v3io(self):
+    def test_load_function_with_source_archive_v3io(self):
         fn = self._generate_runtime("nuclio")
-        fn.from_remote_source(
+        fn.with_source_archive(
             "v3ios://host.com/container/my-functions-archive.zip",
             handler="path/inside/functions/archive#main:handler",
             secrets={"V3IO_ACCESS_KEY": "ma-access-key"},

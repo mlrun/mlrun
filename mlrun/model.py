@@ -14,16 +14,17 @@
 
 import inspect
 import re
+import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
 from .config import config
-from .utils import dict_to_json, dict_to_yaml, get_artifact_target, get_in
+from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
 
 class ModelObj:
@@ -285,6 +286,7 @@ class ImageBuilder(ModelObj):
         secret=None,
         code_origin=None,
         registry=None,
+        load_source_on_run=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -297,6 +299,7 @@ class ImageBuilder(ModelObj):
         self.extra = extra  #: extra
         self.secret = secret  #: secret
         self.registry = registry  #: registry
+        self.load_source_on_run = load_source_on_run  #: load_source_on_run
         self.build_pod = None
 
 
@@ -724,6 +727,11 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
+        self.refresh()
+        return self.status.state or "unknown"
+
+    def refresh(self):
+        """refresh run state from the db"""
         db = mlrun.get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
@@ -731,7 +739,8 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            return get_in(run, "status.state", "unknown")
+            self.status.from_dict(run.get("status", {}))
+            return self
 
     def show(self):
         """show the current status widget, in jupyter notebook"""
@@ -755,6 +764,21 @@ class RunObject(RunTemplate):
 
         if state:
             print(f"final state: {state}")
+        return state
+
+    def wait_for_completion(self, sleep=3, timeout=0):
+        """wait for async run to complete"""
+        total_time = 0
+        while True:
+            state = self.state()
+            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                break
+            time.sleep(sleep)
+            total_time += sleep
+            if timeout and total_time > timeout:
+                raise mlrun.errors.MLRunTimeoutError(
+                    "Run did not reach terminal state on time"
+                )
         return state
 
     @staticmethod
@@ -956,7 +980,17 @@ class DataSource(ModelObj):
 class DataTargetBase(ModelObj):
     """data target spec, specify a destination for the feature set data"""
 
-    _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
+    _dict_fields = [
+        "name",
+        "kind",
+        "path",
+        "after_state",
+        "attributes",
+        "partitioned",
+        "key_bucketing_number",
+        "partition_cols",
+        "time_partitioning_granularity",
+    ]
 
     def __init__(
         self,
@@ -965,12 +999,20 @@ class DataTargetBase(ModelObj):
         path=None,
         attributes: Dict[str, str] = None,
         after_state=None,
+        partitioned: bool = False,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
     ):
         self.name = name
         self.kind: str = kind
         self.path = path
         self.after_state = after_state
         self.attributes = attributes or {}
+        self.partitioned = partitioned
+        self.key_bucketing_number = key_bucketing_number
+        self.partition_cols = partition_cols
+        self.time_partitioning_granularity = time_partitioning_granularity
 
 
 class FeatureSetProducer(ModelObj):
@@ -994,7 +1036,6 @@ class DataTarget(DataTargetBase):
         "start_time",
         "online",
         "status",
-        "is_dir",
         "updated",
         "size",
     ]
@@ -1009,7 +1050,6 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
-        self.is_dir = None
         self._producer = None
         self.producer = {}
 

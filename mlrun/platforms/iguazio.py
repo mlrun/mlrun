@@ -17,9 +17,11 @@ import warnings
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
+from urllib.parse import urlparse
 
 import requests
 import urllib3
+import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
@@ -369,8 +371,6 @@ class OutputStream:
         create=True,
         endpoint=None,
     ):
-        import v3io
-
         self._v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         self._container, self._stream_path = split_path(stream_path)
         if create:
@@ -393,6 +393,61 @@ class OutputStream:
         self._v3io_client.put_records(
             container=self._container, path=self._stream_path, records=records
         )
+
+
+class V3ioStreamClient:
+    def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
+        endpoint, stream_path = parse_v3io_path(url)
+        seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
+        seek_to = seek_to or "LATEST"
+        seek_to = seek_to.upper()
+        if seek_to not in seek_options:
+            raise ValueError(f'seek_to must be one of {", ".join(seek_options)}')
+
+        self._url = url
+        self._container, self._stream_path = split_path(stream_path)
+        self._shard_id = shard_id
+        self._seek_to = seek_to
+        self._client = v3io.dataplane.Client(endpoint=endpoint)
+        self._seek_done = False
+        self._location = ""
+        self._kwargs = kwargs
+
+    @property
+    def url(self):
+        return self._url
+
+    @property
+    def shard_id(self):
+        return self._shard_id
+
+    def seek(self):
+        response = self._client.stream.seek(
+            self._container,
+            self._stream_path,
+            self._shard_id,
+            self._seek_to,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            **self._kwargs,
+        )
+        if response.status_code == 404 and "ResourceNotFound" in str(response.body):
+            return 0
+        response.raise_for_status()
+        self._location = response.output.location
+        self._seek_done = True
+        return response.status_code
+
+    def get_records(self):
+        if not self._seek_done:
+            resp = self.seek()
+            if resp == 0:
+                return []
+        response = self._client.stream.get_records(
+            self._container, self._stream_path, self._shard_id, self._location
+        )
+        response.raise_for_status()
+        self._location = response.output.next_location
+        return response.output.records
 
 
 def create_control_session(url, username, password):
@@ -479,3 +534,22 @@ def add_or_refresh_credentials(
     control_session = create_control_session(iguazio_dashboard_url, username, password)
     _cached_control_session = (control_session, now, username, password)
     return username, control_session, ""
+
+
+def parse_v3io_path(url, suffix="/"):
+    """return v3io table path from url"""
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme.lower()
+    if scheme != "v3io" and scheme != "v3ios":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "url must start with v3io://[host]/{container}/{path}, got " + url
+        )
+    endpoint = parsed_url.hostname
+    if endpoint:
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        prefix = "https" if scheme == "v3ios" else "http"
+        endpoint = f"{prefix}://{endpoint}"
+    else:
+        endpoint = None
+    return endpoint, parsed_url.path.strip("/") + suffix

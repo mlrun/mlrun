@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import http
 import os
 import tempfile
 import time
@@ -103,6 +104,8 @@ class HTTPRunDB(RunDBInterface):
         self.token = token
         self.server_version = ""
         self.session = None
+        self._wait_for_project_terminal_state_retry_interval = 3
+        self._wait_for_project_deletion_interval = 3
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -197,7 +200,9 @@ class HTTPRunDB(RunDBInterface):
             mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
             db = get_run_db().connect()
         """
-
+        # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
+        if "mock-server" in self.base_url:
+            return
         resp = self.api_call("GET", "healthz", timeout=5)
         try:
             server_cfg = resp.json()
@@ -1703,7 +1708,9 @@ class HTTPRunDB(RunDBInterface):
             deletion_strategy = deletion_strategy.value
         headers = {schemas.HeaderNames.deletion_strategy: deletion_strategy}
         error_message = f"Failed deleting project {name}"
-        self.api_call("DELETE", path, error_message, headers=headers)
+        response = self.api_call("DELETE", path, error_message, headers=headers)
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            return self._wait_for_project_to_be_deleted(name)
 
     def store_project(
         self,
@@ -1721,6 +1728,8 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "PUT", path, error_message, body=dict_to_json(project),
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            return self._wait_for_project_to_reach_terminal_state(name)
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(
@@ -1757,11 +1766,50 @@ class HTTPRunDB(RunDBInterface):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
-        error_message = f"Failed creating project {project['metadata']['name']}"
+        project_name = project["metadata"]["name"]
+        error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST", "projects", error_message, body=dict_to_json(project),
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            return self._wait_for_project_to_reach_terminal_state(project_name)
         return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def _wait_for_project_to_reach_terminal_state(
+        self, project_name: str
+    ) -> mlrun.projects.MlrunProject:
+        def _verify_project_in_terminal_state():
+            project = self.get_project(project_name)
+            if (
+                project.status.state
+                not in mlrun.api.schemas.ProjectState.terminal_states()
+            ):
+                raise Exception(
+                    f"Project not in terminal state. State: {project.status.state}"
+                )
+            return project
+
+        return mlrun.utils.helpers.retry_until_successful(
+            self._wait_for_project_terminal_state_retry_interval,
+            120,
+            logger,
+            False,
+            _verify_project_in_terminal_state,
+        )
+
+    def _wait_for_project_to_be_deleted(self, project_name: str):
+        def _verify_project_deleted():
+            projects = self.list_projects(format_=mlrun.api.schemas.Format.name_only)
+            if project_name in projects:
+                raise Exception("Project still exists")
+
+        return mlrun.utils.helpers.retry_until_successful(
+            self._wait_for_project_deletion_interval,
+            120,
+            logger,
+            False,
+            _verify_project_deleted,
+        )
 
     def create_project_secrets(
         self,

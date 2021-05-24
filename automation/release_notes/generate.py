@@ -76,7 +76,7 @@ class ReleaseNotesGenerator:
             f"""
 ### Features / Enhancements
 {highlight_notes}
-* **UI**: [Features & enhancment](https://github.com/mlrun/ui/releases/tag/{self._release}#features-and-enhancements)
+* **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{self._release}#features-and-enhancements)
 
 ### Bug fixes
 * **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{self._release}#bug-fixes)

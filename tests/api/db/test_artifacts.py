@@ -45,7 +45,7 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_2
 
-    artifacts = db.list_artifacts(db_session, name="artifact_name")
+    artifacts = db.list_artifacts(db_session, name="~artifact_name")
     assert len(artifacts) == 2
 
 
@@ -297,6 +297,59 @@ def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     db.del_artifacts(db_session, tag=artifact_2_uid)
     artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
     assert len(artifacts) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
+    artifact_1_key = "pre_artifact_key_suffix"
+    artifact_2_key = "pre-artifact-key-suffix"
+    artifact_1_uid = "artifact_uid_1"
+    artifact_2_uid = "artifact_uid_2"
+    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
+    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
+
+    # Store each twice - once with no iter, and once with an iter
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_1_uid,
+    )
+    artifact_1_body["iter"] = 42
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_1_uid, iter=42,
+    )
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_2_uid,
+    )
+    artifact_2_body["iter"] = 42
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_2_uid, iter=42,
+    )
+
+    def _list_and_assert_count(key, count, iter=None):
+        results = db.list_artifacts(db_session, name=key, iter=iter)
+        assert len(results) == count
+        return results
+
+    # Ensure fuzzy query works, and we have everything we need
+    _list_and_assert_count("~key", count=4)
+
+    # Do an exact match with underscores in the name - must escape the _ do it doesn't do a like query
+    list_results = _list_and_assert_count(artifact_1_key, count=2)
+    for artifact in list_results:
+        assert artifact["metadata"]["name"] == artifact_1_key
+
+    _list_and_assert_count("%key%", count=0)
+    # Verify we don't get artifacts whose name is "%-suffix" due to the like query used in the DB
+    _list_and_assert_count("suffix", count=0)
+    # This should also be filtered, since the prefix is "pre" which is 3 chars. There's a known caveat if
+    # prefix is 1 or 2 chars long.
+    _list_and_assert_count("artifact-key-suffix", count=0)
+
+    _list_and_assert_count(artifact_1_key, iter=42, count=1)
+    _list_and_assert_count("~key", iter=42, count=2)
+    _list_and_assert_count("~key", iter=666, count=0)
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

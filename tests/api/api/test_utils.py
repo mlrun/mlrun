@@ -62,6 +62,81 @@ def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
                 },
                 "image_pull_policy": "Always",
                 "replicas": "3",
+                "node_name": "k8s-node1",
+                "node_selector": {"kubernetes.io/hostname": "k8s-node1"},
+                "affinity": {
+                    "nodeAffinity": {
+                        "preferredDuringSchedulingIgnoredDuringExecution": [
+                            {
+                                "preference": {
+                                    "matchExpressions": [
+                                        {
+                                            "key": "some_node_label",
+                                            "operator": "In",
+                                            "values": [
+                                                "possible-label-value-1",
+                                                "possible-label-value-2",
+                                            ],
+                                        }
+                                    ]
+                                },
+                                "weight": 1,
+                            }
+                        ],
+                        "requiredDuringSchedulingIgnoredDuringExecution": {
+                            "nodeSelectorTerms": [
+                                {
+                                    "matchExpressions": [
+                                        {
+                                            "key": "some_node_label",
+                                            "operator": "In",
+                                            "values": [
+                                                "required-label-value-1",
+                                                "required-label-value-2",
+                                            ],
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    },
+                    "podAffinity": {
+                        "requiredDuringSchedulingIgnoredDuringExecution": [
+                            {
+                                "labelSelector": {
+                                    "matchLabels": {
+                                        "some-pod-label-key": "some-pod-label-value"
+                                    }
+                                },
+                                "namespaces": ["namespace-a", "namespace-b"],
+                                "topologyKey": "key-1",
+                            }
+                        ]
+                    },
+                    "podAntiAffinity": {
+                        "preferredDuringSchedulingIgnoredDuringExecution": [
+                            {
+                                "podAffinityTerm": {
+                                    "labelSelector": {
+                                        "matchExpressions": [
+                                            {
+                                                "key": "some_pod_label",
+                                                "operator": "NotIn",
+                                                "values": [
+                                                    "forbidden-label-value-1",
+                                                    "forbidden-label-value-2",
+                                                ],
+                                            }
+                                        ]
+                                    },
+                                    "namespaces": ["namespace-c"],
+                                    "topologyKey": "key-2",
+                                },
+                                "weight": 1,
+                            }
+                        ]
+                    },
+                },
             }
         },
     }
@@ -90,6 +165,26 @@ def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
         parsed_function_object, submit_job_body, original_function
     )
     _assert_env_vars(parsed_function_object, submit_job_body, original_function)
+    assert (
+        parsed_function_object.spec.node_name
+        == submit_job_body["function"]["spec"]["node_name"]
+    )
+    assert (
+        DeepDiff(
+            parsed_function_object.spec.node_selector,
+            submit_job_body["function"]["spec"]["node_selector"],
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        DeepDiff(
+            parsed_function_object.spec._get_sanitized_affinity(),
+            submit_job_body["function"]["spec"]["affinity"],
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):

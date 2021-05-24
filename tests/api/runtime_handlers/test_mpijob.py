@@ -16,6 +16,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         config.mpijob_crd_version = MPIJobCRDVersions.v1
         self.runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
+        self.runtime_handler.wait_for_deletion_interval = 0
 
         # initializing them here to save space in tests
         self.active_crd_dict = self._generate_mpijob_crd(
@@ -27,6 +28,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self.failed_crd_dict = self._generate_mpijob_crd(
             self.project, self.run_uid, self._get_failed_crd_status(),
         )
+        self.no_status_crd_dict = self._generate_mpijob_crd(self.project, self.run_uid,)
 
         launcher_pod_labels = {
             "group-name": "kubeflow.org",
@@ -81,6 +83,15 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             expected_pods=pods,
         )
 
+    def test_list_resources_with_crds_without_status(self):
+        mocked_responses = self._mock_list_namespaced_crds([[self.no_status_crd_dict]])
+        pods = self._mock_list_resources_pods()
+        self._assert_runtime_handler_list_resources(
+            RuntimeKinds.mpijob,
+            expected_crds=mocked_responses[0]["items"],
+            expected_pods=pods,
+        )
+
     def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
         pods = self._mock_list_resources_pods()
@@ -94,11 +105,18 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_delete_resources_succeeded_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.succeeded_crd_dict],
+            # 2 additional time for wait for pods deletion
+            [self.succeeded_crd_dict],
+            [self.succeeded_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # for the get_logger_pods
             [self.launcher_pod, self.worker_pod],
+            # additional time for wait for pods deletion - simulate pods not removed yet
+            [self.launcher_pod, self.worker_pod],
+            # additional time for wait for pods deletion - simulate pods gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
@@ -164,11 +182,15 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.active_crd_dict],
+            # additional time for wait for pods deletion
+            [self.active_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # for the get_logger_pods
             [self.launcher_pod, self.worker_pod],
+            # additional time for wait for pods deletion - simulate pods gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
@@ -266,8 +288,6 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):
-        if status is None:
-            status = TestMPIjobRuntimeHandler._get_succeeded_crd_status()
         crd_dict = {
             "metadata": {
                 "name": "train-eaf63df8",
@@ -282,8 +302,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                     "mlrun/uid": uid,
                 },
             },
-            "status": status,
         }
+        if status is not None:
+            crd_dict["status"] = status
         return crd_dict
 
     @staticmethod

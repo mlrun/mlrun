@@ -52,6 +52,9 @@ def test_requirement_specifiers_inconsistencies():
         "scipy": ["~=1.0", "==1.4.1", "~=1.0"],
         # It's ok we have 2 different versions cause they are for different python versions
         "pandas": ["~=1.2; python_version >= '3.7'", "~=1.0; python_version < '3.7'"],
+        # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
+        # scenario of requirements without version specifiers
+        "python-dotenv": ["", "~=0.17.0"],
     }
 
     for (

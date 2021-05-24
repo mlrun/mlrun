@@ -465,6 +465,7 @@ def _ingest_with_spark(
 
     df = source.to_spark_df(spark)
     df = run_spark_graph(df, featureset, namespace, spark)
+    print("UHUH - {0}".format(df))
     infer_from_static_df(df, featureset, options=infer_options)
 
     key_column = featureset.spec.entities[0].name

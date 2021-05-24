@@ -480,7 +480,7 @@ def _ingest_with_spark(
         logger.info(f"writing to target {target.name}, spark options {spark_options}")
         df.write.mode("overwrite").save(**spark_options)
         target.set_resource(featureset)
-        target.update_resource_status("ready", is_dir=True)
+        target.update_resource_status("ready")
 
     _post_ingestion(mlrun_context, featureset, spark)
     return df

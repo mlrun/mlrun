@@ -153,6 +153,9 @@ class ParquetSource(BaseSourceDriver):
             "format": "parquet",
         }
 
+    def to_dataframe(self):
+        return mlrun.store_manager.object(url=self.path).as_df(format="parquet")
+
 
 class CustomSource(BaseSourceDriver):
     kind = "custom"

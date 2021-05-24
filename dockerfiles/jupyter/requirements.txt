@@ -5,3 +5,4 @@ seaborn~=0.11.0
 scikit-plot~=0.3.7
 xgboost~=1.1
 graphviz~=0.16.0
+python-dotenv~=0.17.0

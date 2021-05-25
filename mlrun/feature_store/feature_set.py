@@ -354,7 +354,7 @@ class FeatureSet(ModelObj):
         name,
         column,
         operations,
-        windows,
+        window,
         period=None,
         state_name=None,
         after=None,
@@ -365,12 +365,12 @@ class FeatureSet(ModelObj):
 
         example::
 
-            myset.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
+            myset.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
 
         :param name:       aggregation name/prefix
         :param column:     name of column/field aggregate
         :param operations: aggregation operations, e.g. ['sum', 'std']
-        :param windows:    list of time windows, e.g. ['1h', '6h', '1d']
+        :param window:     time window, e.g. '1h', '6h', '1d'
         :param period:     optional, sliding window granularity, e.g. '10m'
         :param state_name: optional, graph state name
         :param after:      optional, after which graph state it runs
@@ -378,8 +378,12 @@ class FeatureSet(ModelObj):
         :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
                             the Nth event). The default behaviour is emitting every event
         """
+        if not isinstance(window, str):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Only single window is supported. For additional windows create another aggregation"
+            )
         aggregation = FeatureAggregation(
-            name, column, operations, windows, period
+            name, column, operations, [window], period
         ).to_dict()
 
         def upsert_feature(name):
@@ -412,8 +416,7 @@ class FeatureSet(ModelObj):
             )
 
         for operation in operations:
-            for window in windows:
-                upsert_feature(f"{name}_{operation}_{window}")
+            upsert_feature(f"{name}_{operation}_{window}")
 
         return state
 

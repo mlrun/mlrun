@@ -251,9 +251,7 @@ class HTTPRunDB(RunDBInterface):
                 if server_cfg.get("scrape_metrics") is not None
                 else config.scrape_metrics
             )
-            config.hub_url = (
-                    server_cfg.get("hub_url") or config.hub_url
-            )
+            config.hub_url = server_cfg.get("hub_url") or config.hub_url
         except Exception:
             pass
         return self

@@ -454,13 +454,13 @@ def _ingest_with_spark(
     if spark is None or spark is True:
         # create spark context
         from pyspark.sql import SparkSession
-        print ("UHUH - Creating SparkSession")
 
         if mlrun_context:
             session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
         else:
             session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
 
+        print ("UHUH - Creating SparkSession ({0})".format(session_name))
         spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)

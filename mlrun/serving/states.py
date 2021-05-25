@@ -789,6 +789,7 @@ class FlowState(BaseState):
             start_states = [self.from_state]
 
         self._start_states = [self[name] for name in start_states]
+        print ("UHUH - Here 2")
 
         def get_first_function_state(state, current_function):
             # find the first state which belongs to the function
@@ -815,6 +816,7 @@ class FlowState(BaseState):
                 raise GraphError(
                     f"did not find states pointing to current function ({current_function})"
                 )
+            print ("UHUH - Here 1")
             self._start_states = new_start_states
 
         if self.engine == "sync" and len(self._start_states) > 1:

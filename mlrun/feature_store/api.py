@@ -466,7 +466,7 @@ def _ingest_with_spark(
     df = source.to_spark_df(spark)
     print("UHUH - X {0} {1}".format(featureset.spec.graph, True if featureset.spec.graph else False ))
     print("UHUH - Y {0} {1}".format(featureset.spec.graph.states, True if featureset.spec.graph.states else False ))
-    if featureset.spec.graph:
+    if featureset.spec.graph and featureset.spec.graph.states:
         df = run_spark_graph(df, featureset, namespace, spark)
     print("UHUH - {0}".format(df))
     infer_from_static_df(df, featureset, options=infer_options)

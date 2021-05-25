@@ -460,7 +460,7 @@ def _ingest_with_spark(
         else:
             session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
 
-        print ("UHUH - Creating SparkSession ({0})".format(session_name))
+        print("UHUH - Creating SparkSession ({0})".format(session_name))
         spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)

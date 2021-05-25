@@ -752,6 +752,7 @@ class FlowState(BaseState):
 
         start_states = []
         for state in self._states.values():
+            print("UHUH - A")
             state._next = None
             if state.after:
                 loop_state = has_loop(state, [])
@@ -761,9 +762,11 @@ class FlowState(BaseState):
                     )
             else:
                 start_states.append(state.name)
+        print("UHUH - start_states 1 {0}".format(start_states))
 
         responders = []
         for state in self._states.values():
+            print("UHUH - B")
             if hasattr(state, "responder") and state.responder:
                 responders.append(state.name)
             if state.on_error and state.on_error in start_states:
@@ -772,8 +775,10 @@ class FlowState(BaseState):
                 prev_state = state.after[0]
                 self[prev_state].set_next(state.name)
         if self.on_error and self.on_error in start_states:
+            print("UHUH - C")
             start_states.remove(self.on_error)
 
+        print("UHUH - start_states 2 {0}".format(start_states))
         if (
             len(responders) > 1
         ):  # should not have multiple steps which respond to request
@@ -782,14 +787,16 @@ class FlowState(BaseState):
             )
 
         if self.from_state:
+            print("UHUH - D")
             if self.from_state not in self.states:
                 raise GraphError(
                     f"from_state ({self.from_state}) specified and not found in graph states"
                 )
             start_states = [self.from_state]
+        print("UHUH - start_states 3 {0}".format(start_states))
 
         self._start_states = [self[name] for name in start_states]
-        print ("UHUH - Here 2")
+        print("UHUH - Here 2 {0}".format(self._start_states))
 
         def get_first_function_state(state, current_function):
             # find the first state which belongs to the function
@@ -816,7 +823,7 @@ class FlowState(BaseState):
                 raise GraphError(
                     f"did not find states pointing to current function ({current_function})"
                 )
-            print ("UHUH - Here 1")
+            print("UHUH - Here 1")
             self._start_states = new_start_states
 
         if self.engine == "sync" and len(self._start_states) > 1:

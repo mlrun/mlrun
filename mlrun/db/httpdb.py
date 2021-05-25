@@ -200,7 +200,9 @@ class HTTPRunDB(RunDBInterface):
             mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
             db = get_run_db().connect()
         """
-
+        # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
+        if "mock-server" in self.base_url:
+            return
         resp = self.api_call("GET", "healthz", timeout=5)
         try:
             server_cfg = resp.json()

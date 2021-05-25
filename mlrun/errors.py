@@ -109,6 +109,10 @@ class MLRunMissingDependencyError(MLRunInternalServerError):
     pass
 
 
+class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
+    error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
+
+
 STATUS_ERRORS = {
     HTTPStatus.BAD_REQUEST.value: MLRunBadRequestError,
     HTTPStatus.UNAUTHORIZED.value: MLRunUnauthorizedError,

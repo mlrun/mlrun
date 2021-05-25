@@ -37,6 +37,7 @@ class KubejobRuntime(KubeResource):
 
     @property
     def is_deployed(self):
+        """check if the function is deployed (have a valid container)"""
         if self.spec.image:
             return True
 
@@ -53,6 +54,20 @@ class KubejobRuntime(KubeResource):
             return True
         return False
 
+    def with_source_archive(self, source, pythonpath=None, pull_at_runtime=True):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:     valid path to git, zip, or tar file, e.g.
+                           git://github.com/mlrun/something.git
+                           http://some/url/file.zip
+        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
+        :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        """
+        self.spec.build.load_source_on_run = pull_at_runtime
+        self.spec.build.source = source
+        if pythonpath:
+            self.spec.pythonpath = pythonpath
+
     def build_config(
         self,
         image="",
@@ -61,7 +76,19 @@ class KubejobRuntime(KubeResource):
         secret=None,
         source=None,
         extra=None,
+        load_source_on_run=None,
     ):
+        """specify builder configuration for the deploy operation
+
+        :param image:      target image name/path
+        :param base_image: base image name/path
+        :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret:     k8s secret for accessing the docker registry
+        :param source:     source git/tar archive to load code from in to the context/workdir
+                           e.g. git://github.com/mlrun/something.git#development
+        :param extra:      extra Dockerfile lines
+        :param load_source_on_run: load the archive code into the container at runtime vs at build time
+        """
         if image:
             self.spec.build.image = image
         if commands:
@@ -77,9 +104,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.base_image = base_image
         if source:
             self.spec.build.source = source
-
-    def build(self, **kw):
-        raise ValueError(".build() is deprecated, use .deploy() instead")
+        if load_source_on_run:
+            self.spec.build.load_source_on_run = load_source_on_run
 
     def deploy(
         self,
@@ -89,7 +115,13 @@ class KubejobRuntime(KubeResource):
         is_kfp=False,
         mlrun_version_specifier=None,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
+
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        """
 
         if skip_deployed and self.is_deployed:
             self.status.state = "ready"

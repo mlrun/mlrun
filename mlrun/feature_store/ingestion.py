@@ -144,9 +144,14 @@ def _add_data_states(
     graph.set_flow_source(source)
 
 
-def run_ingestion_job(name, featureset, run_config, schedule=None):
+def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service=None):
     name = name or f"{featureset.metadata.name}_ingest"
     use_spark = featureset.spec.engine == "spark"
+    if use_spark and not run_config.local and not spark_service:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Remote spark ingestion requires the spark service name to be provided"
+        )
+
     default_kind = RuntimeKinds.remotespark if use_spark else RuntimeKinds.job
     spark_runtimes = [RuntimeKinds.remotespark]  # may support spark operator in future
 
@@ -159,11 +164,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
         run_config.function = function_ref
         run_config.handler = "handler"
 
-    image = (
-        _default_spark_image()
-        if use_spark
-        else mlrun.mlconf.feature_store.default_job_image
-    )
+    image = None if use_spark else mlrun.mlconf.feature_store.default_job_image
     function = run_config.to_function(default_kind, image)
     if use_spark and function.kind not in spark_runtimes:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -173,8 +174,11 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
 
-    if not function.spec.image:
+    if not use_spark and not function.spec.image:
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
+
+    if use_spark and not run_config.local:
+        function.with_spark_service(spark_service=spark_service)
 
     task = mlrun.new_task(
         name=name,
@@ -198,13 +202,6 @@ def run_ingestion_job(name, featureset, run_config, schedule=None):
     if run_config.watch:
         featureset.reload()
     return run
-
-
-def _default_spark_image():
-    image = mlrun.mlconf.spark_app_image
-    if mlrun.mlconf.spark_app_image_tag:
-        image += ":" + mlrun.mlconf.spark_app_image_tag
-    return image
 
 
 _default_job_handler = """

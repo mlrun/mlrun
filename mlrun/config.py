@@ -44,6 +44,7 @@ default_config = {
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
+    "default_nuclio_runtime": "python:3.7",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -163,8 +164,8 @@ default_config = {
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/fs/{kind}",
-            "nosql": "v3io:///projects/{project}/fs/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",

@@ -44,7 +44,7 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     assert len(runs) == 1
     assert runs[0]["metadata"]["name"] == run_name_2
 
-    runs = db.list_runs(db_session, name="run_name")
+    runs = db.list_runs(db_session, name="~RUN_naMe")
     assert len(runs) == 2
 
 

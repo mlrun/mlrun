@@ -26,6 +26,7 @@ def health():
         # (otherwise clients don't know when to use server value and when to use client value)
         "ui_projects_prefix": _get_config_value_if_not_default('ui.projects_prefix'),
         "scrape_metrics": _get_config_value_if_not_default('scrape_metrics'),
+        "hub_url": _get_config_value_if_not_default('hub_url'),
     }
 
 

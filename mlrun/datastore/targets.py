@@ -24,6 +24,7 @@ from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
+from .. import errors
 from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
 
@@ -258,12 +259,20 @@ class BaseStoreTarget(DataTargetBase):
         attributes: typing.Dict[str, str] = None,
         after_state=None,
         columns=None,
+        partitioned: bool = False,
+        key_bucketing_number: typing.Optional[int] = None,
+        partition_cols: typing.Optional[typing.List[str]] = None,
+        time_partitioning_granularity: typing.Optional[str] = None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
         self.after_state = after_state
         self.attributes = attributes or {}
         self.columns = columns or []
+        self.partitioned = partitioned
+        self.key_bucketing_number = key_bucketing_number
+        self.partition_cols = partition_cols
+        self.time_partitioning_granularity = time_partitioning_granularity
 
         self._target = None
         self._resource = None
@@ -324,8 +333,31 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
+
+        driver.partitioned = spec.partitioned
+
+        driver.key_bucketing_number = spec.key_bucketing_number
+        driver.partition_cols = spec.partition_cols
+
+        driver.time_partitioning_granularity = spec.time_partitioning_granularity
+        if spec.kind == "parquet":
+            driver.suffix = (
+                ".parquet"
+                if not spec.partitioned
+                and all(
+                    value is None
+                    for value in [
+                        spec.key_bucketing_number,
+                        spec.partition_cols,
+                        spec.time_partitioning_granularity,
+                    ]
+                )
+                else ""
+            )
+
         driver._resource = resource
         return driver
 
@@ -338,13 +370,12 @@ class BaseStoreTarget(DataTargetBase):
         """return the actual/computed target path"""
         return self.path or _get_target_path(self, self._resource)
 
-    def update_resource_status(self, status="", producer=None, is_dir=None, size=None):
+    def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""
         self._target = self._target or DataTarget(
             self.kind, self.name, self._target_path
         )
         target = self._target
-        target.is_dir = is_dir
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
         target.size = size
@@ -358,10 +389,22 @@ class BaseStoreTarget(DataTargetBase):
         """add storey writer state to graph"""
         raise NotImplementedError()
 
-    def as_df(self, columns=None, df_module=None, entities=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
-            columns=columns, df_module=df_module
+            columns=columns,
+            df_module=df_module,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
@@ -371,10 +414,58 @@ class BaseStoreTarget(DataTargetBase):
 
 class ParquetTarget(BaseStoreTarget):
     kind = TargetTypes.parquet
-    suffix = ".parquet"
     is_offline = True
     support_spark = True
     support_storey = True
+
+    def __init__(
+        self,
+        name: str = "",
+        path=None,
+        attributes: typing.Dict[str, str] = None,
+        after_state=None,
+        columns=None,
+        partitioned: bool = False,
+        key_bucketing_number: typing.Optional[int] = None,
+        partition_cols: typing.Optional[typing.List[str]] = None,
+        time_partitioning_granularity: typing.Optional[str] = None,
+    ):
+        super().__init__(
+            name,
+            path,
+            attributes,
+            after_state,
+            columns,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+        )
+
+        if (
+            time_partitioning_granularity is not None
+            and time_partitioning_granularity not in self._legal_time_units
+        ):
+            raise errors.MLRunInvalidArgumentError(
+                f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
+                f"not {time_partitioning_granularity}."
+            )
+
+        self.suffix = (
+            ".parquet"
+            if not partitioned
+            and all(
+                value is None
+                for value in [
+                    key_bucketing_number,
+                    partition_cols,
+                    time_partitioning_granularity,
+                ]
+            )
+            else ""
+        )
+
+    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, **kwargs):
@@ -388,6 +479,29 @@ class ParquetTarget(BaseStoreTarget):
             features=features, timestamp_key=timestamp_key, key_columns=None
         )
 
+        partition_cols = None
+        if self.key_bucketing_number is not None:
+            partition_cols = [("$key", self.key_bucketing_number)]
+        if self.partition_cols:
+            partition_cols = partition_cols or []
+            partition_cols.extend(self.partition_cols)
+        time_partitioning_granularity = self.time_partitioning_granularity
+        if self.partitioned and all(
+            value is None
+            for value in [
+                time_partitioning_granularity,
+                self.key_bucketing_number,
+                self.partition_cols,
+            ]
+        ):
+            time_partitioning_granularity = "hour"
+        if time_partitioning_granularity is not None:
+            partition_cols = partition_cols or []
+            for time_unit in self._legal_time_units:
+                partition_cols.append(f"${time_unit}")
+                if time_unit == time_partitioning_granularity:
+                    break
+
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
@@ -396,6 +510,7 @@ class ParquetTarget(BaseStoreTarget):
             path=self._target_path,
             columns=column_list,
             index_cols=key_columns,
+            partition_cols=partition_cols,
             storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )
@@ -405,6 +520,25 @@ class ParquetTarget(BaseStoreTarget):
             "path": store_path_to_spark(self._target_path),
             "format": "parquet",
         }
+
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
+        """return the target data as dataframe"""
+        return mlrun.get_dataitem(self._target_path).as_df(
+            columns=columns,
+            df_module=df_module,
+            format="parquet",
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+        )
 
 
 class CSVTarget(BaseStoreTarget):
@@ -452,7 +586,15 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def as_df(self, columns=None, df_module=None, entities=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         df = super().as_df(columns=columns, df_module=df_module, entities=entities)
         df.set_index(keys=entities, inplace=True)
         return df
@@ -659,7 +801,7 @@ class DFTarget(BaseStoreTarget):
     def set_df(self, df):
         self._df = df
 
-    def update_resource_status(self, status="", producer=None, is_dir=None):
+    def update_resource_status(self, status="", producer=None):
         pass
 
     def add_writer_state(
@@ -676,7 +818,14 @@ class DFTarget(BaseStoreTarget):
             insert_time_column_as=timestamp_key,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+    ):
         return self._df
 
 
@@ -703,7 +852,9 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefix = get_default_prefix_for_target(kind).format(project=project, kind=kind)
+    data_prefix = get_default_prefix_for_target(kind).format(
+        project=project, kind=kind, name=name
+    )
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

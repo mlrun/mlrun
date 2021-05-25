@@ -44,7 +44,7 @@ def make_dockerfile(
         dock += "ADD {src_dir} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
-        dock += f"RUN pip install -r {requirements}\n"
+        dock += f"RUN python -m pip install -r {requirements}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
     if extra:
@@ -249,7 +249,7 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f'pip install "{mlrun_version_specifier}"'
+    return f'python -m pip install "{mlrun_version_specifier}"'
 
 
 def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=False):

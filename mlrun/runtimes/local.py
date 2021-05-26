@@ -239,6 +239,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             return context.to_dict()
 
         else:
+            logger.info(f"handler was not provided running main ({self.spec.command})")
             if self.spec.mode == "pass":
                 cmd = [self.spec.command]
             else:

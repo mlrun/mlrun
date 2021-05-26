@@ -352,6 +352,76 @@ def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
     _list_and_assert_count("~key", iter=666, count=0)
 
 
+def _generate_artifact_with_iterations(db, db_session, key, uid, num_iters, best_iter):
+    artifact_body = _generate_artifact(key, uid=uid)
+
+    for iter in range(num_iters):
+        if iter == 0:
+            artifact_body["link_iteration"] = best_iter
+        else:
+            artifact_body["link_iteration"] = None
+        artifact_body["iter"] = iter
+        db.store_artifact(
+            db_session, key, artifact_body, uid, iter=iter,
+        )
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
+    artifact_1_key = "artifact-1"
+    artifact_1_uid = "uid-1"
+    artifact_2_key = "artifact-2"
+    artifact_2_uid = "uid-2"
+    artifact_no_link_key = "single-artifact"
+    artifact_no_link_uid = "uid-3"
+
+    num_iters = 5
+    best_iter_1 = 2
+    best_iter_2 = 4
+    _generate_artifact_with_iterations(
+        db, db_session, artifact_1_key, artifact_1_uid, num_iters, best_iter_1
+    )
+    _generate_artifact_with_iterations(
+        db, db_session, artifact_2_key, artifact_2_uid, num_iters, best_iter_2
+    )
+
+    # Add non-hyper-param artifact. Single object with iter 0, not pointing at anything
+    artifact_body = _generate_artifact(artifact_no_link_key, artifact_no_link_uid)
+    artifact_body["iter"] = 0
+    db.store_artifact(
+        db_session, artifact_no_link_key, artifact_body, artifact_no_link_uid, iter=0
+    )
+
+    results = db.list_artifacts(db_session, name="~artifact")
+    assert len(results) == num_iters * 2 + 1
+
+    results = db.list_artifacts(db_session, name=artifact_1_key, best_iteration=True)
+    assert len(results) == 1 and results[0]["iter"] == best_iter_1
+
+    expected_iters = {
+        artifact_1_key: best_iter_1,
+        artifact_2_key: best_iter_2,
+        artifact_no_link_key: 0,
+    }
+    results = db.list_artifacts(db_session, name="~artifact", best_iteration=True)
+    assert len(results) == 3
+    for artifact in results:
+        artifact_name = artifact["metadata"]["name"]
+        assert (
+            artifact_name in expected_iters
+            and expected_iters[artifact_name] == artifact["iter"]
+        )
+
+    # Negative test - asking for both best_iter and iter
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        results = db.list_artifacts(
+            db_session, name="~artifact", best_iteration=True, iter=0
+        )
+
+
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
     "data_migration_db,db_session",

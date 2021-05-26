@@ -325,8 +325,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         project = project or config.default_project
+
+        if best_iteration and iter is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "best-iteration cannot be used when iter is specified"
+            )
 
         # TODO: Refactor this area
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
@@ -340,13 +346,32 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 ids = self._resolve_tag(session, Artifact, project, tag)
 
         artifacts = ArtifactList()
-        for artifact in self._find_artifacts(
+        artifact_records = self._find_artifacts(
             session, project, ids, labels, since, until, name, kind, category, iter
-        ):
+        )
+        indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
+        for artifact in artifact_records:
+            has_iteration = self._name_with_iter_regex.match(artifact.key)
+
+            # Handle case of looking for best iteration. In that case if there's a linked iteration, we look
+            # for it in the results and return the linked artifact if exists. If original iter is not 0 then
+            # we skip this item.
+            if best_iteration:
+                if has_iteration:
+                    continue
+                link_iteration = artifact.struct.get("link_iteration")
+                if link_iteration:
+                    linked_key = f"{link_iteration}-{artifact.key}"
+                    linked_artifact = indexed_artifacts.get(linked_key)
+                    if linked_artifact:
+                        artifact = linked_artifact
+                    else:
+                        continue
+
             # We need special handling for the case where iter==0, since in that case no iter prefix will exist.
             # Regex support is db-specific, and SQLAlchemy actually implements Python regex for SQLite anyway,
             # and even that only in SA 1.4. So doing this here rather than in the query.
-            if iter == 0 and self._name_with_iter_regex.match(artifact.key):
+            if iter == 0 and has_iteration:
                 continue
 
             artifact_struct = artifact.struct

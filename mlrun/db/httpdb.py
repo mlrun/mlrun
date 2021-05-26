@@ -526,6 +526,7 @@ class HTTPRunDB(RunDBInterface):
         since=None,
         until=None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         """ List artifacts filtered by various parameters.
 
@@ -545,6 +546,9 @@ class HTTPRunDB(RunDBInterface):
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
             ``None`` (default) return artifacts from all iterations.
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         """
 
         project = project or default_project
@@ -554,6 +558,7 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
             "label": labels or [],
             "iter": iter,
+            "best-iteration": best_iteration,
         }
         error = "list artifacts"
         resp = self.api_call("GET", "artifacts", error, params=params)

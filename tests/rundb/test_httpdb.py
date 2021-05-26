@@ -266,6 +266,10 @@ def test_artifacts(create_server):
     artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
     assert len(artifacts) == 1, "bad number of artifacts"
 
+    # Only 1 will be returned since it's only looking for iter 0
+    artifacts = db.list_artifacts(project=prj, tag="*", best_iteration=True)
+    assert len(artifacts) == 1, "bad number of artifacts"
+
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 0, "bad number of artifacts after del"

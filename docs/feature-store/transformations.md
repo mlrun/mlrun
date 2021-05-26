@@ -178,6 +178,8 @@ For example, the following code will execute data ingestion using Spark:
 ```python
     from mlrun.datastore.sources import CSVSource
     from mlrun.datastore.targets import CSVTarget
+    from mlrun import code_to_function
+    import mlrun.feature_store as fs
     
     feature_set = fs.FeatureSet("stocks", entities=[fs.Entity("ticker")], engine="spark")
 
@@ -186,10 +188,28 @@ For example, the following code will execute data ingestion using Spark:
 
     # Execution using a local Spark session
     spark = SparkSession.builder.appName("Spark function").getOrCreate()
-    fs.ingest(feature_set, source, targets, spark_session=spark)
+    fs.ingest(feature_set, source, targets, spark_context=spark)
 
     # Remote execution using a remote-spark runtime
     fs.ingest(feature_set, source, targets, run_config=fs.RunConfig())
+
+    # Remote execution using a remote-spark runtime over iguazio
+    spark_service_name = "iguazio-spark-service"
+    fs.ingest(feature_set, source, targets, run_config=fs.RunConfig(), spark_context=spark_service_name)
+
+    # Remote execution using a remote-spark runtime over iguazio with a function
+    # The code has to contain:
+    # 1. my_spark_func - graph step
+    # 2. ingest_handler:
+    #     from mlrun.feature_store.api import ingest
+    #     def handler(context):
+    #         ingest(mlrun_context=context)
+    spark_service_name = "iguazio-spark-service"
+    feature_set.graph.to(name="s1", handler="my_spark_func")    
+    my_func = code_to_function("func", kind="remote-spark")
+    config = fs.RunConfig(local=False, function=my_func, handler="ingest_handler")
+    fs.ingest(feature_set, source, targets, run_config=fs.RunConfig(), spark_context=spark_service_name)
+
 ```
 When using a local Spark session, the `ingest` API would wait for its completion, while when using remote execution 
 the MLRun run execution details would be returned, allowing tracking of its status and results.

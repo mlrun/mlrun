@@ -2235,8 +2235,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             return self._filter_artifacts_by_kinds(query, [kind])
 
         elif category:
-            return self._filter_artifacts_by_category(query, category)
-
+            filtered_artifacts = self._filter_artifacts_by_category(query, category)
+            # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
+            #        the wrong category. Remove this when we refactor this area.
+            return self._filter_out_extra_link_artifacts(
+                session, filtered_artifacts, category
+            )
         else:
             return query.all()
 
@@ -2271,6 +2275,28 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                         and all([kind != artifact_json.get("kind") for kind in kinds])
                     )
                 )
+            ):
+                filtered_artifacts.append(artifact)
+        return filtered_artifacts
+
+    # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
+    #        the wrong category. Remove this when we refactor this area.
+    def _filter_out_extra_link_artifacts(self, session, artifacts, category):
+        expected_kinds, exclude = category.to_kinds_filter()
+        filtered_artifacts = []
+        for artifact in artifacts:
+            artifact_kind = artifact.struct.get("kind")
+            if artifact_kind != "link":
+                filtered_artifacts.append(artifact)
+                continue
+            linked_artifact = self.read_artifact(
+                session,
+                key=artifact.key,
+                iter=artifact.struct.get("link_iteration"),
+                project=artifact.project,
+            )
+            if linked_artifact and (
+                (linked_artifact.get("kind") in expected_kinds) != exclude
             ):
                 filtered_artifacts.append(artifact)
         return filtered_artifacts

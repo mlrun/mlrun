@@ -12,8 +12,8 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
-import mlrun.utils
 import mlrun.k8s_utils
+import mlrun.utils
 import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import _init_engine, create_session

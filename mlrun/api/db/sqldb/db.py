@@ -2238,9 +2238,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             filtered_artifacts = self._filter_artifacts_by_category(query, category)
             # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
             #        the wrong category. Remove this when we refactor this area.
-            return self._filter_out_extra_link_artifacts(
-                session, filtered_artifacts, category
-            )
+            return self._filter_out_extra_link_artifacts(filtered_artifacts)
         else:
             return query.all()
 
@@ -2281,24 +2279,25 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
     # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
     #        the wrong category. Remove this when we refactor this area.
-    def _filter_out_extra_link_artifacts(self, session, artifacts, category):
-        expected_kinds, exclude = category.to_kinds_filter()
+    @staticmethod
+    def _filter_out_extra_link_artifacts(artifacts):
+        # Only keep link artifacts that point at "real" artifacts that already exist in the results
+        existing_keys = set()
+        link_artifacts = []
         filtered_artifacts = []
         for artifact in artifacts:
-            artifact_kind = artifact.struct.get("kind")
-            if artifact_kind != "link":
+            if artifact.struct.get("kind") != "link":
+                existing_keys.add(artifact.key)
                 filtered_artifacts.append(artifact)
-                continue
-            linked_artifact = self.read_artifact(
-                session,
-                key=artifact.key,
-                iter=artifact.struct.get("link_iteration"),
-                project=artifact.project,
-            )
-            if linked_artifact and (
-                (linked_artifact.get("kind") in expected_kinds) != exclude
-            ):
-                filtered_artifacts.append(artifact)
+            else:
+                link_artifacts.append(artifact)
+
+        for link_artifact in link_artifacts:
+            link_iteration = link_artifact.struct["link_iteration"]
+            linked_key = f"{link_iteration}-{link_artifact.key}"
+            if linked_key in existing_keys:
+                filtered_artifacts.append(link_artifact)
+
         return filtered_artifacts
 
     def _find_functions(self, session, name, project, uids=None, labels=None):

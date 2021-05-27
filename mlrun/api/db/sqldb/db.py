@@ -2081,11 +2081,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         for run in query:
             run_json = run.struct
             if name:
-                if (
-                    not run_json
-                    or not isinstance(run_json, dict)
-                    or name not in run_json.get("metadata", {}).get("name", "")
-                ):
+                if not run_json or not isinstance(run_json, dict):
+                    continue
+
+                run_name = run_json.get("metadata", {}).get("name", "")
+                if name.startswith("~"):
+                    if name[1:].casefold() not in run_name.casefold():
+                        continue
+                elif name != run_name:
                     continue
             if state:
                 if not self._is_run_matching_state(run, run_json, state):

@@ -463,7 +463,8 @@ def _ingest_with_spark(
         spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)
-    df = run_spark_graph(df, featureset, namespace, spark)
+    if featureset.spec.graph and featureset.spec.graph.states:
+        df = run_spark_graph(df, featureset, namespace, spark)
     infer_from_static_df(df, featureset, options=infer_options)
 
     key_column = featureset.spec.entities[0].name
@@ -479,7 +480,7 @@ def _ingest_with_spark(
         logger.info(f"writing to target {target.name}, spark options {spark_options}")
         df.write.mode("overwrite").save(**spark_options)
         target.set_resource(featureset)
-        target.update_resource_status("ready", is_dir=True)
+        target.update_resource_status("ready")
 
     _post_ingestion(mlrun_context, featureset, spark)
     return df

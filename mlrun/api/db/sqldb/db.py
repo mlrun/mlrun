@@ -2293,7 +2293,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 link_artifacts.append(artifact)
 
         for link_artifact in link_artifacts:
-            link_iteration = link_artifact.struct["link_iteration"]
+            link_iteration = link_artifact.struct.get("link_iteration")
+            if not link_iteration:
+                continue
             linked_key = f"{link_iteration}-{link_artifact.key}"
             if linked_key in existing_keys:
                 filtered_artifacts.append(link_artifact)

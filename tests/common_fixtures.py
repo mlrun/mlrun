@@ -13,6 +13,7 @@ import mlrun.config
 import mlrun.datastore
 import mlrun.db
 import mlrun.utils
+import mlrun.k8s_utils
 import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import _init_engine, create_session
@@ -45,6 +46,9 @@ def config_test_base():
 
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
+
+    mlrun.k8s_utils._k8s = None
+    mlrun.runtimes.utils.cached_mpijob_crd_version = None
 
 
 @pytest.fixture

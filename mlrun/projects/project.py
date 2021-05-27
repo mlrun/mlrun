@@ -602,7 +602,7 @@ class MlrunProject(ModelObj):
         self.spec.source = source
 
     def set_source(self, source, pull_at_runtime=False):
-        """load the code from git/tar/zip archive at runtime or build
+        """set the project source code path(can be git/tar/zip archive)
 
         :param source:     valid path to git, zip, or tar file, e.g.
                            git://github.com/mlrun/something.git

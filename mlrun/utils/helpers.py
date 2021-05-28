@@ -680,6 +680,7 @@ class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
         self._html = ""
+        self._with_print = False
         self._secrets = secrets or {}
         self.with_ipython = with_ipython
         if with_slack and "SLACK_WEBHOOK" in environ:
@@ -687,6 +688,7 @@ class RunNotifications:
 
     def push_start_message(self, project, commit_id=None, id=None):
         message = f"Pipeline started in project {project}"
+        html = None
         if id:
             message += f" id={id}"
         commit_id = (
@@ -712,6 +714,7 @@ class RunNotifications:
             if r.status.state == "error":
                 had_errors += 1
             runs_list.append(r.to_dict())
+            r._notified = True
 
         text = "pipeline run finished"
         if had_errors:
@@ -774,7 +777,9 @@ class RunNotifications:
                 + tabulate(table, headers=["status", "name", "uid", "results"])
             )
 
-        self._hooks.append(_print)
+        if not self._with_print:
+            self._hooks.append(_print)
+            self._with_print = True
         return self
 
     def slack(self, webhook=""):

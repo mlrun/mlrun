@@ -232,6 +232,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
+        labels=None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -258,6 +259,7 @@ class BaseRuntime(ModelObj):
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
+        :param labels:         dict of labels (tags) for the task
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -348,6 +350,7 @@ class BaseRuntime(ModelObj):
 
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
+        meta.labels = labels or meta.labels
         meta.uid = meta.uid or uuid.uuid4().hex
         runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
         if runspec.spec.output_path:

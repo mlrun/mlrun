@@ -632,6 +632,25 @@ def code_to_function(
     Learn more about function runtimes here:
     https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
 
+    :param name:         function name, typically best to use hyphen-case
+    :param project:      project used to namespace the function, defaults to "default"
+    :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
+    :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
+    :param handler:      The entrypoint for nuclio (in the form of module:function), defaults to "main:handler"
+    :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
+    :param image:        base docker image to use for building the function container, defaults to None
+    :param code_output:  specify "." to generate python module from the current jupyter notebook
+    :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
+                         defaults to True
+    :param description:  short function description, defaults to ""
+    :param requirements: list of python packages or pip requirements file path, defaults to None
+    :param categories:   list of categories for mlrun function marketplace, defaults to None
+    :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
+    :param with_doc:     indicates whether to document the function parameters, defaults to True
+
+    :return:
+           pre-configured function object from a mlrun runtime class
+
     example::
         import mlrun
 
@@ -667,24 +686,6 @@ def code_to_function(
                                     description = "this function efficiently processes larger than memory tabular data",
                                     labels = {'author': 'me'})
 
-    :param name:         function name, typically best to use hyphen-case
-    :param project:      project used to namespace the function, defaults to "default"
-    :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
-    :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
-    :param handler:      The entrypoint for nuclio (in the form of module:function), defaults to "main:handler"
-    :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
-    :param image:        base docker image to use for building the function container, defaults to None
-    :param code_output:  specify "." to generate python module from the current jupyter notebook
-    :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
-                         defaults to True
-    :param description:  short function description, defaults to ""
-    :param requirements: list of python packages or pip requirements file path, defaults to None
-    :param categories:   list of categories for mlrun function marketplace, defaults to None
-    :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
-    :param with_doc:     indicates whether to document the function parameters, defaults to True
-
-    :return:
-           pre-configured function object from a mlrun runtime class
     """
     filebase, _ = path.splitext(path.basename(filename))
 

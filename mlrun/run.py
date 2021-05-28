@@ -671,7 +671,7 @@ def code_to_function(
     :param project:      project used to namespace the function, defaults to "default"
     :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
-    :param handler:      The entrypoint for nuclio (in the form of module:function), defaults to main:handler
+    :param handler:      The entrypoint for nuclio (in the form of module:function), defaults to "main:handler"
     :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
     :param image:        base docker image to use for building the function container, defaults to None
     :param code_output:  specify "." to generate python module from the current jupyter notebook
@@ -684,7 +684,7 @@ def code_to_function(
     :param with_doc:     indicates whether to document the function parameters, defaults to True
 
     :return:
-           pre-configured function object instance of mlrun runtime classes
+           pre-configured function object from a mlrun runtime class
     """
     filebase, _ = path.splitext(path.basename(filename))
 

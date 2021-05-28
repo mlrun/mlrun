@@ -22,7 +22,7 @@ from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
 from kfp import Client
@@ -39,11 +39,17 @@ from .execution import MLClientCtx
 from .k8s_utils import get_k8s_helper
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
+    DaskCluster,
     HandlerRuntime,
+    KubejobRuntime,
     LocalRuntime,
+    MpiRuntimeV1,
+    MpiRuntimeV1Alpha1,
     RemoteRuntime,
+    RemoteSparkRuntime,
     RuntimeKinds,
     ServingRuntime,
+    SparkRuntime,
     get_runtime_class,
 )
 from .runtimes.funcdoc import update_function_entry_points
@@ -580,47 +586,105 @@ def code_to_function(
     handler: str = "",
     kind: str = "",
     image: str = None,
-    code_output="",
-    embed_code=True,
-    description="",
+    code_output: str = "",
+    embed_code: bool = True,
+    description: str = "",
     requirements: Union[str, List[str]] = None,
-    categories: list = None,
-    labels: dict = None,
-    with_doc=True,
-):
-    """convert code or notebook to function object with embedded code
-    code stored in the function spec and can be refreshed using .with_code()
-    eliminate the need to build container images every time we edit the code
+    categories: List[str] = None,
+    labels: Dict[str, str] = None,
+    with_doc: bool = True,
+) -> Union[
+    MpiRuntimeV1Alpha1,
+    MpiRuntimeV1,
+    RemoteRuntime,
+    ServingRuntime,
+    DaskCluster,
+    KubejobRuntime,
+    LocalRuntime,
+    SparkRuntime,
+    RemoteSparkRuntime,
+]:
+    """Convenience function to insert code and configure an mlrun runtime.
 
-    if `filename=` is not specified it will try and grab the code from the current notebook
+    Easiest way to construct a runtime type object. Provides the most often
+    used configuration options for all runtimes as parameters.
+
+    Instantiated runtimes are considered "functions" in mlrun, but they are
+    anything from nuclio functions to generic kubernetes pods to spark jobs.
+    Functions are meant to be focused, and as such limited in scope and size.
+    Typically a function can be expressed in a single python module with
+    added support from custom docker images and commands for the environment.
+    The returned runtime object can be further configured if more
+    customization is required.
+
+    One of the most important parameters is "kind". This is what is used to
+    specify the chosen runtimes. The options are:
+
+    - local: execute a local python or shell script
+    - job: insert the code into a Kubernetes pod and execute it
+    - nuclio: insert the code into a real-time serverless nuclio function
+    - serving: insert code into orchestrated nuclio function(s) forming a DAG
+    - dask: run the specified python code / script as Dask Distributed job
+    - mpijob: run distributed Horovod jobs over the MPI job operator
+    - spark: run distributed Spark job using Spark Kubernetes Operator
+    - remote-spark: run distributed Spark job on remote Spark service
+
+    Learn more about function runtimes here:
+    https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
 
     example::
+        import mlrun
 
         # create job function object from notebook code and add doc/metadata
-        import mlrun
         fn = mlrun.code_to_function('file_utils', kind='job',
                                     handler='open_archive', image='mlrun/mlrun',
                                     description = "this function opens a zip archive into a local/mounted folder",
                                     categories = ['fileutils'],
                                     labels = {'author': 'me'})
 
-    :param name:         function name
-    :param project:      function project (none for default)
-    :param tag:          function tag (none for 'latest')
-    :param filename:     blank for current notebook, or path to .py/.ipynb file
-    :param handler:      name of function handler (if not main)
-    :param kind:          optional, runtime type local, job, dask, mpijob, ..
-    :param image:        optional, container image
-    :param code_output:  save the generated code (from notebook) in that path
-    :param embed_code:   embed the source code into the function spec
-    :param description:  function description
-    :param requirements: python requirements file path or list of packages
-    :param categories:   list of categories (for function marketplace)
-    :param labels:       dict of label names and values to tag the function
-    :param with_doc:     document the function parameters
+    example::
+        import mlrun
+        from pathlib import Path
+
+        # create file
+        Path('mover.py').touch()
+
+        # create nuclio function object from python module call mover.py
+        fn = mlrun.code_to_function('nuclio-mover', kind='nuclio',
+                                    filename='mover.py', image='python:3.7',
+                                    description = "this function moves files from one system to another",
+                                    labels = {'author': 'me'})
+
+    example::
+        import mlrun
+        from pathlib import Path
+
+        # create file
+        Path('proc.py').touch()
+
+        # creates distributed dask job from a python module called proc.py
+        fn = mlrun.code_to_function('batch_preprocessing', kind='dask', filename='proc.py'
+                                    description = "this function efficiently processes larger than memory tabular data",
+                                    labels = {'author': 'me'})
+
+    :param name:         function name, typically best to use hyphen-case
+    :param project:      project used to namespace the function, defaults to "default"
+    :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
+    :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
+    :param handler:      The entrypoint for nuclio (in the form of module:function), defaults to main:handler
+    :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
+    :param image:        base docker image to use for building the function container, defaults to None
+    :param code_output:  specify "." to generate python module from the current jupyter notebook
+    :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
+                         defaults to True
+    :param description:  short function description, defaults to ""
+    :param requirements: list of python packages or pip requirements file path, defaults to None
+    :param categories:   list of categories for mlrun function marketplace, defaults to None
+    :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
+    :param with_doc:     indicates whether to document the function parameters, defaults to True
 
     :return:
-           function object
+           pre-configured function object instance of mlrun runtime classes
     """
     filebase, _ = path.splitext(path.basename(filename))
 

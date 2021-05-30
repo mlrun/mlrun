@@ -378,8 +378,6 @@ class FeatureSet(ModelObj):
         :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
                             the Nth event). The default behaviour is emitting every event
         """
-        if isinstance(window, list):
-
 
         if not isinstance(window, str):
             raise mlrun.errors.MLRunInvalidArgumentError(

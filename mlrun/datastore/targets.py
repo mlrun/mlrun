@@ -438,7 +438,6 @@ class ParquetTarget(BaseStoreTarget):
         time_partitioning_granularity: typing.Optional[str] = None,
         max_events: int = None,
         flush_after_seconds: int = None,
-
     ):
         super().__init__(
             name,

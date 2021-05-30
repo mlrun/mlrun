@@ -263,6 +263,8 @@ class BaseStoreTarget(DataTargetBase):
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
+        max_events: int = None,
+        flush_after_seconds: int = None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
@@ -273,6 +275,8 @@ class BaseStoreTarget(DataTargetBase):
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
+        self.max_events = max_events
+        self.flush_after_seconds = flush_after_seconds
 
         self._target = None
         self._resource = None
@@ -343,6 +347,9 @@ class BaseStoreTarget(DataTargetBase):
         driver.partition_cols = spec.partition_cols
 
         driver.time_partitioning_granularity = spec.time_partitioning_granularity
+        driver.max_events = spec.max_events
+        driver.flush_after_seconds = spec.flush_after_seconds
+
         if spec.kind == "parquet":
             driver.suffix = (
                 ".parquet"
@@ -429,6 +436,9 @@ class ParquetTarget(BaseStoreTarget):
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
+        max_events: int = None,
+        flush_after_seconds: int = None,
+
     ):
         super().__init__(
             name,
@@ -440,6 +450,8 @@ class ParquetTarget(BaseStoreTarget):
             key_bucketing_number,
             partition_cols,
             time_partitioning_granularity,
+            max_events,
+            flush_after_seconds,
         )
 
         if (
@@ -512,6 +524,8 @@ class ParquetTarget(BaseStoreTarget):
             index_cols=key_columns,
             partition_cols=partition_cols,
             storage_options=self._get_store().get_storage_options(),
+            max_events=self.max_events,
+            flush_after_seconds=self.flush_after_seconds,
             **self.attributes,
         )
 

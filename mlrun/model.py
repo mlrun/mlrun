@@ -990,6 +990,8 @@ class DataTargetBase(ModelObj):
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
+        "max_events",
+        "flush_after_seconds",
     ]
 
     def __init__(
@@ -1003,6 +1005,8 @@ class DataTargetBase(ModelObj):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
+        max_events: int = None,
+        flush_after_seconds: int = None,
     ):
         self.name = name
         self.kind: str = kind
@@ -1013,6 +1017,8 @@ class DataTargetBase(ModelObj):
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
+        self.max_events = max_events
+        self.flush_after_seconds = flush_after_seconds
 
 
 class FeatureSetProducer(ModelObj):

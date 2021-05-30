@@ -856,7 +856,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
 
         \b
         # Clean resources for specific job (by uid)
-        mlrun clean dask 15d04c19c2194c0a8efb26ea3017254b
+        mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b
     """
     mldb = get_run_db(api or mlconf.dbpath)
     if kind:

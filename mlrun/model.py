@@ -998,16 +998,25 @@ class DataTargetBase(ModelObj):
         name: str = "",
         path=None,
         attributes: Dict[str, str] = None,
-        after_state=None,
+        after_step=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
+        after_state=None,
     ):
+        if after_state:
+            warnings.warn(
+                "The after_state parameter is deprecated. Use after_step instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            after_step = after_step or after_state
+
         self.name = name
         self.kind: str = kind
         self.path = path
-        self.after_state = after_state
+        self.after_state = after_step
         self.attributes = attributes or {}
         self.partitioned = partitioned
         self.key_bucketing_number = key_bucketing_number

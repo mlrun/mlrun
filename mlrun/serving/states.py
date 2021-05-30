@@ -18,6 +18,7 @@ import json
 import os
 import pathlib
 import traceback
+import warnings
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
@@ -101,7 +102,7 @@ class BaseState(ModelObj):
         return self.shape or self.default_shape
 
     def set_parent(self, parent):
-        """set/link the state parent (flow/router)"""
+        """set/link the step parent (flow/router)"""
         self._parent = parent
 
     @property
@@ -110,37 +111,47 @@ class BaseState(ModelObj):
 
     @property
     def parent(self):
-        """state parent (flow/router)"""
+        """step parent (flow/router)"""
         return self._parent
 
     def set_next(self, key: str):
-        """set/insert the key as next after this state, optionally remove other keys"""
+        """set/insert the key as next after this step, optionally remove other keys"""
         if not self.next:
             self._next = [key]
         elif key not in self.next:
             self._next.append(key)
         return self
 
-    def after_state(self, after):
-        """specify the previous state name"""
-        # most states only accept one source
+    def after_step(self, after):
+        """specify the previous step name"""
+        # most steps only accept one source
         self.after = [after] if after else []
         return self
 
-    def error_handler(self, state_name: str):
+    def after_state(self, after):
+        warnings.warn(
+            "This method is deprecated. Use after_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.after_step(after)
+
+    # Replaced state_name with step_name without backwards compatibility since this will usually not be used
+    # as a named parameter - step.error_handler("name")
+    def error_handler(self, step_name: str):
         """set error handler state (on failure/raise of this state)"""
-        self.on_error = state_name
+        self.on_error = step_name
         return self
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        """init the state class"""
+        """init the step class"""
         self.context = context
 
     def _is_local_function(self, context):
         return True
 
     def get_children(self):
-        """get child states (for router/flow)"""
+        """get child steps (for router/flow)"""
         return []
 
     def __iter__(self):
@@ -158,7 +169,7 @@ class BaseState(ModelObj):
         pass
 
     def _set_error_handler(self):
-        """init/link the error handler for this state"""
+        """init/link the error handler for this step"""
         if self.on_error:
             error_state = self.context.root.path_to_state(self.on_error)
             self._on_error_handler = error_state.run
@@ -166,7 +177,7 @@ class BaseState(ModelObj):
     def _log_error(self, event, err, **kwargs):
         """on failure log (for sync mode)"""
         self.context.logger.error(
-            f"state {self.name} got error {err} when processing an event:\n {event.body}"
+            f"step {self.name} got error {err} when processing an event:\n {event.body}"
         )
         message = traceback.format_exc()
         self.context.logger.error(message)
@@ -181,8 +192,8 @@ class BaseState(ModelObj):
             event.origin_state = self.fullname
             return self._on_error_handler(event)
 
-    def path_to_state(self, path: str):
-        """return state object from state relative/fullname"""
+    def path_to_step(self, path: str):
+        """return step object from step relative/fullname"""
         path = path or ""
         tree = path.split(path_splitter)
         next_level = self
@@ -194,6 +205,14 @@ class BaseState(ModelObj):
             next_level = next_level[state]
         return next_level
 
+    def path_to_state(self, path: str):
+        warnings.warn(
+            "This method is deprecated. Use path_to_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.path_to_step(path)
+
     def to(
         self,
         class_name: Union[str, type] = None,
@@ -204,7 +223,7 @@ class BaseState(ModelObj):
         full_event: bool = None,
         **class_args,
     ):
-        """add a state right after this state and return the new state
+        """add a step right after this step and return the new step
 
         example, a 4 step pipeline ending with a stream:
         graph.to('URLDownloader')\
@@ -212,13 +231,13 @@ class BaseState(ModelObj):
              .to(name='to_json', handler='json.dumps')\
              .to('>>', 'to_v3io', path=stream_path)\
 
-        :param class_name:  class name or state object to build the state from
-                            for router states the class name should start with '*'
-                            for queue/stream state the class should be '>>' or '$queue'
-        :param name:        unique name (and path) for the child state, default is class name
+        :param class_name:  class name or step object to build the step from
+                            for router steps the class name should start with '*'
+                            for queue/stream step the class should be '>>' or '$queue'
+        :param name:        unique name (and path) for the child step, default is class name
         :param handler:     class/function handler to invoke on run/event
         :param graph_shape: graphviz shape name
-        :param function:    function this state should run in
+        :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just body)
         :param class_args:  class init arguments
         """
@@ -335,7 +354,7 @@ class TaskState(BaseState):
                 self._object = self._class_object(**class_args)
             except TypeError as exc:
                 raise TypeError(
-                    f"failed to init state {self.name}, {exc}\n args={self.class_args}"
+                    f"failed to init step {self.name}, {exc}\n args={self.class_args}"
                 )
 
             # determine the right class handler to use
@@ -384,21 +403,21 @@ class TaskState(BaseState):
             self._object.post_init(mode)
 
     def respond(self):
-        """mark this state as the responder.
+        """mark this step as the responder.
 
-        state output will be returned as the flow result, no other state can follow
+        step output will be returned as the flow result, no other step can follow
         """
         self.responder = True
         return self
 
     def run(self, event, *args, **kwargs):
-        """run this state, in async flows the run is done through storey"""
+        """run this step, in async flows the run is done through storey"""
         if not self._is_local_function(self.context):
             # todo invoke remote via REST call
             return event
 
         if self.context.verbose:
-            self.context.logger.info(f"state {self.name} got event {event.body}")
+            self.context.logger.info(f"step {self.name} got event {event.body}")
 
         # inject context parameter if it is expected by the handler
         if self._inject_context:
@@ -420,7 +439,7 @@ class TaskState(BaseState):
 
 
 class RouterState(TaskState):
-    """router state, implement routing logic for running child routes"""
+    """router step, implement routing logic for running child routes"""
 
     kind = "router"
     default_shape = "doubleoctagon"
@@ -441,12 +460,12 @@ class RouterState(TaskState):
         self.routes = routes
 
     def get_children(self):
-        """get child states (routes)"""
+        """get child steps (routes)"""
         return self._routes.values()
 
     @property
     def routes(self):
-        """child routes/states, traffic is routed to routes based on router logic"""
+        """child routes/steps, traffic is routed to routes based on router logic"""
         return self._routes
 
     @routes.setter
@@ -454,11 +473,11 @@ class RouterState(TaskState):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
     def add_route(self, key, route=None, class_name=None, handler=None, **class_args):
-        """add child route state or class to the router
+        """add child route step or class to the router
 
-        :param key:        unique name (and route path) for the child state
-        :param route:      child state object (Task, ..)
-        :param class_name: class name to build the route state from (when route is not provided)
+        :param key:        unique name (and route path) for the child step
+        :param route:      child step object (Task, ..)
+        :param class_name: class name to build the route step from (when route is not provided)
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
         """
@@ -472,7 +491,7 @@ class RouterState(TaskState):
         return route
 
     def clear_children(self, routes: list):
-        """clear child states (routes)"""
+        """clear child steps (routes)"""
         if not routes:
             routes = self._routes.keys()
         for key in routes:
@@ -514,7 +533,7 @@ class RouterState(TaskState):
 
 
 class QueueState(BaseState):
-    """queue state, implement an async queue or represent a stream"""
+    """queue step, implement an async queue or represent a stream"""
 
     kind = "queue"
     default_shape = "cds"
@@ -556,7 +575,7 @@ class QueueState(BaseState):
     def async_object(self):
         return self._async_object
 
-    def after_state(self, after):
+    def after_step(self, after):
         # queue states accept multiple sources
         if self.after:
             if after:
@@ -564,6 +583,14 @@ class QueueState(BaseState):
         else:
             self.after = [after] if after else []
         return self
+
+    def after_state(self, after):
+        warnings.warn(
+            "This method is deprecated. Use after_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.after_step(after)
 
     def run(self, event, *args, **kwargs):
         data = event.body
@@ -607,8 +634,17 @@ class FlowState(BaseState):
         return self._states.values()
 
     @property
-    def states(self):
+    def steps(self):
         """child (workflow) states"""
+        return self._states
+
+    @property
+    def states(self):
+        warnings.warn(
+            "This property is deprecated. Use steps instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         return self._states
 
     @property
@@ -616,8 +652,17 @@ class FlowState(BaseState):
         """async (storey) flow controller"""
         return self._controller
 
+    @steps.setter
+    def steps(self, steps):
+        self._states = ObjectDict.from_dict(classes_map, steps, "task")
+
     @states.setter
     def states(self, states):
+        warnings.warn(
+            "This property is deprecated. Use steps instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         self._states = ObjectDict.from_dict(classes_map, states, "task")
 
     def add_step(
@@ -632,7 +677,7 @@ class FlowState(BaseState):
         full_event: bool = None,
         **class_args,
     ):
-        """add task, queue or router state/class to the flow
+        """add task, queue or router step/class to the flow
 
         use after/before to insert into a specific location
 
@@ -642,16 +687,16 @@ class FlowState(BaseState):
             graph.add_step(class_name="Chain", name="s3", after="$prev")
             graph.add_step(class_name="Chain", name="s2", after="s1", before="s3")
 
-        :param class_name:  class name or state object to build the state from
-                            for router states the class name should start with '*'
-                            for queue/stream state the class should be '>>' or '$queue'
-        :param name:        unique name (and path) for the child state, default is class name
+        :param class_name:  class name or step object to build the step from
+                            for router steps the class name should start with '*'
+                            for queue/stream step the class should be '>>' or '$queue'
+        :param name:        unique name (and path) for the child step, default is class name
         :param handler:     class/function handler to invoke on run/event
         :param after:       the step name this step comes after
-                            can use $prev to indicate the last added state
+                            can use $prev to indicate the last added step
         :param before:      string or list of next step names that will run after this step
         :param graph_shape: graphviz shape name
-        :param function:    function this state should run in
+        :param function:    function this step should run in
         :param class_args:  class init arguments
         """
 
@@ -665,13 +710,21 @@ class FlowState(BaseState):
             class_args=class_args,
         )
 
-        self.insert_state(name, state, after, before)
+        self.insert_step(name, state, after, before)
         return state
 
     def insert_state(self, key, state, after, before=None):
+        warnings.warn(
+            "This method is deprecated. Use insert_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.insert_step(key, state, after, before)
+
+    def insert_step(self, key, step, after, before=None):
         """insert state object into the flow, specify before and after"""
 
-        state = self._states.update(key, state)
+        state = self._states.update(key, step)
         state.set_parent(self)
 
         if after == "$prev" and len(self._states) == 1:
@@ -702,11 +755,18 @@ class FlowState(BaseState):
         self._last_added = state
         return state
 
-    def clear_children(self, states: list = None):
+    def clear_children(self, steps: list = None, states: list = None):
         """remove some or all of the states, empty/None for all"""
-        if not states:
-            states = self._states.keys()
-        for key in states:
+        if states:
+            warnings.warn(
+                "This states parameter is deprecated. Use steps instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            steps = steps or states
+        if not steps:
+            steps = self._states.keys()
+        for key in steps:
             del self._states[key]
 
     def __getitem__(self, name):
@@ -932,7 +992,7 @@ class FlowState(BaseState):
 
     def is_empty(self):
         """is the graph empty (no child states)"""
-        return len(self.states) == 0
+        return len(self.steps) == 0
 
     def run(self, event, *args, **kwargs):
 
@@ -965,7 +1025,7 @@ class FlowState(BaseState):
             next = next_obj.next
             if next and len(next) > 1:
                 raise GraphError(
-                    f"synchronous flow engine doesnt support branches use async, state={next_obj.name}"
+                    f"synchronous flow engine doesnt support branches use async, step={next_obj.name}"
                 )
             next_obj = self[next[0]] if next else None
         return event
@@ -991,7 +1051,7 @@ class FlowState(BaseState):
 
 
 class RootFlowState(FlowState):
-    """root flow state"""
+    """root flow step"""
 
     kind = "root"
     _dict_fields = ["states", "engine", "final_state", "on_error"]

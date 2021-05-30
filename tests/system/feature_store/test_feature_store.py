@@ -613,7 +613,7 @@ class TestFeatureStore(TestMLRunSystem):
             targets=[
                 CSVTarget(name=non_default_target_name, after_state=side_step_name)
             ],
-            default_final_state="FeaturesetValidator",
+            default_final_step="FeaturesetValidator",
         )
 
         quotes_set.plot(with_targets=True)

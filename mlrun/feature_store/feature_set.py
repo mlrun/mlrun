@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
@@ -295,16 +296,32 @@ class FeatureSet(ModelObj):
         if target:
             return target.path
 
-    def set_targets(self, targets=None, with_defaults=True, default_final_state=None):
+    def set_targets(
+        self,
+        targets=None,
+        with_defaults=True,
+        default_final_step=None,
+        default_final_state=None,
+    ):
         """set the desired target list or defaults
 
         :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
                          CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
         :param with_defaults: add the default targets (as defined in the central config)
-        :param default_final_state: the final graph state after which we add the
+        :param default_final_step: the final graph step after which we add the
                                     target writers, used when the graph branches and
                                     the end cant be determined automatically
+        :param default_final_state: *Deprecated* Kept for backwards compatibility -
+                                    use default_final_step instead.
         """
+        if default_final_state:
+            warnings.warn(
+                "The default_final_state parameter is deprecated. Use default_final_step instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            default_final_step = default_final_step or default_final_state
+
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "targets can only be None or a list of kinds or DataTargetBase derivatives"
@@ -324,8 +341,8 @@ class FeatureSet(ModelObj):
             if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
-        if default_final_state:
-            self.spec.graph.final_state = default_final_state
+        if default_final_step:
+            self.spec.graph.final_state = default_final_step
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""
@@ -356,6 +373,7 @@ class FeatureSet(ModelObj):
         operations,
         window,
         period=None,
+        step_name=None,
         state_name=None,
         after=None,
         before=None,
@@ -372,12 +390,21 @@ class FeatureSet(ModelObj):
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param window:     time window, e.g. '1h', '6h', '1d'
         :param period:     optional, sliding window granularity, e.g. '10m'
-        :param state_name: optional, graph state name
-        :param after:      optional, after which graph state it runs
-        :param before:     optional, comes before graph state
+        :param step_name: optional, graph step name
+        :param state_name: *Deprecated* kept for backwards compatibility - use step_name instead
+        :param after:      optional, after which graph step it runs
+        :param before:     optional, comes before graph step
         :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
                             the Nth event). The default behaviour is emitting every event
         """
+        if state_name:
+            warnings.warn(
+                "The state_name parameter is deprecated. Use step_name instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            step_name = step_name or state_name
+
         if not isinstance(window, str):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Only single window is supported. For additional windows create another aggregation"
@@ -392,10 +419,10 @@ class FeatureSet(ModelObj):
             else:
                 self.spec.features[name] = Feature(name=column, aggregate=True)
 
-        state_name = state_name or aggregates_step
+        step_name = step_name or aggregates_step
         graph = self.spec.graph
-        if state_name in graph.states:
-            state = graph.states[state_name]
+        if step_name in graph.states:
+            state = graph.states[step_name]
             aggregations = state.class_args.get("aggregates", [])
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
@@ -406,7 +433,7 @@ class FeatureSet(ModelObj):
             if emit_policy:
                 class_args["emit_policy"] = emit_policy
             state = graph.add_step(
-                name=state_name,
+                name=step_name,
                 after=after or previous_step,
                 before=before,
                 class_name="storey.AggregateByKey",

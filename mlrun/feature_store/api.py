@@ -340,7 +340,7 @@ def infer(
         )
         if not default_final_state:
             raise mlrun.errors.MLRunPreconditionFailedError(
-                "Split flow graph must have a default final state defined"
+                "Split flow graph must have a default final step defined"
             )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:

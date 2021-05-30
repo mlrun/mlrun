@@ -39,7 +39,7 @@ from ..config import config
 from ..datastore import store_manager
 from ..db import get_run_db
 from ..features import Feature
-from ..model import ModelObj
+from ..model import EntrypointParam, ModelObj
 from ..run import (
     code_to_function,
     get_object,
@@ -114,6 +114,8 @@ def load_project(
     secrets = secrets or {}
     repo = None
     project = None
+    if not context:
+        raise ValueError("valid context (local dir path) must be provided")
 
     def init_repo():
         nonlocal repo, url
@@ -268,6 +270,7 @@ class ProjectSpec(ModelObj):
         origin_url=None,
         goals=None,
         load_source_on_run=None,
+        params_schema=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
     ):
         self.repo = None
@@ -621,9 +624,13 @@ class MlrunProject(ModelObj):
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source
 
-    def get_artifact_uri(self, key, category="artifacts"):
-        """return project artifact uri (store://..)"""
-        return f"store://{category}/{self.metadata.name}/{key}"
+    def get_artifact_uri(self, key, category="artifact"):
+        """return the project artifact uri (store://..) from the artifact key
+
+        :param key:  artifact key/name
+        :param category:  artifact category (artifact, model, feature-vector, ..)
+        """
+        return f"store://{category}s/{self.metadata.name}/{key}"
 
     def get_store_resource(self, uri):
         """get store resource object by uri"""
@@ -768,8 +775,24 @@ class MlrunProject(ModelObj):
         )
         self.spec.workflows = workflows
 
-    def set_workflow(self, name, workflow_path: str, embed=False, engine=None, **args):
-        """add or update a workflow, specify a name and the code path"""
+    def set_workflow(
+        self,
+        name,
+        workflow_path: str,
+        embed=False,
+        engine=None,
+        args_schema: typing.List[EntrypointParam] = None,
+        **args,
+    ):
+        """add or update a workflow, specify a name and the code path
+
+        :param name:          name of the workflow
+        :param workflow_path: url/path for the workflow file
+        :param embed:         add the workflow code into the project.yaml
+        :param engine:        workflow processing engine ("kfp" or "local")
+        :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
+        :param args:          argument values (key=value, ..)
+        """
         if not workflow_path:
             raise ValueError("valid workflow_path must be specified")
         if embed:
@@ -782,6 +805,12 @@ class MlrunProject(ModelObj):
             workflow = {"name": name, "path": workflow_path}
         if args:
             workflow["args"] = args
+        if args_schema:
+            args_schema = [
+                schema.to_dict() if hasattr(schema, "to_dict") else schema
+                for schema in args_schema
+            ]
+            workflow["args_schema"] = args_schema
         workflow["engine"] = engine or "kfp"
         self.spec.set_workflow(name, workflow)
 
@@ -1872,7 +1901,9 @@ def _init_function_from_obj_legacy(func, project, name=None):
     return name or func.metadata.name, func
 
 
-def _create_pipeline(project, pipeline, funcs, secrets=None, engine="kfp"):
+def _create_pipeline(
+    project, pipeline, funcs, secrets=None, engine="kfp", arguments=None
+):
     functions = _enrich_functions_source(project, funcs)
     spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:
@@ -1884,7 +1915,7 @@ def _create_pipeline(project, pipeline, funcs, secrets=None, engine="kfp"):
     setattr(mod, "this_project", project)
 
     if hasattr(mod, "init_workflow"):
-        getattr(mod, "init_workflow")(functions, project, secrets)
+        getattr(mod, "init_workflow")(functions, project, secrets, arguments)
     if hasattr(mod, "init_functions"):
         getattr(mod, "init_functions")(functions, project, secrets)
 
@@ -1910,7 +1941,9 @@ def _run_kf_pipeline(
     namespace=None,
     ttl=None,
 ):
-    kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
+    kfpipeline = _create_pipeline(
+        project, pipeline, functions, secrets, arguments=arguments
+    )
 
     namespace = namespace or config.namespace
     id = run_pipeline(
@@ -1956,7 +1989,9 @@ def _run_local_pipeline(
     for f in functions.values():
         f.run = run_decorator(f)
 
-    pipeline = _create_pipeline(project, pipeline, functions, secrets, engine="local")
+    pipeline = _create_pipeline(
+        project, pipeline, functions, secrets, engine="local", arguments=arguments
+    )
     project.notifiers.push_start_message(project.metadata.name)
     artifact_path = artifact_path or mlrun.mlconf.artifact_path
     try:
@@ -1968,7 +2003,7 @@ def _run_local_pipeline(
             artifact_path=artifact_path,
         )
     except Exception as e:
-        project.notifiers.push(f"pipeline run failed, error: {e}")
+        project.notifiers.push(f"Pipeline run failed!, error: {e}")
 
     mlrun.run.wait_for_runs_completion(runs.values())
     runs_list = [run for run in runs.values() if not run._notified]

@@ -1005,8 +1005,8 @@ class DataTargetBase(ModelObj):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
-        max_events: int = None,
-        flush_after_seconds: int = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
     ):
         self.name = name
         self.kind: str = kind

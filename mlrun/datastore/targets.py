@@ -263,8 +263,8 @@ class BaseStoreTarget(DataTargetBase):
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
-        max_events: int = None,
-        flush_after_seconds: int = None,
+        max_events: typing.Optional[int] = None,
+        flush_after_seconds: typing.Optional[int] = None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
@@ -436,8 +436,8 @@ class ParquetTarget(BaseStoreTarget):
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
-        max_events: int = None,
-        flush_after_seconds: int = None,
+        max_events: typing.Optional[int] = None,
+        flush_after_seconds: typing.Optional[int] = None,
     ):
         super().__init__(
             name,

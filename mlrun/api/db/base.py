@@ -98,6 +98,7 @@ class DBInterface(ABC):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         pass
 
@@ -181,6 +182,12 @@ class DBInterface(ABC):
 
     @abstractmethod
     def delete_schedule(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def generate_projects_summaries(
+        self, session, projects: List[str]
+    ) -> List[schemas.ProjectSummary]:
         pass
 
     @abstractmethod

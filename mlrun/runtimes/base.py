@@ -232,7 +232,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
-    ):
+    ) -> RunObject:
         """Run a local or remote task.
 
         :param runspec:        run template object or dict (see RunTemplate)
@@ -245,9 +245,10 @@ class BaseRuntime(ModelObj):
         :param artifact_path:  default artifact output path (will replace out_path)
         :param workdir:        default input artifacts path
         :param watch:          watch/follow run log
-        :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string (which
-        will be converted to the class using its `from_crontab` constructor. see this link for help:
-        https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
+                               (which will be converted to the class using its `from_crontab` constructor.
+                               see this link for help:
+                               https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
                                the default strategy is grid search, can specify strategy (grid, list, random)
                                and other options in the hyper_param_options parameter
@@ -258,8 +259,7 @@ class BaseRuntime(ModelObj):
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
 
-        :return: run context object (dict) with run metadata, results and
-            status
+        :return: run context object (RunObject) with run metadata, results and status
         """
 
         if local:
@@ -421,7 +421,7 @@ class BaseRuntime(ModelObj):
                 # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
                 # but there's no run in case of schedule)
                 if not schedule:
-                    result = self._post_run(task=runspec, err=err)
+                    result = self._update_run_state(task=runspec, err=err)
                 return self._wrap_run_result(
                     result, runspec, schedule=schedule, err=err
                 )
@@ -433,6 +433,7 @@ class BaseRuntime(ModelObj):
             )
 
         execution = MLClientCtx.from_dict(runspec.to_dict(), db, autocommit=False)
+        self._pre_run(runspec, execution)  # hook for runtime specific prep
 
         # create task generator (for child runs) from spec
         task_generator = None
@@ -457,10 +458,12 @@ class BaseRuntime(ModelObj):
                     state = runspec.logs(True, self._get_db())
                     if state != "succeeded":
                         logger.warning(f"run ended with state {state}")
-                result = self._post_run(resp, task=runspec)
+                result = self._update_run_state(resp, task=runspec)
             except RunError as err:
                 last_err = err
-                result = self._post_run(task=runspec, err=err)
+                result = self._update_run_state(task=runspec, err=err)
+
+        self._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(result, runspec, schedule=schedule, err=last_err)
 
@@ -555,13 +558,23 @@ class BaseRuntime(ModelObj):
                 args += [command]
             command = "mlrun"
 
+        if self.spec.build.load_source_on_run and self.spec.build.source:
+            if code:
+                raise ValueError("cannot specify both code and source archive")
+            args += ["--source", self.spec.build.source]
         if runobj.spec.handler:
             args += ["--handler", runobj.spec.handler]
         if self.spec.args:
             args += self.spec.args
         return command, args, extra_env
 
-    def _run(self, runspec: RunObject, execution) -> dict:
+    def _pre_run(self, runspec: RunObject, execution):
+        pass
+
+    def _post_run(self, results, execution):
+        pass
+
+    def _run(self, runobj: RunObject, execution) -> dict:
         pass
 
     def _run_many(self, generator, execution, runobj: RunObject) -> RunList:
@@ -572,7 +585,7 @@ class BaseRuntime(ModelObj):
             try:
                 # self.store_run(task)
                 resp = self._run(task, execution)
-                resp = self._post_run(resp, task=task)
+                resp = self._update_run_state(resp, task=task)
                 run_results = resp["status"].get("results", {})
                 if generator.eval_stop_condition(run_results):
                     logger.info(
@@ -584,7 +597,7 @@ class BaseRuntime(ModelObj):
             except RunError as err:
                 task.status.state = "error"
                 task.status.error = str(err)
-                resp = self._post_run(task=task, err=err)
+                resp = self._update_run_state(task=task, err=err)
                 num_errors += 1
                 if num_errors > generator.max_errors:
                     logger.error("too many errors, stopping iterations!")
@@ -609,7 +622,9 @@ class BaseRuntime(ModelObj):
             iter = get_in(rundict, "metadata.iteration", 0)
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
-    def _post_run(self, resp: dict = None, task: RunObject = None, err=None) -> dict:
+    def _update_run_state(
+        self, resp: dict = None, task: RunObject = None, err=None
+    ) -> dict:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
@@ -799,8 +814,15 @@ class BaseRuntime(ModelObj):
         return self
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
-        """save function spec to a local/remote path (default to
-        ./function.yaml)"""
+        """save function spec to a local/remote path (default to./function.yaml)
+
+        :param target:   target path/url
+        :param format:   `.yaml` (default) or `.json`
+        :param secrets:  optional secrets dict/object for target path (e.g. s3)
+        :param strip:    strip status data
+
+        :returns: self
+        """
         if self.kind == "handler":
             raise ValueError(
                 "cannot export local handler function, use "

@@ -31,7 +31,6 @@ import mlrun.projects.project
 from mlrun import RunObject
 from mlrun.api import schemas
 from mlrun.artifacts import Artifact
-from mlrun.db import RunDBError
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -92,6 +91,8 @@ def docker_fixture():
             "build",
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
+            "--build-arg",
+            "MLRUN_PYTHON_VERSION=3.7.9",
             "--tag",
             docker_tag,
             ".",
@@ -264,6 +265,10 @@ def test_artifacts(create_server):
     artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
     assert len(artifacts) == 1, "bad number of artifacts"
 
+    # Only 1 will be returned since it's only looking for iter 0
+    artifacts = db.list_artifacts(project=prj, tag="*", best_iteration=True)
+    assert len(artifacts) == 1, "bad number of artifacts"
+
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 0, "bad number of artifacts after del"
@@ -279,7 +284,7 @@ def test_basic_auth(create_server):
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.user = user
@@ -294,7 +299,7 @@ def test_bearer_auth(create_server):
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.token = token

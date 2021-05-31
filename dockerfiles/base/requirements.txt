@@ -1,20 +1,22 @@
-# see main requirements.txt for reasoning the resrictions
-urllib3>=1.25.4, <1.27
 blosc~=1.7
-cloudpickle~=1.5
 dask-kubernetes~=0.11.0
 dask-ml~=1.4,<1.9.0
 dask[complete]~=2.12
-# see main requirements.txt for reasoning the resrictions
-distributed>=2.23, <3
-kubernetes~=11.0
 lz4~=3.0
-msgpack~=1.0
-# see main requirements.txt for reasoning the resrictions
-numpy>=1.16.5, <1.20.0
-scikit-learn~=0.23.0
-scikit-plot~=0.3.7
-tornado~=6.0
 vaex~=2.6
-xgboost~=1.1
 yellowbrick~=1.1
+lifelines~=0.25.0
+plotly~=4.7
+pyod~=0.8.1
+pytest~=5.4
+scikit-multiflow~=0.5.3
+scikit-optimize~=0.8.1
+scikit-image~=0.16.0
+numexpr~=2.6
+sympy~=1.5
+pymysql~=0.10.0
+lightgbm~=3.0
+graphviz~=0.16.0
+opencv-python-headless~=4.0
+pyhive @ git+https://github.com/v3io/PyHive.git@v0.6.999
+v3io-generator @ git+https://github.com/v3io/data-science.git#subdirectory=generator

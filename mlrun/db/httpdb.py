@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import http
 import os
 import tempfile
 import time
@@ -103,6 +104,8 @@ class HTTPRunDB(RunDBInterface):
         self.token = token
         self.server_version = ""
         self.session = None
+        self._wait_for_project_terminal_state_retry_interval = 3
+        self._wait_for_project_deletion_interval = 3
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -174,13 +177,9 @@ class HTTPRunDB(RunDBInterface):
                     reason = ""
             if reason:
                 error = error or f"{method} {url}, error: {reason}"
-                raise RunDBError(error)
+                mlrun.errors.raise_for_status(resp, error)
 
-            try:
-                resp.raise_for_status()
-            except requests.RequestException as err:
-                error = error or f"{method} {url}, error: {err}"
-                raise RunDBError(error) from err
+            mlrun.errors.raise_for_status(resp)
 
         return resp
 
@@ -197,7 +196,9 @@ class HTTPRunDB(RunDBInterface):
             mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
             db = get_run_db().connect()
         """
-
+        # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
+        if "mock-server" in self.base_url:
+            return
         resp = self.api_call("GET", "healthz", timeout=5)
         try:
             server_cfg = resp.json()
@@ -246,6 +247,7 @@ class HTTPRunDB(RunDBInterface):
                 if server_cfg.get("scrape_metrics") is not None
                 else config.scrape_metrics
             )
+            config.hub_url = server_cfg.get("hub_url") or config.hub_url
         except Exception:
             pass
         return self
@@ -521,6 +523,7 @@ class HTTPRunDB(RunDBInterface):
         since=None,
         until=None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         """ List artifacts filtered by various parameters.
 
@@ -540,6 +543,9 @@ class HTTPRunDB(RunDBInterface):
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
             ``None`` (default) return artifacts from all iterations.
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         """
 
         project = project or default_project
@@ -549,6 +555,7 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
             "label": labels or [],
             "iter": iter,
+            "best-iteration": best_iteration,
         }
         error = "list artifacts"
         resp = self.api_call("GET", "artifacts", error, params=params)
@@ -838,7 +845,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
 
-    def remote_builder(self, func, with_mlrun, mlrun_version_specifier=None):
+    def remote_builder(
+        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+    ):
         """ Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
         instructions provided within. This is a pre-requisite for remotely executing a function, unless using
@@ -848,10 +857,15 @@ class HTTPRunDB(RunDBInterface):
         :param with_mlrun: Whether to add MLRun package to the built package. This is not required if using a base
             image that already has MLRun in it.
         :param mlrun_version_specifier: Version of MLRun to include in the buit image.
+        :param skip_deployed: Skip the build if we already have an image for the function.
         """
 
         try:
-            req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
+            req = {
+                "function": func.to_dict(),
+                "with_mlrun": bool2str(with_mlrun),
+                "skip_deployed": skip_deployed,
+            }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
             resp = self.api_call("POST", "build/function", json=req)
@@ -1703,7 +1717,9 @@ class HTTPRunDB(RunDBInterface):
             deletion_strategy = deletion_strategy.value
         headers = {schemas.HeaderNames.deletion_strategy: deletion_strategy}
         error_message = f"Failed deleting project {name}"
-        self.api_call("DELETE", path, error_message, headers=headers)
+        response = self.api_call("DELETE", path, error_message, headers=headers)
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            return self._wait_for_project_to_be_deleted(name)
 
     def store_project(
         self,
@@ -1721,6 +1737,8 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "PUT", path, error_message, body=dict_to_json(project),
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            return self._wait_for_project_to_reach_terminal_state(name)
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(
@@ -1757,11 +1775,50 @@ class HTTPRunDB(RunDBInterface):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
-        error_message = f"Failed creating project {project['metadata']['name']}"
+        project_name = project["metadata"]["name"]
+        error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST", "projects", error_message, body=dict_to_json(project),
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            return self._wait_for_project_to_reach_terminal_state(project_name)
         return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def _wait_for_project_to_reach_terminal_state(
+        self, project_name: str
+    ) -> mlrun.projects.MlrunProject:
+        def _verify_project_in_terminal_state():
+            project = self.get_project(project_name)
+            if (
+                project.status.state
+                not in mlrun.api.schemas.ProjectState.terminal_states()
+            ):
+                raise Exception(
+                    f"Project not in terminal state. State: {project.status.state}"
+                )
+            return project
+
+        return mlrun.utils.helpers.retry_until_successful(
+            self._wait_for_project_terminal_state_retry_interval,
+            120,
+            logger,
+            False,
+            _verify_project_in_terminal_state,
+        )
+
+    def _wait_for_project_to_be_deleted(self, project_name: str):
+        def _verify_project_deleted():
+            projects = self.list_projects(format_=mlrun.api.schemas.Format.name_only)
+            if project_name in projects:
+                raise Exception("Project still exists")
+
+        return mlrun.utils.helpers.retry_until_successful(
+            self._wait_for_project_deletion_interval,
+            120,
+            logger,
+            False,
+            _verify_project_deleted,
+        )
 
     def create_project_secrets(
         self,

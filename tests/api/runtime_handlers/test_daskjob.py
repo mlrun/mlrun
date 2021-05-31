@@ -69,7 +69,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.cluster_service = self._generate_service(service_name, service_labels)
 
-    def test_list_resources(self):
+    def test_list_resources(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
         services = self._mock_list_services([self.cluster_service])
         self._assert_runtime_handler_list_resources(

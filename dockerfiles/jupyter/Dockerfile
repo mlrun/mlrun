@@ -1,38 +1,39 @@
-FROM jupyter/scipy-notebook
+FROM jupyter/scipy-notebook:python-3.8.8
+
+USER root
+RUN apt-get update && apt-get install --no-install-recommends -y \
+  graphviz \
+ && rm -rf /var/lib/apt/lists/*
+USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1
 
 RUN python -m pip install --upgrade pip~=20.2.0
 
-# by default COPY creates files with root permissions, so doing all the preparation with root and chown-ing everything
-# in the end
-USER root
-
 WORKDIR $HOME
 
-COPY ./README.md $HOME
-COPY ./docs/quick-start.ipynb $HOME
-COPY ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
-COPY ./examples $HOME/examples/
+COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
 
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch hackathon https://github.com/mlrun/demos.git $HOME/demos
 RUN git clone https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data
 
-COPY ./dockerfiles/jupyter/requirements.txt /tmp
-RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/requirements.txt /tmp/requirements/jupyter-requirements.txt
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/mlrun-api/requirements.txt /tmp/requirements/mlrun-api-requirements.txt
+COPY --chown=$NB_UID:$NB_GID ./requirements.txt /tmp/requirements/requirement.txt
+RUN python -m pip install \
+    -r /tmp/requirements/jupyter-requirements.txt \
+    -r /tmp/requirements/mlrun-api-requirements.txt \
+    -r /tmp/requirements/requirement.txt
 
-COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete-api]" && cd /tmp && rm -rf mlrun
+COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
+RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
-RUN chown -R $NB_UID:$NB_GID $HOME
-
-USER $NB_UID
-
-ENV MLRUN_DBPATH=http://localhost:8080 \
-    MLRUN_ARTIFACT_PATH=$HOME/data \
+ENV MLRUN_ARTIFACT_PATH=$HOME/data \
     JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
@@ -40,7 +41,7 @@ ENV MLRUN_DBPATH=http://localhost:8080 \
     MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data
 
 # run the mlrun db (api) and the notebook in parallel
-CMD mlrun db & start-notebook.sh \
+CMD python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \
     --NotebookApp.token='' \

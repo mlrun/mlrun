@@ -11,11 +11,12 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
+    generate_query_predicate_for_name,
     label_set,
     run_labels,
     run_start_time,
@@ -58,7 +59,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
+class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {
@@ -324,8 +325,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         project = project or config.default_project
+
+        if best_iteration and iter is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "best-iteration cannot be used when iter is specified"
+            )
 
         # TODO: Refactor this area
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
@@ -339,13 +346,32 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 ids = self._resolve_tag(session, Artifact, project, tag)
 
         artifacts = ArtifactList()
-        for artifact in self._find_artifacts(
+        artifact_records = self._find_artifacts(
             session, project, ids, labels, since, until, name, kind, category, iter
-        ):
+        )
+        indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
+        for artifact in artifact_records:
+            has_iteration = self._name_with_iter_regex.match(artifact.key)
+
+            # Handle case of looking for best iteration. In that case if there's a linked iteration, we look
+            # for it in the results and return the linked artifact if exists. If original iter is not 0 then
+            # we skip this item.
+            if best_iteration:
+                if has_iteration:
+                    continue
+                link_iteration = artifact.struct.get("link_iteration")
+                if link_iteration:
+                    linked_key = f"{link_iteration}-{artifact.key}"
+                    linked_artifact = indexed_artifacts.get(linked_key)
+                    if linked_artifact:
+                        artifact = linked_artifact
+                    else:
+                        continue
+
             # We need special handling for the case where iter==0, since in that case no iter prefix will exist.
             # Regex support is db-specific, and SQLAlchemy actually implements Python regex for SQLite anyway,
             # and even that only in SA 1.4. So doing this here rather than in the query.
-            if iter == 0 and self._name_with_iter_regex.match(artifact.key):
+            if iter == 0 and has_iteration:
                 continue
 
             artifact_struct = artifact.struct
@@ -647,7 +673,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, project=project, kind=kind)
         if name is not None:
-            query = query.filter(Schedule.name.ilike(f"%{name}%"))
+            query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Schedule, labels)
 
@@ -824,14 +850,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
-        if deletion_strategy == schemas.DeletionStrategy.restrict:
+        if deletion_strategy.is_restricted():
             project_record = self._get_project_record(
                 session, name, raise_on_not_found=False
             )
             if not project_record:
                 return
             self._verify_project_has_no_related_resources(session, name)
-        elif deletion_strategy == schemas.DeletionStrategy.cascade:
+        elif deletion_strategy.is_cascading():
             self._delete_project_related_resources(session, name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -856,7 +882,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # calculating the project summary data is done by doing cross project queries (and not per project) so we're
         # building it outside of the loop
         if format_ == mlrun.api.schemas.Format.summary:
-            projects = self._generate_projects_summaries(session, project_names)
+            projects = self.generate_projects_summaries(session, project_names)
         else:
             for project_record in project_records:
                 if format_ == mlrun.api.schemas.Format.name_only:
@@ -971,7 +997,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         return self._cache["project_resources_counters"]["result"]
 
-    def _generate_projects_summaries(
+    def generate_projects_summaries(
         self, session: Session, projects: List[str]
     ) -> List[mlrun.api.schemas.ProjectSummary]:
         (
@@ -1158,7 +1184,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # Find object IDs by tag, project and feature-set-name (which is a like query)
         tag_query = self._query(session, cls.Tag, project=project, name=tag)
         if name:
-            tag_query = tag_query.filter(cls.Tag.obj_name.ilike(f"%{name}%"))
+            tag_query = tag_query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, name)
+            )
 
         # Generate a mapping from each object id (note: not uid, it's the DB ID) to its associated tags.
         obj_id_tags = {}
@@ -1216,7 +1244,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         )
 
         if name:
-            query = query.filter(query_class.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(query_class.name, name)
+            )
         if labels:
             query = self._add_labels_filter(session, query, query_class, labels)
         if tag:
@@ -1390,7 +1420,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureSet, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureSet.name, name)
+            )
         if tag:
             query = query.filter(FeatureSet.id.in_(obj_id_tags.keys()))
         if entities:
@@ -1784,7 +1816,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureVector, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureVector.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureVector.name, name)
+            )
         if tag:
             query = query.filter(FeatureVector.id.in_(obj_id_tags.keys()))
         if labels:
@@ -1932,7 +1966,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         query = self._query(session, cls.Tag, project=project, name=tag_name)
         if obj_name:
-            query = query.filter(cls.Tag.obj_name.ilike(f"%{obj_name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, obj_name)
+            )
 
         for tag in query:
             uids.append(self._query(session, cls).get(tag.obj_id).uid)
@@ -2045,11 +2081,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         for run in query:
             run_json = run.struct
             if name:
-                if (
-                    not run_json
-                    or not isinstance(run_json, dict)
-                    or name not in run_json.get("metadata", {}).get("name", "")
-                ):
+                if not run_json or not isinstance(run_json, dict):
+                    continue
+
+                run_name = run_json.get("metadata", {}).get("name", "")
+                if name.startswith("~"):
+                    if name[1:].casefold() not in run_name.casefold():
+                        continue
+                elif name != run_name:
                     continue
             if state:
                 if not self._is_run_matching_state(run, run_json, state):
@@ -2111,6 +2150,41 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             ),
         )
 
+    def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
+        if not name and not iter:
+            return query
+
+        # Escape special chars (_,%) since we still need to do a like query because of the iter.
+        # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
+        # this helps filter the situations where we match a suffix by mistake due to the like query.
+        exact_name = (
+            name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
+        )
+
+        if name and name.startswith("~"):
+            # Like query
+            iter_prefix = f"{iter}-" if iter else ""
+            return query.filter(
+                Artifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%", escape="\\")
+            )
+
+        # From here on, it's either exact name match or no name
+        if iter:
+            if name:
+                return query.filter(Artifact.key == f"{iter}-{name}")
+            return query.filter(Artifact.key.ilike(f"{iter}-%"))
+
+        # Exact match, no iter specified
+        return query.filter(
+            or_(
+                Artifact.key == name,
+                and_(
+                    Artifact.key.like(f"%-{exact_name}", escape="\\"),
+                    func.length(Artifact.key) < len(name) + 4,
+                ),
+            )
+        )
+
     def _find_artifacts(
         self,
         session,
@@ -2155,21 +2229,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
-        name_query = ""
-        if iter:
-            # Note that this only covers cases where iter>0
-            name_query = f"{iter}-"
-        if name is not None:
-            name_query = name_query + f"%{name}"
-        if name_query != "":
-            query = query.filter(Artifact.key.ilike(f"{name_query}%"))
+        query = self._add_artifact_name_and_iter_query(query, name, iter)
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])
 
         elif category:
-            return self._filter_artifacts_by_category(query, category)
-
+            filtered_artifacts = self._filter_artifacts_by_category(query, category)
+            # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
+            #        the wrong category. Remove this when we refactor this area.
+            return self._filter_out_extra_link_artifacts(filtered_artifacts)
         else:
             return query.all()
 
@@ -2208,8 +2277,35 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 filtered_artifacts.append(artifact)
         return filtered_artifacts
 
+    # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
+    #        the wrong category. Remove this when we refactor this area.
+    @staticmethod
+    def _filter_out_extra_link_artifacts(artifacts):
+        # Only keep link artifacts that point at "real" artifacts that already exist in the results
+        existing_keys = set()
+        link_artifacts = []
+        filtered_artifacts = []
+        for artifact in artifacts:
+            if artifact.struct.get("kind") != "link":
+                existing_keys.add(artifact.key)
+                filtered_artifacts.append(artifact)
+            else:
+                link_artifacts.append(artifact)
+
+        for link_artifact in link_artifacts:
+            link_iteration = link_artifact.struct.get("link_iteration")
+            if not link_iteration:
+                continue
+            linked_key = f"{link_iteration}-{link_artifact.key}"
+            if linked_key in existing_keys:
+                filtered_artifacts.append(link_artifact)
+
+        return filtered_artifacts
+
     def _find_functions(self, session, name, project, uids=None, labels=None):
-        query = self._query(session, Function, name=name, project=project)
+        query = self._query(session, Function, project=project)
+        if name:
+            query = query.filter(generate_query_predicate_for_name(Function.name, name))
         if uids:
             query = query.filter(Function.uid.in_(uids))
 

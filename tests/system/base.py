@@ -66,7 +66,7 @@ class TestMLRunSystem:
         self._logger.debug("Removing test data from database")
         self._run_db.delete_project(
             self.project_name,
-            deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascade,
+            deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascading,
         )
 
         self._teardown_env()

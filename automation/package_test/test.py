@@ -99,10 +99,21 @@ class PackageTester:
         self._logger.debug(
             "Testing extra imports", extra=extra,
         )
-        self._run_command(
-            f"python -c '{self._extras_tests_data[extra]['import_test_command']}'",
-            run_in_venv=True,
+        test_command = (
+            f"python -c '{self._extras_tests_data[extra]['import_test_command']}'"
         )
+        self._run_command(
+            test_command, run_in_venv=True,
+        )
+        if "api" not in extra:
+            # When api is not in the extra it's an extra purposed for the client usage
+            # Usually it will be used with a remote server - meaning httpdb as the run db, to test that (will cause
+            # different imports to be done) we're setting the DB path
+            self._run_command(
+                test_command,
+                run_in_venv=True,
+                env={"MLRUN_DBPATH": "http://mock-server"},
+            )
 
     def _test_requirements_conflicts(self, extra):
         self._logger.debug(
@@ -135,12 +146,13 @@ class PackageTester:
             f"pip install '.{extra}'", run_in_venv=True,
         )
 
-    def _run_command(self, command, run_in_venv=False):
+    def _run_command(self, command, run_in_venv=False, env=None):
         if run_in_venv:
             command = f". test-venv/bin/activate && {command}"
         try:
             process = subprocess.run(
                 command,
+                env=env,
                 shell=True,
                 check=True,
                 stdout=subprocess.PIPE,

@@ -154,7 +154,15 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
     response = _assert_store_feature_vector(
         client, project_name, name, "tag1", feature_vector
     )
+    assert response["metadata"]["tag"] == "tag1"
     uid = response["metadata"]["uid"]
+
+    # Put same object using uid - should not return tag
+    response = _assert_store_feature_vector(
+        client, project_name, name, uid, feature_vector
+    )
+    assert response["metadata"]["tag"] is None
+
     # Change fields that will not affect the uid, verify object is overwritten
     feature_vector["status"]["state"] = "modified"
 

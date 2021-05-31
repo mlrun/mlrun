@@ -92,6 +92,22 @@ def _assert_extra_fields_exist(json_response):
     assert json_response["status"]["extra_status"]["field2"] == "value2"
 
 
+def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set1"
+    tag = "my_tag1"
+    feature_set = _generate_feature_set(name)
+    feature_set["metadata"]["tag"] = tag
+
+    result = _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
+    assert result["metadata"]["tag"] == tag
+    uid = result["metadata"]["uid"]
+
+    result = _store_and_assert_feature_set(client, project_name, name, uid, feature_set)
+    assert result["metadata"]["tag"] is None
+
+
 def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
 

@@ -55,7 +55,7 @@ def store_feature_set(
         db_session, project, name, feature_set, tag, uid, versioned
     )
 
-    return get_db().get_feature_set(db_session, project, name, uid=uid,)
+    return get_db().get_feature_set(db_session, project, name, tag=tag, uid=uid)
 
 
 @router.patch("/projects/{project}/feature-sets/{name}/references/{reference}")
@@ -344,7 +344,7 @@ def store_feature_vector(
         db_session, project, name, feature_vector, tag, uid, versioned
     )
 
-    return get_db().get_feature_vector(db_session, project, name, uid=uid,)
+    return get_db().get_feature_vector(db_session, project, name, uid=uid, tag=tag)
 
 
 @router.patch("/projects/{project}/feature-vectors/{name}/references/{reference}")

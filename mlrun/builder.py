@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import tarfile
+import mlrun.errors
 from base64 import b64decode, b64encode
 from os import path, remove
 from tempfile import mktemp
@@ -22,6 +23,7 @@ from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
+import mlrun.runtimes.utils
 
 
 def make_dockerfile(
@@ -252,14 +254,36 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
     return f'python -m pip install "{mlrun_version_specifier}"'
 
 
-def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=False):
+def build_runtime(runtime, with_mlrun, mlrun_version_specifier, skip_deployed, interactive=False):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
+    if skip_deployed and runtime.is_deployed:
+        runtime.status.state = "ready"
+        return True
+    if (
+            not build.source
+            and not build.commands
+            and not build.extra
+            and not with_mlrun
+    ):
+        if not runtime.spec.image:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "noting to build and image is not specified, "
+                "please set the function image or build args"
+            )
+        runtime.status.state = "ready"
+        return True
+
+    build.image = build.image or mlrun.runtimes.utils.generate_function_image_name(
+        runtime
+    )
+    runtime.status.state = ""
+
     inline = None  # noqa: F841
     if build.functionSourceCode:
         inline = b64decode(build.functionSourceCode).decode("utf-8")  # noqa: F841
     if not build.image:
-        raise ValueError(
+        raise mlrun.errors.MLRunInvalidArgumentError(
             "build spec must have a target image, set build.image = <target image>"
         )
     logger.info(f"building image ({build.image})")

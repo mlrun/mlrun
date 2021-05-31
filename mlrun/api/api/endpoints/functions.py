@@ -111,9 +111,10 @@ async def build_function(
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
     with_mlrun = strtobool(data.get("with_mlrun", "on"))
+    skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
     fn, ready = await run_in_threadpool(
-        _build_function, db_session, function, with_mlrun, mlrun_version_specifier
+        _build_function, db_session, function, with_mlrun, skip_deployed, mlrun_version_specifier
     )
     return {
         "data": fn.to_dict(),
@@ -274,7 +275,7 @@ def build_status(
     )
 
 
-def _build_function(db_session, function, with_mlrun, mlrun_version_specifier):
+def _build_function(db_session, function, with_mlrun, skip_deployed, mlrun_version_specifier):
     fn = None
     ready = None
     try:
@@ -288,7 +289,7 @@ def _build_function(db_session, function, with_mlrun, mlrun_version_specifier):
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
-            ready = build_runtime(fn, with_mlrun, mlrun_version_specifier)
+            ready = build_runtime(fn, with_mlrun, mlrun_version_specifier, skip_deployed)
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:

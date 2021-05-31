@@ -311,8 +311,7 @@ class FeatureSet(ModelObj):
         :param default_final_step: the final graph step after which we add the
                                     target writers, used when the graph branches and
                                     the end cant be determined automatically
-        :param default_final_state: *Deprecated* Kept for backwards compatibility -
-                                    use default_final_step instead.
+        :param default_final_state: *Deprecated* - use default_final_step instead
         """
         if default_final_state:
             warnings.warn(
@@ -374,10 +373,10 @@ class FeatureSet(ModelObj):
         window,
         period=None,
         step_name=None,
-        state_name=None,
         after=None,
         before=None,
         emit_policy: Optional["EmitPolicy"] = None,
+        state_name=None,
     ):
         """add feature aggregation rule
 
@@ -391,7 +390,7 @@ class FeatureSet(ModelObj):
         :param window:     time window, e.g. '1h', '6h', '1d'
         :param period:     optional, sliding window granularity, e.g. '10m'
         :param step_name: optional, graph step name
-        :param state_name: *Deprecated* kept for backwards compatibility - use step_name instead
+        :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
         :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit

@@ -136,10 +136,17 @@ class BaseState(ModelObj):
         )
         return self.after_step(after)
 
-    # Replaced state_name with step_name without backwards compatibility since this will usually not be used
-    # as a named parameter - step.error_handler("name")
-    def error_handler(self, step_name: str):
+    def error_handler(self, step_name: str = None, state_name=None):
         """set error handler state (on failure/raise of this state)"""
+        if state_name:
+            warnings.warn(
+                "The state_name parameter is deprecated. Use step_name instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            step_name = step_name or state_name
+        if not step_name:
+            raise MLRunInvalidArgumentError("Must specify step_name")
         self.on_error = step_name
         return self
 

@@ -845,7 +845,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
 
-    def remote_builder(self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False):
+    def remote_builder(
+        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+    ):
         """ Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
         instructions provided within. This is a pre-requisite for remotely executing a function, unless using
@@ -859,7 +861,11 @@ class HTTPRunDB(RunDBInterface):
         """
 
         try:
-            req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun), "skip_deployed": skip_deployed}
+            req = {
+                "function": func.to_dict(),
+                "with_mlrun": bool2str(with_mlrun),
+                "skip_deployed": skip_deployed,
+            }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
             resp = self.api_call("POST", "build/function", json=req)

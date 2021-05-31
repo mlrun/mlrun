@@ -13,17 +13,18 @@
 # limitations under the License.
 
 import tarfile
-import mlrun.errors
 from base64 import b64decode, b64encode
 from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
+import mlrun.errors
+import mlrun.runtimes.utils
+
 from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
-import mlrun.runtimes.utils
 
 
 def make_dockerfile(
@@ -254,18 +255,15 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
     return f'python -m pip install "{mlrun_version_specifier}"'
 
 
-def build_runtime(runtime, with_mlrun, mlrun_version_specifier, skip_deployed, interactive=False):
+def build_runtime(
+    runtime, with_mlrun, mlrun_version_specifier, skip_deployed, interactive=False
+):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     if skip_deployed and runtime.is_deployed:
         runtime.status.state = "ready"
         return True
-    if (
-            not build.source
-            and not build.commands
-            and not build.extra
-            and not with_mlrun
-    ):
+    if not build.source and not build.commands and not build.extra and not with_mlrun:
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "noting to build and image is not specified, "

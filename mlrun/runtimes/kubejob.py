@@ -17,8 +17,8 @@ import time
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
-from mlrun.runtimes.base import BaseRuntimeHandler
 import mlrun.errors
+from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..builder import build_runtime
 from ..db import RunDBError
@@ -27,7 +27,7 @@ from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
-from .utils import AsyncLogWriter, generate_function_image_name
+from .utils import AsyncLogWriter
 
 
 class KubejobRuntime(KubeResource):
@@ -141,7 +141,9 @@ class KubejobRuntime(KubeResource):
         if self._is_remote_api():
             db = self._get_db()
             logger.info(f"starting remote build, image: {self.spec.build.image}")
-            data = db.remote_builder(self, with_mlrun, mlrun_version_specifier, skip_deployed)
+            data = db.remote_builder(
+                self, with_mlrun, mlrun_version_specifier, skip_deployed
+            )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
@@ -151,7 +153,9 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(self, with_mlrun, mlrun_version_specifier, skip_deployed, watch)
+            ready = build_runtime(
+                self, with_mlrun, mlrun_version_specifier, skip_deployed, watch
+            )
             self.save(versioned=False)
 
         if watch and not ready:

@@ -2040,7 +2040,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 cls = obj.__class__.__name__
                 logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
                 if "database is locked" in str(err):
-                    raise mlrun.errors.MLRunRuntimeError("Failed adding resource, database is locked") from err
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Failed adding resource, database is locked"
+                    ) from err
                 if not ignore:
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
@@ -2048,7 +2050,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                             f"Conflict - {cls} already exists"
                         ) from err
                     except mlrun.errors.MLRunConflictError as exc:
-                        raise mlrun.utils.helpers.FatalFailureException(original_exception=exc)
+                        raise mlrun.utils.helpers.FatalFailureException(
+                            original_exception=exc
+                        )
+
         if config.httpdb.db.commit_retry_timeout:
             mlrun.utils.helpers.retry_until_successful(
                 config.httpdb.db.commit_retry_interval,

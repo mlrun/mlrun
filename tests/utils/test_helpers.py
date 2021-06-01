@@ -3,6 +3,7 @@ import pytest
 import mlrun.errors
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
+from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
@@ -12,21 +13,17 @@ from mlrun.utils.helpers import (
     verify_field_regex,
 )
 from mlrun.utils.regex import run_name
-from mlrun.utils import logger
 
 
 def test_retry_until_successful_fatal_failure():
-    original_exception = Exception('original')
+    original_exception = Exception("original")
+
     def _raise_fatal_failure():
         raise mlrun.utils.helpers.FatalFailureException(original_exception)
 
     with pytest.raises(Exception, match=str(original_exception)):
         mlrun.utils.helpers.retry_until_successful(
-            0,
-            1,
-            logger,
-            True,
-            _raise_fatal_failure
+            0, 1, logger, True, _raise_fatal_failure
         )
 
 

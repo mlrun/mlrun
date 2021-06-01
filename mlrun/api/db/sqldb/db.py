@@ -2038,11 +2038,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             except SQLAlchemyError as err:
                 session.rollback()
                 cls = obj.__class__.__name__
-                logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
                 if "database is locked" in str(err):
+                    logger.warning(
+                        "Database is locked. Retrying", cls=cls, err=str(err)
+                    )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed adding resource, database is locked"
                     ) from err
+                logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
                 if not ignore:
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:

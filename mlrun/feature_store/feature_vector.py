@@ -331,7 +331,10 @@ class OnlineVectorService:
                 requested_columns = self.vector.status.features.keys()
                 actual_columns = data.keys()
                 for column in requested_columns:
-                    if column not in actual_columns:
+                    if (
+                        column not in actual_columns
+                        and column != self.vector.status.label_column
+                    ):
                         data[column] = None
             if as_list:
                 data = [

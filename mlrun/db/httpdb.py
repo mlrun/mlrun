@@ -120,7 +120,7 @@ class HTTPRunDB(RunDBInterface):
         body=None,
         json=None,
         headers=None,
-        timeout=20,
+        timeout=45,
     ):
         """ Perform a direct REST API call on the :py:mod:`mlrun` API server.
 

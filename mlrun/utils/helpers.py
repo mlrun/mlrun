@@ -625,6 +625,12 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
+class FatalFailureException(Exception):
+    def __init__(self, original_exception: Exception, *args: object) -> None:
+        super().__init__(*args)
+        self.original_exception = original_exception
+
+
 def retry_until_successful(
     interval: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
 ):
@@ -649,6 +655,9 @@ def retry_until_successful(
             result = _function(*args, **kwargs)
             return result
 
+        except FatalFailureException as exc:
+            logger.debug("Fatal failure exception raised. Not retrying")
+            raise exc.original_exception
         except Exception as exc:
             last_exception = exc
 

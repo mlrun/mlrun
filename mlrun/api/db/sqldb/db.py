@@ -2031,17 +2031,40 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         session.commit()
 
     def _upsert(self, session, obj, ignore=False):
-        try:
-            session.add(obj)
-            session.commit()
-        except SQLAlchemyError as err:
-            session.rollback()
-            cls = obj.__class__.__name__
-            logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
-            if not ignore:
-                raise mlrun.errors.MLRunConflictError(
-                    f"Conflict - {cls} already exists"
-                ) from err
+        def _try_commit_obj():
+            try:
+                session.add(obj)
+                session.commit()
+            except SQLAlchemyError as err:
+                session.rollback()
+                cls = obj.__class__.__name__
+                if "database is locked" in str(err):
+                    logger.warning(
+                        "Database is locked. Retrying", cls=cls, err=str(err)
+                    )
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Failed adding resource, database is locked"
+                    ) from err
+                logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
+                if not ignore:
+                    # We want to retry only when database is locked so for any other scenario escalate to fatal failure
+                    try:
+                        raise mlrun.errors.MLRunConflictError(
+                            f"Conflict - {cls} already exists"
+                        ) from err
+                    except mlrun.errors.MLRunConflictError as exc:
+                        raise mlrun.utils.helpers.FatalFailureException(
+                            original_exception=exc
+                        )
+
+        if config.httpdb.db.commit_retry_timeout:
+            mlrun.utils.helpers.retry_until_successful(
+                config.httpdb.db.commit_retry_interval,
+                config.httpdb.db.commit_retry_timeout,
+                logger,
+                False,
+                _try_commit_obj,
+            )
 
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)

@@ -853,7 +853,7 @@ def run_pipeline(
 
     artifact_path = artifact_path or mlconf.artifact_path
     artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
-        artifact_path, project
+        artifact_path, project or mlconf.default_project
     )
     if artifact_path and "{{run.uid}}" in artifact_path:
         artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")

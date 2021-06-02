@@ -381,11 +381,11 @@ class FeatureSet(ModelObj):
         """
         if isinstance(windows, list):
             unit = None
-            for win in windows:
+            for window in windows:
                 if not unit:
-                    unit = win[-1]
+                    unit = window[-1]
                 else:
-                    if win[-1] != unit:
+                    if window[-1] != unit:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             "List of windows is supported only for the same unit of time, e.g [1h, 5h].\n"
                             "For additional windows create another aggregation"

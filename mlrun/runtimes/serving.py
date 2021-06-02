@@ -468,7 +468,7 @@ class ServingRuntime(RemoteRuntime):
         return env
 
     def to_mock_server(
-        self, namespace=None, current_function='*', **kwargs
+        self, namespace=None, current_function="*", **kwargs
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 

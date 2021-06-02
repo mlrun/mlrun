@@ -481,7 +481,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            window="1h",
+            windows="1h",
             period="10m",
             emit_policy=EmitAfterMaxEvent(1),
         )
@@ -531,7 +531,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            window="1h",
+            windows="1h",
             period="10m",
         )
 

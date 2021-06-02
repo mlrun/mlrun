@@ -706,9 +706,10 @@ class RunObject(RunTemplate):
 
     @property
     def ui_url(self) -> str:
+        """UI URL (for relevant runtimes)"""
         self.refresh()
         if not self.status.ui_url:
-            print("UI currently not available ({})".format(self.status.state))
+            print("UI currently not available (status={})".format(self.status.state))
         return self.status.ui_url
 
     @property
@@ -748,6 +749,7 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
+            self.status = RunStatus.from_dict(run.get("status", {}))
             self.status.from_dict(run.get("status", {}))
             return self
 

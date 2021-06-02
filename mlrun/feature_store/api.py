@@ -93,9 +93,9 @@ def get_offline_features(
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
     :param run_config:     function and/or run configuration
                            see :py:class:`~mlrun.feature_store.RunConfig`
-    :param start_time      datetime, low limit of time needed to be filtered. Optional.
+    :param start_time:      datetime, low limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
-    :param end_time        datetime, high limit of time needed to be filtered. Optional.
+    :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
     """
     feature_vector = _features_to_vector(feature_vector)

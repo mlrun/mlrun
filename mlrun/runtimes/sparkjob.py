@@ -551,6 +551,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         logger.info("UHUH - 2")
         state = SparkApplicationStates.spark_application_state_to_run_state(app_state)
         logger.info("UHUH - 3")
+        ui_url = None
         if state == RunStates.running:
             logger.info("UHUH - 4")
             ui_url = (
@@ -558,20 +559,17 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                 .get("driverInfo", {})
                 .get("webUIIngressAddress")
             )
-        elif state in SparkApplicationStates.terminal_states():
-            logger.info("UHUH - 5")
-            ui_url = None
-        logger.info("UHUH - 6")
+        logger.info("UHUH - 5")
         db_ui_url = run.get("status", {}).get("ui_url")
         logger.info("UHUH - db_ui_url = {0}, ui_url = {1}".format(db_ui_url, ui_url))
         if db_ui_url == ui_url:
-            logger.info("UHUH - 7")
+            logger.info("UHUH - 6")
             return
-        logger.info("UHUH - 8")
+        logger.info("UHUH - 7")
         run.setdefault("status", {})["ui_url"] = ui_url
-        logger.info("UHUH - 9")
+        logger.info("UHUH - 8")
         db.store_run(db_session, run, uid, project)
-        logger.info("UHUH - 10")
+        logger.info("UHUH - 9")
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:

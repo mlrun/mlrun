@@ -708,9 +708,9 @@ class RunObject(RunTemplate):
     def ui_url(self) -> str:
         """UI URL (for relevant runtimes)"""
         self.refresh()
-        if not self.status.ui_url:
-            print("UI currently not available (status={})".format(self.status.state))
-        return self.status.ui_url
+        if not self._status.ui_url:
+            print("UI currently not available (status={})".format(self._status.state))
+        return self._status.ui_url
 
     @property
     def outputs(self):

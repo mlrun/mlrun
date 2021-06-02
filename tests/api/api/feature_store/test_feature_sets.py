@@ -108,6 +108,17 @@ def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
     assert result["metadata"]["tag"] is None
 
 
+def test_feature_set_create_without_tag(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+    feature_set["metadata"].pop("tag")
+
+    response = _feature_set_create_and_assert(client, project_name, feature_set)
+    assert response["metadata"]["tag"] == "latest"
+
+
 def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
 

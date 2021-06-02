@@ -50,11 +50,14 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     name = "feature_set1"
     feature_vector = _generate_feature_vector(name)
     feature_vector["metadata"]["project"] = project_name
+    feature_vector["metadata"].pop("tag")
 
     feature_vector_response = _create_and_assert_feature_vector(
         client, project_name, feature_vector, True
     )
     allowed_added_fields = ["uid", "updated", "tag"]
+    assert feature_vector_response["metadata"]["tag"] == "latest"
+
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )
@@ -73,7 +76,6 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     )
     assert feature_vector_response.status_code == HTTPStatus.OK.value
     # When querying by uid, tag will not be returned
-    feature_vector["metadata"].pop("tag")
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response.json(), allowed_added_fields
     )

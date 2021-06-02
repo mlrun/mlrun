@@ -33,7 +33,7 @@ def create_feature_set(
         db_session,
         project,
         feature_set.metadata.name,
-        tag=feature_set.metadata.tag,
+        tag=feature_set.metadata.tag or "latest",
         uid=feature_set_uid,
     )
 
@@ -275,7 +275,7 @@ def create_feature_vector(
         db_session,
         project,
         feature_vector.metadata.name,
-        tag=feature_vector.metadata.tag,
+        tag=feature_vector.metadata.tag or "latest",
         uid=feature_vector_uid,
     )
 

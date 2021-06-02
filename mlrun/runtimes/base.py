@@ -1057,6 +1057,14 @@ class BaseRuntimeHandler(ABC):
         """
         return False, None, None
 
+    def _update_ui_url(
+        self, db: DBInterface, db_session: Session, crd_object, run: Dict = None
+    ):
+        """
+        Update the UI URL for relevant jobs.
+        """
+        pass
+
     def _resolve_pod_status_info(
         self, db: DBInterface, db_session: Session, pod: Dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
@@ -1511,6 +1519,7 @@ class BaseRuntimeHandler(ABC):
             (_, _, run_state,) = self._resolve_crd_object_status_info(
                 db, db_session, runtime_resource
             )
+            self._update_ui_url(db, db_session, runtime_resource, run)
         else:
             (_, _, run_state,) = self._resolve_pod_status_info(
                 db, db_session, runtime_resource

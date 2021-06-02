@@ -517,6 +517,7 @@ class RunStatus(ModelObj):
         start_time=None,
         last_update=None,
         iterations=None,
+        ui_url=None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -528,6 +529,7 @@ class RunStatus(ModelObj):
         self.start_time = start_time
         self.last_update = last_update
         self.iterations = iterations
+        self.ui_url = ui_url
 
 
 class RunTemplate(ModelObj):
@@ -701,6 +703,12 @@ class RunObject(RunTemplate):
         if artifact:
             return get_artifact_target(artifact, self.metadata.project)
         return None
+
+    @property
+    def ui_url(self) -> str:
+        self.refresh()
+        if not self.status.ui_url:
+            print("UI currently not available ({})".format(self.status.state))
 
     @property
     def outputs(self):

@@ -709,6 +709,7 @@ class RunObject(RunTemplate):
         self.refresh()
         if not self.status.ui_url:
             print("UI currently not available ({})".format(self.status.state))
+        return self.status.ui_url
 
     @property
     def outputs(self):

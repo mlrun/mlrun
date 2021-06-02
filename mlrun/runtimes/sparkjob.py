@@ -15,7 +15,7 @@
 import typing
 from copy import deepcopy
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -25,7 +25,7 @@ from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
-from mlrun.runtimes.constants import SparkApplicationStates
+from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
 from ..execution import MLClientCtx
 from ..model import RunObject
@@ -540,6 +540,32 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                 .replace("Z", "+00:00")
             )
         return in_terminal_state, completion_time, desired_run_state
+
+    def _update_ui_url(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        uid: str,
+        crd_object,
+        run: Dict = None,
+    ):
+        app_state = (
+            crd_object.get("status", {}).get("applicationState", {}).get("state")
+        )
+        state = SparkApplicationStates.spark_application_state_to_run_state(app_state)
+        ui_url = None
+        if state == RunStates.running:
+            ui_url = (
+                crd_object.get("status", {})
+                .get("driverInfo", {})
+                .get("webUIIngressAddress")
+            )
+        db_ui_url = run.get("status", {}).get("ui_url")
+        if db_ui_url == ui_url:
+            return
+        run.setdefault("status", {})["ui_url"] = ui_url
+        db.store_run(db_session, run, uid, project)
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:

@@ -208,7 +208,7 @@ class GraphServer(ModelObj):
         context = context or server_context
         try:
             response = self.graph.run(event, **(extra_args or {}))
-        except Exception as exc:
+        except Exception as exc: # should be thrown here
             message = str(exc)
             if server_context.verbose:
                 message += "\n" + str(traceback.format_exc())

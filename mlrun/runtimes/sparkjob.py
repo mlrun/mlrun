@@ -542,7 +542,13 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return in_terminal_state, completion_time, desired_run_state
 
     def _update_ui_url(
-        self, db: DBInterface, db_session: Session, crd_object, run: Dict = None
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        uid: str,
+        crd_object,
+        run: Dict = None,
     ):
         logger.info("UHUH - 1")
         app_state = (

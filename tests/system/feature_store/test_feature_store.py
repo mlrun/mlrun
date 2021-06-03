@@ -474,8 +474,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fs.FeatureSet(
-            name, entities = [Entity("first_name"), Entity("last_name")]  #
-
+            name, entities=[Entity("first_name"), Entity("last_name")]
         )
 
         data_set.add_aggregation(

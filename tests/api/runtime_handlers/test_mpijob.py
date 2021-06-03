@@ -74,7 +74,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler
         )
 
-    def test_list_resources(self):
+    def test_list_resources(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
@@ -83,7 +83,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             expected_pods=pods,
         )
 
-    def test_list_resources_with_crds_without_status(self):
+    def test_list_resources_with_crds_without_status(
+        self, db: Session, client: TestClient
+    ):
         mocked_responses = self._mock_list_namespaced_crds([[self.no_status_crd_dict]])
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(

@@ -98,6 +98,7 @@ class DBInterface(ABC):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         pass
 

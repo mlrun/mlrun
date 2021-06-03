@@ -234,6 +234,7 @@ class FileRunDB(RunDBInterface):
         since=None,
         until=None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         if iter:
             raise NotImplementedError(

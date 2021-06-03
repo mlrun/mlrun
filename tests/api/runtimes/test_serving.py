@@ -5,6 +5,7 @@ from http import HTTPStatus
 
 import deepdiff
 import nuclio
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,19 @@ from .test_nuclio import TestNuclioRuntime
 
 
 class TestServingRuntime(TestNuclioRuntime):
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(self, db: Session, client: TestClient):
+        # We want this mock for every test, ideally we would have simply put it in the custom_setup
+        # but this function is called by the base class's setup_method which is happening before the fixtures
+        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+        self._mock_nuclio_deploy_config()
+        self._mock_vault_functionality()
+        # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
+        # and instead just call the deploy_nuclio_function() API which actually performs the
+        # deployment in this case. This will keep the tests' code mostly client-side oriented, but validations
+        # will be performed against the Nuclio spec created on the server side.
+        self._mock_db_remote_deploy_functions()
+
     def custom_setup(self):
         super().custom_setup()
         self.inline_secrets = {
@@ -29,13 +43,6 @@ class TestServingRuntime(TestNuclioRuntime):
         os.environ["ENV_SECRET1"] = "ENV SECRET!!!!"
 
         self.code_filename = str(self.assets_path / "serving_functions.py")
-
-        self._mock_vault_functionality()
-        # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
-        # and instead just call the deploy_nuclio_function() API which actually performs the
-        # deployment in this case. This will keep the tests' code mostly client-side oriented, but validations
-        # will be performed against the Nuclio spec created on the server side.
-        self._mock_db_remote_deploy_functions()
 
     @staticmethod
     def _mock_db_remote_deploy_functions():

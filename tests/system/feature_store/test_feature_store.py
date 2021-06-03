@@ -506,7 +506,7 @@ class TestFeatureStore(TestMLRunSystem):
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-        assert resp[0]['bids_sum_1h'] == 47.0
+        assert resp[0]["bids_sum_1h"] == 47.0
 
         svc.close()
 

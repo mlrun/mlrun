@@ -535,7 +535,8 @@ class BaseRuntime(ModelObj):
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
 
-    def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
+    def _get_cmd_args(self, runobj: RunObject):
+        with_mlrun = (not self.spec.mode) or (self.spec.mode != "pass")
         extra_env = self._generate_runtime_env(runobj)
         if self.spec.pythonpath:
             extra_env["PYTHONPATH"] = self.spec.pythonpath
@@ -565,6 +566,8 @@ class BaseRuntime(ModelObj):
             args += ["--handler", runobj.spec.handler]
         if self.spec.args:
             args += self.spec.args
+
+        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env
 
     def _pre_run(self, runspec: RunObject, execution):

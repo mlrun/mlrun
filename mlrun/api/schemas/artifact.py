@@ -13,10 +13,12 @@ class ArtifactCategories(str, enum.Enum):
         import mlrun.artifacts.dataset
         import mlrun.artifacts.model
 
+        link_kind = mlrun.artifacts.base.LinkArtifact.kind
+
         if self.value == ArtifactCategories.model.value:
-            return [mlrun.artifacts.model.ModelArtifact.kind], False
+            return [mlrun.artifacts.model.ModelArtifact.kind, link_kind], False
         if self.value == ArtifactCategories.dataset.value:
-            return [mlrun.artifacts.dataset.DatasetArtifact.kind], False
+            return [mlrun.artifacts.dataset.DatasetArtifact.kind, link_kind], False
         if self.value == ArtifactCategories.other.value:
             return (
                 [

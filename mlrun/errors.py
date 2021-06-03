@@ -48,7 +48,7 @@ class MLRunHTTPStatusError(MLRunHTTPError):
         )
 
 
-def raise_for_status(response: requests.Response):
+def raise_for_status(response: requests.Response, message: str = None):
     """
     Raise a specific MLRunSDK error depending on the given response status code.
     If no specific error exists, raises an MLRunHTTPError
@@ -56,12 +56,15 @@ def raise_for_status(response: requests.Response):
     try:
         response.raise_for_status()
     except requests.HTTPError as exc:
+        error_message = str(exc)
+        if error_message:
+            error_message = f"{str(exc)}: {message}"
         try:
             raise STATUS_ERRORS[response.status_code](
-                str(exc), response=response
+                error_message, response=response
             ) from exc
         except KeyError:
-            raise MLRunHTTPError(str(exc), response=response) from exc
+            raise MLRunHTTPError(error_message, response=response) from exc
 
 
 # Specific Errors
@@ -107,6 +110,10 @@ class MLRunRuntimeError(MLRunHTTPStatusError, RuntimeError):
 
 class MLRunMissingDependencyError(MLRunInternalServerError):
     pass
+
+
+class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
+    error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
 
 
 STATUS_ERRORS = {

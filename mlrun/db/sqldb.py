@@ -124,6 +124,7 @@ class SQLDB(RunDBInterface):
         since=None,
         until=None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         return self._transform_db_error(
             self.db.list_artifacts,
@@ -135,6 +136,7 @@ class SQLDB(RunDBInterface):
             since,
             until,
             iter=iter,
+            best_iteration=best_iteration,
         )
 
     def del_artifact(self, key, tag="", project=""):

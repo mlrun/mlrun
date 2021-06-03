@@ -61,7 +61,7 @@ feature_set = FeatureSet("measurements", entities=[Entity(key)], timestamp_key="
 # Define the computational graph including our custom functions
 feature_set.graph.to(DropColumns(drop_columns))\
                  .to(RenameColumns(mapping={'bad': 'bed'}))
-feature_set.add_aggregation('hr', 'hr', ['avg'], ["1h", "1d"])
+feature_set.add_aggregation('hr', 'hr', ['avg'], ["1h"])
 feature_set.plot()
 fs.ingest(feature_set, data_df)
 ```

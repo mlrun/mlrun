@@ -74,7 +74,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler
         )
 
-    def test_list_resources(self):
+    def test_list_resources(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
@@ -83,7 +83,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             expected_pods=pods,
         )
 
-    def test_list_resources_grouped_by_job(self):
+    def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(

@@ -14,12 +14,10 @@
 import getpass
 import importlib.util as imputil
 import shutil
-import tarfile
 import typing
 import warnings
 from os import environ, path, remove
 from tempfile import mktemp
-from urllib.parse import urlparse
 
 import yaml
 from git import Repo
@@ -43,7 +41,6 @@ from ..features import Feature
 from ..model import ModelObj
 from ..run import (
     code_to_function,
-    download_object,
     get_object,
     import_function,
     new_function,
@@ -53,6 +50,7 @@ from ..run import (
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
+from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 
 
 class ProjectError(Exception):
@@ -119,6 +117,8 @@ def load_project(
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets)
+        elif url.endswith(".zip"):
+            clone_zip(url, context, secrets)
         elif url.startswith("db://"):
             if user_project:
                 user = environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -132,7 +132,7 @@ def load_project(
             raise ValueError(f"context {context} is not an existing dir path")
         try:
             repo = Repo(context)
-            url = _get_repo_url(repo)
+            url = get_repo_url(repo)
         except Exception:
             if init_git:
                 repo = Repo.init(context)
@@ -290,7 +290,7 @@ class ProjectSpec(ModelObj):
         """source url or git repo"""
         if not self._source:
             if self.repo:
-                url = _get_repo_url(self.repo)
+                url = get_repo_url(self.repo)
                 if url:
                     self._source = url
 
@@ -1103,9 +1103,9 @@ class MlrunProject(ModelObj):
             remote = remote or "origin"
             self.spec.repo.git.pull(remote, branch)
         elif url and url.endswith(".tar.gz"):
-            if not self.spec.context:
-                raise ValueError("target dit (context) is not set")
             clone_tgz(url, self.spec.context, self._secrets)
+        elif url and url.endswith(".zip"):
+            clone_zip(url, self.spec.context, self._secrets)
 
     def create_remote(self, url, name="origin"):
         """create remote for the project git
@@ -1459,7 +1459,7 @@ class MlrunProjectLegacy(ModelObj):
         """source url or git repo"""
         if not self._source:
             if self.repo:
-                url = _get_repo_url(self.repo)
+                url = get_repo_url(self.repo)
                 if url:
                     self._source = url
 
@@ -1870,71 +1870,3 @@ def github_webhook(request):
         return {"msg": "Ok"}
 
     return {"msg": "pushed"}
-
-
-def clone_git(url, context, secrets, clone):
-    url_obj = urlparse(url)
-    if not context:
-        raise ValueError("please specify a target (context) directory for clone")
-
-    if path.exists(context) and path.isdir(context):
-        if clone:
-            shutil.rmtree(context)
-        else:
-            try:
-                repo = Repo(context)
-                return _get_repo_url(repo), repo
-            except Exception:
-                pass
-
-    host = url_obj.hostname or "github.com"
-    if url_obj.port:
-        host += f":{url_obj.port}"
-
-    token = url_obj.username or secrets.get("GITHUB_TOKEN") or secrets.get("git_user")
-    password = url_obj.password or secrets.get("git_password") or "x-oauth-basic"
-    if token:
-        clone_path = f"https://{token}:{password}@{host}{url_obj.path}"
-    else:
-        clone_path = f"https://{host}{url_obj.path}"
-
-    branch = None
-    if url_obj.fragment:
-        refs = url_obj.fragment
-        if refs.startswith("refs/"):
-            branch = refs[refs.rfind("/") + 1 :]
-        else:
-            url = url.replace("#" + refs, f"#refs/heads/{refs}")
-
-    repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
-    return url, repo
-
-
-def clone_tgz(url, context, secrets):
-    if not context:
-        raise ValueError("please specify a target (context) directory for clone")
-
-    if path.exists(context) and path.isdir(context):
-        shutil.rmtree(context)
-    tmp = mktemp()
-    download_object(url, tmp, secrets=secrets)
-    tf = tarfile.open(tmp)
-    tf.extractall(context)
-    tf.close()
-    remove(tmp)
-
-
-def _get_repo_url(repo):
-    url = ""
-    remotes = [remote.url for remote in repo.remotes]
-    if not remotes:
-        return ""
-
-    url = remotes[0]
-    url = url.replace("https://", "git://")
-    try:
-        url = f"{url}#refs/heads/{repo.active_branch.name}"
-    except Exception:
-        pass
-
-    return url

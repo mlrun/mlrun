@@ -16,7 +16,7 @@ import asyncio
 import json
 import typing
 from datetime import datetime
-from os import environ
+from os import environ, getenv
 from time import sleep
 
 import nuclio
@@ -26,6 +26,8 @@ from kubernetes import client
 from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.errors
+from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
 
 from ..config import config as mlconf
@@ -165,6 +167,113 @@ class RemoteRuntime(KubeResource):
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
         self.spec.config[f"spec.triggers.{name}"] = spec
+        return self
+
+    def with_source_archive(
+        self, source, handler="", runtime="", secrets=None,
+    ):
+        """Load nuclio function from remote source
+        :param source: a full path to the nuclio function source (code entry) to load the function from
+        :param handler: a path to the function's handler, including path inside archive/git repo
+        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        :param secrets: a dictionary of secrets to be used to fetch the function from the source.
+               (can also be passed using env vars). options:
+               ["V3IO_ACCESS_KEY",
+               "GIT_USERNAME",
+               "GIT_PASSWORD",
+               "AWS_ACCESS_KEY_ID",
+               "AWS_SECRET_ACCESS_KEY",
+               "AWS_SESSION_TOKEN"]
+
+        Examples::
+            git:
+                ("git://github.com/org/repo#my-branch",
+                 handler="path/inside/repo#main:handler",
+                 secrets={"GIT_PASSWORD": "my-access-token"})
+            s3:
+                ("s3://my-bucket/path/in/bucket/my-functions-archive",
+                 handler="path/inside/functions/archive#main:Handler",
+                 runtime="golang",
+                 secrets={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
+        """
+        code_entry_type = self._resolve_code_entry_type(source)
+        if code_entry_type == "":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Couldn't resolve code entry type from source"
+            )
+
+        code_entry_attributes = {}
+
+        # resolve work_dir and handler
+        work_dir, handler = self._resolve_work_dir_and_handler(handler)
+        if work_dir != "":
+            code_entry_attributes["workDir"] = work_dir
+
+        if secrets is None:
+            secrets = {}
+
+        # set default runtime if not specified otherwise
+        if runtime == "":
+            runtime = mlrun.config.config.default_nuclio_runtime
+
+        # archive
+        if code_entry_type == "archive":
+            if source.startswith("v3io"):
+                source = f"http{source[len('v3io'):]}"
+
+            v3io_access_key = secrets.get(
+                "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY", "")
+            )
+            if v3io_access_key:
+                code_entry_attributes["headers"] = {
+                    "headers": {"X-V3io-Session-Key": v3io_access_key}
+                }
+
+        # s3
+        if code_entry_type == "s3":
+            bucket, item_key = parse_s3_bucket_and_key(source)
+
+            code_entry_attributes["s3Bucket"] = bucket
+            code_entry_attributes["s3ItemKey"] = item_key
+
+            code_entry_attributes["s3AccessKeyId"] = secrets.get(
+                "AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID", "")
+            )
+            code_entry_attributes["s3SecretAccessKey"] = secrets.get(
+                "AWS_SECRET_ACCESS_KEY", getenv("AWS_SECRET_ACCESS_KEY", "")
+            )
+            code_entry_attributes["s3SessionToken"] = secrets.get(
+                "AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN", "")
+            )
+
+        # git
+        if code_entry_type == "git":
+
+            # change git:// to https:// as nuclio expects it to be
+            if source.startswith("git://"):
+                source = source.replace("git://", "https://")
+
+            source, reference = self._resolve_git_reference_from_source(source)
+            if reference:
+                code_entry_attributes["reference"] = reference
+
+            code_entry_attributes["username"] = secrets.get("GIT_USERNAME", "")
+            code_entry_attributes["password"] = secrets.get(
+                "GIT_PASSWORD", getenv("GITHUB_TOKEN", "")
+            )
+
+        # update handler in function_handler
+        self.spec.function_handler = handler
+
+        # populate spec with relevant fields
+        config = nuclio.config.new_config()
+        update_in(config, "spec.handler", handler)
+        update_in(config, "spec.runtime", runtime)
+        update_in(config, "spec.build.path", source)
+        update_in(config, "spec.build.codeEntryType", code_entry_type)
+        update_in(config, "spec.build.codeEntryAttributes", code_entry_attributes)
+        self.spec.base_spec = config
+
         return self
 
     def with_v3io(self, local="", remote=""):
@@ -352,6 +461,49 @@ class RemoteRuntime(KubeResource):
                 return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
+
+    @staticmethod
+    def _resolve_git_reference_from_source(source):
+        split_source = source.split("#")
+
+        # no reference was passed
+        if len(split_source) != 2:
+            return source
+
+        reference = split_source[1]
+        if reference.startswith("refs"):
+            return split_source, reference
+
+        return split_source[0], f"refs/heads/{reference}"
+
+    def _resolve_work_dir_and_handler(self, handler):
+        """
+        Resolves a nuclio function working dir and handler inside an archive/git repo
+        :param handler: a path describing working dir and handler of a nuclio function
+        :return: (wokring_dir, handler) tuple, as nuclio expects to get it
+
+        Example: ("a/b/c#main:Handler) -> ("a/b/c", "main:Handler")
+        """
+        if handler == "":
+            return "", self.spec.function_handler or "main:handler"
+
+        split_handler = handler.split("#")
+        if len(split_handler) == 1:
+            return "", handler
+
+        return "/".join(split_handler[:-1]), split_handler[-1]
+
+    @staticmethod
+    def _resolve_code_entry_type(source):
+        if source.startswith("s3://"):
+            return "s3"
+        if source.startswith("git://"):
+            return "git"
+
+        for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
+            if source.startswith(archive_prefix):
+                return "archive"
+        return ""
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)

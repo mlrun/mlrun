@@ -2006,8 +2006,7 @@ def _run_local_pipeline(
         project.notifiers.push(f"Pipeline run failed!, error: {e}")
 
     mlrun.run.wait_for_runs_completion(runs.values())
-    runs_list = [run for run in runs.values() if not run._notified]
-    project.notifiers.push_run_results(runs_list)
+    project.notifiers.push_run_results(runs.values())
     return ""
 
 

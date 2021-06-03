@@ -708,14 +708,21 @@ class RunNotifications:
             message = message + f", check progress in {url}"
         self.push(message, html=html)
 
-    def push_run_results(self, runs):
+    def push_run_results(self, runs, push_all=False):
+        """push a structured table with run results to notification targets
+
+        :param runs:  list if run objects (RunObject)
+        :param push_all: push all notifications (including already notified runs)
+        """
         had_errors = 0
         runs_list = []
         for r in runs:
-            if r.status.state == "error":
-                had_errors += 1
-            runs_list.append(r.to_dict())
-            r._notified = True
+            notified = getattr(r, '_notified', False)
+            if not notified or push_all:
+                if r.status.state == "error":
+                    had_errors += 1
+                runs_list.append(r.to_dict())
+                r._notified = True
 
         text = "pipeline run finished"
         if had_errors:

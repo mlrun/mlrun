@@ -254,9 +254,11 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     env = {}
                 env["MLRUN_LOG_LEVEL"] = "DEBUG"
 
-            sout, serr = run_exec(
-                cmd, self.spec.args, env=env, cwd=execution._current_workdir
-            )
+            args = self.spec.args
+            if self.spec.mode and self.spec.mode in ["pass", "args"]:
+                args = [arg.format(**runobj.spec.parameters) for arg in args]
+
+            sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
             try:

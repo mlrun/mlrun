@@ -65,14 +65,31 @@ def test_main_run_hyper():
     assert out.find("iterations:") != -1, out
 
 
-def test_main_run_noctx():
+def test_main_run_args():
     out = exec_run(
-        f"{tests_root_directory}/no_ctx.py",
-        ["--mode", "noctx"] + compose_param_list(dict(p1=5, p2='"aaa"')),
-        "test_main_run_noctx",
+        f"{tests_root_directory}/no_ctx.py -x " + "{p2}",
+        ["--mode", "args", "--uid", "123457"]
+        + compose_param_list(dict(p1=5, p2='"aaa"')),
+        "test_main_run_args",
     )
     print(out)
     assert out.find("state: completed") != -1, out
+    db = mlrun.get_run_db()
+    state, log = db.get_log("123457")
+    assert str(log).find(", '-x', 'aaa']") != -1, "params not detected in argv"
+
+
+def test_main_run_pass():
+    out = exec_run(
+        "python -c print(56)",
+        ["--mode", "pass", "--uid", "123458"],
+        "test_main_run_pass",
+    )
+    print(out)
+    assert out.find("state: completed") != -1, out
+    db = mlrun.get_run_db()
+    state, log = db.get_log("123458")
+    assert str(log).find("56") != -1, "incorrect output"
 
 
 def test_main_run_archive():

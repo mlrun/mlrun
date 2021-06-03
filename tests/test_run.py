@@ -305,7 +305,7 @@ def test_local_no_context():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
     result = new_function(
-        command=f"{tests_root_directory}/no_ctx.py", mode="noctx"
+        command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}", mode="args"
     ).run(spec)
     verify_state(result)
 
@@ -314,4 +314,4 @@ def test_local_no_context():
     log = str(log)
     print(state)
     print(log)
-    assert log.find(", '--xyz', '789']") != -1, "params not detected in noctx"
+    assert log.find(", '--xyz', '789']") != -1, "params not detected in argv"

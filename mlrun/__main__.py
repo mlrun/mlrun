@@ -117,7 +117,7 @@ def main():
 @click.option(
     "--handler", default="", help="invoke function handler inside the code file"
 )
-@click.option("--mode", help="special run mode noctx | pass")
+@click.option("--mode", help="special run mode args | pass")
 @click.option("--schedule", help="cron schedule")
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
 @click.option("--dump", is_flag=True, help="dump run results as YAML")

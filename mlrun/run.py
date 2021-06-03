@@ -114,6 +114,7 @@ def run_local(
     params: dict = None,
     inputs: dict = None,
     artifact_path: str = "",
+    mode: str = None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -162,7 +163,7 @@ def run_local(
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
-    fn = new_function(meta.name, command=command, args=args)
+    fn = new_function(meta.name, command=command, args=args, mode=mode)
     meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
@@ -492,7 +493,10 @@ def new_function(
     :param args:     command line arguments (override the ones in command)
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
+    :param mode:     runtime mode, "args" mode will push params into command template, example:
+                      command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
+                     "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
+                      `{}` for parameters like in the "args" mode
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
@@ -672,18 +676,7 @@ def code_to_function(
         fn = mlrun.code_to_function('nuclio-mover', kind='nuclio',
                                     filename='mover.py', image='python:3.7',
                                     description = "this function moves files from one system to another",
-                                    labels = {'author': 'me'})
-
-    example::
-        import mlrun
-        from pathlib import Path
-
-        # create file
-        Path('proc.py').touch()
-
-        # creates distributed dask job from a python module called proc.py
-        fn = mlrun.code_to_function('batch_preprocessing', kind='dask', filename='proc.py'
-                                    description = "this function efficiently processes larger than memory tabular data",
+                                    requirements = ["pandas"],
                                     labels = {'author': 'me'})
 
     """

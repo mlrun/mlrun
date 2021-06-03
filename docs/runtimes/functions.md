@@ -89,6 +89,10 @@ the build configuration using the {py:meth}`~mlrun.runtimes.KubejobRuntime.build
     # run the function (specify the function handler to execute)
     run_results = fn.run(handler='my_func', params={"x": 100})
 
+The `command='./myfunc.py'` specifies the command we execute in the function container/workdir, by default we call python 
+with the specified command, you can specify `mode="pass"` to execute the command as is (e.g. for binary code), or use
+`mode="args"` to pass the task parameters as arguments for the execution command (`mycode.py --x {xparam}` will 
+substitute the `{xparam}` with the value of the `xparam` parameter) 
 
 when doing iterative development with multiple code files and packages the 3rd option is the most efficient, we want 
 to make small code changes and re-run our job without building containers etc.

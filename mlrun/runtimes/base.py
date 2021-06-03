@@ -262,6 +262,9 @@ class BaseRuntime(ModelObj):
         :return: run context object (RunObject) with run metadata, results and status
         """
 
+        if self.spec.mode and self.spec.mode not in ["pass", "args"]:
+            raise ValueError('run mode can only be "args" or "pass"')
+
         if local:
 
             if schedule is not None:
@@ -284,6 +287,7 @@ class BaseRuntime(ModelObj):
                 params=params,
                 inputs=inputs,
                 artifact_path=artifact_path,
+                mode=self.spec.mode,
             )
 
         if runspec:
@@ -338,11 +342,6 @@ class BaseRuntime(ModelObj):
         )
 
         spec = runspec.spec
-        if self.spec.mode and self.spec.mode == "noctx":
-            params = spec.parameters or {}
-            for k, v in params.items():
-                self.spec.args += [f"--{k}", str(v)]
-
         if spec.secret_sources:
             self._secrets = SecretsStore.from_list(spec.secret_sources)
 
@@ -583,7 +582,7 @@ class BaseRuntime(ModelObj):
         tasks = generator.generate(runobj)
         for task in tasks:
             try:
-                # self.store_run(task)
+                self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._update_run_state(resp, task=task)
                 run_results = resp["status"].get("results", {})

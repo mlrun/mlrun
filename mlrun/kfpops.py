@@ -190,7 +190,7 @@ def mlrun_op(
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
-    :param mode:     run mode, e.g. 'noctx' for pushing params as args
+    :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
     :param handler   code entry-point/hanfler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs

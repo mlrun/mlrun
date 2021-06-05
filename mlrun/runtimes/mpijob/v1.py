@@ -130,9 +130,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         struct["spec"]["containers"][0][key] = value
 
     def _enrich_launcher_configurations(self, launcher_pod_template, args):
-        quoted_args = []
-        for arg in args:
-            quoted_args.append(shlex.quote(arg))
+        quoted_args = args or []
         quoted_mpi_args = []
         for arg in self.spec.mpi_args:
             quoted_mpi_args.append(shlex.quote(arg))

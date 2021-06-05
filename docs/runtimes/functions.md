@@ -97,7 +97,7 @@ substitute the `{xparam}` with the value of the `xparam` parameter)
 when doing iterative development with multiple code files and packages the 3rd option is the most efficient, we want 
 to make small code changes and re-run our job without building containers etc.
 
-the `local`, `job` and `remote-spark` runtimes support dynamic load from archive or file shares (other runtimes will 
+the `local`, `job`, `mpijob` and `remote-spark` runtimes support dynamic load from archive or file shares (other runtimes will 
 be added later), this is enabled by setting the `spec.build.source=<archive>` and `spec.build.load_source_on_run=True` 
 or simply by using the {py:meth}`~mlrun.runtimes.KubejobRuntime.with_source_archive` method. in the CLI we use the `--source` flag. 
 

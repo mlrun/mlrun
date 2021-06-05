@@ -242,6 +242,8 @@ def run(
             print(f"code:\n{code}\n")
         with open("main.py", "w") as fp:
             fp.write(code)
+        if url and not url.startswith("main.py"):
+            url = "main.py " + url
         url = url or "main.py"
 
     if url:

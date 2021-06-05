@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import getpass
+import shlex
 import traceback
 import uuid
 from abc import ABC, abstractmethod
@@ -281,6 +282,7 @@ class BaseRuntime(ModelObj):
                 runspec,
                 command,
                 name,
+                self.spec.args,
                 workdir=workdir,
                 project=project,
                 handler=handler,
@@ -554,21 +556,22 @@ class BaseRuntime(ModelObj):
 
         if with_mlrun:
             args = ["run", "--name", runobj.metadata.name, "--from-env"]
+            if runobj.spec.handler:
+                args += ["--handler", runobj.spec.handler]
+
+            if self.spec.build.load_source_on_run and self.spec.build.source:
+                if code:
+                    raise ValueError("cannot specify both code and source archive")
+                args += ["--source", self.spec.build.source]
+
             if self.spec.mode == "args":
                 args += ["--mode", "args"]
-            if not code:
-                args += [command]
+            if command:
+                args += [shlex.quote(command)]
             command = "mlrun"
 
-        if self.spec.build.load_source_on_run and self.spec.build.source:
-            if code:
-                raise ValueError("cannot specify both code and source archive")
-            args += ["--source", self.spec.build.source]
-        if runobj.spec.handler:
-            args += ["--handler", runobj.spec.handler]
         if self.spec.args:
-            args += self.spec.args
-
+            args = [shlex.quote(arg) for arg in self.spec.args]
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env
 

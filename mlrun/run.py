@@ -571,11 +571,6 @@ def _process_runtime(command, runtime, kind):
 
 
 def parse_command(runtime, url):
-    idx = url.find("#")
-    if idx > -1:
-        update_in(runtime, "spec.image", url[:idx])
-        url = url[idx + 1 :]
-
     if url:
         arg_list = url.split()
         update_in(runtime, "spec.command", arg_list[0])

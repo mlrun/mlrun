@@ -301,7 +301,7 @@ def test_local_handler():
     verify_state(result)
 
 
-def test_local_no_context():
+def test_local_args():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
     result = new_function(

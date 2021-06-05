@@ -571,7 +571,7 @@ class BaseRuntime(ModelObj):
             command = "mlrun"
 
         if self.spec.args:
-            args = [shlex.quote(arg) for arg in self.spec.args]
+            args = args + [shlex.quote(arg) for arg in self.spec.args]
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env
 

@@ -564,17 +564,11 @@ def _process_runtime(command, runtime, kind):
     update_in(runtime, "spec.command", command)
     runtime["kind"] = kind
     if kind != RuntimeKinds.remote:
-        parse_command(runtime, command)
+        if command:
+            update_in(runtime, "spec.command", command)
     else:
         update_in(runtime, "spec.function_kind", "mlrun")
     return kind, runtime
-
-
-def parse_command(runtime, url):
-    if url:
-        arg_list = url.split()
-        update_in(runtime, "spec.command", arg_list[0])
-        update_in(runtime, "spec.args", arg_list[1:])
 
 
 def code_to_function(

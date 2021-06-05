@@ -206,6 +206,10 @@ def run(
     if db:
         mlconf.dbpath = db
 
+    # remove potential quotes from command
+    eval_url = py_eval(url)
+    url = eval_url if isinstance(eval_url, str) else url
+
     if func_url or kind or image:
         if func_url:
             runtime = func_url_to_runtime(func_url)

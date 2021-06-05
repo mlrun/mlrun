@@ -16,6 +16,7 @@ import importlib.util as imputil
 import inspect
 import json
 import os
+import shlex
 import socket
 import sys
 import traceback
@@ -239,10 +240,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             return context.to_dict()
 
         else:
+            command = self.spec.command.format(**runobj.spec.parameters)
+            arg_list = command.split()
             if self.spec.mode == "pass":
-                cmd = [self.spec.command]
+                cmd = arg_list
             else:
-                cmd = [executable, "-u", self.spec.command]
+                cmd = [executable, "-u"] + arg_list
 
             env = None
             if pythonpath:
@@ -256,7 +259,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             args = self.spec.args
             if self.spec.mode and self.spec.mode in ["pass", "args"]:
-                args = [arg.format(**runobj.spec.parameters) for arg in args]
+                args = [
+                    shlex.quote(arg.format(**runobj.spec.parameters)) for arg in args
+                ]
 
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)

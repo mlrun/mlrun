@@ -538,7 +538,6 @@ class BaseRuntime(ModelObj):
         return runtime_env
 
     def _get_cmd_args(self, runobj: RunObject):
-        with_mlrun = self.spec.mode != "pass"
         extra_env = self._generate_runtime_env(runobj)
         if self.spec.pythonpath:
             extra_env["PYTHONPATH"] = self.spec.pythonpath
@@ -554,7 +553,7 @@ class BaseRuntime(ModelObj):
         if code:
             extra_env["MLRUN_EXEC_CODE"] = code
 
-        if with_mlrun:
+        if self.spec.mode != "pass":
             args = ["run", "--name", runobj.metadata.name, "--from-env"]
             if runobj.spec.handler:
                 args += ["--handler", runobj.spec.handler]
@@ -569,9 +568,16 @@ class BaseRuntime(ModelObj):
             if command:
                 args += [shlex.quote(command)]
             command = "mlrun"
+            if self.spec.args:
+                args = args + self.spec.args
+        else:
+            command = command.format(**runobj.spec.parameters)
+            if self.spec.args:
+                args = [
+                    shlex.quote(arg.format(**runobj.spec.parameters))
+                    for arg in self.spec.args
+                ]
 
-        if self.spec.args:
-            args = args + [shlex.quote(arg) for arg in self.spec.args]
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env
 

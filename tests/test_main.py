@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import traceback
+from base64 import b64encode
 from subprocess import PIPE, run
 from sys import executable, stderr
 
@@ -69,14 +71,45 @@ def test_main_run_args():
     out = exec_run(
         f"{tests_root_directory}/no_ctx.py -x " + "{p2}",
         ["--mode", "args", "--uid", "123457"]
-        + compose_param_list(dict(p1=5, p2='"aaa"')),
+        + compose_param_list(dict(p1=5, p2="aaa")),
         "test_main_run_args",
     )
     print(out)
     assert out.find("state: completed") != -1, out
     db = mlrun.get_run_db()
     state, log = db.get_log("123457")
+    print(log)
     assert str(log).find(", '-x', 'aaa']") != -1, "params not detected in argv"
+
+
+code = """
+import mlrun, sys
+if __name__ == "__main__":
+    context = mlrun.get_or_create_ctx("test1")
+    context.log_result("my_args", sys.argv)
+    context.commit(completed=True)
+"""
+
+
+def test_main_run_args_from_env():
+    os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")
+    os.environ["MLRUN_EXEC_CONFIG"] = (
+        '{"spec":{"parameters":{"x": "bbb"}},'
+        '"metadata":{"uid":"123459", "name":"tst", "labels": {"kind": "job"}}}'
+    )
+
+    out = exec_run(
+        "'-x {x}'", ["--from-env", "--mode", "args"], "test_main_run_args_from_env",
+    )
+    db = mlrun.get_run_db()
+    run = db.read_run("123459")
+    print(out)
+    assert run["status"]["state"] == "completed", out
+    assert run["status"]["results"]["my_args"] == [
+        "main.py",
+        "-x",
+        "bbb",
+    ], "params not detected in argv"
 
 
 def test_main_run_pass():
@@ -90,6 +123,20 @@ def test_main_run_pass():
     db = mlrun.get_run_db()
     state, log = db.get_log("123458")
     assert str(log).find("56") != -1, "incorrect output"
+
+
+def test_main_run_pass_args():
+    out = exec_run(
+        "'python -c print({x})'",
+        ["--mode", "pass", "--uid", "123451", "-p", "x=33"],
+        "test_main_run_pass",
+    )
+    print(out)
+    assert out.find("state: completed") != -1, out
+    db = mlrun.get_run_db()
+    state, log = db.get_log("123451")
+    print(log)
+    assert str(log).find("33") != -1, "incorrect output"
 
 
 def test_main_run_archive():

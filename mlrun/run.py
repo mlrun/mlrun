@@ -554,9 +554,6 @@ def _process_runtime(command, runtime, kind):
     if runtime and isinstance(runtime, dict):
         kind = kind or runtime.get("kind", "")
         command = command or get_in(runtime, "spec.command", "")
-        runtime_args = get_in(runtime, "spec.args", [])
-        if runtime_args and command:
-            command = f"{command} {' '.join(runtime_args)}"
     if "://" in command and command.startswith("http"):
         kind = kind or RuntimeKinds.remote
     if not runtime:

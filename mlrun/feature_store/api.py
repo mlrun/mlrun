@@ -93,9 +93,9 @@ def get_offline_features(
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
     :param run_config:     function and/or run configuration
                            see :py:class:`~mlrun.feature_store.RunConfig`
-    :param start_time      datetime, low limit of time needed to be filtered. Optional.
+    :param start_time:      datetime, low limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
-    :param end_time        datetime, high limit of time needed to be filtered. Optional.
+    :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
     """
     feature_vector = _features_to_vector(feature_vector)
@@ -463,7 +463,8 @@ def _ingest_with_spark(
         spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)
-    df = run_spark_graph(df, featureset, namespace, spark)
+    if featureset.spec.graph and featureset.spec.graph.states:
+        df = run_spark_graph(df, featureset, namespace, spark)
     infer_from_static_df(df, featureset, options=infer_options)
 
     key_column = featureset.spec.entities[0].name
@@ -479,7 +480,7 @@ def _ingest_with_spark(
         logger.info(f"writing to target {target.name}, spark options {spark_options}")
         df.write.mode("overwrite").save(**spark_options)
         target.set_resource(featureset)
-        target.update_resource_status("ready", is_dir=True)
+        target.update_resource_status("ready")
 
     _post_ingestion(mlrun_context, featureset, spark)
     return df

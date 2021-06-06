@@ -834,7 +834,9 @@ def validate_kind(ctx, param, value):
     "--grace-period",
     "-gp",
     type=int,
-    default=mlconf.runtime_resources_deletion_grace_period,
+    # When someone triggers the cleanup manually we assume they want runtime resources in terminal state to be removed
+    # now, therefore not using here mlconf.runtime_resources_deletion_grace_period
+    default=0,
     help="the grace period (in seconds) that will be given to runtime resources (after they're in terminal state) "
     "before cleaning them. Ignored when --force is given",
     show_default=True,
@@ -856,7 +858,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
 
         \b
         # Clean resources for specific job (by uid)
-        mlrun clean dask 15d04c19c2194c0a8efb26ea3017254b
+        mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b
     """
     mldb = get_run_db(api or mlconf.dbpath)
     if kind:

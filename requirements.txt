@@ -22,7 +22,7 @@ pyyaml~=5.1
 requests~=2.22
 sqlalchemy~=1.3
 tabulate>=0.8.0, <=0.8.3
-v3io~=0.5.0
+v3io~=0.5.8
 pydantic~=1.5
 # <3.4 since 3.4 can't be installed on pip 18.1
 orjson>=3,<3.4
@@ -52,4 +52,4 @@ fsspec~=0.9.0
 v3iofs~=0.1.5
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.3.2
-storey~=0.5.0; python_version >= '3.7'
+storey~=0.5.4; python_version >= '3.7'

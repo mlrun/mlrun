@@ -95,6 +95,7 @@ class RunDBInterface(ABC):
         since=None,
         until=None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         pass
 

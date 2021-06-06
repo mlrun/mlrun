@@ -517,6 +517,7 @@ class RunStatus(ModelObj):
         start_time=None,
         last_update=None,
         iterations=None,
+        ui_url=None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -528,6 +529,7 @@ class RunStatus(ModelObj):
         self.start_time = start_time
         self.last_update = last_update
         self.iterations = iterations
+        self.ui_url = ui_url
 
 
 class RunTemplate(ModelObj):
@@ -703,6 +705,14 @@ class RunObject(RunTemplate):
         return None
 
     @property
+    def ui_url(self) -> str:
+        """UI URL (for relevant runtimes)"""
+        self.refresh()
+        if not self._status.ui_url:
+            print("UI currently not available (status={})".format(self._status.state))
+        return self._status.ui_url
+
+    @property
     def outputs(self):
         """return a dict of outputs, result values and artifact uris"""
         outputs = {}
@@ -739,6 +749,7 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
+            self.status = RunStatus.from_dict(run.get("status", {}))
             self.status.from_dict(run.get("status", {}))
             return self
 

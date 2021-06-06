@@ -96,10 +96,19 @@ def list_artifacts(
     category: schemas.ArtifactCategories = None,
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
+    best_iteration: bool = Query(False, alias="best-iteration"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = get_db().list_artifacts(
-        db_session, name, project, tag, labels, kind=kind, category=category, iter=iter,
+        db_session,
+        name,
+        project,
+        tag,
+        labels,
+        kind=kind,
+        category=category,
+        iter=iter,
+        best_iteration=best_iteration,
     )
     return {
         "artifacts": artifacts,

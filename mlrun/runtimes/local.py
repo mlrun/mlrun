@@ -240,7 +240,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             return context.to_dict()
 
         else:
-            command = self.spec.command.format(**runobj.spec.parameters)
+            command = self.spec.command
+            if self.spec.mode and self.spec.mode in ["pass", "args"]:
+                command = command.format(**runobj.spec.parameters)
             arg_list = command.split()
             if self.spec.mode == "pass":
                 cmd = arg_list
@@ -258,10 +260,13 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 env["MLRUN_LOG_LEVEL"] = "DEBUG"
 
             args = self.spec.args
-            if self.spec.mode and self.spec.mode in ["pass", "args"]:
-                args = [
-                    shlex.quote(arg.format(**runobj.spec.parameters)) for arg in args
-                ]
+            if args:
+                new_args = []
+                for arg in args:
+                    if self.spec.mode and self.spec.mode in ["pass", "args"]:
+                        arg = arg.format(**runobj.spec.parameters)
+                    new_args.append(shlex.quote(arg))
+                args = new_args
 
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)

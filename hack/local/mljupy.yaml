@@ -63,7 +63,7 @@ spec:
     spec:
       containers:
       - name: jupyter-notebook
-        image: mlrun/jupyter:0.6.3
+        image: mlrun/jupyter:0.6.4
         env:
         - name: MLRUN_NAMESPACE
           valueFrom:

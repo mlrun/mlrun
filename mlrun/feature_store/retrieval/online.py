@@ -33,13 +33,12 @@ def _build_feature_vector_graph(
         aliases = {name: alias for name, alias in columns if alias}
 
         entity_list = list(featureset.spec.entities.keys())
-        key_column = entity_list[0]
         next = next.to(
             "storey.QueryByKey",
             f"query-{name}",
             features=column_names,
             table=featureset.uri,
-            key=key_column,
+            key=entity_list,
             aliases=aliases,
         )
     for name in start_states:

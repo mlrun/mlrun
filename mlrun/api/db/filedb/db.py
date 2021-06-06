@@ -98,6 +98,7 @@ class FileDB(DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until
@@ -133,6 +134,11 @@ class FileDB(DBInterface):
 
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
+
+    def generate_projects_summaries(
+        self, session, projects: List[str]
+    ) -> List[schemas.ProjectSummary]:
+        raise NotImplementedError()
 
     def list_projects(
         self,

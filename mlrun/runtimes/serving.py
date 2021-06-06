@@ -452,7 +452,7 @@ class ServingRuntime(RemoteRuntime):
             "function_uri": self._function_uri(),
             "version": "v2",
             "parameters": self.spec.parameters,
-            "graph": self.spec.graph.to_dict(),
+            "graph": self.spec.graph.to_dict() if self.spec.graph else {},
             "load_mode": self.spec.load_mode,
             "functions": function_name_uri_map,
             "graph_initializer": self.spec.graph_initializer,

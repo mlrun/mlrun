@@ -34,6 +34,7 @@ from .config import config as mlconf
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
+from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
 from .run import get_object, import_function, import_function_to_dict, new_function
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
@@ -45,7 +46,6 @@ from .utils import (
     list2dict,
     logger,
     parse_versioned_object_uri,
-    pr_comment,
     run_keys,
     update_in,
 )
@@ -122,6 +122,12 @@ def main():
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
 @click.option("--dump", is_flag=True, help="dump run results as YAML")
 @click.option("--image", default="", help="container image")
+@click.option("--kind", default="", help="serverless runtime kind")
+@click.option("--source", default="", help="source code archive/git")
+@click.option("--local", is_flag=True, help="run the task locally (ignore runtime)")
+@click.option(
+    "--auto-mount", is_flag=True, help="add volume mount to job using auto mount option"
+)
 @click.option("--workdir", default="", help="run working directory")
 @click.option("--label", multiple=True, help="run labels (key=val)")
 @click.option("--watch", "-w", is_flag=True, help="watch/tail run log")
@@ -160,6 +166,10 @@ def run(
     from_env,
     dump,
     image,
+    kind,
+    source,
+    local,
+    auto_mount,
     workdir,
     label,
     watch,
@@ -196,11 +206,16 @@ def run(
     if db:
         mlconf.dbpath = db
 
-    if func_url:
-        runtime = func_url_to_runtime(func_url)
-        if runtime is None:
-            exit(1)
-        kind = get_in(runtime, "kind", "")
+    if func_url or kind or image:
+        if func_url:
+            runtime = func_url_to_runtime(func_url)
+            kind = get_in(runtime, "kind", kind or "job")
+            if runtime is None:
+                exit(1)
+        else:
+            kind = kind or "job"
+            runtime = {"kind": kind, "spec": {"image": image}}
+
         if kind not in ["", "local", "dask"] and url:
             if path.isfile(url) and url.endswith(".py"):
                 with open(url) as fp:
@@ -230,7 +245,11 @@ def run(
         url = url or "main.py"
 
     if url:
+        if not name and not runtime:
+            name = path.splitext(path.basename(url))[0]
+            runobj.metadata.name = runobj.metadata.name or name
         update_in(runtime, "spec.command", url)
+
     if run_args:
         update_in(runtime, "spec.args", list(run_args))
     if image:
@@ -254,6 +273,8 @@ def run(
     )
     set_item(runobj.spec, verbose, "verbose")
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
+    update_in(runtime, "metadata.name", name, replace=False)
+    update_in(runtime, "metadata.project", project, replace=False)
 
     if kfp or runobj.spec.verbose or verbose:
         print(f"MLRun version: {str(Version().get())}")
@@ -263,12 +284,27 @@ def run(
         pprint(runobj.to_dict())
 
     try:
-        update_in(runtime, "metadata.name", name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         if workdir:
             fn.spec.workdir = workdir
+        if auto_mount:
+            fn.apply(auto_mount_modifier())
+        if source:
+            supported_runtimes = [
+                "",
+                "local",
+                RuntimeKinds.job,
+                RuntimeKinds.remotespark,
+            ]
+            if fn.kind not in supported_runtimes:
+                print(
+                    f"source flag only works with the {','.join(supported_runtimes)} runtimes"
+                )
+                exit(1)
+            fn.spec.build.source = source
+            fn.spec.build.load_source_on_run = True
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj, watch=watch, schedule=schedule)
+        resp = fn.run(runobj, watch=watch, schedule=schedule, local=local)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -712,6 +748,13 @@ def project(
         proj.params["git_repo"] = git_repo
     if git_issue:
         proj.params["git_issue"] = git_issue
+    commit = (
+        proj.params.get("commit")
+        or environ.get("GITHUB_SHA")
+        or environ.get("CI_COMMIT_SHA")
+    )
+    if commit:
+        proj.params["commit"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         proj._secrets = SecretsStore.from_list(secrets)
@@ -747,33 +790,22 @@ def project(
             print(message)
         print(f"run id: {run}")
 
-        gitops = git_repo and git_issue
+        gitops = (
+            git_issue
+            or environ.get("GITHUB_EVENT_PATH")
+            or environ.get("CI_MERGE_REQUEST_IID")
+        )
+        n = RunNotifications(with_slack=True, secrets=proj._secrets).print()
         if gitops:
-            if not had_error:
-                message = f"Pipeline started id={run}"
-                if proj.params and "commit" in proj.params:
-                    message += f", commit={proj.params['commit']}"
-                if mlconf.resolve_ui_url():
-                    message_template = (
-                        '<div><a href="{}/{}/{}/jobs" target='
-                        + ' "_blank">click here to check progress</a></div>'
-                    )
-                    message += message_template.format(
-                        mlconf.resolve_ui_url(), mlconf.ui.projects_prefix, proj.name
-                    )
-            pr_comment(
-                git_repo, git_issue, message, token=proj.get_secret("GITHUB_TOKEN")
-            )
-
+            n.git_comment(git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN"))
+        if not had_error:
+            n.push_start_message(proj.name, commit, run)
+        else:
+            n.push(message)
         if had_error:
             exit(1)
 
         if watch:
-            n = RunNotifications(with_slack=True).print()
-            if gitops:
-                n.git_comment(
-                    git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
-                )
             proj.get_run_status(run, notifiers=n)
 
     elif sync:
@@ -802,7 +834,9 @@ def validate_kind(ctx, param, value):
     "--grace-period",
     "-gp",
     type=int,
-    default=mlconf.runtime_resources_deletion_grace_period,
+    # When someone triggers the cleanup manually we assume they want runtime resources in terminal state to be removed
+    # now, therefore not using here mlconf.runtime_resources_deletion_grace_period
+    default=0,
     help="the grace period (in seconds) that will be given to runtime resources (after they're in terminal state) "
     "before cleaning them. Ignored when --force is given",
     show_default=True,
@@ -824,7 +858,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
 
         \b
         # Clean resources for specific job (by uid)
-        mlrun clean dask 15d04c19c2194c0a8efb26ea3017254b
+        mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b
     """
     mldb = get_run_db(api or mlconf.dbpath)
     if kind:

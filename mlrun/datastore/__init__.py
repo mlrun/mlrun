@@ -20,6 +20,7 @@ from ..platforms.iguazio import OutputStream, parse_v3io_path
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
+from .s3 import parse_s3_bucket_and_key
 from .store_resources import get_store_resource, get_store_uri, is_store_uri
 
 store_manager = StoreManager()

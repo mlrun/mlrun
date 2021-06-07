@@ -18,7 +18,7 @@ from mlrun.datastore.targets import (
     CSVTarget,
     ParquetTarget,
     TargetTypes,
-    get_default_prefix_for_target,
+    get_default_prefix_for_target, NoSqlTarget,
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
@@ -379,11 +379,12 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp2) == 10
 
     def test_ordered_pandas_asof_merge(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
         left_set, left = prepare_feature_set(
-            "left", "ticker", trades, timestamp_key="time"
+            "left", "ticker", trades, timestamp_key="time", targets=targets
         )
         right_set, right = prepare_feature_set(
-            "right", "ticker", quotes, timestamp_key="time"
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
         )
 
         features = ["left.*", "right.*"]

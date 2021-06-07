@@ -254,7 +254,7 @@ class BaseStoreTarget(DataTargetBase):
 
     def __init__(
         self,
-        name: str = "mm",
+        name: str = kind,
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_state=None,

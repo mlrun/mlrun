@@ -18,8 +18,7 @@ __all__ = [
     "get_offline_features",
     "get_online_feature_service",
     "ingest",
-    "infer_metadata",
-    "infer",
+    "preview",
     "deploy_ingestion_service",
     "delete_feature_set",
     "delete_feature_vector",
@@ -45,8 +44,7 @@ from .api import (
     get_feature_vector,
     get_offline_features,
     get_online_feature_service,
-    infer,
-    infer_metadata,
+    preview,
     ingest,
 )
 from .common import RunConfig

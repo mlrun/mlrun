@@ -44,8 +44,8 @@ from .api import (
     get_feature_vector,
     get_offline_features,
     get_online_feature_service,
-    preview,
     ingest,
+    preview,
 )
 from .common import RunConfig
 from .feature_set import FeatureSet

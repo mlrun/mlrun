@@ -454,7 +454,7 @@ class TestFeatureStore(TestMLRunSystem):
         os.remove(csv_path)
 
     def test_multiple_entities(self):
-
+        name = f"measurements_{uuid.uuid4()}"
         current_time = pd.Timestamp.now()
         data = pd.DataFrame(
             {
@@ -474,14 +474,14 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fs.FeatureSet(
-            "tests2", entities=[Entity("first_name"), Entity("last_name")]
+            name, entities=[Entity("first_name"), Entity("last_name")]
         )
 
         data_set.add_aggregation(
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            window="1h",
+            windows="1h",
             period="10m",
             emit_policy=EmitAfterMaxEvent(1),
         )
@@ -499,14 +499,14 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(data_set, data, return_df=True)
 
         features = [
-            "tests2.bids_sum_1h",
+            f"{name}.bids_sum_1h",
         ]
 
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-        print(resp[0])
+        assert resp[0]["bids_sum_1h"] == 47.0
 
         svc.close()
 
@@ -531,7 +531,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            window="1h",
+            windows="1h",
             period="10m",
         )
 

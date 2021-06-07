@@ -120,7 +120,7 @@ class HTTPRunDB(RunDBInterface):
         body=None,
         json=None,
         headers=None,
-        timeout=20,
+        timeout=45,
     ):
         """ Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
@@ -177,13 +177,9 @@ class HTTPRunDB(RunDBInterface):
                     reason = ""
             if reason:
                 error = error or f"{method} {url}, error: {reason}"
-                raise RunDBError(error)
+                mlrun.errors.raise_for_status(resp, error)
 
-            try:
-                resp.raise_for_status()
-            except requests.RequestException as err:
-                error = error or f"{method} {url}, error: {err}"
-                raise RunDBError(error) from err
+            mlrun.errors.raise_for_status(resp)
 
         return resp
 
@@ -849,7 +845,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
 
-    def remote_builder(self, func, with_mlrun, mlrun_version_specifier=None):
+    def remote_builder(
+        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+    ):
         """ Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
         instructions provided within. This is a pre-requisite for remotely executing a function, unless using
@@ -859,10 +857,15 @@ class HTTPRunDB(RunDBInterface):
         :param with_mlrun: Whether to add MLRun package to the built package. This is not required if using a base
             image that already has MLRun in it.
         :param mlrun_version_specifier: Version of MLRun to include in the buit image.
+        :param skip_deployed: Skip the build if we already have an image for the function.
         """
 
         try:
-            req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
+            req = {
+                "function": func.to_dict(),
+                "with_mlrun": bool2str(with_mlrun),
+                "skip_deployed": skip_deployed,
+            }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
             resp = self.api_call("POST", "build/function", json=req)

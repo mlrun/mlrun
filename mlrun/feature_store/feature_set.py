@@ -370,7 +370,7 @@ class FeatureSet(ModelObj):
         name,
         column,
         operations,
-        window,
+        windows,
         period=None,
         step_name=None,
         after=None,
@@ -387,7 +387,8 @@ class FeatureSet(ModelObj):
         :param name:       aggregation name/prefix
         :param column:     name of column/field aggregate
         :param operations: aggregation operations, e.g. ['sum', 'std']
-        :param window:     time window, e.g. '1h', '6h', '1d'
+        :param windows:    time windows, can be a single window, e.g. '1h', '1d',
+                            or a list of same unit windows e.g ['1h', '6h']
         :param period:     optional, sliding window granularity, e.g. '10m'
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead
@@ -404,12 +405,23 @@ class FeatureSet(ModelObj):
             )
             step_name = step_name or state_name
 
-        if not isinstance(window, str):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Only single window is supported. For additional windows create another aggregation"
-            )
+        if isinstance(windows, list):
+            unit = None
+            for window in windows:
+                if not unit:
+                    unit = window[-1]
+                else:
+                    if window[-1] != unit:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "List of windows is supported only for the same unit of time, e.g [1h, 5h].\n"
+                            "For additional windows create another aggregation"
+                        )
+
+        if isinstance(windows, str):
+            windows = [windows]
+
         aggregation = FeatureAggregation(
-            name, column, operations, [window], period
+            name, column, operations, windows, period
         ).to_dict()
 
         def upsert_feature(name):
@@ -442,7 +454,8 @@ class FeatureSet(ModelObj):
             )
 
         for operation in operations:
-            upsert_feature(f"{name}_{operation}_{window}")
+            for window in windows:
+                upsert_feature(f"{name}_{operation}_{window}")
 
         return state
 

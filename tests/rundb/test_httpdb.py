@@ -31,7 +31,6 @@ import mlrun.projects.project
 from mlrun import RunObject
 from mlrun.api import schemas
 from mlrun.artifacts import Artifact
-from mlrun.db import RunDBError
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -285,7 +284,7 @@ def test_basic_auth(create_server):
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.user = user
@@ -300,7 +299,7 @@ def test_bearer_auth(create_server):
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.token = token

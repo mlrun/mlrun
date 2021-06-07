@@ -16,9 +16,10 @@ from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import (
     CSVTarget,
+    NoSqlTarget,
     ParquetTarget,
     TargetTypes,
-    get_default_prefix_for_target, NoSqlTarget,
+    get_default_prefix_for_target,
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step

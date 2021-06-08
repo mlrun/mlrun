@@ -471,6 +471,16 @@ def _ingest_with_spark(
         else:
             spark = SparkSession.builder.appName(session_name).getOrCreate()
 
+    if hasattr(source, "spark_conf"):
+        from pyspark.sql import SparkSession
+        from pyspark import SparkConf
+        conf = (
+            SparkConf()
+        )
+        for key in source.spark_conf:
+            conf.set(key, source.spark_conf['key'])
+        spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
+
     df = source.to_spark_df(spark)
     if featureset.spec.graph and featureset.spec.graph.states:
         df = run_spark_graph(df, featureset, namespace, spark)

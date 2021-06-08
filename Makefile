@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+SHELL := /bin/bash
 
 MLRUN_VERSION ?= unstable
 MLRUN_DOCKER_TAG ?= $(MLRUN_VERSION)
@@ -512,7 +513,7 @@ run-api: api ## Run mlrun api (dockerized)
 
 .PHONY: html-docs
 html-docs: ## Build html docs
-	MLRUN_DEMOS_REF=$(MLRUN_DEMOS_REF) . hack/scripts/sync_tutorial_notebooks.sh
+	python hack/scripts/sync_tutorial_notebooks.py --mlrun-demos-ref=$(MLRUN_DEMOS_REF)
 	rm -f docs/external/*.md
 	cd docs && make html
 
@@ -521,6 +522,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 	docker run \
 		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \
+		--env MLRUN_DEMOS_REF="${MLRUN_DEMOS_REF}" \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		make html-docs
 

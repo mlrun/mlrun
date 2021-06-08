@@ -30,7 +30,7 @@ MLRUN_CACHE_DATE ?= $(shell date +%s)
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
 MLRUN_GIT_ORG ?= mlrun
 MLRUN_RELEASE_BRANCH ?= master
-
+MLRUN_DEMOS_REF ?= release/v0.6.x-latest
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_LEGACY_ML_PYTHON_VERSION_MAJOR_MINOR := $(shell echo "$(MLRUN_LEGACY_ML_PYTHON_VERSION)" | cut -d. -f1-2)
@@ -512,6 +512,7 @@ run-api: api ## Run mlrun api (dockerized)
 
 .PHONY: html-docs
 html-docs: ## Build html docs
+	MLRUN_DEMOS_REF=$(MLRUN_DEMOS_REF) . hack/scripts/sync_tutorial_notebooks.sh
 	rm -f docs/external/*.md
 	cd docs && make html
 

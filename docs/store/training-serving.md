@@ -20,10 +20,10 @@ An "offline" dataset is a specific instance of our feature vector definition.  T
 <br><img src="../_static/images/mlrun-feature-vector-ui.png" alt="feature-store-vector-ui" width="800"/><br>
 
 ```python
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 
 feature_vector = '<feature_vector_name>'
-offline_fv = fs.get_offline_features(feature_vector=feature_vector, target=ParquetTarget())
+offline_fv = fstore.get_offline_features(feature_vector=feature_vector, target=ParquetTarget())
 ```
 
 Behind the scenes, `get_offline_features()` will run a local or Kubernetes job (can be specific by the `run_config` parameter) to retrieve all the relevant data from the feature sets, merge them and return it to the specified `target` which can be a local parquet, AZ Blob store or any other type of available storage.
@@ -79,9 +79,9 @@ The online features are created ad-hoc using MLRun's feature store online featur
 To use it we will first create an online feature service with our feature vector.
 
 ```python
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 
-svc = fs.get_online_feature_service(<feature vector name>)
+svc = fstore.get_online_feature_service(<feature vector name>)
 ```
 
 After creating the service we can now use the feature vector's Entity to get the latest feature vector for it.

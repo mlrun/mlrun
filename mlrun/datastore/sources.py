@@ -201,7 +201,7 @@ class DataFrameSource:
         return self._df
 
 
-class SnowflakeSourceSpark(BaseSourceDriver):
+class SnowflakeSparkSource(BaseSourceDriver):
     support_spark = True
     support_storey = False
 
@@ -218,6 +218,7 @@ class SnowflakeSourceSpark(BaseSourceDriver):
         self.sql = sql
         self.key_field = key_field
         self.time_field = time_field
+        schedule: str = None,
         self.sfURL = sfURL
         self.sfUser = sfUser
         self.sfPassword = sfPassword

@@ -11,8 +11,8 @@ def main(_args):
     repo_root = os.getcwd()
 
     mlrun_demos_ref = args.mlrun_demos_ref
-    tutorials_dir = os.path.join(repo_root, "docs", "tutorial")
-    tutorials_images_dir = os.path.join(repo_root, "docs", "_static", "tutorial")
+    tutorials_dir = os.path.join(repo_root, "docs", "getting-started-tutorial")
+    tutorials_images_dir = os.path.join(repo_root, "docs", "_static", "getting-started-tutorial")
 
     # tuples (source path, dest dir)
     # the files will move to dest dir but remain with the same name
@@ -26,13 +26,16 @@ def main(_args):
         ("images/kubeflow-pipeline.png", tutorials_images_dir),
         ("images/nuclio-deploy.png", tutorials_images_dir),
     ]
-    print(f"Fetching tutorial notebooks and assets from mlrun/demos/{mlrun_demos_ref} ...")
+    print(
+        f"Fetching tutorial notebooks and assets from mlrun/demos ref={mlrun_demos_ref} ..."
+    )
     os.makedirs(os.path.join(tutorials_images_dir, "images"), exist_ok=True)
     for source_file, dest_path in files_to_transplant:
-        cmd = \
-            f"curl -sSL " \
-            f"https://raw.githubusercontent.com/mlrun/demos/{mlrun_demos_ref}/getting-started-tutorial/{source_file} " \
+        cmd = (
+            f"curl -sSL "
+            f"https://raw.githubusercontent.com/mlrun/demos/{mlrun_demos_ref}/getting-started-tutorial/{source_file} "
             f"--output {dest_path}/{source_file}"
+        )
 
         subprocess.check_call(cmd, shell=True)
 
@@ -53,7 +56,9 @@ def main(_args):
         file_contents = file_contents.replace(base_docs_url, "..")
 
         # replace images files dir with new dest
-        file_contents = file_contents.replace("./images", f"{tutorials_images_dir}/images")
+        file_contents = file_contents.replace(
+            "./images", f"{tutorials_images_dir}/images"
+        )
 
         # replace .html extension with .md
         file_contents = file_contents.replace(".html", ".md")

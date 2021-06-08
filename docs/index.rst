@@ -52,7 +52,7 @@ Table Of Content
    :caption: MLRun Basics:
 
    quick-start
-   tutorial/index
+   getting-started-tutorial/index
    architecture
    install
    howto/index

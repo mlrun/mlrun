@@ -218,7 +218,7 @@ class SnowflakeSparkSource(BaseSourceDriver):
         self.sql = sql
         self.key_field = key_field
         self.time_field = time_field
-        schedule: str = None,
+        schedule: str = None
         self.sfURL = sfURL
         self.sfUser = sfUser
         self.sfPassword = sfPassword

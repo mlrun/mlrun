@@ -25,10 +25,13 @@ def create_project(
     projects_role: typing.Optional[schemas.ProjectsRole] = Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = Query(True, alias="wait-for-completion"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().create_project(
-        db_session, project, projects_role, wait_for_completion=False
+        db_session, project, projects_role, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -50,10 +53,13 @@ def store_project(
     projects_role: typing.Optional[schemas.ProjectsRole] = Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = Query(True, alias="wait-for-completion"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().store_project(
-        db_session, name, project, projects_role, wait_for_completion=False
+        db_session, name, project, projects_role, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -76,10 +82,13 @@ def patch_project(
     projects_role: typing.Optional[schemas.ProjectsRole] = Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = Query(True, alias="wait-for-completion"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().patch_project(
-        db_session, name, project, patch_mode, projects_role, wait_for_completion=False
+        db_session, name, project, patch_mode, projects_role, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -104,10 +113,13 @@ def delete_project(
     projects_role: typing.Optional[schemas.ProjectsRole] = Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = Query(True, alias="wait-for-completion"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     is_running_in_background = get_project_member().delete_project(
-        db_session, name, deletion_strategy, projects_role, wait_for_completion=False
+        db_session, name, deletion_strategy, projects_role, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)

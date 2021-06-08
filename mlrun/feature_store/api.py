@@ -55,14 +55,14 @@ def _features_to_vector(features):
 
 
 def get_offline_features(
-    feature_vector: Union[str, FeatureVector],
-    entity_rows=None,
-    entity_timestamp_column: str = None,
-    target: DataTargetBase = None,
-    run_config: RunConfig = None,
-    drop_columns: List[str] = None,
-    start_time: Optional[pd.Timestamp] = None,
-    end_time: Optional[pd.Timestamp] = None,
+        feature_vector: Union[str, FeatureVector],
+        entity_rows=None,
+        entity_timestamp_column: str = None,
+        target: DataTargetBase = None,
+        run_config: RunConfig = None,
+        drop_columns: List[str] = None,
+        start_time: Optional[pd.Timestamp] = None,
+        end_time: Optional[pd.Timestamp] = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -101,7 +101,7 @@ def get_offline_features(
     feature_vector = _features_to_vector(feature_vector)
 
     entity_timestamp_column = (
-        entity_timestamp_column or feature_vector.spec.timestamp_field
+            entity_timestamp_column or feature_vector.spec.timestamp_field
     )
     if run_config:
         return run_merge_job(
@@ -129,7 +129,7 @@ def get_offline_features(
 
 
 def get_online_feature_service(
-    feature_vector: Union[str, FeatureVector], run_config: RunConfig = None,
+        feature_vector: Union[str, FeatureVector], run_config: RunConfig = None,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -154,15 +154,15 @@ def get_online_feature_service(
 
 
 def ingest(
-    featureset: Union[FeatureSet, str] = None,
-    source=None,
-    targets: List[DataTargetBase] = None,
-    namespace=None,
-    return_df: bool = True,
-    infer_options: InferOptions = InferOptions.default(),
-    run_config: RunConfig = None,
-    mlrun_context=None,
-    spark_context=None,
+        featureset: Union[FeatureSet, str] = None,
+        source=None,
+        targets: List[DataTargetBase] = None,
+        namespace=None,
+        return_df: bool = True,
+        infer_options: InferOptions = InferOptions.default(),
+        run_config: RunConfig = None,
+        mlrun_context=None,
+        spark_context=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -297,12 +297,12 @@ def ingest(
 
 
 def infer(
-    featureset: FeatureSet,
-    source,
-    entity_columns=None,
-    timestamp_key=None,
-    namespace=None,
-    options: InferOptions = None,
+        featureset: FeatureSet,
+        source,
+        entity_columns=None,
+        timestamp_key=None,
+        namespace=None,
+        options: InferOptions = None,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -362,12 +362,12 @@ preview = infer
 
 
 def _run_ingestion_job(
-    featureset: Union[FeatureSet, str],
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
-    name: str = None,
-    infer_options: InferOptions = InferOptions.default(),
-    run_config: RunConfig = None,
+        featureset: Union[FeatureSet, str],
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        name: str = None,
+        infer_options: InferOptions = InferOptions.default(),
+        run_config: RunConfig = None,
 ):
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -381,11 +381,11 @@ def _run_ingestion_job(
 
 
 def deploy_ingestion_service(
-    featureset: Union[FeatureSet, str],
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
-    name: str = None,
-    run_config: RunConfig = None,
+        featureset: Union[FeatureSet, str],
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        name: str = None,
+        run_config: RunConfig = None,
 ):
     """Start real-time ingestion service using nuclio function
 
@@ -443,24 +443,33 @@ def deploy_ingestion_service(
 
 
 def _ingest_with_spark(
-    spark=None,
-    featureset: Union[FeatureSet, str] = None,
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
-    infer_options: InferOptions = InferOptions.default(),
-    mlrun_context=None,
-    namespace=None,
+        spark=None,
+        featureset: Union[FeatureSet, str] = None,
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        infer_options: InferOptions = InferOptions.default(),
+        mlrun_context=None,
+        namespace=None,
 ):
     if spark is None or spark is True:
         # create spark context
         from pyspark.sql import SparkSession
+        from pyspark import SparkConf
 
         if mlrun_context:
             session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
         else:
             session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
 
-        spark = SparkSession.builder.appName(session_name).getOrCreate()
+        if hasattr(source, "spark_conf"):
+            conf = (
+                SparkConf()
+            )
+            for key in source.spark_conf:
+                conf.set(key, source.spark_conf['key'])
+            spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
+        else:
+            spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)
     if featureset.spec.graph and featureset.spec.graph.states:
@@ -497,7 +506,7 @@ def _post_ingestion(context, featureset, spark=None):
 
 
 def infer_from_static_df(
-    df, featureset, entity_columns=None, options: InferOptions = InferOptions.default()
+        df, featureset, entity_columns=None, options: InferOptions = InferOptions.default()
 ):
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):
@@ -520,11 +529,11 @@ def infer_from_static_df(
 
 
 def set_task_params(
-    featureset: FeatureSet,
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
-    parameters: dict = None,
-    infer_options: InferOptions = InferOptions.Null,
+        featureset: FeatureSet,
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        parameters: dict = None,
+        infer_options: InferOptions = InferOptions.Null,
 ):
     """convert ingestion parameters to dict, return source + params dict"""
     source = source or featureset.spec.source

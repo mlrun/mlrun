@@ -20,7 +20,7 @@ import mlrun
 from ..model import DataSource
 from ..utils import get_class
 from .utils import store_path_to_spark
-
+import os
 
 def get_source_from_dict(source):
     kind = source.get("kind", "")
@@ -77,13 +77,13 @@ class CSVSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-        self,
-        name: str = "",
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
+            self,
+            name: str = "",
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
@@ -116,22 +116,22 @@ class ParquetSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-        self,
-        name: str = "",
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
-        start_time: Optional[Union[str, datetime]] = None,
-        end_time: Optional[Union[str, datetime]] = None,
+            self,
+            name: str = "",
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
+            start_time: Optional[Union[str, datetime]] = None,
+            end_time: Optional[Union[str, datetime]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
         self.start_time = start_time
         self.end_time = end_time
 
     def to_step(
-        self, key_field=None, time_field=None, start_time=None, end_time=None,
+            self, key_field=None, time_field=None, start_time=None, end_time=None,
     ):
         import storey
 
@@ -163,11 +163,11 @@ class CustomSource(BaseSourceDriver):
     support_spark = False
 
     def __init__(
-        self,
-        class_name: str = None,
-        name: str = "",
-        schedule: str = None,
-        **attributes,
+            self,
+            class_name: str = None,
+            name: str = "",
+            schedule: str = None,
+            **attributes,
     ):
         attributes = attributes or {}
         attributes["class_name"] = class_name
@@ -177,7 +177,7 @@ class CustomSource(BaseSourceDriver):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
         class_object = get_class(class_name)
-        return class_object(**attributes,)
+        return class_object(**attributes, )
 
 
 class DataFrameSource:
@@ -201,6 +201,50 @@ class DataFrameSource:
         return self._df
 
 
+class SnowflakeSourceSpark:
+    support_spark = True
+    support_storey = False
+
+    def __init__(self, key_field=None,
+                 time_field=None,
+                 sql=None,
+                 sfURL=None,
+                 sfUser=None,
+                 sfPassword=None,
+                 sfDatabase=None,
+                 sfSchema=None,
+                 sfWarehouse=None
+                 ):
+        self.sql = sql
+        self.key_field = key_field
+        self.time_field = time_field
+        self.sfURL = sfURL
+        self.sfUser = sfUser
+        self.sfPassword = sfPassword
+        self.sfDatabase = sfDatabase
+        self.sfSchema = sfSchema
+        self.sfWarehouse = sfWarehouse
+        self.spark_conf = {"spark.jars.packages": "net.snowflake:spark-snowflake_2.11:2.8.5-spark_2.4,"
+                                                  "net.snowflake:snowflake-jdbc:3.13.3"}
+
+    def to_dataframe(self, spark):
+        SNOWFLAKE_READ_FORMAT = "net.snowflake.spark.snowflake"
+        sfOptions = {
+            "sfURL": self.sfURL,
+            "sfUser": self.sfUser,
+            "sfPassword": self.sfPassword,
+            "sfDatabase": self.sfDatabase,
+            "sfSchema": self.sfSchema,
+            "sfWarehouse": self.sfWarehouse,
+            "application": os.getenv("SNOWFLAKE_APPLICATION", "Iguazio")
+        }
+        _df = spark.read.format(SNOWFLAKE_READ_FORMAT) \
+            .options(**sfOptions) \
+            .option("query", self.sql) \
+            .load()
+        return self._df
+
+
 class OnlineSource(BaseSourceDriver):
     """online data source spec"""
 
@@ -217,20 +261,20 @@ class OnlineSource(BaseSourceDriver):
     kind = ""
 
     def __init__(
-        self,
-        name: str = None,
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        workers: int = None,
+            self,
+            name: str = None,
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            workers: int = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
         self.workers = workers
 
     def to_step(
-        self, key_field=None, time_field=None,
+            self, key_field=None, time_field=None,
     ):
         import storey
 

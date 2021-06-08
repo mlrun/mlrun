@@ -28,10 +28,11 @@ def create_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = Query(True, alias="wait-for-completion"),
+    iguazio_session: str = Header(None, alias="x-v3io-session-key"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().create_project(
-        db_session, project, projects_role, wait_for_completion=wait_for_completion
+        db_session, project, projects_role, iguazio_session, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -56,10 +57,11 @@ def store_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = Query(True, alias="wait-for-completion"),
+    iguazio_session: str = Header(None, alias="x-v3io-session-key"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().store_project(
-        db_session, name, project, projects_role, wait_for_completion=wait_for_completion
+        db_session, name, project, projects_role, iguazio_session, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -85,10 +87,11 @@ def patch_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = Query(True, alias="wait-for-completion"),
+    iguazio_session: str = Header(None, alias="x-v3io-session-key"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().patch_project(
-        db_session, name, project, patch_mode, projects_role, wait_for_completion=wait_for_completion
+        db_session, name, project, patch_mode, projects_role, iguazio_session, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -116,10 +119,11 @@ def delete_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = Query(True, alias="wait-for-completion"),
+    iguazio_session: str = Header(None, alias="x-v3io-session-key"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     is_running_in_background = get_project_member().delete_project(
-        db_session, name, deletion_strategy, projects_role, wait_for_completion=wait_for_completion
+        db_session, name, deletion_strategy, projects_role, iguazio_session, wait_for_completion=wait_for_completion
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)

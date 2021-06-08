@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
+import argparse
 import os
 import os.path
 import subprocess
-import argparse
 
 
 def main(_args):
@@ -12,7 +12,9 @@ def main(_args):
 
     mlrun_demos_ref = args.mlrun_demos_ref
     tutorials_dir = os.path.join(repo_root, "docs", "getting-started-tutorial")
-    tutorials_images_dir = os.path.join(repo_root, "docs", "_static", "getting-started-tutorial")
+    tutorials_images_dir = os.path.join(
+        repo_root, "docs", "_static", "getting-started-tutorial"
+    )
 
     # tuples (source path, dest dir)
     # the files will move to dest dir but remain with the same name

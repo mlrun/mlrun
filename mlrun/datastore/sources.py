@@ -228,7 +228,7 @@ class SnowflakeSparkSource(BaseSourceDriver):
         self.spark_conf = {"spark.jars.packages": "net.snowflake:spark-snowflake_2.11:2.8.5-spark_2.4,"
                                                   "net.snowflake:snowflake-jdbc:3.13.3"}
 
-    def to_dataframe(self, spark):
+    def to_spark_df(self, spark):
         SNOWFLAKE_READ_FORMAT = "net.snowflake.spark.snowflake"
         sfOptions = {
             "sfURL": self.sfURL,

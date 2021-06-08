@@ -13,7 +13,7 @@ from storey import EmitAfterMaxEvent, MapClass
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource, ParquetSource
+from mlrun.datastore.sources import CSVSource, DataFrameSource, ParquetSource
 from mlrun.datastore.targets import (
     CSVTarget,
     NoSqlTarget,
@@ -309,9 +309,11 @@ class TestFeatureStore(TestMLRunSystem):
     def test_ingest_partitioned_by_key_and_time(
         self, key_bucketing_number, partition_cols, time_partitioning_granularity
     ):
-        key = "patient_id"
         name = f"measurements_{uuid.uuid4()}"
-        measurements = fs.FeatureSet(name, entities=[Entity(key)])
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            name, entities=[Entity(key)], timestamp_key="timestamp"
+        )
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
@@ -328,16 +330,17 @@ class TestFeatureStore(TestMLRunSystem):
             ],
             with_defaults=False,
         )
-        resp1 = fs.ingest(measurements, source)
+        resp1 = fs.ingest(measurements, source).to_dict()
 
         features = [
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
-        resp = fs.get_offline_features(vector)
-        resp2 = resp.to_dataframe()
+        resp2 = fs.get_offline_features(vector, entity_timestamp_column="timestamp")
+        resp2 = resp2.to_dataframe().to_dict()
 
-        assert resp1.to_dict() == resp2.to_dict()
+        resp1.pop("timestamp")
+        assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
@@ -378,6 +381,62 @@ class TestFeatureStore(TestMLRunSystem):
         )
         resp2 = resp.to_dataframe()
         assert len(resp2) == 10
+
+    def test_ingest_twice_with_nulls(self):
+        name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
+        key = "key"
+
+        measurements = fs.FeatureSet(
+            name, entities=[Entity(key)], timestamp_key="my_time"
+        )
+        columns = [key, "my_string", "my_time"]
+        df = pd.DataFrame(
+            [["mykey1", "hello", pd.Timestamp("2019-01-26 14:52:37")]], columns=columns
+        )
+        df.set_index("my_string")
+        source = DataFrameSource(df)
+        measurements.set_targets(
+            targets=[ParquetTarget(partitioned=True)], with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source)
+        assert resp1.to_dict() == {
+            "my_string": {"mykey1": "hello"},
+            "my_time": {"mykey1": pd.Timestamp("2019-01-26 14:52:37")},
+        }
+
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp2 = fs.get_offline_features(vector)
+        resp2 = resp2.to_dataframe()
+        assert resp2.to_dict() == {"my_string": {"mykey1": "hello"}}
+
+        measurements = fs.FeatureSet(
+            name, entities=[Entity(key)], timestamp_key="my_time"
+        )
+        columns = [key, "my_string", "my_time"]
+        df = pd.DataFrame(
+            [["mykey2", None, pd.Timestamp("2019-01-26 14:52:37")]], columns=columns
+        )
+        df.set_index("my_string")
+        source = DataFrameSource(df)
+        measurements.set_targets(
+            targets=[ParquetTarget(partitioned=True)], with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source)
+        assert resp1.to_dict() == {
+            "my_string": {"mykey2": None},
+            "my_time": {"mykey2": pd.Timestamp("2019-01-26 14:52:37")},
+        }
+
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp2 = fs.get_offline_features(vector)
+        resp2 = resp2.to_dataframe()
+        assert resp2.to_dict() == {"my_string": {"mykey1": "hello", "mykey2": None}}
 
     def test_ordered_pandas_asof_merge(self):
         targets = [ParquetTarget(), NoSqlTarget()]

@@ -507,8 +507,6 @@ def _post_ingestion(context, featureset, spark=None):
         context.logger.info("ingestion task completed, targets:")
         context.logger.info(f"{featureset.status.targets.to_dict()}")
         context.log_result("featureset", featureset.uri)
-        if spark:
-            spark.stop()
 
 
 def infer_from_static_df(

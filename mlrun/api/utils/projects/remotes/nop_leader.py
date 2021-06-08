@@ -45,9 +45,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         )
 
     def list_projects(
-        self,
-        session: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
+        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -58,7 +56,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
             datetime.datetime.utcnow(),
         )
 
-    def get_project(self, session: str, name: str, ) -> mlrun.api.schemas.Project:
+    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return mlrun.api.utils.singletons.project_member.get_project_member().get_project(
             session, name
         )

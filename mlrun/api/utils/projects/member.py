@@ -35,7 +35,9 @@ class Member(abc.ABC):
         project = mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=name),
         )
-        self.create_project(db_session, project, wait_for_completion=wait_for_completion)
+        self.create_project(
+            db_session, project, wait_for_completion=wait_for_completion
+        )
 
     @abc.abstractmethod
     def create_project(

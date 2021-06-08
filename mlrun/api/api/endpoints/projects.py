@@ -32,7 +32,11 @@ def create_project(
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().create_project(
-        db_session, project, projects_role, iguazio_session, wait_for_completion=wait_for_completion
+        db_session,
+        project,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -61,7 +65,12 @@ def store_project(
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().store_project(
-        db_session, name, project, projects_role, iguazio_session, wait_for_completion=wait_for_completion
+        db_session,
+        name,
+        project,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -91,7 +100,13 @@ def patch_project(
     db_session: Session = Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().patch_project(
-        db_session, name, project, patch_mode, projects_role, iguazio_session, wait_for_completion=wait_for_completion
+        db_session,
+        name,
+        project,
+        patch_mode,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)
@@ -123,7 +138,12 @@ def delete_project(
     db_session: Session = Depends(deps.get_db_session),
 ):
     is_running_in_background = get_project_member().delete_project(
-        db_session, name, deletion_strategy, projects_role, iguazio_session, wait_for_completion=wait_for_completion
+        db_session,
+        name,
+        deletion_strategy,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
         return Response(status_code=HTTPStatus.ACCEPTED.value)

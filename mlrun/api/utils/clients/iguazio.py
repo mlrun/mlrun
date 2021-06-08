@@ -36,9 +36,7 @@ class Client(
         If nothing found, returns None
         """
         logger.debug("Getting grafana service url from Iguazio")
-        response = self._send_request_to_api(
-            "GET", "app_services_manifests", session
-        )
+        response = self._send_request_to_api("GET", "app_services_manifests", session)
         response_body = response.json()
         for app_services_manifest in response_body.get("data", []):
             for app_service in app_services_manifest.get("attributes", {}).get(
@@ -66,9 +64,7 @@ class Client(
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._generate_request_body(project)
-        return self._create_project_in_iguazio(
-            session, body, wait_for_completion
-        )
+        return self._create_project_in_iguazio(session, body, wait_for_completion)
 
     def store_project(
         self,
@@ -84,9 +80,7 @@ class Client(
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
-            return self._create_project_in_iguazio(
-                session, body, wait_for_completion
-            )
+            return self._create_project_in_iguazio(session, body, wait_for_completion)
         else:
             return self._put_project_to_iguazio(session, name, body), False
 
@@ -131,9 +125,7 @@ class Client(
             return True
 
     def list_projects(
-        self,
-        session: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
+        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -141,9 +133,7 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
-        response = self._send_request_to_api(
-            "GET", "projects", session, params=params
-        )
+        response = self._send_request_to_api("GET", "projects", session, params=params)
         response_body = response.json()
         projects = []
         for iguazio_project in response_body["data"]:
@@ -153,7 +143,7 @@ class Client(
         latest_updated_at = self._find_latest_updated_at(response_body)
         return projects, latest_updated_at
 
-    def get_project(self, session: str, name: str, ) -> mlrun.api.schemas.Project:
+    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
     def _find_latest_updated_at(
@@ -183,9 +173,7 @@ class Client(
     def _post_project_to_iguazio(
         self, session: str, body: dict
     ) -> typing.Tuple[mlrun.api.schemas.Project, str]:
-        response = self._send_request_to_api(
-            "POST", "projects", session, json=body
-        )
+        response = self._send_request_to_api("POST", "projects", session, json=body)
         response_body = response.json()
         return (
             self._transform_iguazio_project_to_mlrun_project(response_body["data"]),
@@ -210,9 +198,7 @@ class Client(
 
     def _wait_for_job_completion(self, session: str, job_id: str):
         def _verify_job_in_terminal_state():
-            response = self._send_request_to_api(
-                "GET", f"jobs/{job_id}", session
-            )
+            response = self._send_request_to_api("GET", f"jobs/{job_id}", session)
             job_state = response.json()["data"]["attributes"]["state"]
             if job_state not in ["canceled", "failed", "completed"]:
                 raise Exception(f"Job in progress. State: {job_state}")

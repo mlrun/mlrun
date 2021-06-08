@@ -417,9 +417,7 @@ def test_delete_project(
     mocker, num_of_calls_until_completion = _mock_job_progress(
         api_url, requests_mock, session, job_id
     )
-    is_running_in_background = iguazio_client.delete_project(
-        session, project_name
-    )
+    is_running_in_background = iguazio_client.delete_project(session, project_name)
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
 

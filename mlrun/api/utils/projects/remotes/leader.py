@@ -40,16 +40,14 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def list_projects(
-        self,
-        session: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
+        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
         pass
 
     @abc.abstractmethod
-    def get_project(self, session: str, name: str, ) -> mlrun.api.schemas.Project:
+    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         pass
 
     def patch_project(
@@ -66,6 +64,4 @@ class Member(abc.ABC):
         current_project_dict = current_project.dict(exclude_unset=True)
         mergedeep.merge(current_project_dict, project, strategy=strategy)
         patched_project = mlrun.api.schemas.Project(**current_project_dict)
-        return self.store_project(
-            session, name, patched_project, wait_for_completion
-        )
+        return self.store_project(session, name, patched_project, wait_for_completion)

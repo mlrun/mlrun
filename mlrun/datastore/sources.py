@@ -237,7 +237,7 @@ class SnowflakeSparkSource(BaseSourceDriver):
             "sfDatabase": self.sfDatabase,
             "sfSchema": self.sfSchema,
             "sfWarehouse": self.sfWarehouse,
-            "application": os.getenv("SNOWFLAKE_APPLICATION", "Iguazio")
+            "application": f"Iguazio-{os.getenv('SNOWFLAKE_APPLICATION','application')}"
         }
         _df = spark.read.format(SNOWFLAKE_READ_FORMAT) \
             .options(**sfOptions) \

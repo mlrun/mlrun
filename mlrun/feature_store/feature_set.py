@@ -419,6 +419,8 @@ class FeatureSet(ModelObj):
 
         if isinstance(windows, str):
             windows = [windows]
+        if isinstance(operations, str):
+            operations = [operations]
 
         aggregation = FeatureAggregation(
             name, column, operations, windows, period

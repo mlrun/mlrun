@@ -16,6 +16,7 @@ from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import (
     CSVTarget,
+    NoSqlTarget,
     ParquetTarget,
     TargetTypes,
     get_default_prefix_for_target,
@@ -394,11 +395,12 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp2) == 10
 
     def test_ordered_pandas_asof_merge(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
         left_set, left = prepare_feature_set(
-            "left", "ticker", trades, timestamp_key="time"
+            "left", "ticker", trades, timestamp_key="time", targets=targets
         )
         right_set, right = prepare_feature_set(
-            "right", "ticker", quotes, timestamp_key="time"
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
         )
 
         features = ["left.*", "right.*"]

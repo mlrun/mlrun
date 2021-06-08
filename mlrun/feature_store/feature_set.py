@@ -475,15 +475,15 @@ class FeatureSet(ModelObj):
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         """generate graphviz plot"""
         graph = self.spec.graph
-        _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
+        _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
         if with_targets:
             validate_target_list(targets=targets)
-            validate_target_placement(graph, default_final_state, self.spec.targets)
+            validate_target_placement(graph, default_final_step, self.spec.targets)
             targets = [
                 BaseStep(
                     target.kind,
-                    after=target.after_state or default_final_state,
+                    after=target.after_step or default_final_step,
                     shape="cylinder",
                 )
                 for target in self.spec.targets

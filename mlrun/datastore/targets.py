@@ -157,10 +157,10 @@ def validate_target_placement(graph, final_step, targets):
     if final_step or graph.is_empty():
         return True
     for target in targets:
-        if not target.after_state:
+        if not target.after_step:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "writer step location is undetermined due to graph branching"
-                ", set the target .after_state attribute or the graph .final_state"
+                ", set the target .after_step attribute or the graph .final_step"
             )
 
 
@@ -187,8 +187,8 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
         driver.update_resource_status()
         driver.add_writer_step(
             graph,
-            target.after_state or final_step,
-            features=features if not target.after_state else None,
+            target.after_step or final_step,
+            features=features if not target.after_step else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
         )
@@ -285,7 +285,7 @@ class BaseStoreTarget(DataTargetBase):
 
         self.name = name
         self.path = str(path) if path is not None else None
-        self.after_state = after_step
+        self.after_step = after_step
         self.attributes = attributes or {}
         self.columns = columns or []
         self.partitioned = partitioned

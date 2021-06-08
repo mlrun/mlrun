@@ -1001,13 +1001,20 @@ class DataTargetBase(ModelObj):
         "name",
         "kind",
         "path",
-        "after_state",
+        "after_step",
         "attributes",
         "partitioned",
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
     ]
+
+    # TODO - remove once "after_state" is fully deprecated
+    @classmethod
+    def from_dict(cls, struct=None, fields=None):
+        return super().from_dict(
+            struct, fields=fields, deprecated_fields={"after_state": "after_step"}
+        )
 
     def __init__(
         self,
@@ -1033,7 +1040,7 @@ class DataTargetBase(ModelObj):
         self.name = name
         self.kind: str = kind
         self.path = path
-        self.after_state = after_step
+        self.after_step = after_step
         self.attributes = attributes or {}
         self.partitioned = partitioned
         self.key_bucketing_number = key_bucketing_number

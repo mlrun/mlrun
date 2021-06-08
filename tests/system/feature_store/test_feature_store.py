@@ -4,7 +4,6 @@ import string
 import uuid
 from datetime import datetime
 
-import deepdiff
 import fsspec
 import pandas as pd
 import pyarrow.parquet as pq
@@ -139,7 +138,7 @@ class TestFeatureStore(TestMLRunSystem):
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
         # check non existing column
-        # resp = svc.get([{"bb": "AAPL"}])
+        resp = svc.get([{"bb": "AAPL"}])
 
         resp = svc.get([{"ticker": "a"}])
         assert resp[0] is None
@@ -176,32 +175,6 @@ class TestFeatureStore(TestMLRunSystem):
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
-
-    def test_backwards_compatibility_step_vs_state(self):
-        quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
-        agg_step = quotes_set.add_aggregation(
-            "asks", "ask", ["sum", "max"], "1h", "10m"
-        )
-        agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
-        quotes_set.set_targets(
-            targets=[ParquetTarget("parquet1", after_state="somemap1")],
-            with_defaults=False,
-        )
-
-        feature_set_dict = quotes_set.to_dict()
-        # Make sure we're backwards compatible
-        feature_set_dict["spec"]["graph"]["states"] = feature_set_dict["spec"][
-            "graph"
-        ].pop("steps")
-        feature_set_dict["spec"]["targets"][0]["after_state"] = feature_set_dict[
-            "spec"
-        ]["targets"][0].pop("after_step")
-
-        from_dict_feature_set = fs.FeatureSet.from_dict(feature_set_dict)
-        assert (
-            deepdiff.DeepDiff(from_dict_feature_set.to_dict(), quotes_set.to_dict())
-            == {}
-        )
 
     def test_feature_set_db(self):
         name = "stocks_test"

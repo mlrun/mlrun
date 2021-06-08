@@ -321,7 +321,8 @@ def test_v2_mock():
     host.graph.add_route(
         "my", class_name=ModelTestingClass, model_path="", multiplier=100
     )
-    host.init(None, globals())
+    host.init_states(None, namespace=globals())
+    host.init_object(globals())
     logger.info(host.to_yaml())
     resp = host.test("/v2/models/my/infer", testdata)
     logger.info(f"resp: {resp}")

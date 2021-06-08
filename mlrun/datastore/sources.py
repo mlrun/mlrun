@@ -29,13 +29,13 @@ def get_source_from_dict(source):
     return source_kind_to_driver[kind].from_dict(source)
 
 
-def get_source_step(source, key_fields=None, time_field=None):
+def get_source_step(source, key_fields=None, time_field=None, context=None):
     """initialize the source driver"""
     if hasattr(source, "to_csv"):
-        source = DataFrameSource(source)
+        source = DataFrameSource(source, context=context)
     if not key_fields and not source.key_field:
         raise mlrun.errors.MLRunInvalidArgumentError("key column is not defined")
-    return source.to_step(key_fields, time_field)
+    return source.to_step(key_fields, time_field, context)
 
 
 class BaseSourceDriver(DataSource):
@@ -183,18 +183,20 @@ class CustomSource(BaseSourceDriver):
 class DataFrameSource:
     support_storey = True
 
-    def __init__(self, df, key_field=None, time_field=None):
+    def __init__(self, df, key_field=None, time_field=None, context=None):
         self._df = df
         self.key_field = key_field
         self.time_field = time_field
+        self.context = context
 
-    def to_step(self, key_field=None, time_field=None):
+    def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
         return storey.DataframeSource(
             dfs=self._df,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
+            context=self.context or context
         )
 
     def to_dataframe(self):

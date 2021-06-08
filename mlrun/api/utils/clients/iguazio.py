@@ -3,6 +3,7 @@ import datetime
 import http
 import json
 import typing
+import urllib.parse
 
 import requests.adapters
 import urllib3
@@ -215,7 +216,11 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         # support session being already a cookie
         session_cookie = session
-        if session_cookie and not session_cookie.startswith('j:{{"sid"'):
+        if (
+            session_cookie
+            and not session_cookie.startswith('j:{"sid"')
+            and not session_cookie.startswith(urllib.parse.quote_plus('j:{"sid"'))
+        ):
             session_cookie = f'j:{{"sid": "{session_cookie}"}}'
         if session_cookie:
             cookies = kwargs.get("cookies", {})

@@ -477,6 +477,8 @@ def _ingest_with_spark(
 
     for target in targets or []:
         if target.path and urlparse(target.path).scheme == "":
+            if spark:
+                spark.stop()
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Paths for spark ingest must contain schema, i.e v3io, s3, az"
             )

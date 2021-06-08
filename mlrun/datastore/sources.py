@@ -201,7 +201,7 @@ class DataFrameSource:
         return self._df
 
 
-class SnowflakeSourceSpark:
+class SnowflakeSourceSpark(BaseSourceDriver):
     support_spark = True
     support_storey = False
 

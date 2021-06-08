@@ -245,6 +245,8 @@ class SnowflakeSparkSource(BaseSourceDriver):
             .load()
         return self._df
 
+    def get_spark_options(self):
+        return {}
 
 class OnlineSource(BaseSourceDriver):
     """online data source spec"""

@@ -44,6 +44,7 @@ default_config = {
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
+    "default_nuclio_runtime": "python:3.7",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -102,6 +103,7 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
         "authentication": {
             "mode": "none",  # one of none, basic, bearer, iguazio
             "basic": {"username": "", "password": ""},

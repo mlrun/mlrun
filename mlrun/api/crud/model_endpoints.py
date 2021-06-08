@@ -1,8 +1,11 @@
 import json
 from typing import Any, Dict, List, Mapping, Optional
 
+from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
 
+import mlrun.api.api.utils
+import mlrun.datastore.store_resources
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -12,7 +15,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.api.schemas.model_endpoints import ModelEndpointList
-from mlrun.artifacts import ModelArtifact, get_model
+from mlrun.artifacts import ModelArtifact
 from mlrun.config import config
 from mlrun.errors import (
     MLRunBadRequestError,
@@ -29,7 +32,9 @@ EVENTS = "events"
 
 class ModelEndpoints:
     @staticmethod
-    def create_or_patch(access_key: str, model_endpoint: ModelEndpoint):
+    def create_or_patch(
+        db_session: Session, access_key: str, model_endpoint: ModelEndpoint
+    ):
         """
         Creates or patch a KV record with the given model_endpoint record
 
@@ -50,9 +55,10 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            model_obj: tuple = get_model(model_endpoint.spec.model_uri)
-
-            model_obj: ModelArtifact = model_obj[1]
+            run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
+            model_obj: ModelArtifact = mlrun.datastore.store_resources.get_store_resource(
+                model_endpoint.spec.model_uri, db=run_db
+            )
 
             if not model_endpoint.status.feature_stats:
                 model_endpoint.status.feature_stats = model_obj.feature_stats

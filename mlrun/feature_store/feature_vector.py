@@ -26,7 +26,7 @@ from ..feature_store.common import get_feature_set_by_uri, parse_feature_string
 from ..features import Feature
 from ..model import DataSource, DataTarget, ModelObj, ObjectList, VersionedObjMetadata
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import RootFlowState
+from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
 
 
@@ -44,7 +44,7 @@ class FeatureVectorSpec(ModelObj):
         function=None,
         analysis=None,
     ):
-        self._graph: RootFlowState = None
+        self._graph: RootFlowStep = None
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
         self._function: FunctionReference = None
@@ -79,13 +79,13 @@ class FeatureVectorSpec(ModelObj):
         self._entity_fields = ObjectList.from_list(Feature, entity_fields)
 
     @property
-    def graph(self) -> RootFlowState:
+    def graph(self) -> RootFlowStep:
         """feature vector transformation graph/DAG"""
         return self._graph
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", RootFlowState)
+        self._graph = self._verify_dict(graph, "graph", RootFlowStep)
         self._graph.engine = "async"
 
     @property
@@ -327,11 +327,15 @@ class OnlineVectorService:
                     del data[key]
             if not data:
                 data = None
-            requested_columns = self.vector.status.features.keys()
-            actual_columns = data.keys()
-            for column in requested_columns:
-                if column not in actual_columns:
-                    data[column] = None
+            else:
+                requested_columns = self.vector.status.features.keys()
+                actual_columns = data.keys()
+                for column in requested_columns:
+                    if (
+                        column not in actual_columns
+                        and column != self.vector.status.label_column
+                    ):
+                        data[column] = None
             if as_list:
                 data = [
                     result.body[key]

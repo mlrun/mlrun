@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import List, Optional, Union
 
 import pandas as pd
+from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
@@ -476,6 +476,10 @@ def _ingest_with_spark(
         targets = [get_target_driver(target, featureset) for target in targets]
 
     for target in targets or []:
+        if target.path and urlparse(target.path).scheme == "":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Paths for spark ingest must contain schema, i.e v3io, s3, az"
+            )
         spark_options = target.get_spark_options(key_column, timestamp_key)
         logger.info(f"writing to target {target.name}, spark options {spark_options}")
         df.write.mode("overwrite").save(**spark_options)

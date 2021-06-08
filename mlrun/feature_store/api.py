@@ -335,12 +335,12 @@ def infer(
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
-        _, default_final_state, _ = featureset.graph.check_and_process_graph(
+        _, default_final_step, _ = featureset.graph.check_and_process_graph(
             allow_empty=True
         )
-        if not default_final_state:
+        if not default_final_step:
             raise mlrun.errors.MLRunPreconditionFailedError(
-                "Split flow graph must have a default final state defined"
+                "Split flow graph must have a default final step defined"
             )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
@@ -463,7 +463,7 @@ def _ingest_with_spark(
         spark = SparkSession.builder.appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)
-    if featureset.spec.graph and featureset.spec.graph.states:
+    if featureset.spec.graph and featureset.spec.graph.steps:
         df = run_spark_graph(df, featureset, namespace, spark)
     infer_from_static_df(df, featureset, options=infer_options)
 

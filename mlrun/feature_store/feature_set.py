@@ -43,7 +43,7 @@ from ..model import (
     VersionedObjMetadata,
 )
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import BaseState, RootFlowState, previous_step
+from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..utils import StorePrefix
 
 aggregates_step = "Aggregates"
@@ -84,7 +84,7 @@ class FeatureSetSpec(ModelObj):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
-        self._graph: RootFlowState = None
+        self._graph: RootFlowStep = None
         self._source = None
         self._engine = None
         self._function: FunctionReference = None
@@ -148,13 +148,13 @@ class FeatureSetSpec(ModelObj):
         self._engine = engine
 
     @property
-    def graph(self) -> RootFlowState:
+    def graph(self) -> RootFlowStep:
         """feature set transformation graph/DAG"""
         return self._graph
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", RootFlowState)
+        self._graph = self._verify_dict(graph, "graph", RootFlowStep)
         self._graph.engine = (
             "sync" if self.engine and self.engine in ["pandas", "spark"] else None
         )
@@ -178,7 +178,7 @@ class FeatureSetSpec(ModelObj):
         self._source = self._verify_dict(source, "source", DataSource)
 
     def require_processing(self):
-        return len(self._graph.states) > 0
+        return len(self._graph.steps) > 0
 
 
 class FeatureSetStatus(ModelObj):
@@ -341,7 +341,7 @@ class FeatureSet(ModelObj):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
         if default_final_step:
-            self.spec.graph.final_state = default_final_step
+            self.spec.graph.final_step = default_final_step
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""
@@ -432,18 +432,18 @@ class FeatureSet(ModelObj):
 
         step_name = step_name or aggregates_step
         graph = self.spec.graph
-        if step_name in graph.states:
-            state = graph.states[step_name]
-            aggregations = state.class_args.get("aggregates", [])
+        if step_name in graph.steps:
+            step = graph.steps[step_name]
+            aggregations = step.class_args.get("aggregates", [])
             aggregations.append(aggregation)
-            state.class_args["aggregates"] = aggregations
+            step.class_args["aggregates"] = aggregations
             if emit_policy:
-                state.class_args["emit_policy"] = emit_policy
+                step.class_args["emit_policy"] = emit_policy
         else:
             class_args = {}
             if emit_policy:
                 class_args["emit_policy"] = emit_policy
-            state = graph.add_step(
+            step = graph.add_step(
                 name=step_name,
                 after=after or previous_step,
                 before=before,
@@ -457,7 +457,7 @@ class FeatureSet(ModelObj):
             for window in windows:
                 upsert_feature(f"{name}_{operation}_{window}")
 
-        return state
+        return step
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
@@ -479,7 +479,7 @@ class FeatureSet(ModelObj):
             validate_target_list(targets=targets)
             validate_target_placement(graph, default_final_state, self.spec.targets)
             targets = [
-                BaseState(
+                BaseStep(
                     target.kind,
                     after=target.after_state or default_final_state,
                     shape="cylinder",

@@ -66,17 +66,23 @@ class ModelObj:
         return struct
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         """create an object from a python dictionary"""
         struct = {} if struct is None else struct
+        deprecated_fields = deprecated_fields or {}
         fields = fields or cls._dict_fields
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
         if struct:
             for key, val in struct.items():
-                if key in fields:
+                if key in fields and key not in deprecated_fields:
                     setattr(new_obj, key, val)
+            for deprecated_field, new_field in deprecated_fields.items():
+                field_value = struct.get(new_field) or struct.get(deprecated_field)
+                if field_value:
+                    setattr(new_obj, new_field, field_value)
+
         return new_obj
 
     def to_yaml(self):

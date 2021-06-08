@@ -99,7 +99,7 @@ def test_list_project_with_updated_after(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    session_cookie = "1234"
+    session = "1234"
     updated_after = datetime.datetime.now(tz=datetime.timezone.utc)
 
     def verify_list(request, context):
@@ -109,7 +109,7 @@ def test_list_project_with_updated_after(
             ]
         }
         context.status_code = http.HTTPStatus.OK.value
-        _verify_request_headers(request.headers, session_cookie)
+        _verify_request_headers(request.headers, session)
         return {"data": [_build_project_response(iguazio_client, project)]}
 
     # mock project response so store will update
@@ -117,7 +117,7 @@ def test_list_project_with_updated_after(
         f"{api_url}/api/projects", json=verify_list,
     )
     iguazio_client.list_projects(
-        session_cookie, updated_after,
+        session, updated_after,
     )
 
 
@@ -208,17 +208,17 @@ def test_create_project_without_wait(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    session_cookie = "1234"
+    session = "1234"
     job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
 
     requests_mock.post(
         f"{api_url}/api/projects",
         json=functools.partial(
-            _verify_creation, iguazio_client, project, session_cookie, job_id
+            _verify_creation, iguazio_client, project, session, job_id
         ),
     )
     created_project, is_running_in_background = iguazio_client.create_project(
-        session_cookie, project, wait_for_completion=False
+        session, project, wait_for_completion=False
     )
     assert is_running_in_background is True
     exclude = {"status": {"state"}}
@@ -239,7 +239,7 @@ def test_store_project_creation(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    session_cookie = "1234"
+    session = "1234"
     job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
 
     # mock project not found so store will create - then successful response which used to get the created project
@@ -253,14 +253,14 @@ def test_store_project_creation(
     requests_mock.post(
         f"{api_url}/api/projects",
         json=functools.partial(
-            _verify_creation, iguazio_client, project, session_cookie, job_id
+            _verify_creation, iguazio_client, project, session, job_id
         ),
     )
     mocker, num_of_calls_until_completion = _mock_job_progress(
-        api_url, requests_mock, session_cookie, job_id
+        api_url, requests_mock, session, job_id
     )
     created_project, is_running_in_background = iguazio_client.store_project(
-        session_cookie, project.metadata.name, project
+        session, project.metadata.name, project
     )
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
@@ -282,7 +282,7 @@ def test_store_project_creation_without_wait(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    session_cookie = "1234"
+    session = "1234"
     job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
 
     # mock project not found so store will create - then successful response which used to get the created project
@@ -296,11 +296,11 @@ def test_store_project_creation_without_wait(
     requests_mock.post(
         f"{api_url}/api/projects",
         json=functools.partial(
-            _verify_creation, iguazio_client, project, session_cookie, job_id
+            _verify_creation, iguazio_client, project, session, job_id
         ),
     )
     created_project, is_running_in_background = iguazio_client.store_project(
-        session_cookie, project.metadata.name, project, wait_for_completion=False
+        session, project.metadata.name, project, wait_for_completion=False
     )
     assert is_running_in_background is True
     exclude = {"status": {"state"}}
@@ -321,12 +321,12 @@ def test_store_project_update(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    session_cookie = "1234"
+    session = "1234"
 
     def verify_store_update(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.OK.value
-        _verify_request_headers(request.headers, session_cookie)
+        _verify_request_headers(request.headers, session)
         return {"data": _build_project_response(iguazio_client, project)}
 
     empty_project = _generate_project(description="", labels={}, annotations={})
@@ -340,7 +340,7 @@ def test_store_project_update(
         json=verify_store_update,
     )
     updated_project, is_running_in_background = iguazio_client.store_project(
-        session_cookie, project.metadata.name, project,
+        session, project.metadata.name, project,
     )
     assert is_running_in_background is False
     exclude = {"status": {"state"}}
@@ -361,7 +361,7 @@ def test_patch_project(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    session_cookie = "1234"
+    session = "1234"
     patched_description = "new desc"
 
     def verify_patch(request, context):
@@ -370,7 +370,7 @@ def test_patch_project(
         )
         _assert_project_creation(iguazio_client, request.json(), patched_project)
         context.status_code = http.HTTPStatus.OK.value
-        _verify_request_headers(request.headers, session_cookie)
+        _verify_request_headers(request.headers, session)
         return {"data": _build_project_response(iguazio_client, patched_project)}
 
     # mock project response on get (patch does get first)
@@ -382,7 +382,7 @@ def test_patch_project(
         f"{api_url}/api/projects/__name__/{project.metadata.name}", json=verify_patch,
     )
     patched_project, is_running_in_background = iguazio_client.patch_project(
-        session_cookie,
+        session,
         project.metadata.name,
         {"spec": {"description": patched_description}},
         wait_for_completion=True,
@@ -408,17 +408,17 @@ def test_delete_project(
 ):
     project_name = "project-name"
     job_id = "928145d5-4037-40b0-98b6-19a76626d797"
-    session_cookie = "1234"
+    session = "1234"
 
     requests_mock.delete(
         f"{api_url}/api/projects",
-        json=functools.partial(_verify_deletion, project_name, session_cookie, job_id),
+        json=functools.partial(_verify_deletion, project_name, session, job_id),
     )
     mocker, num_of_calls_until_completion = _mock_job_progress(
-        api_url, requests_mock, session_cookie, job_id
+        api_url, requests_mock, session, job_id
     )
     is_running_in_background = iguazio_client.delete_project(
-        session_cookie, project_name
+        session, project_name
     )
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
@@ -427,7 +427,7 @@ def test_delete_project(
     requests_mock.delete(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
     )
-    iguazio_client.delete_project(session_cookie, project_name)
+    iguazio_client.delete_project(session, project_name)
 
     # TODO: not sure really needed
     # assert correctly propagating 412 errors (will be returned when project has resources)
@@ -435,7 +435,7 @@ def test_delete_project(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-        iguazio_client.delete_project(session_cookie, project_name)
+        iguazio_client.delete_project(session, project_name)
 
 
 def test_delete_project_without_wait(
@@ -445,14 +445,14 @@ def test_delete_project_without_wait(
 ):
     project_name = "project-name"
     job_id = "928145d5-4037-40b0-98b6-19a76626d797"
-    session_cookie = "1234"
+    session = "1234"
 
     requests_mock.delete(
         f"{api_url}/api/projects",
-        json=functools.partial(_verify_deletion, project_name, session_cookie, job_id),
+        json=functools.partial(_verify_deletion, project_name, session, job_id),
     )
     is_running_in_background = iguazio_client.delete_project(
-        session_cookie, project_name, wait_for_completion=False
+        session, project_name, wait_for_completion=False
     )
     assert is_running_in_background is True
 
@@ -463,24 +463,24 @@ def _create_project_and_assert(
     requests_mock: requests_mock_package.Mocker,
     project: mlrun.api.schemas.Project,
 ):
-    session_cookie = "1234"
+    session = "1234"
     job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
 
     requests_mock.post(
         f"{api_url}/api/projects",
         json=functools.partial(
-            _verify_creation, iguazio_client, project, session_cookie, job_id
+            _verify_creation, iguazio_client, project, session, job_id
         ),
     )
     mocker, num_of_calls_until_completion = _mock_job_progress(
-        api_url, requests_mock, session_cookie, job_id
+        api_url, requests_mock, session, job_id
     )
     requests_mock.get(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json={"data": _build_project_response(iguazio_client, project)},
     )
     created_project, is_running_in_background = iguazio_client.create_project(
-        session_cookie, project,
+        session, project,
     )
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
@@ -497,21 +497,21 @@ def _create_project_and_assert(
     assert created_project.status.state == project.spec.desired_state
 
 
-def _verify_deletion(project_name, session_cookie, job_id, request, context):
+def _verify_deletion(project_name, session, job_id, request, context):
     assert request.json()["data"]["attributes"]["name"] == project_name
     assert (
         request.headers["igz-project-deletion-strategy"]
         == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
     )
-    _verify_request_headers(request.headers, session_cookie)
+    _verify_request_headers(request.headers, session)
     context.status_code = http.HTTPStatus.ACCEPTED.value
     return {"data": {"type": "job", "id": job_id}}
 
 
-def _verify_creation(iguazio_client, project, session_cookie, job_id, request, context):
+def _verify_creation(iguazio_client, project, session, job_id, request, context):
     _assert_project_creation(iguazio_client, request.json(), project)
     context.status_code = http.HTTPStatus.CREATED.value
-    _verify_request_headers(request.headers, session_cookie)
+    _verify_request_headers(request.headers, session)
     return {
         "data": _build_project_response(
             iguazio_client, project, job_id, mlrun.api.schemas.ProjectState.creating
@@ -519,21 +519,21 @@ def _verify_creation(iguazio_client, project, session_cookie, job_id, request, c
     }
 
 
-def _verify_request_headers(headers: dict, session_cookie: str):
-    assert headers["Cookie"] == f"session={session_cookie}"
+def _verify_request_headers(headers: dict, session: str):
+    assert headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
     assert headers[mlrun.api.schemas.HeaderNames.projects_role] == "mlrun"
 
 
-def _mock_job_progress(api_url, requests_mock, session_cookie: str, job_id: str):
-    def _mock_get_job(state, session_cookie, request, context):
+def _mock_job_progress(api_url, requests_mock, session: str, job_id: str):
+    def _mock_get_job(state, session, request, context):
         context.status_code = http.HTTPStatus.OK.value
-        assert request.headers["Cookie"] == f"session={session_cookie}"
+        assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
         return {"data": {"attributes": {"state": state}}}
 
     responses = [
-        functools.partial(_mock_get_job, "in_progress", session_cookie),
-        functools.partial(_mock_get_job, "in_progress", session_cookie),
-        functools.partial(_mock_get_job, "completed", session_cookie),
+        functools.partial(_mock_get_job, "in_progress", session),
+        functools.partial(_mock_get_job, "in_progress", session),
+        functools.partial(_mock_get_job, "completed", session),
     ]
     mocker = requests_mock.get(
         f"{api_url}/api/jobs/{job_id}",

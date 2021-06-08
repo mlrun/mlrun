@@ -14,7 +14,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
 
     def create_project(
         self,
-        session_cookie: str,
+        session: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
@@ -24,7 +24,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
 
     def store_project(
         self,
-        session_cookie: str,
+        session: str,
         name: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
@@ -35,7 +35,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
 
     def delete_project(
         self,
-        session_cookie: str,
+        session: str,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
@@ -45,9 +45,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         )
 
     def list_projects(
-        self,
-        session_cookie: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
+        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -58,7 +56,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
             datetime.datetime.utcnow(),
         )
 
-    def get_project(self, session_cookie: str, name: str,) -> mlrun.api.schemas.Project:
+    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return mlrun.api.utils.singletons.project_member.get_project_member().get_project(
-            session_cookie, name
+            session, name
         )

@@ -43,8 +43,11 @@ class Member(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
-        # run one sync to start off on the right foot
-        self._sync_projects()
+        # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
+        try:
+            self._sync_projects()
+        except Exception as exc:
+            logger.warning("Initial projects sync failed", exc=str(exc))
         self._start_periodic_sync()
 
     def shutdown(self):

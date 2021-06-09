@@ -451,6 +451,10 @@ def _ingest_with_spark(
         mlrun_context=None,
         namespace=None,
 ):
+    spark_conf = None
+    if hasattr(source, "get_spark_conf"):
+        spark_conf = source.get_spark_conf()
+
     if spark is None or spark is True:
         # create spark context
         from pyspark.sql import SparkSession
@@ -461,24 +465,24 @@ def _ingest_with_spark(
         else:
             session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
 
-        if hasattr(source, "spark_conf"):
+        if spark_conf is not None:
             conf = (
                 SparkConf()
             )
-            for key in source.spark_conf:
-                conf.set(key, source.spark_conf[key])
+            for key in spark_conf:
+                conf.set(key, spark_conf[key])
             spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
         else:
             spark = SparkSession.builder.appName(session_name).getOrCreate()
     else:
-        if hasattr(source, "spark_conf"):
+        if spark_conf is not None:
             from pyspark.sql import SparkSession
             from pyspark import SparkConf
             conf = (
                 SparkConf()
             )
-            for key in source.spark_conf:
-                conf.set(key, source.spark_conf[key])
+            for key in spark_conf:
+                conf.set(key, spark_conf[key])
             spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
 
     df = source.to_spark_df(spark)

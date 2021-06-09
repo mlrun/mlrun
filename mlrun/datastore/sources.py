@@ -22,6 +22,7 @@ from ..utils import get_class
 from .utils import store_path_to_spark
 import os
 
+
 def get_source_from_dict(source):
     kind = source.get("kind", "")
     if not kind:
@@ -226,7 +227,12 @@ class SnowflakeSparkSource(BaseSourceDriver):
         self.sfSchema = sfSchema
         self.sfWarehouse = sfWarehouse
         self.spark_conf = {"spark.jars.packages": "net.snowflake:spark-snowflake_2.11:2.8.5-spark_2.4,"
-                                                  "net.snowflake:snowflake-jdbc:3.13.3"}
+                                                  "net.snowflake:snowflake-jdbc:3.13.3",
+                           "spark.driver.cores": 1,
+                           "spark.driver.memory": "500M",
+                           "spark.executor.cores": 1,
+                           "spark.executor.memory": "1G",
+                           "spark.cores.max": 1}
 
     def to_spark_df(self, spark):
         SNOWFLAKE_READ_FORMAT = "net.snowflake.spark.snowflake"
@@ -237,7 +243,7 @@ class SnowflakeSparkSource(BaseSourceDriver):
             "sfDatabase": self.sfDatabase,
             "sfSchema": self.sfSchema,
             "sfWarehouse": self.sfWarehouse,
-            "application": f"Iguazio-{os.getenv('SNOWFLAKE_APPLICATION','application')}"
+            "application": f"Iguazio-{os.getenv('SNOWFLAKE_APPLICATION', 'application')}"
         }
         self._df = spark.read.format(SNOWFLAKE_READ_FORMAT) \
             .options(**sfOptions) \
@@ -245,8 +251,12 @@ class SnowflakeSparkSource(BaseSourceDriver):
             .load()
         return self._df
 
+    def get_spark_conf(self):
+        return self.spark_conf
+
     def get_spark_options(self):
         return {}
+
 
 class OnlineSource(BaseSourceDriver):
     """online data source spec"""

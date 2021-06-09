@@ -228,11 +228,11 @@ class SnowflakeSparkSource(BaseSourceDriver):
         self.sfWarehouse = sfWarehouse
         self.spark_conf = {"spark.jars.packages": "net.snowflake:spark-snowflake_2.11:2.8.5-spark_2.4,"
                                                   "net.snowflake:snowflake-jdbc:3.13.3",
-                           "spark.driver.cores": 1,
-                           "spark.driver.memory": "500M",
-                           "spark.executor.cores": 1,
-                           "spark.executor.memory": "1G",
-                           "spark.cores.max": 1}
+                           "spark.driver.cores": 2,
+                           "spark.driver.memory": "4g",
+                           "spark.executor.cores": 3,
+                           "spark.executor.memory": "8g",
+                           "spark.cores.max": 3}
 
     def to_spark_df(self, spark):
         SNOWFLAKE_READ_FORMAT = "net.snowflake.spark.snowflake"

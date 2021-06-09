@@ -152,7 +152,7 @@ class DataStore:
 
                     from storey.utils import find_filters
 
-                    dataset = pq.ParquetDataset(args[0], filesystem=fs)
+                    dataset = pq.ParquetDataset(url, filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names
                         time_attributes = [

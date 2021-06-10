@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 from storey import MapClass
 
@@ -229,10 +229,7 @@ class DateExtractor(MapClass):
         """
 
     def __init__(
-        self,
-        parts: List[str],
-        timestamp_col: str = None,
-        **kwargs,
+        self, parts: List[str], timestamp_col: str = None, **kwargs,
     ):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col

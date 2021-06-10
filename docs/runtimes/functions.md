@@ -23,8 +23,8 @@ use in your projects.
 
 **Functions** (function objects) can be created by using any of the following methods:
 
-- **{py:func}`~mlrun.run.new_function`** - creates a function "from scratch" or from another function or from code repository/archive.
-- **{py:func}`~mlrun.code_to_function`** - creates a function from local or remote source code (single file) or from a notebook (code will be embedded in the function object).
+- **{py:func}`~mlrun.run.new_function`** - creates a function for local run or from container, from code repository/archive, from function spec.
+- **{py:func}`~mlrun.code_to_function`** - creates a function from local or remote source code (single file) or from a notebook (code file will be embedded in the function object).
 - **{py:func}`~mlrun.import_function`** - imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
   or from the function marketplace (e.g. `hub://describe`).
@@ -90,8 +90,8 @@ the build configuration using the {py:meth}`~mlrun.runtimes.KubejobRuntime.build
     run_results = fn.run(handler='my_func', params={"x": 100})
 
 The `command='./myfunc.py'` specifies the command we execute in the function container/workdir, by default we call python 
-with the specified command, you can specify `mode="pass"` to execute the command as is (e.g. for binary code), or use
-`mode="args"` to pass the task parameters as arguments for the execution command (`mycode.py --x {xparam}` will 
+with the specified command, you can specify `mode="pass"` to execute the command as is (e.g. for binary code), you can 
+template (`{..}`) in the command to pass the task parameters as arguments for the execution command (e.g. `mycode.py --x {xparam}` will 
 substitute the `{xparam}` with the value of the `xparam` parameter) 
 
 when doing iterative development with multiple code files and packages the 3rd option is the most efficient, we want 
@@ -99,10 +99,10 @@ to make small code changes and re-run our job without building containers etc.
 
 the `local`, `job`, `mpijob` and `remote-spark` runtimes support dynamic load from archive or file shares (other runtimes will 
 be added later), this is enabled by setting the `spec.build.source=<archive>` and `spec.build.load_source_on_run=True` 
-or simply by using the {py:meth}`~mlrun.runtimes.KubejobRuntime.with_source_archive` method. in the CLI we use the `--source` flag. 
+or simply by setting the `source` attribute). in the CLI we use the `--source` flag. 
 
-    fn = mlrun.new_function('archive', kind='job', image='mlrun/mlrun', command='./myfunc.py')
-    fn.with_source_archive('git://github.com/mlrun/ci-demo.git#master')
+    fn = mlrun.new_function('archive', kind='job', image='mlrun/mlrun', command='./myfunc.py', 
+                            source='git://github.com/mlrun/ci-demo.git#master')
     run_results = fn.run(handler='my_func', params={"x": 100})
 
 see more details and examples on [**running jobs with code from Archives or shares**](./code-archive.ipynb)

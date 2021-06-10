@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import pathlib
 import traceback
 from ast import literal_eval
 from base64 import b64decode, b64encode
@@ -117,7 +118,7 @@ def main():
 @click.option(
     "--handler", default="", help="invoke function handler inside the code file"
 )
-@click.option("--mode", help="special run mode args | pass")
+@click.option("--mode", help="special run mode ('pass' for using the command as is)")
 @click.option("--schedule", help="cron schedule")
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
 @click.option("--dump", is_flag=True, help="dump run results as YAML")
@@ -209,6 +210,13 @@ def run(
     # remove potential quotes from command
     eval_url = py_eval(url)
     url = eval_url if isinstance(eval_url, str) else url
+    url_file = url
+    url_args = ""
+    if url:
+        split = url.split(maxsplit=1)
+        url_file = split[0]
+        if len(split) > 1:
+            url_args = split[1]
 
     if func_url or kind or image:
         if func_url:
@@ -221,14 +229,13 @@ def run(
             runtime = {"kind": kind, "spec": {"image": image}}
 
         if kind not in ["", "local", "dask"] and url:
-            if path.isfile(url) and url.endswith(".py"):
-                with open(url) as fp:
+            if url_file and path.isfile(url_file):
+                with open(url_file) as fp:
                     body = fp.read()
                 based = b64encode(body.encode("utf-8")).decode("utf-8")
-                logger.info(f"packing code at {url}")
+                logger.info(f"packing code at {url_file}")
                 update_in(runtime, "spec.build.functionSourceCode", based)
-                url = ""
-                update_in(runtime, "spec.command", "")
+                url = f"main{pathlib.Path(url_file).suffix} {url_args}"
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -244,10 +251,17 @@ def run(
         code = b64decode(code).decode("utf-8")
         if kfp:
             print(f"code:\n{code}\n")
-        with open("main.py", "w") as fp:
+        if url:
+            suffix = pathlib.Path(url_file).suffix
+            if suffix != ".py" and mode != "pass":
+                print(
+                    f"command/url ({url}) must specify a .py file when not in 'pass' mode"
+                )
+                exit(1)
+            url_file = f"main{suffix}"
+            url = f"{url_file} {url_args}"
+        with open(url_file, "w") as fp:
             fp.write(code)
-        if url and not url.startswith("main.py"):
-            url = "main.py " + url
         url = url or "main.py"
 
     if url:
@@ -290,25 +304,11 @@ def run(
         pprint(runobj.to_dict())
 
     try:
-        fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
+        fn = new_function(runtime=runtime, kfp=kfp, mode=mode, source=source)
         if workdir:
             fn.spec.workdir = workdir
         if auto_mount:
             fn.apply(auto_mount_modifier())
-        if source:
-            supported_runtimes = [
-                "",
-                "local",
-                RuntimeKinds.job,
-                RuntimeKinds.remotespark,
-            ]
-            if fn.kind not in supported_runtimes:
-                print(
-                    f"source flag only works with the {','.join(supported_runtimes)} runtimes"
-                )
-                exit(1)
-            fn.spec.build.source = source
-            fn.spec.build.load_source_on_run = True
         fn.is_child = from_env and not kfp
         resp = fn.run(runobj, watch=watch, schedule=schedule, local=local)
         if resp and dump:

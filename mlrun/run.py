@@ -471,16 +471,24 @@ def new_function(
     args: list = None,
     runtime=None,
     mode=None,
+    handler: str = None,
+    source: str = None,
     kfp=None,
 ):
     """Create a new ML function from base properties
 
     example::
 
-           # define a container based function
-           f = new_function(command='job://training.py -v', image='myrepo/image:latest')
+           # define a container based function (the `training.py` must exist in the container workdir)
+           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job')
+           f.run(params={"x": 5})
 
-           # define a handler function (execute a local function handler)
+           # define a container based function which reads its source from a git archive
+           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job',
+                            source='git://github.com/mlrun/something.git')
+           f.run(params={"x": 5})
+
+           # define a local handler function (execute a local function handler)
            f = new_function().run(task, handler=myfunction)
 
     :param name:     function name
@@ -497,6 +505,12 @@ def new_function(
                       command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
                      "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
                       `{}` for parameters like in the "args" mode
+    :param handler:  The default function handler to call for the job or nuclio function, in batch functions
+                     (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
+                     the entire file will be executed (as main).
+                     for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
+    :param source:   valid path to git, zip, or tar file, e.g. `git://github.com/mlrun/something.git`,
+                     `http://some/url/file.zip`
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
@@ -545,6 +559,16 @@ def new_function(
     runner.kfp = kfp
     if mode:
         runner.spec.mode = mode
+    if source:
+        if not hasattr(runner, "with_source_archive"):
+            raise ValueError(
+                f"source archive option is not supported for {kind} runtime"
+            )
+        runner.with_source_archive(source)
+    if handler:
+        runner.spec.default_handler = handler
+        if kind.startswith("nuclio"):
+            runner.spec.function_handler = handler
     return runner
 
 
@@ -626,7 +650,10 @@ def code_to_function(
     :param project:      project used to namespace the function, defaults to "default"
     :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
-    :param handler:      The entrypoint for nuclio (in the form of module:function), defaults to "main:handler"
+    :param handler:      The default function handler to call for the job or nuclio function, in batch functions
+                         (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
+                         the entire file will be executed (as main).
+                         for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
     :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
     :param image:        base docker image to use for building the function container, defaults to None
     :param code_output:  specify "." to generate python module from the current jupyter notebook
@@ -737,8 +764,6 @@ def code_to_function(
         if embed_code:
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
-            if with_doc:
-                update_function_entry_points(r, code)
         else:
             r.spec.source = filename
             r.spec.function_handler = handler

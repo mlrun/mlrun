@@ -305,7 +305,7 @@ def test_local_args():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
     result = new_function(
-        command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}", mode="args"
+        command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}"
     ).run(spec)
     verify_state(result)
 

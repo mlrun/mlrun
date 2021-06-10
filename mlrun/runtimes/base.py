@@ -68,6 +68,8 @@ from .funcdoc import update_function_entry_points
 from .generators import get_generator
 from .utils import RunError, calc_hash, results_to_iter
 
+run_modes = ["pass"]
+
 
 class FunctionStatus(ModelObj):
     def __init__(self, state=None, build_pod=None):
@@ -263,8 +265,8 @@ class BaseRuntime(ModelObj):
         :return: run context object (RunObject) with run metadata, results and status
         """
 
-        if self.spec.mode and self.spec.mode not in ["pass", "args"]:
-            raise ValueError('run mode can only be "args" or "pass"')
+        if self.spec.mode and self.spec.mode not in run_modes:
+            raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
         if local:
 
@@ -547,24 +549,25 @@ class BaseRuntime(ModelObj):
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
 
-        if (code or runobj.spec.handler) and self.spec.mode == "pass":
-            raise ValueError('cannot use "pass" mode with code or handler')
+        if runobj.spec.handler and self.spec.mode == "pass":
+            raise ValueError('cannot use "pass" mode with handler')
 
         if code:
             extra_env["MLRUN_EXEC_CODE"] = code
 
-        if self.spec.mode != "pass":
+        load_archive = self.spec.build.load_source_on_run and self.spec.build.source
+        need_mlrun = code or load_archive
+
+        if need_mlrun:
             args = ["run", "--name", runobj.metadata.name, "--from-env"]
             if runobj.spec.handler:
                 args += ["--handler", runobj.spec.handler]
 
-            if self.spec.build.load_source_on_run and self.spec.build.source:
+            if load_archive:
                 if code:
                     raise ValueError("cannot specify both code and source archive")
                 args += ["--source", self.spec.build.source]
 
-            if self.spec.mode == "args":
-                args += ["--mode", "args"]
             if command:
                 args += [shlex.quote(command)]
             command = "mlrun"

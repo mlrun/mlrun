@@ -241,8 +241,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
         else:
             command = self.spec.command
-            if self.spec.mode and self.spec.mode in ["pass", "args"]:
-                command = command.format(**runobj.spec.parameters)
+            command = command.format(**runobj.spec.parameters)
             arg_list = command.split()
             if self.spec.mode == "pass":
                 cmd = arg_list
@@ -263,8 +262,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             if args:
                 new_args = []
                 for arg in args:
-                    if self.spec.mode and self.spec.mode in ["pass", "args"]:
-                        arg = arg.format(**runobj.spec.parameters)
+                    arg = arg.format(**runobj.spec.parameters)
                     new_args.append(shlex.quote(arg))
                 args = new_args
 

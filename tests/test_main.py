@@ -70,8 +70,7 @@ def test_main_run_hyper():
 def test_main_run_args():
     out = exec_run(
         f"{tests_root_directory}/no_ctx.py -x " + "{p2}",
-        ["--mode", "args", "--uid", "123457"]
-        + compose_param_list(dict(p1=5, p2="aaa")),
+        ["--uid", "123457"] + compose_param_list(dict(p1=5, p2="aaa")),
         "test_main_run_args",
     )
     print(out)
@@ -98,9 +97,7 @@ def test_main_run_args_from_env():
         '"metadata":{"uid":"123459", "name":"tst", "labels": {"kind": "job"}}}'
     )
 
-    out = exec_run(
-        "'-x {x}'", ["--from-env", "--mode", "args"], "test_main_run_args_from_env",
-    )
+    out = exec_run("'-x {x}'", ["--from-env"], "test_main_run_args_from_env",)
     db = mlrun.get_run_db()
     run = db.read_run("123459")
     print(out)

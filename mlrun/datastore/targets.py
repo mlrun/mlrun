@@ -551,6 +551,9 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
+        if not self.partitioned:
+            partition_cols = []
+
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,

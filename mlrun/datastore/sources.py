@@ -232,7 +232,8 @@ class SnowflakeSparkSource(BaseSourceDriver):
                            "spark.driver.memory": "4g",
                            "spark.executor.cores": 3,
                            "spark.executor.memory": "8g",
-                           "spark.cores.max": 3}
+                           "spark.cores.max": 3,
+                           "spark.executor.instances": 1}
 
     def to_spark_df(self, spark):
         SNOWFLAKE_READ_FORMAT = "net.snowflake.spark.snowflake"
@@ -253,9 +254,6 @@ class SnowflakeSparkSource(BaseSourceDriver):
 
     def get_spark_conf(self):
         return self.spark_conf
-
-    def get_spark_options(self):
-        return {}
 
 
 class OnlineSource(BaseSourceDriver):

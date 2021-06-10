@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import sys
 import traceback
 from base64 import b64encode
 from subprocess import PIPE, run
@@ -107,6 +108,34 @@ def test_main_run_args_from_env():
         "-x",
         "bbb",
     ], "params not detected in argv"
+
+
+nonpy_code = """
+echo "abc123"
+"""
+
+
+def test_main_run_nonpy_from_env():
+    os.environ["MLRUN_EXEC_CODE"] = b64encode(nonpy_code.encode("utf-8")).decode(
+        "utf-8"
+    )
+    os.environ[
+        "MLRUN_EXEC_CONFIG"
+    ] = '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "job"}}}'
+
+    filename = "main.bat" if sys.platform == "win32" else "main.sh"
+    # --kfp flag will force the logs to print (for the assert)
+    out = exec_run(
+        filename,
+        ["--from-env", "--mode", "pass", "--kfp"],
+        "test_main_run_nonpy_from_env",
+    )
+    db = mlrun.get_run_db()
+    run = db.read_run("123411")
+    assert run["status"]["state"] == "completed", out
+    state, log = db.get_log("123411")
+    print(state, log)
+    assert str(log).find("abc123") != -1, "incorrect output"
 
 
 def test_main_run_pass():

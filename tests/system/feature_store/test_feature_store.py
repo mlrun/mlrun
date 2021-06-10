@@ -20,6 +20,7 @@ from mlrun.datastore.targets import (
     ParquetTarget,
     TargetTypes,
     get_default_prefix_for_target,
+    get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
@@ -795,6 +796,37 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
         stocks_set.save()
         fs.ingest(stocks_set.uri, stocks)
+
+    def test_purge(self):
+        key = "patient_id"
+        fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
+        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        fset.set_targets(
+            targets=[
+                CSVTarget(),
+                ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+                NoSqlTarget(),
+            ],
+            with_defaults=False,
+        )
+        fs.ingest(fset, source)
+
+        verify_purge(fset)
+
+
+def verify_purge(fset):
+    for target in fset.spec.targets:
+        driver = get_target_driver(target_spec=target, resource=fset)
+        filesystem = driver._get_store().get_filesystem(False)
+        assert filesystem.exists(driver._target_path)
+
+    fset.purge()
+
+    for target in fset.spec.targets:
+        driver = get_target_driver(target_spec=target, resource=fset)
+        filesystem = driver._get_store().get_filesystem(False)
+        assert not filesystem.exists(driver._target_path)
 
 
 def verify_target_list_fail(targets, with_defaults=None):

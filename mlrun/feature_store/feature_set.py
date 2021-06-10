@@ -30,6 +30,7 @@ from ..datastore.targets import (
     TargetTypes,
     default_target_names,
     get_offline_target,
+    get_target_driver,
     validate_target_list,
     validate_target_placement,
 )
@@ -342,6 +343,11 @@ class FeatureSet(ModelObj):
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step
+
+    def purge(self):
+        for target in self.spec.targets:
+            driver = get_target_driver(target_spec=target, resource=self)
+            driver.purge()
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""

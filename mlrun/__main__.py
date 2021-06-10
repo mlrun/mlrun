@@ -251,18 +251,18 @@ def run(
         code = b64decode(code).decode("utf-8")
         if kfp:
             print(f"code:\n{code}\n")
-        if url:
-            suffix = pathlib.Path(url_file).suffix
-            if suffix != ".py" and mode != "pass":
-                print(
-                    f"command/url ({url}) must specify a .py file when not in 'pass' mode"
-                )
-                exit(1)
-            url_file = f"main{suffix}"
-            url = f"{url_file} {url_args}"
+        suffix = pathlib.Path(url_file).suffix if url else ".py"
+        if suffix != ".py" and mode != "pass":
+            print(
+                f"command/url ({url}) must specify a .py file when not in 'pass' mode"
+            )
+            exit(1)
+        url_file = f"main{suffix}"
+        url = f"{url_file} {url_args}"
         with open(url_file, "w") as fp:
             fp.write(code)
-        url = url or "main.py"
+        if suffix == ".sh":
+            url = "bash " + url
 
     if url:
         if not name and not runtime:

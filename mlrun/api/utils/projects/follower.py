@@ -27,14 +27,14 @@ class Member(
         logger.info("Initializing projects follower")
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
         self._leader_name = mlrun.config.config.httpdb.projects.leader
-        self._session_cookie = None
+        self._sync_session = None
         if self._leader_name == "iguazio":
             self._leader_client = mlrun.api.utils.clients.iguazio.Client()
             if not mlrun.config.config.httpdb.projects.iguazio_access_key:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio access key must be configured when the leader is Iguazio"
                 )
-            self._session_cookie = f'j:{{"sid": "{mlrun.config.config.httpdb.projects.iguazio_access_key}"}}'
+            self._sync_session = mlrun.config.config.httpdb.projects.iguazio_access_key
         elif self._leader_name == "nop":
             self._leader_client = mlrun.api.utils.projects.remotes.nop_leader.Member()
         else:
@@ -43,8 +43,11 @@ class Member(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
-        # run one sync to start off on the right foot
-        self._sync_projects()
+        # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
+        try:
+            self._sync_projects()
+        except Exception as exc:
+            logger.warning("Initial projects sync failed", exc=str(exc))
         self._start_periodic_sync()
 
     def shutdown(self):
@@ -53,9 +56,10 @@ class Member(
 
     def create_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        iguazio_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -65,15 +69,16 @@ class Member(
             return project, False
         else:
             return self._leader_client.create_project(
-                self._session_cookie, project, wait_for_completion
+                iguazio_session, project, wait_for_completion
             )
 
     def store_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        iguazio_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -81,16 +86,17 @@ class Member(
             return project, False
         else:
             return self._leader_client.store_project(
-                self._session_cookie, name, project, wait_for_completion
+                iguazio_session, name, project, wait_for_completion
             )
 
     def patch_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        iguazio_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -98,15 +104,16 @@ class Member(
             raise NotImplementedError("Patch operation not supported from leader")
         else:
             return self._leader_client.patch_project(
-                self._session_cookie, name, project, patch_mode, wait_for_completion,
+                iguazio_session, name, project, patch_mode, wait_for_completion,
             )
 
     def delete_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        iguazio_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
@@ -114,12 +121,12 @@ class Member(
                 del self._projects[name]
         else:
             return self._leader_client.delete_project(
-                self._session_cookie, name, deletion_strategy, wait_for_completion,
+                iguazio_session, name, deletion_strategy, wait_for_completion,
             )
         return False
 
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str
+        self, db_session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.api.schemas.Project:
         if name not in self._projects:
             raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
@@ -127,7 +134,7 @@ class Member(
 
     def list_projects(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: typing.List[str] = None,
@@ -160,7 +167,7 @@ class Member(
             # importing here to avoid circular import (db using project member using mlrun follower using db)
             from mlrun.api.utils.singletons.db import get_db
 
-            projects = get_db().generate_projects_summaries(session, project_names)
+            projects = get_db().generate_projects_summaries(db_session, project_names)
         else:
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"
@@ -186,7 +193,7 @@ class Member(
 
     def _sync_projects(self):
         projects, latest_updated_at = self._leader_client.list_projects(
-            self._session_cookie, self._synced_until_datetime
+            self._sync_session, self._synced_until_datetime
         )
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []

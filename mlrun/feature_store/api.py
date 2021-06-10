@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import List, Optional, Union
+from urllib.parse import urlparse
 
 import pandas as pd
 
@@ -335,12 +335,12 @@ def infer(
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
-        _, default_final_state, _ = featureset.graph.check_and_process_graph(
+        _, default_final_step, _ = featureset.graph.check_and_process_graph(
             allow_empty=True
         )
-        if not default_final_state:
+        if not default_final_step:
             raise mlrun.errors.MLRunPreconditionFailedError(
-                "Split flow graph must have a default final state defined"
+                "Split flow graph must have a default final step defined"
             )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
@@ -454,11 +454,13 @@ def _ingest_with_spark(
     spark_conf = None
     if hasattr(source, "get_spark_conf"):
         spark_conf = source.get_spark_conf()
+
     try:
         if spark is None or spark is True:
             # create spark context
             from pyspark.sql import SparkSession
             from pyspark import SparkConf
+
 
             if mlrun_context:
                 session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
@@ -487,6 +489,14 @@ def _ingest_with_spark(
 
         df = source.to_spark_df(spark)
         if featureset.spec.graph and featureset.spec.graph.states:
+                session_name = (
+                    f"{featureset.metadata.project}-{featureset.metadata.name}"
+                )
+
+            spark = SparkSession.builder.appName(session_name).getOrCreate()
+
+        df = source.to_spark_df(spark)
+        if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
 
@@ -504,7 +514,21 @@ def _ingest_with_spark(
             df.write.mode("overwrite").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
-
+            if target.path and urlparse(target.path).scheme == "":
+                if mlrun_context:
+                    mlrun_context.logger.error(
+                        "Paths for spark ingest must contain schema, i.e v3io, s3, az"
+                    )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Paths for spark ingest must contain schema, i.e v3io, s3, az"
+                )
+            spark_options = target.get_spark_options(key_column, timestamp_key)
+            logger.info(
+                f"writing to target {target.name}, spark options {spark_options}"
+            )
+            df.write.mode("overwrite").save(**spark_options)
+            target.set_resource(featureset)
+            target.update_resource_status("ready")
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
         if spark:
@@ -518,8 +542,6 @@ def _post_ingestion(context, featureset, spark=None):
         context.logger.info("ingestion task completed, targets:")
         context.logger.info(f"{featureset.status.targets.to_dict()}")
         context.log_result("featureset", featureset.uri)
-        if spark:
-            spark.stop()
 
 
 def infer_from_static_df(

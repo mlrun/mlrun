@@ -290,24 +290,24 @@ class BaseStoreTarget(DataTargetBase):
                 columns = set(self.columns)
                 for feature in features:
                     if feature.name in columns:
-                        typ = (
+                        type_ = (
                             ValueType.DATETIME
                             if feature.name == timestamp_key
                             else feature.value_type
                         )
-                        result.append((feature.name, typ))
+                        result.append((feature.name, type_))
                 return result
             else:
                 return self.columns
         elif features:
             if with_type:
                 for feature in features:
-                    typ = (
+                    type_ = (
                         ValueType.DATETIME
                         if feature.name == timestamp_key
                         else feature.value_type
                     )
-                    result.append((feature.name, typ))
+                    result.append((feature.name, type_))
             else:
                 result = list(features.keys())
             if timestamp_key and timestamp_key not in result:

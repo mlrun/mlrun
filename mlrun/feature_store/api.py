@@ -454,58 +454,61 @@ def _ingest_with_spark(
     spark_conf = None
     if hasattr(source, "get_spark_conf"):
         spark_conf = source.get_spark_conf()
-
-    if spark is None or spark is True:
-        # create spark context
-        from pyspark.sql import SparkSession
-        from pyspark import SparkConf
-
-        if mlrun_context:
-            session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
-        else:
-            session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
-
-        if spark_conf is not None:
-            conf = (
-                SparkConf()
-            )
-            for key in spark_conf:
-                conf.set(key, spark_conf[key])
-            spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
-        else:
-            spark = SparkSession.builder.appName(session_name).getOrCreate()
-    else:
-        if spark_conf is not None:
+    try:
+        if spark is None or spark is True:
+            # create spark context
             from pyspark.sql import SparkSession
             from pyspark import SparkConf
-            conf = (
-                SparkConf()
-            )
-            for key in spark_conf:
-                conf.set(key, spark_conf[key])
-            spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
 
-    df = source.to_spark_df(spark)
-    if featureset.spec.graph and featureset.spec.graph.states:
-        df = run_spark_graph(df, featureset, namespace, spark)
-    infer_from_static_df(df, featureset, options=infer_options)
+            if mlrun_context:
+                session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
+            else:
+                session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
 
-    key_column = featureset.spec.entities[0].name
-    timestamp_key = featureset.spec.timestamp_key
-    if not targets:
-        if not featureset.spec.targets:
-            featureset.set_targets()
-        targets = featureset.spec.targets
-        targets = [get_target_driver(target, featureset) for target in targets]
+            if spark_conf is not None:
+                conf = (
+                    SparkConf()
+                )
+                for key in spark_conf:
+                    conf.set(key, spark_conf[key])
+                spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
+            else:
+                spark = SparkSession.builder.appName(session_name).getOrCreate()
+        else:
+            if spark_conf is not None:
+                from pyspark.sql import SparkSession
+                from pyspark import SparkConf
+                conf = (
+                    SparkConf()
+                )
+                for key in spark_conf:
+                    conf.set(key, spark_conf[key])
+                spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
 
-    for target in targets or []:
-        spark_options = target.get_spark_options(key_column, timestamp_key)
-        logger.info(f"writing to target {target.name}, spark options {spark_options}")
-        df.write.mode("overwrite").save(**spark_options)
-        target.set_resource(featureset)
-        target.update_resource_status("ready")
+        df = source.to_spark_df(spark)
+        if featureset.spec.graph and featureset.spec.graph.states:
+            df = run_spark_graph(df, featureset, namespace, spark)
+        infer_from_static_df(df, featureset, options=infer_options)
 
-    _post_ingestion(mlrun_context, featureset, spark)
+        key_column = featureset.spec.entities[0].name
+        timestamp_key = featureset.spec.timestamp_key
+        if not targets:
+            if not featureset.spec.targets:
+                featureset.set_targets()
+            targets = featureset.spec.targets
+            targets = [get_target_driver(target, featureset) for target in targets]
+
+        for target in targets or []:
+            spark_options = target.get_spark_options(key_column, timestamp_key)
+            logger.info(f"writing to target {target.name}, spark options {spark_options}")
+            df.write.mode("overwrite").save(**spark_options)
+            target.set_resource(featureset)
+            target.update_resource_status("ready")
+
+        _post_ingestion(mlrun_context, featureset, spark)
+    finally:
+        if spark:
+            spark.stop()
     return df
 
 

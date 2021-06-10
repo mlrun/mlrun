@@ -171,6 +171,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
         """
         self.spec.build.source = source
+        self.spec.build.load_source_on_run = True
         if pythonpath:
             self.spec.pythonpath = pythonpath
 

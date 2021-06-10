@@ -249,7 +249,7 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
         )
         path = str(self.results_path / _generate_random_name())
-        target = ParquetTarget(path=path, partitioned=False)
+        target = ParquetTarget(path=path)
 
         fset = fs.FeatureSet(name="test", entities=[Entity("patient_id")])
         fs.ingest(fset, source, targets=[target])

@@ -454,7 +454,7 @@ class ParquetTarget(BaseStoreTarget):
         attributes: typing.Dict[str, str] = None,
         after_step=None,
         columns=None,
-        partitioned: bool = False,
+        partitioned: bool = None,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
@@ -467,6 +467,17 @@ class ParquetTarget(BaseStoreTarget):
                 PendingDeprecationWarning,
             )
             after_step = after_step or after_state
+
+        if partitioned is None:
+            if (
+                key_bucketing_number is not None
+                or partition_cols is not None
+                or isinstance(path, str)
+                and (not path.endswith(".parquet") and not path.endswith(".pq"))
+            ):
+                partitioned = True
+            else:
+                partitioned = False
 
         super().__init__(
             name,
@@ -551,7 +562,10 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
-        if not self.partitioned:
+        if not self.partitioned and (
+            not self._target_path.endswith(".parquet")
+            and not self._target_path.endswith(".pq")
+        ):
             partition_cols = []
 
         graph.add_step(

@@ -16,6 +16,7 @@ from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import (
     CSVTarget,
+    NoSqlTarget,
     ParquetTarget,
     TargetTypes,
     get_default_prefix_for_target,
@@ -379,11 +380,12 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp2) == 10
 
     def test_ordered_pandas_asof_merge(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
         left_set, left = prepare_feature_set(
-            "left", "ticker", trades, timestamp_key="time"
+            "left", "ticker", trades, timestamp_key="time", targets=targets
         )
         right_set, right = prepare_feature_set(
-            "right", "ticker", quotes, timestamp_key="time"
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
         )
 
         features = ["left.*", "right.*"]
@@ -510,6 +512,31 @@ class TestFeatureStore(TestMLRunSystem):
 
         svc.close()
 
+    def test_offline_features_filter_non_partitioned(self):
+        data = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-06-09 09:30:06.008"),
+                    pd.Timestamp("2021-06-09 10:29:07.009"),
+                    pd.Timestamp("2021-06-09 09:29:08.010"),
+                ],
+                "data": [10, 20, 30],
+                "string": ["ab", "cd", "ef"],
+            }
+        )
+
+        data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        features = ["fs1.*"]
+        vector = fs.FeatureVector("vector", features)
+        resp = fs.get_offline_features(
+            vector,
+            entity_timestamp_column="time_stamp",
+            start_time=datetime(2021, 6, 9, 9, 30),
+            end_time=datetime(2021, 6, 9, 10, 30),
+        )
+        assert len(resp.to_dataframe()) == 2
+
     def test_unaggregated_columns(self):
         test_base_time = datetime(2020, 12, 1, 17, 33, 15)
 
@@ -613,7 +640,7 @@ class TestFeatureStore(TestMLRunSystem):
             targets=[
                 CSVTarget(name=non_default_target_name, after_state=side_step_name)
             ],
-            default_final_state="FeaturesetValidator",
+            default_final_step="FeaturesetValidator",
         )
 
         quotes_set.plot(with_targets=True)

@@ -272,7 +272,7 @@ def run(
                 )
                 exit(1)
         else:
-            url_file = f"main.py"
+            url_file = "main.py"
             url = f"{url_file} {url_args}".strip()
         with open(url_file, "w") as fp:
             fp.write(code)

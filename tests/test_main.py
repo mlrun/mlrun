@@ -17,6 +17,7 @@ import traceback
 from base64 import b64encode
 from subprocess import PIPE, run
 from sys import executable, stderr
+
 import pytest
 
 import mlrun

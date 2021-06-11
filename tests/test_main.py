@@ -17,6 +17,7 @@ import traceback
 from base64 import b64encode
 from subprocess import PIPE, run
 from sys import executable, stderr
+import pytest
 
 import mlrun
 from tests.conftest import examples_path, out_path, tests_root_directory
@@ -111,10 +112,11 @@ def test_main_run_args_from_env():
 
 
 nonpy_code = """
-echo "abc123"
+echo "abc123" $1
 """
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="skip on windows")
 def test_main_run_nonpy_from_env():
     os.environ["MLRUN_EXEC_CODE"] = b64encode(nonpy_code.encode("utf-8")).decode(
         "utf-8"
@@ -123,10 +125,9 @@ def test_main_run_nonpy_from_env():
         "MLRUN_EXEC_CONFIG"
     ] = '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "job"}}}'
 
-    filename = "main.bat" if sys.platform == "win32" else "main.sh"
     # --kfp flag will force the logs to print (for the assert)
     out = exec_run(
-        filename,
+        "bash {codefile} xx",
         ["--from-env", "--mode", "pass", "--kfp"],
         "test_main_run_nonpy_from_env",
     )
@@ -135,7 +136,7 @@ def test_main_run_nonpy_from_env():
     assert run["status"]["state"] == "completed", out
     state, log = db.get_log("123411")
     print(state, log)
-    assert str(log).find("abc123") != -1, "incorrect output"
+    assert str(log).find("abc123 xx") != -1, "incorrect output"
 
 
 def test_main_run_pass():

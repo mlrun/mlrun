@@ -236,6 +236,7 @@ def run(
                 logger.info(f"packing code at {url_file}")
                 update_in(runtime, "spec.build.functionSourceCode", based)
                 url = f"main{pathlib.Path(url_file).suffix} {url_args}"
+                update_in(runtime, "spec.build.code_origin", url_file)
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -257,12 +258,24 @@ def run(
                 f"command/url ({url}) must specify a .py file when not in 'pass' mode"
             )
             exit(1)
-        url_file = f"main{suffix}"
-        url = f"{url_file} {url_args}"
+        if mode == "pass":
+            if "{codefile}" in url:
+                url_file = "codefile"
+                url = url.replace("{codefile}", url_file)
+            elif suffix == ".sh":
+                url_file = "codefile.sh"
+                url = f"bash {url_file} {url_args}".strip()
+            else:
+                print(
+                    "error, command must be specified with '{codefile}' in it "
+                    "(to determine the position of the code file)"
+                )
+                exit(1)
+        else:
+            url_file = f"main.py"
+            url = f"{url_file} {url_args}".strip()
         with open(url_file, "w") as fp:
             fp.write(code)
-        if suffix == ".sh":
-            url = "bash " + url
 
     if url:
         if not name and not runtime:

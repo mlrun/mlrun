@@ -98,7 +98,7 @@ The data source could be a DataFrame or files (e.g. csv, parquet). Files can be 
 When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
-#### Ingest data (locally)
+### Ingest data (locally)
 
 Use FeatureSet to create the basic feature set definition and then the ingest method to run a simple ingestion "localy" in the jupyter notebook pod.
 
@@ -117,7 +117,7 @@ ingest(measurements, source, targets)
 
 To learn more about ingest go to {py:class}`~mlrun.feature_store.ingest`
 
-#### Ingest data using an MLRun job
+### Ingest data using an MLRun job
 
 Use the ingest method with run_config parameter for running the ingestion process using a serverless MLrun job. <br>
 By doing that, the ingestion process is running on its own pod or service on the kubernetes cluster. <br>

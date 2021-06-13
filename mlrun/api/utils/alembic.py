@@ -51,8 +51,8 @@ class AlembicUtil(object):
         sqlite:////mlrun/db/mlrun.db?check_same_thread=false -> /mlrun/db/mlrun.db
         if mysql is used returns empty string
         """
-        if 'mysql' in mlconf.httpdb.dsn:
-            return ''
+        if "mysql" in mlconf.httpdb.dsn:
+            return ""
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
     def _get_current_revision(self) -> typing.Optional[str]:
@@ -92,7 +92,7 @@ class AlembicUtil(object):
 
     @staticmethod
     def _backup_revision(db_file_path: str, current_version: str):
-        if db_file_path == ":memory:" or db_file_path == '':
+        if db_file_path == ":memory:" or db_file_path == "":
             return
 
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))

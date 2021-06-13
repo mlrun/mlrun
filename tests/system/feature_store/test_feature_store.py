@@ -255,7 +255,7 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(fset, source, targets=[target])
 
         list_files = os.listdir(path)
-        assert len(list_files) == 1
+        assert len(list_files) == 1 and not os.path.isdir(path + list_files[0])
 
     def test_ingest_with_timestamp(self):
         key = "patient_id"

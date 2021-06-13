@@ -395,7 +395,7 @@ class FeatureSet(ModelObj):
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
         :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
-                            the Nth event). The default behaviour is emitting every event
+                            the Nth event). The default behavior is emitting every event
         """
         if state_name:
             warnings.warn(

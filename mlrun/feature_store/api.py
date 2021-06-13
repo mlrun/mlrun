@@ -166,7 +166,7 @@ def ingest(
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
-    and writes the results to the default ot specified targets
+    and writes the results to the default of specified targets
 
     when targets are not specified data is stored in the configured default targets
     (will usually be NoSQL for real-time and Parquet for offline).
@@ -255,7 +255,7 @@ def ingest(
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "featureset.spec.engine must be set to 'spark' to injest with spark"
+            "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
         # use local spark session to ingest

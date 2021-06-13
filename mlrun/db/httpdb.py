@@ -210,7 +210,7 @@ class HTTPRunDB(RunDBInterface):
                 and server_cfg["namespace"] != config.namespace
             ):
                 logger.warning(
-                    f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace}) namespace dont match"
+                    f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace}) namespace don't match"
                 )
 
             # get defaults from remote server
@@ -475,7 +475,7 @@ class HTTPRunDB(RunDBInterface):
         :param artifact: The actual artifact to store.
         :param uid: A unique ID for this specific version of the artifact.
         :param iter: The task iteration which generated this artifact. If ``iter`` is not ``None`` the iteration will
-            be added to the key provided to generate a unique key for the artifact of te specific iteration.
+            be added to the key provided to generate a unique key for the artifact of the specific iteration.
         :param tag: Tag of the artifact.
         :param project: Project that the artifact belongs to.
         """
@@ -566,7 +566,7 @@ class HTTPRunDB(RunDBInterface):
     def del_artifacts(self, name=None, project=None, tag=None, labels=None, days_ago=0):
         """ Delete artifacts referenced by the parameters.
 
-        :param name: Name of artifacts to delete. Note that this is a like query, and is case-unsensitive. See
+        :param name: Name of artifacts to delete. Note that this is a like query, and is case-insensitive. See
             :py:func:`~list_artifacts` for more details.
         :param project: Project that artifacts belong to.
         :param tag: Choose artifacts who are assigned this tag.
@@ -856,7 +856,7 @@ class HTTPRunDB(RunDBInterface):
         :param func: Function to build.
         :param with_mlrun: Whether to add MLRun package to the built package. This is not required if using a base
             image that already has MLRun in it.
-        :param mlrun_version_specifier: Version of MLRun to include in the buit image.
+        :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
         """
 
@@ -996,7 +996,7 @@ class HTTPRunDB(RunDBInterface):
         """ Submit a job for remote execution.
 
         :param runspec: The runtime object spec (Task) to execute.
-        :param schedule: Whether to schedule this job using a Cron trigger. If not specified, the job wil be submitted
+        :param schedule: Whether to schedule this job using a Cron trigger. If not specified, the job will be submitted
             immediately.
         """
 
@@ -1978,7 +1978,7 @@ class HTTPRunDB(RunDBInterface):
         self, project: str, endpoint_id: str, access_key: Optional[str] = None,
     ):
         """
-        Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
+        Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint

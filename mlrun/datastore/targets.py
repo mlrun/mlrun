@@ -477,9 +477,9 @@ class ParquetTarget(BaseStoreTarget):
                     time_partitioning_granularity,
                 ]
             ):
-                partitioned = True
-            else:
                 partitioned = False
+            else:
+                partitioned = True
 
         super().__init__(
             name,

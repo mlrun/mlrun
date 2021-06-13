@@ -26,6 +26,7 @@ from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
+from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
 
@@ -301,19 +302,46 @@ class BaseStoreTarget(DataTargetBase):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
 
-    def _get_column_list(self, features, timestamp_key, key_columns):
-        column_list = []
+    def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
+        result = []
         if self.columns:
-            return self.columns
+            if with_type:
+                columns = set(self.columns)
+                for feature in features:
+                    if feature.name in columns:
+                        type_ = (
+                            ValueType.DATETIME
+                            if feature.name == timestamp_key
+                            else feature.value_type
+                        )
+                        result.append((feature.name, type_))
+                return result
+            else:
+                return self.columns
         elif features:
-            column_list = list(features.keys())
-            if timestamp_key and timestamp_key not in column_list:
-                column_list = [timestamp_key] + column_list
+            if with_type:
+                for feature in features:
+                    type_ = (
+                        ValueType.DATETIME
+                        if feature.name == timestamp_key
+                        else feature.value_type
+                    )
+                    result.append((feature.name, type_))
+            else:
+                result = list(features.keys())
+            if timestamp_key and timestamp_key not in result:
+                if with_type:
+                    result = [(timestamp_key, ValueType.DATETIME)] + result
+                else:
+                    result = [timestamp_key] + result
             if key_columns:
                 for key in reversed(key_columns):
-                    if key not in column_list:
-                        column_list.insert(0, key)
-        return column_list
+                    if key not in result:
+                        if with_type:
+                            result.insert(0, (key, ValueType.STRING))
+                        else:
+                            result.insert(0, key)
+        return result
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, **kwargs,
@@ -525,8 +553,13 @@ class ParquetTarget(BaseStoreTarget):
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         column_list = self._get_column_list(
-            features=features, timestamp_key=timestamp_key, key_columns=None
+            features=features,
+            timestamp_key=timestamp_key,
+            key_columns=None,
+            with_type=True,
         )
+
+        # need to extract types from features as part of column list
 
         partition_cols = None
         if self.key_bucketing_number is not None:

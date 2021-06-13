@@ -468,12 +468,24 @@ class ParquetTarget(BaseStoreTarget):
             )
             after_step = after_step or after_state
 
+        if all(
+            value is None
+            for value in [
+                key_bucketing_number,
+                partition_cols,
+                time_partitioning_granularity,
+            ]
+        ):
+            partition_values_passed = False
+        else:
+            partition_values_passed = True
+
         if partitioned is None:
             if (
-                key_bucketing_number is not None
-                or partition_cols is not None
-                or isinstance(path, str)
-                and (not path.endswith(".parquet") and not path.endswith(".pq"))
+                partition_values_passed
+                and path is not None
+                and not path.endswith(".parquet")
+                and not path.endswith(".pq")
             ):
                 partitioned = True
             else:
@@ -501,17 +513,7 @@ class ParquetTarget(BaseStoreTarget):
             )
 
         self.suffix = (
-            ".parquet"
-            if not partitioned
-            and all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
-            )
-            else ""
+            ".parquet" if not partitioned and not partition_values_passed else ""
         )
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
@@ -562,8 +564,9 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
-        if not self.partitioned and (
-            not self._target_path.endswith(".parquet")
+        if (
+            not self.partitioned
+            and not self._target_path.endswith(".parquet")
             and not self._target_path.endswith(".pq")
         ):
             partition_cols = []

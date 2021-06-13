@@ -81,8 +81,8 @@ def make_label(table):
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String)
-        value = Column(String)
+        name = Column(String(255))
+        value = Column(String(255))
         parent = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Label
@@ -96,8 +96,8 @@ def make_tag(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String)
-        name = Column(String)
+        project = Column(String(255))
+        name = Column(String(255))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Tag
@@ -113,8 +113,8 @@ def make_tag_v2(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String)
-        name = Column(String)
+        project = Column(String(255))
+        name = Column(String(255))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
         obj_name = Column(Integer, ForeignKey(f"{table}.name"))
 
@@ -135,9 +135,9 @@ with warnings.catch_warnings():
         Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String)
-        project = Column(String)
-        uid = Column(String)
+        key = Column(String(255))
+        project = Column(String(255))
+        uid = Column(String(255))
         updated = Column(TIMESTAMP)
         body = Column(BLOB)
         labels = relationship(Label)
@@ -152,9 +152,9 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String)
-        project = Column(String)
-        uid = Column(String)
+        name = Column(String(255))
+        project = Column(String(255))
+        uid = Column(String(255))
         body = Column(BLOB)
         updated = Column(TIMESTAMP)
         labels = relationship(Label)
@@ -163,8 +163,8 @@ with warnings.catch_warnings():
         __tablename__ = "logs"
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String)
-        project = Column(String)
+        uid = Column(String(255))
+        project = Column(String(255))
         body = Column(BLOB)
 
     class Run(Base, HasStruct):
@@ -177,10 +177,10 @@ with warnings.catch_warnings():
         Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String)
-        project = Column(String)
+        uid = Column(String(255))
+        project = Column(String(255))
         iteration = Column(Integer)
-        state = Column(String)
+        state = Column(String(255))
         body = Column(BLOB)
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
@@ -192,14 +192,14 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        project = Column(String, nullable=False)
-        name = Column(String, nullable=False)
-        kind = Column(String)
-        desired_state = Column(String)
-        state = Column(String)
+        project = Column(String(255), nullable=False)
+        name = Column(String(255), nullable=False)
+        kind = Column(String(255))
+        desired_state = Column(String(255))
+        state = Column(String(255))
         creation_time = Column(TIMESTAMP)
-        cron_trigger_str = Column(String)
-        last_run_uri = Column(String)
+        cron_trigger_str = Column(String(255))
+        last_run_uri = Column(String(255))
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
@@ -233,7 +233,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_users_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String)
+        name = Column(String(255))
 
     class Project(Base, BaseModel):
         __tablename__ = "projects"
@@ -241,15 +241,15 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String)
-        description = Column(String)
-        owner = Column(String)
-        source = Column(String)
+        name = Column(String(255))
+        description = Column(String(255))
+        owner = Column(String(255))
+        source = Column(String(255))
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
         _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
-        state = Column(String)
+        state = Column(String(255))
         users = relationship(User, secondary=project_users)
 
         Label = make_label(__tablename__)
@@ -270,8 +270,8 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
 
-        name = Column(String)
-        value_type = Column(String)
+        name = Column(String(255))
+        value_type = Column(String(255))
 
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -281,8 +281,8 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
 
-        name = Column(String)
-        value_type = Column(String)
+        name = Column(String(255))
+        value_type = Column(String(255))
 
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -294,12 +294,12 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String)
-        project = Column(String)
+        name = Column(String(255))
+        project = Column(String(255))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-        state = Column(String)
-        uid = Column(String)
+        state = Column(String(255))
+        uid = Column(String(255))
 
         _full_object = Column("object", JSON)
 
@@ -327,12 +327,12 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String)
-        project = Column(String)
+        name = Column(String(255))
+        project = Column(String(255))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-        state = Column(String)
-        uid = Column(String)
+        state = Column(String(255))
+        uid = Column(String(255))
 
         _full_object = Column("object", JSON)
 

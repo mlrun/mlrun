@@ -470,12 +470,12 @@ class ParquetTarget(BaseStoreTarget):
 
         if partitioned is None:
             if all(
-                    value is None
-                    for value in [
-                        key_bucketing_number,
-                        partition_cols,
-                        time_partitioning_granularity,
-                    ]
+                value is None
+                for value in [
+                    key_bucketing_number,
+                    partition_cols,
+                    time_partitioning_granularity,
+                ]
             ):
                 partitioned = True
             else:
@@ -502,9 +502,7 @@ class ParquetTarget(BaseStoreTarget):
                 f"not {time_partitioning_granularity}."
             )
 
-        self.suffix = (
-            ".parquet" if not partitioned else ""
-        )
+        self.suffix = ".parquet" if not partitioned else ""
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 

@@ -55,9 +55,8 @@ def upgrade():
         sa.Column("project", sa.String(255), nullable=True),
         sa.Column("name", sa.String(255), nullable=True),
         sa.Column("obj_id", sa.Integer(), nullable=True),
-        sa.Column("obj_name", sa.Integer(), nullable=True),
+        sa.Column("obj_name", sa.String(255), nullable=True),
         sa.ForeignKeyConstraint(["obj_id"], ["feature_sets.id"],),
-        sa.ForeignKeyConstraint(["obj_name"], ["feature_sets.name"],),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "project", "name", "obj_name", name="_feature_sets_tags_uc"

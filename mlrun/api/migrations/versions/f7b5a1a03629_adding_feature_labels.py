@@ -20,8 +20,8 @@ def upgrade():
     op.create_table(
         "entities_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(), nullable=True),
-        sa.Column("value", sa.String(), nullable=True),
+        sa.Column("name", sa.String(255), nullable=True),
+        sa.Column("value", sa.String(255), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["entities.id"],),
         sa.PrimaryKeyConstraint("id"),
@@ -30,8 +30,8 @@ def upgrade():
     op.create_table(
         "features_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(), nullable=True),
-        sa.Column("value", sa.String(), nullable=True),
+        sa.Column("name", sa.String(255), nullable=True),
+        sa.Column("value", sa.String(255), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["features.id"],),
         sa.PrimaryKeyConstraint("id"),

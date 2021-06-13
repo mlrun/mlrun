@@ -18,6 +18,7 @@ depends_on = None
 def upgrade():
     with op.batch_alter_table("schedules_v2") as batch_op:
         batch_op.add_column(sa.Column("id", sa.Integer(), nullable=False))
+        batch_op.drop_constraint('PRIMARY', type_='primary')
         batch_op.create_primary_key("pk_schedules_v2", ["id"])
         batch_op.create_unique_constraint("_schedules_v2_uc", ["project", "name"])
 

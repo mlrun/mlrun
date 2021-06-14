@@ -90,7 +90,7 @@ class TestFeatureStore(TestMLRunSystem):
         quotes_set.add_aggregation("asks2", "ask", ["sum", "max"], "5h", "10m")
         quotes_set.add_aggregation("bids", "bid", ["min", "max"], "1h", "10m")
 
-        df = fs.infer_metadata(
+        df = fs.preview(
             quotes_set,
             quotes,
             entity_columns=["ticker"],
@@ -180,7 +180,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_feature_set_db(self):
         name = "stocks_test"
         stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
-        fs.infer_metadata(
+        fs.preview(
             stocks_set, stocks,
         )
         stocks_set.save()
@@ -561,7 +561,7 @@ class TestFeatureStore(TestMLRunSystem):
             period="10m",
             emit_policy=EmitAfterMaxEvent(1),
         )
-        fs.infer_metadata(
+        fs.preview(
             data_set,
             data,  # source
             entity_columns=["first_name", "last_name"],
@@ -707,7 +707,7 @@ class TestFeatureStore(TestMLRunSystem):
             "storey.Extend", name=side_step_name, _fn="({'extra2': event['bid'] * 17})"
         )
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-            fs.infer_metadata(quotes_set, quotes)
+            fs.preview(quotes_set, quotes)
 
         non_default_target_name = "side-target"
         quotes_set.set_targets(
@@ -719,7 +719,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         quotes_set.plot(with_targets=True)
 
-        inf_out = fs.infer_metadata(quotes_set, quotes)
+        inf_out = fs.preview(quotes_set, quotes)
         ing_out = fs.ingest(quotes_set, quotes, return_df=True)
 
         default_file_path = quotes_set.get_target_path(TargetTypes.parquet)
@@ -798,7 +798,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         stocks_set.graph.to(name="s1", handler="myfunc1")
-        # df = fs.infer(my_set, df.head())
         df = fs.ingest(stocks_set, stocks)
         self._logger.info(f"output df:\n{df}")
 
@@ -921,7 +920,7 @@ def verify_ingest(
     feature_set = fs.FeatureSet("my-feature-set")
     if infer:
         data = base_data.copy()
-        fs.infer_metadata(feature_set, data, entity_columns=keys)
+        fs.preview(feature_set, data, entity_columns=keys)
     else:
         data = base_data.set_index(keys=keys)
     if targets:

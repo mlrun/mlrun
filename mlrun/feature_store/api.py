@@ -277,7 +277,7 @@ def ingest(
         infer_options, InferOptions.schema()
     )
     if schema_options:
-        infer_metadata(
+        preview(
             featureset, source, options=schema_options, namespace=namespace,
         )
     infer_stats = InferOptions.get_common_options(
@@ -296,7 +296,7 @@ def ingest(
     return df
 
 
-def infer(
+def preview(
     featureset: FeatureSet,
     source,
     entity_columns=None,
@@ -311,7 +311,7 @@ def infer(
         quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
         quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
         quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
-        df = infer(
+        df = preview(
             quotes_set,
             quotes_df,
             entity_columns=["ticker"],
@@ -354,11 +354,6 @@ def infer(
 
     df = infer_from_static_df(source, featureset, entity_columns, options)
     return df
-
-
-# keep for backwards compatibility
-infer_metadata = infer
-preview = infer
 
 
 def _run_ingestion_job(

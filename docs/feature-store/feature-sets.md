@@ -86,7 +86,7 @@ This allows to get a preview of the results (in the returned dataframe). The sim
 The infer operation also learns the feature set schema and does statistical analysis on the result by default.
   
 ```python
-df = fstore.infer(quotes_set, quotes)
+df = fstore.preview(quotes_set, quotes)
 
 # print the featue statistics
 print(quotes_set.get_stats_table())

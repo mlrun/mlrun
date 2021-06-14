@@ -3,6 +3,7 @@ import datetime
 import http
 import json
 import typing
+import urllib.parse
 
 import requests.adapters
 import urllib3
@@ -30,15 +31,13 @@ class Client(
         self._wait_for_job_completion_retry_interval = 5
         self._wait_for_project_terminal_state_retry_interval = 5
 
-    def try_get_grafana_service_url(self, session_cookie: str) -> typing.Optional[str]:
+    def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
         Try to find a ready grafana app service, and return its URL
         If nothing found, returns None
         """
         logger.debug("Getting grafana service url from Iguazio")
-        response = self._send_request_to_api(
-            "GET", "app_services_manifests", session_cookie
-        )
+        response = self._send_request_to_api("GET", "app_services_manifests", session)
         response_body = response.json()
         for app_services_manifest in response_body.get("data", []):
             for app_service in app_services_manifest.get("attributes", {}).get(
@@ -60,19 +59,17 @@ class Client(
 
     def create_project(
         self,
-        session_cookie: str,
+        session: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._generate_request_body(project)
-        return self._create_project_in_iguazio(
-            session_cookie, body, wait_for_completion
-        )
+        return self._create_project_in_iguazio(session, body, wait_for_completion)
 
     def store_project(
         self,
-        session_cookie: str,
+        session: str,
         name: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
@@ -80,19 +77,17 @@ class Client(
         logger.debug("Storing project in Iguazio", name=name, project=project)
         body = self._generate_request_body(project)
         try:
-            self._get_project_from_iguazio(session_cookie, name)
+            self._get_project_from_iguazio(session, name)
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
-            return self._create_project_in_iguazio(
-                session_cookie, body, wait_for_completion
-            )
+            return self._create_project_in_iguazio(session, body, wait_for_completion)
         else:
-            return self._put_project_to_iguazio(session_cookie, name, body), False
+            return self._put_project_to_iguazio(session, name, body), False
 
     def delete_project(
         self,
-        session_cookie: str,
+        session: str,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
@@ -112,7 +107,7 @@ class Client(
         }
         try:
             response = self._send_request_to_api(
-                "DELETE", "projects", session_cookie, headers=headers, json=body
+                "DELETE", "projects", session, headers=headers, json=body
             )
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
@@ -126,14 +121,12 @@ class Client(
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]
-                self._wait_for_job_completion(session_cookie, job_id)
+                self._wait_for_job_completion(session, job_id)
                 return False
             return True
 
     def list_projects(
-        self,
-        session_cookie: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
+        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -141,9 +134,7 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
-        response = self._send_request_to_api(
-            "GET", "projects", session_cookie, params=params
-        )
+        response = self._send_request_to_api("GET", "projects", session, params=params)
         response_body = response.json()
         projects = []
         for iguazio_project in response_body["data"]:
@@ -153,8 +144,8 @@ class Client(
         latest_updated_at = self._find_latest_updated_at(response_body)
         return projects, latest_updated_at
 
-    def get_project(self, session_cookie: str, name: str,) -> mlrun.api.schemas.Project:
-        return self._get_project_from_iguazio(session_cookie, name)
+    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
+        return self._get_project_from_iguazio(session, name)
 
     def _find_latest_updated_at(
         self, response_body: dict
@@ -169,23 +160,21 @@ class Client(
         return latest_updated_at
 
     def _create_project_in_iguazio(
-        self, session_cookie: str, body: dict, wait_for_completion: bool
+        self, session: str, body: dict, wait_for_completion: bool
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        project, job_id = self._post_project_to_iguazio(session_cookie, body)
+        project, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
-            self._wait_for_job_completion(session_cookie, job_id)
+            self._wait_for_job_completion(session, job_id)
             return (
-                self._get_project_from_iguazio(session_cookie, project.metadata.name),
+                self._get_project_from_iguazio(session, project.metadata.name),
                 False,
             )
         return project, True
 
     def _post_project_to_iguazio(
-        self, session_cookie: str, body: dict
+        self, session: str, body: dict
     ) -> typing.Tuple[mlrun.api.schemas.Project, str]:
-        response = self._send_request_to_api(
-            "POST", "projects", session_cookie, json=body
-        )
+        response = self._send_request_to_api("POST", "projects", session, json=body)
         response_body = response.json()
         return (
             self._transform_iguazio_project_to_mlrun_project(response_body["data"]),
@@ -193,26 +182,24 @@ class Client(
         )
 
     def _put_project_to_iguazio(
-        self, session_cookie: str, name: str, body: dict
+        self, session: str, name: str, body: dict
     ) -> mlrun.api.schemas.Project:
         response = self._send_request_to_api(
-            "PUT", f"projects/__name__/{name}", session_cookie, json=body
+            "PUT", f"projects/__name__/{name}", session, json=body
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _get_project_from_iguazio(
-        self, session_cookie: str, name
+        self, session: str, name
     ) -> mlrun.api.schemas.Project:
         response = self._send_request_to_api(
-            "GET", f"projects/__name__/{name}", session_cookie
+            "GET", f"projects/__name__/{name}", session
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _wait_for_job_completion(self, session_cookie: str, job_id: str):
+    def _wait_for_job_completion(self, session: str, job_id: str):
         def _verify_job_in_terminal_state():
-            response = self._send_request_to_api(
-                "GET", f"jobs/{job_id}", session_cookie
-            )
+            response = self._send_request_to_api("GET", f"jobs/{job_id}", session)
             job_state = response.json()["data"]["attributes"]["state"]
             if job_state not in ["canceled", "failed", "completed"]:
                 raise Exception(f"Job in progress. State: {job_state}")
@@ -225,8 +212,16 @@ class Client(
             _verify_job_in_terminal_state,
         )
 
-    def _send_request_to_api(self, method, path, session_cookie=None, **kwargs):
+    def _send_request_to_api(self, method, path, session=None, **kwargs):
         url = f"{self._api_url}/api/{path}"
+        # support session being already a cookie
+        session_cookie = session
+        if (
+            session_cookie
+            and not session_cookie.startswith('j:{"sid"')
+            and not session_cookie.startswith(urllib.parse.quote_plus('j:{"sid"'))
+        ):
+            session_cookie = f'j:{{"sid": "{session_cookie}"}}'
         if session_cookie:
             cookies = kwargs.get("cookies", {})
             # in case some dev using this function for some reason setting cookies manually through kwargs + have a

@@ -15,7 +15,7 @@
 Configuration system.
 
 Configuration can be in either a configuration file specified by
-MLRUN_CONFIG_FILE environment variable or by environmenet variables.
+MLRUN_CONFIG_FILE environment variable or by environment variables.
 
 Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.

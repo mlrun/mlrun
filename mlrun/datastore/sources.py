@@ -21,6 +21,7 @@ from ..model import DataSource
 from ..utils import get_class
 from .utils import store_path_to_spark
 
+import os
 
 def get_source_from_dict(source):
     kind = source.get("kind", "")

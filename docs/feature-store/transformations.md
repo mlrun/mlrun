@@ -48,9 +48,9 @@ the bids in the last hour, per stock ticker (which is the entity in question). T
 can be used:
 
 ```python
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 # create a new feature set
-quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])
+quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
 quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
 ```
 
@@ -156,7 +156,7 @@ use Spark as the transformation engine in ingestion, follow these steps:
    to `spark`. For example:
    
     ```python
-    feature_set = fs.FeatureSet("stocks", entities=[fs.Entity("ticker")], engine="spark")
+    feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
     ```
 
 2. To use a local Spark session, pass a Spark session context when calling the 
@@ -179,23 +179,23 @@ For example, the following code will execute data ingestion using Spark:
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import CSVTarget
 from mlrun import code_to_function
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
     
-feature_set = fs.FeatureSet("stocks", entities=[fs.Entity("ticker")], engine="spark")
+feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
 
 source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./my_result_stocks.csv")]
 
 # Execution using a local Spark session
 spark = SparkSession.builder.appName("Spark function").getOrCreate()
-fs.ingest(feature_set, source, targets, spark_context=spark)
+fstore.ingest(feature_set, source, targets, spark_context=spark)
 
 # Remote execution using a remote-spark runtime
-fs.ingest(feature_set, source, targets, run_config=fs.RunConfig())
+fstore.ingest(feature_set, source, targets, run_config=fstore.RunConfig())
 
 # Remote execution using a remote-spark runtime over iguazio
 spark_service_name = "iguazio-spark-service"
-fs.ingest(feature_set, source, targets, run_config=fs.RunConfig(), spark_context=spark_service_name)
+fstore.ingest(feature_set, source, targets, run_config=fstore.RunConfig(), spark_context=spark_service_name)
 ```
 When using a local Spark session, the `ingest` API would wait for its completion, while when using remote execution 
 the MLRun run execution details would be returned, allowing tracking of its status and results.
@@ -219,9 +219,9 @@ def my_spark_func(df, context=None):
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import CSVTarget
 from mlrun import code_to_function
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 
-feature_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")], engine="spark")
+feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")], engine="spark")
 
 source = CSVSource("mycsv", path="quotes.csv")
 targets = [CSVTarget("mycsv", path="./my_result_stock_quotes.csv")]
@@ -230,6 +230,6 @@ spark_service_name = "iguazio-spark-service" # As configured & shown in the Igua
 
 feature_set.graph.to(name="s1", handler="my_spark_func")
 my_func = code_to_function("func", kind="remote-spark")
-config = fs.RunConfig(local=False, function=my_func, handler="ingest_handler")
-fs.ingest(feature_set, source, targets, run_config=fs.RunConfig(), spark_context=spark_service_name)
+config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
+fstore.ingest(feature_set, source, targets, run_config=fstore.RunConfig(), spark_context=spark_service_name)
 ```

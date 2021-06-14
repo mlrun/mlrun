@@ -19,7 +19,7 @@ The feature list is defined by specifying the `<feature-set>.<feature-name>` for
 a Feature Vector creation example:
 
 ```python
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 
 # Feature vector definitions
 feature_vector_name = 'example-fv'
@@ -31,10 +31,10 @@ features = ['data_source_1.*',
 label_feature = 'label_source_1.label_feature'
 
 # Feature vector creation
-fv = fs.FeatureVector(name=feature_vector_name,
-                      features=features,
-                      label_feature=label_feature,
-                      description=feature_vector_description)
+fv = fstore.FeatureVector(name=feature_vector_name,
+                          features=features,
+                          label_feature=label_feature,
+                          description=feature_vector_description)
 
 # Save the feature vector in the MLRun DB
 # so it will could be referenced by the `store://`
@@ -83,10 +83,10 @@ As an example, lets create a new dataset and save it as a parquet file:
 # Import the Parquet Target so we can directly save our dataset as a file
 from mlrun.datastore.targets import ParquetTarget
 
-# Get offline feature vector
+# Get offline feature vector/
 # will return a pandas dataframe and save the dataset to parquet
 # so a training job could train on it
-offline_fv = fs.get_offline_features(feature_vector_name, target=ParquetTarget())
+offline_fv = fstore.get_offline_features(feature_vector_name, target=ParquetTarget())
 
 # View dataset
 dataset = offline_fv.to_dataframe()
@@ -120,11 +120,11 @@ To do this we need to first create an `Online Feature Service` using {py:meth}`~
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
 
 ```python
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
 feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
-svc = fs.get_online_feature_service(feature_vector)
+svc = fstore.get_online_feature_service(feature_vector)
 ```
 
 To use the online feature service we will need to supply him with a list of entities we would like to get the feature vectors for.

@@ -57,13 +57,14 @@ in a NoSQL DB, users can use the default targets or add/replace with additional 
 
 Graph example (storey engine):
 ```python
-feature_set = FeatureSet("measurements", entities=[Entity(key)], timestamp_key="timestamp")
+import mlrun.feature_store as fstore
+feature_set = fstore.FeatureSet("measurements", entities=[Entity(key)], timestamp_key="timestamp")
 # Define the computational graph including our custom functions
 feature_set.graph.to(DropColumns(drop_columns))\
                  .to(RenameColumns(mapping={'bad': 'bed'}))
 feature_set.add_aggregation('hr', 'hr', ['avg'], ["1h"])
 feature_set.plot()
-fs.ingest(feature_set, data_df)
+fstore.ingest(feature_set, data_df)
 ```
 
 Graph example (pandas engine):
@@ -72,9 +73,9 @@ def myfunc1(df, context=None):
     df = df.drop(columns=["exchange"])
     return df
 
-stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
+stocks_set = fstore.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
 stocks_set.graph.to(name="s1", handler="myfunc1")
-df = fs.ingest(stocks_set, stocks_df)
+df = fstore.ingest(stocks_set, stocks_df)
 ```
 
 The graph steps can use built-in transformation classes, simple python classes or function handlers. 
@@ -85,7 +86,7 @@ This allows to get a preview of the results (in the returned dataframe). The sim
 The infer operation also learns the feature set schema and does statistical analysis on the result by default.
   
 ```python
-df = fs.infer(quotes_set, quotes)
+df = fstore.infer(quotes_set, quotes)
 
 # print the featue statistics
 print(quotes_set.get_stats_table())
@@ -146,7 +147,7 @@ There are multiple data source options including http, kafka, kinesis, v3io stre
 source = HTTPSource()
 func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
-fs.deploy_ingestion_service(my_set, source, run_config=config)
+fstore.deploy_ingestion_service(my_set, source, run_config=config)
 ```
 
 To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_store.deploy_ingestion_service` 

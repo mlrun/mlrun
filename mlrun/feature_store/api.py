@@ -175,7 +175,7 @@ def ingest(
 
         stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
         stocks = pd.read_csv("stocks.csv")
-        df = ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
+        df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
         config = RunConfig(image='mlrun/mlrun').apply(mount_v3io())

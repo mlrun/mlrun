@@ -446,6 +446,10 @@ def _ingest_with_spark(
     mlrun_context=None,
     namespace=None,
 ):
+    spark_conf = None
+    if hasattr(source, "get_spark_conf"):
+        spark_conf = source.get_spark_conf()
+
     try:
         if spark is None or spark is True:
             # create spark context
@@ -457,8 +461,15 @@ def _ingest_with_spark(
                 session_name = (
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
-
-            spark = SparkSession.builder.appName(session_name).getOrCreate()
+            if spark_conf is not None:
+                conf = (
+                    SparkConf()
+                )
+                for key in spark_conf:
+                    conf.set(key, spark_conf[key])
+                spark = SparkSession.builder.config(conf=conf).appName(session_name).getOrCreate()
+            else:
+                spark = SparkSession.builder.appName(session_name).getOrCreate()
 
         df = source.to_spark_df(spark)
         if featureset.spec.graph and featureset.spec.graph.steps:

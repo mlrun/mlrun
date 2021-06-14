@@ -241,8 +241,62 @@ class OnlineSource(BaseSourceDriver):
         )
 
 
+
 class HttpSource(OnlineSource):
     kind = "http"
+
+class SnowflakeSparkSource(BaseSourceDriver):
+    support_spark = True
+    support_storey = False
+
+    def __init__(self, key_field=None,
+                 time_field=None,
+                 sql=None,
+                 sfURL=None,
+                 sfUser=None,
+                 sfPassword=None,
+                 sfDatabase=None,
+                 sfSchema=None,
+                 sfWarehouse=None
+                 ):
+        self.sql = sql
+        self.key_field = key_field
+        self.time_field = time_field
+        self.schedule: str = None
+        self.sfURL = sfURL
+        self.sfUser = sfUser
+        self.sfPassword = sfPassword
+        self.sfDatabase = sfDatabase
+        self.sfSchema = sfSchema
+        self.sfWarehouse = sfWarehouse
+        self.spark_conf = {"spark.jars.packages": "net.snowflake:spark-snowflake_2.11:2.8.5-spark_2.4,"
+                                                  "net.snowflake:snowflake-jdbc:3.13.3",
+                           "spark.driver.cores": 2,
+                           "spark.driver.memory": "4g",
+                           "spark.executor.cores": 3,
+                           "spark.executor.memory": "8g",
+                           "spark.cores.max": 3,
+                           "spark.executor.instances": 1}
+
+    def to_spark_df(self, spark):
+        SNOWFLAKE_READ_FORMAT = "net.snowflake.spark.snowflake"
+        sfOptions = {
+            "sfURL": self.sfURL,
+            "sfUser": self.sfUser,
+            "sfPassword": self.sfPassword,
+            "sfDatabase": self.sfDatabase,
+            "sfSchema": self.sfSchema,
+            "sfWarehouse": self.sfWarehouse,
+            "application": f"Iguazio-{os.getenv('SNOWFLAKE_APPLICATION', 'application')}"
+        }
+        self._df = spark.read.format(SNOWFLAKE_READ_FORMAT) \
+            .options(**sfOptions) \
+            .option("query", self.sql) \
+            .load()
+        return self._df
+
+    def get_spark_conf(self):
+        return self.spark_conf
 
 
 # map of sources (exclude DF source which is not serializable)

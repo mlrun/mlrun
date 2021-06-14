@@ -152,7 +152,7 @@ class DataStore:
 
                     from storey.utils import find_filters
 
-                    dataset = pq.ParquetDataset(args[0], filesystem=fs)
+                    dataset = pq.ParquetDataset(url, filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names
                         time_attributes = [
@@ -213,6 +213,9 @@ class DataStore:
             "secret_pfx": self.secret_pfx,
             "options": self.options,
         }
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
 
 def _drop_reserved_columns(df):

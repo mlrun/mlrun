@@ -56,7 +56,7 @@ After a feature vector has been defined, it can be used to create both "offline"
 
 ### Creating an Offline Feature Vector
 
-To produce a `dataset` from the feature vector we will use the feature store's {py:function}`~mlrun.feature_store.get_offline_features` function.
+To produce a `dataset` from the feature vector we will use the feature store's {py:meth}`~mlrun.feature_store.get_offline_features` function.
 It will create the dataset for us (asynchronously if possible), save it to the requested target and return a {py:class}`~mlrun.feature_store.OfflineVectorResponse`.  
 Due to the async nature of this action, the response object contains an `fv_response.status` indicator that once completed could be directly turned into a `dataframe`, `parquet` or a `csv`.
 
@@ -115,7 +115,7 @@ You can see a full example of using the offline feature vector to create an ML m
 
 The online feature vector is intended to provide real-time feature vectors to our model using the latest data available.
 
-To do this we need to first create an `Online Feature Service` using {py:function}`~mlrun.feature_store.get_online_feature_service`. Then we can feed the `Entity` of our feature vector to the service and receive the latest feature vector.
+To do this we need to first create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then we can feed the `Entity` of our feature vector to the service and receive the latest feature vector.
 
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
 

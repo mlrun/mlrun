@@ -3,7 +3,7 @@
 
 When working on a new model we usually care about the experiment's reproducibility, results and how easy it is to re-create the proposed features and model environment for the serving task.  The feature store enables us to do all that in an easy and automated fashion.
 
-After defining our [feature sets](transformations.md) and proposed a [feature vector](.) for the experiment, the feature store will enable us to automatically extract a versioned **offline** static dataset based on the parquet target defined in the feature sets for training.
+After defining our [feature sets](transformations.md) and proposed a [feature vector](feature-vectors.md) for the experiment, the feature store will enable us to automatically extract a versioned **offline** static dataset based on the parquet target defined in the feature sets for training.
 
 For serving, once we validated this is indeed the feature vector we want to use, we will use the **online** feature service, based on the nosql target defined in the feature set for real-time serving.
 

@@ -109,7 +109,7 @@ The following is an example for adding a simple `filter` to the graph, that will
 quotes_set.graph.to("storey.Filter", "filter", _fn="(event['bid'] > 50)")
 ```
 
-In the example above, the parameter `_fn` denotes a callable expression that will be passed ot the `storey.Filter`
+In the example above, the parameter `_fn` denotes a callable expression that will be passed to the `storey.Filter`
 class as the parameter `fn`. The callable parameter may also be a Python function, in which case there's no need for
 parentheses around it. This call generates a step in the graph called `filter` which will call the expression provided
 with the event being propagated through the graph as data is fed to the feature-set.

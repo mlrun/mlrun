@@ -289,7 +289,7 @@ class ServingRuntime(RemoteRuntime):
         class_name = class_name or self.spec.default_class
         if class_name and not isinstance(class_name, str):
             raise ValueError(
-                "class name must be a string (name ot module.submodule.name)"
+                "class name must be a string (name of module.submodule.name)"
             )
         if model_path and not class_name:
             raise ValueError("model_path must be provided with class_name")
@@ -414,7 +414,7 @@ class ServingRuntime(RemoteRuntime):
         """deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
-        :param project:   optional, overide function specified project name
+        :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
         """

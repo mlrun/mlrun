@@ -454,6 +454,7 @@ def _ingest_with_spark(
         if spark is None or spark is True:
             # create spark context
             from pyspark.sql import SparkSession
+            from pyspark import SparkConf
 
             if mlrun_context:
                 session_name = f"{mlrun_context.name}-{mlrun_context.uid}"

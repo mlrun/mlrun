@@ -133,8 +133,8 @@ Your applications are now available in your local browser:
 
 - Jupyter-notebook - http://localhost:30040
 - Nuclio - http://localhost:30050
-- MLRun UI - http://locahost:30060
-- MLRun API (external) - http://locahost:30070
+- MLRun UI - http://localhost:30060
+- MLRun API (external) - http://localhost:30070
 
 
 > **Note:**

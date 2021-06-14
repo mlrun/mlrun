@@ -482,7 +482,7 @@ class ParquetTarget(BaseStoreTarget):
         attributes: typing.Dict[str, str] = None,
         after_step=None,
         columns=None,
-        partitioned: bool = False,
+        partitioned: bool = None,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
@@ -495,6 +495,19 @@ class ParquetTarget(BaseStoreTarget):
                 PendingDeprecationWarning,
             )
             after_step = after_step or after_state
+
+        if partitioned is None:
+            if all(
+                value is None
+                for value in [
+                    key_bucketing_number,
+                    partition_cols,
+                    time_partitioning_granularity,
+                ]
+            ):
+                partitioned = False
+            else:
+                partitioned = True
 
         super().__init__(
             name,
@@ -517,19 +530,7 @@ class ParquetTarget(BaseStoreTarget):
                 f"not {time_partitioning_granularity}."
             )
 
-        self.suffix = (
-            ".parquet"
-            if not partitioned
-            and all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
-            )
-            else ""
-        )
+        self.suffix = ".parquet" if not partitioned else ""
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
@@ -583,6 +584,13 @@ class ParquetTarget(BaseStoreTarget):
                 partition_cols.append(f"${time_unit}")
                 if time_unit == time_partitioning_granularity:
                     break
+
+        if (
+            not self.partitioned
+            and not self._target_path.endswith(".parquet")
+            and not self._target_path.endswith(".pq")
+        ):
+            partition_cols = []
 
         graph.add_step(
             name=self.name or "ParquetTarget",

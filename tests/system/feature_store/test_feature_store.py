@@ -244,6 +244,20 @@ class TestFeatureStore(TestMLRunSystem):
         stats.remove("timestamp")
         assert features == stats, "didnt infer stats for all features"
 
+    def test_non_partitioned_target_in_dir(self):
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+        path = str(self.results_path / _generate_random_name())
+        target = ParquetTarget(path=path)
+
+        fset = fs.FeatureSet(name="test", entities=[Entity("patient_id")])
+        fs.ingest(fset, source, targets=[target])
+
+        list_files = os.listdir(path)
+        assert len(list_files) == 1 and not os.path.isdir(path + "/" + list_files[0])
+        os.remove(path + "/" + list_files[0])
+
     def test_ingest_with_timestamp(self):
         key = "patient_id"
         measurements = fs.FeatureSet(

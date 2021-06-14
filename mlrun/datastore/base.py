@@ -214,6 +214,9 @@ class DataStore:
             "options": self.options,
         }
 
+    def rm(self, path, recursive=False, maxdepth=None):
+        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
 
 def _drop_reserved_columns(df):
     cols_to_drop = []

@@ -265,7 +265,7 @@ class BaseStoreTarget(DataTargetBase):
 
     def __init__(
         self,
-        name: str = kind,
+        name: str = "",
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_step=None,
@@ -284,7 +284,7 @@ class BaseStoreTarget(DataTargetBase):
             )
             after_step = after_step or after_state
 
-        self.name = name
+        self.name = name or self.kind
         self.path = str(path) if path is not None else None
         self.after_step = after_step
         self.attributes = attributes or {}
@@ -446,6 +446,9 @@ class BaseStoreTarget(DataTargetBase):
         """add storey writer state to graph"""
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
+    def purge(self):
+        self._get_store().rm(self._target_path, recursive=True)
+
     def as_df(
         self,
         columns=None,
@@ -477,7 +480,7 @@ class ParquetTarget(BaseStoreTarget):
 
     def __init__(
         self,
-        name: str = kind,
+        name: str = "",
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_step=None,

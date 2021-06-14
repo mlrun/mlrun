@@ -210,7 +210,7 @@ class HTTPRunDB(RunDBInterface):
                 and server_cfg["namespace"] != config.namespace
             ):
                 logger.warning(
-                    f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace})"\
+                    f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace})"
                     " namespace don't match"
                 )
 

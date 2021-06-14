@@ -23,6 +23,7 @@ from .utils import store_path_to_spark
 
 import os
 
+
 def get_source_from_dict(source):
     kind = source.get("kind", "")
     if not kind:
@@ -78,13 +79,13 @@ class CSVSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-        self,
-        name: str = "",
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
+            self,
+            name: str = "",
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
@@ -117,22 +118,22 @@ class ParquetSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-        self,
-        name: str = "",
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
-        start_time: Optional[Union[str, datetime]] = None,
-        end_time: Optional[Union[str, datetime]] = None,
+            self,
+            name: str = "",
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
+            start_time: Optional[Union[str, datetime]] = None,
+            end_time: Optional[Union[str, datetime]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
         self.start_time = start_time
         self.end_time = end_time
 
     def to_step(
-        self, key_field=None, time_field=None, start_time=None, end_time=None,
+            self, key_field=None, time_field=None, start_time=None, end_time=None,
     ):
         import storey
 
@@ -164,11 +165,11 @@ class CustomSource(BaseSourceDriver):
     support_spark = False
 
     def __init__(
-        self,
-        class_name: str = None,
-        name: str = "",
-        schedule: str = None,
-        **attributes,
+            self,
+            class_name: str = None,
+            name: str = "",
+            schedule: str = None,
+            **attributes,
     ):
         attributes = attributes or {}
         attributes["class_name"] = class_name
@@ -178,7 +179,7 @@ class CustomSource(BaseSourceDriver):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
         class_object = get_class(class_name)
-        return class_object(**attributes,)
+        return class_object(**attributes, )
 
 
 class DataFrameSource:
@@ -218,20 +219,20 @@ class OnlineSource(BaseSourceDriver):
     kind = ""
 
     def __init__(
-        self,
-        name: str = None,
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        workers: int = None,
+            self,
+            name: str = None,
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            workers: int = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
         self.workers = workers
 
     def to_step(
-        self, key_field=None, time_field=None,
+            self, key_field=None, time_field=None,
     ):
         import storey
 
@@ -242,9 +243,9 @@ class OnlineSource(BaseSourceDriver):
         )
 
 
-
 class HttpSource(OnlineSource):
     kind = "http"
+
 
 class SnowflakeSparkSource(BaseSourceDriver):
     support_spark = True

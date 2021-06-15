@@ -30,6 +30,7 @@ from ..datastore.targets import (
     TargetTypes,
     default_target_names,
     get_offline_target,
+    get_target_driver,
     validate_target_list,
     validate_target_placement,
 )
@@ -343,6 +344,11 @@ class FeatureSet(ModelObj):
         if default_final_step:
             self.spec.graph.final_step = default_final_step
 
+    def purge(self):
+        for target in self.spec.targets:
+            driver = get_target_driver(target_spec=target, resource=self)
+            driver.purge()
+
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""
         source = self.spec.source
@@ -395,7 +401,7 @@ class FeatureSet(ModelObj):
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
         :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
-                            the Nth event). The default behaviour is emitting every event
+                            the Nth event). The default behavior is emitting every event
         """
         if state_name:
             warnings.warn(

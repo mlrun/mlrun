@@ -166,7 +166,7 @@ def mlrun_op(
     :param name:    name used for the step
     :param project: optional, project name
     :param image:   optional, run container image (will be executing the step)
-                    the container should host all requiered packages + code
+                    the container should host all required packages + code
                     for the run, alternatively user can mount packages/code via
                     shared file volumes like v3io (see example below)
     :param function: optional, function object
@@ -191,7 +191,7 @@ def mlrun_op(
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'noctx' for pushing params as args
-    :param handler   code entry-point/hanfler name
+    :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources

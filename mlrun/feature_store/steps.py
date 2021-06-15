@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from storey import MapClass
 
@@ -165,3 +165,94 @@ class OneHotEncoder(MapClass):
             "name": self.name or "OneHotEncoder",
             "class_args": {"mapping": self.mapping},
         }
+
+
+class DateExtractor(MapClass):
+    """Date Extractor allows you to extract a date-time component
+        from a timestamp feature to a new feature.
+
+        The extracted date part will appear as `<timestamp_col>_<date_part>` feature.
+
+        Parameters
+        ----------
+        parts : Union[Dict[str, str], List[str]]
+            The pandas style date-time parts you want to extract.
+
+            Supports:
+            asm8                    Return numpy datetime64 format in nanoseconds.
+            day_of_week             Return day of the week.
+            day_of_year             Return the day of the year.
+            dayofweek               Return day of the week.
+            dayofyear               Return the day of the year.
+            days_in_month           Return the number of days in the month.
+            daysinmonth             Return the number of days in the month.
+            freqstr                 Return the total number of days in the month.
+            is_leap_year            Return True if year is a leap year.
+            is_month_end            Return True if date is last day of month.
+            is_month_start          Return True if date is first day of month.
+            is_quarter_end          Return True if date is last day of the quarter.
+            is_quarter_start        Return True if date is first day of the quarter.
+            is_year_end             Return True if date is last day of the year.
+            is_year_start           Return True if date is first day of the year.
+            quarter                 Return the quarter of the year.
+            tz                      Alias for tzinfo.
+            week                    Return the week number of the year.
+            weekofyear              Return the week number of the year.
+
+        timestamp_col : str, optional
+            The name of the column containing the timestamps to extract from,
+            by default "timestamp"
+
+        Examples
+        --------
+        (taken from the fraud-detection end-to-end feature store demo)
+        ```
+        # Define the Transactions FeatureSet
+        transaction_set = fs.FeatureSet("transactions",
+                                        entities=[fs.Entity("source")],
+                                        timestamp_key='timestamp',
+                                        description="transactions feature set")
+
+        # Get FeatureSet computation graph
+        transaction_graph = transaction_set.graph
+
+        # Add the custom `DateExtractor` step
+        # to the computation graph
+        transaction_graph\
+            .to(
+                class_name='DateExtractor',
+                name='Extract Dates',
+                parts = ['hour', 'day_of_week'],
+                timestamp_col = 'timestamp',
+            )
+        ```
+        """
+
+    def __init__(
+        self, parts: List[str], timestamp_col: str = None, **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.timestamp_col = timestamp_col
+        self.parts = parts
+
+    def _get_key_name(self, part: str, timestamp_col: str):
+        timestamp_col = timestamp_col if timestamp_col else "timestamp"
+        return f"{timestamp_col}_{part}"
+
+    def do(self, event):
+        # Extract timestamp
+        if self.timestamp_col is None:
+            timestamp = event["timestamp"]
+        else:
+            try:
+                timestamp = event[self.timestamp_col]
+            except Exception:
+                raise ValueError(f"{self.timestamp_col} does not exist in the event")
+
+        # Extract specified parts
+        for part in self.parts:
+            # Extract part
+            extracted_part = getattr(timestamp, part)
+            # Add to event
+            event[self._get_key_name(part, self.timestamp_col)] = extracted_part
+        return event

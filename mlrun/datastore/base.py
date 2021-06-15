@@ -214,6 +214,9 @@ class DataStore:
             "options": self.options,
         }
 
+    def rm(self, path, recursive=False, maxdepth=None):
+        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
 
 def _drop_reserved_columns(df):
     cols_to_drop = []
@@ -280,7 +283,7 @@ class DataItem:
         return self._url
 
     def get(self, size=None, offset=0):
-        """read all or a range and return thge content"""
+        """read all or a range and return the content"""
         return self._store.get(self._path, size=size, offset=offset)
 
     def download(self, target_path):

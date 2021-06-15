@@ -490,7 +490,7 @@ class VotingEnsemble(BaseModelRouter):
         Returns
         -------
         Response
-            Event repsonse after running the requested logic
+            Event response after running the requested logic
         """
         start = now_date()
 
@@ -551,7 +551,7 @@ class VotingEnsemble(BaseModelRouter):
     def extract_results_from_response(self, response):
         """Extracts the prediction from the model response.
         This function is used to allow multiple model return types. and allow for easy
-        extention to the user's ensemble and models best practices.
+        extension to the user's ensemble and models best practices.
 
         Parameters
         ----------

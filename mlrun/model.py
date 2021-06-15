@@ -906,7 +906,7 @@ def new_task(
 
     :param name:            task name
     :param project:         task project
-    :param handler:         code entry-point/hanfler name
+    :param handler:         code entry-point/handler name
     :param params:          input parameters (dict)
     :param hyper_params:    dictionary of hyper parameters and list values, each
                             hyper param holds a list of values, the run will be

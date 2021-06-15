@@ -31,7 +31,7 @@ or project/job context secrets
 ## DataItem Object
 
 When we run jobs or pipelines we pass data using the {py:class}`~mlrun.datastore.DataItem` objects, think of them as smart 
-data pointers which abstract away the data store specific behaviour.
+data pointers which abstract away the data store specific behavior.
 
 Example function:
 

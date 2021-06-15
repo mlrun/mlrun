@@ -166,7 +166,7 @@ def ingest(
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
-    and writes the results to the default ot specified targets
+    and writes the results to the default of specified targets
 
     when targets are not specified data is stored in the configured default targets
     (will usually be NoSQL for real-time and Parquet for offline).
@@ -175,7 +175,7 @@ def ingest(
 
         stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
         stocks = pd.read_csv("stocks.csv")
-        df = ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
+        df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
         config = RunConfig(image='mlrun/mlrun').apply(mount_v3io())
@@ -255,7 +255,7 @@ def ingest(
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "featureset.spec.engine must be set to 'spark' to injest with spark"
+            "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
         # use local spark session to ingest
@@ -277,7 +277,7 @@ def ingest(
         infer_options, InferOptions.schema()
     )
     if schema_options:
-        infer_metadata(
+        preview(
             featureset, source, options=schema_options, namespace=namespace,
         )
     infer_stats = InferOptions.get_common_options(
@@ -296,7 +296,7 @@ def ingest(
     return df
 
 
-def infer(
+def preview(
     featureset: FeatureSet,
     source,
     entity_columns=None,
@@ -311,7 +311,7 @@ def infer(
         quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
         quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
         quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
-        df = infer(
+        df = preview(
             quotes_set,
             quotes_df,
             entity_columns=["ticker"],
@@ -354,11 +354,6 @@ def infer(
 
     df = infer_from_static_df(source, featureset, entity_columns, options)
     return df
-
-
-# keep for backwards compatibility
-infer_metadata = infer
-preview = infer
 
 
 def _run_ingestion_job(

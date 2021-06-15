@@ -253,7 +253,7 @@ def run(
         if kfp:
             print(f"code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
-        if suffix != ".py" and mode != "pass":
+        if suffix != ".py" and mode != "pass" and url_file != "{codefile}":
             print(
                 f"command/url ({url}) must specify a .py file when not in 'pass' mode"
             )

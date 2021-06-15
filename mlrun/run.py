@@ -473,6 +473,7 @@ def new_function(
     mode=None,
     handler: str = None,
     source: str = None,
+    requirements: Union[str, List[str]] = None,
     kfp=None,
 ):
     """Create a new ML function from base properties
@@ -511,6 +512,7 @@ def new_function(
                      for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
     :param source:   valid path to git, zip, or tar file, e.g. `git://github.com/mlrun/something.git`,
                      `http://some/url/file.zip`
+    :param requirements: list of python packages or pip requirements file path, defaults to None
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
@@ -565,6 +567,8 @@ def new_function(
                 f"source archive option is not supported for {kind} runtime"
             )
         runner.with_source_archive(source)
+    if requirements:
+        runner.with_requirements(requirements)
     if handler:
         runner.spec.default_handler = handler
         if kind.startswith("nuclio"):

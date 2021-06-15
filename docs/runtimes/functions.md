@@ -86,6 +86,9 @@ the build configuration using the {py:meth}`~mlrun.runtimes.KubejobRuntime.build
     fn = mlrun.new_function('archive', kind='job', command='./myfunc.py')
     fn.build_config(base_image='mlrun/mlrun', source='git://github.com/org/repo.git#master',
                     commands=[pip install pandas])
+    # deploy (build the container with the extra build commands/packages)
+    fn.deploy()
+    
     # run the function (specify the function handler to execute)
     run_results = fn.run(handler='my_func', params={"x": 100})
 
@@ -99,13 +102,17 @@ to make small code changes and re-run our job without building containers etc.
 
 the `local`, `job`, `mpijob` and `remote-spark` runtimes support dynamic load from archive or file shares (other runtimes will 
 be added later), this is enabled by setting the `spec.build.source=<archive>` and `spec.build.load_source_on_run=True` 
-or simply by setting the `source` attribute). in the CLI we use the `--source` flag. 
+or simply by setting the `source` attribute in `new_function`). in the CLI we use the `--source` flag. 
 
     fn = mlrun.new_function('archive', kind='job', image='mlrun/mlrun', command='./myfunc.py', 
                             source='git://github.com/mlrun/ci-demo.git#master')
     run_results = fn.run(handler='my_func', params={"x": 100})
 
 see more details and examples on [**running jobs with code from Archives or shares**](./code-archive.ipynb)
+
+For executing non-python code, set `mode="pass"` (passthrough) and specify the full execution `command`, e.g.:
+
+    new_function(... command="bash main.sh --myarg xx", mode="pass")  
 
 ## Submitting Tasks/Jobs To Functions
 

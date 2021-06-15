@@ -51,7 +51,8 @@ def init_featureset_graph(
             featureset,
             targets=targets,
             source=source,
-            return_df=return_df, context=server.context
+            return_df=return_df,
+            context=server.context,
         )
 
     server.init_object(namespace)
@@ -142,7 +143,10 @@ def _add_data_steps(
 
     if source is not None:
         source = get_source_step(
-            source, key_fields=key_fields, time_field=featureset.spec.timestamp_key, context=context
+            source,
+            key_fields=key_fields,
+            time_field=featureset.spec.timestamp_key,
+            context=context,
         )
     graph.set_flow_source(source)
 

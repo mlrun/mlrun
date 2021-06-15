@@ -92,7 +92,7 @@ class CSVSource(BaseSourceDriver):
 
         attributes = self.attributes or {}
         if context:
-            attributes['context'] = context
+            attributes["context"] = context
         return storey.CSVSource(
             paths=self.path,
             header=True,
@@ -133,13 +133,18 @@ class ParquetSource(BaseSourceDriver):
         self.end_time = end_time
 
     def to_step(
-        self, key_field=None, time_field=None, start_time=None, end_time=None, context=None,
+        self,
+        key_field=None,
+        time_field=None,
+        start_time=None,
+        end_time=None,
+        context=None,
     ):
         import storey
 
         attributes = self.attributes or {}
         if context:
-            attributes['context'] = context
+            attributes["context"] = context
         return storey.ParquetSource(
             paths=self.path,
             key_field=self.key_field or key_field,
@@ -200,7 +205,7 @@ class DataFrameSource:
             dfs=self._df,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
-            context=self.context or context
+            context=self.context or context,
         )
 
     def to_dataframe(self):
@@ -235,9 +240,7 @@ class OnlineSource(BaseSourceDriver):
         self.online = True
         self.workers = workers
 
-    def to_step(
-        self, key_field=None, time_field=None, context=None
-    ):
+    def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
         return storey.SyncEmitSource(

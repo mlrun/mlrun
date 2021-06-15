@@ -490,7 +490,10 @@ class ServingRuntime(RemoteRuntime):
             **kwargs,
         )
         server.init_states(
-            context=None, namespace=namespace or get_caller_globals(), logger=logger, is_mock=True
+            context=None,
+            namespace=namespace or get_caller_globals(),
+            logger=logger,
+            is_mock=True,
         )
         server.init_object(namespace or get_caller_globals())
         return server

@@ -708,7 +708,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--watch", "-w", is_flag=True, help="wait for pipeline completion (with -r flag)"
 )
-@click.option("--dirty", "-d", is_flag=True, help="allow git with uncommited changes")
+@click.option("--dirty", "-d", is_flag=True, help="allow git with uncommitted changes")
 @click.option("--git-repo", help="git repo (org/repo) for git comments")
 @click.option(
     "--git-issue", type=int, default=None, help="git issue number for git comments"

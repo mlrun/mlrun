@@ -54,7 +54,7 @@ hyper-parameter or AutoML jobs.
 Many of the runtimes support horizontal scaling, you can specify the number of `replicas` or the 
 min - max value range (for auto scaling in Dask or Nuclio). When scaling functions we use some high speed
 messaging protocol and shared storage (volumes, objects, databases, or streams). MLRun runtimes
-handle the orchestration and monitoring of the distribured task.
+handle the orchestration and monitoring of the distributed task.
 
 <img src="../_static/images/runtime-scaling.png" alt="runtime-scaling" width="400"/>
 
@@ -151,7 +151,7 @@ Run object has the following methods/properties:
 
 In the function code signature we can add the `context` attribute (first), this provides us access to the 
 job metadata, parameters, inputs, secrets, and API for logging and monitoring our results. 
-Alternatively if we dont run inside a function handler (e.g. in Python main or Notebook) we can obtain the `context` 
+Alternatively if we don't run inside a function handler (e.g. in Python main or Notebook) we can obtain the `context` 
 object from the environment using the {py:func}`~mlrun.run.get_or_create_ctx` function.
 
 example function and usage of the context object:

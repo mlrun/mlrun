@@ -150,8 +150,7 @@ We use the `graph.error_handler()` (apply to all steps) or `step.error_handler()
 (apply to a specific step) if we want the error from the graph or the step to be 
 fed into a specific step (catcher)
 
-We can specify which step is the responder (returns the HTTP response) using the `step.respond()` method,
-if we dont specify the responder the graph will be non-blocking.
+We can specify which step is the responder (returns the HTTP response) using the `step.respond()` method.If we don't specify the responder the graph will be non-blocking.
 
 ```python
 # use built-in storey class or our custom Echo class to create and link Task steps
@@ -352,15 +351,15 @@ if the class init args contain `context` or `name`, those will be initialize wit
 [graph context](#graph-context-and-event-objects) and the step name. 
 
 the class_name and handler specify a class/function name in the `globals()` (i.e. this module) by default
-or those can be full paths to the class (mudule.submodul.class), e.g. `storey.WriteToParquet`.
+or those can be full paths to the class (module.submodule.class), e.g. `storey.WriteToParquet`.
 users can also pass the module as an argument to functions such as `function.to_mock_server(namespace=module)`,
 in this case the class or handler names will also be searched in the provided module.
 
 when using classes the class event handler will be invoked on every event with the `event.body` 
 if the Task step `full_event` parameter is set to `True` the handler will be invoked and return
-the full `event` object. if we dont specify the class event handler it will invoke the class `do()` method. 
+the full `event` object. If we don't specify the class event handler it will invoke the class `do()` method. 
 
-if you need to implement async behaviour you should subclass `storey.MapClass`.
+if you need to implement async behavior you should subclass `storey.MapClass`.
 
 
 ### Building distributed graphs

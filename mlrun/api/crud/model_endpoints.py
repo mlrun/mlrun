@@ -122,7 +122,7 @@ class ModelEndpoints:
     @staticmethod
     def delete_endpoint_record(access_key: str, project: str, endpoint_id: str):
         """
-        Deletes the KV record of a given model endpoint, project nad endpoint_id are used for lookup
+        Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param access_key: V3IO access key for managing user permissions
         :param project: The name of the project

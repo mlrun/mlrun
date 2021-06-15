@@ -138,7 +138,7 @@ and should return the specified response object.
 
 #### explain() method
 
-the explain method provides a hook for model explanability, and is accessed using the `/explain` operation. .
+the explain method provides a hook for model explainability, and is accessed using the `/explain` operation. .
 
 #### pre/post and validate hooks
 
@@ -185,7 +185,7 @@ fn.add_model('m1', model_path=<model-artifact/dir>, class_name='MyClass', parame
 see `.add_model()` docstring for help and parameters, 
 see [xgb_serving.ipynb](../../examples/xgb_serving.ipynb) notebook example.
 
-If we want to use multiple versions for the same model, we use `:` to seperate the name from the version, 
+If we want to use multiple versions for the same model, we use `:` to separate the name from the version, 
 e.g. if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
 User should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 

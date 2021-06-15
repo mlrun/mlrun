@@ -1025,7 +1025,7 @@ def list_pipelines(
     """List pipelines
 
     :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
-    :param page_token: A page token to request the next page of results. The token is acquried from the nextPageToken
+    :param page_token: A page token to request the next page of results. The token is acquired from the nextPageToken
                        field of the response from the previous call or can be omitted when fetching the first page.
     :param page_size:  The number of pipelines to be listed per page. If there are more pipelines than this number, the
                        response message will contain a nextPageToken field you can use to fetch the next page.
@@ -1034,7 +1034,7 @@ def list_pipelines(
     :param filter_:    A url-encoded, JSON-serialized Filter protocol buffer, see:
                        [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto).
     :param namespace:  Kubernetes namespace if other than default
-    :param project:    Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that
+    :param project:    Can be used to retrieve only specific project pipelines. "*" for all projects. Note that
                        filtering by project can't be used together with pagination, sorting, or custom filter.
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """

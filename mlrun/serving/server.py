@@ -176,7 +176,7 @@ class GraphServer(ModelObj):
         silent=False,
         get_body=True,
     ):
-        """invoke a test event into the server to simulate/test server behaviour
+        """invoke a test event into the server to simulate/test server behavior
 
         example::
 
@@ -188,7 +188,7 @@ class GraphServer(ModelObj):
         :param body:       message body (dict or json str/bytes)
         :param method:     optional, GET, POST, ..
         :param content_type:  optional, http mime type
-        :param silent:     dont raise on error responses (when not 20X)
+        :param silent:     don't raise on error responses (when not 20X)
         :param get_body:   return the body as py object (vs serialize response into json)
         """
         if not self.graph:

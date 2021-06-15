@@ -166,7 +166,7 @@ def mlrun_op(
     :param name:    name used for the step
     :param project: optional, project name
     :param image:   optional, run container image (will be executing the step)
-                    the container should host all requiered packages + code
+                    the container should host all required packages + code
                     for the run, alternatively user can mount packages/code via
                     shared file volumes like v3io (see example below)
     :param function: optional, function object

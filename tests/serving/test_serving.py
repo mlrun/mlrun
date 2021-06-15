@@ -9,27 +9,27 @@ from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.serving.server import GraphContext, MockEvent, create_graph_server
-from mlrun.serving.states import RouterState, TaskState
+from mlrun.serving.states import RouterStep, TaskStep
 from mlrun.utils import logger
 
 
 def generate_test_routes(model_class):
     return {
-        "m1": TaskState(model_class, class_args={"model_path": "", "multiplier": 100}),
-        "m2": TaskState(model_class, class_args={"model_path": "", "multiplier": 200}),
-        "m3:v1": TaskState(
+        "m1": TaskStep(model_class, class_args={"model_path": "", "multiplier": 100}),
+        "m2": TaskStep(model_class, class_args={"model_path": "", "multiplier": 200}),
+        "m3:v1": TaskStep(
             model_class, class_args={"model_path": "", "multiplier": 300}
         ),
-        "m3:v2": TaskState(
+        "m3:v2": TaskStep(
             model_class, class_args={"model_path": "", "multiplier": 400}
         ),
     }
 
 
-router_object = RouterState()
+router_object = RouterStep()
 router_object.routes = generate_test_routes("ModelTestingClass")
 
-ensemble_object = RouterState(
+ensemble_object = RouterStep(
     class_name="mlrun.serving.routers.VotingEnsemble",
     class_args={"vote_type": "regression", "prediction_col_name": "predictions"},
 )
@@ -317,7 +317,7 @@ def test_v2_health():
 
 
 def test_v2_mock():
-    host = create_graph_server(graph=RouterState())
+    host = create_graph_server(graph=RouterStep())
     host.graph.add_route(
         "my", class_name=ModelTestingClass, model_path="", multiplier=100
     )

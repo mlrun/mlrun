@@ -14,6 +14,7 @@
 import os
 import sys
 import typing
+import warnings
 from collections import Counter
 from copy import copy
 
@@ -25,6 +26,7 @@ from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
+from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
 
@@ -156,15 +158,24 @@ def validate_target_placement(graph, final_step, targets):
     if final_step or graph.is_empty():
         return True
     for target in targets:
-        if not target.after_state:
+        if not target.after_step:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "writer step location is undetermined due to graph branching"
-                ", set the target .after_state attribute or the graph .final_state"
+                ", set the target .after_step attribute or the graph .final_step"
             )
 
 
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
-    """add the target states to the graph"""
+    warnings.warn(
+        "This method is deprecated. Use add_target_steps instead",
+        # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+        PendingDeprecationWarning,
+    )
+    return add_target_steps(graph, resource, targets, to_df, final_state)
+
+
+def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
+    """add the target steps to the graph"""
     targets = targets or []
     key_columns = list(resource.spec.entities.keys())
     timestamp_key = resource.spec.timestamp_key
@@ -175,19 +186,19 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
         driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
-        driver.add_writer_state(
+        driver.add_writer_step(
             graph,
-            target.after_state or final_state,
-            features=features if not target.after_state else None,
+            target.after_step or final_step,
+            features=features if not target.after_step else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
         )
     if to_df:
         # add dataframe target, will return a dataframe
         driver = DFTarget()
-        driver.add_writer_state(
+        driver.add_writer_step(
             graph,
-            final_state,
+            final_step,
             features=features,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
@@ -254,19 +265,28 @@ class BaseStoreTarget(DataTargetBase):
 
     def __init__(
         self,
-        name: str = kind,
+        name: str = "",
         path=None,
         attributes: typing.Dict[str, str] = None,
-        after_state=None,
+        after_step=None,
         columns=None,
         partitioned: bool = False,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
+        after_state=None,
     ):
-        self.name = name
+        if after_state:
+            warnings.warn(
+                "The after_state parameter is deprecated. Use after_step instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            after_step = after_step or after_state
+
+        self.name = name or self.kind
         self.path = str(path) if path is not None else None
-        self.after_state = after_state
+        self.after_step = after_step
         self.attributes = attributes or {}
         self.columns = columns or []
         self.partitioned = partitioned
@@ -282,19 +302,46 @@ class BaseStoreTarget(DataTargetBase):
         store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
         return store
 
-    def _get_column_list(self, features, timestamp_key, key_columns):
-        column_list = []
+    def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
+        result = []
         if self.columns:
-            return self.columns
+            if with_type:
+                columns = set(self.columns)
+                for feature in features:
+                    if feature.name in columns:
+                        type_ = (
+                            ValueType.DATETIME
+                            if feature.name == timestamp_key
+                            else feature.value_type
+                        )
+                        result.append((feature.name, type_))
+                return result
+            else:
+                return self.columns
         elif features:
-            column_list = list(features.keys())
-            if timestamp_key and timestamp_key not in column_list:
-                column_list = [timestamp_key] + column_list
+            if with_type:
+                for feature in features:
+                    type_ = (
+                        ValueType.DATETIME
+                        if feature.name == timestamp_key
+                        else feature.value_type
+                    )
+                    result.append((feature.name, type_))
+            else:
+                result = list(features.keys())
+            if timestamp_key and timestamp_key not in result:
+                if with_type:
+                    result = [(timestamp_key, ValueType.DATETIME)] + result
+                else:
+                    result = [timestamp_key] + result
             if key_columns:
                 for key in reversed(key_columns):
-                    if key not in column_list:
-                        column_list.insert(0, key)
-        return column_list
+                    if key not in result:
+                        if with_type:
+                            result.insert(0, (key, ValueType.STRING))
+                        else:
+                            result.insert(0, key)
+        return result
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, **kwargs,
@@ -383,11 +430,24 @@ class BaseStoreTarget(DataTargetBase):
         self._resource.status.update_target(target)
         return target
 
+    def add_writer_step(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        raise NotImplementedError()
+
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         """add storey writer state to graph"""
-        raise NotImplementedError()
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def purge(self):
+        self._get_store().rm(self._target_path, recursive=True)
 
     def as_df(
         self,
@@ -420,21 +480,43 @@ class ParquetTarget(BaseStoreTarget):
 
     def __init__(
         self,
-        name: str = kind,
+        name: str = "",
         path=None,
         attributes: typing.Dict[str, str] = None,
-        after_state=None,
+        after_step=None,
         columns=None,
-        partitioned: bool = False,
+        partitioned: bool = None,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
+        after_state=None,
     ):
+        if after_state:
+            warnings.warn(
+                "The after_state parameter is deprecated. Use after_step instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            after_step = after_step or after_state
+
+        if partitioned is None:
+            if all(
+                value is None
+                for value in [
+                    key_bucketing_number,
+                    partition_cols,
+                    time_partitioning_granularity,
+                ]
+            ):
+                partitioned = False
+            else:
+                partitioned = True
+
         super().__init__(
             name,
             path,
             attributes,
-            after_state,
+            after_step,
             columns,
             partitioned,
             key_bucketing_number,
@@ -451,19 +533,7 @@ class ParquetTarget(BaseStoreTarget):
                 f"not {time_partitioning_granularity}."
             )
 
-        self.suffix = (
-            ".parquet"
-            if not partitioned
-            and all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
-            )
-            else ""
-        )
+        self.suffix = ".parquet" if not partitioned else ""
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
@@ -475,9 +545,25 @@ class ParquetTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
-        column_list = self._get_column_list(
-            features=features, timestamp_key=timestamp_key, key_columns=None
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
         )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        column_list = self._get_column_list(
+            features=features,
+            timestamp_key=timestamp_key,
+            key_columns=None,
+            with_type=True,
+        )
+
+        # need to extract types from features as part of column list
 
         partition_cols = None
         if self.key_bucketing_number is not None:
@@ -501,6 +587,13 @@ class ParquetTarget(BaseStoreTarget):
                 partition_cols.append(f"${time_unit}")
                 if time_unit == time_partitioning_granularity:
                     break
+
+        if (
+            not self.partitioned
+            and not self._target_path.endswith(".parquet")
+            and not self._target_path.endswith(".pq")
+        ):
+            partition_cols = []
 
         graph.add_step(
             name=self.name or "ParquetTarget",
@@ -562,6 +655,17 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -619,6 +723,17 @@ class NoSqlTarget(BaseStoreTarget):
         )
 
     def add_writer_state(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         table = self._resource.uri
@@ -683,6 +798,17 @@ class StreamTarget(BaseStoreTarget):
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
         from storey import V3ioDriver
 
         endpoint, uri = parse_v3io_path(self._target_path)
@@ -713,6 +839,17 @@ class TSDBTarget(BaseStoreTarget):
     support_storey = True
 
     def add_writer_state(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         endpoint, uri = parse_v3io_path(self._target_path)
@@ -771,13 +908,37 @@ class CustomTarget(BaseStoreTarget):
     support_storey = True
 
     def __init__(
-        self, class_name: str, name: str = "", after_state=None, **attributes,
+        self,
+        class_name: str,
+        name: str = "",
+        after_step=None,
+        after_state=None,
+        **attributes,
     ):
+        if after_state:
+            warnings.warn(
+                "The after_state parameter is deprecated. Use after_step instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            after_step = after_step or after_state
+
         attributes = attributes or {}
         attributes["class_name"] = class_name
-        super().__init__(name, "", attributes, after_state=after_state)
+        super().__init__(name, "", attributes, after_step=after_step)
 
     def add_writer_state(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         attributes = copy(self.attributes)
@@ -805,6 +966,17 @@ class DFTarget(BaseStoreTarget):
         pass
 
     def add_writer_state(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         # todo: column filter

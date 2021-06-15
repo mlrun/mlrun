@@ -57,13 +57,14 @@ in a NoSQL DB, users can use the default targets or add/replace with additional 
 
 Graph example (storey engine):
 ```python
-feature_set = FeatureSet("measurements", entities=[Entity(key)], timestamp_key="timestamp")
+import mlrun.feature_store as fstore
+feature_set = fstore.FeatureSet("measurements", entities=[Entity(key)], timestamp_key="timestamp")
 # Define the computational graph including our custom functions
 feature_set.graph.to(DropColumns(drop_columns))\
                  .to(RenameColumns(mapping={'bad': 'bed'}))
 feature_set.add_aggregation('hr', 'hr', ['avg'], ["1h"])
 feature_set.plot()
-fs.ingest(feature_set, data_df)
+fstore.ingest(feature_set, data_df)
 ```
 
 Graph example (pandas engine):
@@ -72,9 +73,9 @@ def myfunc1(df, context=None):
     df = df.drop(columns=["exchange"])
     return df
 
-stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
+stocks_set = fstore.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
 stocks_set.graph.to(name="s1", handler="myfunc1")
-df = fs.ingest(stocks_set, stocks_df)
+df = fstore.ingest(stocks_set, stocks_df)
 ```
 
 The graph steps can use built-in transformation classes, simple python classes or function handlers. 
@@ -85,7 +86,7 @@ This allows to get a preview of the results (in the returned dataframe). The sim
 The infer operation also learns the feature set schema and does statistical analysis on the result by default.
   
 ```python
-df = fs.infer(quotes_set, quotes)
+df = fstore.preview(quotes_set, quotes)
 
 # print the featue statistics
 print(quotes_set.get_stats_table())
@@ -94,13 +95,13 @@ print(quotes_set.get_stats_table())
 ## Ingest Data Into The Feature Store
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job.
-The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io) or remote (e.g. S3, Azure blob). If the user defines a transfomration graph then when running an ingestion process it runs the graph transformations, infers metadata and stats and writes the results to a target data store.
+The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io) or remote (e.g. S3, Azure blob). If the user defines a transformation graph then when running an ingestion process it runs the graph transformations, infers metadata and stats and writes the results to a target data store.
 When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
-#### Ingest data (locally)
+### Ingest data (locally)
 
-Use FeatureSet to create the basic feature set definition and then the ingest method to run a simple ingestion "localy" in the jupyter notebook pod.
+Use FeatureSet to create the basic feature set definition and then the ingest method to run a simple ingestion "locally" in the jupyter notebook pod.
 
 
 ```python
@@ -117,7 +118,7 @@ ingest(measurements, source, targets)
 
 To learn more about ingest go to {py:class}`~mlrun.feature_store.ingest`
 
-#### Ingest data using an MLRun job
+### Ingest data using an MLRun job
 
 Use the ingest method with run_config parameter for running the ingestion process using a serverless MLrun job. <br>
 By doing that, the ingestion process is running on its own pod or service on the kubernetes cluster. <br>
@@ -146,7 +147,7 @@ There are multiple data source options including http, kafka, kinesis, v3io stre
 source = HTTPSource()
 func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
-fs.deploy_ingestion_service(my_set, source, run_config=config)
+fstore.deploy_ingestion_service(my_set, source, run_config=config)
 ```
 
 To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_store.deploy_ingestion_service` 
@@ -165,5 +166,5 @@ By default the feature sets are stored as both parquet file for training and as 
 The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application as it supports low latency data retrieval based on key access. <br>
 
 > **Note:** When working with Iguazio platform the default feature set storage location is under "Projects" container --> <project name>/fs/.. folder. 
-the default location can be modified in mlrun config or specified per injest operation. the parquet/csv files can be stored in NFS, S3, Azure blob storage and on Iguazio DB/FS.
+the default location can be modified in mlrun config or specified per ingest operation. the parquet/csv files can be stored in NFS, S3, Azure blob storage and on Iguazio DB/FS.
 

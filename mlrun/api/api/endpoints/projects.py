@@ -1,14 +1,14 @@
 import typing
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Header, Query, Response
+import fastapi
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.utils.singletons.project_member import get_project_member
 
-router = APIRouter()
+router = fastapi.APIRouter()
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
@@ -21,17 +21,25 @@ router = APIRouter()
 )
 def create_project(
     project: schemas.Project,
-    response: Response,
-    projects_role: typing.Optional[schemas.ProjectsRole] = Header(
+    response: fastapi.Response,
+    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
-    db_session: Session = Depends(deps.get_db_session),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
+    iguazio_session: typing.Optional[str] = fastapi.Cookie(None, alias="session"),
+    db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().create_project(
-        db_session, project, projects_role, wait_for_completion=False
+        db_session,
+        project,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
-        return Response(status_code=HTTPStatus.ACCEPTED.value)
+        return fastapi.Response(status_code=HTTPStatus.ACCEPTED.value)
     response.status_code = HTTPStatus.CREATED.value
     return project
 
@@ -47,16 +55,25 @@ def create_project(
 def store_project(
     project: schemas.Project,
     name: str,
-    projects_role: typing.Optional[schemas.ProjectsRole] = Header(
+    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
-    db_session: Session = Depends(deps.get_db_session),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
+    iguazio_session: typing.Optional[str] = fastapi.Cookie(None, alias="session"),
+    db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().store_project(
-        db_session, name, project, projects_role, wait_for_completion=False
+        db_session,
+        name,
+        project,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
-        return Response(status_code=HTTPStatus.ACCEPTED.value)
+        return fastapi.Response(status_code=HTTPStatus.ACCEPTED.value)
     return project
 
 
@@ -70,25 +87,35 @@ def store_project(
 def patch_project(
     project: dict,
     name: str,
-    patch_mode: schemas.PatchMode = Header(
+    patch_mode: schemas.PatchMode = fastapi.Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    projects_role: typing.Optional[schemas.ProjectsRole] = Header(
+    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
-    db_session: Session = Depends(deps.get_db_session),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
+    iguazio_session: typing.Optional[str] = fastapi.Cookie(None, alias="session"),
+    db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().patch_project(
-        db_session, name, project, patch_mode, projects_role, wait_for_completion=False
+        db_session,
+        name,
+        project,
+        patch_mode,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
-        return Response(status_code=HTTPStatus.ACCEPTED.value)
+        return fastapi.Response(status_code=HTTPStatus.ACCEPTED.value)
     return project
 
 
 # curl http://localhost:8080/project/<name>
 @router.get("/projects/{name}", response_model=schemas.Project)
-def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
+def get_project(name: str, db_session: Session = fastapi.Depends(deps.get_db_session)):
     return get_project_member().get_project(db_session, name)
 
 
@@ -98,29 +125,38 @@ def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
 )
 def delete_project(
     name: str,
-    deletion_strategy: schemas.DeletionStrategy = Header(
+    deletion_strategy: schemas.DeletionStrategy = fastapi.Header(
         schemas.DeletionStrategy.default(), alias=schemas.HeaderNames.deletion_strategy
     ),
-    projects_role: typing.Optional[schemas.ProjectsRole] = Header(
+    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
         None, alias=schemas.HeaderNames.projects_role
     ),
-    db_session: Session = Depends(deps.get_db_session),
+    # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
+    #  request until the process will be completed - after UI supports waiting - change default to False
+    wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
+    iguazio_session: typing.Optional[str] = fastapi.Cookie(None, alias="session"),
+    db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     is_running_in_background = get_project_member().delete_project(
-        db_session, name, deletion_strategy, projects_role, wait_for_completion=False
+        db_session,
+        name,
+        deletion_strategy,
+        projects_role,
+        iguazio_session,
+        wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
-        return Response(status_code=HTTPStatus.ACCEPTED.value)
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+        return fastapi.Response(status_code=HTTPStatus.ACCEPTED.value)
+    return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects", response_model=schemas.ProjectsOutput)
 def list_projects(
-    format_: schemas.Format = Query(schemas.Format.full, alias="format"),
+    format_: schemas.Format = fastapi.Query(schemas.Format.full, alias="format"),
     owner: str = None,
-    labels: typing.List[str] = Query(None, alias="label"),
+    labels: typing.List[str] = fastapi.Query(None, alias="label"),
     state: schemas.ProjectState = None,
-    db_session: Session = Depends(deps.get_db_session),
+    db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     return get_project_member().list_projects(db_session, owner, format_, labels, state)

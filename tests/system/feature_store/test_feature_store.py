@@ -252,7 +252,9 @@ class TestFeatureStore(TestMLRunSystem):
         path = str(self.results_path / _generate_random_name())
         target = ParquetTarget(path=path)
 
-        fset = fs.FeatureSet(name="test", entities=[Entity("patient_id")])
+        fset = fs.FeatureSet(
+            name="test", entities=[Entity("patient_id")], timestamp_key="timestamp"
+        )
         fs.ingest(fset, source, targets=[target])
 
         list_files = os.listdir(path)

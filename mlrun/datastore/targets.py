@@ -388,21 +388,6 @@ class BaseStoreTarget(DataTargetBase):
         driver.max_events = spec.max_events
         driver.flush_after_seconds = spec.flush_after_seconds
 
-        if spec.kind == "parquet":
-            driver.suffix = (
-                ".parquet"
-                if not spec.partitioned
-                and all(
-                    value is None
-                    for value in [
-                        spec.key_bucketing_number,
-                        spec.partition_cols,
-                        spec.time_partitioning_granularity,
-                    ]
-                )
-                else ""
-            )
-
         driver._resource = resource
         return driver
 
@@ -558,8 +543,6 @@ class ParquetTarget(BaseStoreTarget):
                 f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
                 f"not {time_partitioning_granularity}."
             )
-
-        self.suffix = ".parquet" if not partitioned else ""
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 

@@ -347,7 +347,10 @@ class FeatureSet(ModelObj):
     def purge(self):
         for target in self.spec.targets:
             driver = get_target_driver(target_spec=target, resource=self)
-            driver.purge()
+            try:
+                driver.purge()
+            except FileNotFoundError:
+                pass
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""

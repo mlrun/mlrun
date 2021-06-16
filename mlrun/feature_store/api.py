@@ -21,7 +21,7 @@ import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
 from ..datastore.store_resources import parse_store_uri
-from ..datastore.targets import get_default_targets, get_target_driver, TargetTypes
+from ..datastore.targets import TargetTypes, get_default_targets, get_target_driver
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
@@ -163,7 +163,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    override = True,
+    override=True,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -255,11 +255,16 @@ def ingest(
     namespace = namespace or get_caller_globals()
 
     if override:
-        featureset.purge()
+        try:
+            featureset.purge_targets(target_names=targets, silent=True)
+        except mlrun.errors.MLRunNotFoundError:
+            pass
     else:
         for target in featureset.spec.targets:
             if target.kind == TargetTypes.csv:
-                raise mlrun.errors.MLRunInvalidArgumentError("CSV targets support only override ingestion")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "CSV targets support only override ingestion"
+                )
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(

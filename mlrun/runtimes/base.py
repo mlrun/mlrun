@@ -556,7 +556,7 @@ class BaseRuntime(ModelObj):
             extra_env["MLRUN_EXEC_CODE"] = code
 
         load_archive = self.spec.build.load_source_on_run and self.spec.build.source
-        need_mlrun = code or load_archive or self.spec.mode != 'pass'
+        need_mlrun = code or load_archive or self.spec.mode != "pass"
 
         if need_mlrun:
             args = ["run", "--name", runobj.metadata.name, "--from-env"]

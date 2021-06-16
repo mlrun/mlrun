@@ -236,9 +236,7 @@ class KubejobRuntime(KubeResource):
 
     def _run(self, runobj: RunObject, execution):
 
-        with_mlrun = (not self.spec.mode) or (self.spec.mode != "pass")
-        command, args, extra_env = self._get_cmd_args(runobj, with_mlrun)
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
+        command, args, extra_env = self._get_cmd_args(runobj)
 
         if runobj.metadata.iteration:
             self.store_run(runobj)

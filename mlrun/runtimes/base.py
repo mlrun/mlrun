@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import getpass
+import shlex
 import traceback
 import uuid
 from abc import ABC, abstractmethod
@@ -66,6 +67,8 @@ from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
 from .generators import get_generator
 from .utils import RunError, calc_hash, results_to_iter
+
+run_modes = ["pass"]
 
 
 class FunctionStatus(ModelObj):
@@ -262,6 +265,9 @@ class BaseRuntime(ModelObj):
         :return: run context object (RunObject) with run metadata, results and status
         """
 
+        if self.spec.mode and self.spec.mode not in run_modes:
+            raise ValueError(f'run mode can only be {",".join(run_modes)}')
+
         if local:
 
             if schedule is not None:
@@ -278,12 +284,14 @@ class BaseRuntime(ModelObj):
                 runspec,
                 command,
                 name,
+                self.spec.args,
                 workdir=workdir,
                 project=project,
                 handler=handler,
                 params=params,
                 inputs=inputs,
                 artifact_path=artifact_path,
+                mode=self.spec.mode,
             )
 
         if runspec:
@@ -338,11 +346,6 @@ class BaseRuntime(ModelObj):
         )
 
         spec = runspec.spec
-        if self.spec.mode and self.spec.mode == "noctx":
-            params = spec.parameters or {}
-            for k, v in params.items():
-                self.spec.args += [f"--{k}", str(v)]
-
         if spec.secret_sources:
             self._secrets = SecretsStore.from_list(spec.secret_sources)
 
@@ -536,7 +539,7 @@ class BaseRuntime(ModelObj):
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
 
-    def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
+    def _get_cmd_args(self, runobj: RunObject):
         extra_env = self._generate_runtime_env(runobj)
         if self.spec.pythonpath:
             extra_env["PYTHONPATH"] = self.spec.pythonpath
@@ -546,26 +549,41 @@ class BaseRuntime(ModelObj):
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
 
-        if (code or runobj.spec.handler) and self.spec.mode == "pass":
-            raise ValueError('cannot use "pass" mode with code or handler')
+        if runobj.spec.handler and self.spec.mode == "pass":
+            raise ValueError('cannot use "pass" mode with handler')
 
         if code:
             extra_env["MLRUN_EXEC_CODE"] = code
 
-        if with_mlrun:
-            args = ["run", "--name", runobj.metadata.name, "--from-env"]
-            if not code:
-                args += [command]
-            command = "mlrun"
+        load_archive = self.spec.build.load_source_on_run and self.spec.build.source
+        need_mlrun = code or load_archive
 
-        if self.spec.build.load_source_on_run and self.spec.build.source:
-            if code:
-                raise ValueError("cannot specify both code and source archive")
-            args += ["--source", self.spec.build.source]
-        if runobj.spec.handler:
-            args += ["--handler", runobj.spec.handler]
-        if self.spec.args:
-            args += self.spec.args
+        if need_mlrun:
+            args = ["run", "--name", runobj.metadata.name, "--from-env"]
+            if runobj.spec.handler:
+                args += ["--handler", runobj.spec.handler]
+            if self.spec.mode:
+                args += ["--mode", self.spec.mode]
+
+            if load_archive:
+                if code:
+                    raise ValueError("cannot specify both code and source archive")
+                args += ["--source", self.spec.build.source]
+
+            if command:
+                args += [shlex.quote(command)]
+            command = "mlrun"
+            if self.spec.args:
+                args = args + self.spec.args
+        else:
+            command = command.format(**runobj.spec.parameters)
+            if self.spec.args:
+                args = [
+                    shlex.quote(arg.format(**runobj.spec.parameters))
+                    for arg in self.spec.args
+                ]
+
+        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env
 
     def _pre_run(self, runspec: RunObject, execution):
@@ -583,7 +601,7 @@ class BaseRuntime(ModelObj):
         tasks = generator.generate(runobj)
         for task in tasks:
             try:
-                # self.store_run(task)
+                self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._update_run_state(resp, task=task)
                 run_results = resp["status"].get("results", {})

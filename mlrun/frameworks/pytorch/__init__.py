@@ -1,22 +1,22 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import List, Dict, Union
+from typing import Dict, List, Union
 
 from torch.nn import Module
-from torch.utils.data import DataLoader
 from torch.optim import Optimizer
+from torch.utils.data import DataLoader
 
+import mlrun.frameworks.pytorch.callbacks
 from mlrun.frameworks.pytorch.callbacks import (
     Callback,
+    HyperparametersKeys,
     MetricFunctionType,
     MetricValueType,
-    HyperparametersKeys,
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
 )
-import mlrun.frameworks.pytorch.callbacks
-from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 from mlrun.frameworks.pytorch.callbacks_handler import CallbacksHandler
 from mlrun.frameworks.pytorch.mlrun_interface import PyTorchMLRunInterface
+from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 
 
 def train(

@@ -1,17 +1,17 @@
-from abc import ABC
-from typing import Union, List, Dict, Tuple, Any
-import os
 import importlib
+import os
+from abc import ABC
+from typing import Any, Dict, List, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.callbacks import (
-    Callback,
-    ModelCheckpoint,
-    TensorBoard,
-    ProgbarLogger,
-    CSVLogger,
     BaseLogger,
+    Callback,
+    CSVLogger,
+    ModelCheckpoint,
+    ProgbarLogger,
+    TensorBoard,
 )
 from tensorflow.keras.optimizers import Optimizer
 

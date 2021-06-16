@@ -1,23 +1,23 @@
-from typing import Union, Tuple, List, Dict, Any
-import sys
 import importlib
-from tabulate import tabulate
-from tqdm import tqdm
+import sys
+from typing import Any, Dict, List, Tuple, Union
 
 import torch
 import torch.multiprocessing as mp
+from tabulate import tabulate
 from torch import Tensor
 from torch.nn import Module
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torch.optim import Optimizer
+from tqdm import tqdm
 
 import mlrun
 from mlrun.frameworks.pytorch.callbacks import (
     Callback,
+    HyperparametersKeys,
     MetricFunctionType,
     MetricValueType,
-    HyperparametersKeys,
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
 )

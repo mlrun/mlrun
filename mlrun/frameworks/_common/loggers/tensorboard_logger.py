@@ -1,14 +1,14 @@
-from typing import Union, Dict, List, Any, Callable, TypeVar
-from abc import abstractmethod
 import os
+from abc import abstractmethod
 from datetime import datetime
+from typing import Any, Callable, Dict, List, TypeVar, Union
+
 import yaml
 
 import mlrun
-from mlrun.config import config
 from mlrun import MLClientCtx
+from mlrun.config import config
 from mlrun.frameworks._common.loggers.logger import Logger, TrackableType
-
 
 # Define a type variable for the different tensor type objects of the supported frameworks:
 Weight = TypeVar("Weight")

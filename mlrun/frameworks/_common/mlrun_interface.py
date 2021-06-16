@@ -1,6 +1,6 @@
-from typing import List, Dict, Any, Type
-from types import MethodType
 from abc import ABC, abstractmethod
+from types import MethodType
+from typing import Any, Dict, List, Type
 
 
 class MLRunInterface(ABC):

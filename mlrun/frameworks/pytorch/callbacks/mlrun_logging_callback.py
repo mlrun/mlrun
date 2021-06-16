@@ -1,4 +1,4 @@
-from typing import Union, List, Dict, Tuple, Callable
+from typing import Callable, Dict, List, Tuple, Union
 
 import mlrun
 from mlrun.artifacts import Artifact

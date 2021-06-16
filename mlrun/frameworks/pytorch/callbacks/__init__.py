@@ -5,9 +5,9 @@ from mlrun.frameworks.pytorch.callbacks.callback import (
     MetricValueType,
 )
 from mlrun.frameworks.pytorch.callbacks.logging_callback import (
+    HyperparametersKeys,
     LoggingCallback,
     TrackableType,
-    HyperparametersKeys,
 )
 from mlrun.frameworks.pytorch.callbacks.mlrun_logging_callback import (
     MLRunLoggingCallback,

@@ -1,11 +1,10 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-import mlrun.frameworks.keras.callbacks
-
 from tensorflow import keras
 
 import mlrun
-from mlrun.frameworks.keras.model_handler import KerasModelHandler
+import mlrun.frameworks.keras.callbacks
 from mlrun.frameworks.keras.mlrun_interface import KerasMLRunInterface
+from mlrun.frameworks.keras.model_handler import KerasModelHandler
 
 
 def apply_mlrun(

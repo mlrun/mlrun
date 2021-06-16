@@ -1,14 +1,14 @@
-from typing import Union, List, Dict, Tuple, Callable
-import numpy as np
+from typing import Callable, Dict, List, Tuple, Union
 
+import numpy as np
 from torch import Tensor
 from torch.nn import Module, Parameter
 
 from mlrun.frameworks._common.loggers import Logger, TrackableType
 from mlrun.frameworks.pytorch.callbacks.callback import (
     Callback,
-    MetricValueType,
     MetricFunctionType,
+    MetricValueType,
 )
 
 

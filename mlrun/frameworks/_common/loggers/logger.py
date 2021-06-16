@@ -1,6 +1,5 @@
 from typing import Dict, List, Union
 
-
 # All trackable values types:
 TrackableType = Union[str, bool, float, int]
 

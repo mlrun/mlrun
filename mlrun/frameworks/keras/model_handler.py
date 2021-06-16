@@ -1,14 +1,13 @@
-from typing import Union, List, Dict, Type, Any
-
 import os
+from typing import Any, Dict, List, Type, Union
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Layer
 from tensorflow.keras.losses import Loss
-from tensorflow.keras.optimizers import Optimizer
 from tensorflow.keras.metrics import Metric
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 from mlrun.artifacts import Artifact

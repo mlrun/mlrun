@@ -1,13 +1,13 @@
-from typing import List, Dict, Union, Callable
 from datetime import datetime
+from typing import Callable, Dict, List, Union
 
 import tensorflow as tf
-from tensorflow import Tensor, Variable
-from tensorflow.python.ops import summary_ops_v2
-from tensorflow.keras import Model
 from tensorboard.plugins.hparams import api as hp_api
 from tensorboard.plugins.hparams import api_pb2 as hp_api_pb2
 from tensorboard.plugins.hparams import summary as hp_summary
+from tensorflow import Tensor, Variable
+from tensorflow.keras import Model
+from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
 from mlrun.frameworks._common.loggers import TensorboardLogger, TrackableType

@@ -1,12 +1,11 @@
+import importlib.util
 import os
 import sys
-from typing import TypeVar, Union, List, Dict, Any
 from abc import ABC, abstractmethod
-import importlib.util
+from typing import Any, Dict, List, TypeVar, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-
 
 # Define a generic model type for the handler to have:
 Model = TypeVar("Model")

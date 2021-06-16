@@ -1,11 +1,11 @@
 from typing import Dict, Union
+
 import numpy as np
 
 from mlrun import MLClientCtx
 from mlrun.artifacts import Artifact, ChartArtifact
-from mlrun.frameworks._common.model_handler import ModelHandler
 from mlrun.frameworks._common.loggers.logger import Logger
-
+from mlrun.frameworks._common.model_handler import ModelHandler
 
 # All trackable values types:
 TrackableType = Union[str, bool, float, int]

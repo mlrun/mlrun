@@ -1,5 +1,5 @@
-from typing import Union, List, Dict, Type, Any
 import os
+from typing import Any, Dict, List, Type, Union
 
 import torch
 from torch.nn import Module

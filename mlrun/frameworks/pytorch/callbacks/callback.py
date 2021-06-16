@@ -1,8 +1,7 @@
-from typing import Union, List, Callable
 from abc import ABC, abstractmethod
+from typing import Callable, List, Union
 
 import numpy as np
-
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer

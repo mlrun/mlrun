@@ -1,6 +1,6 @@
-from typing import Dict, List, Union, Callable
-import numpy as np
+from typing import Callable, Dict, List, Union
 
+import numpy as np
 import tensorflow as tf
 from tensorflow import Tensor, Variable
 from tensorflow.keras.callbacks import Callback

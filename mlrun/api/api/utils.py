@@ -63,10 +63,12 @@ def get_secrets(_request: Request):
     }
 
 
-def get_run_db_instance(db_session: Session):
+def get_run_db_instance(
+    db_session: Session, leader_session: typing.Optional[str] = None
+):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session)
+        run_db = SQLRunDB(db.dsn, db_session, leader_session)
     else:
         run_db = db.db
     run_db.connect()
@@ -116,12 +118,18 @@ def _parse_submit_run_body(db_session: Session, data):
     return function, task
 
 
-async def submit_run(db_session: Session, data):
-    _, _, _, response = await run_in_threadpool(_submit_run, db_session, data)
+async def submit_run(
+    db_session: Session, data, leader_session: typing.Optional[str] = None
+):
+    _, _, _, response = await run_in_threadpool(
+        _submit_run, db_session, data, leader_session
+    )
     return response
 
 
-def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
+def _submit_run(
+    db_session: Session, data, leader_session: typing.Optional[str] = None
+) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
         1. str of the project of the run
@@ -133,7 +141,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
     project = None
     try:
         fn, task = _parse_submit_run_body(db_session, data)
-        run_db = get_run_db_instance(db_session)
+        run_db = get_run_db_instance(db_session, leader_session)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
@@ -151,6 +159,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
                 data,
                 cron_trigger,
                 schedule_labels,
+                leader_session=leader_session,
             )
             project = task["metadata"]["project"]
 

@@ -278,12 +278,12 @@ class FeatureSet(ModelObj):
             uri += ":" + self._metadata.tag
         return uri
 
-    def _override_run_db(self, session):
+    def _override_run_db(self, session, leader_session: Optional[str] = None):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
         from ..api.api.utils import get_run_db_instance
 
-        self._run_db = get_run_db_instance(session)
+        self._run_db = get_run_db_instance(session, leader_session)
 
     def _get_run_db(self):
         if self._run_db:

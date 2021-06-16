@@ -119,6 +119,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, len(list_namespaced_pods_calls)
         )
 
+    def test_monitor_run(self, db: Session, client: TestClient):
+        """
+        There's no real monitoring for dask (see mlrun.runtimes.daskjob.DaskRuntimeHandler.monitor_run for explanation
+        why) this test is only to have coverage for the piece of code there
+        """
+        self.runtime_handler.monitor_runs(get_db(), db, None)
+
     def _mock_list_resources_pods(self):
         mocked_responses = TestDaskjobRuntimeHandler._mock_list_namespaced_pods(
             [[self.running_scheduler_pod, self.running_worker_pod]]

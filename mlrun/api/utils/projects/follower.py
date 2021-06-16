@@ -3,7 +3,6 @@ import typing
 import humanfriendly
 import sqlalchemy.orm
 
-import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
@@ -118,6 +117,9 @@ class Member(
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
+            # importing here to avoid circular import (db using project member using mlrun follower using db)
+            import mlrun.api.crud
+
             mlrun.api.crud.Projects().delete_project_resources(
                 db_session, name, leader_session
             )

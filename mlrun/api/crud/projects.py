@@ -49,15 +49,24 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        leader_session: typing.Optional[str] = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         if deletion_strategy.is_cascading():
-            # delete runtime resources
-            mlrun.api.crud.Runtimes().delete_runtimes(
-                session, label_selector=f"mlrun/project={name}", force=True
-            )
+            self.delete_project_resources(session, name, leader_session)
         mlrun.api.utils.singletons.db.get_db().delete_project(
             session, name, deletion_strategy
+        )
+
+    def delete_project_resources(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ):
+        # delete runtime resources
+        mlrun.api.crud.Runtimes().delete_runtimes(
+            session, label_selector=f"mlrun/project={name}", force=True, leader_session=leader_session,
         )
 
     def get_project(

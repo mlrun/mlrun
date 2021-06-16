@@ -5,6 +5,7 @@ import sqlalchemy.orm
 
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.crud
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
@@ -59,7 +60,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -69,7 +70,7 @@ class Member(
             return project, False
         else:
             return self._leader_client.create_project(
-                iguazio_session, project, wait_for_completion
+                leader_session, project, wait_for_completion
             )
 
     def store_project(
@@ -78,7 +79,7 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -86,7 +87,7 @@ class Member(
             return project, False
         else:
             return self._leader_client.store_project(
-                iguazio_session, name, project, wait_for_completion
+                leader_session, name, project, wait_for_completion
             )
 
     def patch_project(
@@ -96,7 +97,7 @@ class Member(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -104,7 +105,7 @@ class Member(
             raise NotImplementedError("Patch operation not supported from leader")
         else:
             return self._leader_client.patch_project(
-                iguazio_session, name, project, patch_mode, wait_for_completion,
+                leader_session, name, project, patch_mode, wait_for_completion,
             )
 
     def delete_project(
@@ -113,15 +114,16 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
+            mlrun.api.crud.Projects().delete_project_resources(db_session, name, leader_session)
             if name in self._projects:
                 del self._projects[name]
         else:
             return self._leader_client.delete_project(
-                iguazio_session, name, deletion_strategy, wait_for_completion,
+                leader_session, name, deletion_strategy, wait_for_completion,
             )
         return False
 

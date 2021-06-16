@@ -24,6 +24,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
     def create_background_task(
         self,
         db_session: sqlalchemy.orm.Session,
+        leader_session: typing.Optional[str],
         project: str,
         background_tasks: fastapi.BackgroundTasks,
         function,
@@ -34,17 +35,17 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         # sanity
         if name in self._background_tasks:
             raise RuntimeError("Background task name already exists")
-        self._save_background_task(db_session, project, name)
+        self._save_background_task(db_session, project, name, leader_session)
         background_tasks.add_task(
             self.background_task_wrapper, project, name, function, *args, **kwargs
         )
         return self.get_background_task(project, name)
 
     def _save_background_task(
-        self, db_session: sqlalchemy.orm.Session, project: str, name: str
+        self, db_session: sqlalchemy.orm.Session, project: str, name: str, leader_session: typing.Optional[str] = None,
     ):
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project
+            db_session, project, leader_session=leader_session,
         )
         metadata = mlrun.api.schemas.BackgroundTaskMetadata(
             name=name, project=project, created=datetime.datetime.utcnow()

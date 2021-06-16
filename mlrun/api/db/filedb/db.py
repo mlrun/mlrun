@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -13,7 +13,7 @@ class FileDB(DBInterface):
     def initialize(self, session):
         self.db.connect()
 
-    def store_log(self, session, uid, project="", body=None, append=False):
+    def store_log(self, session, uid, project="", body=None, append=False, leader_session: Optional[str] = None):
         return self._transform_run_db_error(
             self.db.store_log, uid, project, body, append
         )
@@ -21,7 +21,7 @@ class FileDB(DBInterface):
     def get_log(self, session, uid, project="", offset=0, size=0):
         return self._transform_run_db_error(self.db.get_log, uid, project, offset, size)
 
-    def store_run(self, session, struct, uid, project="", iter=0):
+    def store_run(self, session, struct, uid, project="", iter=0, leader_session: Optional[str] = None):
         return self._transform_run_db_error(
             self.db.store_run, struct, uid, project, iter
         )
@@ -75,7 +75,7 @@ class FileDB(DBInterface):
         )
 
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project=""
+        self, session, key, artifact, uid, iter=None, tag="", project="", leader_session: Optional[str] = None
     ):
         return self._transform_run_db_error(
             self.db.store_artifact, key, artifact, uid, iter, tag, project
@@ -113,7 +113,7 @@ class FileDB(DBInterface):
         )
 
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False
+        self, session, function, name, project="", tag="", versioned=False, leader_session: Optional[str] = None
     ):
         return self._transform_run_db_error(
             self.db.store_function, function, name, project, tag, versioned
@@ -181,7 +181,7 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True, leader_session: Optional[str] = None
     ):
         raise NotImplementedError()
 
@@ -194,7 +194,7 @@ class FileDB(DBInterface):
         tag=None,
         uid=None,
         versioned=True,
-        always_overwrite=False,
+        always_overwrite=False, leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -249,7 +249,7 @@ class FileDB(DBInterface):
         feature_set_update: dict,
         tag=None,
         uid=None,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace, leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -257,7 +257,7 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True, leader_session: Optional[str] = None
     ):
         raise NotImplementedError()
 
@@ -290,7 +290,7 @@ class FileDB(DBInterface):
         tag=None,
         uid=None,
         versioned=True,
-        always_overwrite=False,
+        always_overwrite=False, leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -302,7 +302,7 @@ class FileDB(DBInterface):
         feature_vector_update: dict,
         tag=None,
         uid=None,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace, leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -335,6 +335,7 @@ class FileDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        leader_session: Optional[str] = None
     ):
         raise NotImplementedError()
 

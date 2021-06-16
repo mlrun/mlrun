@@ -2,7 +2,7 @@ import collections
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import humanfriendly
 import mergedeep
@@ -70,9 +70,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def initialize(self, session):
         return
 
-    def store_log(self, session, uid, project="", body=b"", append=False):
+    def store_log(self, session, uid, project="", body=b"", append=False, leader_session: Optional[str] = None):
         project = project or config.default_project
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project, leader_session=leader_session)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -103,12 +103,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def _list_logs(self, session: Session, project: str):
         return self._query(session, Log, project=project).all()
 
-    def store_run(self, session, run_data, uid, project="", iter=0):
+    def store_run(self, session, run_data, uid, project="", iter=0, leader_session: Optional[str] = None):
         project = project or config.default_project
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project, leader_session=leader_session)
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -216,9 +216,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         session.commit()
 
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project=""
+        self, session, key, artifact, uid, iter=None, tag="", project="", leader_session: Optional[str] = None,
     ):
-        self._store_artifact(session, key, artifact, uid, iter, tag, project)
+        self._store_artifact(session, key, artifact, uid, iter, tag, project, leader_session=leader_session)
 
     def _store_artifact(
         self,
@@ -231,10 +231,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         project="",
         tag_artifact=True,
         ensure_project=True,
+        leader_session: Optional[str] = None,
     ):
         project = project or config.default_project
         if ensure_project:
-            get_project_member().ensure_project(session, project)
+            get_project_member().ensure_project(session, project, leader_session=leader_session)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -424,7 +425,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             self.del_artifact(session, artifact.key, "", project)
 
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False
+        self, session, function, name, project="", tag="", versioned=False, leader_session: Optional[str] = None,
     ):
         logger.debug(
             "Storing function to DB",
@@ -435,7 +436,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             function=function,
         )
         project = project or config.default_project
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project, leader_session=leader_session)
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -631,8 +632,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        leader_session: Optional[str] = None
     ):
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project, leader_session=leader_session)
         schedule = self._get_schedule_record(session, project, name)
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
@@ -1569,6 +1571,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
+        leader_session: Optional[str] = None,
     ):
         self._validate_store_parameters(feature_set, project, name, tag, uid)
 
@@ -1591,7 +1594,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 return uid
 
             feature_set.metadata.tag = tag
-            return self.create_feature_set(session, project, feature_set, versioned)
+            return self.create_feature_set(session, project, feature_set, versioned, leader_session)
 
         uid = self._common_object_validate_and_perform_uid_change(
             feature_set_dict, tag, versioned, original_uid
@@ -1611,7 +1614,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         return uid
 
     def _validate_and_enrich_record_for_creation(
-        self, session, new_object, db_class, project, versioned
+        self, session, new_object, db_class, project, versioned, leader_session: Optional[str] = None
     ):
         object_type = new_object.__class__.__name__
 
@@ -1629,7 +1632,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
         new_object.metadata.project = project
 
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project, leader_session=leader_session)
         tag = new_object.metadata.tag or "latest"
 
         object_dict = new_object.dict(exclude_none=True)
@@ -1653,10 +1656,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         return uid, tag, object_dict
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True, leader_session: Optional[str] = None,
     ):
         (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
-            session, feature_set, FeatureSet, project, versioned
+            session, feature_set, FeatureSet, project, versioned, leader_session
         )
 
         db_feature_set = FeatureSet(project=project)
@@ -1678,6 +1681,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        leader_session: Optional[str] = None,
     ):
         feature_set_record = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set_record:
@@ -1704,6 +1708,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             uid,
             versioned,
             always_overwrite=True,
+            leader_session=leader_session,
         )
 
     def _delete_feature_store_object(self, session, cls, project, name, tag, uid):
@@ -1740,14 +1745,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)
 
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True, leader_session: Optional[str] = None
     ):
         (
             uid,
             tag,
             feature_vector_dict,
         ) = self._validate_and_enrich_record_for_creation(
-            session, feature_vector, FeatureVector, project, versioned
+            session, feature_vector, FeatureVector, project, versioned, leader_session
         )
 
         db_feature_vector = FeatureVector(project=project)
@@ -1857,6 +1862,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
+        leader_session: Optional[str] = None,
     ):
         self._validate_store_parameters(feature_vector, project, name, tag, uid)
 
@@ -1880,7 +1886,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
             feature_vector.metadata.tag = tag
             return self.create_feature_vector(
-                session, project, feature_vector, versioned
+                session, project, feature_vector, versioned, leader_session
             )
 
         uid = self._common_object_validate_and_perform_uid_change(
@@ -1910,6 +1916,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        leader_session: Optional[str] = None,
     ):
         feature_vector_record = self._get_feature_vector(
             session, project, name, tag, uid
@@ -1937,6 +1944,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             uid,
             versioned,
             always_overwrite=True,
+            leader_session=leader_session,
         )
 
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):

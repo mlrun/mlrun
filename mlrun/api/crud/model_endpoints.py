@@ -33,7 +33,7 @@ EVENTS = "events"
 class ModelEndpoints:
     @staticmethod
     def create_or_patch(
-        db_session: Session, access_key: str, model_endpoint: ModelEndpoint
+        db_session: Session, access_key: str, model_endpoint: ModelEndpoint, leader_session: Optional[str] = None
     ):
         """
         Creates or patch a KV record with the given model_endpoint record
@@ -55,7 +55,7 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
+            run_db = mlrun.api.api.utils.get_run_db_instance(db_session, leader_session)
             model_obj: ModelArtifact = mlrun.datastore.store_resources.get_store_resource(
                 model_endpoint.spec.model_uri, db=run_db
             )

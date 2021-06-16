@@ -15,7 +15,7 @@
 Configuration system.
 
 Configuration can be in either a configuration file specified by
-MLRUN_CONFIG_FILE environment variable or by environmenet variables.
+MLRUN_CONFIG_FILE environment variable or by environment variables.
 
 Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
@@ -103,6 +103,7 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable

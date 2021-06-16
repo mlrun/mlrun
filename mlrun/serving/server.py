@@ -32,7 +32,7 @@ from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
-from .states import RootFlowState, RouterState, get_function, graph_root_setter
+from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 
 
 class _StreamContext:
@@ -83,7 +83,7 @@ class GraphServer(ModelObj):
         secret_sources=None,
     ):
         self._graph = None
-        self.graph: Union[RouterState, RootFlowState] = graph
+        self.graph: Union[RouterStep, RootFlowStep] = graph
         self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
@@ -106,7 +106,7 @@ class GraphServer(ModelObj):
         self._current_function = function
 
     @property
-    def graph(self) -> Union[RootFlowState, RouterState]:
+    def graph(self) -> Union[RootFlowStep, RouterStep]:
         return self._graph
 
     @graph.setter
@@ -132,7 +132,7 @@ class GraphServer(ModelObj):
         logger=None,
         is_mock=False,
     ):
-        """for internal use, initialize all states (recursively)"""
+        """for internal use, initialize all steps (recursively)"""
 
         if self.secret_sources:
             self._secrets = SecretsStore.from_list(self.secret_sources)
@@ -176,7 +176,7 @@ class GraphServer(ModelObj):
         silent=False,
         get_body=True,
     ):
-        """invoke a test event into the server to simulate/test server behaviour
+        """invoke a test event into the server to simulate/test server behavior
 
         example::
 
@@ -188,7 +188,7 @@ class GraphServer(ModelObj):
         :param body:       message body (dict or json str/bytes)
         :param method:     optional, GET, POST, ..
         :param content_type:  optional, http mime type
-        :param silent:     dont raise on error responses (when not 20X)
+        :param silent:     don't raise on error responses (when not 20X)
         :param get_body:   return the body as py object (vs serialize response into json)
         """
         if not self.graph:
@@ -271,7 +271,7 @@ def create_graph_server(
 
     Usage example::
 
-        server = create_graph_server(graph=RouterState(), parameters={})
+        server = create_graph_server(graph=RouterStep(), parameters={})
         server.init(None, globals())
         server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
         print(server.test("/v2/models/my/infer", testdata))

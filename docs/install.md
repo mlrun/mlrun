@@ -133,8 +133,8 @@ Your applications are now available in your local browser:
 
 - Jupyter-notebook - http://localhost:30040
 - Nuclio - http://localhost:30050
-- MLRun UI - http://locahost:30060
-- MLRun API (external) - http://locahost:30070
+- MLRun UI - http://localhost:30060
+- MLRun API (external) - http://localhost:30070
 
 
 > **Note:**
@@ -256,12 +256,12 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 ```sh
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:0.6.3
-docker pull mlrun/mlrun-ui:0.6.3
+docker pull mlrun/jupyter:0.6.4
+docker pull mlrun/mlrun-ui:0.6.4
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.3
-docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.3
+docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.4
+docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.4
 ```
 
 When the execution completes &mdash;

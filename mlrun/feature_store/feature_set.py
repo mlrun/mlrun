@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
@@ -29,6 +30,7 @@ from ..datastore.targets import (
     TargetTypes,
     default_target_names,
     get_offline_target,
+    get_target_driver,
     validate_target_list,
     validate_target_placement,
 )
@@ -42,7 +44,7 @@ from ..model import (
     VersionedObjMetadata,
 )
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import BaseState, RootFlowState, previous_step
+from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..utils import StorePrefix
 
 aggregates_step = "Aggregates"
@@ -83,7 +85,7 @@ class FeatureSetSpec(ModelObj):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
-        self._graph: RootFlowState = None
+        self._graph: RootFlowStep = None
         self._source = None
         self._engine = None
         self._function: FunctionReference = None
@@ -147,13 +149,13 @@ class FeatureSetSpec(ModelObj):
         self._engine = engine
 
     @property
-    def graph(self) -> RootFlowState:
+    def graph(self) -> RootFlowStep:
         """feature set transformation graph/DAG"""
         return self._graph
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", RootFlowState)
+        self._graph = self._verify_dict(graph, "graph", RootFlowStep)
         self._graph.engine = (
             "sync" if self.engine and self.engine in ["pandas", "spark"] else None
         )
@@ -177,7 +179,7 @@ class FeatureSetSpec(ModelObj):
         self._source = self._verify_dict(source, "source", DataSource)
 
     def require_processing(self):
-        return len(self._graph.states) > 0
+        return len(self._graph.steps) > 0
 
 
 class FeatureSetStatus(ModelObj):
@@ -295,16 +297,31 @@ class FeatureSet(ModelObj):
         if target:
             return target.path
 
-    def set_targets(self, targets=None, with_defaults=True, default_final_state=None):
+    def set_targets(
+        self,
+        targets=None,
+        with_defaults=True,
+        default_final_step=None,
+        default_final_state=None,
+    ):
         """set the desired target list or defaults
 
         :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
                          CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
         :param with_defaults: add the default targets (as defined in the central config)
-        :param default_final_state: the final graph state after which we add the
+        :param default_final_step: the final graph step after which we add the
                                     target writers, used when the graph branches and
                                     the end cant be determined automatically
+        :param default_final_state: *Deprecated* - use default_final_step instead
         """
+        if default_final_state:
+            warnings.warn(
+                "The default_final_state parameter is deprecated. Use default_final_step instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            default_final_step = default_final_step or default_final_state
+
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "targets can only be None or a list of kinds or DataTargetBase derivatives"
@@ -324,8 +341,13 @@ class FeatureSet(ModelObj):
             if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
             self.spec.targets.update(target)
-        if default_final_state:
-            self.spec.graph.final_state = default_final_state
+        if default_final_step:
+            self.spec.graph.final_step = default_final_step
+
+    def purge(self):
+        for target in self.spec.targets:
+            driver = get_target_driver(target_spec=target, resource=self)
+            driver.purge()
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""
@@ -354,12 +376,13 @@ class FeatureSet(ModelObj):
         name,
         column,
         operations,
-        window,
+        windows,
         period=None,
-        state_name=None,
+        step_name=None,
         after=None,
         before=None,
         emit_policy: Optional["EmitPolicy"] = None,
+        state_name=None,
     ):
         """add feature aggregation rule
 
@@ -370,21 +393,43 @@ class FeatureSet(ModelObj):
         :param name:       aggregation name/prefix
         :param column:     name of column/field aggregate
         :param operations: aggregation operations, e.g. ['sum', 'std']
-        :param window:     time window, e.g. '1h', '6h', '1d'
+        :param windows:    time windows, can be a single window, e.g. '1h', '1d',
+                            or a list of same unit windows e.g ['1h', '6h']
         :param period:     optional, sliding window granularity, e.g. '10m'
-        :param state_name: optional, graph state name
-        :param after:      optional, after which graph state it runs
-        :param before:     optional, comes before graph state
+        :param step_name: optional, graph step name
+        :param state_name: *Deprecated* - use step_name instead
+        :param after:      optional, after which graph step it runs
+        :param before:     optional, comes before graph step
         :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
-                            the Nth event). The default behaviour is emitting every event
+                            the Nth event). The default behavior is emitting every event
         """
-
-        if not isinstance(window, str):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Only single window is supported. For additional windows create another aggregation"
+        if state_name:
+            warnings.warn(
+                "The state_name parameter is deprecated. Use step_name instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
             )
+            step_name = step_name or state_name
+
+        if isinstance(windows, list):
+            unit = None
+            for window in windows:
+                if not unit:
+                    unit = window[-1]
+                else:
+                    if window[-1] != unit:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "List of windows is supported only for the same unit of time, e.g [1h, 5h].\n"
+                            "For additional windows create another aggregation"
+                        )
+
+        if isinstance(windows, str):
+            windows = [windows]
+        if isinstance(operations, str):
+            operations = [operations]
+
         aggregation = FeatureAggregation(
-            name, column, operations, [window], period
+            name, column, operations, windows, period
         ).to_dict()
 
         def upsert_feature(name):
@@ -393,21 +438,21 @@ class FeatureSet(ModelObj):
             else:
                 self.spec.features[name] = Feature(name=column, aggregate=True)
 
-        state_name = state_name or aggregates_step
+        step_name = step_name or aggregates_step
         graph = self.spec.graph
-        if state_name in graph.states:
-            state = graph.states[state_name]
-            aggregations = state.class_args.get("aggregates", [])
+        if step_name in graph.steps:
+            step = graph.steps[step_name]
+            aggregations = step.class_args.get("aggregates", [])
             aggregations.append(aggregation)
-            state.class_args["aggregates"] = aggregations
+            step.class_args["aggregates"] = aggregations
             if emit_policy:
-                state.class_args["emit_policy"] = emit_policy
+                step.class_args["emit_policy"] = emit_policy
         else:
             class_args = {}
             if emit_policy:
                 class_args["emit_policy"] = emit_policy
-            state = graph.add_step(
-                name=state_name,
+            step = graph.add_step(
+                name=step_name,
                 after=after or previous_step,
                 before=before,
                 class_name="storey.AggregateByKey",
@@ -417,9 +462,10 @@ class FeatureSet(ModelObj):
             )
 
         for operation in operations:
-            upsert_feature(f"{name}_{operation}_{window}")
+            for window in windows:
+                upsert_feature(f"{name}_{operation}_{window}")
 
-        return state
+        return step
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
@@ -435,15 +481,15 @@ class FeatureSet(ModelObj):
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         """generate graphviz plot"""
         graph = self.spec.graph
-        _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
+        _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
         if with_targets:
             validate_target_list(targets=targets)
-            validate_target_placement(graph, default_final_state, self.spec.targets)
+            validate_target_placement(graph, default_final_step, self.spec.targets)
             targets = [
-                BaseState(
+                BaseStep(
                     target.kind,
-                    after=target.after_state or default_final_state,
+                    after=target.after_step or default_final_step,
                     shape="cylinder",
                 )
                 for target in self.spec.targets

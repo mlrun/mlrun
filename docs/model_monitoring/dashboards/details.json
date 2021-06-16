@@ -42,7 +42,7 @@
   ],
   "panels": [
     {
-      "datasource": null,
+      "datasource": "iguazio",
       "description": "",
       "fieldConfig": {
         "defaults": {

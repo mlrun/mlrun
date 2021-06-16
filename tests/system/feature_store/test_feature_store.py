@@ -871,26 +871,61 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set.save()
         fs.ingest(stocks_set.uri, stocks)
 
+    def test_override_false(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+        df3 = pd.concat([df1, df2])
+
+        fset = fs.FeatureSet(name="override-false", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1)
+
+        features = ["override-false.*"]
+        fvec = fs.FeatureVector("override-false-vec", features=features)
+
+        off1 = fs.get_offline_features(fvec).to_dataframe()
+        assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
+
+        fs.ingest(fset, df2, override=False)
+
+        off2 = fs.get_offline_features(fvec).to_dataframe()
+        assert df3.set_index(keys="name").sort_index().equals(off2.sort_index())
+
+        fs.ingest(fset, df1, targets=[ParquetTarget()])
+
+        off1 = fs.get_offline_features(fvec).to_dataframe()
+        assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        svc.close()
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df1, targets=[CSVTarget()], override=False)
+
+        fset.set_targets(targets=[CSVTarget()])
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df1, override=False)
+
     def test_purge(self):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
         source = CSVSource("mycsv", path=path, time_field="timestamp",)
-        targets=[
-                    CSVTarget(),
-                    ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-                    NoSqlTarget(),
-                ]
+        targets = [
+            CSVTarget(),
+            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+            NoSqlTarget(),
+        ]
         fset.set_targets(
-            targets=targets,
-            with_defaults=False,
+            targets=targets, with_defaults=False,
         )
         fs.ingest(fset, source)
 
         verify_purge(fset, targets)
-        
+
         fs.ingest(fset, source)
-        
+
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
 
@@ -913,7 +948,10 @@ def verify_purge(fset, targets):
         assert not filesystem.exists(driver._target_path)
 
     fset.reload(update_spec=False)
-    assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(target_names)
+    assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(
+        target_names
+    )
+
 
 def verify_target_list_fail(targets, with_defaults=None):
     feature_set = fs.FeatureSet(name="target-list-fail", entities=[fs.Entity("ticker")])

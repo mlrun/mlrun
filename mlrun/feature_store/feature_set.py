@@ -345,6 +345,10 @@ class FeatureSet(ModelObj):
             self.spec.graph.final_step = default_final_step
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
+        """ Delete data of specific targets
+        :param target_names: List of names of targets to delete
+        :param silent: Fail silently if target doesn't exist in featureset status """
+
         self.reload(update_spec=False)
         if target_names:
             purge_targets = ObjectList(DataTarget)

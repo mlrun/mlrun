@@ -21,7 +21,12 @@ import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
 from ..datastore.store_resources import parse_store_uri
-from ..datastore.targets import TargetTypes, get_default_targets, get_target_driver
+from ..datastore.targets import (
+    TargetTypes,
+    get_default_targets,
+    get_target_driver,
+    validate_target_list,
+)
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
@@ -200,6 +205,7 @@ def ingest(
     :param spark_context: local spark session for spark ingestion, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
+    :param override:      override the previously ingested data
     """
     if featureset:
         if isinstance(featureset, str):
@@ -256,11 +262,17 @@ def ingest(
 
     if override:
         try:
-            featureset.purge_targets(target_names=targets, silent=True)
+            validate_target_list(targets=targets)
+            target_names = (
+                [t if isinstance(t, str) else t.name for t in targets]
+                if targets
+                else None
+            )
+            featureset.purge_targets(target_names=target_names, silent=True)
         except mlrun.errors.MLRunNotFoundError:
             pass
     else:
-        for target in featureset.spec.targets:
+        for target in targets or featureset.spec.targets:
             if target.kind == TargetTypes.csv:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "CSV targets support only override ingestion"

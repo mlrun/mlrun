@@ -23,7 +23,6 @@ class TestJobs(TestMLRunSystem):
 
         self._trainer.spec.build.commands.append("pip install pandas")
         self._trainer.spec.build.base_image = "mlrun/mlrun"
-        self._trainer.spec.command = code_path
         self._trainer.apply(mount_v3io())
 
         self._logger.debug("Deploying trainer")

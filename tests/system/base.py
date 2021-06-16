@@ -65,6 +65,10 @@ class TestMLRunSystem:
 
         self._logger.debug("Removing test data from database")
         if os.environ.get("MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES") != "false":
+            fsets = self._run_db.list_feature_sets()
+            if fsets:
+                for fset in fsets:
+                    fset.purge_targets()
             self._run_db.delete_project(
                 self.project_name,
                 deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascading,

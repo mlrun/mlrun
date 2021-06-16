@@ -876,32 +876,44 @@ class TestFeatureStore(TestMLRunSystem):
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
         source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        targets=[
+                    CSVTarget(),
+                    ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+                    NoSqlTarget(),
+                ]
         fset.set_targets(
-            targets=[
-                CSVTarget(),
-                ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-                NoSqlTarget(),
-            ],
+            targets=targets,
             with_defaults=False,
         )
         fs.ingest(fset, source)
 
-        verify_purge(fset)
+        verify_purge(fset, targets)
+        
+        fs.ingest(fset, source)
+        
+        targets_to_purge = targets[:-1]
+        verify_purge(fset, targets_to_purge)
 
 
-def verify_purge(fset):
-    for target in fset.spec.targets:
+def verify_purge(fset, targets):
+    fset.reload(update_spec=False)
+    orig_status_targets = list(fset.status.targets.keys())
+    target_names = [t.name for t in targets]
+
+    for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
         assert filesystem.exists(driver._target_path)
 
-    fset.purge()
+    fset.purge_targets(target_names=target_names)
 
-    for target in fset.spec.targets:
+    for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
         assert not filesystem.exists(driver._target_path)
 
+    fset.reload(update_spec=False)
+    assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(target_names)
 
 def verify_target_list_fail(targets, with_defaults=None):
     feature_set = fs.FeatureSet(name="target-list-fail", entities=[fs.Entity("ticker")])

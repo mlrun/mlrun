@@ -344,13 +344,34 @@ class FeatureSet(ModelObj):
         if default_final_step:
             self.spec.graph.final_step = default_final_step
 
-    def purge(self):
-        for target in self.spec.targets:
+    def purge_targets(self, target_names: List[str] = None, silent: bool = False):
+        self.reload(update_spec=False)
+        if target_names:
+            purge_targets = ObjectList(DataTarget)
+            for target_name in target_names:
+                try:
+                    purge_targets[target_name] = self.status.targets[target_name]
+                except KeyError:
+                    if silent:
+                        pass
+                    else:
+                        raise mlrun.errors.MLRunNotFoundError(
+                            "Target not found in status (fset={0}, target={1})".format(
+                                self.name, target_name
+                            )
+                        )
+        else:
+            purge_targets = self.status.targets
+        purge_target_names = list(purge_targets.keys())
+        for target_name in purge_target_names:
+            target = purge_targets[target_name]
             driver = get_target_driver(target_spec=target, resource=self)
             try:
                 driver.purge()
             except FileNotFoundError:
                 pass
+            del self.status.targets[target_name]
+        self.save()
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""
@@ -531,7 +552,6 @@ class FeatureSet(ModelObj):
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
         db = self._get_run_db()
-        self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
         as_dict["spec"]["features"] = as_dict["spec"].get(

@@ -1,7 +1,7 @@
 import typing
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Query, Response, Cookie
+from fastapi import APIRouter, Cookie, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
@@ -75,6 +75,12 @@ def delete_runtime_object(
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.crud.Runtimes().delete_runtime_object(
-        db_session, kind, object_id, label_selector, force, grace_period, iguazio_session
+        db_session,
+        kind,
+        object_id,
+        label_selector,
+        force,
+        grace_period,
+        iguazio_session,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

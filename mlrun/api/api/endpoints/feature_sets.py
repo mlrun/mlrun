@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response, Cookie
+from fastapi import APIRouter, Cookie, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store
@@ -54,7 +54,14 @@ def store_feature_set(
 ):
     tag, uid = parse_reference(reference)
     uid = get_db().store_feature_set(
-        db_session, project, name, feature_set, tag, uid, versioned, leader_session=iguazio_session,
+        db_session,
+        project,
+        name,
+        feature_set,
+        tag,
+        uid,
+        versioned,
+        leader_session=iguazio_session,
     )
 
     return get_db().get_feature_set(db_session, project, name, tag=tag, uid=uid)
@@ -74,7 +81,14 @@ def patch_feature_set(
 ):
     tag, uid = parse_reference(reference)
     get_db().patch_feature_set(
-        db_session, project, name, feature_set_update, tag, uid, patch_mode, iguazio_session
+        db_session,
+        project,
+        name,
+        feature_set_update,
+        tag,
+        uid,
+        patch_mode,
+        iguazio_session,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -347,7 +361,14 @@ def store_feature_vector(
 ):
     tag, uid = parse_reference(reference)
     uid = get_db().store_feature_vector(
-        db_session, project, name, feature_vector, tag, uid, versioned, leader_session=iguazio_session,
+        db_session,
+        project,
+        name,
+        feature_vector,
+        tag,
+        uid,
+        versioned,
+        leader_session=iguazio_session,
     )
 
     return get_db().get_feature_vector(db_session, project, name, uid=uid, tag=tag)
@@ -367,7 +388,14 @@ def patch_feature_vector(
 ):
     tag, uid = parse_reference(reference)
     get_db().patch_feature_vector(
-        db_session, project, name, feature_vector_update, tag, uid, patch_mode, iguazio_session
+        db_session,
+        project,
+        name,
+        feature_vector_update,
+        tag,
+        uid,
+        patch_mode,
+        iguazio_session,
     )
     return Response(status_code=HTTPStatus.OK.value)
 

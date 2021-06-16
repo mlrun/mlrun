@@ -33,7 +33,10 @@ EVENTS = "events"
 class ModelEndpoints:
     @staticmethod
     def create_or_patch(
-        db_session: Session, access_key: str, model_endpoint: ModelEndpoint, leader_session: Optional[str] = None
+        db_session: Session,
+        access_key: str,
+        model_endpoint: ModelEndpoint,
+        leader_session: Optional[str] = None,
     ):
         """
         Creates or patch a KV record with the given model_endpoint record

@@ -28,7 +28,9 @@ class Scheduler:
         # NOTE this cannot be less then one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
 
-    async def start(self, db_session: Session, leader_session: Optional[str] = None,):
+    async def start(
+        self, db_session: Session, leader_session: Optional[str] = None,
+    ):
         logger.info("Starting scheduler")
         self._scheduler.start()
         # the scheduler shutdown and start operation are not fully async compatible yet -
@@ -58,7 +60,7 @@ class Scheduler:
         cron_trigger: Union[str, schemas.ScheduleCronTrigger],
         labels: Dict = None,
         concurrency_limit: int = config.httpdb.scheduling.default_concurrency_limit,
-        leader_session: Optional[str] = None
+        leader_session: Optional[str] = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
@@ -75,7 +77,9 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        get_project_member().ensure_project(db_session, project, leader_session=leader_session)
+        get_project_member().ensure_project(
+            db_session, project, leader_session=leader_session
+        )
         get_db().create_schedule(
             db_session,
             project,
@@ -87,7 +91,13 @@ class Scheduler:
             labels,
         )
         self._create_schedule_in_scheduler(
-            project, name, kind, scheduled_object, cron_trigger, concurrency_limit, leader_session,
+            project,
+            name,
+            kind,
+            scheduled_object,
+            cron_trigger,
+            concurrency_limit,
+            leader_session,
         )
 
     def update_schedule(
@@ -99,7 +109,7 @@ class Scheduler:
         cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
         labels: Dict = None,
         concurrency_limit: int = None,
-            leader_session: Optional[str] = None,
+        leader_session: Optional[str] = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
@@ -184,7 +194,13 @@ class Scheduler:
             self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
-    async def invoke_schedule(self, db_session: Session, project: str, name: str, leader_session: Optional[str] = None):
+    async def invoke_schedule(
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        leader_session: Optional[str] = None,
+    ):
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = await fastapi.concurrency.run_in_threadpool(
             get_db().get_schedule, db_session, project, name
@@ -309,7 +325,9 @@ class Scheduler:
             next_run_time=next_run_time,
         )
 
-    def _reload_schedules(self, db_session: Session, leader_session: Optional[str] = None,):
+    def _reload_schedules(
+        self, db_session: Session, leader_session: Optional[str] = None,
+    ):
         logger.info("Reloading schedules")
         db_schedules = get_db().list_schedules(db_session)
         for db_schedule in db_schedules:
@@ -372,7 +390,7 @@ class Scheduler:
         project_name: str,
         schedule_name: str,
         schedule_concurrency_limit: int,
-        leader_session: Optional[str] = None
+        leader_session: Optional[str] = None,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -407,7 +425,11 @@ class Scheduler:
 
     @staticmethod
     async def submit_run_wrapper(
-        scheduled_object, project_name, schedule_name, schedule_concurrency_limit, leader_session: Optional[str] = None
+        scheduled_object,
+        project_name,
+        schedule_name,
+        schedule_concurrency_limit,
+        leader_session: Optional[str] = None,
     ):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run
@@ -451,7 +473,11 @@ class Scheduler:
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
         get_db().update_schedule(
-            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri, leader_session=leader_session,
+            db_session,
+            run_metadata["project"],
+            schedule_name,
+            last_run_uri=run_uri,
+            leader_session=leader_session,
         )
 
         close_session(db_session)

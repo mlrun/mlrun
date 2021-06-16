@@ -3,9 +3,9 @@ import typing
 import humanfriendly
 import sqlalchemy.orm
 
+import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
-import mlrun.api.crud
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
@@ -118,7 +118,9 @@ class Member(
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
-            mlrun.api.crud.Projects().delete_project_resources(db_session, name, leader_session)
+            mlrun.api.crud.Projects().delete_project_resources(
+                db_session, name, leader_session
+            )
             if name in self._projects:
                 del self._projects[name]
         else:

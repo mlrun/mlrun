@@ -3,7 +3,15 @@ from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, Cookie
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    Query,
+    Request,
+    Response,
+)
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -104,7 +112,7 @@ def list_functions(
 async def build_function(
     request: Request,
     iguazio_session: Optional[str] = Cookie(None, alias="session"),
-    db_session: Session = Depends(deps.get_db_session)
+    db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
     try:
@@ -138,8 +146,8 @@ async def build_function(
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
-        iguazio_session: Optional[str] = Cookie(None, alias="session"),
-        db_session: Session = Depends(deps.get_db_session),
+    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
     try:
@@ -223,7 +231,15 @@ def build_status(
             # Versioned means the version will be saved in the DB forever, we don't want to spam
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
-        get_db().store_function(db_session, fn, name, project, tag, versioned=versioned, leader_session=iguazio_session)
+        get_db().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+            leader_session=iguazio_session,
+        )
         return Response(
             content=text,
             media_type="text/plain",
@@ -275,7 +291,15 @@ def build_status(
     versioned = False
     if state == "ready":
         versioned = True
-    get_db().store_function(db_session, fn, name, project, tag, versioned=versioned, leader_session=iguazio_session)
+    get_db().store_function(
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
+        leader_session=iguazio_session,
+    )
 
     return Response(
         content=out,
@@ -290,7 +314,12 @@ def build_status(
 
 
 def _build_function(
-    db_session, function, with_mlrun, skip_deployed, mlrun_version_specifier, leader_session
+    db_session,
+    function,
+    with_mlrun,
+    skip_deployed,
+    mlrun_version_specifier,
+    leader_session,
 ):
     fn = None
     ready = None

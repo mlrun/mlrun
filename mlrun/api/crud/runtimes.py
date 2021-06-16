@@ -111,5 +111,5 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             label_selector,
             force,
             grace_period,
-            leader_session
+            leader_session,
         )

@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request, Cookie
+from fastapi import APIRouter, Cookie, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 

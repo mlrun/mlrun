@@ -66,7 +66,10 @@ class Projects(
     ):
         # delete runtime resources
         mlrun.api.crud.Runtimes().delete_runtimes(
-            session, label_selector=f"mlrun/project={name}", force=True, leader_session=leader_session,
+            session,
+            label_selector=f"mlrun/project={name}",
+            force=True,
+            leader_session=leader_session,
         )
 
     def get_project(

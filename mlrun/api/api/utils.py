@@ -63,7 +63,9 @@ def get_secrets(_request: Request):
     }
 
 
-def get_run_db_instance(db_session: Session, leader_session: typing.Optional[str] = None):
+def get_run_db_instance(
+    db_session: Session, leader_session: typing.Optional[str] = None
+):
     db = get_db()
     if isinstance(db, SQLDB):
         run_db = SQLRunDB(db.dsn, db_session, leader_session)
@@ -116,12 +118,18 @@ def _parse_submit_run_body(db_session: Session, data):
     return function, task
 
 
-async def submit_run(db_session: Session, data, leader_session: typing.Optional[str] = None):
-    _, _, _, response = await run_in_threadpool(_submit_run, db_session, data, leader_session)
+async def submit_run(
+    db_session: Session, data, leader_session: typing.Optional[str] = None
+):
+    _, _, _, response = await run_in_threadpool(
+        _submit_run, db_session, data, leader_session
+    )
     return response
 
 
-def _submit_run(db_session: Session, data, leader_session: typing.Optional[str] = None) -> typing.Tuple[str, str, str, typing.Dict]:
+def _submit_run(
+    db_session: Session, data, leader_session: typing.Optional[str] = None
+) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
         1. str of the project of the run

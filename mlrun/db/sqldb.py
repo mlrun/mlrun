@@ -46,7 +46,13 @@ class SQLDB(RunDBInterface):
 
     def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(
-            self.db.store_log, self.session, uid, project, body, append, self.leader_session
+            self.db.store_log,
+            self.session,
+            uid,
+            project,
+            body,
+            append,
+            self.leader_session,
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
@@ -56,7 +62,13 @@ class SQLDB(RunDBInterface):
 
     def store_run(self, struct, uid, project="", iter=0):
         return self._transform_db_error(
-            self.db.store_run, self.session, struct, uid, project, iter, self.leader_session
+            self.db.store_run,
+            self.session,
+            struct,
+            uid,
+            project,
+            iter,
+            self.leader_session,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
@@ -108,7 +120,15 @@ class SQLDB(RunDBInterface):
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         return self._transform_db_error(
-            self.db.store_artifact, self.session, key, artifact, uid, iter, tag, project, self.leader_session
+            self.db.store_artifact,
+            self.session,
+            key,
+            artifact,
+            uid,
+            iter,
+            tag,
+            project,
+            self.leader_session,
         )
 
     def read_artifact(self, key, tag="", iter=None, project=""):
@@ -252,7 +272,12 @@ class SQLDB(RunDBInterface):
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
-            self.db.create_feature_set, self.session, project, feature_set, versioned, self.leader_session,
+            self.db.create_feature_set,
+            self.session,
+            project,
+            feature_set,
+            versioned,
+            self.leader_session,
         )
 
     def get_feature_set(

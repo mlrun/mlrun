@@ -42,7 +42,11 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         return self.get_background_task(project, name)
 
     def _save_background_task(
-        self, db_session: sqlalchemy.orm.Session, project: str, name: str, leader_session: typing.Optional[str] = None,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        leader_session: typing.Optional[str] = None,
     ):
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=leader_session,

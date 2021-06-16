@@ -1,5 +1,6 @@
-import sqlalchemy.orm
 import typing
+
+import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.schemas

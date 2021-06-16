@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request, Response, Cookie
+from fastapi import APIRouter, Cookie, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.api
@@ -38,7 +38,10 @@ def create_or_patch(
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
     ModelEndpoints.create_or_patch(
-        db_session=db_session, access_key=access_key, model_endpoint=model_endpoint, leader_session=iguazio_session,
+        db_session=db_session,
+        access_key=access_key,
+        model_endpoint=model_endpoint,
+        leader_session=iguazio_session,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

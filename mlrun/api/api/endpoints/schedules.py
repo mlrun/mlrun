@@ -1,7 +1,7 @@
-from http import HTTPStatus
 import typing
+from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Response, Cookie
+from fastapi import APIRouter, Cookie, Depends, Response
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -82,9 +82,14 @@ def get_schedule(
 
 @router.post("/projects/{project}/schedules/{name}/invoke")
 async def invoke_schedule(
-    project: str, name: str, iguazio_session: typing.Optional[str] = Cookie(None, alias="session"), db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    iguazio_session: typing.Optional[str] = Cookie(None, alias="session"),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    return await get_scheduler().invoke_schedule(db_session, project, name, iguazio_session)
+    return await get_scheduler().invoke_schedule(
+        db_session, project, name, iguazio_session
+    )
 
 
 @router.delete(

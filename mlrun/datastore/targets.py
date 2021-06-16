@@ -420,6 +420,27 @@ class BaseStoreTarget(DataTargetBase):
 
 
 class ParquetTarget(BaseStoreTarget):
+    """parquet target storage driver, used to materialize feature set/vector data into parquet files
+
+    :param name:       optional, target name. By default will be called ParquetTarget
+    :param path:       optional, Output path. Can be either a file or directory. This parameter is forwarded as-is to pandas.DataFrame.to_parquet().
+     Default location v3io:///projects/{project}/FeatureStore/{name}/parquet/
+    :param attributes: optional, extra attributes for storey.ParquetTarget
+    :param after_state: optional, fter what step in the graph to add the target
+    :param columns:     optional, which columns from data to write
+    :param partitioned: optional, whether to partition the file, False by default,
+     if True without passing any other partition field, the data will be partitioned by /year/month/day/hour
+    :param key_bucketing_number:      optional, None by default will not partition by key, 0 will partition by the key as is,
+     any other number X will create X partitions and hash the keys to one of them
+    :param partition_cols:     optional, name of columns from the data to partition by
+    :param time_partitioning_granularity: optional. the smallest time unit to partition the data by.
+     For example "hour" will yield partitions of the format /year/month/day/hour
+    :param max_events: optional. Maximum number of events to write at a time. All events will be written on flow termination,
+     or after flush_after_seconds (if flush_after_seconds is set). Default 10k events
+    :param flush_after_seconds: optional. Maximum number of seconds to hold events before they are written.
+     All events will be written on flow termination, or after max_events are accumulated (if max_events is set). Default 15 minutes
+    """
+
     kind = TargetTypes.parquet
     is_offline = True
     support_spark = True
@@ -436,8 +457,8 @@ class ParquetTarget(BaseStoreTarget):
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
-        max_events: typing.Optional[int] = None,
-        flush_after_seconds: typing.Optional[int] = None,
+        max_events: typing.Optional[int] = 10000,
+        flush_after_seconds: typing.Optional[int] = 900,
     ):
         super().__init__(
             name,

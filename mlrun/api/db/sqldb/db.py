@@ -902,19 +902,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
-        if deletion_strategy.is_restricted():
-            project_record = self._get_project_record(
-                session, name, raise_on_not_found=False
-            )
-            if not project_record:
-                return
-            self._verify_project_has_no_related_resources(session, name)
-        elif deletion_strategy.is_cascading():
-            self._delete_project_related_resources(session, name)
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown deletion strategy: {deletion_strategy}"
-            )
         self._delete(session, Project, name=name)
 
     def list_projects(
@@ -1111,6 +1098,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
 
+    def is_project_exists(self, session: Session, name: str):
+        project_record = self._get_project_record(
+            session, name, raise_on_not_found=False
+        )
+        if not project_record:
+            return False
+        return True
+
     def _get_project_record(
         self,
         session: Session,
@@ -1134,33 +1129,33 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
         return project_record
 
-    def _verify_project_has_no_related_resources(self, session: Session, project: str):
-        artifacts = self._find_artifacts(session, project, "*")
+    def verify_project_has_no_related_resources(self, session: Session, name: str):
+        artifacts = self._find_artifacts(session, name, "*")
         self._verify_empty_list_of_project_related_resources(
-            project, artifacts, "artifacts"
+            name, artifacts, "artifacts"
         )
-        logs = self._list_logs(session, project)
-        self._verify_empty_list_of_project_related_resources(project, logs, "logs")
-        runs = self._find_runs(session, None, project, []).all()
-        self._verify_empty_list_of_project_related_resources(project, runs, "runs")
-        schedules = self.list_schedules(session, project=project)
+        logs = self._list_logs(session, name)
+        self._verify_empty_list_of_project_related_resources(name, logs, "logs")
+        runs = self._find_runs(session, None, name, []).all()
+        self._verify_empty_list_of_project_related_resources(name, runs, "runs")
+        schedules = self.list_schedules(session, project=name)
         self._verify_empty_list_of_project_related_resources(
-            project, schedules, "schedules"
+            name, schedules, "schedules"
         )
-        functions = self._list_project_functions(session, project)
+        functions = self._list_project_functions(session, name)
         self._verify_empty_list_of_project_related_resources(
-            project, functions, "functions"
+            name, functions, "functions"
         )
-        feature_sets = self.list_feature_sets(session, project).feature_sets
+        feature_sets = self.list_feature_sets(session, name).feature_sets
         self._verify_empty_list_of_project_related_resources(
-            project, feature_sets, "feature_sets"
+            name, feature_sets, "feature_sets"
         )
-        feature_vectors = self.list_feature_vectors(session, project).feature_vectors
+        feature_vectors = self.list_feature_vectors(session, name).feature_vectors
         self._verify_empty_list_of_project_related_resources(
-            project, feature_vectors, "feature_vectors"
+            name, feature_vectors, "feature_vectors"
         )
 
-    def _delete_project_related_resources(self, session: Session, name: str):
+    def delete_project_related_resources(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)

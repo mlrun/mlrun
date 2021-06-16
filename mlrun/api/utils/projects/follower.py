@@ -23,9 +23,29 @@ class Member(
     mlrun.api.utils.projects.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
+    class ProjectsStore:
+        """
+        See mlrun.api.crud.projects.delete_project for explanation for this ugly thing
+        """
+        def __init__(self, project_member):
+            self.project_member = project_member
+
+        def is_project_exists(self, session, name: str):
+            return name in self.project_member._projects
+
+        def delete_project(
+                self,
+                session,
+                name: str,
+                deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        ):
+            if name in self.project_member._projects:
+                del self.project_member._projects[name]
+
     def initialize(self):
         logger.info("Initializing projects follower")
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
+        self._projects_store_for_deletion = self.ProjectsStore(self)
         self._leader_name = mlrun.config.config.httpdb.projects.leader
         self._sync_session = None
         if self._leader_name == "iguazio":
@@ -120,11 +140,9 @@ class Member(
             # importing here to avoid circular import (db using project member using mlrun follower using db)
             import mlrun.api.crud
 
-            mlrun.api.crud.Projects().delete_project_resources(
-                db_session, name, leader_session
+            mlrun.api.crud.Projects().delete_project(
+                db_session, name, deletion_strategy, leader_session, self._projects_store_for_deletion,
             )
-            if name in self._projects:
-                del self._projects[name]
         else:
             return self._leader_client.delete_project(
                 leader_session, name, deletion_strategy, wait_for_completion,

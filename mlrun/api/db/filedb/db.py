@@ -171,6 +171,15 @@ class FileDB(DBInterface):
     ) -> List[schemas.ProjectSummary]:
         raise NotImplementedError()
 
+    def delete_project_related_resources(self, session, name: str):
+        raise NotImplementedError()
+
+    def verify_project_has_no_related_resources(self, session, name: str):
+        raise NotImplementedError()
+
+    def is_project_exists(self, session, name: str):
+        raise NotImplementedError()
+
     def list_projects(
         self,
         session,

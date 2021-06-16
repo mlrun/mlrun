@@ -223,6 +223,18 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_project_related_resources(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def verify_project_has_no_related_resources(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def is_project_exists(self, session, name: str):
+        pass
+
+    @abstractmethod
     def list_projects(
         self,
         session,

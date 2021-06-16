@@ -3,7 +3,6 @@ import numpy as np
 
 import tensorflow as tf
 from tensorflow import Tensor, Variable
-from tensorflow import keras
 from tensorflow.keras.callbacks import Callback
 
 from mlrun.frameworks._common.loggers import Logger, TrackableType

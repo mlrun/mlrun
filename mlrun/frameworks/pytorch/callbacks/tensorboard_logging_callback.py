@@ -97,9 +97,7 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         Log the initial information summary of this training / validation run to tensorboard.
         """
         self._summary_writer.add_text(
-            tag="MLRun",
-            text_string=self._generate_run_start_text(),
-            global_step=0,
+            tag="MLRun", text_string=self._generate_run_start_text(), global_step=0,
         )
 
     def log_epoch_text_to_tensorboard(self):
@@ -244,8 +242,7 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         Log the given model as a graph in tensorboard.
         """
         self._summary_writer.add_graph(
-            model=model,
-            input_to_model=input_sample,
+            model=model, input_to_model=input_sample,
         )
 
     def flush(self):

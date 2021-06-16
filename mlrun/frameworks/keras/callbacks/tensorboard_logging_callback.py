@@ -4,7 +4,6 @@ from datetime import datetime
 import tensorflow as tf
 from tensorflow import Tensor, Variable
 from tensorflow.python.ops import summary_ops_v2
-from tensorflow import keras
 from tensorflow.keras import Model
 from tensorboard.plugins.hparams import api as hp_api
 from tensorboard.plugins.hparams import api_pb2 as hp_api_pb2
@@ -69,9 +68,7 @@ class _KerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.text(
-                name="MLRun",
-                data=self._generate_run_start_text(),
-                step=0,
+                name="MLRun", data=self._generate_run_start_text(), step=0,
             )
 
     def log_epoch_text_to_tensorboard(self):

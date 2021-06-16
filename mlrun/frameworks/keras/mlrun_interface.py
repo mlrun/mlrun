@@ -44,7 +44,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
             ProgbarLogger.__name__,
             CSVLogger.__name__,
             BaseLogger.__name__,
-        ],  # type: List[str]
+        ],
     }
 
     # Methods attributes to be inserted so the keras mlrun interface will be fully enabled:
@@ -72,10 +72,9 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         def compile_wrapper(compile_method):
             def wrapper(*args, **kwargs):
                 # Call the pre compile method:
-                (
-                    optimizer,
-                    experimental_run_tf_function,
-                ) = model._pre_compile(optimizer=kwargs["optimizer"])
+                (optimizer, experimental_run_tf_function) = model._pre_compile(
+                    optimizer=kwargs["optimizer"]
+                )
                 # Assign parameters:
                 kwargs["optimizer"] = optimizer
                 if experimental_run_tf_function is not None:

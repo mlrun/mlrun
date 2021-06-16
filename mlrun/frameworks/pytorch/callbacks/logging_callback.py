@@ -237,9 +237,9 @@ class LoggingCallback(Callback):
         """
         # Update the dynamic hyperparameters dictionary:
         if self._dynamic_hyperparameters_keys:
-            for parameter_name, (
-                source,
-                key_chain,
+            for (
+                parameter_name,
+                (source, key_chain,),
             ) in self._dynamic_hyperparameters_keys.items():
                 self._logger.log_dynamic_hyperparameter(
                     parameter_name=parameter_name,
@@ -267,9 +267,7 @@ class LoggingCallback(Callback):
 
         # Store the last training metrics results of this epoch:
         for metric_function in self._objects[self._ObjectKeys.METRIC_FUNCTIONS]:
-            metric_name = self._get_metric_name(
-                metric_function=metric_function,
-            )
+            metric_name = self._get_metric_name(metric_function=metric_function,)
             self._logger.log_training_summary(
                 metric_name=metric_name,
                 result=float(self._logger.training_results[metric_name][-1][-1]),
@@ -305,9 +303,7 @@ class LoggingCallback(Callback):
             self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
         ):
             self._logger.log_validation_summary(
-                metric_name=self._get_metric_name(
-                    metric_function=metric_function,
-                ),
+                metric_name=self._get_metric_name(metric_function=metric_function,),
                 result=float(metric_value),
             )
 
@@ -387,9 +383,7 @@ class LoggingCallback(Callback):
             self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
         ):
             self._logger.log_training_result(
-                metric_name=self._get_metric_name(
-                    metric_function=metric_function,
-                ),
+                metric_name=self._get_metric_name(metric_function=metric_function,),
                 result=float(metric_value),
             )
 
@@ -409,9 +403,7 @@ class LoggingCallback(Callback):
             self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
         ):
             self._logger.log_validation_result(
-                metric_name=self._get_metric_name(
-                    metric_function=metric_function,
-                ),
+                metric_name=self._get_metric_name(metric_function=metric_function,),
                 result=float(metric_value),
             )
 

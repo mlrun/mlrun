@@ -77,7 +77,5 @@ class MLRunInterface(ABC):
         for function_name in interface._FUNCTIONS:
             if function_name not in model.__dir__():
                 setattr(
-                    model,
-                    function_name,
-                    getattr(interface, function_name),
+                    model, function_name, getattr(interface, function_name),
                 )

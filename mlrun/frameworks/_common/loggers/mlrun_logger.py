@@ -60,8 +60,7 @@ class MLRunLogger(Logger):
         self._artifacts = {}  # type: Dict[str, Artifact]
 
     def log_epoch_to_context(
-        self,
-        epoch: int,
+        self, epoch: int,
     ):
         """
         Log the last epoch as a child context of the main context. The last epoch information recorded in the given
@@ -170,14 +169,11 @@ class MLRunLogger(Logger):
             # Create the chart artifact:
             chart_name = "{}_summary".format(metric_name)
             chart_artifact = ChartArtifact(
-                key="{}.html".format(chart_name),
-                header=header,
-                data=data,
+                key="{}.html".format(chart_name), header=header, data=data,
             )
             # Log the artifact:
             self._context.log_artifact(
-                chart_artifact,
-                local_path=chart_artifact.key,
+                chart_artifact, local_path=chart_artifact.key,
             )
             # Collect it for later adding it to the model logging as extra data:
             self._artifacts[chart_name] = chart_artifact
@@ -196,8 +192,7 @@ class MLRunLogger(Logger):
             )
             # Log the artifact:
             self._context.log_artifact(
-                chart_artifact,
-                local_path=chart_artifact.key,
+                chart_artifact, local_path=chart_artifact.key,
             )
             # Collect it for later adding it to the model logging as extra data:
             self._artifacts[parameter_name] = chart_artifact

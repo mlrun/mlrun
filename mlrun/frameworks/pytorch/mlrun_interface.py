@@ -17,7 +17,6 @@ from mlrun.frameworks.pytorch.callbacks import (
     Callback,
     MetricFunctionType,
     MetricValueType,
-    TrackableType,
     HyperparametersKeys,
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
@@ -721,10 +720,7 @@ class PyTorchMLRunInterface:
 
                 # End of batch callbacks:
                 if not self._callbacks_handler.on_validation_batch_end(
-                    batch=batch,
-                    x=x,
-                    y_pred=y_pred,
-                    y_true=y_true,
+                    batch=batch, x=x, y_pred=y_pred, y_true=y_true,
                 ):
                     break
 

@@ -7,7 +7,6 @@ import yaml
 import mlrun
 from mlrun.config import config
 from mlrun import MLClientCtx
-
 from mlrun.frameworks._common.loggers.logger import Logger, TrackableType
 
 
@@ -259,10 +258,8 @@ class TensorboardLogger(Logger):
             self._tensorboard_directory = self._context.get_param("tensorboard_dir")
             if self._tensorboard_directory is None:
                 # The parameter was not given, set the directory to the default value:
-                self._tensorboard_directory = (
-                    self._DEFAULT_TENSORBOARD_DIRECTORY.replace(
-                        "{{project}}", self._context.project
-                    )
+                self._tensorboard_directory = self._DEFAULT_TENSORBOARD_DIRECTORY.replace(
+                    "{{project}}", self._context.project
                 )
                 try:
                     os.makedirs(self._tensorboard_directory, exist_ok=True)
@@ -413,14 +410,12 @@ class TensorboardLogger(Logger):
 
         :return: The generated link.
         """
-        return (
-            '<a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank">{}</a>'.format(
-                config.resolve_ui_url(),
-                config.ui.projects_prefix,
-                context.project,
-                context.uid,
-                link_text,
-            )
+        return '<a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank">{}</a>'.format(
+            config.resolve_ui_url(),
+            config.ui.projects_prefix,
+            context.project,
+            context.uid,
+            link_text,
         )
 
     @staticmethod

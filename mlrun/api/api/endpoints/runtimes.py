@@ -1,7 +1,7 @@
 import typing
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Cookie, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
@@ -39,10 +39,11 @@ def delete_runtimes(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = config.runtime_resources_deletion_grace_period,
+    iguazio_session: typing.Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.crud.Runtimes().delete_runtimes(
-        db_session, label_selector, force, grace_period
+        db_session, label_selector, force, grace_period, iguazio_session
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -53,10 +54,11 @@ def delete_runtime(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = config.runtime_resources_deletion_grace_period,
+    iguazio_session: typing.Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.crud.Runtimes().delete_runtime(
-        db_session, kind, label_selector, force, grace_period
+        db_session, kind, label_selector, force, grace_period, iguazio_session,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -69,9 +71,16 @@ def delete_runtime_object(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = config.runtime_resources_deletion_grace_period,
+    iguazio_session: typing.Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.crud.Runtimes().delete_runtime_object(
-        db_session, kind, object_id, label_selector, force, grace_period
+        db_session,
+        kind,
+        object_id,
+        label_selector,
+        force,
+        grace_period,
+        iguazio_session,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

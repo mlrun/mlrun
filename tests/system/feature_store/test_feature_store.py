@@ -441,7 +441,7 @@ class TestFeatureStore(TestMLRunSystem):
         measurements.set_targets(
             targets=[ParquetTarget(partitioned=True)], with_defaults=False,
         )
-        resp1 = fs.ingest(measurements, source)
+        resp1 = fs.ingest(measurements, source, override=False)
         assert resp1.to_dict() == {
             "my_string": {"mykey2": None},
             "my_time": {"mykey2": pd.Timestamp("2019-01-26 14:52:37")},

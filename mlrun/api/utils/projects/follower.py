@@ -27,6 +27,7 @@ class Member(
         """
         See mlrun.api.crud.projects.delete_project for explanation for this ugly thing
         """
+
         def __init__(self, project_member):
             self.project_member = project_member
 
@@ -34,10 +35,10 @@ class Member(
             return name in self.project_member._projects
 
         def delete_project(
-                self,
-                session,
-                name: str,
-                deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+            self,
+            session,
+            name: str,
+            deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         ):
             if name in self.project_member._projects:
                 del self.project_member._projects[name]
@@ -141,7 +142,11 @@ class Member(
             import mlrun.api.crud
 
             mlrun.api.crud.Projects().delete_project(
-                db_session, name, deletion_strategy, leader_session, self._projects_store_for_deletion,
+                db_session,
+                name,
+                deletion_strategy,
+                leader_session,
+                self._projects_store_for_deletion,
             )
         else:
             return self._leader_client.delete_project(

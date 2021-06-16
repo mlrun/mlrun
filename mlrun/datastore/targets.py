@@ -177,7 +177,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
 def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     """add the target steps to the graph"""
     targets = targets or []
-    key_columns = list(resource.spec.entities.keys())
+    key_columns = resource.spec.entities
     timestamp_key = resource.spec.timestamp_key
     features = resource.spec.features
     table = None
@@ -309,31 +309,15 @@ class BaseStoreTarget(DataTargetBase):
                 columns = set(self.columns)
                 for feature in features:
                     if feature.name in columns:
-                        type_ = (
-                            ValueType.DATETIME
-                            if feature.name == timestamp_key
-                            else feature.value_type
-                        )
-                        result.append((feature.name, type_))
-                return result
+                        result.append((feature.name, feature.value_type))
             else:
-                return self.columns
+                result = self.columns
         elif features:
             if with_type:
                 for feature in features:
-                    type_ = (
-                        ValueType.DATETIME
-                        if feature.name == timestamp_key
-                        else feature.value_type
-                    )
-                    result.append((feature.name, type_))
+                    result.append((feature.name, feature.value_type))
             else:
                 result = list(features.keys())
-            if timestamp_key and timestamp_key not in result:
-                if with_type:
-                    result = [(timestamp_key, ValueType.DATETIME)] + result
-                else:
-                    result = [timestamp_key] + result
             if key_columns:
                 for key in reversed(key_columns):
                     if key not in result:
@@ -341,6 +325,13 @@ class BaseStoreTarget(DataTargetBase):
                             result.insert(0, (key, ValueType.STRING))
                         else:
                             result.insert(0, key)
+
+        if timestamp_key:
+            if with_type:
+                result = [(timestamp_key, ValueType.DATETIME)] + result
+            else:
+                result = [timestamp_key] + result
+
         return result
 
     def write_dataframe(
@@ -595,6 +586,10 @@ class ParquetTarget(BaseStoreTarget):
         ):
             partition_cols = []
 
+        tuple_key_columns = []
+        for key_column in key_columns:
+            tuple_key_columns.append((key_column.name, key_column.value_type))
+
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
@@ -602,7 +597,7 @@ class ParquetTarget(BaseStoreTarget):
             class_name="storey.ParquetTarget",
             path=self._target_path,
             columns=column_list,
-            index_cols=key_columns,
+            index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             storage_options=self._get_store().get_storage_options(),
             **self.attributes,
@@ -666,6 +661,7 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -736,6 +732,7 @@ class NoSqlTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         table = self._resource.uri
         column_list = self._get_column_list(
             features=features, timestamp_key=None, key_columns=key_columns
@@ -811,6 +808,7 @@ class StreamTarget(BaseStoreTarget):
     ):
         from storey import V3ioDriver
 
+        key_columns = list(key_columns.keys())
         endpoint, uri = parse_v3io_path(self._target_path)
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
@@ -852,6 +850,7 @@ class TSDBTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         endpoint, uri = parse_v3io_path(self._target_path)
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -979,6 +978,7 @@ class DFTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         # todo: column filter
         graph.add_step(
             name=self.name or "WriteToDataFrame",

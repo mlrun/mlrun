@@ -64,7 +64,7 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        if os.environ.get('MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES') != 'false':
+        if os.environ.get("MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES") != "false":
             self._run_db.delete_project(
                 self.project_name,
                 deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascading,

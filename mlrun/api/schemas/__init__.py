@@ -83,3 +83,4 @@ from .schedule import (
     ScheduleUpdate,
 )
 from .secret import SecretProviderName, SecretsData, UserSecretCreationRequest
+from .marketplace import MarketplaceSource, MarketplaceItem, MarketplaceCatalog

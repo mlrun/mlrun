@@ -20,6 +20,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 import mlrun.errors
+
 from .config import config as mlconfig
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
@@ -142,7 +143,9 @@ class K8sHelper:
             return None
 
     def get_pod_status(self, name, namespace=None):
-        return self.get_pod(name, namespace, raise_on_not_found=True).status.phase.lower()
+        return self.get_pod(
+            name, namespace, raise_on_not_found=True
+        ).status.phase.lower()
 
     def logs(self, name, namespace=None):
         try:

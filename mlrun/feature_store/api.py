@@ -263,14 +263,11 @@ def ingest(
 
     purge_targets = targets or featureset.spec.targets or get_default_targets()
     if overwrite:
-        try:
-            validate_target_list(targets=purge_targets)
-            purge_target_names = [
-                t if isinstance(t, str) else t.name for t in purge_targets
-            ]
-            featureset.purge_targets(target_names=purge_target_names, silent=True)
-        except mlrun.errors.MLRunNotFoundError:
-            pass
+        validate_target_list(targets=purge_targets)
+        purge_target_names = [
+            t if isinstance(t, str) else t.name for t in purge_targets
+        ]
+        featureset.purge_targets(target_names=purge_target_names, silent=True)
     else:
         for target in purge_targets:
             overwrite_supported_targets = [TargetTypes.parquet, TargetTypes.nosql]

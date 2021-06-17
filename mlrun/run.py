@@ -973,6 +973,7 @@ def wait_for_pipeline_completion(
         if resp:
             resp = resp.to_dict()
 
+    show_kfp_run(resp)
     status = resp["run"]["status"] if resp else "unknown"
     if expected_statuses:
         if status not in expected_statuses:

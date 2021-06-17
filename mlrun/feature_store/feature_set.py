@@ -346,7 +346,7 @@ class FeatureSet(ModelObj):
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """ Delete data of specific targets
-        :param target_names: List of names of targets to delete
+        :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status """
 
         self.reload(update_spec=False)

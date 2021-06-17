@@ -672,4 +672,4 @@ def show_kfp_run(run):
 
             IPython.display.display(dag)
         except Exception as exc:
-            logger.warning(f'failed to plot graph, {exc}')
+            logger.warning(f"failed to plot graph, {exc}")

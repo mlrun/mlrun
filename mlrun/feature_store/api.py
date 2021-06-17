@@ -265,11 +265,9 @@ def ingest(
     if overwrite:
         try:
             validate_target_list(targets=purge_targets)
-            purge_target_names = (
-                [t if isinstance(t, str) else t.name for t in purge_targets]
-                if purge_targets
-                else None
-            )
+            purge_target_names = [
+                t if isinstance(t, str) else t.name for t in purge_targets
+            ]
             featureset.purge_targets(target_names=purge_target_names, silent=True)
         except mlrun.errors.MLRunNotFoundError:
             pass

@@ -349,7 +349,15 @@ class FeatureSet(ModelObj):
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status """
 
-        self.reload(update_spec=False)
+        try:
+            self.reload(update_spec=False)
+        except mlrun.errors.MLRunNotFoundError:
+            # If the feature set doesn't exist in DB there shouldn't be any target to delete
+            if silent:
+                return
+            else:
+                raise
+
         if target_names:
             purge_targets = ObjectList(DataTarget)
             for target_name in target_names:

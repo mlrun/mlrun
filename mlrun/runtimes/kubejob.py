@@ -140,11 +140,13 @@ class KubejobRuntime(KubeResource):
 
         if self._is_remote_api():
             db = self._get_db()
-            logger.info(f"Triggering build")
+            logger.info("Triggering build")
             data = db.remote_builder(
                 self, with_mlrun, mlrun_version_specifier, skip_deployed
             )
-            logger.info(f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}")
+            logger.info(
+                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+            )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)

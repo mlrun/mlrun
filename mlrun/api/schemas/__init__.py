@@ -18,7 +18,6 @@ from .constants import (
     ProjectsRole,
     SortField,
 )
-from .function import FunctionState
 from .feature_store import (
     EntitiesOutput,
     Entity,
@@ -41,6 +40,7 @@ from .feature_store import (
     FeatureVectorsOutput,
 )
 from .frontend_spec import FrontendSpec
+from .function import FunctionState
 from .model_endpoints import (
     Features,
     FeatureValues,

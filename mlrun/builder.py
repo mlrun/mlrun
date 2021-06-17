@@ -18,9 +18,9 @@ from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
+import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
-import mlrun.api.schemas
 
 from .config import config
 from .datastore import store_manager

@@ -23,9 +23,30 @@ class Member(
     mlrun.api.utils.projects.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
+    class ProjectsStore:
+        """
+        See mlrun.api.crud.projects.delete_project for explanation for this ugly thing
+        """
+
+        def __init__(self, project_member):
+            self.project_member = project_member
+
+        def is_project_exists(self, session, name: str):
+            return name in self.project_member._projects
+
+        def delete_project(
+            self,
+            session,
+            name: str,
+            deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        ):
+            if name in self.project_member._projects:
+                del self.project_member._projects[name]
+
     def initialize(self):
         logger.info("Initializing projects follower")
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
+        self._projects_store_for_deletion = self.ProjectsStore(self)
         self._leader_name = mlrun.config.config.httpdb.projects.leader
         self._sync_session = None
         if self._leader_name == "iguazio":
@@ -59,7 +80,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -69,7 +90,7 @@ class Member(
             return project, False
         else:
             return self._leader_client.create_project(
-                iguazio_session, project, wait_for_completion
+                leader_session, project, wait_for_completion
             )
 
     def store_project(
@@ -78,7 +99,7 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -86,7 +107,7 @@ class Member(
             return project, False
         else:
             return self._leader_client.store_project(
-                iguazio_session, name, project, wait_for_completion
+                leader_session, name, project, wait_for_completion
             )
 
     def patch_project(
@@ -96,7 +117,7 @@ class Member(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
@@ -104,7 +125,7 @@ class Member(
             raise NotImplementedError("Patch operation not supported from leader")
         else:
             return self._leader_client.patch_project(
-                iguazio_session, name, project, patch_mode, wait_for_completion,
+                leader_session, name, project, patch_mode, wait_for_completion,
             )
 
     def delete_project(
@@ -113,15 +134,23 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
-            if name in self._projects:
-                del self._projects[name]
+            # importing here to avoid circular import (db using project member using mlrun follower using db)
+            import mlrun.api.crud
+
+            mlrun.api.crud.Projects().delete_project(
+                db_session,
+                name,
+                deletion_strategy,
+                leader_session,
+                self._projects_store_for_deletion,
+            )
         else:
             return self._leader_client.delete_project(
-                iguazio_session, name, deletion_strategy, wait_for_completion,
+                leader_session, name, deletion_strategy, wait_for_completion,
             )
         return False
 

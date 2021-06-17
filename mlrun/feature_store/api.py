@@ -21,7 +21,12 @@ import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
 from ..datastore.store_resources import parse_store_uri
-from ..datastore.targets import get_default_targets, get_target_driver
+from ..datastore.targets import (
+    TargetTypes,
+    get_default_targets,
+    get_target_driver,
+    validate_target_list,
+)
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
@@ -163,6 +168,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
+    overwrite=True,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -199,6 +205,8 @@ def ingest(
     :param spark_context: local spark session for spark ingestion, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
+    :param overwrite:     delete the targets' data prior to ingestion
+                          (default: True. deletes the targets that are about to be ingested)
     """
     if featureset:
         if isinstance(featureset, str):
@@ -252,6 +260,23 @@ def ingest(
         return_df = False
 
     namespace = namespace or get_caller_globals()
+
+    purge_targets = targets or featureset.spec.targets or get_default_targets()
+    if overwrite:
+        validate_target_list(targets=purge_targets)
+        purge_target_names = [
+            t if isinstance(t, str) else t.name for t in purge_targets
+        ]
+        featureset.purge_targets(target_names=purge_target_names, silent=True)
+    else:
+        for target in purge_targets:
+            overwrite_supported_targets = [TargetTypes.parquet, TargetTypes.nosql]
+            if target.kind not in overwrite_supported_targets:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Only some targets ({0}) support overwrite=False ingestion".format(
+                        ",".join(overwrite_supported_targets)
+                    )
+                )
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(

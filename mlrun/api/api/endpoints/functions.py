@@ -275,9 +275,10 @@ def build_status(
 
     if state == "succeeded":
         logger.info("build completed successfully")
-        state = "ready"
+        state = mlrun.api.schemas.FunctionState.ready
     if state in ["failed", "error"]:
         logger.error(f"build {state}, watch the build pod logs: {pod}")
+        state = mlrun.api.schemas.FunctionState.error
 
     if logs and state != "pending":
         resp = get_k8s().logs(pod)
@@ -285,11 +286,11 @@ def build_status(
             out = resp.encode()[offset:]
 
     update_in(fn, "status.state", state)
-    if state == "ready":
+    if state == mlrun.api.schemas.FunctionState.ready:
         update_in(fn, "spec.image", image)
 
     versioned = False
-    if state == "ready":
+    if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
     get_db().store_function(
         db_session,

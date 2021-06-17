@@ -18,6 +18,7 @@ from .constants import (
     ProjectsRole,
     SortField,
 )
+from .function import FunctionState
 from .feature_store import (
     EntitiesOutput,
     Entity,

@@ -17,8 +17,6 @@ import os
 import os.path
 from copy import deepcopy
 
-from graphviz import Digraph
-
 import mlrun
 
 from .config import config
@@ -651,6 +649,11 @@ def show_kfp_run(run):
     if not run or "graph" not in run:
         return
     if is_ipython:
+        try:
+            from graphviz import Digraph
+        except ImportError:
+            return
+
         try:
             graph = run["graph"]
             dag = Digraph("kfp", format="jpg")

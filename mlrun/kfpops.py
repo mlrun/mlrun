@@ -17,12 +17,21 @@ import os
 import os.path
 from copy import deepcopy
 
+from graphviz import Digraph
+
 import mlrun
 
 from .config import config
 from .db import get_or_set_dburl
 from .model import HyperParamOptions
-from .utils import dict_to_yaml, gen_md_table, get_artifact_target, logger, run_keys
+from .utils import (
+    dict_to_yaml,
+    gen_md_table,
+    get_artifact_target,
+    is_ipython,
+    logger,
+    run_keys,
+)
 
 KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
@@ -636,3 +645,31 @@ def get_short_kfp_run(run):
         ]
     }
     return short_run
+
+
+def show_kfp_run(run):
+    if not run or "graph" not in run:
+        return
+    if is_ipython:
+        try:
+            graph = run["graph"]
+            dag = Digraph("kfp", format="jpg")
+            dag.attr(compound="true")
+
+            for name, node in graph.items():
+                if node["type"] != "DAG":
+                    color = None
+                    status = node["phase"].lower()
+                    if status == "failed":
+                        color = "red"
+                    elif status == "succeeded":
+                        color = "green"
+                    dag.node(name, label=name, fillcolor=color, style="filled")
+                    for child in node.get("children") or []:
+                        dag.edge(name, child)
+
+            import IPython
+
+            IPython.display.display(dag)
+        except Exception as exc:
+            logger.warning(f'failed to plot graph, {exc}')

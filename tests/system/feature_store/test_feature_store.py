@@ -441,7 +441,7 @@ class TestFeatureStore(TestMLRunSystem):
         measurements.set_targets(
             targets=[ParquetTarget(partitioned=True)], with_defaults=False,
         )
-        resp1 = fs.ingest(measurements, source, override=False)
+        resp1 = fs.ingest(measurements, source, overwrite=False)
         assert resp1.to_dict() == {
             "my_string": {"mykey2": None},
             "my_time": {"mykey2": pd.Timestamp("2019-01-26 14:52:37")},
@@ -871,6 +871,47 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set.save()
         fs.ingest(stocks_set.uri, stocks)
 
+    def test_overwrite(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        fset = fs.FeatureSet(name="overwrite-fs", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1, targets=[CSVTarget(), ParquetTarget(), NoSqlTarget()])
+
+        features = ["overwrite-fs.*"]
+        fvec = fs.FeatureVector("overwrite-vec", features=features)
+
+        csv_path = fset.get_target_path(name='csv')
+        csv_df = pd.read_csv(csv_path)
+        assert df1.set_index(keys="name").sort_index().equals(csv_df.set_index(keys="name").sort_index())
+
+        parquet_path = fset.get_target_path(name='parquet')
+        parquet_df = pd.read_parquet(parquet_path)
+        assert df1.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "GHI"}])
+        assert resp[0]["value"] == 3
+        svc.close()
+
+        fs.ingest(fset, df2)
+
+        csv_path = fset.get_target_path(name='csv')
+        csv_df = pd.read_csv(csv_path)
+        assert df1.set_index(keys="name").sort_index().equals(csv_df.set_index(keys="name").sort_index())
+
+        parquet_path = fset.get_target_path(name='parquet')
+        parquet_df = pd.read_parquet(parquet_path)
+        assert df2.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "GHI"}])
+        assert resp[0] is None
+
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        svc.close()
+
     def test_override_false(self):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
@@ -885,7 +926,7 @@ class TestFeatureStore(TestMLRunSystem):
         off1 = fs.get_offline_features(fvec).to_dataframe()
         assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
 
-        fs.ingest(fset, df2, override=False)
+        fs.ingest(fset, df2, overwrite=False)
 
         off2 = fs.get_offline_features(fvec).to_dataframe()
         assert df3.set_index(keys="name").sort_index().equals(off2.sort_index())
@@ -901,11 +942,11 @@ class TestFeatureStore(TestMLRunSystem):
         svc.close()
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fs.ingest(fset, df1, targets=[CSVTarget()], override=False)
+            fs.ingest(fset, df1, targets=[CSVTarget()], overwrite=False)
 
         fset.set_targets(targets=[CSVTarget()])
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fs.ingest(fset, df1, override=False)
+            fs.ingest(fset, df1, overwrite=False)
 
     def test_purge(self):
         key = "patient_id"

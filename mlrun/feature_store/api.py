@@ -168,7 +168,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    override=True,
+    overwrite=True,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -205,7 +205,7 @@ def ingest(
     :param spark_context: local spark session for spark ingestion, example for creating the spark context:
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
-    :param override:      override the previously ingested data
+    :param overwrite:     delete the targets' data prior to ingestion
     """
     if featureset:
         if isinstance(featureset, str):
@@ -260,19 +260,20 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    if override:
+    purge_targets = targets or featureset.spec.targets or get_default_targets()
+    if overwrite:
         try:
-            validate_target_list(targets=targets)
-            target_names = (
-                [t if isinstance(t, str) else t.name for t in targets]
-                if targets
+            validate_target_list(targets=purge_targets)
+            purge_target_names = (
+                [t if isinstance(t, str) else t.name for t in purge_targets]
+                if purge_targets
                 else None
             )
-            featureset.purge_targets(target_names=target_names, silent=True)
+            featureset.purge_targets(target_names=purge_target_names, silent=True)
         except mlrun.errors.MLRunNotFoundError:
             pass
     else:
-        for target in targets or featureset.spec.targets:
+        for target in purge_targets:
             if target.kind == TargetTypes.csv:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "CSV targets support only override ingestion"

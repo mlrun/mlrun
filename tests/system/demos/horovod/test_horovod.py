@@ -40,7 +40,6 @@ class TestHorovodTFv2(TestDemo):
         utils.spec.remote = True
         utils.spec.replicas = 1
         utils.spec.service_type = "NodePort"
-        utils.spec.command = function_path
 
         self._logger.debug("Setting project functions")
         demo_project.set_function(utils)

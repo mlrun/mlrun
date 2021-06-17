@@ -931,7 +931,7 @@ class MlrunProject(ModelObj):
 
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
-        :param model_file:      path to the local model file we upload (seel also model_dir)
+        :param model_file:      path to the local model file we upload (see also model_dir)
         :param model_dir:       path to the local dir holding the model file and extra files
         :param artifact_path:   target artifact path (when not using the default)
                                 to define a subpath under the default location use:

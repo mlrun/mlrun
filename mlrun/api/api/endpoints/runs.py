@@ -1,7 +1,7 @@
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Cookie, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ async def store_run(
     project: str,
     uid: str,
     iter: int = 0,
+    iguazio_session: Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -32,7 +33,13 @@ async def store_run(
 
     logger.info("Storing run", data=data)
     await run_in_threadpool(
-        get_db().store_run, db_session, data, uid, project, iter=iter
+        get_db().store_run,
+        db_session,
+        data,
+        uid,
+        project,
+        iter=iter,
+        leader_session=iguazio_session,
     )
     return {}
 
@@ -44,6 +51,7 @@ async def update_run(
     project: str,
     uid: str,
     iter: int = 0,
+    iguazio_session: Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -53,7 +61,13 @@ async def update_run(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     await run_in_threadpool(
-        mlrun.api.crud.Runs().update_run, db_session, project, uid, iter, data,
+        mlrun.api.crud.Runs().update_run,
+        db_session,
+        project,
+        uid,
+        iter,
+        data,
+        iguazio_session,
     )
     return {}
 

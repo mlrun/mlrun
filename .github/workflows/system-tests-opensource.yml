@@ -29,6 +29,10 @@ on:
         description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
         required: true
         default: 'false'
+      clean_resources_in_teardown:
+        description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
+        required: true
+        default: 'true'
 
 env:
   NAMESPACE: mlrun
@@ -112,6 +116,9 @@ jobs:
         echo "::set-output name=mlrun_docker_registry::$( \
           input_docker_registry=${{ github.event.inputs.docker_registry }} && \
           echo ${input_docker_registry:-ghcr.io/})"
+        echo "::set-output name=mlrun_system_tests_clean_resources::$( \
+          input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
+          echo ${input_system_tests_clean_resources:-true})"
     - name: Wait for existing runs to complete
       uses: softprops/turnstyle@v1
       with:
@@ -170,4 +177,5 @@ jobs:
 
     - name: Run system tests
       run: |
-        make test-system-open-source
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
+          make test-system-open-source

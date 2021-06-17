@@ -129,25 +129,16 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
     def _update_container(self, struct, key, value):
         struct["spec"]["containers"][0][key] = value
 
-    def _enrich_launcher_configurations(self, launcher_pod_template):
-        quoted_args = []
-        for arg in self.spec.args:
-            quoted_args.append(shlex.quote(arg))
+    def _enrich_launcher_configurations(self, launcher_pod_template, args):
+        quoted_args = args or []
         quoted_mpi_args = []
         for arg in self.spec.mpi_args:
             quoted_mpi_args.append(shlex.quote(arg))
-        if self.spec.command:
-            self._update_container(
-                launcher_pod_template,
-                "command",
-                [
-                    "mpirun",
-                    *quoted_mpi_args,
-                    "python",
-                    shlex.quote(self.spec.command),
-                    *quoted_args,
-                ],
-            )
+        self._update_container(
+            launcher_pod_template,
+            "command",
+            ["mpirun", *quoted_mpi_args, *quoted_args],
+        )
 
     def _enrich_worker_configurations(self, worker_pod_template):
         if self.spec.resources:
@@ -166,6 +157,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         # start by populating pod templates
         launcher_pod_template = deepcopy(self._mpijob_pod_template)
         worker_pod_template = deepcopy(self._mpijob_pod_template)
+        command, args, extra_env = self._get_cmd_args(runobj)
 
         # configuration for both launcher and workers
         for pod_template in [launcher_pod_template, worker_pod_template]:
@@ -174,8 +166,6 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             self._update_container(
                 pod_template, "volumeMounts", self.spec.volume_mounts
             )
-            extra_env = self._generate_runtime_env(runobj)
-            extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
             self._update_container(pod_template, "env", extra_env + self.spec.env)
             if self.spec.image_pull_policy:
                 self._update_container(
@@ -203,7 +193,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         self._enrich_worker_configurations(worker_pod_template)
 
         # configuration for launcher only
-        self._enrich_launcher_configurations(launcher_pod_template)
+        self._enrich_launcher_configurations(launcher_pod_template, [command] + args)
 
         # generate mpi job using both pod templates
         job = self._generate_mpi_job_template(

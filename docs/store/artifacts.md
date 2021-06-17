@@ -2,9 +2,10 @@
 # Artifacts and Versioning <!-- omit in toc -->
 
 - [Overview](#overview)
+  - [Artifact Path](#artifact-path)
+  - [Artifact URIs, Metadata and Versioning](#artifact-uris-metadata-and-versioning)
 - [Datasets](#datasets)
   - [Logging a Dataset From a Job](#logging-a-dataset-from-a-job)
-- [Models](./models.md)
 - [Plots](#plots)
 
 ## Overview
@@ -48,7 +49,7 @@ artifacts directory in the current active directory (./artifacts)
     set_environment(project=project_name, artifact_path='./artifacts')
 
 ```{admonition} For Iguazio Platform Users
-In the Iguazio Data Science Patform, the default artifacts path is a <project name>/artifacts directory in the 
+In the Iguazio Data Science Platform, the default artifacts path is a <project name>/artifacts directory in the 
 predefined “projects” data container — /v3io/projects/<project name>/artifacts 
 (for example, /v3io/projects/myproject/artifacts for a “myproject” project).
 ```

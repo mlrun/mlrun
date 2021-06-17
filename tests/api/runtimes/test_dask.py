@@ -61,7 +61,7 @@ class TestDaskRuntime(TestRuntimeBase):
 
     def _generate_runtime(self):
         # This is following the steps in
-        # https://docs.mlrun.org/en/latest/runtimes/dask-mlrun.html#set-up-the-enviroment
+        # https://docs.mlrun.org/en/latest/runtimes/dask-mlrun.html#set-up-the-environment
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
 

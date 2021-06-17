@@ -68,7 +68,7 @@ class RunConfig:
     the apply() method is used to set resources like volumes, the with_secret() method adds secrets
 
     Parameters:
-        function:      this can be function uri or function object or path to function code (.py/.iynb) or
+        function:      this can be function uri or function object or path to function code (.py/.ipynb) or
                        a :py:class:`~mlrun.runtimes.function_reference.FunctionReference`
                        the function define the code, dependencies, and resources
         image (str):   function container image

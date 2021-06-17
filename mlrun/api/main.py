@@ -176,7 +176,9 @@ def _monitor_runs():
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(get_db(), db_session)
+                runtime_handler.monitor_runs(
+                    get_db(), db_session, config.httpdb.projects.iguazio_access_key
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring", exc=str(exc), kind=kind
@@ -191,7 +193,9 @@ def _cleanup_runtimes():
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.delete_resources(get_db(), db_session)
+                runtime_handler.delete_resources(
+                    get_db(), db_session, config.httpdb.projects.iguazio_access_key
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed deleting resources. Ignoring", exc=str(exc), kind=kind

@@ -7,6 +7,7 @@ from os import remove
 from fastapi import APIRouter, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from kfp import Client as kfclient
+from kfpops import get_short_kfp_run
 
 import mlrun.api.crud
 import mlrun.api.schemas
@@ -74,13 +75,16 @@ async def submit_pipeline(
 # curl http://localhost:8080/pipelines/:id
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
-def get_pipeline(run_id, namespace: str = Query(config.namespace)):
+def get_pipeline(run_id, namespace: str = Query(config.namespace), long: bool = False):
 
     client = kfclient(namespace=namespace)
     try:
         run = client.get_run(run_id)
         if run:
             run = run.to_dict()
+            if not long:
+                run = get_short_kfp_run(run)
+
     except Exception as exc:
         log_and_raise(
             HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {exc}"

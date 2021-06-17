@@ -26,6 +26,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
 from kfp import Client
+from kfpops import get_short_kfp_run
 from nuclio import build_file
 
 import mlrun.api.schemas
@@ -987,11 +988,12 @@ def wait_for_pipeline_completion(
     return resp
 
 
-def get_pipeline(run_id, namespace=None):
+def get_pipeline(run_id, namespace=None, long: bool = False):
     """Get Pipeline status
 
     :param run_id:     id of pipelines run
     :param namespace:  k8s namespace if not default
+    :param long:       return long response format
 
     :return: kfp run dict
     """
@@ -1005,13 +1007,15 @@ def get_pipeline(run_id, namespace=None):
                 ", please set the dbpath url"
             )
 
-        resp = mldb.get_pipeline(run_id, namespace=namespace)
+        resp = mldb.get_pipeline(run_id, namespace=namespace, long=long)
 
     else:
         client = Client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
+            if not long:
+                resp = get_short_kfp_run(resp)
 
     return resp
 

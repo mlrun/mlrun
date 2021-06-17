@@ -596,3 +596,43 @@ def get_default_reg():
     if namespace_domain is not None:
         return f"docker-registry.{namespace_domain}:80"
     return ""
+
+
+def get_kfp_dag(run):
+    workflow = run["pipeline_runtime"].get("workflow_manifest", None)
+    if not workflow:
+        return None
+    workflow = json.loads(workflow)
+    nodes = workflow["status"].get("nodes", {})
+    dag = {}
+    name_map = {k: v["displayName"] for k, v in nodes.items()}
+    for node in nodes.values():
+        name = node["displayName"]
+        record = {
+            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
+        }
+        record["parent"] = node.get("boundaryID", "")
+        record["children"] = [name_map[child] for child in node.get("children", [])]
+        dag[name] = record
+
+    return dag
+
+
+def get_short_kfp_run(run):
+    short_run = {"graph": get_kfp_dag(run)}
+    short_run["run"] = {
+        k: str(v)
+        for k, v in run["run"].items()
+        if k
+        in [
+            "id",
+            "name",
+            "status",
+            "error",
+            "created_at",
+            "scheduled_at",
+            "finished_at",
+            "description",
+        ]
+    }
+    return short_run

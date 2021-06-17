@@ -546,8 +546,8 @@ class ParquetTarget(BaseStoreTarget):
             key_bucketing_number,
             partition_cols,
             time_partitioning_granularity,
-            max_events,
-            flush_after_seconds,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
         )
 
         if (

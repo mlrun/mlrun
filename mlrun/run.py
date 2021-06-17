@@ -26,12 +26,12 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
 from kfp import Client
-from kfpops import get_short_kfp_run
 from nuclio import build_file
 
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+from mlrun.kfpops import get_short_kfp_run
 
 from .config import config as mlconf
 from .datastore import store_manager

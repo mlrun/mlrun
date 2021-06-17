@@ -7,13 +7,13 @@ from os import remove
 from fastapi import APIRouter, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from kfp import Client as kfclient
-from kfpops import get_short_kfp_run
 
 import mlrun.api.crud
 import mlrun.api.schemas
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
+from mlrun.kfpops import get_short_kfp_run
 from mlrun.utils import logger
 
 router = APIRouter()

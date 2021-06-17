@@ -881,11 +881,15 @@ class TestFeatureStore(TestMLRunSystem):
         features = ["overwrite-fs.*"]
         fvec = fs.FeatureVector("overwrite-vec", features=features)
 
-        csv_path = fset.get_target_path(name='csv')
+        csv_path = fset.get_target_path(name="csv")
         csv_df = pd.read_csv(csv_path)
-        assert df1.set_index(keys="name").sort_index().equals(csv_df.set_index(keys="name").sort_index())
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
+        )
 
-        parquet_path = fset.get_target_path(name='parquet')
+        parquet_path = fset.get_target_path(name="parquet")
         parquet_df = pd.read_parquet(parquet_path)
         assert df1.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
 
@@ -896,11 +900,15 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.ingest(fset, df2)
 
-        csv_path = fset.get_target_path(name='csv')
+        csv_path = fset.get_target_path(name="csv")
         csv_df = pd.read_csv(csv_path)
-        assert df1.set_index(keys="name").sort_index().equals(csv_df.set_index(keys="name").sort_index())
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
+        )
 
-        parquet_path = fset.get_target_path(name='parquet')
+        parquet_path = fset.get_target_path(name="parquet")
         parquet_df = pd.read_parquet(parquet_path)
         assert df2.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
 

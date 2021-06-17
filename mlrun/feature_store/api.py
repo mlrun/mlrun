@@ -206,6 +206,7 @@ def ingest(
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
+                          (default: True. deletes the targets that are about to be ingested)
     """
     if featureset:
         if isinstance(featureset, str):
@@ -274,9 +275,12 @@ def ingest(
             pass
     else:
         for target in purge_targets:
-            if target.kind == TargetTypes.csv:
+            overwrite_supported_targets = [TargetTypes.parquet, TargetTypes.nosql]
+            if target.kind not in overwrite_supported_targets:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "CSV targets support only override ingestion"
+                    "Only some targets ({0}) support overwrite=False ingestion".format(
+                        ",".join(overwrite_supported_targets)
+                    )
                 )
 
     if spark_context and featureset.spec.engine != "spark":

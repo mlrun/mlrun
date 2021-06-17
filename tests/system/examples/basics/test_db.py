@@ -20,7 +20,7 @@ class TestDB(TestMLRunSystem):
         )
         runs_count_before_run = len(self._run_db.list_runs(project=self.project_name))
         artifacts_count_before_run = len(
-            self._run_db.list_artifacts(project=self.project_name)
+            self._run_db.list_artifacts(project=self.project_name, tag="*")
         )
 
         self._logger.debug("Running dummy task")
@@ -53,7 +53,7 @@ class TestDB(TestMLRunSystem):
             data_stores=[],
         )
 
-        artifacts = self._run_db.list_artifacts(project=self.project_name)
+        artifacts = self._run_db.list_artifacts(project=self.project_name, tag="*")
         assert len(artifacts) == artifacts_count_before_run + 4
         for artifact_key in ["chart", "html_result", "model", "mydf"]:
             artifact_exists = False

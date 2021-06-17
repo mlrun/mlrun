@@ -140,7 +140,6 @@ class KubejobRuntime(KubeResource):
 
         if self._is_remote_api():
             db = self._get_db()
-            logger.info("Triggering build")
             data = db.remote_builder(
                 self, with_mlrun, mlrun_version_specifier, skip_deployed
             )

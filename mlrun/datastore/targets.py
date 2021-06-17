@@ -478,7 +478,7 @@ class ParquetTarget(BaseStoreTarget):
      This parameter is forwarded as-is to pandas.DataFrame.to_parquet().
      Default location v3io:///projects/{project}/FeatureStore/{name}/parquet/
     :param attributes: optional, extra attributes for storey.ParquetTarget
-    :param after_step: optional, fter what step in the graph to add the target
+    :param after_step: optional, after what step in the graph to add the target
     :param columns:     optional, which columns from data to write
     :param partitioned: optional, whether to partition the file, False by default,
      if True without passing any other partition field, the data will be partitioned by /year/month/day/hour

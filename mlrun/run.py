@@ -972,6 +972,7 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
+            resp = get_short_kfp_run(resp)
 
     show_kfp_run(resp)
     status = resp["run"]["status"] if resp else "unknown"

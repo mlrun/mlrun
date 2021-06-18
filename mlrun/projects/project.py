@@ -1361,15 +1361,22 @@ class MlrunProject(ModelObj):
         notifiers: RunNotifications = None,
     ):
         status = ""
-        if timeout:
-            logger.info("waiting for pipeline run completion")
-            run_info = wait_for_pipeline_completion(
-                workflow_id, timeout=timeout, expected_statuses=expected_statuses
-            )
-            if run_info:
-                status = run_info["run"].get("status")
-
         mldb = get_run_db(secrets=self._secrets)
+        try:
+            if timeout:
+                logger.info("waiting for pipeline run completion")
+                run_info = wait_for_pipeline_completion(
+                    workflow_id, timeout=timeout, expected_statuses=expected_statuses
+                )
+                if run_info:
+                    status = run_info["run"].get("status")
+        except RuntimeError as exc:
+            # show runs table (in ipython) also when we have errors
+            mldb.list_runs(
+                project=self.metadata.name, labels=f"workflow={workflow_id}"
+            )
+            raise exc
+
         runs = mldb.list_runs(
             project=self.metadata.name, labels=f"workflow={workflow_id}"
         )

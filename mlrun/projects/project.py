@@ -1361,7 +1361,7 @@ class MlrunProject(ModelObj):
         notifiers: RunNotifications = None,
     ):
         status = ""
-        mldb = get_run_db(secrets=self._secrets)
+        raise_error = None
         try:
             if timeout:
                 logger.info("waiting for pipeline run completion")
@@ -1371,12 +1371,10 @@ class MlrunProject(ModelObj):
                 if run_info:
                     status = run_info["run"].get("status")
         except RuntimeError as exc:
-            # show runs table (in ipython) also when we have errors
-            mldb.list_runs(
-                project=self.metadata.name, labels=f"workflow={workflow_id}"
-            )
-            raise exc
+            # push runs table also when we have errors
+            raise_error = exc
 
+        mldb = get_run_db(secrets=self._secrets)
         runs = mldb.list_runs(
             project=self.metadata.name, labels=f"workflow={workflow_id}"
         )
@@ -1394,6 +1392,9 @@ class MlrunProject(ModelObj):
 
         if notifiers:
             notifiers.push(text, runs)
+
+        if raise_error:
+            raise raise_error
         return status, had_errors, text
 
     def clear_context(self):

@@ -295,7 +295,10 @@ def test_basic_auth(create_server):
 
 def test_bearer_auth(create_server):
     token = "banana"
-    env = {"MLRUN_HTTPDB__AUTHENTICATION__BEARER__TOKEN": token, "MLRUN_HTTPDB__AUTHENTICATION__MODE": "bearer"}
+    env = {
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "bearer",
+        "MLRUN_HTTPDB__AUTHENTICATION__BEARER__TOKEN": token,
+    }
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn

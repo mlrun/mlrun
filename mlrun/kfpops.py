@@ -20,7 +20,7 @@ from copy import deepcopy
 import mlrun
 
 from .config import config
-from .db import get_or_set_dburl
+from .db import get_or_set_dburl, get_run_db
 from .model import HyperParamOptions
 from .utils import (
     dict_to_yaml,
@@ -624,7 +624,7 @@ def get_kfp_dag(run, project=None):
     if not workflow:
         return None
     workflow = json.loads(workflow)
-    
+
     templates = {}
     for template in workflow["spec"]["templates"]:
         project = project or get_in(
@@ -659,8 +659,23 @@ def get_kfp_dag(run, project=None):
     return dag, project
 
 
-def get_short_kfp_run(run, project=None):
+def get_short_kfp_run(run, project=None, db=None):
     dag, project = get_kfp_dag(run, project)
+    run_id = get_in(run, "run.id")
+
+    # enrich DAG with mlrun run info
+    db = db or get_run_db()
+    runs = db.list_runs(project=project, labels=f"workflow={run_id}")
+
+    for r in runs:
+        step = get_in(r, ["metadata", "labels", "mlrun/runner-pod"])
+        if step and step in dag:
+            dag[step]["run_id"] = get_in(r, "metadata.uid")
+            dag[step]["kind"] = get_in(r, "metadata.labels.kind")
+            error = get_in(r, "status.error")
+            if error:
+                dag[step]["error"] = error
+
     short_run = {"graph": dag}
     short_run["run"] = {
         k: str(v)
@@ -682,6 +697,8 @@ def get_short_kfp_run(run, project=None):
 
 
 def show_kfp_run(run):
+    phase_to_color = {"failed": "red", "succeeded": "green"}
+    runtype_to_shape = {"run": "ellipse", "build": "box", "deploy": "doublecircle"}
     if not run or "graph" not in run:
         return
     if is_ipython:
@@ -697,13 +714,14 @@ def show_kfp_run(run):
 
             for key, node in graph.items():
                 if node["type"] != "DAG":
-                    color = None
-                    status = node["phase"].lower()
-                    if status == "failed":
-                        color = "red"
-                    elif status == "succeeded":
-                        color = "green"
-                    dag.node(key, label=node["name"], fillcolor=color, style="filled")
+                    dag.node(
+                        key,
+                        label=node["name"],
+                        fillcolor=phase_to_color.get(node["phase"].lower(), None),
+                        style="filled",
+                        shape=runtype_to_shape.get(node["run_type"], None),
+                        tooltip=node.get("error", None),
+                    )
                     for child in node.get("children") or []:
                         dag.edge(key, child)
 

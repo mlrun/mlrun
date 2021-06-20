@@ -622,12 +622,11 @@ def get_kfp_dag(run):
     for node in nodes.values():
         name = node["displayName"]
         record = {
-            k: node[k]
-            for k in ["phase", "startedAt", "finishedAt", "type", "id", "children"]
+            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
         }
         record["parent"] = node.get("boundaryID", "")
         record["name"] = name
-        # record["children"] = [name_map[child] for child in node.get("children", [])]
+        record["children"] = node.get("children", [])
         dag[node["id"]] = record
 
     return dag

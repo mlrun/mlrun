@@ -69,7 +69,10 @@ class Client(
         response = self._send_request_to_api(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            headers=request.headers,
+            headers={
+                "authorization": request.headers.get("authorization"),
+                "cookie": request.headers.get("cookie"),
+            },
         )
         gids = response.headers.get("x-user-group-ids")
         if gids:

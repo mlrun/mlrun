@@ -620,8 +620,13 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
 
 
 def get_kfp_dag(run, project=None):
+    workflow = run["pipeline_runtime"].get("workflow_manifest", None)
+    if not workflow:
+        return None
+    workflow = json.loads(workflow)
+    
     templates = {}
-    for template in run["spec"]["templates"]:
+    for template in workflow["spec"]["templates"]:
         project = project or get_in(
             template, ["metadata", "annotations", project_annotation], ""
         )
@@ -635,10 +640,6 @@ def get_kfp_dag(run, project=None):
             ),
         }
 
-    workflow = run["pipeline_runtime"].get("workflow_manifest", None)
-    if not workflow:
-        return None
-    workflow = json.loads(workflow)
     nodes = workflow["status"].get("nodes", {})
     dag = {}
     # name_map = {k: v["displayName"] for k, v in nodes.items()}

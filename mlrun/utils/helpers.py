@@ -539,7 +539,7 @@ def enrich_image_url(image_url: str) -> str:
         for pattern_to_enrich in config.images_to_enrich_registry.split(","):
             if re.match(pattern_to_enrich, image_url):
                 enrich_registry = True
-    if enrich_registry:
+    if registry and enrich_registry:
         registry = registry if registry.endswith("/") else f"{registry}/"
         image_url = f"{registry}{image_url}"
 

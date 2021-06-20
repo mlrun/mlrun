@@ -181,6 +181,12 @@ def test_enrich_image():
             "images_to_enrich_registry": "mlrun/mlrun",
             "images_registry": "ghcr.io",
         },
+        {
+            "image": "mlrun/mlrun:bla",
+            "expected_output": "mlrun/mlrun:bla",
+            "images_to_enrich_registry": "mlrun/mlrun",
+            "images_registry": "",
+        },
     ]
     config.images_tag = "0.5.2-unstable-adsf76s"
     for case in cases:

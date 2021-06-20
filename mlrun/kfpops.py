@@ -659,18 +659,22 @@ def get_kfp_dag(run, project=None):
     return dag, project
 
 
-def get_short_kfp_run(run, project=None, db=None):
+def get_short_kfp_run(run, project=None, session=None):
     dag, project = get_kfp_dag(run, project)
     run_id = get_in(run, "run.id")
 
     # enrich DAG with mlrun run info
-    db = db or get_run_db()
-    runs = db.list_runs(project=project, labels=f"workflow={run_id}")
+    if session:
+        runs = mlrun.api.utils.singletons.db.get_db().list_runs(
+            session, project=project, labels=f"workflow={run_id}"
+        )
+    else:
+        runs = get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
 
     for r in runs:
         step = get_in(r, ["metadata", "labels", "mlrun/runner-pod"])
         if step and step in dag:
-            dag[step]["run_id"] = get_in(r, "metadata.uid")
+            dag[step]["run_uid"] = get_in(r, "metadata.uid")
             dag[step]["kind"] = get_in(r, "metadata.labels.kind")
             error = get_in(r, "status.error")
             if error:

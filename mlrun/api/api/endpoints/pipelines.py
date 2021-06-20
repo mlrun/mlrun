@@ -4,12 +4,14 @@ from datetime import datetime
 from http import HTTPStatus
 from os import remove
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from kfp import Client as kfclient
+from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.schemas
+from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
@@ -75,15 +77,46 @@ async def submit_pipeline(
 # curl http://localhost:8080/pipelines/:id
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
-def get_pipeline(run_id, namespace: str = Query(config.namespace), long: bool = False):
+def get_pipeline(
+    run_id,
+    namespace: str = Query(config.namespace),
+    format_: mlrun.api.schemas.Format = Query(
+        mlrun.api.schemas.Format.metadata_only, alias="format"
+    ),
+    project: str = None,
+    db_session: Session = Depends(deps.get_db_session),
+):
+    return _get_pipeline(run_id, namespace, format_, project, db_session)
+
+
+@router.get("/projects/{project}/pipelines/{run_id}")
+def get_project_pipeline(
+    run_id,
+    namespace: str = Query(config.namespace),
+    format_: mlrun.api.schemas.Format = Query(
+        mlrun.api.schemas.Format.metadata_only, alias="format"
+    ),
+    project: str = None,
+    db_session: Session = Depends(deps.get_db_session),
+):
+    return _get_pipeline(run_id, namespace, format_, project, db_session)
+
+
+def _get_pipeline(
+    run_id,
+    namespace: str,
+    format_: mlrun.api.schemas.Format,
+    project: str,
+    db_session: Session,
+):
 
     client = kfclient(namespace=namespace)
     try:
         run = client.get_run(run_id)
         if run:
             run = run.to_dict()
-            if not long:
-                run = get_short_kfp_run(run)
+            if not format_ or format_ == mlrun.api.schemas.Format.summary:
+                run = get_short_kfp_run(run, project=project, session=db_session)
 
     except Exception as exc:
         log_and_raise(

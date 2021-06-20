@@ -1142,15 +1142,23 @@ class HTTPRunDB(RunDBInterface):
         return mlrun.api.schemas.PipelinesOutput(**response.json())
 
     def get_pipeline(
-        self, run_id: str, namespace: str = None, timeout: int = 10, long: bool = False
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 10,
+        format_: Union[
+            str, mlrun.api.schemas.Format
+        ] = mlrun.api.schemas.Format.summary,
     ):
         """ Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
+        if isinstance(format_, mlrun.api.schemas.Format):
+            format_ = format_.value
         try:
             params = {}
             if namespace:
                 params["namespace"] = namespace
-            params["long"] = bool2str(long)
+            params["format"] = format_
             resp = self.api_call(
                 "GET", f"pipelines/{run_id}", params=params, timeout=timeout
             )

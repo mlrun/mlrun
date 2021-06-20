@@ -990,7 +990,7 @@ def wait_for_pipeline_completion(
     return resp
 
 
-def get_pipeline(run_id, namespace=None, long: bool = False):
+def get_pipeline(run_id, namespace=None, format_=None):
     """Get Pipeline status
 
     :param run_id:     id of pipelines run
@@ -1009,14 +1009,14 @@ def get_pipeline(run_id, namespace=None, long: bool = False):
                 ", please set the dbpath url"
             )
 
-        resp = mldb.get_pipeline(run_id, namespace=namespace, long=long)
+        resp = mldb.get_pipeline(run_id, namespace=namespace, format_=format_)
 
     else:
         client = Client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
-            if not long:
+            if not format_:
                 resp = get_short_kfp_run(resp)
 
     show_kfp_run(resp)

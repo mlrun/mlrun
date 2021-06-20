@@ -278,12 +278,12 @@ class FeatureSet(ModelObj):
             uri += ":" + self._metadata.tag
         return uri
 
-    def _override_run_db(self, session):
+    def _override_run_db(self, session, leader_session: Optional[str] = None):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
         from ..api.api.utils import get_run_db_instance
 
-        self._run_db = get_run_db_instance(session)
+        self._run_db = get_run_db_instance(session, leader_session)
 
     def _get_run_db(self):
         if self._run_db:
@@ -344,10 +344,46 @@ class FeatureSet(ModelObj):
         if default_final_step:
             self.spec.graph.final_step = default_final_step
 
-    def purge(self):
-        for target in self.spec.targets:
+    def purge_targets(self, target_names: List[str] = None, silent: bool = False):
+        """ Delete data of specific targets
+        :param target_names: List of names of targets to delete (default: delete all ingested targets)
+        :param silent: Fail silently if target doesn't exist in featureset status """
+
+        try:
+            self.reload(update_spec=False)
+        except mlrun.errors.MLRunNotFoundError:
+            # If the feature set doesn't exist in DB there shouldn't be any target to delete
+            if silent:
+                return
+            else:
+                raise
+
+        if target_names:
+            purge_targets = ObjectList(DataTarget)
+            for target_name in target_names:
+                try:
+                    purge_targets[target_name] = self.status.targets[target_name]
+                except KeyError:
+                    if silent:
+                        pass
+                    else:
+                        raise mlrun.errors.MLRunNotFoundError(
+                            "Target not found in status (fset={0}, target={1})".format(
+                                self.name, target_name
+                            )
+                        )
+        else:
+            purge_targets = self.status.targets
+        purge_target_names = list(purge_targets.keys())
+        for target_name in purge_target_names:
+            target = purge_targets[target_name]
             driver = get_target_driver(target_spec=target, resource=self)
-            driver.purge()
+            try:
+                driver.purge()
+            except FileNotFoundError:
+                pass
+            del self.status.targets[target_name]
+        self.save()
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""
@@ -528,7 +564,6 @@ class FeatureSet(ModelObj):
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
         db = self._get_run_db()
-        self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
         as_dict["spec"]["features"] = as_dict["spec"].get(

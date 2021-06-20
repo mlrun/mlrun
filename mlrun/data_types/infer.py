@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-from pandas.io.json._table_schema import convert_pandas_type_to_json_field
+import pyarrow
 
-from .data_types import InferOptions, pd_schema_to_value_type
+from .data_types import InferOptions, pa_type_to_value_type
 
 default_num_bins = 20
 
@@ -26,8 +26,14 @@ def infer_schema_from_df(
         else:
             entities[name] = {"name": name, "value_type": value_type}
 
-    for column, series in df.items():
-        value_type = _get_column_type(series)
+    schema = pyarrow.Schema.from_pandas(df)
+    index_type = None
+    for i in range(len(schema)):
+        column = schema.names[i]
+        value_type = pa_type_to_value_type(schema.types[i])
+        if column in df.index.names:
+            index_type = value_type
+            continue
         is_entity = column in entity_columns or column in current_entities
         if is_entity:
             upsert_entity(column, value_type)
@@ -45,21 +51,15 @@ def infer_schema_from_df(
     if InferOptions.get_common_options(options, InferOptions.Index):
         # infer types of index fields
         if df.index.name:
-            value_type = _get_column_type(df.index)
-            upsert_entity(df.index.name, value_type)
+            # Workaround to infer a boolean index correctly, and not as 'str'.
+            upsert_entity(df.index.name, index_type)
         elif df.index.nlevels > 1:
             for level, name in zip(df.index.levels, df.index.names):
-                value_type = _get_column_type(level)
-                upsert_entity(name, value_type)
-                if value_type == "datetime":
+                upsert_entity(name, index_type)
+                if index_type == "datetime":
                     timestamp_fields.append(name)
 
     return timestamp_key
-
-
-def _get_column_type(column):
-    field = convert_pandas_type_to_json_field(column)
-    return pd_schema_to_value_type(field["type"])
 
 
 def get_df_stats(df, options, num_bins=None):

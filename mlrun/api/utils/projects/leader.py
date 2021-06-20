@@ -44,7 +44,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_and_validate_before_creation(project)
@@ -57,7 +57,7 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project(project)
@@ -73,7 +73,7 @@ class Member(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project_patch(project)
@@ -89,7 +89,7 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> bool:
         self._projects_in_deletion.add(name)

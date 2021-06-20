@@ -32,8 +32,9 @@ from .base import RunDBError, RunDBInterface
 
 
 class SQLDB(RunDBInterface):
-    def __init__(self, dsn, session=None):
+    def __init__(self, dsn, session=None, leader_session: Optional[str] = None):
         self.session = session
+        self.leader_session = leader_session
         self.dsn = dsn
         self.db = None
 
@@ -45,7 +46,13 @@ class SQLDB(RunDBInterface):
 
     def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(
-            self.db.store_log, self.session, uid, project, body, append
+            self.db.store_log,
+            self.session,
+            uid,
+            project,
+            body,
+            append,
+            self.leader_session,
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
@@ -55,7 +62,13 @@ class SQLDB(RunDBInterface):
 
     def store_run(self, struct, uid, project="", iter=0):
         return self._transform_db_error(
-            self.db.store_run, self.session, struct, uid, project, iter
+            self.db.store_run,
+            self.session,
+            struct,
+            uid,
+            project,
+            iter,
+            self.leader_session,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
@@ -107,7 +120,15 @@ class SQLDB(RunDBInterface):
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         return self._transform_db_error(
-            self.db.store_artifact, self.session, key, artifact, uid, iter, tag, project
+            self.db.store_artifact,
+            self.session,
+            key,
+            artifact,
+            uid,
+            iter,
+            tag,
+            project,
+            self.leader_session,
         )
 
     def read_artifact(self, key, tag="", iter=None, project=""):
@@ -158,6 +179,7 @@ class SQLDB(RunDBInterface):
             project,
             tag,
             versioned,
+            self.leader_session,
         )
 
     def get_function(self, name, project="", tag="", hash_key=""):
@@ -250,7 +272,12 @@ class SQLDB(RunDBInterface):
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
-            self.db.create_feature_set, self.session, project, feature_set, versioned
+            self.db.create_feature_set,
+            self.session,
+            project,
+            feature_set,
+            versioned,
+            self.leader_session,
         )
 
     def get_feature_set(
@@ -334,6 +361,7 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
+            self.leader_session,
         )
 
     def patch_feature_set(
@@ -348,6 +376,7 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
+            self.leader_session,
         )
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):
@@ -362,6 +391,7 @@ class SQLDB(RunDBInterface):
             project,
             feature_vector,
             versioned,
+            self.leader_session,
         )
 
     def get_feature_vector(
@@ -409,6 +439,7 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
+            self.leader_session,
         )
 
     def patch_feature_vector(
@@ -429,6 +460,7 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
+            self.leader_session,
         )
 
     def delete_feature_vector(self, name, project="", tag=None, uid=None):

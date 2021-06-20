@@ -90,9 +90,9 @@ class AuthVerifier:
                 self.gids,
                 planes,
             ) = iguazio_client.verify_request_session(request)
-            if 'x-data-session-override' in request.headers:
-                self.data_session = request.headers['x-data-session-override']
-            elif 'data' in planes:
+            if "x-data-session-override" in request.headers:
+                self.data_session = request.headers["x-data-session-override"]
+            elif "data" in planes:
                 self.data_session = self.session
 
     @staticmethod

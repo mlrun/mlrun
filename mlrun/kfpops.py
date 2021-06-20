@@ -709,7 +709,7 @@ def show_kfp_run(run):
 
         try:
             graph = run["graph"]
-            dag = Digraph("kfp", format="jpg")
+            dag = Digraph("kfp", format="svg")
             dag.attr(compound="true")
 
             for key, node in graph.items():

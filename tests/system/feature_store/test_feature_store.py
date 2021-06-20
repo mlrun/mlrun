@@ -441,7 +441,7 @@ class TestFeatureStore(TestMLRunSystem):
         measurements.set_targets(
             targets=[ParquetTarget(partitioned=True)], with_defaults=False,
         )
-        resp1 = fs.ingest(measurements, source)
+        resp1 = fs.ingest(measurements, source, overwrite=False)
         assert resp1.to_dict() == {
             "my_string": {"mykey2": None},
             "my_time": {"mykey2": pd.Timestamp("2019-01-26 14:52:37")},
@@ -544,7 +544,7 @@ class TestFeatureStore(TestMLRunSystem):
                     current_time - pd.Timedelta(minutes=4),
                     current_time - pd.Timedelta(minutes=5),
                 ],
-                "first_name": ["moshe", "yosi", "yosi", "yosi", "moshe", "yosi"],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 2500, 14],
             }
@@ -584,7 +584,7 @@ class TestFeatureStore(TestMLRunSystem):
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-        assert resp[0]["bids_sum_1h"] == 47.0
+        assert resp[0]["bids_sum_1h"] == 37.0
 
         svc.close()
 
@@ -871,36 +871,135 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set.save()
         fs.ingest(stocks_set.uri, stocks)
 
+    def test_overwrite(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        fset = fs.FeatureSet(name="overwrite-fs", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1, targets=[CSVTarget(), ParquetTarget(), NoSqlTarget()])
+
+        features = ["overwrite-fs.*"]
+        fvec = fs.FeatureVector("overwrite-vec", features=features)
+
+        csv_path = fset.get_target_path(name="csv")
+        csv_df = pd.read_csv(csv_path)
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
+        )
+
+        parquet_path = fset.get_target_path(name="parquet")
+        parquet_df = pd.read_parquet(parquet_path)
+        assert df1.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "GHI"}])
+        assert resp[0]["value"] == 3
+        svc.close()
+
+        fs.ingest(fset, df2)
+
+        csv_path = fset.get_target_path(name="csv")
+        csv_df = pd.read_csv(csv_path)
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
+        )
+
+        parquet_path = fset.get_target_path(name="parquet")
+        parquet_df = pd.read_parquet(parquet_path)
+        assert df2.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "GHI"}])
+        assert resp[0] is None
+
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        svc.close()
+
+    def test_override_false(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+        df3 = pd.concat([df1, df2])
+
+        fset = fs.FeatureSet(name="override-false", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1)
+
+        features = ["override-false.*"]
+        fvec = fs.FeatureVector("override-false-vec", features=features)
+
+        off1 = fs.get_offline_features(fvec).to_dataframe()
+        assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
+
+        fs.ingest(fset, df2, overwrite=False)
+
+        off2 = fs.get_offline_features(fvec).to_dataframe()
+        assert df3.set_index(keys="name").sort_index().equals(off2.sort_index())
+
+        fs.ingest(fset, df1, targets=[ParquetTarget()])
+
+        off1 = fs.get_offline_features(fvec).to_dataframe()
+        assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        svc.close()
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df1, targets=[CSVTarget()], overwrite=False)
+
+        fset.set_targets(targets=[CSVTarget()])
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df1, overwrite=False)
+
     def test_purge(self):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
         source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        targets = [
+            CSVTarget(),
+            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+            NoSqlTarget(),
+        ]
         fset.set_targets(
-            targets=[
-                CSVTarget(),
-                ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-                NoSqlTarget(),
-            ],
-            with_defaults=False,
+            targets=targets, with_defaults=False,
         )
         fs.ingest(fset, source)
 
-        verify_purge(fset)
+        verify_purge(fset, targets)
+
+        fs.ingest(fset, source)
+
+        targets_to_purge = targets[:-1]
+        verify_purge(fset, targets_to_purge)
 
 
-def verify_purge(fset):
-    for target in fset.spec.targets:
+def verify_purge(fset, targets):
+    fset.reload(update_spec=False)
+    orig_status_targets = list(fset.status.targets.keys())
+    target_names = [t.name for t in targets]
+
+    for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
         assert filesystem.exists(driver._target_path)
 
-    fset.purge()
+    fset.purge_targets(target_names=target_names)
 
-    for target in fset.spec.targets:
+    for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
         assert not filesystem.exists(driver._target_path)
+
+    fset.reload(update_spec=False)
+    assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(
+        target_names
+    )
 
 
 def verify_target_list_fail(targets, with_defaults=None):

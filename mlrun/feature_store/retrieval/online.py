@@ -74,6 +74,6 @@ def init_feature_vector_graph(vector):
         for key in featureset.spec.entities.keys():
             if not vector.spec.with_indexes and key not in index_columns:
                 index_columns.append(key)
-
-    server.init(None, None, cache)
+    server.init_states(context=None, namespace=None, resource_cache=cache)
+    server.init_object(None)
     return graph, index_columns

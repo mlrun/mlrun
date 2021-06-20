@@ -19,6 +19,8 @@ from sys import stdout
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import mlrun.errors
+
 from .config import config as mlconfig
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
@@ -125,7 +127,7 @@ class K8sHelper:
                 logger.error(f"failed to delete pod: {exc}")
             raise exc
 
-    def get_pod(self, name, namespace=None):
+    def get_pod(self, name, namespace=None, raise_on_not_found=False):
         try:
             api_response = self.v1api.read_namespaced_pod(
                 name=name, namespace=self.resolve_namespace(namespace)
@@ -135,10 +137,15 @@ class K8sHelper:
             if exc.status != 404:
                 logger.error(f"failed to get pod: {exc}")
                 raise exc
+            else:
+                if raise_on_not_found:
+                    raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
             return None
 
     def get_pod_status(self, name, namespace=None):
-        return self.get_pod(name, namespace).status.phase.lower()
+        return self.get_pod(
+            name, namespace, raise_on_not_found=True
+        ).status.phase.lower()
 
     def logs(self, name, namespace=None):
         try:

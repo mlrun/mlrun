@@ -489,7 +489,11 @@ class ServingRuntime(RemoteRuntime):
             secret_sources=self.spec.secret_sources,
             **kwargs,
         )
-        server.init(
-            None, namespace or get_caller_globals(), logger=logger, is_mock=True
+        server.init_states(
+            context=None,
+            namespace=namespace or get_caller_globals(),
+            logger=logger,
+            is_mock=True,
         )
+        server.init_object(namespace or get_caller_globals())
         return server

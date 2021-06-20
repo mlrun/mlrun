@@ -1544,9 +1544,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
         db_object.updated = updated_datetime
-        db_object.created = common_object_dict["metadata"].pop(
-            "created", None
-        ) or datetime.now(timezone.utc)
+        if not db_object.created:
+            db_object.created = common_object_dict["metadata"].pop(
+                "created", None
+            ) or datetime.now(timezone.utc)
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
 

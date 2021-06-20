@@ -540,6 +540,7 @@ def enrich_image_url(image_url: str) -> str:
             if re.match(pattern_to_enrich, image_url):
                 enrich_registry = True
     if enrich_registry:
+        registry = registry if registry.endswith("/") else f'{registry}/'
         image_url = f"{registry}{image_url}"
 
     if is_mlrun_image and tag and ":" not in image_url:

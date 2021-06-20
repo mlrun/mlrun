@@ -26,6 +26,7 @@ from .utils import (
     dict_to_yaml,
     gen_md_table,
     get_artifact_target,
+    get_in,
     is_ipython,
     logger,
     run_keys,
@@ -33,6 +34,10 @@ from .utils import (
 
 KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
+
+project_annotation = "mlrun/run-project"
+run_annotation = "mlrun/run-type"
+function_annotation = "mlrun/function"
 
 
 def is_num(v):
@@ -396,10 +401,7 @@ def mlrun_op(
         },
     )
 
-    cop.add_pod_annotation("mlrun/run-type", "run")
-    cop.add_pod_annotation("mlrun/project", project or function.metadata.project)
-    cop.add_pod_annotation("mlrun/function", func_url or function.uri)
-
+    add_annotations(cop, "run", function, func_url, project)
     if code_env:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
@@ -470,6 +472,7 @@ def deploy_op(
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
 
+    add_annotations(cop, "deploy", function, func_url)
     add_default_env(k8s_client, cop)
     return cop
 
@@ -543,10 +546,7 @@ def build_op(
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
 
-    cop.add_pod_annotation("mlrun/run-type", "build")
-    cop.add_pod_annotation("mlrun/project", function.metadata.project)
-    cop.add_pod_annotation("mlrun/function", func_url or function.uri)
-
+    add_annotations(cop, "build", function, func_url)
     if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -611,7 +611,30 @@ def get_default_reg():
     return ""
 
 
-def get_kfp_dag(run):
+def add_annotations(cop, kind, function, func_url=None, project=None):
+    if func_url and func_url.startswith("db://"):
+        func_url = func_url[len("db://") :]
+    cop.add_pod_annotation(run_annotation, kind)
+    cop.add_pod_annotation(project_annotation, project or function.metadata.project)
+    cop.add_pod_annotation(function_annotation, func_url or function.uri)
+
+
+def get_kfp_dag(run, project=None):
+    templates = {}
+    for template in run["spec"]["templates"]:
+        project = project or get_in(
+            template, ["metadata", "annotations", project_annotation], ""
+        )
+        name = template["name"]
+        templates[name] = {
+            "run_type": get_in(
+                template, ["metadata", "annotations", run_annotation], ""
+            ),
+            "function": get_in(
+                template, ["metadata", "annotations", function_annotation], ""
+            ),
+        }
+
     workflow = run["pipeline_runtime"].get("workflow_manifest", None)
     if not workflow:
         return None
@@ -627,13 +650,17 @@ def get_kfp_dag(run):
         record["parent"] = node.get("boundaryID", "")
         record["name"] = name
         record["children"] = node.get("children", [])
+        if name in templates:
+            record["function"] = templates[name].get("function")
+            record["run_type"] = templates[name].get("run_type")
         dag[node["id"]] = record
 
-    return dag
+    return dag, project
 
 
-def get_short_kfp_run(run):
-    short_run = {"graph": get_kfp_dag(run)}
+def get_short_kfp_run(run, project=None):
+    dag, project = get_kfp_dag(run, project)
+    short_run = {"graph": dag}
     short_run["run"] = {
         k: str(v)
         for k, v in run["run"].items()
@@ -649,6 +676,7 @@ def get_short_kfp_run(run):
             "description",
         ]
     }
+    short_run["run"]["project"] = project
     return short_run
 
 

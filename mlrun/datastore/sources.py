@@ -234,7 +234,10 @@ class OnlineSource(BaseSourceDriver):
     ):
         import storey
 
-        return storey.SyncEmitSource(
+        source_class = (
+            storey.AsyncEmitSource if use_async_source else storey.SyncEmitSource
+        )
+        return source_class(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             full_event=True,
@@ -253,3 +256,5 @@ source_kind_to_driver = {
     "http": HttpSource,
     "custom": CustomSource,
 }
+
+use_async_source = False

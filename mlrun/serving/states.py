@@ -27,6 +27,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun.datastore.sources
+
 from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
@@ -1042,11 +1044,16 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            resp = self._controller.emit(
-                event, return_awaitable_result=self._wait_for_result
-            )
-            if self._wait_for_result and resp:
-                return resp.await_result()
+            if mlrun.datastore.sources.use_async_source:
+                return self._controller.emit(
+                    event, await_result=self._wait_for_result
+                )
+            else:
+                resp = self._controller.emit(
+                    event, return_awaitable_result=self._wait_for_result
+                )
+                if self._wait_for_result and resp:
+                    return resp.await_result()
             event = copy(event)
             event.body = {"id": event.id}
             return event

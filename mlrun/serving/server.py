@@ -14,7 +14,7 @@
 
 __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 
-
+import asyncio
 import json
 import os
 import socket
@@ -27,7 +27,7 @@ import mlrun
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 
-from ..datastore import get_stream_pusher
+from ..datastore import get_stream_pusher, sources
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
@@ -165,7 +165,7 @@ class GraphServer(ModelObj):
 
         context.root = self.graph
         self.graph.init_object(context, namespace, self.load_mode, reset=True)
-        return v2_serving_handler
+        return v2_serving_async_handler if sources.use_async_source else v2_serving_handler
 
     def test(
         self,
@@ -218,6 +218,15 @@ class GraphServer(ModelObj):
                 body=message, content_type="text/plain", status_code=400
             )
 
+        if asyncio.iscoroutine(response):
+            return self._process_async_response(response)
+        else:
+            return self._process_response(response)
+
+    async def _process_async_response(self, response):
+        return self._process_response(await response)
+
+    def _process_response(self, response):
         body = response.body
         if isinstance(body, context.Response) or get_body:
             return body
@@ -257,6 +266,11 @@ def v2_serving_init(context, namespace=None):
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
     return context.server.run(event, context, get_body)
+
+
+async def v2_serving_async_handler(context, event, get_body=False):
+    """hook for nuclio handler()"""
+    return await context.server.run(event, context, get_body)
 
 
 def create_graph_server(

@@ -27,10 +27,14 @@ class AuthVerifier:
     _bearer_prefix = "Bearer "
 
     def __init__(self, request: Request):
+        # Basic auth
         self.username = None
         self.password = None
+        # Bearer auth
         self.token = None
-        self.access_key = None
+        # Iguazio auth
+        self.session = None
+        self.data_session = None
         self.uid = None
         self.gids = None
 
@@ -81,10 +85,15 @@ class AuthVerifier:
             iguazio_client = mlrun.api.utils.clients.iguazio.Client()
             (
                 self.username,
-                self.access_key,
+                self.session,
                 self.uid,
                 self.gids,
+                planes,
             ) = iguazio_client.verify_request_session(request)
+            if 'x-data-session-override' in request.headers:
+                self.data_session = request.headers['x-data-session-override']
+            elif 'data' in planes:
+                self.data_session = self.session
 
     @staticmethod
     def _basic_auth_required():

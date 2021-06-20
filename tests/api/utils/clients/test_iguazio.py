@@ -47,8 +47,9 @@ def test_verify_request_session_success(
     mock_response_headers = {
         "X-Remote-User": "some-user",
         "X-V3io-Session-Key": "some-access-key",
-        "X-uid": "some-uid",
-        "X-gids": "some-gid,some-gid2,some-gid3",
+        "x-user-id": "some-uid",
+        "x-user-group-ids": "some-gid,some-gid2,some-gid3",
+        "x-v3io-session-planes": "control,data",
     }
 
     def _verify_session_mock(request, context):
@@ -61,13 +62,14 @@ def test_verify_request_session_success(
         f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
         json=_verify_session_mock,
     )
-    (username, access_key, uid, gids,) = iguazio_client.verify_request_session(
+    (username, access_key, uid, gids, planes) = iguazio_client.verify_request_session(
         mock_request
     )
     assert username == mock_response_headers["X-Remote-User"]
     assert access_key == mock_response_headers["X-V3io-Session-Key"]
-    assert uid == mock_response_headers["X-uid"]
-    assert gids == mock_response_headers["X-gids"].split(",")
+    assert uid == mock_response_headers["x-user-id"]
+    assert gids == mock_response_headers["x-user-group-ids"].split(",")
+    assert planes == mock_response_headers["x-v3io-session-planes"].split(",")
 
 
 def test_verify_request_session_failure(

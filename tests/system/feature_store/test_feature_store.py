@@ -544,7 +544,7 @@ class TestFeatureStore(TestMLRunSystem):
                     current_time - pd.Timedelta(minutes=4),
                     current_time - pd.Timedelta(minutes=5),
                 ],
-                "first_name": ["moshe", "yosi", "yosi", "yosi", "moshe", "yosi"],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 2500, 14],
             }
@@ -584,7 +584,7 @@ class TestFeatureStore(TestMLRunSystem):
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-        assert resp[0]["bids_sum_1h"] == 47.0
+        assert resp[0]["bids_sum_1h"] == 37.0
 
         svc.close()
 

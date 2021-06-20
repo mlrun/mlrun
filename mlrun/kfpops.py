@@ -395,9 +395,11 @@ def mlrun_op(
             "mlpipeline-metrics": "/mlpipeline-metrics.json",
         },
     )
-    # if rundb:
-    #     cop.container.add_env_variable(k8s_client.V1EnvVar(
-    #         name='MLRUN_DBPATH', value=rundb))
+
+    cop.add_pod_annotation("mlrun/run-type", "run")
+    cop.add_pod_annotation("mlrun/project", project or function.metadata.project)
+    cop.add_pod_annotation("mlrun/function", func_url or function.uri)
+
     if code_env:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
@@ -541,6 +543,10 @@ def build_op(
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
 
+    cop.add_pod_annotation("mlrun/run-type", "build")
+    cop.add_pod_annotation("mlrun/project", function.metadata.project)
+    cop.add_pod_annotation("mlrun/function", func_url or function.uri)
+
     if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -612,15 +618,17 @@ def get_kfp_dag(run):
     workflow = json.loads(workflow)
     nodes = workflow["status"].get("nodes", {})
     dag = {}
-    name_map = {k: v["displayName"] for k, v in nodes.items()}
+    # name_map = {k: v["displayName"] for k, v in nodes.items()}
     for node in nodes.values():
         name = node["displayName"]
         record = {
-            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
+            k: node[k]
+            for k in ["phase", "startedAt", "finishedAt", "type", "id", "children"]
         }
         record["parent"] = node.get("boundaryID", "")
-        record["children"] = [name_map[child] for child in node.get("children", [])]
-        dag[name] = record
+        record["name"] = name
+        # record["children"] = [name_map[child] for child in node.get("children", [])]
+        dag[node["id"]] = record
 
     return dag
 
@@ -659,7 +667,7 @@ def show_kfp_run(run):
             dag = Digraph("kfp", format="jpg")
             dag.attr(compound="true")
 
-            for name, node in graph.items():
+            for key, node in graph.items():
                 if node["type"] != "DAG":
                     color = None
                     status = node["phase"].lower()
@@ -667,9 +675,9 @@ def show_kfp_run(run):
                         color = "red"
                     elif status == "succeeded":
                         color = "green"
-                    dag.node(name, label=name, fillcolor=color, style="filled")
+                    dag.node(key, label=node["name"], fillcolor=color, style="filled")
                     for child in node.get("children") or []:
-                        dag.edge(name, child)
+                        dag.edge(key, child)
 
             import IPython
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import hashlib
 import inspect
 import json
@@ -322,6 +323,10 @@ def date_representer(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:timestamp", value)
 
 
+def enum_representer(dumper, data):
+    return dumper.represent_str(str(data.value))
+
+
 yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
@@ -329,6 +334,7 @@ yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.ndarray, numpy_representer_seq, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.datetime64, date_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
+yaml.add_multi_representer(enum.Enum, enum_representer, Dumper=yaml.SafeDumper)
 
 
 def dict_to_yaml(struct):

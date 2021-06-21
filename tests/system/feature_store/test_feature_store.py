@@ -331,6 +331,7 @@ class TestFeatureStore(TestMLRunSystem):
         measurements = fs.FeatureSet(
             name, entities=[Entity(key)], timestamp_key="timestamp"
         )
+        orig_columns = list(pd.read_csv(str(self.assets_path / "testdata.csv")).columns)
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
@@ -369,9 +370,9 @@ class TestFeatureStore(TestMLRunSystem):
         if key_bucketing_number is None:
             expected_partitions = []
         elif key_bucketing_number == 0:
-            expected_partitions = ["igzpart_key"]
+            expected_partitions = ["key"]
         else:
-            expected_partitions = [f"igzpart_hash{key_bucketing_number}_key"]
+            expected_partitions = [f"hash{key_bucketing_number}_key"]
         expected_partitions += partition_cols or []
         if all(
             value is None
@@ -384,7 +385,7 @@ class TestFeatureStore(TestMLRunSystem):
             time_partitioning_granularity = "hour"
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
-                expected_partitions.append(f"igzpart_{unit}")
+                expected_partitions.append(unit)
                 if unit == time_partitioning_granularity:
                     break
 
@@ -398,6 +399,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
         resp2 = resp.to_dataframe()
         assert len(resp2) == 10
+        result_columns = list(resp2.columns)
+        orig_columns.remove("timestamp")
+        orig_columns.remove("patient_id")
+        assert result_columns == orig_columns
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"

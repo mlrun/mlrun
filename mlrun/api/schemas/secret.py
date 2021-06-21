@@ -6,11 +6,11 @@ from pydantic import BaseModel, Field
 
 class SecretProviderName(str, Enum):
     vault = "vault"
+    kubernetes = "kubernetes"
 
 
 class SecretsData(BaseModel):
-    # Currently only vault is supported. Once other providers are added, remove the const
-    provider: SecretProviderName = Field(SecretProviderName.vault, const=True)
+    provider: SecretProviderName = Field(SecretProviderName.vault)
     secrets: Optional[dict]
 
 

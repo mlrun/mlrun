@@ -89,6 +89,7 @@ rules:
   - pods/log
   - services
   - serviceaccounts
+  - secrets
   verbs:
   - '*'
 - apiGroups:

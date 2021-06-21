@@ -530,6 +530,9 @@ def enrich_image_url(image_url: str) -> str:
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
+    if is_mlrun_image and tag and ":" not in image_url:
+        image_url = f"{image_url}:{tag}"
+
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided
     # example: "^mlrun/*" means enrich only if the image repository is mlrun and registry is not specified (in which
@@ -539,11 +542,9 @@ def enrich_image_url(image_url: str) -> str:
         for pattern_to_enrich in config.images_to_enrich_registry.split(","):
             if re.match(pattern_to_enrich, image_url):
                 enrich_registry = True
-    if enrich_registry:
+    if registry and enrich_registry:
+        registry = registry if registry.endswith("/") else f"{registry}/"
         image_url = f"{registry}{image_url}"
-
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
 
     return image_url
 

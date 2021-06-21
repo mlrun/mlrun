@@ -41,6 +41,9 @@ def init_featureset_graph(
 
     # init targets (and table)
     targets = targets or []
+    server = create_graph_server(graph=graph, parameters={}, verbose=True)
+    server.init_states(context=None, namespace=namespace, resource_cache=cache)
+
     if graph.engine != "sync":
         _add_data_steps(
             graph,
@@ -49,10 +52,10 @@ def init_featureset_graph(
             targets=targets,
             source=source,
             return_df=return_df,
+            context=server.context,
         )
 
-    server = create_graph_server(graph=graph, parameters={})
-    server.init(None, namespace, cache)
+    server.init_object(namespace)
 
     if graph.engine != "sync":
         return graph.wait_for_completion()
@@ -95,7 +98,8 @@ def run_spark_graph(df, featureset, namespace, spark):
         raise mlrun.errors.MLRunInvalidArgumentError("spark must use sync graph")
 
     server = create_graph_server(graph=graph, parameters={})
-    server.init(None, namespace, cache)
+    server.init_states(context=None, namespace=namespace, resource_cache=cache)
+    server.init_object(namespace)
     server.context.spark = spark
     event = MockEvent(body=df)
     return server.run(event, get_body=True)
@@ -122,7 +126,7 @@ def context_to_ingestion_params(context):
 
 
 def _add_data_steps(
-    graph, cache, featureset, targets, source, return_df=False,
+    graph, cache, featureset, targets, source, return_df=False, context=None
 ):
     _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
     validate_target_list(targets=targets)
@@ -139,7 +143,10 @@ def _add_data_steps(
 
     if source is not None:
         source = get_source_step(
-            source, key_fields=key_fields, time_field=featureset.spec.timestamp_key,
+            source,
+            key_fields=key_fields,
+            time_field=featureset.spec.timestamp_key,
+            context=context,
         )
     graph.set_flow_source(source)
 

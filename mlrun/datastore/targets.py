@@ -275,6 +275,8 @@ class BaseStoreTarget(DataTargetBase):
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
         after_state=None,
+        max_events: typing.Optional[int] = None,
+        flush_after_seconds: typing.Optional[int] = None,
     ):
         if after_state:
             warnings.warn(
@@ -293,6 +295,8 @@ class BaseStoreTarget(DataTargetBase):
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
+        self.max_events = max_events
+        self.flush_after_seconds = flush_after_seconds
 
         self._target = None
         self._resource = None
@@ -381,20 +385,8 @@ class BaseStoreTarget(DataTargetBase):
         driver.partition_cols = spec.partition_cols
 
         driver.time_partitioning_granularity = spec.time_partitioning_granularity
-        if spec.kind == "parquet":
-            driver.suffix = (
-                ".parquet"
-                if not spec.partitioned
-                and all(
-                    value is None
-                    for value in [
-                        spec.key_bucketing_number,
-                        spec.partition_cols,
-                        spec.time_partitioning_granularity,
-                    ]
-                )
-                else ""
-            )
+        driver.max_events = spec.max_events
+        driver.flush_after_seconds = spec.flush_after_seconds
 
         driver._resource = resource
         return driver
@@ -464,6 +456,30 @@ class BaseStoreTarget(DataTargetBase):
 
 
 class ParquetTarget(BaseStoreTarget):
+    """parquet target storage driver, used to materialize feature set/vector data into parquet files
+
+    :param name:       optional, target name. By default will be called ParquetTarget
+    :param path:       optional, Output path. Can be either a file or directory.
+     This parameter is forwarded as-is to pandas.DataFrame.to_parquet().
+     Default location v3io:///projects/{project}/FeatureStore/{name}/parquet/
+    :param attributes: optional, extra attributes for storey.ParquetTarget
+    :param after_step: optional, after what step in the graph to add the target
+    :param columns:     optional, which columns from data to write
+    :param partitioned: optional, whether to partition the file, False by default,
+     if True without passing any other partition field, the data will be partitioned by /year/month/day/hour
+    :param key_bucketing_number:      optional, None by default will not partition by key,
+     0 will partition by the key as is, any other number X will create X partitions and hash the keys to one of them
+    :param partition_cols:     optional, name of columns from the data to partition by
+    :param time_partitioning_granularity: optional. the smallest time unit to partition the data by.
+     For example "hour" will yield partitions of the format /year/month/day/hour
+    :param max_events: optional. Maximum number of events to write at a time.
+     All events will be written on flow termination,
+     or after flush_after_seconds (if flush_after_seconds is set). Default 10k events
+    :param flush_after_seconds: optional. Maximum number of seconds to hold events before they are written.
+     All events will be written on flow termination, or after max_events are accumulated (if max_events is set).
+      Default 15 minutes
+    """
+
     kind = TargetTypes.parquet
     is_offline = True
     support_spark = True
@@ -481,6 +497,8 @@ class ParquetTarget(BaseStoreTarget):
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
         after_state=None,
+        max_events: typing.Optional[int] = 10000,
+        flush_after_seconds: typing.Optional[int] = 900,
     ):
         if after_state:
             warnings.warn(
@@ -513,6 +531,8 @@ class ParquetTarget(BaseStoreTarget):
             key_bucketing_number,
             partition_cols,
             time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
         )
 
         if (
@@ -523,8 +543,6 @@ class ParquetTarget(BaseStoreTarget):
                 f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
                 f"not {time_partitioning_granularity}."
             )
-
-        self.suffix = ".parquet" if not partitioned else ""
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
@@ -600,6 +618,8 @@ class ParquetTarget(BaseStoreTarget):
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             storage_options=self._get_store().get_storage_options(),
+            max_events=self.max_events,
+            flush_after_seconds=self.flush_after_seconds,
             **self.attributes,
         )
 

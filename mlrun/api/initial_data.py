@@ -30,23 +30,29 @@ def init_data(from_scratch: bool = False) -> None:
     db_session = create_session()
     try:
         init_db(db_session)
-        _perform_data_migrations(db_session)
+        _perform_data_migrations(
+            db_session, mlrun.mlconf.httpdb.projects.iguazio_access_key
+        )
     finally:
         close_session(db_session)
     logger.info("Initial data created")
 
 
-def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
+def _perform_data_migrations(
+    db_session: sqlalchemy.orm.Session, leader_session: typing.Optional[str] = None
+):
     # FileDB is not really a thing anymore, so using SQLDB directly
     db = mlrun.api.db.sqldb.db.SQLDB("")
     logger.info("Performing data migrations")
     _fill_project_state(db, db_session)
     _fix_artifact_tags_duplications(db, db_session)
-    _fix_datasets_large_previews(db, db_session)
+    _fix_datasets_large_previews(db, db_session, leader_session)
 
 
 def _fix_datasets_large_previews(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    leader_session: typing.Optional[str] = None,
 ):
     # get all artifacts
     artifacts = db._find_artifacts(db_session, None, "*")
@@ -118,6 +124,7 @@ def _fix_datasets_large_previews(
                         project=artifact.project,
                         tag_artifact=False,
                         ensure_project=False,
+                        leader_session=leader_session,
                     )
         except Exception as exc:
             logger.warning(

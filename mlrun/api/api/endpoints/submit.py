@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Cookie, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
@@ -19,6 +19,7 @@ router = APIRouter()
 async def submit_job(
     request: Request,
     username: Optional[str] = Header(None, alias="x-remote-user"),
+    iguazio_session: Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -39,5 +40,5 @@ async def submit_job(
             labels.setdefault("owner", username)
 
     logger.info("Submit run", data=data)
-    response = await mlrun.api.api.utils.submit_run(db_session, data)
+    response = await mlrun.api.api.utils.submit_run(db_session, data, iguazio_session)
     return response

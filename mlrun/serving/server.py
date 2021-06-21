@@ -124,7 +124,7 @@ class GraphServer(ModelObj):
     def _get_db(self):
         return mlrun.get_run_db(secrets=self._secrets)
 
-    def init(
+    def init_states(
         self,
         context,
         namespace,
@@ -164,7 +164,9 @@ class GraphServer(ModelObj):
             handler(self)
 
         context.root = self.graph
-        self.graph.init_object(context, namespace, self.load_mode, reset=True)
+
+    def init_object(self, namespace):
+        self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
         return v2_serving_async_handler if sources.use_async_source else v2_serving_handler
 
     def test(
@@ -254,7 +256,8 @@ def v2_serving_init(context, namespace=None):
     if config.log_level.lower() == "debug":
         server.verbose = True
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
-    serving_handler = server.init(context, namespace or get_caller_globals())
+    server.init_states(context, namespace or get_caller_globals())
+    serving_handler = server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "server", server)

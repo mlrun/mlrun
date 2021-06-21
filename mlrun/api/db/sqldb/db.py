@@ -1591,10 +1591,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
         db_object.updated = updated_datetime
+        if not db_object.created:
+            db_object.created = common_object_dict["metadata"].pop(
+                "created", None
+            ) or datetime.now(timezone.utc)
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
 
         common_object_dict["metadata"]["updated"] = str(updated_datetime)
+        common_object_dict["metadata"]["created"] = str(db_object.created)
 
         # In case of an unversioned object, we don't want to return uid to user queries. However,
         # the uid DB field has to be set, since it's used for uniqueness in the DB.
@@ -2514,6 +2519,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         feature_vector_resp = schemas.FeatureVector(**feature_vector_full_dict)
 
         feature_vector_resp.metadata.tag = tag
+        feature_vector_resp.metadata.created = feature_vector_record.created
         return feature_vector_resp
 
     def _transform_project_record_to_schema(

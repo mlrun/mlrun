@@ -115,6 +115,7 @@ rules:
   - pods/exec
   - pods/log
   - services
+  - secrets
   verbs:
   - '*'
 - apiGroups:

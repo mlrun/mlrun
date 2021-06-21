@@ -219,14 +219,14 @@ class GraphServer(ModelObj):
             )
 
         if asyncio.iscoroutine(response):
-            return self._process_async_response(response)
+            return self._process_async_response(context, response, get_body)
         else:
-            return self._process_response(response)
+            return self._process_response(context, response, get_body)
 
-    async def _process_async_response(self, response):
-        return self._process_response(await response)
+    async def _process_async_response(self, context, response, get_body):
+        return self._process_response(context, await response, get_body)
 
-    def _process_response(self, response):
+    def _process_response(self, context, response, get_body):
         body = response.body
         if isinstance(body, context.Response) or get_body:
             return body

@@ -1039,15 +1039,25 @@ class FlowStep(BaseStep):
         """is the graph empty (no child steps)"""
         return len(self.steps) == 0
 
+    @staticmethod
+    async def _await_and_return_id(awaitable, event):
+        await awaitable
+        event = copy(event)
+        event.body = {"id": event.id}
+        return event
+
     def run(self, event, *args, **kwargs):
 
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
             if mlrun.datastore.sources.use_async_source:
-                return self._controller.emit(
+                resp_awaitable = self._controller.emit(
                     event, await_result=self._wait_for_result
                 )
+                if self._wait_for_result:
+                    return resp_awaitable
+                return self._await_and_return_id(resp_awaitable, event)
             else:
                 resp = self._controller.emit(
                     event, return_awaitable_result=self._wait_for_result

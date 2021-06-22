@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class SecretProviderName(str, Enum):
     """Enum containing names of valid providers for secrets."""
+
     vault = "vault"
     kubernetes = "kubernetes"
 

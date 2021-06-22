@@ -5,6 +5,7 @@ import json
 import typing
 import urllib.parse
 
+import fastapi
 import requests.adapters
 import urllib3
 
@@ -56,6 +57,36 @@ class Client(
                         if kind in url_kind_to_url:
                             return url_kind_to_url[kind]
         return None
+
+    def verify_request_session(
+        self, request: fastapi.Request
+    ) -> typing.Tuple[
+        str, str, typing.Optional[str], typing.List[str], typing.List[str]
+    ]:
+        """
+        Proxy the request to one of the session verification endpoints (which will verify the session of the request)
+        """
+        response = self._send_request_to_api(
+            "POST",
+            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            headers={
+                "authorization": request.headers.get("authorization"),
+                "cookie": request.headers.get("cookie"),
+            },
+        )
+        gids = response.headers.get("x-user-group-ids")
+        if gids:
+            gids = gids.split(",")
+        planes = response.headers.get("x-v3io-session-planes")
+        if planes:
+            planes = planes.split(",")
+        return (
+            response.headers["x-remote-user"],
+            response.headers["x-v3io-session-key"],
+            response.headers.get("x-user-id"),
+            gids or [],
+            planes or [],
+        )
 
     def create_project(
         self,

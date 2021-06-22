@@ -275,10 +275,11 @@ def test_artifacts(create_server):
 
 
 def test_basic_auth(create_server):
-    user, passwd = "bugs", "bunny"
+    user, password = "bugs", "bunny"
     env = {
-        "MLRUN_httpdb__user": user,
-        "MLRUN_httpdb__password": passwd,
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "basic",
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__USERNAME": user,
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__PASSWORD": password,
     }
     server: Server = create_server(env)
 
@@ -288,13 +289,16 @@ def test_basic_auth(create_server):
         db.list_runs()
 
     db.user = user
-    db.password = passwd
+    db.password = password
     db.list_runs()
 
 
 def test_bearer_auth(create_server):
     token = "banana"
-    env = {"MLRUN_httpdb__token": token}
+    env = {
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "bearer",
+        "MLRUN_HTTPDB__AUTHENTICATION__BEARER__TOKEN": token,
+    }
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn

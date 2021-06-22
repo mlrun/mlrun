@@ -658,6 +658,14 @@ class FileRunDB(RunDBInterface):
     ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
 
+    def delete_project_secrets(
+        self,
+        project: str,
+        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        secrets: List[str] = None,
+    ):
+        raise NotImplementedError()
+
     def create_user_secrets(
         self,
         user: str,

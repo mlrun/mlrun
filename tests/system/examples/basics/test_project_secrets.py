@@ -9,7 +9,7 @@ from tests.system.base import TestMLRunSystem
 class TestKubernetesProjectSecrets(TestMLRunSystem):
     project_name = "db-system-test-project"
 
-    def test_k8s_project_secrets(self):
+    def test_k8s_project_secrets_using_api(self):
         secrets = {"secret1": "value1", "secret2": "value2"}
         data = {"provider": "kubernetes", "secrets": secrets}
         expected_results = {
@@ -75,3 +75,47 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             "DELETE", f"projects/{self.project_name}/secrets?provider=kubernetes"
         )
         assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    def test_k8s_project_secrets_using_httpdb(self):
+        secrets = {"secret1": "value1", "secret2": "value2"}
+        expected_results = {key: None for key in secrets}
+
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
+
+        response = self._run_db.get_project_secrets(
+            self.project_name, provider="kubernetes"
+        )
+        assert response.secrets == {}
+
+        self._run_db.create_project_secrets(self.project_name, "kubernetes", secrets)
+
+        response = self._run_db.get_project_secrets(
+            self.project_name, provider="kubernetes"
+        )
+        assert deepdiff.DeepDiff(response.secrets, expected_results) == {}
+
+        # Add a secret key
+        added_secret = {"secret3": "mySecret!!!"}
+        self._run_db.create_project_secrets(
+            self.project_name, "kubernetes", added_secret
+        )
+
+        expected_results["secret3"] = None
+        response = self._run_db.get_project_secrets(
+            self.project_name, provider="kubernetes"
+        )
+        assert deepdiff.DeepDiff(response.secrets, expected_results) == {}
+
+        # Delete secrets
+        self._run_db.delete_project_secrets(
+            self.project_name, provider="kubernetes", secrets=["secret1", "secret2"]
+        )
+        expected_results.pop("secret1")
+        expected_results.pop("secret2")
+        response = self._run_db.get_project_secrets(
+            self.project_name, provider="kubernetes"
+        )
+        assert deepdiff.DeepDiff(response.secrets, expected_results) == {}
+
+        # Cleanup
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")

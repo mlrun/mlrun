@@ -1833,18 +1833,22 @@ class HTTPRunDB(RunDBInterface):
         ] = schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
-        """ Create needed Vault structures for storing secrets in project-context, and store a set of secret values.
-        The method generates Kubernetes service-account and the Vault authentication structures that are required
-        for function Pods to authenticate with Vault and be able to extract secret values passed as part of their
-        context.
+        """ Create project-context secrets using either ``vault`` or ``kubernetes`` provider.
+        When using with Vault, this will create needed Vault structures for storing secrets in project-context, and
+        store a set of secret values. The method generates Kubernetes service-account and the Vault authentication
+        structures that are required for function Pods to authenticate with Vault and be able to extract secret values
+        passed as part of their context.
 
         Note:
-                This method is currently in technical preview, and requires a HashiCorp Vault infrastructure
-                properly set up and connected to the MLRun API server.
+                This method used with Vault is currently in technical preview, and requires a HashiCorp Vault
+                infrastructure properly set up and connected to the MLRun API server.
+
+        When used with Kubernetes, this will make sure that the project-specific k8s secret is created, and will
+        populate it with the secrets provided, replacing their values if they exist.
 
         :param project: The project context for which to generate the infra and store secrets.
-        :param provider: The name of the secrets-provider to work with. Currently only ``vault`` is supported.
-        :param secrets: A set of secret values to store within the Vault.
+        :param provider: The name of the secrets-provider to work with. Either ``vault`` or ``kubernetes``.
+        :param secrets: A set of secret values to store.
             Example::
 
                 secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
@@ -1862,36 +1866,71 @@ class HTTPRunDB(RunDBInterface):
     def get_project_secrets(
         self,
         project: str,
-        token: str,
+        token: str = None,
         provider: Union[
             str, schemas.SecretProviderName
         ] = schemas.SecretProviderName.vault,
         secrets: List[str] = None,
     ) -> schemas.SecretsData:
-        """ Retrieve project-context secrets from Vault.
+        """ Retrieve project-context secrets from Vault or Kubernetes.
 
         Note:
-                This method is currently in technical preview, and requires a HashiCorp Vault infrastructure
-                properly set up and connected to the MLRun API server.
+                This method for Vault functionality is currently in technical preview, and requires a HashiCorp Vault
+                infrastructure properly set up and connected to the MLRun API server.
 
         :param project: The project name.
-        :param token: Vault token to use for retrieving secrets. Must be a valid Vault token, with permissions to
-            retrieve secrets of the project in question.
-        :param provider: The name of the secrets-provider to work with. Currently only ``vault`` is supported.
+        :param token: Vault token to use for retrieving secrets. Use only if ``provider`` is ``vault``.
+            Must be a valid Vault token, with permissions to retrieve secrets of the project in question.
+        :param provider: The name of the secrets-provider to work with. Either ``vault`` or ``kubernetes``.
         :param secrets: A list of secret names to retrieve. An empty list ``[]`` will retrieve all secrets assigned
-            to this specific project.
+            to this specific project. ``kubernetes`` provider only supports an empty list.
         """
 
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
+
+        if provider == schemas.SecretProviderName.vault.value and not token:
+            raise MLRunInvalidArgumentError(
+                "A vault token must be provided when accessing vault secrets"
+            )
+
         path = f"projects/{project}/secrets"
         params = {"provider": provider, "secret": secrets}
-        headers = {schemas.HeaderNames.secret_store_token: token}
+        headers = (
+            {schemas.HeaderNames.secret_store_token: token}
+            if provider == schemas.SecretProviderName.vault.value
+            else None
+        )
         error_message = f"Failed retrieving secrets {project}/{provider}"
         result = self.api_call(
             "GET", path, error_message, params=params, headers=headers,
         )
         return schemas.SecretsData(**result.json())
+
+    def delete_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.kubernetes,
+        secrets: List[str] = None,
+    ):
+        """ Delete project-context secrets from Kubernetes.
+
+        :param project: The project name.
+        :param provider: The name of the secrets-provider to work with. Currently only ``kubernetes`` is supported.
+        :param secrets: A list of secret names to delete. An empty list will delete all secrets assigned
+            to this specific project.
+        """
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+
+        path = f"projects/{project}/secrets"
+        params = {"provider": provider, "secret": secrets}
+        error_message = f"Failed deleting secrets {project}/{provider}"
+        self.api_call(
+            "DELETE", path, error_message, params=params,
+        )
 
     def create_user_secrets(
         self,

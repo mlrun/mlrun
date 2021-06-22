@@ -503,6 +503,16 @@ class SQLDB(RunDBInterface):
     ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
 
+    def delete_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ):
+        raise NotImplementedError()
+
     def create_user_secrets(
         self,
         user: str,

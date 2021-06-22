@@ -340,6 +340,16 @@ class RunDBInterface(ABC):
     ) -> schemas.SecretsData:
         pass
 
+    def delete_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ):
+        pass
+
     @abstractmethod
     def create_user_secrets(
         self,

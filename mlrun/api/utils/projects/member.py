@@ -23,6 +23,7 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         wait_for_completion: bool = True,
+        leader_session: typing.Optional[str] = None,
     ):
         project_names = self.list_projects(
             db_session, format_=mlrun.api.schemas.Format.name_only
@@ -36,7 +37,10 @@ class Member(abc.ABC):
             metadata=mlrun.api.schemas.ProjectMetadata(name=name),
         )
         self.create_project(
-            db_session, project, wait_for_completion=wait_for_completion
+            db_session,
+            project,
+            leader_session=leader_session,
+            wait_for_completion=wait_for_completion,
         )
 
     @abc.abstractmethod
@@ -45,7 +49,7 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
@@ -57,7 +61,7 @@ class Member(abc.ABC):
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
@@ -70,7 +74,7 @@ class Member(abc.ABC):
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         pass
@@ -80,9 +84,9 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> bool:
         pass

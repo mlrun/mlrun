@@ -30,6 +30,7 @@ MLRUN_CACHE_DATE ?= $(shell date +%s)
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
 MLRUN_GIT_ORG ?= mlrun
 MLRUN_RELEASE_BRANCH ?= master
+MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -475,11 +476,11 @@ test-migrations: clean ## Run mlrun db migrations tests
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
-	docker run -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
+	docker run --env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
-	python -m pytest -v \
+	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		-rf \
@@ -487,7 +488,7 @@ test-system: ## Run mlrun system tests
 
 .PHONY: test-system-open-source
 test-system-open-source: ## Run mlrun system tests with opensource configuration
-	python -m pytest -v \
+	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		-rsf \

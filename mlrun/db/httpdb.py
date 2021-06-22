@@ -1847,11 +1847,13 @@ class HTTPRunDB(RunDBInterface):
         populate it with the secrets provided, replacing their values if they exist.
 
         :param project: The project context for which to generate the infra and store secrets.
-        :param provider: The name of the secrets-provider to work with. Either ``vault`` or ``kubernetes``.
+        :param provider: The name of the secrets-provider to work with. Accepts a
+            :py:class:`~mlrun.api.schemas.secret.SecretProviderName` enum.
         :param secrets: A set of secret values to store.
             Example::
 
                 secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
+                db.create_project_secrets("project1", provider="vault", secrets=secrets)
         """
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
@@ -1881,7 +1883,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: The project name.
         :param token: Vault token to use for retrieving secrets. Use only if ``provider`` is ``vault``.
             Must be a valid Vault token, with permissions to retrieve secrets of the project in question.
-        :param provider: The name of the secrets-provider to work with. Either ``vault`` or ``kubernetes``.
+        :param provider: The name of the secrets-provider to work with. Accepts a
+            :py:class:`~mlrun.api.schemas.secret.SecretProviderName` enum.
         :param secrets: A list of secret names to retrieve. An empty list ``[]`` will retrieve all secrets assigned
             to this specific project. ``kubernetes`` provider only supports an empty list.
         """

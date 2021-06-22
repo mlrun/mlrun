@@ -1,5 +1,7 @@
 from typing import Dict, List, Union
 
+import mlrun
+
 # All trackable values types:
 TrackableType = Union[str, bool, float, int]
 
@@ -9,10 +11,15 @@ class Logger:
     Logger for tracking hyperparamters and metrics results during training / evaluation of some framework.
     """
 
-    def __init__(self):
+    def __init__(self, context: mlrun.MLClientCtx = None):
         """
-        Initialize a generic logger for collecting trainig / validation runs data.
+        Initialize a generic logger for collecting training / validation runs data.
+
+        :param context: MLRun context to log its parameters as static hyperparameters if needed.
         """
+        # Save the context:
+        self._context = context
+
         # Setup the results dictionaries - a dictionary of metrics for all the iteration results by their epochs:
         # [Metric: str] -> [Epoch: int] -> [Iteration: int] -> [value: float]
         self._training_results = {}  # type: Dict[str, List[List[float]]]
@@ -37,11 +44,21 @@ class Logger:
         self._validation_iterations = 0
 
     @property
+    def context(self) -> mlrun.MLClientCtx:
+        """
+        Get the loggers context. If its not set, None will be returned.
+
+        :return: The logger's context.
+        """
+        return self._context
+
+    @property
     def training_results(self) -> Dict[str, List[List[float]]]:
         """
         Get the training results logged. The results will be stored in a dictionary where each key is the metric name
         and the value is a list of lists of values. The first list is by epoch and the second list is by iteration
         (batch).
+
         :return: The training results.
         """
         return self._training_results
@@ -52,6 +69,7 @@ class Logger:
         Get the validation results logged. The results will be stored in a dictionary where each key is the metric name
         and the value is a list of lists of values. The first list is by epoch and the second list is by iteration
         (batch).
+
         :return: The validation results.
         """
         return self._validation_results
@@ -61,6 +79,7 @@ class Logger:
         """
         Get the training summaries of the metrics results. The summaries will be stored in a dictionary where each key
         is the metric names and the value is a list of all the summary values per epoch.
+
         :return: The training summaries.
         """
         return self._training_summaries
@@ -70,6 +89,7 @@ class Logger:
         """
         Get the validation summaries of the metrics results. The summaries will be stored in a dictionary where each key
         is the metric names and the value is a list of all the summary values per epoch.
+
         :return: The validation summaries.
         """
         return self._validation_summaries
@@ -79,6 +99,7 @@ class Logger:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
+
         :return: The static hyperparameters.
         """
         return self._static_hyperparameters
@@ -88,6 +109,7 @@ class Logger:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.
+
         :return: The dynamic hyperparameters.
         """
         return self._dynamic_hyperparameters
@@ -96,6 +118,7 @@ class Logger:
     def epochs(self) -> int:
         """
         Get the overall epochs.
+
         :return: The overall epochs.
         """
         return self._epochs
@@ -104,6 +127,7 @@ class Logger:
     def training_iterations(self) -> int:
         """
         Get the overall training iterations.
+
         :return: The overall training iterations.
         """
         return self._training_iterations
@@ -112,6 +136,7 @@ class Logger:
     def validation_iterations(self) -> int:
         """
         Get the overall validation iterations.
+
         :return: The overall validation iterations.
         """
         return self._validation_iterations
@@ -143,6 +168,7 @@ class Logger:
     def log_metric(self, metric_name: str):
         """
         Log a new metric, noting it in the results and summary dictionaries.
+
         :param metric_name: The metric name to log.
         """
         self._training_results[metric_name] = []
@@ -153,6 +179,7 @@ class Logger:
     def log_training_result(self, metric_name: str, result: float):
         """
         Log the given metric result in the training results dictionary at the current epoch.
+
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
@@ -161,6 +188,7 @@ class Logger:
     def log_validation_result(self, metric_name: str, result: float):
         """
         Log the given metric result in the validation results dictionary at the current epoch.
+
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
@@ -169,6 +197,7 @@ class Logger:
     def log_training_summary(self, metric_name: str, result: float):
         """
         Log the given metric result in the training summaries results dictionary.
+
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
@@ -177,6 +206,7 @@ class Logger:
     def log_validation_summary(self, metric_name: str, result: float):
         """
         Log the given metric result in the validation summaries results dictionary.
+
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
@@ -185,6 +215,7 @@ class Logger:
     def log_static_hyperparameter(self, parameter_name: str, value: TrackableType):
         """
         Log the given parameter value in the static hyperparameters dictionary.
+
         :param parameter_name: The parameter name.
         :param value:          The parameter value to log.
         """
@@ -193,11 +224,42 @@ class Logger:
     def log_dynamic_hyperparameter(self, parameter_name: str, value: TrackableType):
         """
         Log the given parameter value in the dynamic hyperparameters dictionary at the current epoch (if its a new
-        parameter it will be epoch 0).
+        parameter it will be epoch 0). If the parameter appears in the static hyperparameters dictionary, it will be
+        removed from there as it is now dynamic.
+
         :param parameter_name: The parameter name.
         :param value:          The parameter value to log.
         """
+        # Check if its a new hyperparameter being tracked:
         if parameter_name not in self._dynamic_hyperparameters:
+            # Look in the static hyperparameters:
+            if parameter_name in self._static_hyperparameters:
+                self._static_hyperparameters.pop(parameter_name)
+            # Add it as a dynamic hyperparameter:
             self._dynamic_hyperparameters[parameter_name] = [value]
         else:
             self._dynamic_hyperparameters[parameter_name].append(value)
+
+    def log_context_parameters(self):
+        """
+        Log the context given parameters as static hyperparameters. Should be called once as the context parameters do
+        not change.
+        """
+        for parameter_name, parameter_value in self._context.parameters.items():
+            # Check if the parameter is a trackable value:
+            if (
+                isinstance(parameter_value, str)
+                or isinstance(parameter_value, bool)
+                or isinstance(parameter_value, float)
+                or isinstance(parameter_value, int)
+            ):
+                self.log_static_hyperparameter(
+                    parameter_name=parameter_name, value=parameter_value
+                )
+            else:
+                # See if its string representation length is below the maximum value length:
+                string_value = str(parameter_value)
+                if len(string_value) < 30:
+                    self.log_static_hyperparameter(
+                        parameter_name=parameter_name, value=parameter_value
+                    )

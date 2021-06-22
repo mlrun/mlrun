@@ -29,10 +29,12 @@ def apply_mlrun(
     # Get parameters defaults:
     # # Context:
     if context is None:
-        context = mlrun.get_or_create_ctx(None)
+        context = mlrun.get_or_create_ctx(KerasMLRunInterface.DEFAULT_CONTEXT_NAME)
     # # Use horovod:
     if use_horovod is None:
-        use_horovod = context.labels.get("kind", "") == "mpijob"
+        use_horovod = (
+            context.labels.get("kind", "") == "mpijob" if context is not None else False
+        )
 
     # Add MLRun's interface to the model:
     KerasMLRunInterface.add_interface(model=model)
@@ -42,7 +44,7 @@ def apply_mlrun(
         model.use_horovod()
 
     # Add auto-logging if needed:
-    if context is not None and auto_log:
+    if auto_log:
         model.auto_log(context=context)
 
     return model

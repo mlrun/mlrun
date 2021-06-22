@@ -16,9 +16,9 @@ MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]
 
 class Callback(ABC):
     """
-    Abstract class for a callback to mlrun's pytorch framework package. Each callback must implement this class so it
-    could be used in the trainer and evaluator classes. If implementing a custom trainer, one should consider using the
-    'CallbacksHandler' class.
+    Abstract class for a callback to MLRun's pytorch framework package. Each callback must implement this class so it
+    could be used in MLRun's PyTorch interface. If you wish to implement custom training / evaluation, you should
+    consider using the 'CallbacksHandler' class.
     """
 
     class _ObjectKeys:
@@ -83,19 +83,19 @@ class Callback(ABC):
 
     def on_run_begin(self):
         """
-        After the trainer / evaluator run begins, this method will be called.
+        After the run begins, this method will be called.
         """
         pass
 
     def on_run_end(self):
         """
-        Before the trainer / evaluator run ends, this method will be called.
+        Before the run ends, this method will be called.
         """
         pass
 
     def on_epoch_begin(self, epoch: int):
         """
-        After the trainer epoch begins, this method will be called.
+        After the epoch begins, this method will be called.
 
         :param epoch: The epoch that is about to begin.
         """
@@ -103,7 +103,7 @@ class Callback(ABC):
 
     def on_epoch_end(self, epoch: int) -> bool:
         """
-        Before the trainer epoch ends, this method will be called.
+        Before the epoch ends, this method will be called.
 
         :param epoch: The epoch that has just ended.
 
@@ -113,13 +113,13 @@ class Callback(ABC):
 
     def on_train_begin(self):
         """
-        After the trainer training of the current epoch begins, this method will be called.
+        After the training of the current epoch begins, this method will be called.
         """
         pass
 
     def on_train_end(self) -> bool:
         """
-        Before the trainer training of the current epoch ends, this method will be called.
+        Before the training of the current epoch ends, this method will be called.
 
         :return Can optionally return a boolean value indicating whether or not to continue the training process.
         """
@@ -127,8 +127,7 @@ class Callback(ABC):
 
     def on_validation_begin(self):
         """
-        After the trainer / evaluator validation (in a trainer's case it will be per epoch) begins, this method will be
-        called.
+        After the validation (in a training case it will be per epoch) begins, this method will be called.
         """
         pass
 
@@ -136,8 +135,7 @@ class Callback(ABC):
         self, loss_value: MetricValueType, metric_values: List[float]
     ) -> bool:
         """
-        Before the trainer / evaluator validation (in a trainer's case it will be per epoch) ends, this method will be
-        called.
+        Before the validation (in a training case it will be per epoch) ends, this method will be called.
 
         :param loss_value:    The loss summary of this validation.
         :param metric_values: The metrics summaries of this validation.
@@ -149,7 +147,7 @@ class Callback(ABC):
 
     def on_train_batch_begin(self, batch: int, x, y_true: Tensor):
         """
-        After the trainer training of the given batch begins, this method will be called.
+        After the training of the given batch begins, this method will be called.
 
         :param batch:  The current batch iteration of when this method is called.
         :param x:      The input of the current batch.
@@ -159,7 +157,7 @@ class Callback(ABC):
 
     def on_train_batch_end(self, batch: int, x, y_pred: Tensor, y_true: Tensor) -> bool:
         """
-        Before the trainer training of the given batch ends, this method will be called.
+        Before the training of the given batch ends, this method will be called.
 
         :param batch:  The current batch iteration of when this method is called.
         :param x:      The input of the current batch.
@@ -172,7 +170,7 @@ class Callback(ABC):
 
     def on_validation_batch_begin(self, batch: int, x, y_true: Tensor):
         """
-        After the trainer / evaluator validation of the given batch begins, this method will be called.
+        After the validation of the given batch begins, this method will be called.
 
         :param batch:  The current batch iteration of when this method is called.
         :param x:      The input of the current batch.
@@ -184,7 +182,7 @@ class Callback(ABC):
         self, batch: int, x, y_pred: Tensor, y_true: Tensor
     ) -> bool:
         """
-        Before the trainer / evaluator validation of the given batch ends, this method will be called.
+        Before the validation of the given batch ends, this method will be called.
 
         :param batch:  The current batch iteration of when this method is called.
         :param x:      The input of the current batch.
@@ -217,13 +215,13 @@ class Callback(ABC):
 
     def on_train_loss_begin(self):
         """
-        Before the trainer training calculation of the loss, this method will be called.
+        Before the training calculation of the loss, this method will be called.
         """
         pass
 
     def on_train_loss_end(self, loss_value: MetricValueType):
         """
-        After the trainer training calculation of the loss, this method will be called.
+        After the training calculation of the loss, this method will be called.
 
         :param loss_value: The recent loss value calculated during training.
         """
@@ -231,13 +229,13 @@ class Callback(ABC):
 
     def on_validation_loss_begin(self):
         """
-        Before the trainer / evaluator validating calculation of the loss, this method will be called.
+        Before the validating calculation of the loss, this method will be called.
         """
         pass
 
     def on_validation_loss_end(self, loss_value: MetricValueType):
         """
-        After the trainer / evaluator validating calculation of the loss, this method will be called.
+        After the validating calculation of the loss, this method will be called.
 
         :param loss_value: The recent loss value calculated during validation.
         """
@@ -245,13 +243,13 @@ class Callback(ABC):
 
     def on_train_metrics_begin(self):
         """
-        Before the trainer training calculation of the metrics, this method will be called.
+        Before the training calculation of the metrics, this method will be called.
         """
         pass
 
     def on_train_metrics_end(self, metric_values: List[MetricValueType]):
         """
-        After the trainer training calculation of the metrics, this method will be called.
+        After the training calculation of the metrics, this method will be called.
 
         :param metric_values: The recent metric values calculated during training.
         """
@@ -259,13 +257,13 @@ class Callback(ABC):
 
     def on_validation_metrics_begin(self):
         """
-        Before the trainer / evaluator validating calculation of the metrics, this method will be called.
+        Before the validating calculation of the metrics, this method will be called.
         """
         pass
 
     def on_validation_metrics_end(self, metric_values: List[MetricValueType]):
         """
-        After the trainer / evaluator validating calculation of the metrics, this method will be called.
+        After the validating calculation of the metrics, this method will be called.
 
         :param metric_values: The recent metric values calculated during validation.
         """

@@ -5,6 +5,7 @@ import tensorflow as tf
 from tensorflow import Tensor, Variable
 from tensorflow.keras.callbacks import Callback
 
+import mlrun
 from mlrun.frameworks._common.loggers import Logger, TrackableType
 
 
@@ -17,18 +18,19 @@ class LoggingCallback(Callback):
 
     def __init__(
         self,
+        context: mlrun.MLClientCtx = None,
         dynamic_hyperparameters: Dict[
             str, Union[List[Union[str, int]], Callable[[], TrackableType]]
         ] = None,
         static_hyperparameters: Dict[
             str, Union[TrackableType, List[Union[str, int]]]
         ] = None,
-        per_iteration_logging: int = 1,
         auto_log: bool = False,
     ):
         """
         Initialize a logging callback with the given hyperparameters and logging configurations.
 
+        :param context:                 MLRun context to automatically log its parameters if 'auto_log' is True.
         :param dynamic_hyperparameters: If needed to track a hyperparameter dynamically (sample it each epoch) it should
                                         be passed here. The parameter expects a dictionary where the keys are the
                                         hyperparameter chosen names and the values are a key chain from the model. A key
@@ -48,8 +50,6 @@ class LoggingCallback(Callback):
                                         {
                                             "epochs": 7
                                         }
-        :param per_iteration_logging:   Per how many iterations (batches) the callback should log the tracked values.
-                                        Defaulted to 1 (meaning every iteration will be logged).
         :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
                                         hyperparameters.
         """
@@ -57,8 +57,6 @@ class LoggingCallback(Callback):
         self._supports_tf_logs = True
 
         # Store the configurations:
-        # TODO: Change to logging_frequency and enable float (percentage of data_loader) and string ('epoch', 'batch').
-        self._per_iteration_logging = per_iteration_logging
         self._dynamic_hyperparameters_keys = (
             dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
         )
@@ -67,7 +65,7 @@ class LoggingCallback(Callback):
         )
 
         # Initialize the logger:
-        self._logger = Logger()
+        self._logger = Logger(context=context)
 
         # For calculating the batch's values we need to collect the epochs sums:
         # [Metric: str] -> [Sum: float]
@@ -75,8 +73,7 @@ class LoggingCallback(Callback):
         self._validation_epoch_sums = {}  # type: Dict[str, float]
 
         # Setup the flags:
-        self._log_iteration = False
-        self._call_setup_run = True
+        self._is_training = None  # type: bool
         self._auto_log = auto_log
 
     def get_training_results(self) -> Dict[str, List[List[float]]]:
@@ -166,6 +163,7 @@ class LoggingCallback(Callback):
         :param logs: Currently no data is passed to this argument for this method but that may change in the
                      future.
         """
+        self._is_training = True
         self._setup_run()
 
     def on_test_begin(self, logs: dict = None):
@@ -176,8 +174,12 @@ class LoggingCallback(Callback):
         :param logs: Currently no data is passed to this argument for this method but that may change in the
                      future.
         """
+        # Check if needed to mark this run as evaluation:
+        if self._is_training is None:
+            self._is_training = False
+
         # If this callback is part of evaluation and not training, need to check if the run was setup:
-        if self._call_setup_run:
+        if not self._is_training:
             self._setup_run()
 
     def on_test_end(self, logs: dict = None):
@@ -251,7 +253,6 @@ class LoggingCallback(Callback):
                       metrics are returned. Example: `{'loss': 0.2, 'accuracy': 0.7}`.
         """
         self._logger.log_training_iteration()
-        self._on_batch_begin(batch=batch)
 
     def on_train_batch_end(self, batch: int, logs: dict = None):
         """
@@ -280,7 +281,6 @@ class LoggingCallback(Callback):
                       metrics are returned.  Example: `{'loss': 0.2, 'accuracy': 0.7}`.
         """
         self._logger.log_validation_iteration()
-        self._on_batch_begin(batch=batch)
 
     def on_test_batch_end(self, batch: int, logs: dict = None):
         """
@@ -324,17 +324,6 @@ class LoggingCallback(Callback):
                 value=self._get_hyperparameter(key_chain=key_chain),
             )
 
-        # Mark this run was set up:
-        self._call_setup_run = False
-
-    def _on_batch_begin(self, batch: int):
-        """
-        Method to run on every batch (training and validation) updating the logger flag.
-
-        :param batch: The batch index.
-        """
-        self._log_iteration = batch % self._per_iteration_logging == 0
-
     def _on_batch_end(self, results_dictionary: dict, sum_dictionary: dict, logs: dict):
         """
         Log the given metrics values to the given results dictionary.
@@ -343,10 +332,6 @@ class LoggingCallback(Callback):
         :param sum_dictionary:     One of 'self._training_epoch_sums' or 'self._validation_epoch_sums'.
         :param logs:               The loss and metrics results of the recent batch.
         """
-        # Check if this iteration should be logged:
-        if not self._log_iteration:
-            return
-
         # Parse the metrics names in the logs:
         logs = self._parse_metrics(logs=logs)
 
@@ -367,10 +352,15 @@ class LoggingCallback(Callback):
     def _add_auto_hyperparameters(self):
         """
         Add auto log's hyperparameters if they are accessible. The automatic hyperparameters being added are:
-        learning rate.
+        learning rate.  In addition to that, the context parameters (if available) will be logged as static
+        hyperparameters as well.
         """
+        # Log the context parameters:
+        if self._logger.context is not None:
+            self._logger.log_context_parameters()
+
         # Add learning rate:
-        learning_rate_key = "Learning Rate"
+        learning_rate_key = "lr"
         learning_rate_key_chain = ["optimizer", "lr"]
         if learning_rate_key not in self._dynamic_hyperparameters_keys and hasattr(
             self.model, "optimizer"

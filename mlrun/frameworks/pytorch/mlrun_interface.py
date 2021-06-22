@@ -1,4 +1,5 @@
 import importlib
+import os
 import sys
 from typing import Any, Dict, List, Tuple, Union
 
@@ -30,6 +31,9 @@ class PyTorchMLRunInterface:
     automatic logging.
     """
 
+    # MLRun's context default name:
+    DEFAULT_CONTEXT_NAME = "mlrun-pytorch"
+
     def __init__(self, model: Module, context: mlrun.MLClientCtx = None):
         """
         Initialize an interface for running training and evaluation on the given parameters.
@@ -39,7 +43,7 @@ class PyTorchMLRunInterface:
         """
         # Set the context:
         if context is None:
-            context = mlrun.get_or_create_ctx(None)
+            context = mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
 
         # Store the model:
         self._model = model
@@ -272,7 +276,9 @@ class PyTorchMLRunInterface:
     def add_auto_logging_callbacks(
         self,
         custom_objects: Dict[Union[str, List[str]], str] = None,
+        add_mlrun_logger: bool = True,
         mlrun_callback__kwargs: Dict[str, Any] = None,
+        add_tensorboard_logger: bool = True,
         tensorboard_callback_kwargs: Dict[str, Any] = None,
     ):
         """
@@ -289,9 +295,11 @@ class PyTorchMLRunInterface:
                                                 "class_name": "/path/to/model.py",
                                                 ["layer1", "layer2"]: "/path/to/custom_layers.py"
                                             }
+        :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
         :param mlrun_callback__kwargs:      Key word arguments for the MLRun callback. For further information see the
                                             documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
                                             'custom_objects' and 'auto_log' parameters are already given here.
+        :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
         :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                             the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                             'context' and 'auto_log' parameters are already given here.
@@ -304,20 +312,24 @@ class PyTorchMLRunInterface:
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         )
 
-        # Initialize and return the callbacks:
-        self._callbacks.append(
-            MLRunLoggingCallback(
-                context=self._context,
-                custom_objects=custom_objects,
-                auto_log=True,
-                **mlrun_callback__kwargs
+        # Add the loggers:
+        if add_mlrun_logger:
+            # Add the MLRun logging callback:
+            self._callbacks.append(
+                MLRunLoggingCallback(
+                    context=self._context,
+                    custom_objects=custom_objects,
+                    auto_log=True,
+                    **mlrun_callback__kwargs
+                )
             )
-        )
-        self._callbacks.append(
-            TensorboardLoggingCallback(
-                context=self._context, auto_log=True, **tensorboard_callback_kwargs
+        if add_tensorboard_logger:
+            # Add the Tensorboard logging callback:
+            self._callbacks.append(
+                TensorboardLoggingCallback(
+                    context=self._context, auto_log=True, **tensorboard_callback_kwargs
+                )
             )
-        )
 
     def _parse_and_store(
         self,
@@ -433,7 +445,11 @@ class PyTorchMLRunInterface:
             callbacks = []
         # # Use horovod:
         if use_horovod is None:
-            use_horovod = self._context.labels.get("kind", "") == "mpijob"
+            use_horovod = (
+                self._context.labels.get("kind", "") == "mpijob"
+                if self._context is not None
+                else False
+            )
 
         # Store the configurations:
         self._training_set = training_set

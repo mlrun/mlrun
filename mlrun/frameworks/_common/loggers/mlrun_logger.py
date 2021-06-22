@@ -37,15 +37,15 @@ class MLRunLogger(Logger):
         """
         Initialize the MLRun logging interface to work with the given context.
 
-        :param context:              MLRun context to log to.
+        :param context:              MLRun context to log to. The context parameters can be logged as static
+                                     hyperparameters.
         :param log_model_labels:     Labels to log with the model.
         :param log_model_parameters: Parameters to log with the model.
         :param log_model_extra_data: Extra data to log with the model.
         """
-        super(MLRunLogger, self).__init__()
+        super(MLRunLogger, self).__init__(context=context)
 
         # Store the context:
-        self._context = context
         self._log_model_labels = (
             log_model_labels if log_model_labels is not None else {}
         )

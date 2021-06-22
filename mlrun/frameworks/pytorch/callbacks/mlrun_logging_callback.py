@@ -41,13 +41,13 @@ class MLRunLoggingCallback(LoggingCallback):
         static_hyperparameters: Dict[
             str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
-        per_iteration_logging: int = 1,
         auto_log: bool = False,
     ):
         """
         Initialize an mlrun logging callback with the given hyperparameters and logging configurations.
 
-        :param context:                 The mlrun context to log with.
+        :param context:                 MLRun context to log to. Its parameters will be logged automatically  if
+                                        'auto_log' is True.
         :param log_model_labels:        Labels to log with the model.
         :param log_model_parameters:    Parameters to log with the model.
         :param log_model_extra_data:    Extra data to log with the model.
@@ -82,15 +82,12 @@ class MLRunLoggingCallback(LoggingCallback):
                                         {
                                             "epochs": 7
                                         }
-        :param per_iteration_logging:   Per how many iterations (batches) the callback should log the tracked values.
-                                        Defaulted to 1 (meaning every iteration will be logged).
-        :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
-                                        hyperparameters.
+        :param auto_log:                Whether or not to enable auto logging for logging the context parameters and
+                                        trying to track common static and dynamic hyperparameters.
         """
         super(MLRunLoggingCallback, self).__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
-            per_iteration_logging=per_iteration_logging,
             auto_log=auto_log,
         )
 
@@ -108,8 +105,7 @@ class MLRunLoggingCallback(LoggingCallback):
 
     def on_run_end(self):
         """
-        Before the trainer / evaluator run ends, this method will be called to log the model and the run summaries
-        charts.
+        Before the run ends, this method will be called to log the model and the run summaries charts.
         """
         model = self._objects[self._ObjectKeys.MODEL]
         self._logger.log_run(
@@ -122,8 +118,8 @@ class MLRunLoggingCallback(LoggingCallback):
 
     def on_epoch_end(self, epoch: int):
         """
-        Before the trainer given epoch ends, this method will be called to log the dynamic hyperparameters and results
-        of this epoch via the stored context.
+        Before the given epoch ends, this method will be called to log the dynamic hyperparameters and results of this
+        epoch via the stored context.
 
         :param epoch: The epoch that has just ended.
         """

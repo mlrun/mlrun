@@ -29,6 +29,9 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
     and use auto logging with ease.
     """
 
+    # MLRun's context default name:
+    DEFAULT_CONTEXT_NAME = "mlrun-keras"
+
     # Properties attributes to be inserted so the keras mlrun interface will be fully enabled:
     _PROPERTIES = {
         # Auto enabled callbacks list:
@@ -129,8 +132,10 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
 
     def auto_log(
         self,
-        context: mlrun.MLClientCtx,
+        context: mlrun.MLClientCtx = None,
+        add_mlrun_logger: bool = True,
         mlrun_callback__kwargs: Dict[str, Any] = None,
+        add_tensorboard_logger: bool = True,
         tensorboard_callback_kwargs: Dict[str, Any] = None,
     ):
         """
@@ -140,9 +145,11 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         'mlrun.frameworks.keras.callbacks.TensorboardLoggingCallback'.
 
         :param context:                     The MLRun context to log with.
+        :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
         :param mlrun_callback__kwargs:      Key word arguments for the MLRun callback. For further information see the
                                             documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
                                             and 'auto_log' parameters are already given here.
+        :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
         :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                             the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                             'context' and 'auto_log' parameters are already given here.
@@ -150,6 +157,10 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         # If horovod is being used, there is no need to add the logging callbacks to ranks other than 0:
         if self._hvd is not None and self._hvd.rank() != 0:
             return
+
+        # Get default context in case it was not given:
+        if context is None:
+            context = mlrun.get_or_create_ctx(KerasMLRunInterface.DEFAULT_CONTEXT_NAME)
 
         # Set the dictionaries defaults:
         mlrun_callback__kwargs = (
@@ -159,19 +170,21 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         )
 
-        # Add the MLRun logging callback:
-        self._callbacks.append(
-            MLRunLoggingCallback(
-                context=context, auto_log=True, **mlrun_callback__kwargs
+        # Add the loggers:
+        if add_mlrun_logger:
+            # Add the MLRun logging callback:
+            self._callbacks.append(
+                MLRunLoggingCallback(
+                    context=context, auto_log=True, **mlrun_callback__kwargs
+                )
             )
-        )
-
-        # Add the Tensorboard logging callback:
-        self._callbacks.append(
-            TensorboardLoggingCallback(
-                context=context, auto_log=True, **tensorboard_callback_kwargs
+        if add_tensorboard_logger:
+            # Add the Tensorboard logging callback:
+            self._callbacks.append(
+                TensorboardLoggingCallback(
+                    context=context, auto_log=True, **tensorboard_callback_kwargs
+                )
             )
-        )
 
     def use_horovod(self):
         """

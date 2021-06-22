@@ -57,6 +57,7 @@ class TensorboardLogger(Logger):
         context: MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
+        update_frequency: Union[int, str] = "epoch",
     ):
         """
         Initialize a tensorboard logger callback with the given configuration. At least one of 'context' and
@@ -65,24 +66,44 @@ class TensorboardLogger(Logger):
         :param statistics_functions:  A list of statistics functions to calculate at the end of each epoch on the
                                       tracked weights. Only relevant if weights are being tracked. The functions in
                                       the list must accept one Weight and return a float (or float convertible) value.
-        :param context:               A mlrun context to use for logging into the user's tensorboard directory.
+        :param context:               A MLRun context to use for logging into the user's tensorboard directory. The
+                                      context parameters can be logged as static hyperparameters as well.
         :param tensorboard_directory: If context is not given, or if wished to set the directory even with context,
                                       this will be the output for the event logs of tensorboard.
         :param run_name:              This experiment run name. Each run name will be indexed at the end of the name so
                                       each experiment will be numbered automatically. If a context was given, the
                                       context's uid will be added instead of an index. If a run name was not given the
                                       current time in the following format: 'YYYY-mm-dd_HH:MM:SS'.
+        :param update_frequency:      Per how many iterations (batches) the callback should write the tracked values to
+                                      tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
+                                      for per single batch, or as an integer specifying per how many iterations to
+                                      update. Notice that writing to tensorboard too frequently may cause the training
+                                      to be slower. Defaulted to 'epoch'.
         """
-        super(TensorboardLogger, self).__init__()
+        super(TensorboardLogger, self).__init__(context=context)
+
+        # Validate the update frequency:
+        if isinstance(update_frequency, str) and update_frequency == "batch":
+            update_frequency = 1
+        elif not (
+            (isinstance(update_frequency, str) and update_frequency == "epoch")
+            or (isinstance(update_frequency, int) and update_frequency > 0)
+        ):
+            raise ValueError(
+                "The update frequency parameter is expected to be euqal to 'epoch', 'batch' or a positive "
+                "integer, received: {}".format(update_frequency)
+            )
 
         # Store the given parameters:
         self._statistics_functions = statistics_functions
-        self._context = context
         self._tensorboard_directory = tensorboard_directory
         self._run_name = run_name
+        self._update_frequency = update_frequency
 
-        # Setup the output path:
+        # Setup the inner parameters:
         self._output_path = None
+        self._last_logged_training_iteration = 0
+        self._last_logged_validation_iteration = 0
 
         # Setup the weights dictionaries - a dictionary of all required weight parameters:
         # [Weight: str] -> [value: WeightType]
@@ -142,87 +163,245 @@ class TensorboardLogger(Logger):
                     weight_name
                 ].append(float(statistic_function(weight_parameter)))
 
-    @abstractmethod
-    def log_run_start_text_to_tensorboard(self):
+    def write_initial_summary_text(self):
         """
-        Log the initial information summary of this training / validation run to tensorboard.
+        Write the initial run summary text to tensorboard.
+        """
+        self._write_text_to_tensorboard(
+            tag="MLRun", text=self._generate_run_start_text(), step=0
+        )
+
+    def write_epoch_summary_text(self):
+        """
+        Write the current epoch summary text to tensorboard.
+        """
+        self._write_text_to_tensorboard(
+            tag="MLRun",
+            text=self._generate_epoch_text(),
+            step=self._training_iterations,
+        )
+
+    def write_final_summary_text(self):
+        """
+        Write the final training / evaluation run information to tensorboard.
+        """
+        # Log the run's final summary:
+        self._write_text_to_tensorboard(
+            tag="MLRun",
+            text=self._generate_run_end_text(),
+            step=(
+                self._validation_iterations
+                if self._training_iterations == 0
+                else self._training_iterations
+            ),
+        )
+
+    def write_training_results(self, ignore_update_frequency: bool = False) -> bool:
+        """
+        Write the current epoch training results with respect to the update frequency.
+
+        :param ignore_update_frequency: If the updaye frequency should be ignored, meaning the training results will be
+                                        written to tensorboard regardless the iteration. Should be happening at the end
+                                        of every epoch.
+
+        :return: True if the information was written to tensorboard and false if not.
+        """
+        # Check if the logger should write to tensorboard according to the update frequency:
+        if not ignore_update_frequency and not self._write_to_tensorboard(
+            is_training=True
+        ):
+            return False
+
+        # Check if everything is already logged:
+        if self._last_logged_training_iteration == self._training_iterations:
+            return True
+
+        # Get the index to log from:
+        index_to_log_from = (
+            self._training_iterations - self._last_logged_training_iteration
+        )
+
+        # Write the training results collected:
+        for parameter, epochs in self._training_results.items():
+            for i, value in enumerate(epochs[-1][-index_to_log_from:]):
+                self._write_scalar_to_tensorboard(
+                    name="{}/{}".format(self._Sections.TRAINING, parameter),
+                    value=value,
+                    step=self._last_logged_training_iteration + i + 1,
+                )
+
+        # Count the logged iterations:
+        self._last_logged_training_iteration += index_to_log_from
+
+        return True
+
+    def write_validation_results(self, ignore_update_frequency: bool = False) -> bool:
+        """
+        Write the current epoch validation (evaluation) results with respect to the update frequency.
+
+        :param ignore_update_frequency: If the updaye frequency should be ignored, meaning the training results will be
+                                        written to tensorboard regardless the iteration. Should be happening at the end
+                                        of every epoch.
+
+        :return: True if the information was written to tensorboard and false if not.
+        """
+        # Check if the logger should write to tensorboard according to the update frequency:
+        if not ignore_update_frequency and not self._write_to_tensorboard(
+            is_training=False
+        ):
+            return False
+
+        # Check if everything is already logged:
+        if self._last_logged_validation_iteration == self._validation_iterations:
+            return True
+
+        # Get the index to log from:
+        index_to_log_from = (
+            self._validation_iterations - self._last_logged_validation_iteration
+        )
+
+        # Write the validation results collected:
+        for parameter, epochs in self._validation_results.items():
+            for i, value in enumerate(epochs[-1][-index_to_log_from:]):
+                self._write_scalar_to_tensorboard(
+                    name="{}/{}".format(self._Sections.VALIDATION, parameter),
+                    value=value,
+                    step=self._last_logged_validation_iteration + i + 1,
+                )
+
+        # Count the logged iterations:
+        self._last_logged_validation_iteration += index_to_log_from
+
+        return True
+
+    def write_training_summaries(self):
+        """
+        Write the current epoch training metrics summaries values to tensorboard.
+        """
+        for metric, epochs in self._training_summaries.items():
+            self._write_scalar_to_tensorboard(
+                name="{}/{}_{}".format(self._Sections.SUMMARY, "training", metric),
+                value=epochs[-1],
+                step=self._epochs,
+            )
+
+    def write_validation_summaries(self):
+        """
+        Write the current epoch validation metrics summaries values to tensorboard.
+        """
+        for metric, epochs in self._validation_summaries.items():
+            self._write_scalar_to_tensorboard(
+                name="{}/{}_{}".format(self._Sections.SUMMARY, "validation", metric),
+                value=epochs[-1],
+                step=self._epochs,
+            )
+
+    def write_dynamic_hyperparameters(self):
+        """
+        Write the current epoch dynamic hyperparameter values to tensorboard.
+        """
+        for parameter, epochs in self._dynamic_hyperparameters.items():
+            self._write_scalar_to_tensorboard(
+                name="{}/{}".format(self._Sections.HYPERPARAMETERS, parameter),
+                value=epochs[-1],
+                step=self._epochs,
+            )
+
+    def write_weights_histograms(self):
+        """
+        Write the current epoch weights histograms to tensorboard.
+        """
+        for weight_name, weight in self._weights.items():
+            self._write_weight_histogram_to_tensorboard(
+                name="{}/{}".format(self._Sections.WEIGHTS, weight_name),
+                weight=weight,
+                step=self._epochs,
+            )
+
+    def write_weights_images(self):
+        """
+        Write the current epoch weights statistics to tensorboard.
+        """
+        for weight_name, weight in self._weights.items():
+            self._write_weight_image_to_tensorboard(
+                name="{}/{}".format(self._Sections.WEIGHTS, weight_name),
+                weight=weight,
+                step=self._epochs,
+            )
+
+    def write_weights_statistics(self):
+        """
+        Write the current epoch weight statistics to tensorboard.
+        """
+        for statistic, weights in self._weights_statistics.items():
+            for weight_name, epoch_values in weights.items():
+                self._write_scalar_to_tensorboard(
+                    name="{}/{}:{}".format(
+                        self._Sections.WEIGHTS, weight_name, statistic
+                    ),
+                    value=epoch_values[-1],
+                    step=self._epochs,
+                )
+
+    @abstractmethod
+    def write_model_to_tensorboard(self, *args, **kwargs):
+        """
+        Write the given model as a graph in tensorboard.
         """
         pass
 
     @abstractmethod
-    def log_epoch_text_to_tensorboard(self):
+    def write_parameters_table_to_tensorboard(self):
         """
-        Log the last epoch summary of this training / validation run to tensorboard.
-        """
-        pass
-
-    @abstractmethod
-    def log_run_end_text_to_tensorboard(self):
-        """
-        Log the final information summary of this training / validation run to tensorboard.
+        Write the summaries, static and dynamic hyperparameters to the table in tensorboard's hparams section. This
+        method is called once for creating the hparams table.
         """
         pass
 
     @abstractmethod
-    def log_parameters_table_to_tensorboard(self):
+    def _write_text_to_tensorboard(self, tag: str, text: str, step: int):
         """
-        Log the validation summaries, static and dynamic hyperparameters to the 'HParams' table in tensorboard.
+        Write text to tensorboard's text section. Summary information of this training / validation run will be logged
+        to tensorboard using this method.
+
+        :param tag:  The tag of the text (box it will be appearing under).
+        :param text: The text to write.
+        :param step: The iteration / epoch the text belongs to.
         """
         pass
 
     @abstractmethod
-    def log_training_results_to_tensorboard(self):
+    def _write_scalar_to_tensorboard(self, name: str, value: float, step: int):
         """
-        Log the recent training iteration metrics results to tensorboard.
+        Write the scalar's value into its plot.
+
+        :param name:  The plot's name.
+        :param value: The value to add to the plot.
+        :param step:  The iteration / epoch the value belongs to.
         """
         pass
 
     @abstractmethod
-    def log_validation_results_to_tensorboard(self):
+    def _write_weight_histogram_to_tensorboard(
+        self, name: str, weight: Weight, step: int
+    ):
         """
-        Log the recent validation iteration metrics results to tensorboard.
+        Write the current state of the weights as histograms to tensorboard.
+
+        :param name:   The weight's name.
+        :param weight: The weight to write its histogram.
+        :param step:   The iteration / epoch the weight's histogram state belongs to.
         """
         pass
 
     @abstractmethod
-    def log_dynamic_hyperparameters_to_tensorboard(self):
-        """
-        Log the recent epoch dynamic hyperparameters values to tensorboard.
-        """
-        pass
-
-    @abstractmethod
-    def log_summaries_to_tensorboard(self):
-        """
-        Log the recent epoch summaries results to tensorboard.
-        """
-        pass
-
-    @abstractmethod
-    def log_weights_histograms_to_tensorboard(self):
-        """
-        Log the current state of the weights as histograms to tensorboard.
-        """
-        pass
-
-    @abstractmethod
-    def log_weights_images_to_tensorboard(self):
+    def _write_weight_image_to_tensorboard(self, name: str, weight: Weight, step: int):
         """
         Log the current state of the weights as images to tensorboard.
-        """
-        pass
 
-    @abstractmethod
-    def log_statistics_to_tensorboard(self):
-        """
-        Log the last stored statistics values this logger collected to tensorboard.
-        """
-        pass
-
-    @abstractmethod
-    def log_model_to_tensorboard(self, *args, **kwargs):
-        """
-        Log the given model as a graph in tensorboard.
+        :param name:   The weight's name.
+        :param weight: The weight to write its image.
+        :param step:   The iteration / epoch the weight's image state belongs to.
         """
         pass
 
@@ -255,7 +434,8 @@ class TensorboardLogger(Logger):
                 self._run_name = "{}_{}".format(self._run_name, index)
         else:
             # Try to get the 'tensorboard_dir' parameter:
-            self._tensorboard_directory = self._context.get_param("tensorboard_dir")
+            if "tensorboard_dir" in self._context.parameters:
+                self._tensorboard_directory = self._context.get_param("tensorboard_dir")
             if self._tensorboard_directory is None:
                 # The parameter was not given, set the directory to the default value:
                 self._tensorboard_directory = self._DEFAULT_TENSORBOARD_DIRECTORY.replace(
@@ -270,6 +450,21 @@ class TensorboardLogger(Logger):
         # Create the output path:
         self._output_path = os.path.join(self._tensorboard_directory, self._run_name)
         os.makedirs(self._output_path, exist_ok=True)
+
+    def _write_to_tensorboard(self, is_training: bool) -> bool:
+        """
+        Whether or not the logger should write to tensorboard the specified information.
+
+        :param is_training: Whether the information to update is of training or not (validation).
+
+        :return: True if the logger should write to tensorboard according to the stored update frequency and False if
+                 not.
+        """
+        if isinstance(self._update_frequency, str):
+            return False
+        if is_training:
+            return self._training_iterations % self._update_frequency == 0
+        return self._validation_iterations % self._update_frequency == 0
 
     def _generate_run_start_text(self) -> str:
         """
@@ -320,7 +515,7 @@ class TensorboardLogger(Logger):
         :return: The generated text.
         """
         text = "####Epoch {} summary:".format(self._epochs)
-        if self._context._children[-1] is not None:
+        if self._context is not None and self._context._children[-1] is not None:
             for property_name, property_value in self._extract_properties_from_context(
                 context=self._context
             ).items():

@@ -4,6 +4,7 @@ import numpy as np
 from torch import Tensor
 from torch.nn import Module, Parameter
 
+import mlrun
 from mlrun.frameworks._common.loggers import Logger, TrackableType
 from mlrun.frameworks.pytorch.callbacks.callback import (
     Callback,
@@ -44,18 +45,19 @@ class LoggingCallback(Callback):
 
     def __init__(
         self,
+        context: mlrun.MLClientCtx = None,
         dynamic_hyperparameters: Dict[
             str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
         ] = None,
         static_hyperparameters: Dict[
             str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
-        per_iteration_logging: int = 1,
         auto_log: bool = False,
     ):
         """
         Initialize a logging callback with the given hyperparameters and logging configurations.
 
+        :param context:                 MLRun context to automatically log its parameters if 'auto_log' is True.
         :param dynamic_hyperparameters: If needed to track a hyperparameter dynamically (sample it each epoch) it should
                                         be passed here. The parameter expects a dictionary where the keys are the
                                         hyperparameter chosen names and the values are tuples of object key and a list
@@ -78,15 +80,12 @@ class LoggingCallback(Callback):
                                         {
                                             "epochs": 7
                                         }
-        :param per_iteration_logging:   Per how many iterations (batches) the callback should log the tracked values.
-                                        Defaulted to 1 (meaning every iteration will be logged).
         :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
                                         hyperparameters.
         """
         super(LoggingCallback, self).__init__()
 
         # Store the configurations:
-        self._per_iteration_logging = per_iteration_logging
         self._dynamic_hyperparameters_keys = (
             dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
         )
@@ -95,10 +94,10 @@ class LoggingCallback(Callback):
         )
 
         # Initialize the logger:
-        self._logger = Logger()
+        self._logger = Logger(context=context)
 
         # Setup the logger flags:
-        self._log_iteration = False
+        self._is_training = None  # type: bool
         self._auto_log = auto_log
 
     def get_training_results(self) -> Dict[str, List[List[float]]]:
@@ -184,8 +183,8 @@ class LoggingCallback(Callback):
 
     def on_run_begin(self):
         """
-        After the trainer / evaluator run begins, this method will be called to setup the results and hyperparameters
-        dictionaries for logging, noting the metrics names and logging the initial hyperparameters values (epoch 0).
+        After the run begins, this method will be called to setup the results and hyperparameters dictionaries for
+        logging, noting the metrics names and logging the initial hyperparameters values (epoch 0).
         """
         # Setup the results and summaries dictionaries:
         # # Loss:
@@ -222,8 +221,8 @@ class LoggingCallback(Callback):
 
     def on_epoch_begin(self, epoch: int):
         """
-        After the trainer given epoch begins, this method will be called to append a new list to each of the metrics
-        results for the new epoch.
+        After the given epoch begins, this method will be called to append a new list to each of the metrics results for
+        the new epoch.
 
         :param epoch: The epoch that is about to begin.
         """
@@ -231,7 +230,7 @@ class LoggingCallback(Callback):
 
     def on_epoch_end(self, epoch: int):
         """
-        Before the trainer given epoch ends, this method will be called to log the dynamic hyperparameters as needed.
+        Before the given epoch ends, this method will be called to log the dynamic hyperparameters as needed.
 
         :param epoch: The epoch that has just ended.
         """
@@ -248,13 +247,13 @@ class LoggingCallback(Callback):
 
     def on_train_begin(self):
         """
-        After the trainer training of the current epoch begins, this method will be called.
+        After the training of the current epoch begins, this method will be called to set the mode for training.
         """
-        self._log_iteration = False
+        self._is_training = True
 
     def on_train_end(self):
         """
-        Before the trainer training of the current epoch ends, this method will be called to lof the training summaries.
+        Before the training of the current epoch ends, this method will be called to lof the training summaries.
         """
         # Store the last training loss result of this epoch:
         loss_name = self._get_metric_name(
@@ -275,17 +274,18 @@ class LoggingCallback(Callback):
 
     def on_validation_begin(self):
         """
-        After the trainer / evaluator validation (in a trainer's case it will be per epoch) begins, this method will be
-        called.
+        After the validation (in a training case it will be per epoch) begins, this method will be called to set the
+        mode for evaluation if the mode was not set for training already.
         """
-        self._log_iteration = False
+        if self._is_training is None:
+            self._is_training = False
 
     def on_validation_end(
         self, loss_value: MetricValueType, metric_values: List[float]
     ):
         """
-        Before the trainer / evaluator validation (in a trainer's case it will be per epoch) ends, this method will be
-        called to log the validation results summaries.
+        Before the validation (in a training case it will be per epoch) ends, this method will be called to log the
+        validation results summaries.
 
         :param loss_value:    The loss summary of this validation.
         :param metric_values: The metrics summaries of this validation.
@@ -309,38 +309,32 @@ class LoggingCallback(Callback):
 
     def on_train_batch_begin(self, batch: int, x: Tensor, y_true: Tensor):
         """
-        After the trainer training of the given batch begins, this method will be called to check whether this iteration
-        needs to be logged.
+        After the training of the given batch begins, this method will be called to check whether this iteration needs
+        to be logged.
 
         :param batch:  The current batch iteration of when this method is called.
         :param x:      The input part of the current batch.
         :param y_true: The true value part of the current batch.
         """
         self._logger.log_training_iteration()
-        self._on_batch_begin(batch=batch)
 
     def on_validation_batch_begin(self, batch: int, x: Tensor, y_true: Tensor):
         """
-        After the trainer / evaluator validation of the given batch begins, this method will be called to check whether
-        this iteration needs to be logged.
+        After the validation of the given batch begins, this method will be called to check whether this iteration needs
+        to be logged.
 
         :param batch:  The current batch iteration of when this method is called.
         :param x:      The input part of the current batch.
         :param y_true: The true value part of the current batch.
         """
         self._logger.log_validation_iteration()
-        self._on_batch_begin(batch=batch)
 
     def on_train_loss_end(self, loss_value: MetricValueType):
         """
-        After the trainer training calculation of the loss, this method will be called to log the loss value.
+        After the training calculation of the loss, this method will be called to log the loss value.
 
         :param loss_value: The recent loss value calculated during training.
         """
-        # Check if this iteration should be logged:
-        if not self._log_iteration:
-            return
-
         # Store the loss value at the current epoch:
         self._logger.log_training_result(
             metric_name=self._get_metric_name(
@@ -351,15 +345,10 @@ class LoggingCallback(Callback):
 
     def on_validation_loss_end(self, loss_value: MetricValueType):
         """
-        After the trainer / evaluator validating calculation of the loss, this method will be called to log the loss
-        value.
+        After the validating calculation of the loss, this method will be called to log the loss value.
 
         :param loss_value: The recent loss value calculated during validation.
         """
-        # Check if this iteration should be logged:
-        if not self._log_iteration:
-            return
-
         # Store the loss value at the current epoch:
         self._logger.log_validation_result(
             metric_name=self._get_metric_name(
@@ -370,15 +359,10 @@ class LoggingCallback(Callback):
 
     def on_train_metrics_end(self, metric_values: List[MetricValueType]):
         """
-        After the trainer training calculation of the metrics, this method will be called to log the metrics values.
+        After the training calculation of the metrics, this method will be called to log the metrics values.
 
         :param metric_values: The recent metric values calculated during training.
         """
-        # Check if this iteration should be logged:
-        if not self._log_iteration:
-            return
-
-        # Log the given metrics as needed:
         for metric_function, metric_value in zip(
             self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
         ):
@@ -389,16 +373,10 @@ class LoggingCallback(Callback):
 
     def on_validation_metrics_end(self, metric_values: List[MetricValueType]):
         """
-        After the trainer / evaluator validating calculation of the metrics, this method will be called to log the
-        metrics values.
+        After the validating calculation of the metrics, this method will be called to log the metrics values.
 
         :param metric_values: The recent metric values calculated during validation.
         """
-        # Check if this iteration should be logged:
-        if not self._log_iteration:
-            return
-
-        # Log the given metrics as needed:
         for metric_function, metric_value in zip(
             self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
         ):
@@ -410,10 +388,15 @@ class LoggingCallback(Callback):
     def _add_auto_hyperparameters(self):
         """
         Add auto log's hyperparameters if they are accessible. The automatic hyperparameters being added are:
-        batch size, learning rate.
+        batch size, learning rate. In addition to that, the context parameters (if available) will be logged as static
+        hyperparameters as well.
         """
+        # Log the context parameters:
+        if self._logger.context is not None:
+            self._logger.log_context_parameters()
+
         # Add batch size:
-        bath_size_key = "Batch Size"
+        bath_size_key = "batch_size"
         if bath_size_key not in self._static_hyperparameters_keys:
             if self._objects[self._ObjectKeys.TRAINING_SET] is not None and hasattr(
                 self._objects[self._ObjectKeys.TRAINING_SET], "batch_size"
@@ -429,7 +412,7 @@ class LoggingCallback(Callback):
                 )
 
         # Add learning rate:
-        learning_rate_key = "Learning Rate"
+        learning_rate_key = "lr"
         learning_rate_key_chain = (
             HyperparametersKeys.OPTIMIZER,
             ["param_groups", 0, "lr"],
@@ -446,14 +429,6 @@ class LoggingCallback(Callback):
                     ] = learning_rate_key_chain
                 except (TypeError, KeyError, IndexError, ValueError):
                     pass
-
-    def _on_batch_begin(self, batch: int):
-        """
-        Method to run on every batch (training and validation).
-
-        :param batch: The batch index.
-        """
-        self._log_iteration = batch % self._per_iteration_logging == 0
 
     def _get_hyperparameter(
         self,

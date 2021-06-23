@@ -3,15 +3,7 @@ from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Cookie,
-    Depends,
-    Query,
-    Request,
-    Response,
-)
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 

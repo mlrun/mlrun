@@ -27,7 +27,7 @@ import mlrun
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 
-from ..datastore import get_stream_pusher, sources
+from ..datastore import get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
@@ -168,7 +168,9 @@ class GraphServer(ModelObj):
     def init_object(self, namespace):
         self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
         return (
-            v2_serving_async_handler if sources.use_async_source else v2_serving_handler
+            v2_serving_async_handler
+            if config.datastore.use_async_source == "enabled"
+            else v2_serving_handler
         )
 
     def test(

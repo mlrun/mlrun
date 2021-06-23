@@ -17,6 +17,7 @@ from typing import Dict, Optional, Union
 
 import mlrun
 
+from ..config import config
 from ..model import DataSource
 from ..utils import get_class
 from .utils import store_path_to_spark
@@ -244,7 +245,9 @@ class OnlineSource(BaseSourceDriver):
         import storey
 
         source_class = (
-            storey.AsyncEmitSource if use_async_source else storey.SyncEmitSource
+            storey.AsyncEmitSource
+            if config.datastore.use_async_source == "enabled"
+            else storey.SyncEmitSource
         )
         return source_class(
             key_field=self.key_field or key_field,
@@ -265,5 +268,3 @@ source_kind_to_driver = {
     "http": HttpSource,
     "custom": CustomSource,
 }
-
-use_async_source = False

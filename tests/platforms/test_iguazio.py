@@ -69,6 +69,19 @@ def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
     assert access_key == result_access_key
 
 
+def test_add_or_refresh_credentials_kubernetes_svc_url_success(monkeypatch):
+    username = "username"
+    access_key = "access_key"
+    api_url = "http://mlrun-api:8080"
+    env = os.environ
+    env["V3IO_USERNAME"] = username
+    env["V3IO_ACCESS_KEY"] = access_key
+
+    result_username, result_access_key, _ = add_or_refresh_credentials(api_url)
+    assert username == result_username
+    assert access_key == result_access_key
+
+
 def test_mount_v3io_legacy():
     username = "username"
     access_key = "access-key"

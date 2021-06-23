@@ -137,7 +137,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
         auth_env_vars = {
             "V3IO_ACCESS_KEY": auth_info.session,
         }
-        for key, value in auth_env_vars:
+        for key, value in auth_env_vars.items():
             if not function.is_env_exists(key):
                 function.set_env(key, value)
 

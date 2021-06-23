@@ -96,10 +96,14 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
     )
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 0
-    response_1 = await scheduler.invoke_schedule(db, mlrun.api.api.deps.AuthInfo(), project, schedule_name)
+    response_1 = await scheduler.invoke_schedule(
+        db, mlrun.api.api.deps.AuthInfo(), project, schedule_name
+    )
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
-    response_2 = await scheduler.invoke_schedule(db, mlrun.api.api.deps.AuthInfo(), project, schedule_name)
+    response_2 = await scheduler.invoke_schedule(
+        db, mlrun.api.api.deps.AuthInfo(), project, schedule_name
+    )
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 2
     for run in runs:
@@ -553,7 +557,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update nothing
     scheduler.update_schedule(
-        db, mlrun.api.api.deps.AuthInfo(),project, schedule_name,
+        db, mlrun.api.api.deps.AuthInfo(), project, schedule_name,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -569,7 +573,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update labels to empty dict
     scheduler.update_schedule(
-        db, mlrun.api.api.deps.AuthInfo(),project, schedule_name, labels={},
+        db, mlrun.api.api.deps.AuthInfo(), project, schedule_name, labels={},
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -592,7 +596,11 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second,
     )
     scheduler.update_schedule(
-        db, mlrun.api.api.deps.AuthInfo(),project, schedule_name, cron_trigger=cron_trigger,
+        db,
+        mlrun.api.api.deps.AuthInfo(),
+        project,
+        schedule_name,
+        cron_trigger=cron_trigger,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -627,7 +635,9 @@ async def test_update_schedule_failure_not_found(db: Session, scheduler: Schedul
     schedule_name = "schedule-name"
     project = config.default_project
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
-        scheduler.update_schedule(db, mlrun.api.api.deps.AuthInfo(),project, schedule_name)
+        scheduler.update_schedule(
+            db, mlrun.api.api.deps.AuthInfo(), project, schedule_name
+        )
     assert "Schedule not found" in str(excinfo.value)
 
 

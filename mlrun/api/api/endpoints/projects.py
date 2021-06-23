@@ -28,7 +28,7 @@ def create_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-        auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().create_project(
@@ -61,7 +61,7 @@ def store_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-        auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().store_project(

@@ -1,5 +1,4 @@
 import asyncio
-import mlrun.api.api.deps
 import copy
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -10,6 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.deps
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
@@ -478,7 +478,7 @@ class Scheduler:
             run_metadata["project"],
             schedule_name,
             last_run_uri=run_uri,
-            leader_session=leader_session,
+            leader_session=auth_info.session,
         )
 
         close_session(db_session)

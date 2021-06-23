@@ -49,7 +49,7 @@ def store_feature_set(
     reference: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
-        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -76,7 +76,7 @@ def patch_feature_set(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -199,7 +199,7 @@ def ingest_feature_set(
         schemas.FeatureSetIngestInput
     ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
-        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -283,7 +283,7 @@ def create_feature_vector(
     project: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_vector_uid = get_db().create_feature_vector(
@@ -356,7 +356,7 @@ def store_feature_vector(
     reference: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -383,7 +383,7 @@ def patch_feature_vector(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)

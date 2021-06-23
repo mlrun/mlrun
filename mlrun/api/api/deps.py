@@ -1,8 +1,8 @@
+import typing
 from base64 import b64decode
 from http import HTTPStatus
-import typing
-import pydantic
 
+import pydantic
 from fastapi import Request
 from sqlalchemy.orm import Session
 

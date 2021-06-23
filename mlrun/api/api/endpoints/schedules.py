@@ -1,7 +1,6 @@
-import typing
 from http import HTTPStatus
 
-from fastapi import APIRouter, Cookie, Depends, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas

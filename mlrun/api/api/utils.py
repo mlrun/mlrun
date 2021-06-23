@@ -10,8 +10,8 @@ from fastapi import HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.errors
 import mlrun.api.api.deps
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
@@ -76,7 +76,9 @@ def get_run_db_instance(
     return run_db
 
 
-def _parse_submit_run_body(db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data):
+def _parse_submit_run_body(
+    db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data
+):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -123,9 +125,7 @@ def _parse_submit_run_body(db_session: Session, auth_info: mlrun.api.api.deps.Au
     return function, task
 
 
-async def submit_run(
-    db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data
-):
+async def submit_run(db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data):
     _, _, _, response = await run_in_threadpool(
         _submit_run, db_session, auth_info, data
     )

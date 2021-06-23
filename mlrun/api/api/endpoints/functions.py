@@ -120,11 +120,11 @@ async def build_function(
     fn, ready = await run_in_threadpool(
         _build_function,
         db_session,
+        auth_verifier.auth_info,
         function,
         with_mlrun,
         skip_deployed,
         mlrun_version_specifier,
-        auth_verifier.auth_info.session,
     )
     return {
         "data": fn.to_dict(),
@@ -159,7 +159,7 @@ async def start_function(
         background_tasks,
         _start_function,
         function,
-        auth_verifier.auth_info.session,
+        auth_verifier.auth_info,
     )
 
     return background_task
@@ -308,21 +308,22 @@ def build_status(
 
 def _build_function(
     db_session,
+    auth_info: mlrun.api.api.deps.AuthInfo,
     function,
     with_mlrun,
     skip_deployed,
     mlrun_version_specifier,
-    leader_session,
 ):
     fn = None
     ready = None
     try:
         fn = new_function(runtime=function)
 
-        run_db = get_run_db_instance(db_session, leader_session)
+        run_db = get_run_db_instance(db_session, auth_info.session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
+            mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
             deploy_nuclio_function(fn)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
@@ -357,7 +358,7 @@ def _parse_start_function_body(db_session, data):
     return new_function(runtime=runtime)
 
 
-def _start_function(function, leader_session: Optional[str] = None):
+def _start_function(function, auth_info: mlrun.api.api.deps.AuthInfo):
     db_session = mlrun.api.db.session.create_session()
     try:
         resource = runtime_resources_map.get(function.kind)
@@ -367,8 +368,9 @@ def _start_function(function, leader_session: Optional[str] = None):
                 reason="runtime error: 'start' not supported by this runtime",
             )
         try:
-            run_db = get_run_db_instance(db_session, leader_session)
+            run_db = get_run_db_instance(db_session, auth_info.session)
             function.set_db_connection(run_db)
+            mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function)
             function.save(versioned=False)

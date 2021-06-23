@@ -116,6 +116,10 @@ def _parse_submit_run_body(db_session: Session, auth_info: mlrun.api.api.deps.Au
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
+    # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+    # be able to communicate with the api
+    ensure_function_has_auth_set(function, auth_info)
+
     return function, task
 
 
@@ -126,6 +130,16 @@ async def submit_run(
         _submit_run, db_session, auth_info, data
     )
     return response
+
+
+def ensure_function_has_auth_set(function, auth_info: mlrun.api.api.deps.AuthInfo):
+    if auth_info and auth_info.session:
+        auth_env_vars = {
+            "V3IO_ACCESS_KEY": auth_info.session,
+        }
+        for key, value in auth_env_vars:
+            if not function.is_env_exists(key):
+                function.set_env(key, value)
 
 
 def _submit_run(

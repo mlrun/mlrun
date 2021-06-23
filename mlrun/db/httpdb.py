@@ -151,7 +151,15 @@ class HTTPRunDB(RunDBInterface):
         if self.user:
             kw["auth"] = (self.user, self.password)
         elif self.token:
-            kw["headers"] = {"Authorization": "Bearer " + self.token}
+            # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+            if mlrun.platforms.iguazio.is_iguazio_session(self.token):
+                session_cookie = f'j:{{"sid": "{self.token}"}}'
+                cookies = {
+                    "session": session_cookie,
+                }
+                kw["cookies"] = cookies
+            else:
+                kw["headers"] = {"Authorization": "Bearer " + self.token}
 
         if not self.session:
             self.session = requests.Session()

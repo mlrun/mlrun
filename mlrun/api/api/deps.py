@@ -2,10 +2,10 @@ import typing
 from base64 import b64decode
 from http import HTTPStatus
 
-import pydantic
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 import mlrun.api.utils.authorizers.authorizer
 import mlrun.api.utils.authorizers.nop
 import mlrun.api.utils.authorizers.opa
@@ -23,26 +23,12 @@ def get_db_session() -> typing.Generator[Session, None, None]:
         close_session(db_session)
 
 
-class AuthInfo(pydantic.BaseModel):
-    # Basic + Iguazio auth
-    username: typing.Optional[str] = None
-    # Basic auth
-    password: typing.Optional[str] = None
-    # Bearer auth
-    token: typing.Optional[str] = None
-    # Iguazio auth
-    session: typing.Optional[str] = None
-    data_session: typing.Optional[str] = None
-    user_id: typing.Optional[str] = None
-    user_group_ids: typing.List[str] = []
-
-
 class AuthVerifier:
     _basic_prefix = "Basic "
     _bearer_prefix = "Bearer "
 
     def __init__(self, request: Request):
-        self.auth_info = AuthInfo()
+        self.auth_info = mlrun.api.schemas.AuthInfo()
 
         self._authenticate_request(request)
         self._authorize_request(request)

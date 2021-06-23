@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.api.deps
+import mlrun.api.schemas
 from mlrun.api.api.utils import _parse_submit_run_body
 
 
@@ -142,7 +142,7 @@ def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
         },
     }
     parsed_function_object, task = _parse_submit_run_body(
-        db, mlrun.api.api.deps.AuthInfo(), submit_job_body
+        db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
@@ -204,7 +204,7 @@ def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _parse_submit_run_body(
-        db, mlrun.api.api.deps.AuthInfo(), submit_job_body
+        db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
@@ -241,7 +241,7 @@ def test_parse_submit_job_imported_function_project_assignment(
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _parse_submit_run_body(
-        db, mlrun.api.api.deps.AuthInfo(), submit_job_body
+        db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.project == task_project
 

@@ -77,7 +77,7 @@ def get_run_db_instance(
 
 
 def _parse_submit_run_body(
-    db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
 ):
     task = data.get("task")
     function_dict = data.get("function")
@@ -125,14 +125,14 @@ def _parse_submit_run_body(
     return function, task
 
 
-async def submit_run(db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data):
+async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data):
     _, _, _, response = await run_in_threadpool(
         _submit_run, db_session, auth_info, data
     )
     return response
 
 
-def ensure_function_has_auth_set(function, auth_info: mlrun.api.api.deps.AuthInfo):
+def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
     if auth_info and auth_info.session:
         auth_env_vars = {
             "V3IO_ACCESS_KEY": auth_info.session,
@@ -143,7 +143,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.api.deps.AuthInf
 
 
 def _submit_run(
-    db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
 ) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:

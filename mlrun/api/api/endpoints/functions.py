@@ -308,7 +308,7 @@ def build_status(
 
 def _build_function(
     db_session,
-    auth_info: mlrun.api.api.deps.AuthInfo,
+    auth_info: mlrun.api.schemas.AuthInfo,
     function,
     with_mlrun,
     skip_deployed,
@@ -358,7 +358,7 @@ def _parse_start_function_body(db_session, data):
     return new_function(runtime=runtime)
 
 
-def _start_function(function, auth_info: mlrun.api.api.deps.AuthInfo):
+def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
     db_session = mlrun.api.db.session.create_session()
     try:
         resource = runtime_resources_map.get(function.kind)

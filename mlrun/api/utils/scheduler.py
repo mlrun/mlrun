@@ -30,7 +30,7 @@ class Scheduler:
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
 
     async def start(
-        self, db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo,
+        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info("Starting scheduler")
         self._scheduler.start()
@@ -54,7 +54,7 @@ class Scheduler:
     def create_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.api.deps.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
         kind: schemas.ScheduleKinds,
@@ -104,7 +104,7 @@ class Scheduler:
     def update_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.api.deps.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
         scheduled_object: Union[Dict, Callable] = None,
@@ -198,7 +198,7 @@ class Scheduler:
     async def invoke_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.api.deps.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
     ):
@@ -275,7 +275,7 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
-        auth_info: mlrun.api.api.deps.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
@@ -305,7 +305,7 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
-        auth_info: mlrun.api.api.deps.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
@@ -327,7 +327,7 @@ class Scheduler:
         )
 
     def _reload_schedules(
-        self, db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo,
+        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info("Reloading schedules")
         db_schedules = get_db().list_schedules(db_session)
@@ -391,7 +391,7 @@ class Scheduler:
         project_name: str,
         schedule_name: str,
         schedule_concurrency_limit: int,
-        auth_info: mlrun.api.api.deps.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -430,7 +430,7 @@ class Scheduler:
         project_name,
         schedule_name,
         schedule_concurrency_limit,
-        auth_info: mlrun.api.api.deps.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run

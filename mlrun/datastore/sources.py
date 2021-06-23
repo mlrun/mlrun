@@ -17,6 +17,7 @@ from typing import Dict, Optional, Union
 
 import mlrun
 
+from ..config import config
 from ..model import DataSource
 from ..utils import get_class
 from .utils import store_path_to_spark
@@ -243,7 +244,12 @@ class OnlineSource(BaseSourceDriver):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
-        return storey.SyncEmitSource(
+        source_class = (
+            storey.AsyncEmitSource
+            if config.datastore.use_async_source == "enabled"
+            else storey.SyncEmitSource
+        )
+        return source_class(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             full_event=True,

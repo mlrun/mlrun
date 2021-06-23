@@ -1,3 +1,4 @@
+import copy
 from abc import ABC, abstractmethod
 from types import MethodType
 from typing import Any, Dict, List, Type
@@ -41,14 +42,15 @@ class MLRunInterface(ABC):
     @staticmethod
     def _insert_properties(model, interface: Type["MLRunInterface"]):
         """
-        Insert the properties of the given interface to the model.
+        Insert the properties of the given interface to the model. The properties default values are being copied (not
+        deep copied) into the model.
 
         :param model:     The model to enrich.
         :param interface: The interface with the properties to use.
         """
         for property_name, default_value in interface._PROPERTIES.items():
             if property_name not in model.__dir__():
-                setattr(model, property_name, default_value)
+                setattr(model, property_name, copy.copy(default_value))
 
     @staticmethod
     def _insert_methods(model, interface: Type["MLRunInterface"]):

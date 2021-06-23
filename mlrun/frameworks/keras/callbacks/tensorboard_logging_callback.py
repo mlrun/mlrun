@@ -347,17 +347,6 @@ class TensorboardLoggingCallback(LoggingCallback):
         """
         return self._logger.weight_statistics
 
-    @staticmethod
-    def get_default_weight_statistics_list() -> List[
-        Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
-    ]:
-        """
-        Get the default list of statistics functions being applied on the tracked weights each epoch.
-
-        :return: The default statistics functions list.
-        """
-        return [tf.math.reduce_mean, tf.math.reduce_std]
-
     def on_train_begin(self, logs: dict = None):
         """
         Called once at the beginning of training process (one time call). Will log the pre-training (epoch 0)
@@ -540,6 +529,17 @@ class TensorboardLoggingCallback(LoggingCallback):
             self._logger.write_parameters_table_to_tensorboard()
             self._logged_hyperparameters = True
             self._logger.write_dynamic_hyperparameters()
+
+    @staticmethod
+    def get_default_weight_statistics_list() -> List[
+        Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
+    ]:
+        """
+        Get the default list of statistics functions being applied on the tracked weights each epoch.
+
+        :return: The default statistics functions list.
+        """
+        return [tf.math.reduce_mean, tf.math.reduce_std]
 
     def _setup_run(self):
         """

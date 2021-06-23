@@ -16,5 +16,10 @@ class SecretsData(BaseModel):
     secrets: Optional[dict]
 
 
+class SecretKeysData(BaseModel):
+    provider: SecretProviderName = Field(SecretProviderName.vault)
+    secret_keys: Optional[list]
+
+
 class UserSecretCreationRequest(SecretsData):
     user: str

@@ -644,24 +644,32 @@ class FileRunDB(RunDBInterface):
     def create_project_secrets(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
         secrets: dict = None,
     ):
         raise NotImplementedError()
 
-    def get_project_secrets(
+    def list_project_secrets(
         self,
         project: str,
         token: str,
-        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
         secrets: List[str] = None,
     ) -> mlrun.api.schemas.SecretsData:
+        raise NotImplementedError()
+
+    def list_project_secret_keys(
+        self,
+        project: str,
+        provider: str = mlrun.api.schemas.SecretProviderName.vault,
+        token: str = None,
+    ) -> mlrun.api.schemas.SecretKeysData:
         raise NotImplementedError()
 
     def delete_project_secrets(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.secret.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
         secrets: List[str] = None,
     ):
         raise NotImplementedError()

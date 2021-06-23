@@ -329,7 +329,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
-    def get_project_secrets(
+    def list_project_secrets(
         self,
         project: str,
         token: str,
@@ -338,6 +338,16 @@ class RunDBInterface(ABC):
         ] = schemas.SecretProviderName.vault,
         secrets: List[str] = None,
     ) -> schemas.SecretsData:
+        pass
+
+    def list_project_secret_keys(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        token: str = None,
+    ) -> schemas.SecretKeysData:
         pass
 
     def delete_project_secrets(

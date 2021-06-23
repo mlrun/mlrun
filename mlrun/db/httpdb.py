@@ -1853,7 +1853,11 @@ class HTTPRunDB(RunDBInterface):
             Example::
 
                 secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
-                db.create_project_secrets("project1", provider="vault", secrets=secrets)
+                db.create_project_secrets(
+                    "project1",
+                    provider=mlrun.api.schemas.SecretProviderName.vault,
+                    secrets=secrets
+                )
         """
         if isinstance(provider, schemas.SecretProviderName):
             provider = provider.value
@@ -1865,7 +1869,7 @@ class HTTPRunDB(RunDBInterface):
             "POST", path, error_message, body=dict_to_json(body),
         )
 
-    def get_project_secrets(
+    def list_project_secrets(
         self,
         project: str,
         token: str = None,
@@ -1874,17 +1878,16 @@ class HTTPRunDB(RunDBInterface):
         ] = schemas.SecretProviderName.vault,
         secrets: List[str] = None,
     ) -> schemas.SecretsData:
-        """ Retrieve project-context secrets from Vault or Kubernetes.
+        """ Retrieve project-context secrets from Vault.
 
         Note:
                 This method for Vault functionality is currently in technical preview, and requires a HashiCorp Vault
                 infrastructure properly set up and connected to the MLRun API server.
 
         :param project: The project name.
-        :param token: Vault token to use for retrieving secrets. Use only if ``provider`` is ``vault``.
+        :param token: Vault token to use for retrieving secrets.
             Must be a valid Vault token, with permissions to retrieve secrets of the project in question.
-        :param provider: The name of the secrets-provider to work with. Accepts a
-            :py:class:`~mlrun.api.schemas.secret.SecretProviderName` enum.
+        :param provider: The name of the secrets-provider to work with. Currently only ``vault`` is accepted.
         :param secrets: A list of secret names to retrieve. An empty list ``[]`` will retrieve all secrets assigned
             to this specific project. ``kubernetes`` provider only supports an empty list.
         """
@@ -1899,16 +1902,54 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{project}/secrets"
         params = {"provider": provider, "secret": secrets}
-        headers = (
-            {schemas.HeaderNames.secret_store_token: token}
-            if provider == schemas.SecretProviderName.vault.value
-            else None
-        )
+        headers = {schemas.HeaderNames.secret_store_token: token}
         error_message = f"Failed retrieving secrets {project}/{provider}"
         result = self.api_call(
             "GET", path, error_message, params=params, headers=headers,
         )
         return schemas.SecretsData(**result.json())
+
+    def list_project_secret_keys(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        token: str = None,
+    ) -> schemas.SecretKeysData:
+        """ Retrieve project-context secret keys from Vault or Kubernetes.
+
+        Note:
+                This method for Vault functionality is currently in technical preview, and requires a HashiCorp Vault
+                infrastructure properly set up and connected to the MLRun API server.
+
+        :param project: The project name.
+        :param provider: The name of the secrets-provider to work with. Accepts a
+            :py:class:`~mlrun.api.schemas.secret.SecretProviderName` enum.
+        :param token: Vault token to use for retrieving secrets. Only in use if ``provider`` is ``vault``.
+            Must be a valid Vault token, with permissions to retrieve secrets of the project in question.
+        """
+
+        if isinstance(provider, schemas.SecretProviderName):
+            provider = provider.value
+
+        if provider == schemas.SecretProviderName.vault.value and not token:
+            raise MLRunInvalidArgumentError(
+                "A vault token must be provided when accessing vault secrets"
+            )
+
+        path = f"projects/{project}/secret-keys"
+        params = {"provider": provider}
+        headers = (
+            {schemas.HeaderNames.secret_store_token: token}
+            if provider == schemas.SecretProviderName.vault.value
+            else None
+        )
+        error_message = f"Failed retrieving secret keys {project}/{provider}"
+        result = self.api_call(
+            "GET", path, error_message, params=params, headers=headers,
+        )
+        return schemas.SecretKeysData(**result.json())
 
     def delete_project_secrets(
         self,

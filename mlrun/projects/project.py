@@ -174,7 +174,7 @@ def _load_project_dir(context, name="", subpath=""):
 
 def _load_project_from_db(url, secrets):
     db = get_run_db(secrets=secrets)
-    project_name = url.replace("git://", "")
+    project_name = url.replace("db://", "")
     return db.get_project(project_name)
 
 

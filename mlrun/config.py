@@ -104,6 +104,15 @@ default_config = {
         "db_type": "sqldb",
         "max_workers": "",
         "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "authentication": {
+            "mode": "none",  # one of none, basic, bearer, iguazio
+            "basic": {"username": "", "password": ""},
+            "bearer": {"token": ""},
+            "iguazio": {
+                "session_verification_endpoint": "data_sessions/verifications/app_service",
+            },
+        },
+        "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
@@ -162,6 +171,7 @@ default_config = {
             "default_secret_name": None,
             "secret_path": "~/.mlrun/azure_vault",
         },
+        "kubernetes": {"project_secret_name": "mlrun-project-secrets-{project}"},
     },
     "feature_store": {
         "data_prefixes": {

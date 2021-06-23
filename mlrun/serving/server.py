@@ -344,7 +344,7 @@ class Response(object):
 class GraphContext:
     """Graph context object"""
 
-    def __init__(self, level="debug", logger=None, server=None, nuclio_context=None):
+    def __init__(self, level="info", logger=None, server=None, nuclio_context=None):
         self.state = None
         self.logger = logger
         self.worker_id = 0

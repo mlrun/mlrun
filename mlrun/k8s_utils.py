@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import base64
 import time
 from datetime import datetime
 from sys import stdout
@@ -324,6 +324,78 @@ class K8sHelper:
             )
 
         return service_account.secrets[0].name
+
+    def _get_project_secret_name(self, project):
+        return mlconfig.secret_stores.kubernetes.project_secret_name.format(
+            project=project
+        )
+
+    def store_project_secrets(self, project, secrets, namespace=""):
+        secret_name = self._get_project_secret_name(project)
+        namespace = self.resolve_namespace(namespace)
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
+        except ApiException as exc:
+            # If secret doesn't exist, we'll simply create it
+            if exc.status != 404:
+                logger.error(f"failed to retrieve k8s secret: {exc}")
+                raise exc
+            k8s_secret = client.V1Secret(type="Opaque")
+            k8s_secret.metadata = client.V1ObjectMeta(
+                name=secret_name, namespace=namespace
+            )
+            k8s_secret.string_data = secrets
+            self.v1api.create_namespaced_secret(namespace, k8s_secret)
+            return
+
+        secret_data = k8s_secret.data.copy()
+        for key, value in secrets.items():
+            secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
+
+        k8s_secret.data = secret_data
+        self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
+
+    def delete_project_secrets(self, project, secrets, namespace=""):
+        secret_name = self._get_project_secret_name(project)
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
+        except ApiException as exc:
+            # If secret does not exist, return as if the deletion was successfuly
+            if exc.status == 404:
+                return
+            else:
+                logger.error(f"failed to retrieve k8s secret: {exc}")
+                raise exc
+
+        if not secrets:
+            secret_data = {}
+        else:
+            secret_data = k8s_secret.data.copy()
+            for secret in secrets:
+                secret_data.pop(secret, None)
+
+        if not secret_data:
+            self.v1api.delete_namespaced_secret(secret_name, namespace)
+        else:
+            k8s_secret.data = secret_data
+            self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
+
+    def get_project_secret_keys(self, project, namespace=""):
+        secret_name = self._get_project_secret_name(project)
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
+        except ApiException as exc:
+            # If secret doesn't exist, return empty list
+            if exc.status != 404:
+                logger.error(f"failed to retrieve k8s secret: {exc}")
+                raise exc
+            return None
+
+        return list(k8s_secret.data.keys())
 
 
 class BasePod:

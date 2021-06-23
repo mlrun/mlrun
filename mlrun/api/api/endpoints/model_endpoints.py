@@ -21,7 +21,7 @@ def create_or_patch(
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
     """
@@ -41,7 +41,7 @@ def create_or_patch(
         db_session=db_session,
         access_key=access_key,
         model_endpoint=model_endpoint,
-        leader_session=iguazio_session,
+        leader_session=auth_info.session,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

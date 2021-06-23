@@ -40,7 +40,7 @@ async def store_function(
     name: str,
     tag: str = "",
     versioned: bool = False,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -59,7 +59,7 @@ async def store_function(
         project,
         tag=tag,
         versioned=versioned,
-        leader_session=iguazio_session,
+        leader_session=auth_info.session,
     )
     return {
         "hash_key": hash_key,
@@ -111,7 +111,7 @@ def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -132,7 +132,7 @@ async def build_function(
         with_mlrun,
         skip_deployed,
         mlrun_version_specifier,
-        iguazio_session,
+        auth_info.session,
     )
     return {
         "data": fn.to_dict(),
@@ -146,7 +146,7 @@ async def build_function(
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -162,12 +162,12 @@ async def start_function(
     background_task = await run_in_threadpool(
         mlrun.api.utils.background_tasks.Handler().create_background_task,
         db_session,
-        iguazio_session,
+        auth_info.session,
         function.metadata.project,
         background_tasks,
         _start_function,
         function,
-        iguazio_session,
+        auth_info.session,
     )
 
     return background_task
@@ -200,7 +200,7 @@ def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     fn = get_db().get_function(db_session, name, project, tag)
@@ -238,7 +238,7 @@ def build_status(
             project,
             tag,
             versioned=versioned,
-            leader_session=iguazio_session,
+            leader_session=auth_info.session,
         )
         return Response(
             content=text,
@@ -299,7 +299,7 @@ def build_status(
         project,
         tag,
         versioned=versioned,
-        leader_session=iguazio_session,
+        leader_session=auth_info.session,
     )
 
     return Response(

@@ -19,7 +19,7 @@ router = APIRouter()
 async def submit_job(
     request: Request,
     username: Optional[str] = Header(None, alias="x-remote-user"),
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -40,5 +40,5 @@ async def submit_job(
             labels.setdefault("owner", username)
 
     logger.info("Submit run", data=data)
-    response = await mlrun.api.api.utils.submit_run(db_session, data, iguazio_session)
+    response = await mlrun.api.api.utils.submit_run(db_session, data, auth_info.session)
     return response

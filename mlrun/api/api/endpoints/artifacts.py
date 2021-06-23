@@ -24,7 +24,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -43,7 +43,7 @@ async def store_artifact(
         iter=iter,
         tag=tag,
         project=project,
-        leader_session=iguazio_session,
+        leader_session=auth_info.session,
     )
     return {}
 

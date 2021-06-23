@@ -22,7 +22,7 @@ async def store_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
+        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -39,7 +39,7 @@ async def store_run(
         uid,
         project,
         iter=iter,
-        leader_session=auth_info.session,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {}
 
@@ -51,7 +51,7 @@ async def update_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_info: deps.AuthVerifier = Depends(deps.AuthVerifier),
+        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -67,7 +67,7 @@ async def update_run(
         uid,
         iter,
         data,
-        auth_info.session,
+        auth_verifier.auth_info.session,
     )
     return {}
 

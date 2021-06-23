@@ -11,6 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+import mlrun.api.api.deps
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
@@ -75,7 +76,7 @@ def get_run_db_instance(
     return run_db
 
 
-def _parse_submit_run_body(db_session: Session, data):
+def _parse_submit_run_body(db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -119,16 +120,16 @@ def _parse_submit_run_body(db_session: Session, data):
 
 
 async def submit_run(
-    db_session: Session, data, leader_session: typing.Optional[str] = None
+    db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data
 ):
     _, _, _, response = await run_in_threadpool(
-        _submit_run, db_session, data, leader_session
+        _submit_run, db_session, auth_info, data
     )
     return response
 
 
 def _submit_run(
-    db_session: Session, data, leader_session: typing.Optional[str] = None
+    db_session: Session, auth_info: mlrun.api.api.deps.AuthInfo, data
 ) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
@@ -140,8 +141,8 @@ def _submit_run(
     run_uid = None
     project = None
     try:
-        fn, task = _parse_submit_run_body(db_session, data)
-        run_db = get_run_db_instance(db_session, leader_session)
+        fn, task = _parse_submit_run_body(db_session, auth_info, data)
+        run_db = get_run_db_instance(db_session, auth_info.session)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
@@ -153,13 +154,13 @@ def _submit_run(
             schedule_labels = task["metadata"].get("labels")
             get_scheduler().create_schedule(
                 db_session,
+                auth_info,
                 task["metadata"]["project"],
                 task["metadata"]["name"],
                 schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
                 schedule_labels,
-                leader_session=leader_session,
             )
             project = task["metadata"]["project"]
 

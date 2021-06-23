@@ -15,11 +15,12 @@ router = APIRouter()
 def create_schedule(
     project: str,
     schedule: schemas.ScheduleInput,
-    iguazio_session: typing.Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().create_schedule(
         db_session,
+        auth_verifier.auth_info,
         project,
         schedule.name,
         schedule.kind,
@@ -27,7 +28,6 @@ def create_schedule(
         schedule.cron_trigger,
         labels=schedule.labels,
         concurrency_limit=schedule.concurrency_limit,
-        leader_session=iguazio_session,
     )
     return Response(status_code=HTTPStatus.CREATED.value)
 
@@ -37,17 +37,17 @@ def update_schedule(
     project: str,
     name: str,
     schedule: schemas.ScheduleUpdate,
-    iguazio_session: typing.Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().update_schedule(
         db_session,
+        auth_verifier.auth_info,
         project,
         name,
         schedule.scheduled_object,
         schedule.cron_trigger,
         labels=schedule.labels,
-        leader_session=iguazio_session,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -84,11 +84,11 @@ def get_schedule(
 async def invoke_schedule(
     project: str,
     name: str,
-    iguazio_session: typing.Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     return await get_scheduler().invoke_schedule(
-        db_session, project, name, iguazio_session
+        db_session, auth_verifier.auth_info, project, name
     )
 
 

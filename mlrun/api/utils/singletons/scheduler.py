@@ -1,4 +1,5 @@
 import mlrun.config
+import mlrun.api.api.deps
 from mlrun.api.db.sqldb.session import create_session
 from mlrun.api.utils.scheduler import Scheduler
 
@@ -13,7 +14,7 @@ async def initialize_scheduler():
     try:
         db_session = create_session()
         await scheduler.start(
-            db_session, mlrun.config.config.httpdb.projects.iguazio_access_key
+            db_session, mlrun.api.api.deps.AuthInfo(session=mlrun.config.config.httpdb.projects.iguazio_access_key)
         )
     finally:
         db_session.close()

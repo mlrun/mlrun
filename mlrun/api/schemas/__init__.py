@@ -83,4 +83,9 @@ from .schedule import (
     SchedulesOutput,
     ScheduleUpdate,
 )
-from .secret import SecretProviderName, SecretsData, UserSecretCreationRequest
+from .secret import (
+    SecretKeysData,
+    SecretProviderName,
+    SecretsData,
+    UserSecretCreationRequest,
+)

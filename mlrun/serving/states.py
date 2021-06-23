@@ -1050,7 +1050,7 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            if config.datastore.use_async_source == "enabled":
+            if config.datastore.async_source_mode == "enabled":
                 resp_awaitable = self._controller.emit(
                     event, await_result=self._wait_for_result
                 )

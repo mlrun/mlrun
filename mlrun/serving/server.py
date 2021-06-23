@@ -169,7 +169,7 @@ class GraphServer(ModelObj):
         self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
         return (
             v2_serving_async_handler
-            if config.datastore.use_async_source == "enabled"
+            if config.datastore.async_source_mode == "enabled"
             else v2_serving_handler
         )
 

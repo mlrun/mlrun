@@ -246,7 +246,7 @@ class OnlineSource(BaseSourceDriver):
 
         source_class = (
             storey.AsyncEmitSource
-            if config.datastore.use_async_source == "enabled"
+            if config.datastore.async_source_mode == "enabled"
             else storey.SyncEmitSource
         )
         return source_class(

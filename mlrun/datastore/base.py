@@ -194,9 +194,15 @@ class DataStore:
                     kwargs["storage_options"] = storage_options
                 return reader(url, **kwargs)
             else:
-                # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
-                # support the storage_options parameter.
-                return reader(fs.open(url), **kwargs)
+
+                file = url
+                # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
+                if fs.protocol != "file":
+                    # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
+                    # support the storage_options parameter.
+                    file = fs.open(url)
+
+                return reader(file, **kwargs)
 
         tmp = mktemp()
         self.download(self._join(subpath), tmp)

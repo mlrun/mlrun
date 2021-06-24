@@ -31,6 +31,7 @@ from mlrun.api.db.sqldb.models import (
     FeatureVector,
     Function,
     Log,
+    MarketplaceSource,
     Project,
     Run,
     Schedule,
@@ -68,6 +69,28 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
+        has_hub_marketplace_source = (
+            session.query(func.count(MarketplaceSource.name)).scalar() > 0
+        )
+        if not has_hub_marketplace_source:
+            hub_metadata = schemas.MarketplaceObjectMetadata(
+                name="mlrun_global_hub",
+                description="The MLRun global function marketplace",
+                created=datetime.now(timezone.utc),
+                updated=datetime.now(timezone.utc),
+            )
+            hub_ordered_source = schemas.OrderedMarketplaceSource(
+                order=-1,
+                source=schemas.MarketplaceSource(
+                    metadata=hub_metadata,
+                    spec=schemas.MarketplaceSourceSpec(path=config.hub_url),
+                    status=schemas.ObjectStatus(state="created"),
+                ),
+            )
+            hub_record = self._transform_marketplace_source_schema_to_record(
+                hub_ordered_source
+            )
+            self._upsert(session, hub_record)
         return
 
     def store_log(
@@ -2541,3 +2564,113 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             return project
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)
+
+    @staticmethod
+    def _move_and_reorder_table_items(session, moved_object, move_to, move_from=None):
+        if move_from == move_to:
+            return
+
+        moved_object.order = move_to
+
+        modifier = 1
+        if move_from is None:
+            start = move_to
+            end = None
+        else:
+            start = move_from + 1 if move_from < move_to else move_to
+            end = move_to if move_from < move_to else move_from - 1
+            if move_from < move_to:
+                modifier = -1
+
+        query = session.query(MarketplaceSource).filter(
+            MarketplaceSource.order >= start
+        )
+        if end:
+            query = query.filter(MarketplaceSource.order <= end)
+
+        for source_record in query:
+            source_record.order = source_record.order + modifier
+            session.merge(source_record)
+        session.merge(moved_object)
+        session.commit()
+
+    def _transform_marketplace_source_record_to_schema(
+        self, marketplace_source_record: MarketplaceSource
+    ) -> schemas.MarketplaceSource:
+        source_full_dict = marketplace_source_record.full_object
+        marketplace_source_resp = schemas.MarketplaceSource(**source_full_dict)
+        return marketplace_source_resp
+
+    def _transform_marketplace_source_schema_to_record(
+        self, marketplace_source_schema: schemas.OrderedMarketplaceSource
+    ):
+        def _convert_datetime_to_string_if_needed(timestamp):
+            if isinstance(timestamp, datetime):
+                return str(timestamp)
+            else:
+                return timestamp
+
+        marketplace_source_record = MarketplaceSource(
+            name=marketplace_source_schema.source.metadata.name,
+            order=marketplace_source_schema.order,
+        )
+        full_object = marketplace_source_schema.source.dict()
+        full_object["metadata"]["created"] = _convert_datetime_to_string_if_needed(
+            marketplace_source_schema.source.metadata.created
+        )
+        full_object["metadata"]["updated"] = _convert_datetime_to_string_if_needed(
+            marketplace_source_schema.source.metadata.updated
+        )
+
+        marketplace_source_record.full_object = full_object
+        return marketplace_source_record
+
+    def create_marketplace_source(
+        self, session, ordered_source: schemas.OrderedMarketplaceSource,
+    ):
+        name = ordered_source.source.metadata.name
+        order = ordered_source.order
+        max_order = session.query(func.max(MarketplaceSource.order)).scalar()
+        if not max_order or max_order < 0:
+            max_order = 0
+
+        if order == -1:
+            order = max_order + 1
+
+        if order > max_order + 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Order must not exceed the maximal order + 1. max_order = {max_order}, order = {order}"
+            )
+        if order < 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Order of inserted source must be greater than 0 or -1 (for last). order = {order}"
+            )
+
+        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        current_order = None
+        if not source_record:
+            source_record = self._transform_marketplace_source_schema_to_record(
+                ordered_source
+            )
+        else:
+            current_order = source_record.order
+
+        self._move_and_reorder_table_items(
+            session, source_record, move_to=order, move_from=current_order
+        )
+
+    def list_marketplace_sources(
+        self, session
+    ) -> List[schemas.OrderedMarketplaceSource]:
+        results = []
+        query = self._query(session, MarketplaceSource).order_by(
+            MarketplaceSource.order.asc()
+        )
+        for record in query:
+            results.append(
+                schemas.OrderedMarketplaceSource(
+                    order=record.order,
+                    source=self._transform_marketplace_source_record_to_schema(record),
+                )
+            )
+        return results

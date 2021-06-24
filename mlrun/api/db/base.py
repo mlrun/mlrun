@@ -439,3 +439,13 @@ class DBInterface(ABC):
 
     def list_artifact_tags(self, session, project):
         return []
+
+    def create_marketplace_source(
+        self, session, ordered_source: schemas.OrderedMarketplaceSource
+    ):
+        pass
+
+    def list_marketplace_sources(
+        self, session
+    ) -> List[schemas.OrderedMarketplaceSource]:
+        pass

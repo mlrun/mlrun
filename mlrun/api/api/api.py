@@ -11,6 +11,7 @@ from mlrun.api.api.endpoints import (
     grafana_proxy,
     healthz,
     logs,
+    marketplace,
     model_endpoints,
     pipelines,
     projects,
@@ -77,3 +78,4 @@ api_router.include_router(
 )
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model_endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model_endpoints"])
+api_router.include_router(marketplace.router, tags=["marketplace"])

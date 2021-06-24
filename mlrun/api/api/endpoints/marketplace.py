@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Optional, List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
@@ -7,35 +7,32 @@ from sqlalchemy.orm import Session
 import mlrun
 from mlrun.api.schemas.marketplace import (
     MarketplaceCatalog,
-    MarketplaceSource,
     MarketplaceItem,
+    MarketplaceSource,
+    OrderedMarketplaceSource,
 )
+from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
 
 
-@router.post(path="marketplace/sources")
+@router.post(path="/marketplace/sources", status_code=HTTPStatus.CREATED.value)
 def add_source(
-    request: Request,
+    source: OrderedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
-    pass
+    get_db().create_marketplace_source(db_session, source)
 
 
 @router.get(
-    path="marketplace/sources",
-    response_model=List[MarketplaceSource],
+    path="/marketplace/sources", response_model=List[OrderedMarketplaceSource],
 )
-def list_sources(
-    request: Request,
-    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-):
-    pass
+def list_sources(db_session: Session = Depends(mlrun.api.api.deps.get_db_session),):
+    return get_db().list_marketplace_sources(db_session)
 
 
 @router.get(
-    path="marketplace/sources/{source_name}",
-    response_model=MarketplaceSource,
+    path="/marketplace/sources/{source_name}", response_model=MarketplaceSource,
 )
 def get_source(
     request: Request,
@@ -46,8 +43,7 @@ def get_source(
 
 
 @router.delete(
-    path="marketplace/sources/{source_name}",
-    status_code=HTTPStatus.NO_CONTENT.value,
+    path="/marketplace/sources/{source_name}", status_code=HTTPStatus.NO_CONTENT.value,
 )
 def delete_source(
     request: Request,
@@ -58,8 +54,7 @@ def delete_source(
 
 
 @router.put(
-    path="marketplace/sources/{source_name}",
-    status_code=HTTPStatus.NO_CONTENT.value,
+    path="/marketplace/sources/{source_name}", status_code=HTTPStatus.NO_CONTENT.value,
 )
 def modify_or_create_source(
     request: Request,
@@ -70,8 +65,7 @@ def modify_or_create_source(
 
 
 @router.get(
-    path="marketplace/sources/{source_name}/items",
-    response_model=MarketplaceCatalog,
+    path="/marketplace/sources/{source_name}/items", response_model=MarketplaceCatalog,
 )
 def get_catalog(
     request: Request,
@@ -84,7 +78,7 @@ def get_catalog(
 
 
 @router.get(
-    "marketplace/sources/{source_name}/items/{item_name}",
+    "/marketplace/sources/{source_name}/items/{item_name}",
     response_model=MarketplaceItem,
 )
 def get_item(

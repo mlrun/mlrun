@@ -25,7 +25,7 @@ async def scheduler(db: Session) -> Generator:
     logger.info("Creating scheduler")
     config.httpdb.scheduling.min_allowed_interval = "0"
     scheduler = Scheduler()
-    await scheduler.start(db)
+    await scheduler.start(db, mlrun.api.schemas.AuthInfo())
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     yield scheduler
     logger.info("Stopping scheduler")
@@ -495,7 +495,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     assert call_counter == 1
 
     # start the scheduler and and assert another run
-    await scheduler.start(db)
+    await scheduler.start(db, mlrun.api.schemas.AuthInfo())
     await asyncio.sleep(1)
     assert call_counter == 2
 

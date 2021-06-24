@@ -3,11 +3,15 @@ from http import HTTPStatus
 import deepdiff
 import pytest
 
+import mlrun.errors
 import mlrun.api.schemas
 from tests.system.base import TestMLRunSystem
 
 
+# TODO: unmark as enterprise when we release a new mlrun-kit that uses the new (0.6.3) mlrun helm chart which adds
+#  secrets permission to the mlrun-api role
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestKubernetesProjectSecrets(TestMLRunSystem):
     project_name = "db-system-test-project"
 
@@ -27,10 +31,10 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             "GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes"
         )
         assert (
-            deepdiff.DeepDiff(
-                response.json(), {"provider": "kubernetes", "secret_keys": []}
-            )
-            == {}
+                deepdiff.DeepDiff(
+                    response.json(), {"provider": "kubernetes", "secret_keys": []}
+                )
+                == {}
         )
 
         response = self._run_db.api_call(

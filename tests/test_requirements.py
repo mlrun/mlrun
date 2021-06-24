@@ -16,10 +16,23 @@ def test_extras_requirement_file_aligned():
     See comment in top of "extras-requirements.txt" for explanation for what this test is for
     """
     setup_py_extras_requirements_specifiers = _import_extras_requirements()
-    extras_requirements_file_specifiers = _load_requirements(pathlib.Path(tests.conftest.root_path) / "extras-requirements.txt")
-    setup_py_extras_requirements_specifiers_map = _generate_requirement_specifiers_map(setup_py_extras_requirements_specifiers)
-    extras_requirements_file_specifiers_map = _generate_requirement_specifiers_map(extras_requirements_file_specifiers)
-    assert deepdiff.DeepDiff(setup_py_extras_requirements_specifiers_map, extras_requirements_file_specifiers_map, ignore_order=True,) == {}
+    extras_requirements_file_specifiers = _load_requirements(
+        pathlib.Path(tests.conftest.root_path) / "extras-requirements.txt"
+    )
+    setup_py_extras_requirements_specifiers_map = _generate_requirement_specifiers_map(
+        setup_py_extras_requirements_specifiers
+    )
+    extras_requirements_file_specifiers_map = _generate_requirement_specifiers_map(
+        extras_requirements_file_specifiers
+    )
+    assert (
+        deepdiff.DeepDiff(
+            setup_py_extras_requirements_specifiers_map,
+            extras_requirements_file_specifiers_map,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_requirement_specifiers_inconsistencies():
@@ -33,7 +46,9 @@ def test_requirement_specifiers_inconsistencies():
 
     requirement_specifiers.extend(_import_extras_requirements())
 
-    requirement_specifiers_map = _generate_requirement_specifiers_map(requirement_specifiers)
+    requirement_specifiers_map = _generate_requirement_specifiers_map(
+        requirement_specifiers
+    )
     inconsistent_specifiers_map = {}
     print(requirement_specifiers_map)
     for requirement_name, requirement_specifiers in requirement_specifiers_map.items():
@@ -81,7 +96,7 @@ def _generate_requirement_specifiers_map(requirement_specifiers):
     for requirement_specifier in requirement_specifiers:
         match = re.fullmatch(regex, requirement_specifier)
         assert (
-                match is not None
+            match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
         requirement_specifiers_map[match.groupdict()["requirementName"]].append(
             match.groupdict()["requirementSpecifier"]

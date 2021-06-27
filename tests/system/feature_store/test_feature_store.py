@@ -276,6 +276,21 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
+    def test_719(self):
+        measurements = fs.FeatureSet(
+            "bla31a", entities=[Entity("kdeutcdq")], timestamp_key="time_stamp")
+        source = CSVSource(
+            path=os.path.relpath(str(self.assets_path / "bla6.csv")), parse_dates=["ruksabeu", "esbsnygd"]),
+        resp = fs.ingest(measurements, source)
+        df1 = pd.read_csv(os.path.relpath(str(self.assets_path / "bla6.csv")))
+        print("dddddaaata types are " + str(df1.dtypes))
+        path = "/tmp/query1111.parquet"
+        print("rrrrrrrrrr" + str(type(df1)))
+        df1.to_parquet(path)
+        df2 = pd.read_parquet(path)
+        print("dddddaaata types are " + str(df2.dtypes))
+
+
     def test_featureset_column_types(self):
         data = pd.DataFrame(
             {

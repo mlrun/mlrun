@@ -138,6 +138,7 @@ class DataStore:
         if url.endswith(".csv") or format == "csv":
             if columns:
                 kwargs["usecols"] = columns
+            print("yyyyyyyyyyy " + str(kwargs))
             reader = df_module.read_csv
         elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:

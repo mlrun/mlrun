@@ -192,6 +192,12 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set = fs.get_feature_set(name, self.project_name)
         assert feature_set.metadata.name == name, "bad feature set response"
 
+        fs.ingest(stocks_set, stocks)
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+            fs.delete_feature_set(name, self.project_name)
+
+        stocks_set.purge_targets()
+
         fs.delete_feature_set(name, self.project_name)
         sets = db.list_feature_sets(self.project_name, name)
         assert not sets, "Feature set should be deleted"

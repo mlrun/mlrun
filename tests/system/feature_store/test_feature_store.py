@@ -968,6 +968,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource("mycsv", path=path, time_field="timestamp",)
         targets = [
             CSVTarget(),
+            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
             NoSqlTarget(),
         ]

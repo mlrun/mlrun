@@ -382,7 +382,7 @@ class K8sHelper:
             k8s_secret.data = secret_data
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
-    def get_project_secrets(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace=""):
         secret_name = self._get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
 
@@ -395,7 +395,7 @@ class K8sHelper:
                 raise exc
             return None
 
-        return k8s_secret.data.keys()
+        return list(k8s_secret.data.keys())
 
 
 class BasePod:

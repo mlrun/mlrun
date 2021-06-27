@@ -174,7 +174,7 @@ def _load_project_dir(context, name="", subpath=""):
 
 def _load_project_from_db(url, secrets):
     db = get_run_db(secrets=secrets)
-    project_name = url.replace("git://", "")
+    project_name = url.replace("db://", "")
     return db.get_project(project_name)
 
 
@@ -1236,7 +1236,7 @@ class MlrunProject(ModelObj):
             return self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
 
         run_db = get_run_db(secrets=self._secrets)
-        project_secrets = run_db.get_project_secrets(
+        project_secrets = run_db.list_project_secrets(
             self.metadata.name,
             self._secrets.vault.token,
             mlrun.api.schemas.SecretProviderName.vault,

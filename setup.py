@@ -54,8 +54,10 @@ install_requires = list(load_deps("requirements.txt"))
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
-# NOTE: These are tested in `automation/package_test/test.py` If
-# you modify these, make sure to change the corresponding line there.
+# NOTE:
+#     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
+#       corresponding line there.
+#     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it there as well
 extras_require = {
     # from 1.17.50 it requires botocore>=1.20.50,<1.21.0 which conflicts with s3fs 0.5.2 that has aiobotocore>=1.0.1
     # which resolves to 1.3.0 which has botocore>=1.20.49,<1.20.50
@@ -119,6 +121,13 @@ setup(
         "mlrun.api.utils.clients",
         "mlrun.api.utils.projects",
         "mlrun.api.utils.projects.remotes",
+        "mlrun.frameworks",
+        "mlrun.frameworks._common",
+        "mlrun.frameworks._common.loggers",
+        "mlrun.frameworks.pytorch",
+        "mlrun.frameworks.pytorch.callbacks",
+        "mlrun.frameworks.keras",
+        "mlrun.frameworks.keras.callbacks",
     ],
     install_requires=install_requires,
     extras_require=extras_require,

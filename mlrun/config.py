@@ -89,6 +89,7 @@ default_config = {
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
     "v3io_framesd": "http://framesd:8080",
+    "datastore": {"async_source_mode": "disabled"},
     # url template for default model tracking stream
     "httpdb": {
         "port": 8080,

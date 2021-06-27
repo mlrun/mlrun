@@ -134,7 +134,7 @@ class CSVSource(BaseSourceDriver):
     def to_dataframe(self):
 #        kwargs["parse_dates"]= ["ruksabeu", "esbsnygd"]
 #        kwargs = {"parse_dates": self._parse_dates}
-        return mlrun.store_manager.object(url=self.path).as_df()
+        return mlrun.store_manager.object(url=self.path).as_df(parse_dates=self._parse_dates)
 
 
 class ParquetSource(BaseSourceDriver):

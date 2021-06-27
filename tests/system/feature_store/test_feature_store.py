@@ -277,10 +277,12 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
     def test_719(self):
+        key = "kdeutcdq"
         measurements = fs.FeatureSet(
-            "bla31a", entities=[Entity("kdeutcdq")], timestamp_key="time_stamp")
-        source = CSVSource(
-            path=os.path.relpath(str(self.assets_path / "bla6.csv")), parse_dates=["ruksabeu", "esbsnygd"]),
+            "bla31b-2", entities=[Entity(key)], timestamp_key="time_stamp")
+        source = CSVSource("csv23",
+                           path=os.path.relpath(str(self.assets_path / "bla6.csv")),
+                           time_field="time_stamp", parse_dates=["ruksabeu", "esbsnygd"])
         resp = fs.ingest(measurements, source)
         df1 = pd.read_csv(os.path.relpath(str(self.assets_path / "bla6.csv")))
         print("dddddaaata types are " + str(df1.dtypes))

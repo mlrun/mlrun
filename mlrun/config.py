@@ -186,6 +186,13 @@ default_config = {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
+    "marketplace_default_source": {
+        # Set to false to avoid creating a global source (for example in a dark site)
+        "create": True,
+        "url": "https://raw.githubusercontent.com/mlrun/functions/",
+        "name": "mlrun_global_hub",
+        "description": "MLRun global function hub",
+    },
 }
 
 

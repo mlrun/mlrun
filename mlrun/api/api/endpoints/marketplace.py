@@ -16,12 +16,13 @@ from mlrun.api.utils.singletons.db import get_db
 router = APIRouter()
 
 
-@router.post(path="/marketplace/sources", status_code=HTTPStatus.CREATED.value)
+@router.post(path="/marketplace/sources", status_code=HTTPStatus.CREATED.value, response_model=OrderedMarketplaceSource)
 def add_source(
     source: OrderedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     get_db().create_marketplace_source(db_session, source)
+    return get_db().get_marketplace_source(db_session, source.source.metadata.name)
 
 
 @router.get(
@@ -31,37 +32,34 @@ def list_sources(db_session: Session = Depends(mlrun.api.api.deps.get_db_session
     return get_db().list_marketplace_sources(db_session)
 
 
-@router.get(
-    path="/marketplace/sources/{source_name}", response_model=MarketplaceSource,
-)
-def get_source(
-    request: Request,
-    source_name: str,
-    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-):
-    pass
-
-
 @router.delete(
     path="/marketplace/sources/{source_name}", status_code=HTTPStatus.NO_CONTENT.value,
 )
 def delete_source(
-    request: Request,
-    source_name: str,
-    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    source_name: str, db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
-    pass
+    get_db().delete_marketplace_source(db_session, source_name)
+
+
+@router.get(
+    path="/marketplace/sources/{source_name}", response_model=OrderedMarketplaceSource,
+)
+def get_source(
+    source_name: str, db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+):
+    return get_db().get_marketplace_source(db_session, source_name)
 
 
 @router.put(
-    path="/marketplace/sources/{source_name}", status_code=HTTPStatus.NO_CONTENT.value,
+    path="/marketplace/sources/{source_name}", response_model=OrderedMarketplaceSource
 )
 def modify_or_create_source(
-    request: Request,
     source_name: str,
+    source: OrderedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
-    pass
+    get_db().store_marketplace_source(db_session, source_name, source)
+    return get_db().get_marketplace_source(db_session, source_name)
 
 
 @router.get(

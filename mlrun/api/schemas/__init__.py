@@ -41,14 +41,6 @@ from .feature_store import (
 )
 from .frontend_spec import FrontendSpec
 from .function import FunctionState
-from .marketplace import (
-    MarketplaceCatalog,
-    MarketplaceItem,
-    MarketplaceObjectMetadata,
-    MarketplaceSource,
-    MarketplaceSourceSpec,
-    OrderedMarketplaceSource,
-)
 from .model_endpoints import (
     Features,
     FeatureValues,
@@ -92,3 +84,11 @@ from .schedule import (
     ScheduleUpdate,
 )
 from .secret import SecretProviderName, SecretsData, UserSecretCreationRequest
+from .marketplace import (
+    MarketplaceCatalog,
+    MarketplaceItem,
+    MarketplaceObjectMetadata,
+    MarketplaceSource,
+    MarketplaceSourceSpec,
+    OrderedMarketplaceSource,
+)

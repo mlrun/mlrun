@@ -1,9 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
 from mlrun.api.schemas import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.config import config
 
 
 # Defining a different base class (not ObjectMetadata), as there's no project and it differs enough to
@@ -30,6 +31,24 @@ class MarketplaceSource(BaseModel):
     metadata: MarketplaceObjectMetadata
     spec: MarketplaceSourceSpec
     status: ObjectStatus
+
+    @classmethod
+    def create_default_source(cls):
+        if not config.marketplace_default_source.create:
+            return None
+
+        now = datetime.now(timezone.utc)
+        hub_metadata = MarketplaceObjectMetadata(
+            name=config.marketplace_default_source.name,
+            description=config.marketplace_default_source.description,
+            created=now,
+            updated=now,
+        )
+        return cls(
+            metadata=hub_metadata,
+            spec=MarketplaceSourceSpec(path=config.marketplace_default_source.url),
+            status=ObjectStatus(state="created"),
+        )
 
 
 class OrderedMarketplaceSource(BaseModel):

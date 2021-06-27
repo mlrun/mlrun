@@ -485,7 +485,10 @@ def _ingest_with_spark(
 
             spark = SparkSession.builder.appName(session_name).getOrCreate()
 
-        df = source.to_spark_df(spark)
+        if isinstance(source, pd.DataFrame):
+            df = spark.createDataFrame(source)
+        else:
+            df = source.to_spark_df(spark)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)

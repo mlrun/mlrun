@@ -606,8 +606,8 @@ def delete_feature_set(name, project="", tag=None, uid=None, force=False):
     """
     db = mlrun.get_run_db()
     if not force:
-        fset = db.get_feature_set(name=name, project=project, tag=tag, uid=uid)
-        if fset.status.targets:
+        feature_set = db.get_feature_set(name=name, project=project, tag=tag, uid=uid)
+        if feature_set.status.targets:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 "delete_feature_set requires targets purging. Use either FeatureSet's purge_targets or the force flag."
             )

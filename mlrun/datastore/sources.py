@@ -212,6 +212,9 @@ class DataFrameSource:
     def to_dataframe(self):
         return self._df
 
+    def to_spark_df(self, session):
+        return session.createDataFrame(self._df)
+
 
 class OnlineSource(BaseSourceDriver):
     """online data source spec"""

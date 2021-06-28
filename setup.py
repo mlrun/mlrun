@@ -48,12 +48,12 @@ def load_deps(path):
         for line in fp:
             if is_ignored(line):
                 continue
-            stripped_line = line.strip()
+            line = line.strip()
 
             # e.g.: git+https://github.com/nuclio/nuclio-jupyter.git@some-branch#egg=nuclio-jupyter
-            if "#egg=" in stripped_line:
-                _, package = stripped_line.split("#egg=")
-                deps.append(f"{package} @ {stripped_line}")
+            if "#egg=" in line:
+                _, package = line.split("#egg=")
+                deps.append(f"{package} @ {line}")
                 continue
 
             # append package

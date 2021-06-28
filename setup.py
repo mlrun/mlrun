@@ -44,7 +44,21 @@ def is_ignored(line):
 def load_deps(path):
     """Load dependencies from requirements file"""
     with open(path) as fp:
-        return [line.strip() for line in fp if not is_ignored(line)]
+        deps = []
+        for line in fp:
+            if is_ignored(line):
+                continue
+            stripped_line = line.strip()
+
+            # e.g.: git+https://github.com/nuclio/nuclio-jupyter.git@some-branch#egg=nuclio-jupyter
+            if "#egg=" in stripped_line:
+                _, package = stripped_line.split("#egg=")
+                deps.append(f"{package} @ {stripped_line}")
+                continue
+
+            # append package
+            deps.append(line)
+        return deps
 
 
 with open("README.md") as fp:

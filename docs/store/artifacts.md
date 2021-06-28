@@ -64,7 +64,7 @@ For example, the following code extracts the path to the artifacts directory of 
 to a `training_artifacts` variable:
 
 ```python
-from os import path`
+from os import path
 training_artifacts = path.join(artifact_path, 'training')
 ```
 

@@ -25,6 +25,7 @@ class KerasModelHandler(ModelHandler):
         """
 
         SAVED_MODEL = "SavedModel"
+        H5 = "H5"
         JSON_ARCHITECTURE_H5_WEIGHTS = "Json_H5"
         TF_CHECKPOINT = "TFCheckpoint"
 
@@ -54,7 +55,7 @@ class KerasModelHandler(ModelHandler):
                 str, Type[Model], Type[Layer], Type[Loss], Type[Optimizer], Type[Metric]
             ],
         ] = None,
-        save_format: str = SaveFormats.JSON_ARCHITECTURE_H5_WEIGHTS,
+        save_format: str = SaveFormats.H5,
         save_traces: bool = False,
     ):
         """
@@ -167,13 +168,16 @@ class KerasModelHandler(ModelHandler):
         ):
             # Save the model architecture (json):
             model_architecture = self._model.to_json()
-
             model_path = "{}.json".format(self._model_name)
             with open(model_path, "w") as json_file:
                 json_file.write(model_architecture)
             # Save the model weights (h5):
             weights_path = "{}.h5".format(self._model_name)
             self._model.save_weights(weights_path)
+        elif self._save_format == KerasModelHandler.SaveFormats.H5:
+            # Save the model as a h5 file:
+            model_path = "{}.h5".format(self._model_name)
+            self._model.save(model_path)
         elif self._save_format == KerasModelHandler.SaveFormats.TF_CHECKPOINT:
             raise NotImplementedError
         else:

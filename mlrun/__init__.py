@@ -81,9 +81,9 @@ def set_environment(
 
     example::
 
-        import os
+        from os import path
         artifact_path = set_environment(project='my-project')
-        data_subpath = os.path.join(artifact_path, 'data')
+        data_subpath = path.join(artifact_path, 'data')
 
     :param api_path:       location/url of mlrun api service
     :param artifact_path:  path/url for storing experiment artifacts

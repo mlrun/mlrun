@@ -8,6 +8,7 @@ import fsspec
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
+from pandas.util.testing import assert_frame_equal
 from storey import EmitAfterMaxEvent, MapClass
 
 import mlrun
@@ -281,6 +282,37 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
             "2020-12-01 17:24:15.906352"
         )
+
+    def test_csv_time_columns(self):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
+
+        csv_path = "/tmp/multiple_time_columns.csv"
+        df.to_csv(path_or_buf=csv_path, index=False)
+        source = CSVSource(
+            path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]
+        )
+
+        measurements = fs.FeatureSet(
+            "fs", entities=[Entity("key")], timestamp_key="time_stamp"
+        )
+        try:
+            resp = fs.ingest(measurements, source)
+            df.set_index("key", inplace=True)
+            assert_frame_equal(df, resp)
+        finally:
+            os.remove(csv_path)
 
     def test_featureset_column_types(self):
         data = pd.DataFrame(

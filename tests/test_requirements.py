@@ -86,11 +86,13 @@ def test_requirement_specifiers_inconsistencies():
 
 
 def test_requirement_from_remote():
-    requirement_specifiers_map = _generate_requirement_specifiers_map([
-        "some-package~=1.9, <1.17.50",
-        "other-package==0.1",
-        "git+https://github.com/mlrun/something.git@some-branch#egg=more-package",
-    ])
+    requirement_specifiers_map = _generate_requirement_specifiers_map(
+        [
+            "some-package~=1.9, <1.17.50",
+            "other-package==0.1",
+            "git+https://github.com/mlrun/something.git@some-branch#egg=more-package",
+        ]
+    )
     assert len(requirement_specifiers_map) > 0
     assert requirement_specifiers_map["some-package"] == [
         "~=1.9, <1.17.50",
@@ -118,7 +120,11 @@ def _generate_requirement_specifiers_map(requirement_specifiers):
     )
     requirement_specifiers_map = collections.defaultdict(list)
     for requirement_specifier in requirement_specifiers:
-        regex = remote_location_regex if "#egg=" in requirement_specifier else specific_module_regex
+        regex = (
+            remote_location_regex
+            if "#egg=" in requirement_specifier
+            else specific_module_regex
+        )
         match = re.fullmatch(regex, requirement_specifier)
         assert (
             match is not None

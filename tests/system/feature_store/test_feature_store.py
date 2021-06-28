@@ -301,12 +301,12 @@ class TestFeatureStore(TestMLRunSystem):
         measurements = fs.FeatureSet(
             "fs", entities=[Entity("key")], timestamp_key="time_stamp"
         )
-
-        resp = fs.ingest(measurements, source)
-        df.set_index("key", inplace=True)
-        assert_frame_equal(df, resp)
-
-        os.remove(csv_path)
+        try:
+            resp = fs.ingest(measurements, source)
+            df.set_index("key", inplace=True)
+            assert_frame_equal(df, resp)
+        finally:
+            os.remove(csv_path)
 
     def test_featureset_column_types(self):
         data = pd.DataFrame(

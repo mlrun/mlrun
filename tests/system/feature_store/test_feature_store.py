@@ -8,6 +8,7 @@ import fsspec
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
+from pandas.util.testing import assert_frame_equal
 from storey import EmitAfterMaxEvent, MapClass
 
 import mlrun
@@ -276,22 +277,36 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
-    def test_719(self):
-        key = "kdeutcdq"
-        measurements = fs.FeatureSet(
-            "bla31b-2", entities=[Entity(key)], timestamp_key="time_stamp")
-        source = CSVSource("csv23",
-                           path=os.path.relpath(str(self.assets_path / "bla6.csv")),
-                           time_field="time_stamp", parse_dates=["ruksabeu", "esbsnygd"])
-        resp = fs.ingest(measurements, source)
-        df1 = pd.read_csv(os.path.relpath(str(self.assets_path / "bla6.csv")))
-        print("dddddaaata types are " + str(df1.dtypes))
-        path = "/tmp/query1111.parquet"
-        print("rrrrrrrrrr" + str(type(df1)))
-        df1.to_parquet(path)
-        df2 = pd.read_parquet(path)
-        print("dddddaaata types are " + str(df2.dtypes))
+    def test_csv_time_columns(self):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
 
+        csv_path = "/tmp/multiple_time_columns.csv"
+        df.to_csv(path_or_buf=csv_path, index=False)
+        source = CSVSource(
+            path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]
+        )
+
+        measurements = fs.FeatureSet(
+            "fs", entities=[Entity("key")], timestamp_key="time_stamp"
+        )
+
+        resp = fs.ingest(measurements, source)
+        df.set_index("key", inplace=True)
+        assert_frame_equal(df, resp)
+
+        os.remove(csv_path)
 
     def test_featureset_column_types(self):
         data = pd.DataFrame(

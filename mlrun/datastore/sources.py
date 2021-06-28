@@ -13,7 +13,7 @@
 # limitations under the License.
 from copy import copy
 from datetime import datetime
-from typing import Dict, Optional, Union, List
+from typing import Dict, List, Optional, Union
 
 import mlrun
 
@@ -89,6 +89,7 @@ class CSVSource(BaseSourceDriver):
         :parameter parse_dates: Optional. list of columns (names or integers, other than time_field) that will be attempted to parse as
             date column
         """
+
     kind = "csv"
     support_storey = True
     support_spark = True
@@ -101,7 +102,7 @@ class CSVSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        parse_dates: Optional[Union[List[int], List[str]]] = None
+        parse_dates: Optional[Union[List[int], List[str]]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
         self._parse_dates = parse_dates
@@ -132,9 +133,9 @@ class CSVSource(BaseSourceDriver):
         }
 
     def to_dataframe(self):
-#        kwargs["parse_dates"]= ["ruksabeu", "esbsnygd"]
-#        kwargs = {"parse_dates": self._parse_dates}
-        return mlrun.store_manager.object(url=self.path).as_df(parse_dates=self._parse_dates)
+        return mlrun.store_manager.object(url=self.path).as_df(
+            parse_dates=self._parse_dates
+        )
 
 
 class ParquetSource(BaseSourceDriver):

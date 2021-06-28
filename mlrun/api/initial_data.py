@@ -12,6 +12,7 @@ import mlrun.api.schemas
 import mlrun.artifacts
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
+from mlrun.config import config
 from mlrun.utils import logger
 
 from .utils.alembic import AlembicUtil
@@ -47,6 +48,7 @@ def _perform_data_migrations(
     _fill_project_state(db, db_session)
     _fix_artifact_tags_duplications(db, db_session)
     _fix_datasets_large_previews(db, db_session, leader_session)
+    _add_default_marketplace_source_if_needed(db, db_session)
 
 
 def _fix_datasets_large_previews(
@@ -233,6 +235,32 @@ def _fill_project_state(
                 name=project.metadata.name,
             )
             db.store_project(db_session, project.metadata.name, project)
+
+
+def _add_default_marketplace_source_if_needed(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    try:
+        hub_marketplace_source = db.get_marketplace_source(
+            db_session, config.marketplace.default_source.name
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        hub_marketplace_source = None
+
+    if not hub_marketplace_source:
+        hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
+        # hub_source will be None if the configuration has marketplace.default_source.create=False
+        if hub_source:
+            # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
+            hub_record = db._transform_marketplace_source_schema_to_record(
+                mlrun.api.schemas.OrderedMarketplaceSource(
+                    order=mlrun.api.schemas.OrderedMarketplaceSource.last_source_order,
+                    source=hub_source,
+                )
+            )
+            db_session.add(hub_record)
+            db_session.commit()
+    return
 
 
 def main() -> None:

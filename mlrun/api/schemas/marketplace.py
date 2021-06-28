@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
-from mlrun.api.schemas import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.config import config
 
 
@@ -33,26 +33,28 @@ class MarketplaceSource(BaseModel):
     status: ObjectStatus
 
     @classmethod
-    def create_default_source(cls):
-        if not config.marketplace_default_source.create:
+    def generate_default_source(cls):
+        if not config.marketplace.default_source.create:
             return None
 
         now = datetime.now(timezone.utc)
         hub_metadata = MarketplaceObjectMetadata(
-            name=config.marketplace_default_source.name,
-            description=config.marketplace_default_source.description,
+            name=config.marketplace.default_source.name,
+            description=config.marketplace.default_source.description,
             created=now,
             updated=now,
         )
         return cls(
             metadata=hub_metadata,
-            spec=MarketplaceSourceSpec(path=config.marketplace_default_source.url),
+            spec=MarketplaceSourceSpec(path=config.marketplace.default_source.url),
             status=ObjectStatus(state="created"),
         )
 
 
 class OrderedMarketplaceSource(BaseModel):
-    order: int = -1  # Default last. Otherwise must be > 0
+    last_source_order = -1
+
+    order: int = last_source_order  # Default last. Otherwise must be > 0
     source: MarketplaceSource
 
 
@@ -60,6 +62,7 @@ class OrderedMarketplaceSource(BaseModel):
 class MarketplaceItemMetadata(MarketplaceObjectMetadata):
     source: str
     channel: str
+    version: str
 
 
 class MarketplaceItemSpec(ObjectSpec):
@@ -68,7 +71,7 @@ class MarketplaceItemSpec(ObjectSpec):
 
 class MarketplaceItem(BaseModel):
     kind: ObjectKind = Field(ObjectKind.marketplace_item, const=True)
-    metadata: MarketplaceObjectMetadata
+    metadata: MarketplaceItemMetadata
     spec: MarketplaceItemSpec
     status: ObjectStatus
 

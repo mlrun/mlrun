@@ -755,7 +755,10 @@ class NoSqlTarget(BaseStoreTarget):
         key_columns = list(key_columns.keys())
         table = self._resource.uri
         column_list = self._get_column_list(
-            features=features, timestamp_key=None, key_columns=key_columns
+            features=features,
+            timestamp_key=None,
+            key_columns=key_columns,
+            with_type=True,
         )
         if not self.columns:
             aggregate_features = (
@@ -763,7 +766,9 @@ class NoSqlTarget(BaseStoreTarget):
                 if features
                 else []
             )
-            column_list = [col for col in column_list if col not in aggregate_features]
+            column_list = [
+                col for col in column_list if col[0] not in aggregate_features
+            ]
 
         graph.add_step(
             name=self.name or "NoSqlTarget",

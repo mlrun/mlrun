@@ -215,6 +215,7 @@ def build_status(
             nuclio_name,
             last_log_timestamp,
             text,
+            function_status_,
         ) = get_nuclio_deploy_status(
             name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
         )
@@ -222,7 +223,12 @@ def build_status(
             logger.info("Nuclio function deployed successfully", name=name)
         if state == "error":
             logger.error(f"Nuclio deploy error, {text}", name=name)
+        internal_invocation_urls = function_status_.get('externalInvocationUrls', [])
+        external_invocation_urls = function_status_.get('internalInvocationUrls', [])
+
         update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
         update_in(fn, "status.state", state)
         update_in(fn, "status.address", address)
 
@@ -247,6 +253,8 @@ def build_status(
                 "x-mlrun-function-status": state,
                 "x-mlrun-last-timestamp": str(last_log_timestamp),
                 "x-mlrun-address": address,
+                "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+                "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
                 "x-mlrun-name": nuclio_name,
             },
         )

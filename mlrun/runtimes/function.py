@@ -31,6 +31,7 @@ from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
 
 from ..config import config as mlconf
+from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
@@ -615,18 +616,8 @@ class RemoteRuntime(KubeResource):
                     raise ValueError(
                         "no function address or not ready, first run .deploy()"
                     )
-            if path.startswith("/"):
-                path = path[1:]
 
-            # internal / external invocation urls is a nuclio >= 1.6.x feature
-            # try to infer the invocation url from the internal and if not exists, use external.
-            # if both not available, fallback to `address` for backwards compatability
-            if self.status.internal_invocation_urls:
-                path = f"http://{self.status.internal_invocation_urls[0]}/{path}"
-            elif self.status.external_invocation_urls:
-                path = f"http://{self.status.external_invocation_urls[0]}/{path}"
-            else:
-                path = f"http://{self.status.address}/{path}"
+            path = self._resolve_invocation_url(path)
 
         kwargs = {}
         if body:
@@ -734,6 +725,22 @@ class RemoteRuntime(KubeResource):
                     log_std(self._db_conn, run, parse_logs(logs))
 
         return results
+
+    def _resolve_invocation_url(self, path):
+
+        if path.startswith("/"):
+            path = path[1:]
+
+        # internal / external invocation urls is a nuclio >= 1.6.x feature
+        # try to infer the invocation url from the internal and if not exists, use external.
+        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
+        if self.status.internal_invocation_urls and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+            return f"http://{self.status.internal_invocation_urls[0]}/{path}"
+
+        if self.status.external_invocation_urls:
+            return f"http://{self.status.external_invocation_urls[0]}/{path}"
+        else:
+            return f"http://{self.status.address}/{path}"
 
 
 def parse_logs(logs):

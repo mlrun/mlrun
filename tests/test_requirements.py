@@ -113,10 +113,7 @@ def _generate_requirement_specifiers_map(requirement_specifiers):
         r"(?P<requirementSpecifier>.*)"
     )
     remote_location_regex = (
-        r"^"
-        r"(?P<requirementSpecifier>.*)"
-        r"#egg="
-        r"(?P<requirementName>[^#]+)"
+        r"^(?P<requirementSpecifier>.*)#egg=(?P<requirementName>[^#]+)"
     )
     requirement_specifiers_map = collections.defaultdict(list)
     for requirement_specifier in requirement_specifiers:

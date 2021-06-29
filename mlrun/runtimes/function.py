@@ -644,7 +644,7 @@ class RemoteRuntime(KubeResource):
         if state != "ready":
             if state:
                 raise RunError(f"cannot run, function in state {state}")
-            state = self._get_state(raise_on_exception=True)
+            state, _, _ = self._get_state(raise_on_exception=True)
             if state != "ready":
                 logger.info("starting nuclio build!")
                 self.deploy()

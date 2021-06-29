@@ -880,7 +880,12 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def get_builder_status(
-        self, func: BaseRuntime, offset=0, logs=True, last_log_timestamp=0, verbose=False
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
     ):
         """ Retrieve the status of a build operation currently in progress.
 
@@ -926,9 +931,11 @@ class HTTPRunDB(RunDBInterface):
                 func.status.address = resp.headers.get("x-mlrun-address", "")
                 func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
                 func.status.internal_invocation_urls = resp.headers.get(
-                    "x-mlrun-internal-invocation-urls", "").split(",")
+                    "x-mlrun-internal-invocation-urls", ""
+                ).split(",")
                 func.status.external_invocation_urls = resp.headers.get(
-                    "x-mlrun-external-invocation-urls", "").split(",")
+                    "x-mlrun-external-invocation-urls", ""
+                ).split(",")
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")

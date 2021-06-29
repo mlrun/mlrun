@@ -131,13 +131,14 @@ class NuclioSpec(KubeResourceSpec):
 
 
 class NuclioStatus(FunctionStatus):
-    def __init__(self,
-                 state=None,
-                 nuclio_name=None,
-                 address=None,
-                 internal_invocation_urls=None,
-                 external_invocation_urls=None,
-                 ):
+    def __init__(
+        self,
+        state=None,
+        nuclio_name=None,
+        address=None,
+        internal_invocation_urls=None,
+        external_invocation_urls=None,
+    ):
         super().__init__(state)
 
         self.nuclio_name = nuclio_name
@@ -427,9 +428,9 @@ class RemoteRuntime(KubeResource):
         else:
             self.save(versioned=False)
             self._ensure_run_db()
-            internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(self,
-                                                                                        dashboard=dashboard,
-                                                                                        watch=True)
+            internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
+                self, dashboard=dashboard, watch=True
+            )
             self.status.internal_invocation_urls = internal_invocation_urls
             self.status.external_invocation_urls = external_invocation_urls
 
@@ -443,8 +444,11 @@ class RemoteRuntime(KubeResource):
                 self.status.address = address
                 save_record = True
 
-        logger.info(self._compile_deploy_log_message(self.status.internal_invocation_urls,
-                                                     self.status.external_invocation_urls))
+        logger.info(
+            "successfully deployed function",
+            internal_invocation_urls=self.status.internal_invocation_urls,
+            external_invocation_urls=self.status.external_invocation_urls,
+        )
 
         if save_record:
             self.save(versioned=False)
@@ -459,38 +463,23 @@ class RemoteRuntime(KubeResource):
     ):
         raise NotImplementedError("Node selection is not supported for nuclio runtime")
 
-    def _compile_deploy_log_message(self,
-                                    internal_invocation_urls: typing.List[str],
-                                    external_invocation_urls: typing.Optional[typing.List[str]]):
-
-        message = "function deployed."
-        if internal_invocation_urls:
-            internal_invocation_urls_encoded = ', '.join(internal_invocation_urls)
-            message += " internal "
-            message += f"address: " if len(internal_invocation_urls) == 1 else f"addresses: "
-            message += f"{internal_invocation_urls_encoded}."
-
-        if external_invocation_urls:
-            external_invocation_urls_encoded = ', '.join(external_invocation_urls)
-            message += " external "
-            message += f"address: " if len(external_invocation_urls) == 1 else f"addresses: "
-            message += f"{external_invocation_urls_encoded}."
-
-        else:
-            message += f" your function is not externally exposed."
-
-        return message
-
     def _get_state(
-            self,
-            dashboard="",
-            last_log_timestamp=None,
-            verbose=False,
-            raise_on_exception=True,
-            resolve_address=True,
+        self,
+        dashboard="",
+        last_log_timestamp=None,
+        verbose=False,
+        raise_on_exception=True,
+        resolve_address=True,
     ) -> typing.Tuple[str, str, typing.Optional[float]]:
         if dashboard:
-            state, address, name, last_log_timestamp, text, function_status, = get_nuclio_deploy_status(
+            (
+                state,
+                address,
+                name,
+                last_log_timestamp,
+                text,
+                function_status,
+            ) = get_nuclio_deploy_status(
                 self.metadata.name,
                 self.metadata.project,
                 self.metadata.tag,
@@ -499,8 +488,12 @@ class RemoteRuntime(KubeResource):
                 verbose=verbose,
                 resolve_address=resolve_address,
             )
-            self.status.internal_invocation_urls = function_status.get('internalInvocationUrls', [])
-            self.status.external_invocation_urls = function_status.get('externalInvocationUrls', [])
+            self.status.internal_invocation_urls = function_status.get(
+                "internalInvocationUrls", []
+            )
+            self.status.external_invocation_urls = function_status.get(
+                "externalInvocationUrls", []
+            )
             self.status.state = state
             self.status.nuclio_name = name
             if address:
@@ -734,7 +727,12 @@ class RemoteRuntime(KubeResource):
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
-        if self.status.internal_invocation_urls and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        if (
+            self.status.internal_invocation_urls
+            and get_k8s_helper(
+                silent=True, log=False
+            ).is_running_inside_kubernetes_cluster()
+        ):
             return f"http://{self.status.internal_invocation_urls[0]}/{path}"
 
         if self.status.external_invocation_urls:
@@ -868,7 +866,13 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
 
 def get_nuclio_deploy_status(
-    name, project, tag, dashboard="", last_log_timestamp=None, verbose=False, resolve_address=True
+    name,
+    project,
+    tag,
+    dashboard="",
+    last_log_timestamp=None,
+    verbose=False,
+    resolve_address=True,
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)

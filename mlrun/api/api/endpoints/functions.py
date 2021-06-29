@@ -224,8 +224,8 @@ def build_status(
         if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
 
-        internal_invocation_urls = function_status_.get('internalInvocationUrls', [])
-        external_invocation_urls = function_status_.get('externalInvocationUrls', [])
+        internal_invocation_urls = function_status_.get("internalInvocationUrls", [])
+        external_invocation_urls = function_status_.get("externalInvocationUrls", [])
 
         update_in(fn, "status.nuclio_name", nuclio_name)
         update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)

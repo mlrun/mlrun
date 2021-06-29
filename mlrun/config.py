@@ -119,6 +119,7 @@ default_config = {
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
+            "scheduler_config": '{"misfire_grace_time": null, "coalesce": true}',
         },
         "projects": {
             "leader": "mlrun",

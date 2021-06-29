@@ -1,4 +1,5 @@
 import asyncio
+import json
 import copy
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -21,7 +22,8 @@ from mlrun.utils import logger
 
 class Scheduler:
     def __init__(self):
-        self._scheduler = AsyncIOScheduler()
+        scheduler_config = json.loads(config.httpdb.scheduling.scheduler_config)
+        self._scheduler = AsyncIOScheduler(gconfig=scheduler_config)
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
         # we don't allow to schedule a job to run more then one time per X

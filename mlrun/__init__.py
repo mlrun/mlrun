@@ -32,7 +32,7 @@ from .platforms import (
     mount_v3io_legacy,
     v3io_cred,
 )
-from .projects import load_project, new_project
+from .projects import ProjectMetadata, load_project, new_project
 from .run import (
     code_to_function,
     function_to_module,
@@ -110,6 +110,9 @@ def set_environment(
     if project and user_project:
         user = environ.get("V3IO_USERNAME") or getpass.getuser()
         project = f"{project}-{user}"
+
+    if project:
+        ProjectMetadata.validate_project_name(project)
 
     mlconf.default_project = project or mlconf.default_project
 

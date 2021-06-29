@@ -24,8 +24,8 @@ from git import Repo
 from kfp import compiler
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.leader
 import mlrun.errors
+import mlrun.utils.regex
 
 from ..artifacts import (
     ArtifactManager,
@@ -239,8 +239,20 @@ class ProjectMetadata(ModelObj):
     @name.setter
     def name(self, name):
         if name:
-            mlrun.api.utils.projects.leader.Member.validate_project_name(name)
+            self.validate_project_name(name)
         self._name = name
+
+    @staticmethod
+    def validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
+        try:
+            mlrun.utils.helpers.verify_field_regex(
+                "project.metadata.name", name, mlrun.utils.regex.project_name
+            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
 
 
 class ProjectSpec(ModelObj):

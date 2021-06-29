@@ -227,6 +227,10 @@ def build_status(
         internal_invocation_urls = function_status_.get("internalInvocationUrls", [])
         external_invocation_urls = function_status_.get("externalInvocationUrls", [])
 
+        # on nuclio > 1.6.x we get the external invocation url on the status block
+        if external_invocation_urls:
+            address = external_invocation_urls[0]
+
         update_in(fn, "status.nuclio_name", nuclio_name)
         update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
         update_in(fn, "status.external_invocation_urls", external_invocation_urls)

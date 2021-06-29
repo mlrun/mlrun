@@ -10,7 +10,9 @@ kfp~=1.0.1
 nest-asyncio~=1.0
 # >=5.5 from nuclio-jupyter, <7.17 cause from 7.17 python 3.6 is not supported (and models-gpu-legacy image build fail)
 ipython>=5.5, <7.17
-nuclio-jupyter~=0.8.15
+#nuclio-jupyter~=0.8.15
+# TODO: remove and use nuclio-jupter
+git+git://github.com/liranbg/nuclio-jupyter@use-internal-external-invocation-url#egg=nuclio-jupyter
 # >=1.16.5 from pandas 1.2.1 and <1.20.0 because we're hitting the same issue as this one
 # https://github.com/Azure/MachineLearningNotebooks/issues/1314
 numpy>=1.16.5, <1.20.0

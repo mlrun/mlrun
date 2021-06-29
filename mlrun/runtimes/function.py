@@ -402,7 +402,7 @@ class RemoteRuntime(KubeResource):
             self.status = data["data"].get("status")
             # ready = data.get("ready", False)
 
-            while state not in ["ready", "error"]:
+            while state not in ["ready", "error", "unhealthy"]:
                 sleep(1)
                 try:
                     text, last_log_timestamp = db.get_builder_status(

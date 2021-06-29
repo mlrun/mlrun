@@ -19,8 +19,6 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 import getpass
 from os import environ, path
 
-import mlrun.api.utils.projects.leader
-
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -114,7 +112,7 @@ def set_environment(
         project = f"{project}-{user}"
 
     if project:
-        mlrun.api.utils.projects.leader.Member.validate_project_name(project)
+        mlrun.projects.ProjectMetadata.validate_project_name(project)
 
     mlconf.default_project = project or mlconf.default_project
 

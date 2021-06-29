@@ -116,7 +116,7 @@ def _generate_requirement_specifiers_map(requirement_specifiers):
         r"^"
         r"(?P<requirementSpecifier>.*)"
         r"#egg="
-        r"(?P<requirementName>[a-zA-Z\-0-9_]+)"
+        r"(?P<requirementName>[^#]+)"
     )
     requirement_specifiers_map = collections.defaultdict(list)
     for requirement_specifier in requirement_specifiers:

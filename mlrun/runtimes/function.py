@@ -848,14 +848,14 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
 
 def get_nuclio_deploy_status(
-    name, project, tag, dashboard="", last_log_timestamp=None, verbose=False
+    name, project, tag, dashboard="", last_log_timestamp=None, verbose=False, resolve_address=True
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
 
-    state, address, last_log_timestamp, outputs = get_deploy_status(
-        api_address, name, last_log_timestamp, verbose
+    state, address, last_log_timestamp, outputs, function_status = get_deploy_status(
+        api_address, name, last_log_timestamp, verbose, resolve_address
     )
 
     text = "\n".join(outputs) if outputs else ""
-    return state, address, name, last_log_timestamp, text
+    return state, address, name, last_log_timestamp, text, function_status

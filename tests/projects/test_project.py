@@ -87,7 +87,12 @@ def test_create_project_from_file_with_legacy_structure():
 
 def test_export_project_dir_doesnt_exist():
     project_name = "project-name"
-    project_file_path = pathlib.Path(tests.conftest.results) / "new-dir" / "another-new-dir" / "project.yaml"
+    project_file_path = (
+        pathlib.Path(tests.conftest.results)
+        / "new-dir"
+        / "another-new-dir"
+        / "project.yaml"
+    )
     project = mlrun.projects.project.new_project(project_name, project_file_path)
     project.export()
 
@@ -124,11 +129,11 @@ def _assert_project_function_objects(project, expected_function_objects):
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
         assert (
-                deepdiff.DeepDiff(
-                    project_function_objects[function_name].to_dict(),
-                    function_object.to_dict(),
-                    ignore_order=True,
-                    exclude_paths=["root['spec']['build']['code_origin']"],
-                )
-                == {}
+            deepdiff.DeepDiff(
+                project_function_objects[function_name].to_dict(),
+                function_object.to_dict(),
+                ignore_order=True,
+                exclude_paths=["root['spec']['build']['code_origin']"],
+            )
+            == {}
         )

@@ -255,8 +255,6 @@ class ProjectMetadata(ModelObj):
         return True
 
 
-
-
 class ProjectSpec(ModelObj):
     def __init__(
         self,

@@ -240,7 +240,9 @@ class Member(
                 # if it was created prior to 0.6.0, and the version was upgraded
                 # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
                 # as well)
-                if not mlrun.projects.ProjectMetadata.validate_project_name(project_name, raise_on_failure=False):
+                if not mlrun.projects.ProjectMetadata.validate_project_name(
+                    project_name, raise_on_failure=False
+                ):
                     return
                 for missing_follower in missing_followers:
                     logger.debug(

@@ -617,7 +617,16 @@ class RemoteRuntime(KubeResource):
                     )
             if path.startswith("/"):
                 path = path[1:]
-            path = f"http://{self.status.address}/{path}"
+
+            # internal / external invocation urls is a nuclio >= 1.6.x feature
+            # try to infer the invocation url from the internal and if not exists, use external.
+            # if both not available, fallback to `address` for backwards compatability
+            if self.status.internal_invocation_urls:
+                path = f"http://{self.status.internal_invocation_urls[0]}/{path}"
+            elif self.status.external_invocation_urls:
+                path = f"http://{self.status.external_invocation_urls[0]}/{path}"
+            else:
+                path = f"http://{self.status.address}/{path}"
 
         kwargs = {}
         if body:

@@ -13,6 +13,7 @@
 # limitations under the License.
 import getpass
 import importlib.util as imputil
+import pathlib
 import shutil
 import typing
 import warnings
@@ -1423,6 +1424,9 @@ class MlrunProject(ModelObj):
         filepath = filepath or path.join(
             self.spec.context, self.spec.subpath, "project.yaml"
         )
+        project_dir = pathlib.Path(filepath).parent
+        if not project_dir.exists():
+            project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
 

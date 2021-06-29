@@ -395,6 +395,7 @@ class RemoteRuntime(KubeResource):
         state = ""
         last_log_timestamp = 1
 
+        save_record = False
         if not dashboard:
             db = self._get_db()
             logger.info("Starting remote function deploy")
@@ -420,19 +421,33 @@ class RemoteRuntime(KubeResource):
 
             if self.status.address:
                 self.spec.command = f"http://{self.status.address}"
-                self.save(versioned=False)
+                save_record = True
 
         else:
             self.save(versioned=False)
             self._ensure_run_db()
-            address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
-            if address:
+            internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(self,
+                                                                                        dashboard=dashboard,
+                                                                                        watch=True)
+            self.status.internal_invocation_urls = internal_invocation_urls
+            self.status.external_invocation_urls = external_invocation_urls
+
+            # save the (first) function external invocation url
+            # this is made for backwards compatability because the user, at this point, may
+            # work remotely and need the external invocation url on the spec.command
+            if self.status.external_invocation_urls:
+                address = self.status.external_invocation_urls[0]
                 self.spec.command = f"http://{address}"
                 self.status.state = "ready"
                 self.status.address = address
-                self.save(versioned=False)
+                save_record = True
 
-        logger.info(f"function deployed, address={self.status.address}")
+        logger.info(self._compile_deploy_log_message(self.status.internal_invocation_urls,
+                                                     self.status.external_invocation_urls))
+
+        if save_record:
+            self.save(versioned=False)
+
         return self.spec.command
 
     def with_node_selection(
@@ -442,6 +457,28 @@ class RemoteRuntime(KubeResource):
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
         raise NotImplementedError("Node selection is not supported for nuclio runtime")
+
+    def _compile_deploy_log_message(self,
+                                    internal_invocation_urls: typing.List[str],
+                                    external_invocation_urls: typing.Optional[typing.List[str]]):
+
+        message = "function deployed."
+        if internal_invocation_urls:
+            internal_invocation_urls_encoded = ', '.join(internal_invocation_urls)
+            message += " internal "
+            message += f"address: " if len(internal_invocation_urls) == 1 else f"addresses: "
+            message += f"{internal_invocation_urls_encoded}."
+
+        if external_invocation_urls:
+            external_invocation_urls_encoded = ', '.join(external_invocation_urls)
+            message += " external "
+            message += f"address: " if len(external_invocation_urls) == 1 else f"addresses: "
+            message += f"{external_invocation_urls_encoded}."
+
+        else:
+            message += f" your function is not externally exposed."
+
+        return message
 
     def _get_state(
         self,

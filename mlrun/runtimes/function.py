@@ -130,10 +130,24 @@ class NuclioSpec(KubeResourceSpec):
 
 
 class NuclioStatus(FunctionStatus):
-    def __init__(self, state=None, nuclio_name=None, address=None):
+    def __init__(self,
+                 state=None,
+                 nuclio_name=None,
+                 address=None,
+                 internal_invocation_urls=None,
+                 external_invocation_urls=None,
+                 ):
         super().__init__(state)
 
         self.nuclio_name = nuclio_name
+
+        # exists on nuclio >= 1.6.x
+        # infers the function invocation urls
+        self.internal_invocation_urls = internal_invocation_urls or []
+        self.external_invocation_urls = external_invocation_urls or []
+
+        # still exists for backwards compatability reasons.
+        # on latest Nuclio (>= 1.6.x) versions, use external_invocation_urls / internal_invocation_urls instead
         self.address = address
 
 

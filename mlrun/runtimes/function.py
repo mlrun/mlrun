@@ -481,21 +481,25 @@ class RemoteRuntime(KubeResource):
         return message
 
     def _get_state(
-        self,
-        dashboard="",
-        last_log_timestamp=None,
-        verbose=False,
-        raise_on_exception=True,
-    ):
+            self,
+            dashboard="",
+            last_log_timestamp=None,
+            verbose=False,
+            raise_on_exception=True,
+            resolve_address=True,
+    ) -> typing.Tuple[str, str, typing.Optional[float]]:
         if dashboard:
-            state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(
+            state, address, name, last_log_timestamp, text, function_status, = get_nuclio_deploy_status(
                 self.metadata.name,
                 self.metadata.project,
                 self.metadata.tag,
                 dashboard,
                 last_log_timestamp=last_log_timestamp,
                 verbose=verbose,
+                resolve_address=resolve_address,
             )
+            self.status.internal_invocation_urls = function_status.get('internalInvocationUrls', [])
+            self.status.external_invocation_urls = function_status.get('externalInvocationUrls', [])
             self.status.state = state
             self.status.nuclio_name = name
             if address:

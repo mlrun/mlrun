@@ -774,16 +774,6 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         name = get_fullname(function.metadata.name, project, tag)
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
-        return nuclio.deploy.deploy_config(
-            config,
-            dashboard,
-            name=name,
-            project=project,
-            tag=tag,
-            verbose=function.verbose,
-            create_new=True,
-            watch=watch,
-        )
     else:
 
         name, config, code = nuclio.build_file(
@@ -806,16 +796,18 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         function.status.nuclio_name = name
 
         update_in(config, "metadata.name", name)
-        return deploy_config(
-            config,
-            dashboard_url=dashboard,
-            name=name,
-            project=project,
-            tag=tag,
-            verbose=function.verbose,
-            create_new=True,
-            watch=watch,
-        )
+
+    return deploy_config(
+        config,
+        dashboard_url=dashboard,
+        name=name,
+        project=project,
+        tag=tag,
+        verbose=function.verbose,
+        create_new=True,
+        watch=watch,
+        return_address_mode=nuclio.deploy.ReturnAddressModes.all,
+    )
 
 
 def get_nuclio_deploy_status(

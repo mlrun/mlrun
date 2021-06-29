@@ -619,6 +619,7 @@ class RemoteRuntime(KubeResource):
             else:
                 kwargs["json"] = body
         try:
+            logger.info("invoking function", method=method, path=path)
             resp = requests.request(method, path, headers=headers, **kwargs)
         except OSError as err:
             raise OSError(f"error: cannot run function at url {path}, {err}")

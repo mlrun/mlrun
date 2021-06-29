@@ -599,7 +599,15 @@ class RemoteRuntime(KubeResource):
             verbose=verbose,
         )
 
-    def invoke(self, path, body=None, method=None, headers=None, dashboard=""):
+    def invoke(
+        self,
+        path,
+        body=None,
+        method=None,
+        headers=None,
+        dashboard="",
+        force_external_address=False,
+    ):
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
@@ -610,7 +618,7 @@ class RemoteRuntime(KubeResource):
                         "no function address or not ready, first run .deploy()"
                     )
 
-            path = self._resolve_invocation_url(path)
+            path = self._resolve_invocation_url(path, force_external_address)
 
         kwargs = {}
         if body:
@@ -720,7 +728,7 @@ class RemoteRuntime(KubeResource):
 
         return results
 
-    def _resolve_invocation_url(self, path):
+    def _resolve_invocation_url(self, path, force_external_address):
 
         if path.startswith("/"):
             path = path[1:]
@@ -729,7 +737,8 @@ class RemoteRuntime(KubeResource):
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
         if (
-            self.status.internal_invocation_urls
+            not force_external_address
+            and self.status.internal_invocation_urls
             and get_k8s_helper(
                 silent=True, log=False
             ).is_running_inside_kubernetes_cluster()
@@ -800,8 +809,8 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     tag = function.metadata.tag
     handler = function.spec.function_handler
 
-    # In Nuclio 1.6.0 default serviceType changed to "ClusterIP", make sure we're using NodePort
-    spec.set_config("spec.serviceType", "NodePort")
+    # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
+    spec.set_config("spec.serviceType", mlconf.httpdb.nuclio.default_service_type)
     if function.spec.readiness_timeout:
         spec.set_config("spec.readinessTimeoutSeconds", function.spec.readiness_timeout)
     if function.spec.resources:

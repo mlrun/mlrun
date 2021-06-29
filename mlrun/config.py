@@ -113,6 +113,7 @@ default_config = {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
             },
         },
+        "nuclio": {"default_service_type": "NodePort",},  # one of ClusterIP | NodePort
         "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be

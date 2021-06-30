@@ -1,6 +1,4 @@
-import datetime
 import json
-import pathlib
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
@@ -38,8 +36,11 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
     def remove_source(self, source_name):
         secret_prefix = source_name + secret_name_separator
         source_credentials = self._get_source_credentials(source_name)
+        if not source_credentials:
+            return
         secrets_to_delete = [secret_prefix + key for key in source_credentials]
         get_k8s().delete_project_secrets(self._internal_project_name, secrets_to_delete)
+        self._catalogs.pop(source_name, None)
 
     def _store_source_credentials(self, source_name, credentials: dict):
         if not get_k8s():
@@ -64,12 +65,12 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         source_secrets = {}
         for key, value in secrets.items():
             if key.startswith(secret_prefix):
-                source_secrets[key[len(secret_prefix):]] = value
+                source_secrets[key[len(secret_prefix) :]] = value
 
         return source_secrets
 
     @staticmethod
-    def _transform_catalog_dict_to_schema(source_name, catalog_dict):
+    def _transform_catalog_dict_to_schema(source, catalog_dict):
         catalog_dict = catalog_dict.get("functions")
         if not catalog_dict:
             raise mlrun.errors.MLRunInternalServerError(
@@ -84,15 +85,13 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
                 function_dict = channel_dict[function_name]
                 for version_tag in function_dict:
                     version_dict = function_dict[version_tag]
-                    metadata_only = version_dict.copy()
-                    spec_dict = metadata_only.pop("spec", None)
-                    spec = MarketplaceItemSpec(
-                        item_uri=version_dict.get("url"), **spec_dict
-                    )
-                    metadata_only.pop("url")
+                    metadata_dict = version_dict.copy()
+                    spec_dict = metadata_dict.pop("spec", None)
                     metadata = MarketplaceItemMetadata(
-                        channel=channel_name, source=source_name, **metadata_only
+                        channel=channel_name, **metadata_dict
                     )
+                    item_uri = source.get_full_uri(metadata.get_relative_path())
+                    spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
                     item = MarketplaceItem(
                         metadata=metadata, spec=spec, status=ObjectStatus()
                     )
@@ -101,16 +100,16 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         return catalog
 
     def get_source_catalog(
-        self, source: MarketplaceSource, channel=None, version=None
+        self, source: MarketplaceSource, channel=None, version=None, force_refresh=False
     ) -> MarketplaceCatalog:
         source_name = source.metadata.name
-        if not self._catalogs.get(source_name):
-            path = str(pathlib.Path(source.spec.path, "catalog.json"))
+        if not self._catalogs.get(source_name) or force_refresh:
+            url = source.get_full_uri(config.marketplace.catalog_filename)
             credentials = self._get_source_credentials(source_name)
-            catalog_data = mlrun.run.get_object(url=path, secrets=credentials)
+            catalog_data = mlrun.run.get_object(url=url, secrets=credentials)
             catalog_dict = json.loads(catalog_data)
-            catalog = self._transform_catalog_dict_to_schema(source_name, catalog_dict)
-            self._catalogs[source_name] = catalog_dict
+            catalog = self._transform_catalog_dict_to_schema(source, catalog_dict)
+            self._catalogs[source_name] = catalog
         else:
             catalog = self._catalogs[source_name]
 
@@ -124,10 +123,15 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         return result_catalog
 
     def get_item(
-        self, source: MarketplaceSource, item_name, channel, version
+        self,
+        source: MarketplaceSource,
+        item_name,
+        channel,
+        version,
+        force_refresh=False,
     ) -> MarketplaceItem:
-        catalog = self.get_source_catalog(source, channel, version)
-        items = catalog.catalog
+        catalog = self.get_source_catalog(source, channel, version, force_refresh)
+        items = [item for item in catalog.catalog if item.metadata.name == item_name]
         if not items:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item not found. source={item_name}, channel={channel}, version={version}"
@@ -136,4 +140,9 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Query resulted in more than 1 catalog items. source={item_name}, channel={channel}, version={version}"
             )
-        return catalog.catalog[0]
+        return items[0]
+
+    def get_item_object(self, source: MarketplaceSource, item: MarketplaceItem):
+        credentials = self._get_source_credentials(source.metadata.name)
+        catalog_data = mlrun.run.get_object(url=item.spec.item_uri, secrets=credentials)
+        return catalog_data

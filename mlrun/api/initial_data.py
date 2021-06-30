@@ -254,7 +254,7 @@ def _add_default_marketplace_source_if_needed(
             # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
             hub_record = db._transform_marketplace_source_schema_to_record(
                 mlrun.api.schemas.OrderedMarketplaceSource(
-                    order=mlrun.api.schemas.OrderedMarketplaceSource.last_source_order,
+                    order=mlrun.api.schemas.marketplace.last_source_order,
                     source=hub_source,
                 )
             )

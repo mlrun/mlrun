@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -79,11 +79,12 @@ def get_catalog(
     source_name: str,
     channel: Optional[str] = Query(None),
     version: Optional[str] = Query(None),
+    force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return MarketplaceItemsManager().get_source_catalog(
-        ordered_source.source, channel, version
+        ordered_source.source, channel, version, force_refresh
     )
 
 
@@ -96,9 +97,10 @@ def get_item(
     item_name: str,
     channel: Optional[str] = Query("development"),
     version: Optional[str] = Query("latest"),
+    force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return MarketplaceItemsManager().get_item(
-        ordered_source.source, item_name, channel, version
+        ordered_source.source, item_name, channel, version, force_refresh
     )

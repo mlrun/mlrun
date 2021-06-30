@@ -2632,7 +2632,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         if not max_order or max_order < 0:
             max_order = 0
 
-        if order == schemas.OrderedMarketplaceSource.last_source_order:
+        if order == schemas.marketplace.last_source_order:
             order = max_order + 1
 
         if order > max_order + 1:
@@ -2642,7 +2642,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         if order < 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Order of inserted source must be greater than 0 or "
-                + f"{schemas.OrderedMarketplaceSource.last_source_order} (for last). order = {order}"
+                + f"{schemas.marketplace.last_source_order} (for last). order = {order}"
             )
         return order
 
@@ -2679,7 +2679,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
         source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
         current_order = source_record.order if source_record else None
-        if current_order == schemas.OrderedMarketplaceSource.last_source_order:
+        if current_order == schemas.marketplace.last_source_order:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Attempting to modify the global marketplace source."
             )
@@ -2708,7 +2708,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             return
 
         current_order = source_record.order
-        if current_order == schemas.OrderedMarketplaceSource.last_source_order:
+        if current_order == schemas.marketplace.last_source_order:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Attempting to delete the global marketplace source."
             )

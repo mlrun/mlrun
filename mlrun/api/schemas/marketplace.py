@@ -1,8 +1,10 @@
+import enum
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
+import mlrun.errors
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.config import config
 
@@ -20,9 +22,15 @@ class MarketplaceObjectMetadata(BaseModel):
         extra = Extra.allow
 
 
+# Currently only functions are supported. Will add more in the future.
+class MarketplaceSourceType(str, enum.Enum):
+    functions = "functions"
+
+
 # Sources-related objects
 class MarketplaceSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
+    channel: str
     credentials: Optional[dict] = None
 
 
@@ -31,6 +39,11 @@ class MarketplaceSource(BaseModel):
     metadata: MarketplaceObjectMetadata
     spec: MarketplaceSourceSpec
     status: ObjectStatus
+
+    def get_full_uri(self, relative_path):
+        return "{base}/{channel}/{relative_path}".format(
+            base=self.spec.path, channel=self.spec.channel, relative_path=relative_path
+        )
 
     @classmethod
     def generate_default_source(cls):
@@ -46,23 +59,37 @@ class MarketplaceSource(BaseModel):
         )
         return cls(
             metadata=hub_metadata,
-            spec=MarketplaceSourceSpec(path=config.marketplace.default_source.url),
+            spec=MarketplaceSourceSpec(
+                path=config.marketplace.default_source.url,
+                channel=config.marketplace.default_source.channel,
+            ),
             status=ObjectStatus(state="created"),
         )
 
 
-class OrderedMarketplaceSource(BaseModel):
-    last_source_order = -1
+last_source_order = -1
 
+
+class OrderedMarketplaceSource(BaseModel):
     order: int = last_source_order  # Default last. Otherwise must be > 0
     source: MarketplaceSource
 
 
 # Item-related objects
 class MarketplaceItemMetadata(MarketplaceObjectMetadata):
-    source: str
+    source: MarketplaceSourceType = Field(MarketplaceSourceType.functions, const=True)
     channel: str
     version: str
+
+    def get_relative_path(self) -> str:
+        if self.source == MarketplaceSourceType.functions:
+            # This is needed since the marketplace deployment script modifies the paths to use _ instead of -.
+            modified_name = self.name.replace("-", "_")
+            return f"{self.source.value}/{self.channel}/{modified_name}/{self.version}/src/function.yaml"
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Bad source for marketplace item - {self.source}"
+            )
 
 
 class MarketplaceItemSpec(ObjectSpec):

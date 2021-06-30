@@ -67,6 +67,7 @@ async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler)
     project = config.default_project
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.local_function,

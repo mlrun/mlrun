@@ -432,7 +432,7 @@ class RemoteRuntime(KubeResource):
     def _get_state(
         self,
         dashboard="",
-        last_log_timestamp=None,
+        last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
     ):

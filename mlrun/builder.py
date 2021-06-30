@@ -319,7 +319,7 @@ def build_runtime(
         return False
 
     logger.info(f"build completed with {status}")
-    if status in ["failed", "error", "unhealthy"]:
+    if status in ["failed", "error"]:
         runtime.status.state = mlrun.api.schemas.FunctionState.error
         return False
 

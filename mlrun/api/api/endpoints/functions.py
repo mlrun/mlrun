@@ -215,7 +215,7 @@ def build_status(
             nuclio_name,
             last_log_timestamp,
             text,
-            function_status_,
+            status,
         ) = get_nuclio_deploy_status(
             name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
         )
@@ -224,8 +224,8 @@ def build_status(
         if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
 
-        internal_invocation_urls = function_status_.get("internalInvocationUrls", [])
-        external_invocation_urls = function_status_.get("externalInvocationUrls", [])
+        internal_invocation_urls = status.get("internalInvocationUrls", [])
+        external_invocation_urls = status.get("externalInvocationUrls", [])
 
         # on nuclio > 1.6.x we get the external invocation url on the status block
         if external_invocation_urls:

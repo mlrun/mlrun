@@ -178,9 +178,7 @@ class DataStore:
                     )
                     kwargs["filters"] = filters
 
-                df_from_pq = df_module.read_parquet(*args, **kwargs)
-                _drop_reserved_columns(df_from_pq)
-                return df_from_pq
+                return df_module.read_parquet(*args, **kwargs)
 
         elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
@@ -216,14 +214,6 @@ class DataStore:
 
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
-
-
-def _drop_reserved_columns(df):
-    cols_to_drop = []
-    for col in df.columns:
-        if col.startswith("igzpart_"):
-            cols_to_drop.append(col)
-    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
 
 
 class DataItem:

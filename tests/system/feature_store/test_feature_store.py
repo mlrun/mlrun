@@ -8,6 +8,7 @@ import fsspec
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
+from pandas.util.testing import assert_frame_equal
 from storey import EmitAfterMaxEvent, MapClass
 
 import mlrun
@@ -192,6 +193,12 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set = fs.get_feature_set(name, self.project_name)
         assert feature_set.metadata.name == name, "bad feature set response"
 
+        fs.ingest(stocks_set, stocks)
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+            fs.delete_feature_set(name, self.project_name)
+
+        stocks_set.purge_targets()
+
         fs.delete_feature_set(name, self.project_name)
         sets = db.list_feature_sets(self.project_name, name)
         assert not sets, "Feature set should be deleted"
@@ -276,6 +283,37 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
+    def test_csv_time_columns(self):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
+
+        csv_path = "/tmp/multiple_time_columns.csv"
+        df.to_csv(path_or_buf=csv_path, index=False)
+        source = CSVSource(
+            path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]
+        )
+
+        measurements = fs.FeatureSet(
+            "fs", entities=[Entity("key")], timestamp_key="time_stamp"
+        )
+        try:
+            resp = fs.ingest(measurements, source)
+            df.set_index("key", inplace=True)
+            assert_frame_equal(df, resp)
+        finally:
+            os.remove(csv_path)
+
     def test_featureset_column_types(self):
         data = pd.DataFrame(
             {
@@ -331,6 +369,7 @@ class TestFeatureStore(TestMLRunSystem):
         measurements = fs.FeatureSet(
             name, entities=[Entity(key)], timestamp_key="timestamp"
         )
+        orig_columns = list(pd.read_csv(str(self.assets_path / "testdata.csv")).columns)
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
@@ -369,9 +408,9 @@ class TestFeatureStore(TestMLRunSystem):
         if key_bucketing_number is None:
             expected_partitions = []
         elif key_bucketing_number == 0:
-            expected_partitions = ["igzpart_key"]
+            expected_partitions = ["key"]
         else:
-            expected_partitions = [f"igzpart_hash{key_bucketing_number}_key"]
+            expected_partitions = [f"hash{key_bucketing_number}_key"]
         expected_partitions += partition_cols or []
         if all(
             value is None
@@ -384,7 +423,7 @@ class TestFeatureStore(TestMLRunSystem):
             time_partitioning_granularity = "hour"
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
-                expected_partitions.append(f"igzpart_{unit}")
+                expected_partitions.append(unit)
                 if unit == time_partitioning_granularity:
                     break
 
@@ -398,6 +437,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
         resp2 = resp.to_dataframe()
         assert len(resp2) == 10
+        result_columns = list(resp2.columns)
+        orig_columns.remove("timestamp")
+        orig_columns.remove("patient_id")
+        assert result_columns == orig_columns
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -544,7 +587,7 @@ class TestFeatureStore(TestMLRunSystem):
                     current_time - pd.Timedelta(minutes=4),
                     current_time - pd.Timedelta(minutes=5),
                 ],
-                "first_name": ["moshe", "yosi", "yosi", "yosi", "moshe", "yosi"],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 2500, 14],
             }
@@ -584,7 +627,7 @@ class TestFeatureStore(TestMLRunSystem):
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-        assert resp[0]["bids_sum_1h"] == 47.0
+        assert resp[0]["bids_sum_1h"] == 37.0
 
         svc.close()
 
@@ -963,6 +1006,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource("mycsv", path=path, time_field="timestamp",)
         targets = [
             CSVTarget(),
+            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
             NoSqlTarget(),
         ]
@@ -977,6 +1021,16 @@ class TestFeatureStore(TestMLRunSystem):
 
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
+
+    # ML-693
+    def test_ingest_dataframe_index(self):
+        orig_df = pd.DataFrame([{"x", "y"}])
+        orig_df.index.name = "idx"
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("idx")])
+        fs.ingest(
+            fset, orig_df, [ParquetTarget()], infer_options=fs.InferOptions.default()
+        )
 
 
 def verify_purge(fset, targets):

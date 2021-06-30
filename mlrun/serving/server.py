@@ -14,7 +14,7 @@
 
 __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 
-
+import asyncio
 import json
 import os
 import socket
@@ -124,7 +124,7 @@ class GraphServer(ModelObj):
     def _get_db(self):
         return mlrun.get_run_db(secrets=self._secrets)
 
-    def init(
+    def init_states(
         self,
         context,
         namespace,
@@ -164,8 +164,14 @@ class GraphServer(ModelObj):
             handler(self)
 
         context.root = self.graph
-        self.graph.init_object(context, namespace, self.load_mode, reset=True)
-        return v2_serving_handler
+
+    def init_object(self, namespace):
+        self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
+        return (
+            v2_serving_async_handler
+            if config.datastore.async_source_mode == "enabled"
+            else v2_serving_handler
+        )
 
     def test(
         self,
@@ -218,6 +224,15 @@ class GraphServer(ModelObj):
                 body=message, content_type="text/plain", status_code=400
             )
 
+        if asyncio.iscoroutine(response):
+            return self._process_async_response(context, response, get_body)
+        else:
+            return self._process_response(context, response, get_body)
+
+    async def _process_async_response(self, context, response, get_body):
+        return self._process_response(context, await response, get_body)
+
+    def _process_response(self, context, response, get_body):
         body = response.body
         if isinstance(body, context.Response) or get_body:
             return body
@@ -245,7 +260,8 @@ def v2_serving_init(context, namespace=None):
     if config.log_level.lower() == "debug":
         server.verbose = True
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
-    serving_handler = server.init(context, namespace or get_caller_globals())
+    server.init_states(context, namespace or get_caller_globals())
+    serving_handler = server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "server", server)
@@ -257,6 +273,11 @@ def v2_serving_init(context, namespace=None):
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
     return context.server.run(event, context, get_body)
+
+
+async def v2_serving_async_handler(context, event, get_body=False):
+    """hook for nuclio handler()"""
+    return await context.server.run(event, context, get_body)
 
 
 def create_graph_server(
@@ -325,7 +346,7 @@ class Response(object):
 class GraphContext:
     """Graph context object"""
 
-    def __init__(self, level="debug", logger=None, server=None, nuclio_context=None):
+    def __init__(self, level="info", logger=None, server=None, nuclio_context=None):
         self.state = None
         self.logger = logger
         self.worker_id = 0

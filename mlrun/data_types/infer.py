@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 import pyarrow
+from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
-from .data_types import InferOptions, pa_type_to_value_type
+from .data_types import InferOptions, pa_type_to_value_type, pd_schema_to_value_type
 
 default_num_bins = 20
 
@@ -51,6 +52,9 @@ def infer_schema_from_df(
     if InferOptions.get_common_options(options, InferOptions.Index):
         # infer types of index fields
         if df.index.name:
+            if not index_type:
+                field = convert_pandas_type_to_json_field(df.index)
+                index_type = pd_schema_to_value_type(field["type"])
             # Workaround to infer a boolean index correctly, and not as 'str'.
             upsert_entity(df.index.name, index_type)
         elif df.index.nlevels > 1:

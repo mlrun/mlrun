@@ -155,7 +155,7 @@ To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_sto
 ### Data sources
 
 For batch ingestion the feature store supports dataframes or files (i.e. csv & parquet). <br>
-The files can reside on S3, NFS, Azure blob storage or on Iguazio platform. <br>
+The files can reside on S3, NFS, Azure blob storage or on Iguazio platform. Please note that for working with S3/Azure extra requirements are needed, you can use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them.<br>
 For real time ingestion the source could be http, kafka or v3io stream, etc.
 When defining a source  it maps to a nuclio event triggers. <br>
 

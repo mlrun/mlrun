@@ -233,7 +233,14 @@ class MLClientCtx(object):
 
     @classmethod
     def from_dict(
-        cls, attrs: dict, rundb="", autocommit=False, tmp="", host=None, log_stream=None
+        cls,
+        attrs: dict,
+        rundb="",
+        autocommit=False,
+        tmp="",
+        host=None,
+        log_stream=None,
+        is_api=False,
     ):
         """create execution context from dict"""
 
@@ -269,7 +276,7 @@ class MLClientCtx(object):
 
         self._init_dbs(rundb)
 
-        if spec:
+        if spec and not is_api:
             # init data related objects (require DB & Secrets to be set first)
             self._data_stores.from_dict(spec)
             if inputs and isinstance(inputs, dict):
@@ -277,7 +284,7 @@ class MLClientCtx(object):
                     if v:
                         self._set_input(k, v)
 
-        if host:
+        if host and not is_api:
             self.set_label("host", host)
 
         start = get_in(attrs, "status.start_time")

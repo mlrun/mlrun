@@ -120,6 +120,11 @@ default_config = {
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
+            # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
+            # multiple schedules scheduled to the same time, there might be delays, the default of the scheduler for
+            # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
+            # it to None. the default for coalesce it True just adding it here to be explicit
+            "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
         },
         "projects": {
             "leader": "mlrun",

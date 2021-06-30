@@ -1022,6 +1022,16 @@ class TestFeatureStore(TestMLRunSystem):
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
 
+    # ML-693
+    def test_ingest_dataframe_index(self):
+        orig_df = pd.DataFrame([{"x", "y"}])
+        orig_df.index.name = "idx"
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("idx")])
+        fs.ingest(
+            fset, orig_df, [ParquetTarget()], infer_options=fs.InferOptions.default()
+        )
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

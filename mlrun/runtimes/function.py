@@ -738,6 +738,11 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         spec.set_config("spec.resources", function.spec.resources)
     if function.spec.no_cache:
         spec.set_config("spec.build.noCache", True)
+    if function.spec.build.functionSourceCode:
+        spec.set_config(
+            "spec.build.functionSourceCode", function.spec.build.functionSourceCode
+        )
+
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)
         spec.set_config("spec.maxReplicas", function.spec.replicas)
@@ -747,15 +752,10 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     if function.spec.base_spec or function.spec.build.functionSourceCode:
-        if function.spec.base_spec:
-            config = nuclio.config.extend_config(
-                function.spec.base_spec, spec, tag, function.spec.build.code_origin
-            )
-        else:
-            config = spec
-            config.set_config(
-                "spec.build.functionSourceCode", function.spec.build.functionSourceCode
-            )
+        config = function.spec.base_spec or nuclio.config.new_config()
+        config = nuclio.config.extend_config(
+            config, spec, tag, function.spec.build.code_origin
+        )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         base_image = get_in(config, "spec.build.baseImage") or function.spec.image

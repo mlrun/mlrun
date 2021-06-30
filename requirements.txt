@@ -49,7 +49,7 @@ kubernetes~=11.0
 humanfriendly~=8.2
 fastapi~=0.62.0
 fsspec~=0.9.0
-v3iofs~=0.1.5
+v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.3.2
-storey~=0.6.4; python_version >= '3.7'
+storey~=0.6.8; python_version >= '3.7'

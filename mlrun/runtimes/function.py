@@ -372,7 +372,7 @@ class RemoteRuntime(KubeResource):
         self, dashboard="", project="", tag="", verbose=False,
     ):
         # todo: verify that the function name is normalized
-        
+
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")

@@ -253,7 +253,6 @@ class Client(
             and not session_cookie.startswith(urllib.parse.quote_plus('j:{"sid"'))
         ):
             session_cookie = f'j:{{"sid": "{session_cookie}"}}'
-        logger.info("About to send request to iguazio", session_cookie=session_cookie)
         if session_cookie:
             cookies = kwargs.get("cookies", {})
             # in case some dev using this function for some reason setting cookies manually through kwargs + have a

@@ -4,10 +4,9 @@ This guide outlines the steps for installing and running MLRun locally.
 
 - [Install MLRun on a Kubernetes Cluster](#install-mlrun-on-a-kubernetes-cluster)
   - [Prerequisites](#prerequisites)
-  - [Chart Details](#chart-details)
+  - [Installing on Docker Desktop](#installing-on-docker-desktop)
+    - [Configuring Docker Desktop](#configuring-docker-desktop)
   - [Installing the Chart](#installing-the-chart)
-    - [Basic Installation](#basic-installation)
-    - [Installing on Minikube/VM](#minikube-vm-installation)
   - [Install Kubeflow](#install-kubeflow)
   - [Usage](#usage)
   - [Start Working](#start-working)
@@ -28,22 +27,34 @@ This guide outlines the steps for installing and running MLRun locally.
 4. You must have an accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret
 
 > **Note:** These instructions use `mlrun` as the namespace (`-n` parameter). You may want to choose a different namespace in your kubernetes cluster.
+<a id="docker-desktop-installation"></a>
 
-### Chart Details
+### Installing on Docker Desktop
 
-The MLRun Kit chart includes the following stack:
+Docker Desktop is available for Mac and Windows. For download information, system requirements, and installation instructions, see:
 
-- MLRun: <https://github.com/mlrun/mlrun>
-- Nuclio: <https://github.com/nuclio/nuclio>
-- Jupyter: <https://github.com/jupyterlab/jupyterlab> (+MLRun integrated)
-- NFS: <https://github.com/kubernetes-retired/external-storage/tree/master/nfs>
-- MPI Operator: <https://github.com/kubeflow/mpi-operator>
+- [Install Docker Desktop on Mac](https://docs.docker.com/docker-for-mac/install/)
+- [Install Docker Desktop on Windows](https://docs.docker.com/docker-for-windows/install/). Note that WSL 2 backend was tested, Hyper-V was not tested.
+
+#### Configuring Docker Desktop
+
+Docker Desktop includes a standalone Kubernetes server and client, as well as Docker CLI integration that runs on your machine. The Kubernetes server runs locally within your Docker instance. To enable Kubernetes support and install a standalone instance of Kubernetes running as a Docker container, go to **Preferences** > **Kubernetes** and then click **Enable Kubernetes**. Click **Apply & Restart** to save the settings and then click **Install** to confirm. This instantiates images required to run the Kubernetes server as containers, and installs the `/usr/local/bin/kubectl` command on your machine. For more information, see [the documentation](https://docs.docker.com/desktop/kubernetes/).
+
+We recommend limiting the amount of memory allocated to Kubernetes. If you're using Windows and WSL 2, you can configure global WSL options by placing a `.wslconfig` file into the root directory of your users folder: `C:\Users\<yourUserName>\.wslconfig`. Please keep in mind you may need to run `wsl --shutdown` to shut down the WSL 2 VM and then restart your WSL instance for these changes to take affect.
+
+``` console
+[wsl2]
+memory=8GB # Limits VM memory in WSL 2 to 8 GB
+```
+
+To learn about the various UI options and their usage, see:
+
+- [Docker Desktop for Mac user manual](https://docs.docker.com/docker-for-mac/)
+- [Docker Desktop for Windows user manual](https://docs.docker.com/docker-for-windows/)
+
 
 <a id="installing-the-chart"></a>
 ### Installing the Chart
-
-<a id="basic-installation"></a>
-#### Basic installation
 
 Create a namespace for the deployed components:
 
@@ -86,30 +97,29 @@ helm --namespace mlrun \
     v3io-stable/mlrun-kit
 ```
 
-Where:
-- `<registry-url` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub>).
+Where `<registry-url` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub>).
 
-<a id="minikube-vm-installation"></a>
-#### Installing on Minikube/VM
-The Open source MLRun kit uses node ports for simplicity. If your kubernetes cluster is running inside a VM, 
-as is usually the case when using minikube, the kubernetes services exposed over node ports would not be available on 
-your local host interface, but instead, on the virtual machine's interface.
-To accommodate for this, use the `global.externalHostAddress` value on the chart. For example, if you're using 
-the kit inside a minikube cluster (with some non-empty `vm-driver`), pass the VM address in the chart installation 
-command like so:
 
-```bash
-$ helm --namespace mlrun \
-    install my-mlrun \
-    --wait \
-    --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
-    --set global.registry.secretName=registry-credentials \
-    --set global.externalHostAddress=$(minikube ip) \
-    v3io-stable/mlrun-kit
-```
-
-Where:
-- `$(minikube ip)` shell command resolving the external node address of the k8s node VM
+> **Note: Installing on Minikube/VM**
+> 
+> The Open source MLRun kit uses node ports for simplicity. If your kubernetes cluster is running inside a VM, 
+> as is usually the case when using minikube, the kubernetes services exposed over node ports would not be available on 
+> your local host interface, but instead, on the virtual machine's interface.
+> To accommodate for this, use the `global.externalHostAddress` value on the chart. For example, if you're using 
+> the kit inside a minikube cluster (with some non-empty `vm-driver`), pass the VM address in the chart installation 
+> command as follows:
+>
+> ```bash
+> helm --namespace mlrun \
+>     install my-mlrun \
+>     --wait \
+>     --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
+>     --set global.registry.secretName=registry-credentials \
+>     --set global.externalHostAddress=$(minikube ip) \
+>     v3io-stable/mlrun-kit
+> ```
+>
+> Where `$(minikube ip)` shell command resolving the external node address of the k8s node VM.
 
 ### Install Kubeflow
 
@@ -123,21 +133,24 @@ Your applications are now available in your local browser:
 
 - Jupyter-notebook - http://localhost:30040
 - Nuclio - http://localhost:30050
-- MLRun UI - http://locahost:30060
-- MLRun API (external) - http://locahost:30070
+- MLRun UI - http://localhost:30060
+- MLRun API (external) - http://localhost:30070
+
+
 > **Note:**
+>
 > The above links assume your Kubernetes cluster is exposed on localhost.
 > If that's not the case, the different components will be available on the provided `externalHostAddress`
-
+> - You can change the ports by providing values to the helm install command.
+> - You can add and configure a k8s ingress-controller for better security and control over external access.
 
 ### Start Working
 
 Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 
-> **Note:**
+> **Important:**
 >
-> - You can change the ports by providing values to the helm install command.
-> - You can add and configure a k8s ingress-controller for better security and control over external access.
+> Make sure to save your changes in the `data` folder within the Jupyter Lab. The root folder and any other folder will not retain the changes when you restart the Jupyter Lab.
 
 ### Configuring Remote Environment
 
@@ -243,12 +256,12 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 ```sh
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:0.6.3
-docker pull mlrun/mlrun-ui:0.6.3
+docker pull mlrun/jupyter:0.6.4
+docker pull mlrun/mlrun-ui:0.6.4
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.3
-docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.3
+docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.4
+docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.4
 ```
 
 When the execution completes &mdash;

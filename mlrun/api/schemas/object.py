@@ -11,6 +11,7 @@ class ObjectMetadata(BaseModel):
     tag: Optional[str]
     labels: Optional[dict]
     updated: Optional[datetime]
+    created: Optional[datetime]
     uid: Optional[str]
 
     class Config:

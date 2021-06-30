@@ -17,6 +17,7 @@ import time
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
+import mlrun.errors
 from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..builder import build_runtime
@@ -26,7 +27,7 @@ from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
-from .utils import AsyncLogWriter, generate_function_image_name
+from .utils import AsyncLogWriter
 
 
 class KubejobRuntime(KubeResource):
@@ -37,6 +38,7 @@ class KubejobRuntime(KubeResource):
 
     @property
     def is_deployed(self):
+        """check if the function is deployed (have a valid container)"""
         if self.spec.image:
             return True
 
@@ -53,6 +55,20 @@ class KubejobRuntime(KubeResource):
             return True
         return False
 
+    def with_source_archive(self, source, pythonpath=None, pull_at_runtime=True):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:     valid path to git, zip, or tar file, e.g.
+                           git://github.com/mlrun/something.git
+                           http://some/url/file.zip
+        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
+        :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        """
+        self.spec.build.load_source_on_run = pull_at_runtime
+        self.spec.build.source = source
+        if pythonpath:
+            self.spec.pythonpath = pythonpath
+
     def build_config(
         self,
         image="",
@@ -61,7 +77,19 @@ class KubejobRuntime(KubeResource):
         secret=None,
         source=None,
         extra=None,
+        load_source_on_run=None,
     ):
+        """specify builder configuration for the deploy operation
+
+        :param image:      target image name/path
+        :param base_image: base image name/path
+        :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret:     k8s secret for accessing the docker registry
+        :param source:     source git/tar archive to load code from in to the context/workdir
+                           e.g. git://github.com/mlrun/something.git#development
+        :param extra:      extra Dockerfile lines
+        :param load_source_on_run: load the archive code into the container at runtime vs at build time
+        """
         if image:
             self.spec.build.image = image
         if commands:
@@ -77,9 +105,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.base_image = base_image
         if source:
             self.spec.build.source = source
-
-    def build(self, **kw):
-        raise ValueError(".build() is deprecated, use .deploy() instead")
+        if load_source_on_run:
+            self.spec.build.load_source_on_run = load_source_on_run
 
     def deploy(
         self,
@@ -89,38 +116,21 @@ class KubejobRuntime(KubeResource):
         is_kfp=False,
         mlrun_version_specifier=None,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
 
-        if skip_deployed and self.is_deployed:
-            self.status.state = "ready"
-            self.save(versioned=False)
-            return True
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        """
 
         build = self.spec.build
-        if (
-            not build.source
-            and not build.commands
-            and not build.extra
-            and not with_mlrun
-        ):
-            if not self.spec.image:
-                raise ValueError(
-                    "noting to build and image is not specified, "
-                    "please set the function image or build args"
-                )
-            self.status.state = "ready"
-            self.save(versioned=False)
-            return True
 
         if not build.source and not build.commands and not build.extra and with_mlrun:
             logger.info(
                 "running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"
             )
-
-        self.spec.build.image = self.spec.build.image or generate_function_image_name(
-            self
-        )
         self.status.state = ""
 
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
@@ -130,8 +140,12 @@ class KubejobRuntime(KubeResource):
 
         if self._is_remote_api():
             db = self._get_db()
-            logger.info(f"starting remote build, image: {self.spec.build.image}")
-            data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
+            data = db.remote_builder(
+                self, with_mlrun, mlrun_version_specifier, skip_deployed
+            )
+            logger.info(
+                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+            )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
@@ -141,9 +155,13 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(self, with_mlrun, mlrun_version_specifier, watch)
+            ready = build_runtime(
+                self, with_mlrun, mlrun_version_specifier, skip_deployed, watch
+            )
             self.save(versioned=False)
 
+        if watch and not ready:
+            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 
     def _build_watch(self, watch=True, logs=True):
@@ -220,9 +238,7 @@ class KubejobRuntime(KubeResource):
 
     def _run(self, runobj: RunObject, execution):
 
-        with_mlrun = (not self.spec.mode) or (self.spec.mode != "pass")
-        command, args, extra_env = self._get_cmd_args(runobj, with_mlrun)
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
+        command, args, extra_env = self._get_cmd_args(runobj)
 
         if runobj.metadata.iteration:
             self.store_run(runobj)

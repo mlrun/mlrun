@@ -31,7 +31,6 @@ import mlrun.projects.project
 from mlrun import RunObject
 from mlrun.api import schemas
 from mlrun.artifacts import Artifact
-from mlrun.db import RunDBError
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -266,37 +265,45 @@ def test_artifacts(create_server):
     artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
     assert len(artifacts) == 1, "bad number of artifacts"
 
+    # Only 1 will be returned since it's only looking for iter 0
+    artifacts = db.list_artifacts(project=prj, tag="*", best_iteration=True)
+    assert len(artifacts) == 1, "bad number of artifacts"
+
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 0, "bad number of artifacts after del"
 
 
 def test_basic_auth(create_server):
-    user, passwd = "bugs", "bunny"
+    user, password = "bugs", "bunny"
     env = {
-        "MLRUN_httpdb__user": user,
-        "MLRUN_httpdb__password": passwd,
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "basic",
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__USERNAME": user,
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__PASSWORD": password,
     }
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.user = user
-    db.password = passwd
+    db.password = password
     db.list_runs()
 
 
 def test_bearer_auth(create_server):
     token = "banana"
-    env = {"MLRUN_httpdb__token": token}
+    env = {
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "bearer",
+        "MLRUN_HTTPDB__AUTHENTICATION__BEARER__TOKEN": token,
+    }
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.token = token

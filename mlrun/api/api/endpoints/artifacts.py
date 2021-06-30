@@ -1,7 +1,7 @@
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Cookie, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
+    iguazio_session: Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -42,6 +43,7 @@ async def store_artifact(
         iter=iter,
         tag=tag,
         project=project,
+        leader_session=iguazio_session,
     )
     return {}
 
@@ -96,10 +98,19 @@ def list_artifacts(
     category: schemas.ArtifactCategories = None,
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
+    best_iteration: bool = Query(False, alias="best-iteration"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = get_db().list_artifacts(
-        db_session, name, project, tag, labels, kind=kind, category=category, iter=iter,
+        db_session,
+        name,
+        project,
+        tag,
+        labels,
+        kind=kind,
+        category=category,
+        iter=iter,
+        best_iteration=best_iteration,
     )
     return {
         "artifacts": artifacts,

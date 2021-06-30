@@ -18,6 +18,10 @@ from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
+import mlrun.api.schemas
+import mlrun.errors
+import mlrun.runtimes.utils
+
 from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
@@ -252,14 +256,33 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
     return f'python -m pip install "{mlrun_version_specifier}"'
 
 
-def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=False):
+def build_runtime(
+    runtime, with_mlrun, mlrun_version_specifier, skip_deployed, interactive=False
+):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
+    if skip_deployed and runtime.is_deployed:
+        runtime.status.state = mlrun.api.schemas.FunctionState.ready
+        return True
+    if not build.source and not build.commands and not build.extra and not with_mlrun:
+        if not runtime.spec.image:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "noting to build and image is not specified, "
+                "please set the function image or build args"
+            )
+        runtime.status.state = mlrun.api.schemas.FunctionState.ready
+        return True
+
+    build.image = build.image or mlrun.runtimes.utils.generate_function_image_name(
+        runtime
+    )
+    runtime.status.state = ""
+
     inline = None  # noqa: F841
     if build.functionSourceCode:
         inline = b64decode(build.functionSourceCode).decode("utf-8")  # noqa: F841
     if not build.image:
-        raise ValueError(
+        raise mlrun.errors.MLRunInvalidArgumentError(
             "build spec must have a target image, set build.image = <target image>"
         )
     logger.info(f"building image ({build.image})")
@@ -287,19 +310,20 @@ def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=Fals
     runtime.status.build_pod = None
     if status == "skipped":
         runtime.spec.image = base_image
-        runtime.status.state = "ready"
+        runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
     if status.startswith("build:"):
-        runtime.status.state = "build"
+        runtime.status.state = mlrun.api.schemas.FunctionState.deploying
         runtime.status.build_pod = status[6:]
         return False
 
     logger.info(f"build completed with {status}")
     if status in ["failed", "error"]:
-        raise ValueError(f" build {status}!")
+        runtime.status.state = mlrun.api.schemas.FunctionState.error
+        return False
 
     local = "" if build.secret or build.image.startswith(".") else "."
     runtime.spec.image = local + build.image
-    runtime.status.state = "ready"
+    runtime.status.state = mlrun.api.schemas.FunctionState.ready
     return True

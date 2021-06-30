@@ -30,7 +30,7 @@ def create_background_task(
     if failed_task:
         function = failing_function
     return mlrun.api.utils.background_tasks.Handler().create_background_task(
-        db_session, project, background_tasks, function
+        db_session, None, project, background_tasks, function
     )
 
 

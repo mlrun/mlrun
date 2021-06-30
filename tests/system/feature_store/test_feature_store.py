@@ -4,15 +4,25 @@ import string
 import uuid
 from datetime import datetime
 
+import fsspec
 import pandas as pd
+import pyarrow.parquet as pq
 import pytest
+from pandas.util.testing import assert_frame_equal
 from storey import EmitAfterMaxEvent, MapClass
 
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource, ParquetSource
-from mlrun.datastore.targets import CSVTarget, ParquetTarget, TargetTypes
+from mlrun.datastore.sources import CSVSource, DataFrameSource, ParquetSource
+from mlrun.datastore.targets import (
+    CSVTarget,
+    NoSqlTarget,
+    ParquetTarget,
+    TargetTypes,
+    get_default_prefix_for_target,
+    get_target_driver,
+)
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.steps import FeaturesetValidator
@@ -77,10 +87,11 @@ class TestFeatureStore(TestMLRunSystem):
             FeaturesetValidator()
         )
 
-        quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
-        quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
+        quotes_set.add_aggregation("asks1", "ask", ["sum", "max"], "1h", "10m")
+        quotes_set.add_aggregation("asks2", "ask", ["sum", "max"], "5h", "10m")
+        quotes_set.add_aggregation("bids", "bid", ["min", "max"], "1h", "10m")
 
-        df = fs.infer_metadata(
+        df = fs.preview(
             quotes_set,
             quotes,
             entity_columns=["ticker"],
@@ -96,7 +107,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df = fs.ingest(quotes_set, quotes, return_df=True)
         self._logger.info(f"output df:\n{df}")
-        assert quotes_set.status.stats.get("asks_sum_1h"), "stats not created"
+        assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
     def _get_offline_vector(self, features, features_size):
         vector = fs.FeatureVector("myvector", features, "stock-quotes.xx")
@@ -155,7 +166,7 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.debug("Get offline feature vector")
         features = [
             "stock-quotes.bid",
-            "stock-quotes.asks_sum_5h",
+            "stock-quotes.asks2_sum_5h",
             "stock-quotes.ask as mycol",
             "stocks.*",
         ]
@@ -164,13 +175,13 @@ class TestFeatureStore(TestMLRunSystem):
         )  # (*) returns 2 features, label adds 1 feature
         self._get_offline_vector(features, features_size)
 
-        self._logger.debug("Get offline feature vector")
+        self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
 
     def test_feature_set_db(self):
         name = "stocks_test"
         stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
-        fs.infer_metadata(
+        fs.preview(
             stocks_set, stocks,
         )
         stocks_set.save()
@@ -181,6 +192,12 @@ class TestFeatureStore(TestMLRunSystem):
 
         feature_set = fs.get_feature_set(name, self.project_name)
         assert feature_set.metadata.name == name, "bad feature set response"
+
+        fs.ingest(stocks_set, stocks)
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+            fs.delete_feature_set(name, self.project_name)
+
+        stocks_set.purge_targets()
 
         fs.delete_feature_set(name, self.project_name)
         sets = db.list_feature_sets(self.project_name, name)
@@ -235,6 +252,22 @@ class TestFeatureStore(TestMLRunSystem):
         stats.remove("timestamp")
         assert features == stats, "didnt infer stats for all features"
 
+    def test_non_partitioned_target_in_dir(self):
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+        path = str(self.results_path / _generate_random_name())
+        target = ParquetTarget(path=path)
+
+        fset = fs.FeatureSet(
+            name="test", entities=[Entity("patient_id")], timestamp_key="timestamp"
+        )
+        fs.ingest(fset, source, targets=[target])
+
+        list_files = os.listdir(path)
+        assert len(list_files) == 1 and not os.path.isdir(path + "/" + list_files[0])
+        os.remove(path + "/" + list_files[0])
+
     def test_ingest_with_timestamp(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
@@ -249,6 +282,37 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
             "2020-12-01 17:24:15.906352"
         )
+
+    def test_csv_time_columns(self):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
+
+        csv_path = "/tmp/multiple_time_columns.csv"
+        df.to_csv(path_or_buf=csv_path, index=False)
+        source = CSVSource(
+            path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]
+        )
+
+        measurements = fs.FeatureSet(
+            "fs", entities=[Entity("key")], timestamp_key="time_stamp"
+        )
+        try:
+            resp = fs.ingest(measurements, source)
+            df.set_index("key", inplace=True)
+            assert_frame_equal(df, resp)
+        finally:
+            os.remove(csv_path)
 
     def test_featureset_column_types(self):
         data = pd.DataFrame(
@@ -294,12 +358,153 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
 
+    @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
+    @pytest.mark.parametrize("partition_cols", [None, ["department"]])
+    @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
+    def test_ingest_partitioned_by_key_and_time(
+        self, key_bucketing_number, partition_cols, time_partitioning_granularity
+    ):
+        name = f"measurements_{uuid.uuid4()}"
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            name, entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        orig_columns = list(pd.read_csv(str(self.assets_path / "testdata.csv")).columns)
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+        measurements.set_targets(
+            targets=[
+                ParquetTarget(
+                    partitioned=True,
+                    key_bucketing_number=key_bucketing_number,
+                    partition_cols=partition_cols,
+                    time_partitioning_granularity=time_partitioning_granularity,
+                )
+            ],
+            with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source).to_dict()
+
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp2 = fs.get_offline_features(vector, entity_timestamp_column="timestamp")
+        resp2 = resp2.to_dataframe().to_dict()
+
+        resp1.pop("timestamp")
+        assert resp1 == resp2
+
+        file_system = fsspec.filesystem("v3io")
+        kind = TargetTypes.parquet
+        path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
+        path = path.format(name=name, kind=kind, project="system-test-project")
+        dataset = pq.ParquetDataset(path, filesystem=file_system,)
+        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+
+        if key_bucketing_number is None:
+            expected_partitions = []
+        elif key_bucketing_number == 0:
+            expected_partitions = ["key"]
+        else:
+            expected_partitions = [f"hash{key_bucketing_number}_key"]
+        expected_partitions += partition_cols or []
+        if all(
+            value is None
+            for value in [
+                key_bucketing_number,
+                partition_cols,
+                time_partitioning_granularity,
+            ]
+        ):
+            time_partitioning_granularity = "hour"
+        if time_partitioning_granularity:
+            for unit in ["year", "month", "day", "hour"]:
+                expected_partitions.append(unit)
+                if unit == time_partitioning_granularity:
+                    break
+
+        assert partitions == expected_partitions
+
+        resp = fs.get_offline_features(
+            vector,
+            start_time=datetime(2020, 12, 1, 17, 33, 15),
+            end_time=datetime(2020, 12, 1, 17, 33, 16),
+            entity_timestamp_column="timestamp",
+        )
+        resp2 = resp.to_dataframe()
+        assert len(resp2) == 10
+        result_columns = list(resp2.columns)
+        orig_columns.remove("timestamp")
+        orig_columns.remove("patient_id")
+        assert result_columns == orig_columns
+
+    def test_ingest_twice_with_nulls(self):
+        name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
+        key = "key"
+
+        measurements = fs.FeatureSet(
+            name, entities=[Entity(key)], timestamp_key="my_time"
+        )
+        columns = [key, "my_string", "my_time"]
+        df = pd.DataFrame(
+            [["mykey1", "hello", pd.Timestamp("2019-01-26 14:52:37")]], columns=columns
+        )
+        df.set_index("my_string")
+        source = DataFrameSource(df)
+        measurements.set_targets(
+            targets=[ParquetTarget(partitioned=True)], with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source)
+        assert resp1.to_dict() == {
+            "my_string": {"mykey1": "hello"},
+            "my_time": {"mykey1": pd.Timestamp("2019-01-26 14:52:37")},
+        }
+
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp2 = fs.get_offline_features(vector)
+        resp2 = resp2.to_dataframe()
+        assert resp2.to_dict() == {"my_string": {"mykey1": "hello"}}
+
+        measurements = fs.FeatureSet(
+            name, entities=[Entity(key)], timestamp_key="my_time"
+        )
+        columns = [key, "my_string", "my_time"]
+        df = pd.DataFrame(
+            [["mykey2", None, pd.Timestamp("2019-01-26 14:52:37")]], columns=columns
+        )
+        df.set_index("my_string")
+        source = DataFrameSource(df)
+        measurements.set_targets(
+            targets=[ParquetTarget(partitioned=True)], with_defaults=False,
+        )
+        resp1 = fs.ingest(measurements, source, overwrite=False)
+        assert resp1.to_dict() == {
+            "my_string": {"mykey2": None},
+            "my_time": {"mykey2": pd.Timestamp("2019-01-26 14:52:37")},
+        }
+
+        features = [
+            f"{name}.*",
+        ]
+        vector = fs.FeatureVector("myvector", features)
+        resp2 = fs.get_offline_features(vector)
+        resp2 = resp2.to_dataframe()
+        assert resp2.to_dict() == {"my_string": {"mykey1": "hello", "mykey2": None}}
+
     def test_ordered_pandas_asof_merge(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
         left_set, left = prepare_feature_set(
-            "left", "ticker", trades, timestamp_key="time"
+            "left", "ticker", trades, timestamp_key="time", targets=targets
         )
         right_set, right = prepare_feature_set(
-            "right", "ticker", quotes, timestamp_key="time"
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
         )
 
         features = ["left.*", "right.*"]
@@ -370,7 +575,7 @@ class TestFeatureStore(TestMLRunSystem):
         os.remove(csv_path)
 
     def test_multiple_entities(self):
-
+        name = f"measurements_{uuid.uuid4()}"
         current_time = pd.Timestamp.now()
         data = pd.DataFrame(
             {
@@ -382,7 +587,7 @@ class TestFeatureStore(TestMLRunSystem):
                     current_time - pd.Timedelta(minutes=4),
                     current_time - pd.Timedelta(minutes=5),
                 ],
-                "first_name": ["moshe", "yosi", "yosi", "yosi", "moshe", "yosi"],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 2500, 14],
             }
@@ -390,18 +595,18 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fs.FeatureSet(
-            "tests2", entities=[Entity("first_name"), Entity("last_name")]
+            name, entities=[Entity("first_name"), Entity("last_name")]
         )
 
         data_set.add_aggregation(
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            windows=["1h"],
+            windows="1h",
             period="10m",
             emit_policy=EmitAfterMaxEvent(1),
         )
-        fs.infer_metadata(
+        fs.preview(
             data_set,
             data,  # source
             entity_columns=["first_name", "last_name"],
@@ -415,16 +620,41 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(data_set, data, return_df=True)
 
         features = [
-            "tests2.bids_sum_1h",
+            f"{name}.bids_sum_1h",
         ]
 
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-        print(resp[0])
+        assert resp[0]["bids_sum_1h"] == 37.0
 
         svc.close()
+
+    def test_offline_features_filter_non_partitioned(self):
+        data = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-06-09 09:30:06.008"),
+                    pd.Timestamp("2021-06-09 10:29:07.009"),
+                    pd.Timestamp("2021-06-09 09:29:08.010"),
+                ],
+                "data": [10, 20, 30],
+                "string": ["ab", "cd", "ef"],
+            }
+        )
+
+        data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        features = ["fs1.*"]
+        vector = fs.FeatureVector("vector", features)
+        resp = fs.get_offline_features(
+            vector,
+            entity_timestamp_column="time_stamp",
+            start_time=datetime(2021, 6, 9, 9, 30),
+            end_time=datetime(2021, 6, 9, 10, 30),
+        )
+        assert len(resp.to_dataframe()) == 2
 
     def test_unaggregated_columns(self):
         test_base_time = datetime(2020, 12, 1, 17, 33, 15)
@@ -447,7 +677,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="bids",
             column="bid",
             operations=["sum", "max"],
-            windows=["1h"],
+            windows="1h",
             period="10m",
         )
 
@@ -522,19 +752,19 @@ class TestFeatureStore(TestMLRunSystem):
             "storey.Extend", name=side_step_name, _fn="({'extra2': event['bid'] * 17})"
         )
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-            fs.infer_metadata(quotes_set, quotes)
+            fs.preview(quotes_set, quotes)
 
         non_default_target_name = "side-target"
         quotes_set.set_targets(
             targets=[
                 CSVTarget(name=non_default_target_name, after_state=side_step_name)
             ],
-            default_final_state="FeaturesetValidator",
+            default_final_step="FeaturesetValidator",
         )
 
         quotes_set.plot(with_targets=True)
 
-        inf_out = fs.infer_metadata(quotes_set, quotes)
+        inf_out = fs.preview(quotes_set, quotes)
         ing_out = fs.ingest(quotes_set, quotes, return_df=True)
 
         default_file_path = quotes_set.get_target_path(TargetTypes.parquet)
@@ -613,7 +843,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         stocks_set.graph.to(name="s1", handler="myfunc1")
-        # df = fs.infer(my_set, df.head())
         df = fs.ingest(stocks_set, stocks)
         self._logger.info(f"output df:\n{df}")
 
@@ -671,7 +900,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_post_aggregation_step(self):
         quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
         agg_step = quotes_set.add_aggregation(
-            "asks", "ask", ["sum", "max"], ["1h", "5h"], "10m"
+            "asks", "ask", ["sum", "max"], "1h", "10m"
         )
         agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
 
@@ -679,6 +908,152 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(quotes_set.graph.states) == 2
         assert quotes_set.graph.states[aggregates_step].after is None
         assert quotes_set.graph.states["somemap1"].after == [aggregates_step]
+
+    def test_featureset_uri(self):
+        stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
+        stocks_set.save()
+        fs.ingest(stocks_set.uri, stocks)
+
+    def test_overwrite(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        fset = fs.FeatureSet(name="overwrite-fs", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1, targets=[CSVTarget(), ParquetTarget(), NoSqlTarget()])
+
+        features = ["overwrite-fs.*"]
+        fvec = fs.FeatureVector("overwrite-vec", features=features)
+
+        csv_path = fset.get_target_path(name="csv")
+        csv_df = pd.read_csv(csv_path)
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
+        )
+
+        parquet_path = fset.get_target_path(name="parquet")
+        parquet_df = pd.read_parquet(parquet_path)
+        assert df1.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "GHI"}])
+        assert resp[0]["value"] == 3
+        svc.close()
+
+        fs.ingest(fset, df2)
+
+        csv_path = fset.get_target_path(name="csv")
+        csv_df = pd.read_csv(csv_path)
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
+        )
+
+        parquet_path = fset.get_target_path(name="parquet")
+        parquet_df = pd.read_parquet(parquet_path)
+        assert df2.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "GHI"}])
+        assert resp[0] is None
+
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        svc.close()
+
+    def test_override_false(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+        df3 = pd.concat([df1, df2])
+
+        fset = fs.FeatureSet(name="override-false", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1)
+
+        features = ["override-false.*"]
+        fvec = fs.FeatureVector("override-false-vec", features=features)
+
+        off1 = fs.get_offline_features(fvec).to_dataframe()
+        assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
+
+        fs.ingest(fset, df2, overwrite=False)
+
+        off2 = fs.get_offline_features(fvec).to_dataframe()
+        assert df3.set_index(keys="name").sort_index().equals(off2.sort_index())
+
+        fs.ingest(fset, df1, targets=[ParquetTarget()])
+
+        off1 = fs.get_offline_features(fvec).to_dataframe()
+        assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        svc.close()
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df1, targets=[CSVTarget()], overwrite=False)
+
+        fset.set_targets(targets=[CSVTarget()])
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df1, overwrite=False)
+
+    def test_purge(self):
+        key = "patient_id"
+        fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
+        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        targets = [
+            CSVTarget(),
+            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
+            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+            NoSqlTarget(),
+        ]
+        fset.set_targets(
+            targets=targets, with_defaults=False,
+        )
+        fs.ingest(fset, source)
+
+        verify_purge(fset, targets)
+
+        fs.ingest(fset, source)
+
+        targets_to_purge = targets[:-1]
+        verify_purge(fset, targets_to_purge)
+
+    # ML-693
+    def test_ingest_dataframe_index(self):
+        orig_df = pd.DataFrame([{"x", "y"}])
+        orig_df.index.name = "idx"
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("idx")])
+        fs.ingest(
+            fset, orig_df, [ParquetTarget()], infer_options=fs.InferOptions.default()
+        )
+
+
+def verify_purge(fset, targets):
+    fset.reload(update_spec=False)
+    orig_status_targets = list(fset.status.targets.keys())
+    target_names = [t.name for t in targets]
+
+    for target in targets:
+        driver = get_target_driver(target_spec=target, resource=fset)
+        filesystem = driver._get_store().get_filesystem(False)
+        assert filesystem.exists(driver._target_path)
+
+    fset.purge_targets(target_names=target_names)
+
+    for target in targets:
+        driver = get_target_driver(target_spec=target, resource=fset)
+        filesystem = driver._get_store().get_filesystem(False)
+        assert not filesystem.exists(driver._target_path)
+
+    fset.reload(update_spec=False)
+    assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(
+        target_names
+    )
 
 
 def verify_target_list_fail(targets, with_defaults=None):
@@ -700,7 +1075,7 @@ def verify_ingest(
     feature_set = fs.FeatureSet("my-feature-set")
     if infer:
         data = base_data.copy()
-        fs.infer_metadata(feature_set, data, entity_columns=keys)
+        fs.preview(feature_set, data, entity_columns=keys)
     else:
         data = base_data.set_index(keys=keys)
     if targets:

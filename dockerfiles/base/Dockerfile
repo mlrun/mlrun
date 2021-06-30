@@ -34,9 +34,11 @@ RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=20.2.0
 
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
+COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 RUN python -m pip install \
     -r requirements.txt \
+    -r extras-requirements.txt \
     -r mlrun-image-requirements.txt \
     -r base-image-requirements.txt
 

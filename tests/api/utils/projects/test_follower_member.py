@@ -142,6 +142,9 @@ def test_delete_project(
         None, project,
     )
     _assert_project_in_follower(projects_follower, project)
+    mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources = unittest.mock.Mock(
+        return_value=None
+    )
     projects_follower.delete_project(
         None, project.metadata.name,
     )

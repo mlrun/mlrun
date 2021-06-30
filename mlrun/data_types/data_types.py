@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # this module is WIP
+import pyarrow
 
 
 class ValueType:
@@ -47,6 +48,18 @@ def pd_schema_to_value_type(value):
         "duration": ValueType.INT64,
     }
     return type_map[value]
+
+
+def pa_type_to_value_type(type_):
+    type_map = {
+        pyarrow.bool_(): ValueType.BOOL,
+        pyarrow.int64(): ValueType.INT64,
+        pyarrow.int32(): ValueType.INT32,
+        pyarrow.float32(): ValueType.FLOAT,
+        pyarrow.float64(): ValueType.DOUBLE,
+        pyarrow.timestamp("ns"): ValueType.DATETIME,
+    }
+    return type_map.get(type_, ValueType.STRING)
 
 
 def python_type_to_value_type(value_type):

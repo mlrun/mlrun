@@ -143,18 +143,17 @@ graph = function.set_topology("flow", engine="async")
 ```
 
 Build and connect the graph (DAG) using the custom function and classes and plot the result. 
-we add states using the `state.to()` method (will add a new state after the current one), or using the 
+we add steps using the `step.to()` method (will add a new step after the current one), or using the 
 `graph.add_step()` method.
 
-We use the `graph.error_handler()` (apply to all states) or `state.error_handler()` 
-(apply to a specific state) if we want the error from the graph or the state to be 
-fed into a specific state (catcher)
+We use the `graph.error_handler()` (apply to all steps) or `step.error_handler()` 
+(apply to a specific step) if we want the error from the graph or the step to be 
+fed into a specific step (catcher)
 
-We can specify which state is the responder (returns the HTTP response) using the `state.respond()` method,
-if we dont specify the responder the graph will be non-blocking.
+We can specify which step is the responder (returns the HTTP response) using the `step.respond()` method.If we don't specify the responder the graph will be non-blocking.
 
 ```python
-# use built-in storey class or our custom Echo class to create and link Task states
+# use built-in storey class or our custom Echo class to create and link Task steps
 graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
      .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler("catcher")
 
@@ -166,7 +165,7 @@ router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 # add the final step (after the router) which handles post processing and respond to the client
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
 
-# add error handling state, run only when/if the "pre-process" state fail (keep after="")  
+# add error handling step, run only when/if the "pre-process" step fail (keep after="")  
 graph.add_step(handler="error_catcher", name="catcher", full_event=True, after="")
 
 # plot the graph (using Graphviz) and run a test
@@ -228,11 +227,11 @@ graph.plot()
 ### Graph overview and usage
 
 MLRun Graphs enable building and running DAGs (directed acyclic graph), the first graph element accepts 
-an `Event` object, transform/process the event and pass the result to the next states 
+an `Event` object, transform/process the event and pass the result to the next steps 
 in the graph. The final result can be written out to some destination (file, DB, stream, ..)
-or return back to the caller (one of the graph states can be marked with `.respond()`).
+or return back to the caller (one of the graph steps can be marked with `.respond()`).
 
-The graph can host 4 types of states:
+The graph can host 4 types of steps:
 
 * **Task** – simple execution step which follow other steps and runs a function or class handler or a 
   REST API call, tasks use one of many pre-built operators, readers and writers, can be standard Python 
@@ -241,14 +240,14 @@ The graph can host 4 types of states:
   (each is a tasks), the basic routing logic is to route to the child routes based on the Event.path, 
   more advanced or custom routing can be used, for example the Ensemble router sends the event to all 
   child routes in parallel, aggregate the result and respond (see the example). 
-* **Queue** – queue or stream which accept data from one or more source states and publish 
-  to one or more output states, queues are best used to connect independent functions/containers.
+* **Queue** – queue or stream which accept data from one or more source steps and publish 
+  to one or more output steps, queues are best used to connect independent functions/containers.
   queue can run in-memory or be implemented using a stream which allow it to span processes/containers. 
 * **Flow** – A flow hosts the DAG with multiple connected tasks, routers or queues, it
   starts with some source (http request, stream, data reader, cron, etc.) and follow the 
   execution steps according to the graph layout, flow can have branches (in the async mode), 
   flow can produce results asynchronously (e.g. write to an output stream), or can respond synchronously 
-  when one of the states is marked as the responder (`state.respond()`).
+  when one of the steps is marked as the responder (`step.respond()`).
 
 The Graph server have two modes of operation (topologies): 
 * **router topology** (default)- a minimal configuration with a single router and child tasks/routes, 
@@ -271,15 +270,15 @@ such as `path` (http request path), `method` (GET, POST, ..), `id` (unique event
 
 In some cases the events represent a record with a unique `key`, which can be read/set 
 through the `event.key`, and records have associated `event.time` which by default will be 
-the arrival time, but can also be set by a state.
+the arrival time, but can also be set by a step.
 
-The Task states are called with the `event.body` by default, if a Task state need to 
+The Task steps are called with the `event.body` by default, if a Task step need to 
 read or set other event elements (key, path, time, ..) the user should set the task `full_event`
 argument to `True`.
 
 #### The Context object
 
-the state classes are initialized with a `context` object (when they have `context` in their `__init__` args)
+the step classes are initialized with a `context` object (when they have `context` in their `__init__` args)
 , the context is used to pass data and for interfacing with system services. The context object has the 
 following attributes and methods.
 
@@ -303,22 +302,22 @@ Example, using the context:
 
 ### Error handling and catchers
 
-Graph states may raise an exception and we may want to have an error handling flow,
-it is possible to specify exception handling state/branch which will be triggered on error,
-the error handler state will receive the event which entered the failed state, with two extra
-attributes: `event.origin_state` will indicate the name of the failed state, and `event.error`
+Graph steps may raise an exception and we may want to have an error handling flow,
+it is possible to specify exception handling step/branch which will be triggered on error,
+the error handler step will receive the event which entered the failed step, with two extra
+attributes: `event.origin_state` will indicate the name of the failed step, and `event.error`
 will hold the error string.
 
-We use the `graph.error_handler()` (apply to all states) or `state.error_handler()` 
-(apply to a specific state) if we want the error from the graph or the state to be 
-fed into a specific state (catcher)
+We use the `graph.error_handler()` (apply to all steps) or `step.error_handler()` 
+(apply to a specific step) if we want the error from the graph or the step to be 
+fed into a specific step (catcher)
 
-Example, setting an error catcher per state: 
+Example, setting an error catcher per step: 
 
     graph.add_step("MyClass", name="my-class", after="pre-process").error_handler("catcher")
     graph.add_step("ErrHandler", name="catcher", full_event=True, after="")
     
-> Note: additional states may follow our `catcher` state
+> Note: additional steps may follow our `catcher` step
 
 see the full example [above](#advanced-data-processing-and-serving-ensemble)
 
@@ -346,21 +345,21 @@ you can use any python function by specifying the handler name (e.g. `handler=js
 the function will be triggered with the `event.body` as the first argument, and its result 
 will be passed to the next step.
 
-instead we can use classes which can also store some state/configuration and separate the 
+instead we can use classes which can also store some step/configuration and separate the 
 one time init logic from the per event logic, the classes are initialized with the `class_args`,
 if the class init args contain `context` or `name`, those will be initialize with the 
-[graph context](#graph-context-and-event-objects) and the state name. 
+[graph context](#graph-context-and-event-objects) and the step name. 
 
 the class_name and handler specify a class/function name in the `globals()` (i.e. this module) by default
-or those can be full paths to the class (mudule.submodul.class), e.g. `storey.WriteToParquet`.
+or those can be full paths to the class (module.submodule.class), e.g. `storey.WriteToParquet`.
 users can also pass the module as an argument to functions such as `function.to_mock_server(namespace=module)`,
 in this case the class or handler names will also be searched in the provided module.
 
 when using classes the class event handler will be invoked on every event with the `event.body` 
-if the Task state `full_event` parameter is set to `True` the handler will be invoked and return
-the full `event` object. if we dont specify the class event handler it will invoke the class `do()` method. 
+if the Task step `full_event` parameter is set to `True` the handler will be invoked and return
+the full `event` object. If we don't specify the class event handler it will invoke the class `do()` method. 
 
-if you need to implement async behaviour you should subclass `storey.MapClass`.
+if you need to implement async behavior you should subclass `storey.MapClass`.
 
 
 ### Building distributed graphs
@@ -370,11 +369,11 @@ where each function can have its own container image and resources (replicas, GP
 it has a `root` function which is where you configure triggers (http, incoming stream, cron, ..), 
 and optional downstream child functions.
 
-Users can specify the `function` attribute in `Task` or `Router` states, this will indicate where 
-this state should run, when the `function` attribute is not specified it would run on the root function.
-`function="*"` means the state can run in any of the child functions.
+Users can specify the `function` attribute in `Task` or `Router` steps, this will indicate where 
+this step should run, when the `function` attribute is not specified it would run on the root function.
+`function="*"` means the step can run in any of the child functions.
 
-states on different functions should be connected using a `Queue` state (a stream)
+steps on different functions should be connected using a `Queue` step (a stream)
 
 **adding a child function:**
 

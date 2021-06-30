@@ -432,7 +432,7 @@ class RemoteRuntime(KubeResource):
     def _get_state(
         self,
         dashboard="",
-        last_log_timestamp=None,
+        last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
     ):
@@ -805,7 +805,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
 
 def get_nuclio_deploy_status(
-    name, project, tag, dashboard="", last_log_timestamp=None, verbose=False
+    name, project, tag, dashboard="", last_log_timestamp=0, verbose=False
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)

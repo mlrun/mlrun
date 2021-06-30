@@ -485,7 +485,10 @@ def _ingest_with_spark(
 
             spark = SparkSession.builder.appName(session_name).getOrCreate()
 
-        df = source.to_spark_df(spark)
+        if isinstance(source, pd.DataFrame):
+            df = spark.createDataFrame(source)
+        else:
+            df = source.to_spark_df(spark)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
@@ -592,18 +595,25 @@ def get_feature_vector(uri, project=None):
     return get_feature_vector_by_uri(uri, project)
 
 
-def delete_feature_set(name, project="", tag=None, uid=None):
+def delete_feature_set(name, project="", tag=None, uid=None, force=False):
     """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
     :param uid: Specific object's uid
+    :param force: Delete feature set without purging its targets
 
     If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
     """
     db = mlrun.get_run_db()
+    if not force:
+        feature_set = db.get_feature_set(name=name, project=project, tag=tag, uid=uid)
+        if feature_set.status.targets:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "delete_feature_set requires targets purging. Use either FeatureSet's purge_targets or the force flag."
+            )
     return db.delete_feature_set(name=name, project=project, tag=tag, uid=uid)
 
 

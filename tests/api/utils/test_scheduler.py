@@ -1,5 +1,6 @@
 import asyncio
 import pathlib
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Generator
 
@@ -47,6 +48,35 @@ async def bump_counter_and_wait():
 
 async def do_nothing():
     pass
+
+
+@pytest.mark.asyncio
+async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler):
+    global call_counter
+    call_counter = 0
+    now = datetime.now()
+    expected_call_counter = 1
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_2_seconds = now + timedelta(seconds=1 + expected_call_counter)
+    # this way we're leaving ourselves one second to create the schedule preventing transient test failure
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_2_seconds
+    )
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        bump_counter,
+        cron_trigger,
+    )
+    # purposely doing time.sleep to block the reactor to ensure a job is still scheduled although its planned
+    # execution time passed
+    time.sleep(2 + expected_call_counter)
+    await asyncio.sleep(1)
+    assert call_counter == expected_call_counter
 
 
 @pytest.mark.asyncio

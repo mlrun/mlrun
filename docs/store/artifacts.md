@@ -64,7 +64,8 @@ For example, the following code extracts the path to the artifacts directory of 
 to a `training_artifacts` variable:
 
 ```python
-training_artifacts = os.join(artifact_path, 'training')
+from os import path
+training_artifacts = path.join(artifact_path, 'training')
 ```
 
 > **Note:** The artifacts path is using [data store URLs](./datastore.md) which are not necessarily local file paths 

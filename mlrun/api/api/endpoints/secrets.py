@@ -66,8 +66,44 @@ def delete_project_secrets(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
+@router.get("/projects/{project}/secret-keys", response_model=schemas.SecretKeysData)
+def list_secret_keys(
+    project: str,
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
+    token: str = Header(None, alias=schemas.HeaderNames.secret_store_token),
+):
+    if provider == schemas.SecretProviderName.vault:
+        if not token:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Vault list project secret keys request without providing token"
+            )
+
+        vault = VaultStore(token)
+        secret_values = vault.get_secrets(None, project=project)
+        return schemas.SecretKeysData(
+            provider=provider, secret_keys=list(secret_values.keys())
+        )
+    elif provider == schemas.SecretProviderName.kubernetes:
+        if token:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot specify token when requesting k8s secret keys"
+            )
+
+        if get_k8s():
+            secret_keys = get_k8s().get_project_secret_keys(project) or []
+            return schemas.SecretKeysData(provider=provider, secret_keys=secret_keys)
+        else:
+            raise mlrun.errors.MLRunInternalServerError(
+                "K8s provider cannot be initialized"
+            )
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Provider requested is not supported. provider = {provider}"
+        )
+
+
 @router.get("/projects/{project}/secrets", response_model=schemas.SecretsData)
-def get_secrets(
+def list_secrets(
     project: str,
     secrets: List[str] = Query(None, alias="secret"),
     provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
@@ -76,28 +112,12 @@ def get_secrets(
     if provider == schemas.SecretProviderName.vault:
         if not token:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Vault get project secrets request without providing token"
+                "Vault list project secrets request without providing token"
             )
 
         vault = VaultStore(token)
         secret_values = vault.get_secrets(secrets, project=project)
         return schemas.SecretsData(provider=provider, secrets=secret_values)
-    elif provider == schemas.SecretProviderName.kubernetes:
-        if secrets or token:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot specify secrets or token when requesting k8s secrets"
-            )
-
-        if get_k8s():
-            secret_keys = get_k8s().get_project_secrets(project) or {}
-            response = schemas.SecretsData(
-                provider=provider, secrets={key: None for key in secret_keys}
-            )
-            return response
-        else:
-            raise mlrun.errors.MLRunInternalServerError(
-                "K8s provider cannot be initialized"
-            )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Provider requested is not supported. provider = {provider}"

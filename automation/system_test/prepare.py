@@ -45,6 +45,7 @@ class SystemTestPreparer:
         framesd_url: str,
         username: str,
         access_key: str,
+        iguazio_version: str,
         password: str = None,
         debug: bool = False,
     ):
@@ -63,6 +64,7 @@ class SystemTestPreparer:
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
+        self._iguazio_version = iguazio_version
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -351,6 +353,7 @@ class SystemTestPreparer:
                 "create-patch",
                 "appservice",
                 override_image_arg,
+                f"--target-iguazio-version={str(self._iguazio_version)}",
                 "mlrun",
                 self._mlrun_version,
                 mlrun_archive,
@@ -370,8 +373,6 @@ class SystemTestPreparer:
                 "appservice",
                 "mlrun",
                 mlrun_archive,
-                # TODO: remove when 0.6.0 is out
-                "--skip-chart-patching",
             ],
         )
 
@@ -416,6 +417,7 @@ def main():
 @click.argument("framesd-url", type=str, required=True)
 @click.argument("username", type=str, required=True)
 @click.argument("access-key", type=str, required=True)
+@click.argument("iguazio-version", type=str, default=None, required=True)
 @click.argument("password", type=str, default=None, required=False)
 @click.option(
     "--debug",
@@ -438,6 +440,7 @@ def run(
     framesd_url: str,
     username: str,
     access_key: str,
+    iguazio_version: str,
     password: str,
     debug: bool,
 ):
@@ -456,6 +459,7 @@ def run(
         framesd_url,
         username,
         access_key,
+        iguazio_version,
         password,
         debug,
     )

@@ -23,7 +23,7 @@ import nuclio
 import requests
 from aiohttp.client import ClientSession
 from kubernetes import client
-from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
+from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
@@ -862,7 +862,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
         update_in(config, "metadata.name", name)
 
-    return deploy_config(
+    return nuclio.deploy.deploy_config(
         config,
         dashboard_url=dashboard,
         name=name,

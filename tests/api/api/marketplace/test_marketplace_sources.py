@@ -282,7 +282,10 @@ def test_marketplace_default_source() -> None:
         )
         function_yaml = manager.get_item_object(source_object, function)
         function_dict = yaml.safe_load(function_yaml)
+
         # Temporary fix, since there are some inconsistencies where - and _ are exchanged between the catalog.json
         # and the function.yaml
         yaml_function_name = function_dict["metadata"]["name"].replace("_", "-")
-        assert yaml_function_name == function.metadata.name
+        function_modified_name = function.metadata.name.replace("_", "-")
+
+        assert yaml_function_name == function_modified_name

@@ -478,11 +478,17 @@ def _assert_resources_in_project(
     for cls in _classes:
         # User support is not really implemented or in use
         # Run tags support is not really implemented or in use
-        if cls.__name__ != "User" and cls.__tablename__ != "runs_tags":
+        # Marketplace sources is not a project-level table, and hence is not relevant here.
+        if (
+            cls.__name__ != "User"
+            and cls.__tablename__ != "runs_tags"
+            and cls.__tablename__ != "marketplace_sources"
+        ):
             number_of_cls_records = 0
             # Label doesn't have project attribute
             # Project (obviously) doesn't have project attribute
             # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
+            # Marketplace sources are not a project-level object, hence have no project attribute
             if (
                 cls.__name__ != "Label"
                 and cls.__name__ != "Project"

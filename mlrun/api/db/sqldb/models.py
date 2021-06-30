@@ -362,9 +362,6 @@ with warnings.catch_warnings():
 
         _full_object = Column("object", JSON)
 
-        Label = make_label(__tablename__)
-        labels = relationship(Label, cascade="all, delete-orphan")
-
         @property
         def full_object(self):
             if self._full_object:

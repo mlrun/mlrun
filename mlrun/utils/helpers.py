@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import hashlib
 import inspect
 import json
@@ -322,6 +323,10 @@ def date_representer(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:timestamp", value)
 
 
+def enum_representer(dumper, data):
+    return dumper.represent_str(str(data.value))
+
+
 yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
@@ -329,6 +334,7 @@ yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.ndarray, numpy_representer_seq, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.datetime64, date_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
+yaml.add_multi_representer(enum.Enum, enum_representer, Dumper=yaml.SafeDumper)
 
 
 def dict_to_yaml(struct):
@@ -524,6 +530,9 @@ def enrich_image_url(image_url: str) -> str:
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
+    if is_mlrun_image and tag and ":" not in image_url:
+        image_url = f"{image_url}:{tag}"
+
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided
     # example: "^mlrun/*" means enrich only if the image repository is mlrun and registry is not specified (in which
@@ -533,11 +542,9 @@ def enrich_image_url(image_url: str) -> str:
         for pattern_to_enrich in config.images_to_enrich_registry.split(","):
             if re.match(pattern_to_enrich, image_url):
                 enrich_registry = True
-    if enrich_registry:
+    if registry and enrich_registry:
+        registry = registry if registry.endswith("/") else f"{registry}/"
         image_url = f"{registry}{image_url}"
-
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
 
     return image_url
 
@@ -611,6 +618,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["metadata"][uid_property_name] = ""
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
+    object_created_timestamp = object_dict["metadata"].pop("created", None)
     data = json.dumps(object_dict, sort_keys=True).encode()
     h = hashlib.sha1()
     h.update(data)
@@ -618,6 +626,8 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
+    if object_created_timestamp:
+        object_dict["metadata"]["created"] = object_created_timestamp
     return uid
 
 

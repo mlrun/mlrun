@@ -177,7 +177,7 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
 def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     """add the target steps to the graph"""
     targets = targets or []
-    key_columns = list(resource.spec.entities.keys())
+    key_columns = resource.spec.entities
     timestamp_key = resource.spec.timestamp_key
     features = resource.spec.features
     table = None
@@ -275,6 +275,8 @@ class BaseStoreTarget(DataTargetBase):
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
         after_state=None,
+        max_events: typing.Optional[int] = None,
+        flush_after_seconds: typing.Optional[int] = None,
     ):
         if after_state:
             warnings.warn(
@@ -293,6 +295,8 @@ class BaseStoreTarget(DataTargetBase):
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
+        self.max_events = max_events
+        self.flush_after_seconds = flush_after_seconds
 
         self._target = None
         self._resource = None
@@ -309,31 +313,15 @@ class BaseStoreTarget(DataTargetBase):
                 columns = set(self.columns)
                 for feature in features:
                     if feature.name in columns:
-                        type_ = (
-                            ValueType.DATETIME
-                            if feature.name == timestamp_key
-                            else feature.value_type
-                        )
-                        result.append((feature.name, type_))
-                return result
+                        result.append((feature.name, feature.value_type))
             else:
-                return self.columns
+                result = self.columns
         elif features:
             if with_type:
                 for feature in features:
-                    type_ = (
-                        ValueType.DATETIME
-                        if feature.name == timestamp_key
-                        else feature.value_type
-                    )
-                    result.append((feature.name, type_))
+                    result.append((feature.name, feature.value_type))
             else:
                 result = list(features.keys())
-            if timestamp_key and timestamp_key not in result:
-                if with_type:
-                    result = [(timestamp_key, ValueType.DATETIME)] + result
-                else:
-                    result = [timestamp_key] + result
             if key_columns:
                 for key in reversed(key_columns):
                     if key not in result:
@@ -341,6 +329,13 @@ class BaseStoreTarget(DataTargetBase):
                             result.insert(0, (key, ValueType.STRING))
                         else:
                             result.insert(0, key)
+
+        if timestamp_key:
+            if with_type:
+                result = [(timestamp_key, ValueType.DATETIME)] + result
+            else:
+                result = [timestamp_key] + result
+
         return result
 
     def write_dataframe(
@@ -390,20 +385,8 @@ class BaseStoreTarget(DataTargetBase):
         driver.partition_cols = spec.partition_cols
 
         driver.time_partitioning_granularity = spec.time_partitioning_granularity
-        if spec.kind == "parquet":
-            driver.suffix = (
-                ".parquet"
-                if not spec.partitioned
-                and all(
-                    value is None
-                    for value in [
-                        spec.key_bucketing_number,
-                        spec.partition_cols,
-                        spec.time_partitioning_granularity,
-                    ]
-                )
-                else ""
-            )
+        driver.max_events = spec.max_events
+        driver.flush_after_seconds = spec.flush_after_seconds
 
         driver._resource = resource
         return driver
@@ -473,6 +456,30 @@ class BaseStoreTarget(DataTargetBase):
 
 
 class ParquetTarget(BaseStoreTarget):
+    """parquet target storage driver, used to materialize feature set/vector data into parquet files
+
+    :param name:       optional, target name. By default will be called ParquetTarget
+    :param path:       optional, Output path. Can be either a file or directory.
+     This parameter is forwarded as-is to pandas.DataFrame.to_parquet().
+     Default location v3io:///projects/{project}/FeatureStore/{name}/parquet/
+    :param attributes: optional, extra attributes for storey.ParquetTarget
+    :param after_step: optional, after what step in the graph to add the target
+    :param columns:     optional, which columns from data to write
+    :param partitioned: optional, whether to partition the file, False by default,
+     if True without passing any other partition field, the data will be partitioned by /year/month/day/hour
+    :param key_bucketing_number:      optional, None by default will not partition by key,
+     0 will partition by the key as is, any other number X will create X partitions and hash the keys to one of them
+    :param partition_cols:     optional, name of columns from the data to partition by
+    :param time_partitioning_granularity: optional. the smallest time unit to partition the data by.
+     For example "hour" will yield partitions of the format /year/month/day/hour
+    :param max_events: optional. Maximum number of events to write at a time.
+     All events will be written on flow termination,
+     or after flush_after_seconds (if flush_after_seconds is set). Default 10k events
+    :param flush_after_seconds: optional. Maximum number of seconds to hold events before they are written.
+     All events will be written on flow termination, or after max_events are accumulated (if max_events is set).
+      Default 15 minutes
+    """
+
     kind = TargetTypes.parquet
     is_offline = True
     support_spark = True
@@ -490,6 +497,8 @@ class ParquetTarget(BaseStoreTarget):
         partition_cols: typing.Optional[typing.List[str]] = None,
         time_partitioning_granularity: typing.Optional[str] = None,
         after_state=None,
+        max_events: typing.Optional[int] = 10000,
+        flush_after_seconds: typing.Optional[int] = 900,
     ):
         if after_state:
             warnings.warn(
@@ -522,6 +531,8 @@ class ParquetTarget(BaseStoreTarget):
             key_bucketing_number,
             partition_cols,
             time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
         )
 
         if (
@@ -532,8 +543,6 @@ class ParquetTarget(BaseStoreTarget):
                 f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
                 f"not {time_partitioning_granularity}."
             )
-
-        self.suffix = ".parquet" if not partitioned else ""
 
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
@@ -595,6 +604,10 @@ class ParquetTarget(BaseStoreTarget):
         ):
             partition_cols = []
 
+        tuple_key_columns = []
+        for key_column in key_columns:
+            tuple_key_columns.append((key_column.name, key_column.value_type))
+
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
@@ -602,9 +615,11 @@ class ParquetTarget(BaseStoreTarget):
             class_name="storey.ParquetTarget",
             path=self._target_path,
             columns=column_list,
-            index_cols=key_columns,
+            index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             storage_options=self._get_store().get_storage_options(),
+            max_events=self.max_events,
+            flush_after_seconds=self.flush_after_seconds,
             **self.attributes,
         )
 
@@ -666,6 +681,7 @@ class CSVTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -736,9 +752,13 @@ class NoSqlTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         table = self._resource.uri
         column_list = self._get_column_list(
-            features=features, timestamp_key=None, key_columns=key_columns
+            features=features,
+            timestamp_key=None,
+            key_columns=key_columns,
+            with_type=True,
         )
         if not self.columns:
             aggregate_features = (
@@ -746,7 +766,9 @@ class NoSqlTarget(BaseStoreTarget):
                 if features
                 else []
             )
-            column_list = [col for col in column_list if col not in aggregate_features]
+            column_list = [
+                col for col in column_list if col[0] not in aggregate_features
+            ]
 
         graph.add_step(
             name=self.name or "NoSqlTarget",
@@ -811,6 +833,7 @@ class StreamTarget(BaseStoreTarget):
     ):
         from storey import V3ioDriver
 
+        key_columns = list(key_columns.keys())
         endpoint, uri = parse_v3io_path(self._target_path)
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
@@ -852,6 +875,7 @@ class TSDBTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         endpoint, uri = parse_v3io_path(self._target_path)
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -979,6 +1003,7 @@ class DFTarget(BaseStoreTarget):
     def add_writer_step(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
+        key_columns = list(key_columns.keys())
         # todo: column filter
         graph.add_step(
             name=self.name or "WriteToDataFrame",

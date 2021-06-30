@@ -1007,6 +1007,8 @@ class DataTargetBase(ModelObj):
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
+        "max_events",
+        "flush_after_seconds",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1027,6 +1029,8 @@ class DataTargetBase(ModelObj):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
         after_state=None,
     ):
         if after_state:
@@ -1046,6 +1050,8 @@ class DataTargetBase(ModelObj):
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
+        self.max_events = max_events
+        self.flush_after_seconds = flush_after_seconds
 
 
 class FeatureSetProducer(ModelObj):

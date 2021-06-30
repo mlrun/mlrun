@@ -27,7 +27,7 @@ Creating a feature set comprises of the following steps:
 ### Create a FeatureSet:
 * **name** &mdash; The feature set name is a unique name within a project. 
 * **entities** &mdash; Each feature set must be associated with one or more index column. when joining feature sets the entity is used as the key column.
-* **timestamp_key** &mdash; (optional) - it is used for specifiying the time field when joining by time
+* **timestamp_key** &mdash; (optional) - it is used for specifying the time field when joining by time
 * **engine** &mdash; the processing engine type (storey, pandas, spark)
 
 Example:
@@ -120,7 +120,7 @@ To learn more about ingest go to {py:class}`~mlrun.feature_store.ingest`
 
 ### Ingest data using an MLRun job
 
-Use the ingest method with run_config parameter for running the ingestion process using a serverless MLrun job. <br>
+Use the ingest method with run_config parameter for running the ingestion process using a serverless MLRun job. <br>
 By doing that, the ingestion process is running on its own pod or service on the kubernetes cluster. <br>
 Using this option is more robust as it can leverage the cluster resources as opposed to running within the jupyter notebook.<br>
 It also enables users to schedule the job or use bigger/faster resources.
@@ -155,7 +155,7 @@ To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_sto
 ### Data sources
 
 For batch ingestion the feature store supports dataframes or files (i.e. csv & parquet). <br>
-The files can reside on S3, NFS, Azure blob storage or on Iguazio platform. <br>
+The files can reside on S3, NFS, Azure blob storage or on Iguazio platform. Please note that for working with S3/Azure extra requirements are needed, you can use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them.<br>
 For real time ingestion the source could be http, kafka or v3io stream, etc.
 When defining a source  it maps to a nuclio event triggers. <br>
 

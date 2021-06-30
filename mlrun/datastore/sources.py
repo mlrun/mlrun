@@ -79,13 +79,13 @@ class CSVSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-            self,
-            name: str = "",
-            path: str = None,
-            attributes: Dict[str, str] = None,
-            key_field: str = None,
-            time_field: str = None,
-            schedule: str = None,
+        self,
+        name: str = "",
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
 
@@ -118,22 +118,26 @@ class ParquetSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-            self,
-            name: str = "",
-            path: str = None,
-            attributes: Dict[str, str] = None,
-            key_field: str = None,
-            time_field: str = None,
-            schedule: str = None,
-            start_time: Optional[Union[str, datetime]] = None,
-            end_time: Optional[Union[str, datetime]] = None,
+        self,
+        name: str = "",
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time: Optional[Union[str, datetime]] = None,
+        end_time: Optional[Union[str, datetime]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
         self.start_time = start_time
         self.end_time = end_time
 
     def to_step(
-            self, key_field=None, time_field=None, start_time=None, end_time=None,
+        self,
+        key_field=None,
+        time_field=None,
+        start_time=None,
+        end_time=None,
     ):
         import storey
 
@@ -165,11 +169,11 @@ class CustomSource(BaseSourceDriver):
     support_spark = False
 
     def __init__(
-            self,
-            class_name: str = None,
-            name: str = "",
-            schedule: str = None,
-            **attributes,
+        self,
+        class_name: str = None,
+        name: str = "",
+        schedule: str = None,
+        **attributes,
     ):
         attributes = attributes or {}
         attributes["class_name"] = class_name
@@ -179,7 +183,9 @@ class CustomSource(BaseSourceDriver):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
         class_object = get_class(class_name)
-        return class_object(**attributes, )
+        return class_object(
+            **attributes,
+        )
 
 
 class DataFrameSource:
@@ -219,20 +225,22 @@ class OnlineSource(BaseSourceDriver):
     kind = ""
 
     def __init__(
-            self,
-            name: str = None,
-            path: str = None,
-            attributes: Dict[str, str] = None,
-            key_field: str = None,
-            time_field: str = None,
-            workers: int = None,
+        self,
+        name: str = None,
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        workers: int = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
         self.workers = workers
 
     def to_step(
-            self, key_field=None, time_field=None,
+        self,
+        key_field=None,
+        time_field=None,
     ):
         import storey
 
@@ -251,16 +259,18 @@ class SnowflakeSparkSource(BaseSourceDriver):
     support_spark = True
     support_storey = False
 
-    def __init__(self, key_field=None,
-                 time_field=None,
-                 sql=None,
-                 sfURL=None,
-                 sfUser=None,
-                 sfPassword=None,
-                 sfDatabase=None,
-                 sfSchema=None,
-                 sfWarehouse=None
-                 ):
+    def __init__(
+        self,
+        key_field=None,
+        time_field=None,
+        sql=None,
+        sfURL=None,
+        sfUser=None,
+        sfPassword=None,
+        sfDatabase=None,
+        sfSchema=None,
+        sfWarehouse=None,
+    ):
         self.sql = sql
         self.key_field = key_field
         self.time_field = time_field
@@ -271,14 +281,16 @@ class SnowflakeSparkSource(BaseSourceDriver):
         self.sfDatabase = sfDatabase
         self.sfSchema = sfSchema
         self.sfWarehouse = sfWarehouse
-        self.spark_conf = {"spark.jars.packages": "net.snowflake:spark-snowflake_2.11:2.8.5-spark_2.4,"
-                                                  "net.snowflake:snowflake-jdbc:3.13.3",
-                           "spark.driver.cores": 2,
-                           "spark.driver.memory": "4g",
-                           "spark.executor.cores": 3,
-                           "spark.executor.memory": "8g",
-                           "spark.cores.max": 3,
-                           "spark.executor.instances": 1}
+        self.spark_conf = {
+            "spark.jars.packages": "net.snowflake:spark-snowflake_2.11:2.8.5-spark_2.4,"
+            "net.snowflake:snowflake-jdbc:3.13.3",
+            "spark.driver.cores": 2,
+            "spark.driver.memory": "4g",
+            "spark.executor.cores": 3,
+            "spark.executor.memory": "8g",
+            "spark.cores.max": 3,
+            "spark.executor.instances": 1,
+        }
 
     def to_spark_df(self, spark):
         SNOWFLAKE_READ_FORMAT = "net.snowflake.spark.snowflake"
@@ -289,12 +301,14 @@ class SnowflakeSparkSource(BaseSourceDriver):
             "sfDatabase": self.sfDatabase,
             "sfSchema": self.sfSchema,
             "sfWarehouse": self.sfWarehouse,
-            "application": f"Iguazio-{os.getenv('SNOWFLAKE_APPLICATION', 'application')}"
+            "application": f"Iguazio-{os.getenv('SNOWFLAKE_APPLICATION', 'application')}",
         }
-        self._df = spark.read.format(SNOWFLAKE_READ_FORMAT) \
-            .options(**sfOptions) \
-            .option("query", self.sql) \
+        self._df = (
+            spark.read.format(SNOWFLAKE_READ_FORMAT)
+            .options(**sfOptions)
+            .option("query", self.sql)
             .load()
+        )
         return self._df
 
     def get_spark_conf(self):

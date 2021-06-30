@@ -33,6 +33,9 @@ on:
         description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
         required: true
         default: 'true'
+      override_iguazio_version:
+        description: 'Override the configured target system iguazio version (leave empty to resolve automatically by the mlrun version)'
+        required: false
 
 jobs:
   run-system-tests-enterprise-ci:
@@ -113,6 +116,10 @@ jobs:
         echo "::set-output name=mlrun_system_tests_clean_resources::$( \
           input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
           echo ${input_system_tests_clean_resources:-true})"
+        echo "::set-output name=iguazio_version::$( \
+          override_iguazio_version=${{ github.event.inputs.override_iguazio_version }} && \
+          iguazio_version_by_branch=`if [ "0.6.x" = "0.5.x" ]; then echo "2.10_b81_20200903195924"; else echo "3.0_b27_20210205135416"; fi` && \
+          resolved_iguazio_version=${override_iguazio_version:-$iguazio_version_by_branch} && echo $resolved_iguazio_version)"
     - name: Wait for existing runs to complete
       uses: softprops/turnstyle@v1
       with:
@@ -133,6 +140,7 @@ jobs:
           "${{ secrets.V06_SYSTEM_TEST_FRAMESD_URL }}" \
           "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ steps.computed_params.outputs.iguazio_version }}" \
           "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
@@ -153,6 +161,7 @@ jobs:
           "${{ secrets.V05_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
           "${{ secrets.V05_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V05_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ steps.computed_params.outputs.iguazio_version }}" \
           "${{ secrets.V05_SYSTEM_TEST_PASSWORD }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \

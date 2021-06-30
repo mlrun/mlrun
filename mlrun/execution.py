@@ -277,7 +277,7 @@ class MLClientCtx(object):
         self._init_dbs(rundb)
 
         if spec and not is_api:
-            # init data related objects (require DB & Secrets to be set first)
+            # init data related objects (require DB & Secrets to be set first), skip when running in the api service
             self._data_stores.from_dict(spec)
             if inputs and isinstance(inputs, dict):
                 for k, v in inputs.items():

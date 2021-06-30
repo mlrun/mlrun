@@ -371,6 +371,8 @@ class RemoteRuntime(KubeResource):
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,
     ):
+        # todo: verify that the function name is normalized
+        
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
@@ -754,6 +756,8 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     if function.spec.base_spec or function.spec.build.functionSourceCode:
         config = function.spec.base_spec
         if not config:
+            # if base_spec was not set (when not using code_to_function) and we have base64 code
+            # we create the base spec with essential attributes
             config = nuclio.config.new_config()
             update_in(config, "spec.handler", handler or "main:handler")
 

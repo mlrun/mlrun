@@ -752,7 +752,11 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     if function.spec.base_spec or function.spec.build.functionSourceCode:
-        config = function.spec.base_spec or nuclio.config.new_config()
+        config = function.spec.base_spec
+        if not config:
+            config = nuclio.config.new_config()
+            update_in(config, "spec.handler", handler or "main:handler")
+
         config = nuclio.config.extend_config(
             config, spec, tag, function.spec.build.code_origin
         )

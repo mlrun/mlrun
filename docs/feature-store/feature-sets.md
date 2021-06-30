@@ -140,6 +140,7 @@ The feature store enables users to start real-time ingestion service. <br>
 When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the feature store creates an elastic real time serverless function 
 (AKA nuclio function) which runs the pipeline and stores the data results in the "offline" and "online" feature store by default. <br>
 There are multiple data source options including http, kafka, kinesis, v3io stream, etc. <br>
+Due to the asynchronous nature of the nuclio function, any errors will be reported on the next time the nuclio function is used. <br>
 
 ```python
 # Create a real time function that recieve http requests

@@ -963,6 +963,36 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["value"] == 6
         svc.close()
 
+    def test_parquet_target_vector_overwrite(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        fset = fs.FeatureSet(name="fvec-parquet-fset", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1)
+
+        features = ["fvec-parquet-fset.*"]
+        fvec = fs.FeatureVector("fvec-parquet", features=features)
+
+        target = ParquetTarget()
+        off1 = fs.get_offline_features(fvec, target=target)
+        dfout1 = pd.read_parquet(target._target_path)
+
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(off1.to_dataframe().sort_index())
+        )
+        assert df1.set_index(keys="name").sort_index().equals(dfout1.sort_index())
+
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+        fs.ingest(fset, df2)
+        off2 = fs.get_offline_features(fvec, target=target)
+        dfout2 = pd.read_parquet(target._target_path)
+        assert (
+            df2.set_index(keys="name")
+            .sort_index()
+            .equals(off2.to_dataframe().sort_index())
+        )
+        assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
+
     def test_override_false(self):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})

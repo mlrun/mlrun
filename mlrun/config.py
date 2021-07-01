@@ -114,14 +114,14 @@ default_config = {
             },
         },
         "authorization": {
-            "mode": "opa",
+            "mode": "none",  # one of none, opa
             "opa": {
                 "address": "",
                 "request_timeout": 10,
                 "permission_query_path": "",
                 "log_level": 0,
             },
-        },  # one of none, opa
+        },
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable

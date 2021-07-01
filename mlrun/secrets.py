@@ -15,6 +15,8 @@
 from ast import literal_eval
 from os import environ
 
+from mlrun.config import config
+
 from .utils import AzureVaultStore, VaultStore, list2dict
 
 
@@ -129,7 +131,7 @@ class SecretsStore:
 
     @staticmethod
     def _k8s_env_variable_name_for_secret(secret_name):
-        return "MLRUN_K8S_SECRET__" + secret_name.upper()
+        return config.secret_stores.kubernetes.env_variable_prefix + secret_name.upper()
 
     def get_k8s_secrets(self):
         for source in self._hidden_sources:

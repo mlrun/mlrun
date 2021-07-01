@@ -1,7 +1,8 @@
+import mimetypes
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -79,12 +80,13 @@ def get_catalog(
     source_name: str,
     channel: Optional[str] = Query(None),
     version: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return MarketplaceItemsManager().get_source_catalog(
-        ordered_source.source, channel, version, force_refresh
+        ordered_source.source, channel, version, tag, force_refresh
     )
 
 
@@ -96,11 +98,29 @@ def get_item(
     source_name: str,
     item_name: str,
     channel: Optional[str] = Query("development"),
-    version: Optional[str] = Query("latest"),
+    version: Optional[str] = Query(None),
+    tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return MarketplaceItemsManager().get_item(
-        ordered_source.source, item_name, channel, version, force_refresh
+        ordered_source.source, item_name, channel, version, tag, force_refresh
     )
+
+
+@router.get("/marketplace/sources/{source_name}/item-object",)
+def get_object(
+    source_name: str, url: str,
+):
+    object_data = MarketplaceItemsManager().get_item_object_using_source_credentials(
+        source_name, url
+    )
+
+    if url.endswith("/"):
+        return object_data
+
+    ctype, _ = mimetypes.guess_type(url)
+    if not ctype:
+        ctype = "application/octet-stream"
+    return Response(content=object_data, media_type=ctype)

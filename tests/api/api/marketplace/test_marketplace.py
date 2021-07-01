@@ -195,17 +195,6 @@ def test_marketplace_credentials_removed_from_db(
     assert deepdiff.DeepDiff(k8s_mock._mock_secrets, expected_credentials) == {}
 
 
-def test_marketplace_catalog_apis(db: Session, client: TestClient) -> None:
-    _mock_k8s_secrets(K8sMock())
-    source_1 = _generate_source_dict(-1, "source_1")
-    response = client.post("/api/marketplace/sources", json=source_1)
-    assert response.status_code == HTTPStatus.CREATED.value
-
-    _assert_sources_in_correct_order(client, {1: source_1})
-    response = client.get("/api/marketplace/sources/source_1/items")
-    assert response.status_code == HTTPStatus.OK.value
-
-
 def test_marketplace_source_manager() -> None:
     k8s_mock = K8sMock()
     _mock_k8s_secrets(k8s_mock)
@@ -278,14 +267,42 @@ def test_marketplace_default_source() -> None:
         function = random.choice(catalog.catalog)
         print(
             f"Selected the following: function = {function.metadata.name}, channel = {function.metadata.channel},"
-            + f" version = {function.metadata.version}"
+            + f" tag = {function.metadata.tag}, version = {function.metadata.version}"
         )
-        function_yaml = manager.get_item_object(source_object, function)
+
+        function_yaml = manager.get_item_object_using_source_credentials(
+            source_object.metadata.name, function.spec.item_uri + "src/function.yaml"
+        )
         function_dict = yaml.safe_load(function_yaml)
 
-        # Temporary fix, since there are some inconsistencies where - and _ are exchanged between the catalog.json
+        # Temporary fix, since there are some inconsistencies there - and _ are exchanged between the catalog.json
         # and the function.yaml
         yaml_function_name = function_dict["metadata"]["name"].replace("_", "-")
         function_modified_name = function.metadata.name.replace("_", "-")
 
         assert yaml_function_name == function_modified_name
+
+
+def test_marketplace_catalog_apis(db: Session, client: TestClient) -> None:
+    _mock_k8s_secrets(K8sMock())
+
+    # Get the global hub source-name
+    sources = client.get("/api/marketplace/sources").json()
+    source_name = sources[0]["source"]["metadata"]["name"]
+
+    catalog = client.get(f"/api/marketplace/sources/{source_name}/items").json()
+    item = random.choice(catalog["catalog"])
+    url = item["spec"]["item_uri"] + "src/function.yaml"
+
+    function_yaml = client.get(
+        f"/api/marketplace/sources/{source_name}/item-object", params={"url": url}
+    )
+
+    function_dict = yaml.safe_load(function_yaml.content)
+
+    # Temporary fix, since there are some inconsistencies there - and _ are exchanged between the catalog.json
+    # and the function.yaml
+    yaml_function_name = function_dict["metadata"]["name"].replace("_", "-")
+    function_modified_name = item["metadata"]["name"].replace("_", "-")
+
+    assert yaml_function_name == function_modified_name

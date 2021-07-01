@@ -17,6 +17,7 @@ from mlrun.api.schemas.marketplace import (
 )
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
+from mlrun.datastore import store_manager
 
 # Using double underscore, as it's less likely someone will use it in a real secret name
 secret_name_separator = "__"
@@ -88,7 +89,7 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
                     metadata_dict = version_dict.copy()
                     spec_dict = metadata_dict.pop("spec", None)
                     metadata = MarketplaceItemMetadata(
-                        channel=channel_name, **metadata_dict
+                        channel=channel_name, tag=version_tag, **metadata_dict
                     )
                     item_uri = source.get_full_uri(metadata.get_relative_path())
                     spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
@@ -100,7 +101,12 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         return catalog
 
     def get_source_catalog(
-        self, source: MarketplaceSource, channel=None, version=None, force_refresh=False
+        self,
+        source: MarketplaceSource,
+        channel=None,
+        version=None,
+        tag=None,
+        force_refresh=False,
     ) -> MarketplaceCatalog:
         source_name = source.metadata.name
         if not self._catalogs.get(source_name) or force_refresh:
@@ -115,8 +121,10 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
 
         result_catalog = MarketplaceCatalog(catalog=[])
         for item in catalog.catalog:
-            if (channel is None or item.metadata.channel == channel) and (
-                version is None or item.metadata.version == version
+            if (
+                (channel is None or item.metadata.channel == channel)
+                and (tag is None or item.metadata.tag == tag)
+                and (version is None or item.metadata.version == version)
             ):
                 result_catalog.catalog.append(item)
 
@@ -127,10 +135,11 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         source: MarketplaceSource,
         item_name,
         channel,
-        version,
+        version=None,
+        tag=None,
         force_refresh=False,
     ) -> MarketplaceItem:
-        catalog = self.get_source_catalog(source, channel, version, force_refresh)
+        catalog = self.get_source_catalog(source, channel, version, tag, force_refresh)
         items = [item for item in catalog.catalog if item.metadata.name == item_name]
         if not items:
             raise mlrun.errors.MLRunNotFoundError(
@@ -138,11 +147,21 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
             )
         if len(items) > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Query resulted in more than 1 catalog items. source={item_name}, channel={channel}, version={version}"
+                "Query resulted in more than 1 catalog items. "
+                + f"source={item_name}, channel={channel}, version={version}, tag={tag}"
             )
         return items[0]
 
-    def get_item_object(self, source: MarketplaceSource, item: MarketplaceItem):
-        credentials = self._get_source_credentials(source.metadata.name)
-        catalog_data = mlrun.run.get_object(url=item.spec.item_uri, secrets=credentials)
+    def get_item_object_using_source_credentials(self, source_name, url):
+        credentials = self._get_source_credentials(source_name)
+
+        if url.endswith("/"):
+            stores = store_manager.set(credentials)
+            obj = stores.object(url=url)
+            listdir = obj.listdir()
+            return {
+                "listdir": listdir,
+            }
+        else:
+            catalog_data = mlrun.run.get_object(url=url, secrets=credentials)
         return catalog_data

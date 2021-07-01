@@ -80,12 +80,15 @@ class MarketplaceItemMetadata(MarketplaceObjectMetadata):
     source: MarketplaceSourceType = Field(MarketplaceSourceType.functions, const=True)
     channel: str
     version: str
+    tag: Optional[str]
 
     def get_relative_path(self) -> str:
         if self.source == MarketplaceSourceType.functions:
             # This is needed since the marketplace deployment script modifies the paths to use _ instead of -.
             modified_name = self.name.replace("-", "_")
-            return f"{self.source.value}/{self.channel}/{modified_name}/{self.version}/src/function.yaml"
+            # Prefer using the tag if exists. Otherwise use version.
+            version = self.tag or self.version
+            return f"{self.source.value}/{self.channel}/{modified_name}/{version}/"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Bad source for marketplace item - {self.source}"

@@ -28,25 +28,29 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         self._log_level = mlrun.mlconf.httpdb.authorization.opa.log_level
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
 
-    def filter_projects_by_permissions(self,
-                                       project_names: typing.List[str],
-                                       auth_info: mlrun.api.schemas.AuthInfo,) -> typing.List[str]:
+    def filter_projects_by_permissions(
+        self, project_names: typing.List[str], auth_info: mlrun.api.schemas.AuthInfo,
+    ) -> typing.List[str]:
         # TODO: execute in parallel
         filtered_projects = []
         for project_name in project_names:
-            allowed = self.query_project_permissions(project_name,
-                                                     mlrun.api.schemas.AuthorizationAction.read,
-                                                     auth_info,
-                                                     raise_on_forbidden=False)
+            allowed = self.query_project_permissions(
+                project_name,
+                mlrun.api.schemas.AuthorizationAction.read,
+                auth_info,
+                raise_on_forbidden=False,
+            )
             if allowed:
                 filtered_projects.append(project_name)
         return filtered_projects
 
-    def query_project_permissions(self,
-                                  project_name: str,
-                                  action: mlrun.api.schemas.AuthorizationAction,
-                                  auth_info: mlrun.api.schemas.AuthInfo,
-                                  raise_on_forbidden: bool = True) -> bool:
+    def query_project_permissions(
+        self,
+        project_name: str,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
         if not project_name:
             project_name = "*"
         return self.query_permissions(
@@ -63,7 +67,10 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        if self._is_request_from_leader(auth_info.projects_role) or mlrun.mlconf.httpdb.authorization.mode == "none":
+        if (
+            self._is_request_from_leader(auth_info.projects_role)
+            or mlrun.mlconf.httpdb.authorization.mode == "none"
+        ):
             return True
         body = self._generate_permission_request_body(resource, action, auth_info)
         if self._log_level > 5:
@@ -76,16 +83,20 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             logger.debug("Received response from OPA", body=response_body)
         allowed = response_body["result"]
         if not allowed and raise_on_forbidden:
-            raise mlrun.errors.MLRunAccessDeniedError(f"Not allowed to {action} resource {resource}")
+            raise mlrun.errors.MLRunAccessDeniedError(
+                f"Not allowed to {action} resource {resource}"
+            )
 
-    def _generate_resource_string(self, project_name: str, resource_type: str, resource: str):
+    def _generate_resource_string(
+        self, project_name: str, resource_type: str, resource: str
+    ):
         return {
             "project": "/projects/{project_name}",
-            "function": "/projects/{project_name}/functions/{resource}"
+            "function": "/projects/{project_name}/functions/{resource}",
         }[resource_type].format(project_name=project_name, resource=resource)
 
     def _is_request_from_leader(
-            self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]
+        self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]
     ):
         if projects_role and projects_role.value == self._leader_name:
             return True

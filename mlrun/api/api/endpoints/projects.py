@@ -1,11 +1,11 @@
 import typing
-import mlrun.errors
 from http import HTTPStatus
 
 import fastapi
 from sqlalchemy.orm import Session
 
 import mlrun.api.utils.clients.opa
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.utils.singletons.project_member import get_project_member
@@ -103,9 +103,7 @@ def patch_project(
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        name,
-        mlrun.api.schemas.AuthorizationAction.update,
-        auth_verifier.auth_info,
+        name, mlrun.api.schemas.AuthorizationAction.update, auth_verifier.auth_info,
     )
     project, is_running_in_background = get_project_member().patch_project(
         db_session,
@@ -123,11 +121,13 @@ def patch_project(
 
 # curl http://localhost:8080/project/<name>
 @router.get("/projects/{name}", response_model=schemas.Project)
-def get_project(name: str, auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier), db_session: Session = fastapi.Depends(deps.get_db_session)):
+def get_project(
+    name: str,
+    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    db_session: Session = fastapi.Depends(deps.get_db_session),
+):
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        name,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+        name, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
     )
     return get_project_member().get_project(db_session, name)
 
@@ -148,9 +148,7 @@ def delete_project(
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        name,
-        mlrun.api.schemas.AuthorizationAction.delete,
-        auth_verifier.auth_info,
+        name, mlrun.api.schemas.AuthorizationAction.delete, auth_verifier.auth_info,
     )
     is_running_in_background = get_project_member().delete_project(
         db_session,
@@ -175,7 +173,9 @@ def list_projects(
     auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
-    projects_output = get_project_member().list_projects(db_session, owner, format_, labels, state)
+    projects_output = get_project_member().list_projects(
+        db_session, owner, format_, labels, state
+    )
     projects_by_name = {}
     for project in projects_output.projects:
         if isinstance(project, mlrun.api.schemas.Project):
@@ -185,11 +185,12 @@ def list_projects(
         elif isinstance(project, str):
             project_name = project
         else:
-            raise NotImplementedError(f"Project instance not supported. instance={type(project)}")
+            raise NotImplementedError(
+                f"Project instance not supported. instance={type(project)}"
+            )
         projects_by_name[project_name] = project
     filtered_project_names = mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions(
-        list(projects_by_name.keys()),
-        auth_verifier.auth_info,
+        list(projects_by_name.keys()), auth_verifier.auth_info,
     )
     filtered_projects = [projects_by_name[name] for name in filtered_project_names]
     projects_output.projects = filtered_projects

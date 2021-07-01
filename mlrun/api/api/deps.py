@@ -86,7 +86,9 @@ class AuthVerifier:
                 self.auth_info.data_session = request.headers["x-data-session-override"]
             elif "data" in planes:
                 self.auth_info.data_session = self.auth_info.session
-        self.auth_info.projects_role = request.headers.get(mlrun.api.schemas.HeaderNames.projects_role)
+        self.auth_info.projects_role = request.headers.get(
+            mlrun.api.schemas.HeaderNames.projects_role
+        )
 
     @staticmethod
     def _basic_auth_required():

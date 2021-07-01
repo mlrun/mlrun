@@ -4,10 +4,14 @@ import deepdiff
 import pytest
 
 import mlrun.api.schemas
+import mlrun.errors
 from tests.system.base import TestMLRunSystem
 
 
+# TODO: unmark as enterprise when we release a new mlrun-kit that uses the new (0.6.3) mlrun helm chart which adds
+#  secrets permission to the mlrun-api role
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestKubernetesProjectSecrets(TestMLRunSystem):
     project_name = "db-system-test-project"
 

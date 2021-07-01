@@ -55,6 +55,7 @@ install-requirements: ## Install all requirements needed for development
 	python -m pip install --upgrade pip~=20.3.1
 	python -m pip install \
 		-r requirements.txt \
+		-r extras-requirements.txt \
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt

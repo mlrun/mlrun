@@ -20,6 +20,7 @@ from mlrun.utils import parse_versioned_object_uri
 
 from ..config import config
 
+project_separator = "/"
 feature_separator = "."
 expected_message = f"in the form feature-set{feature_separator}feature[ as alias]"
 
@@ -42,6 +43,22 @@ def parse_feature_string(feature):
     if len(splitted) > 1:
         return feature_set.strip(), splitted[0].strip(), splitted[1].strip()
     return feature_set.strip(), feature_name.strip(), None
+
+
+def parse_project_name_from_feature_string(feature):
+    """parse feature string into project name and feature"""
+    # expected format: <project-name>/<feature>
+    if project_separator not in feature:
+        return None, feature
+
+    splitted = feature.split(project_separator)
+    if len(splitted) > 2:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"feature {feature} must be {expected_message}, cannot have more than one '/'"
+        )
+    project_name = splitted[0]
+    feature_name = splitted[1]
+    return project_name.strip(), feature_name.strip()
 
 
 def get_feature_set_by_uri(uri, project=None):

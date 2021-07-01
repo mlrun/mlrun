@@ -10,6 +10,7 @@ from fastapi import HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.deps
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -75,7 +76,9 @@ def get_run_db_instance(
     return run_db
 
 
-def _parse_submit_run_body(db_session: Session, data):
+def _parse_submit_run_body(
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -115,20 +118,32 @@ def _parse_submit_run_body(db_session: Session, data):
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
+    # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+    # be able to communicate with the api
+    ensure_function_has_auth_set(function, auth_info)
+
     return function, task
 
 
-async def submit_run(
-    db_session: Session, data, leader_session: typing.Optional[str] = None
-):
+async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data):
     _, _, _, response = await run_in_threadpool(
-        _submit_run, db_session, data, leader_session
+        _submit_run, db_session, auth_info, data
     )
     return response
 
 
+def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
+    if auth_info and auth_info.session:
+        auth_env_vars = {
+            "V3IO_ACCESS_KEY": auth_info.session,
+        }
+        for key, value in auth_env_vars.items():
+            if not function.is_env_exists(key):
+                function.set_env(key, value)
+
+
 def _submit_run(
-    db_session: Session, data, leader_session: typing.Optional[str] = None
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
 ) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
@@ -140,8 +155,8 @@ def _submit_run(
     run_uid = None
     project = None
     try:
-        fn, task = _parse_submit_run_body(db_session, data)
-        run_db = get_run_db_instance(db_session, leader_session)
+        fn, task = _parse_submit_run_body(db_session, auth_info, data)
+        run_db = get_run_db_instance(db_session, auth_info.session)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
@@ -153,13 +168,13 @@ def _submit_run(
             schedule_labels = task["metadata"].get("labels")
             get_scheduler().create_schedule(
                 db_session,
+                auth_info,
                 task["metadata"]["project"],
                 task["metadata"]["name"],
                 schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
                 schedule_labels,
-                leader_session=leader_session,
             )
             project = task["metadata"]["project"]
 

@@ -435,7 +435,9 @@ class BaseRuntime(ModelObj):
                 "warning!, Api url not set, " "trying to exec remote runtime locally"
             )
 
-        execution = MLClientCtx.from_dict(runspec.to_dict(), db, autocommit=False)
+        execution = MLClientCtx.from_dict(
+            runspec.to_dict(), db, autocommit=False, is_api=self._is_api_server
+        )
         self._pre_run(runspec, execution)  # hook for runtime specific prep
 
         # create task generator (for child runs) from spec

@@ -387,6 +387,8 @@ class RemoteRuntime(KubeResource):
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,
     ):
+        # todo: verify that the function name is normalized
+
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
@@ -466,7 +468,7 @@ class RemoteRuntime(KubeResource):
     def _get_state(
         self,
         dashboard="",
-        last_log_timestamp=None,
+        last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
         resolve_address=True,
@@ -817,6 +819,11 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         spec.set_config("spec.resources", function.spec.resources)
     if function.spec.no_cache:
         spec.set_config("spec.build.noCache", True)
+    if function.spec.build.functionSourceCode:
+        spec.set_config(
+            "spec.build.functionSourceCode", function.spec.build.functionSourceCode
+        )
+
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)
         spec.set_config("spec.maxReplicas", function.spec.replicas)
@@ -825,9 +832,16 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
     dashboard = dashboard or mlconf.nuclio_dashboard_url
-    if function.spec.base_spec:
+    if function.spec.base_spec or function.spec.build.functionSourceCode:
+        config = function.spec.base_spec
+        if not config:
+            # if base_spec was not set (when not using code_to_function) and we have base64 code
+            # we create the base spec with essential attributes
+            config = nuclio.config.new_config()
+            update_in(config, "spec.handler", handler or "main:handler")
+
         config = nuclio.config.extend_config(
-            function.spec.base_spec, spec, tag, function.spec.build.code_origin
+            config, spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
@@ -880,7 +894,7 @@ def get_nuclio_deploy_status(
     project,
     tag,
     dashboard="",
-    last_log_timestamp=None,
+    last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
 ):

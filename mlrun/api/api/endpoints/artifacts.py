@@ -1,7 +1,7 @@
 from http import HTTPStatus
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Cookie, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -24,7 +24,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -43,7 +43,7 @@ async def store_artifact(
         iter=iter,
         tag=tag,
         project=project,
-        leader_session=iguazio_session,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {}
 

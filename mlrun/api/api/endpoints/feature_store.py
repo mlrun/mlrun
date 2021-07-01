@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Cookie, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store
@@ -23,11 +23,11 @@ def create_feature_set(
     project: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_set_uid = get_db().create_feature_set(
-        db_session, project, feature_set, versioned, iguazio_session
+        db_session, project, feature_set, versioned, auth_verifier.auth_info.session
     )
 
     return get_db().get_feature_set(
@@ -49,7 +49,7 @@ def store_feature_set(
     reference: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -61,7 +61,7 @@ def store_feature_set(
         tag,
         uid,
         versioned,
-        leader_session=iguazio_session,
+        leader_session=auth_verifier.auth_info.session,
     )
 
     return get_db().get_feature_set(db_session, project, name, tag=tag, uid=uid)
@@ -76,7 +76,7 @@ def patch_feature_set(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -88,7 +88,7 @@ def patch_feature_set(
         tag,
         uid,
         patch_mode,
-        iguazio_session,
+        auth_verifier.auth_info.session,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -199,7 +199,7 @@ def ingest_feature_set(
         schemas.FeatureSetIngestInput
     ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -207,7 +207,7 @@ def ingest_feature_set(
 
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
     # Need to override the default rundb since we're in the server.
-    feature_set._override_run_db(db_session, iguazio_session)
+    feature_set._override_run_db(db_session, auth_verifier.auth_info.session)
 
     data_source = data_targets = None
     if ingest_parameters.source:
@@ -283,11 +283,11 @@ def create_feature_vector(
     project: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_vector_uid = get_db().create_feature_vector(
-        db_session, project, feature_vector, versioned, iguazio_session
+        db_session, project, feature_vector, versioned, auth_verifier.auth_info.session
     )
 
     return get_db().get_feature_vector(
@@ -356,7 +356,7 @@ def store_feature_vector(
     reference: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -368,7 +368,7 @@ def store_feature_vector(
         tag,
         uid,
         versioned,
-        leader_session=iguazio_session,
+        leader_session=auth_verifier.auth_info.session,
     )
 
     return get_db().get_feature_vector(db_session, project, name, uid=uid, tag=tag)
@@ -383,7 +383,7 @@ def patch_feature_vector(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
@@ -395,7 +395,7 @@ def patch_feature_vector(
         tag,
         uid,
         patch_mode,
-        iguazio_session,
+        auth_verifier.auth_info.session,
     )
     return Response(status_code=HTTPStatus.OK.value)
 

@@ -1041,6 +1041,12 @@ def _get_target_path(driver, resource):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
+    if not suffix:
+        if (
+            kind == ParquetTarget.kind
+            and resource.kind == mlrun.api.schemas.ObjectKind.feature_vector
+        ):
+            suffix = ".parquet"
     kind_prefix = (
         "sets"
         if resource.kind == mlrun.api.schemas.ObjectKind.feature_set

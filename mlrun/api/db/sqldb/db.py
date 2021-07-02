@@ -2241,7 +2241,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             .subquery("max_key")
         )
 
-        # Join curreny query with sub query on (project, key, uid)
+        # Join current query with sub query on (project, key, uid)
         return query.join(
             subq,
             and_(

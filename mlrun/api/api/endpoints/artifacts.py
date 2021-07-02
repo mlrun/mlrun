@@ -15,7 +15,7 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
+# curl -d@/path/to/artifact http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
 async def store_artifact(
     request: Request,

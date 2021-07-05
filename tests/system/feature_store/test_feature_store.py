@@ -2,7 +2,7 @@ import os
 import random
 import string
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import fsspec
 import pandas as pd
@@ -630,6 +630,24 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["bids_sum_1h"] == 37.0
 
         svc.close()
+
+    def test_time_with_timezone(self):
+        data = pd.DataFrame(
+            {
+                "time": [
+                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=timezone.utc),
+                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=timezone.utc),
+                ],
+                "first_name": ["katya", "dina"],
+                "bid": [2000, 10],
+            }
+        )
+        data_set = fs.FeatureSet("fs4", entities=[Entity("first_name")])
+
+        df = fs.ingest(data_set, data, return_df=True)
+
+        data.set_index("first_name", inplace=True)
+        assert_frame_equal(df, data)
 
     def test_offline_features_filter_non_partitioned(self):
         data = pd.DataFrame(

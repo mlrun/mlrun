@@ -59,20 +59,24 @@ class ModelEndpoints:
                 "Getting model object, inferring column names and collecting feature stats"
             )
             run_db = mlrun.api.api.utils.get_run_db_instance(db_session, leader_session)
-            model_obj: ModelArtifact = mlrun.datastore.store_resources.get_store_resource(
-                model_endpoint.spec.model_uri, db=run_db
+            model_obj: ModelArtifact = (
+                mlrun.datastore.store_resources.get_store_resource(
+                    model_endpoint.spec.model_uri, db=run_db
+                )
             )
 
-            if not model_endpoint.status.feature_stats:
+            if not model_endpoint.status.feature_stats and hasattr(
+                model_obj, "feature_stats"
+            ):
                 model_endpoint.status.feature_stats = model_obj.feature_stats
 
-            if not model_endpoint.spec.label_names:
+            if not model_endpoint.spec.label_names and hasattr(model_obj, "outputs"):
                 model_label_names = [
                     _clean_feature_name(f.name) for f in model_obj.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
 
-            if not model_endpoint.spec.algorithm:
+            if not model_endpoint.spec.algorithm and hasattr(model_obj, "algorithm"):
                 model_endpoint.spec.algorithm = model_obj.algorithm
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names

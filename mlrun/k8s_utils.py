@@ -362,7 +362,7 @@ class K8sHelper:
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
-            # If secret does not exist, return as if the deletion was successfuly
+            # If secret does not exist, return as if the deletion was successfully
             if exc.status == 404:
                 return
             else:

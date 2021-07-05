@@ -482,7 +482,7 @@ class RemoteRuntime(KubeResource):
         """
         Resolves a nuclio function working dir and handler inside an archive/git repo
         :param handler: a path describing working dir and handler of a nuclio function
-        :return: (wokring_dir, handler) tuple, as nuclio expects to get it
+        :return: (working_dir, handler) tuple, as nuclio expects to get it
 
         Example: ("a/b/c#main:Handler) -> ("a/b/c", "main:Handler")
         """

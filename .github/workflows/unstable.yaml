@@ -9,7 +9,7 @@ on:
 jobs:
 
   # Create a release on push to development
-  release-preperation:
+  release-preparation:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code

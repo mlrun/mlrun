@@ -16,6 +16,7 @@ import importlib.util as imputil
 import inspect
 import json
 import os
+import shlex
 import socket
 import sys
 import traceback
@@ -170,6 +171,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
         """
         self.spec.build.source = source
+        self.spec.build.load_source_on_run = True
         if pythonpath:
             self.spec.pythonpath = pythonpath
 
@@ -239,11 +241,14 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             return context.to_dict()
 
         else:
-            logger.info(f"handler was not provided running main ({self.spec.command})")
+            command = self.spec.command
+            command = command.format(**runobj.spec.parameters)
+            logger.info(f"handler was not provided running main ({command})")
+            arg_list = command.split()
             if self.spec.mode == "pass":
-                cmd = [self.spec.command]
+                cmd = arg_list
             else:
-                cmd = [executable, "-u", self.spec.command]
+                cmd = [executable, "-u"] + arg_list
 
             env = None
             if pythonpath:
@@ -255,9 +260,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     env = {}
                 env["MLRUN_LOG_LEVEL"] = "DEBUG"
 
-            sout, serr = run_exec(
-                cmd, self.spec.args, env=env, cwd=execution._current_workdir
-            )
+            args = self.spec.args
+            if args:
+                new_args = []
+                for arg in args:
+                    arg = arg.format(**runobj.spec.parameters)
+                    new_args.append(shlex.quote(arg))
+                args = new_args
+
+            sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
             try:

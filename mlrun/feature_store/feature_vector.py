@@ -22,11 +22,15 @@ import mlrun
 from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import CSVTarget, ParquetTarget, get_offline_target
-from ..feature_store.common import get_feature_set_by_uri, parse_feature_string
+from ..feature_store.common import (
+    get_feature_set_by_uri,
+    parse_feature_string,
+    parse_project_name_from_feature_string,
+)
 from ..features import Feature
 from ..model import DataSource, DataTarget, ModelObj, ObjectList, VersionedObjMetadata
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import RootFlowState
+from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
 
 
@@ -44,7 +48,7 @@ class FeatureVectorSpec(ModelObj):
         function=None,
         analysis=None,
     ):
-        self._graph: RootFlowState = None
+        self._graph: RootFlowStep = None
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
         self._function: FunctionReference = None
@@ -79,13 +83,13 @@ class FeatureVectorSpec(ModelObj):
         self._entity_fields = ObjectList.from_list(Feature, entity_fields)
 
     @property
-    def graph(self) -> RootFlowState:
+    def graph(self) -> RootFlowStep:
         """feature vector transformation graph/DAG"""
         return self._graph
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", RootFlowState)
+        self._graph = self._verify_dict(graph, "graph", RootFlowStep)
         self._graph.engine = "async"
 
     @property
@@ -266,10 +270,12 @@ class FeatureVector(ModelObj):
             feature_set_fields[featureset_name].append((name, alias))
 
         for feature in features:
+            project_name, feature = parse_project_name_from_feature_string(feature)
             feature_set, feature_name, alias = parse_feature_string(feature)
             if feature_set not in feature_set_objects.keys():
                 feature_set_objects[feature_set] = get_feature_set_by_uri(
-                    feature_set, self.metadata.project
+                    feature_set,
+                    project_name if project_name is not None else self.metadata.project,
                 )
             feature_set_object = feature_set_objects[feature_set]
 

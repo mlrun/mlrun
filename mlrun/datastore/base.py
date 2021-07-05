@@ -152,7 +152,7 @@ class DataStore:
 
                     from storey.utils import find_filters
 
-                    dataset = pq.ParquetDataset(args[0], filesystem=fs)
+                    dataset = pq.ParquetDataset(url, filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names
                         time_attributes = [
@@ -178,9 +178,7 @@ class DataStore:
                     )
                     kwargs["filters"] = filters
 
-                df_from_pq = df_module.read_parquet(*args, **kwargs)
-                _drop_reserved_columns(df_from_pq)
-                return df_from_pq
+                return df_module.read_parquet(*args, **kwargs)
 
         elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
@@ -214,13 +212,8 @@ class DataStore:
             "options": self.options,
         }
 
-
-def _drop_reserved_columns(df):
-    cols_to_drop = []
-    for col in df.columns:
-        if col.startswith("igzpart_"):
-            cols_to_drop.append(col)
-    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
+    def rm(self, path, recursive=False, maxdepth=None):
+        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
 
 class DataItem:
@@ -280,7 +273,7 @@ class DataItem:
         return self._url
 
     def get(self, size=None, offset=0):
-        """read all or a range and return thge content"""
+        """read all or a range and return the content"""
         return self._store.get(self._path, size=size, offset=offset)
 
     def download(self, target_path):

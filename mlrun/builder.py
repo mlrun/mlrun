@@ -18,6 +18,7 @@ from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
+import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
 
@@ -261,7 +262,7 @@ def build_runtime(
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     if skip_deployed and runtime.is_deployed:
-        runtime.status.state = "ready"
+        runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
     if not build.source and not build.commands and not build.extra and not with_mlrun:
         if not runtime.spec.image:
@@ -269,7 +270,7 @@ def build_runtime(
                 "noting to build and image is not specified, "
                 "please set the function image or build args"
             )
-        runtime.status.state = "ready"
+        runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
     build.image = build.image or mlrun.runtimes.utils.generate_function_image_name(
@@ -309,19 +310,20 @@ def build_runtime(
     runtime.status.build_pod = None
     if status == "skipped":
         runtime.spec.image = base_image
-        runtime.status.state = "ready"
+        runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
     if status.startswith("build:"):
-        runtime.status.state = "build"
+        runtime.status.state = mlrun.api.schemas.FunctionState.deploying
         runtime.status.build_pod = status[6:]
         return False
 
     logger.info(f"build completed with {status}")
     if status in ["failed", "error"]:
-        raise ValueError(f" build {status}!")
+        runtime.status.state = mlrun.api.schemas.FunctionState.error
+        return False
 
     local = "" if build.secret or build.image.startswith(".") else "."
     runtime.spec.image = local + build.image
-    runtime.status.state = "ready"
+    runtime.status.state = mlrun.api.schemas.FunctionState.ready
     return True

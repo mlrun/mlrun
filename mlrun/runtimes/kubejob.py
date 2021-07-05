@@ -140,9 +140,11 @@ class KubejobRuntime(KubeResource):
 
         if self._is_remote_api():
             db = self._get_db()
-            logger.info(f"starting remote build, image: {self.spec.build.image}")
             data = db.remote_builder(
                 self, with_mlrun, mlrun_version_specifier, skip_deployed
+            )
+            logger.info(
+                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
@@ -236,9 +238,7 @@ class KubejobRuntime(KubeResource):
 
     def _run(self, runobj: RunObject, execution):
 
-        with_mlrun = (not self.spec.mode) or (self.spec.mode != "pass")
-        command, args, extra_env = self._get_cmd_args(runobj, with_mlrun)
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
+        command, args, extra_env = self._get_cmd_args(runobj)
 
         if runobj.metadata.iteration:
             self.store_run(runobj)

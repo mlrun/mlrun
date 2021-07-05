@@ -17,7 +17,7 @@ import uuid
 import mlrun
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
-    add_target_states,
+    add_target_steps,
     get_target_driver,
     validate_target_list,
     validate_target_placement,
@@ -41,18 +41,21 @@ def init_featureset_graph(
 
     # init targets (and table)
     targets = targets or []
+    server = create_graph_server(graph=graph, parameters={}, verbose=True)
+    server.init_states(context=None, namespace=namespace, resource_cache=cache)
+
     if graph.engine != "sync":
-        _add_data_states(
+        _add_data_steps(
             graph,
             cache,
             featureset,
             targets=targets,
             source=source,
             return_df=return_df,
+            context=server.context,
         )
 
-    server = create_graph_server(graph=graph, parameters={})
-    server.init(None, namespace, cache)
+    server.init_object(namespace)
 
     if graph.engine != "sync":
         return graph.wait_for_completion()
@@ -80,7 +83,7 @@ def featureset_initializer(server):
     cache = server.resource_cache
     featureset, source, targets, _ = context_to_ingestion_params(context)
     graph = featureset.spec.graph.copy()
-    _add_data_states(
+    _add_data_steps(
         graph, cache, featureset, targets=targets, source=source,
     )
     featureset.save()
@@ -95,7 +98,8 @@ def run_spark_graph(df, featureset, namespace, spark):
         raise mlrun.errors.MLRunInvalidArgumentError("spark must use sync graph")
 
     server = create_graph_server(graph=graph, parameters={})
-    server.init(None, namespace, cache)
+    server.init_states(context=None, namespace=namespace, resource_cache=cache)
+    server.init_object(namespace)
     server.context.spark = spark
     event = MockEvent(body=df)
     return server.run(event, get_body=True)
@@ -121,15 +125,15 @@ def context_to_ingestion_params(context):
     return featureset, source, targets, infer_options
 
 
-def _add_data_states(
-    graph, cache, featureset, targets, source, return_df=False,
+def _add_data_steps(
+    graph, cache, featureset, targets, source, return_df=False, context=None
 ):
-    _, default_final_state, _ = graph.check_and_process_graph(allow_empty=True)
+    _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
     validate_target_list(targets=targets)
-    validate_target_placement(graph, default_final_state, targets)
+    validate_target_placement(graph, default_final_step, targets)
     cache.cache_resource(featureset.uri, featureset, True)
-    table = add_target_states(
-        graph, featureset, targets, to_df=return_df, final_state=default_final_state
+    table = add_target_steps(
+        graph, featureset, targets, to_df=return_df, final_step=default_final_step
     )
     if table:
         cache.cache_table(featureset.uri, table, True)
@@ -139,7 +143,10 @@ def _add_data_states(
 
     if source is not None:
         source = get_source_step(
-            source, key_fields=key_fields, time_field=featureset.spec.timestamp_key,
+            source,
+            key_fields=key_fields,
+            time_field=featureset.spec.timestamp_key,
+            context=context,
         )
     graph.set_flow_source(source)
 

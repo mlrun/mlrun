@@ -4,7 +4,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.endpoints import (
     artifacts,
     background_tasks,
-    feature_sets,
+    feature_store,
     files,
     frontend_spec,
     functions,
@@ -63,8 +63,8 @@ api_router.include_router(
     tags.router, tags=["tags"], dependencies=[Depends(deps.AuthVerifier)]
 )
 api_router.include_router(
-    feature_sets.router,
-    tags=["feature-sets"],
+    feature_store.router,
+    tags=["feature-store"],
     dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(

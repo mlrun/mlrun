@@ -81,6 +81,8 @@ Table Of Content
    feature-store/feature-store
    feature-store/feature-sets
    feature-store/transformations
+   feature-store/feature-vectors
+   feature-store/training-serving
    feature-store/basic-demo
    feature-store/end-to-end-demo/index
 
@@ -91,7 +93,6 @@ Table Of Content
    store/datastore
    store/artifacts
    store/models
-   store/training
 
 .. toctree::
    :maxdepth: 1

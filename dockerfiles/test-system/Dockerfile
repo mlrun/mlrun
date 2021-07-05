@@ -25,8 +25,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 RUN python -m pip install --upgrade pip~=20.2.0
 
-COPY ./dockerfiles/test-system/requirements.txt /tmp
-RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
+COPY ./dockerfiles/test-system/requirements.txt /tmp/test-system-requirements.txt
+COPY ./extras-requirements.txt /tmp
+COPY ./requirements.txt /tmp
+RUN python -m pip install -r /tmp/requirements.txt -r /tmp/extras-requirements.txt -r /tmp/test-system-requirements.txt && rm -f /tmp/*requirements.txt
 COPY . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && cd /tmp && rm -rf mlrun
 

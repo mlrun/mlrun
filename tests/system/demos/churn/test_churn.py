@@ -40,7 +40,6 @@ class TestChurn(TestDemo):
         clean_data_function.spec.remote = True
         clean_data_function.spec.replicas = 1
         clean_data_function.spec.service_type = "NodePort"
-        clean_data_function.spec.command = function_path
 
         self._logger.debug("Setting project functions")
         demo_project.set_function(clean_data_function)

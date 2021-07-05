@@ -22,7 +22,7 @@ data sources a referred to using the schema prefix (e.g. `s3://my-bucket/path`),
 * **v3io, v3ios** - Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** - Azure Blob Store, format: `az://<bucket>/path/to/file`
 * **store** - MLRun versioned artifacts [(see Artifacts)](./artifacts.md), format: `store://artifacts/<project>/<artifact-name>[:tag]`
-* **memory** - in memory data registry for passing data withing the same process, format `memory://key`, 
+* **memory** - in memory data registry for passing data within the same process, format `memory://key`, 
   use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
 
 Note that each data store may require connection credentials, those can be provided through function environment variables 
@@ -31,7 +31,7 @@ or project/job context secrets
 ## DataItem Object
 
 When we run jobs or pipelines we pass data using the {py:class}`~mlrun.datastore.DataItem` objects, think of them as smart 
-data pointers which abstract away the data store specific behaviour.
+data pointers which abstract away the data store specific behavior.
 
 Example function:
 

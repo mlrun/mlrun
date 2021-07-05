@@ -88,7 +88,6 @@ class LocalFeatureMerger:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "target path was not specified"
                 )
-            target.name = target.name or target.kind
             target.set_resource(self.vector)
             size = target.write_dataframe(self._result_df)
             if is_persistent_vector:

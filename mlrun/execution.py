@@ -233,7 +233,14 @@ class MLClientCtx(object):
 
     @classmethod
     def from_dict(
-        cls, attrs: dict, rundb="", autocommit=False, tmp="", host=None, log_stream=None
+        cls,
+        attrs: dict,
+        rundb="",
+        autocommit=False,
+        tmp="",
+        host=None,
+        log_stream=None,
+        is_api=False,
     ):
         """create execution context from dict"""
 
@@ -269,15 +276,15 @@ class MLClientCtx(object):
 
         self._init_dbs(rundb)
 
-        if spec:
-            # init data related objects (require DB & Secrets to be set first)
+        if spec and not is_api:
+            # init data related objects (require DB & Secrets to be set first), skip when running in the api service
             self._data_stores.from_dict(spec)
             if inputs and isinstance(inputs, dict):
                 for k, v in inputs.items():
                     if v:
                         self._set_input(k, v)
 
-        if host:
+        if host and not is_api:
             self.set_label("host", host)
 
         start = get_in(attrs, "status.start_time")
@@ -704,7 +711,7 @@ class MLClientCtx(object):
 
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
-        :param model_file:      path to the local model file we upload (seel also model_dir)
+        :param model_file:      path to the local model file we upload (see also model_dir)
         :param model_dir:       path to the local dir holding the model file and extra files
         :param artifact_path:   target artifact path (when not using the default)
                                 to define a subpath under the default location use:

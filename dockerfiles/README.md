@@ -22,7 +22,7 @@ this will generate the following images:
   * `mlrun/mlrun-api:0.4.6`     (python 3.7)
   * `mlrun/mlrun:0.4.6`         (python 3.7)
 
-For compatability with some packages requiring py36, there is also an `ml-xxx` series of
+For compatibility with some packages requiring py36, there is also an `ml-xxx` series of
 images tagged `0.4.6-py36`
 
 ## notable changes

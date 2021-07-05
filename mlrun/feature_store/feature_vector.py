@@ -157,13 +157,23 @@ class FeatureVector(ModelObj):
     kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, features=None, label_feature=None, description=None, with_indexes=None):
+    def __init__(
+        self,
+        name=None,
+        features=None,
+        label_feature=None,
+        description=None,
+        with_indexes=None,
+    ):
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
 
         self.spec = FeatureVectorSpec(
-            description=description, features=features, label_feature=label_feature, with_indexes=with_indexes
+            description=description,
+            features=features,
+            label_feature=label_feature,
+            with_indexes=with_indexes,
         )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None

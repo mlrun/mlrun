@@ -14,6 +14,7 @@
 
 # this module is WIP
 import pyarrow
+from pyarrow.lib import TimestampType
 
 
 class ValueType:
@@ -52,7 +53,7 @@ def pd_schema_to_value_type(value):
 
 def pa_type_to_value_type(type_):
     # To catch timestamps with timezones. This also catches timestamps with different units
-    if isinstance(type_, type(pyarrow.timestamp("s"))):
+    if isinstance(type_, TimestampType):
         return ValueType.DATETIME
 
     type_map = {

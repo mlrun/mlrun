@@ -736,7 +736,7 @@ class RunNotifications:
         had_errors = 0
         runs_list = []
         for r in runs:
-            notified = getattr(r, '_notified', False)
+            notified = getattr(r, "_notified", False)
             if not notified or push_all:
                 if r.status.state == "error":
                     had_errors += 1

@@ -59,11 +59,15 @@ class ModelEndpoints:
                 "Getting model object, inferring column names and collecting feature stats"
             )
             run_db = mlrun.api.api.utils.get_run_db_instance(db_session, leader_session)
-            model_obj: ModelArtifact = mlrun.datastore.store_resources.get_store_resource(
-                model_endpoint.spec.model_uri, db=run_db
+            model_obj: ModelArtifact = (
+                mlrun.datastore.store_resources.get_store_resource(
+                    model_endpoint.spec.model_uri, db=run_db
+                )
             )
 
-            if not model_endpoint.status.feature_stats and hasattr(model_obj, "feature_stats"):
+            if not model_endpoint.status.feature_stats and hasattr(
+                model_obj, "feature_stats"
+            ):
                 model_endpoint.status.feature_stats = model_obj.feature_stats
 
             if not model_endpoint.spec.label_names and hasattr(model_obj, "outputs"):
@@ -115,7 +119,9 @@ class ModelEndpoints:
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
         write_endpoint_to_kv(
-            access_key=access_key, endpoint=model_endpoint, update=True,
+            access_key=access_key,
+            endpoint=model_endpoint,
+            update=True,
         )
 
         logger.info("Model endpoint updated", endpoint_id=model_endpoint.metadata.uid)
@@ -252,7 +258,8 @@ class ModelEndpoints:
         """
 
         logger.info(
-            "Getting model endpoint record from kv", endpoint_id=endpoint_id,
+            "Getting model endpoint record from kv",
+            endpoint_id=endpoint_id,
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
@@ -431,7 +438,9 @@ def get_endpoint_metrics(
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     client = get_frames_client(
-        token=access_key, address=config.v3io_framesd, container=container,
+        token=access_key,
+        address=config.v3io_framesd,
+        container=container,
     )
 
     data = client.read(

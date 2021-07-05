@@ -204,7 +204,7 @@ def test_mount_v3io():
                 expectation_modifier(**expectation_modifier_kwargs)
             )
 
-            # Verify that env variables are set and overriden correctly
+            # Verify that env variables are set and overridden correctly
             env_variables = {
                 env_variable["name"]: env_variable["value"]
                 for env_variable in tested_function.spec.env

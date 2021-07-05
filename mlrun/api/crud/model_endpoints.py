@@ -119,9 +119,7 @@ class ModelEndpoints:
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
         write_endpoint_to_kv(
-            access_key=access_key,
-            endpoint=model_endpoint,
-            update=True,
+            access_key=access_key, endpoint=model_endpoint, update=True,
         )
 
         logger.info("Model endpoint updated", endpoint_id=model_endpoint.metadata.uid)
@@ -258,8 +256,7 @@ class ModelEndpoints:
         """
 
         logger.info(
-            "Getting model endpoint record from kv",
-            endpoint_id=endpoint_id,
+            "Getting model endpoint record from kv", endpoint_id=endpoint_id,
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
@@ -438,9 +435,7 @@ def get_endpoint_metrics(
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     client = get_frames_client(
-        token=access_key,
-        address=config.v3io_framesd,
-        container=container,
+        token=access_key, address=config.v3io_framesd, container=container,
     )
 
     data = client.read(

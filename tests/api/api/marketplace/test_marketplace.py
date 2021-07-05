@@ -271,7 +271,7 @@ def test_marketplace_default_source() -> None:
         )
 
         function_yaml = manager.get_item_object_using_source_credentials(
-            source_object.metadata.name, function.spec.item_uri + "src/function.yaml"
+            source_object, function.spec.item_uri + "src/function.yaml"
         )
         function_dict = yaml.safe_load(function_yaml)
 

@@ -1,11 +1,6 @@
 import json
 
-import mlrun.api.api.utils
-import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.follower
-import mlrun.api.utils.singletons.db
 import mlrun.errors
-import mlrun.runtimes
 import mlrun.utils.singleton
 from mlrun.api.schemas.marketplace import (
     MarketplaceCatalog,
@@ -152,8 +147,13 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
             )
         return items[0]
 
-    def get_item_object_using_source_credentials(self, source_name, url):
-        credentials = self._get_source_credentials(source_name)
+    def get_item_object_using_source_credentials(self, source: MarketplaceSource, url):
+        credentials = self._get_source_credentials(source.metadata.name)
+
+        if not url.startswith(source.spec.path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "URL to retrieve must be located in the source filesystem tree"
+            )
 
         if url.endswith("/"):
             stores = store_manager.set(credentials)

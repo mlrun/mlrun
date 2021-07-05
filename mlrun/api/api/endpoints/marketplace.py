@@ -111,10 +111,13 @@ def get_item(
 
 @router.get("/marketplace/sources/{source_name}/item-object",)
 def get_object(
-    source_name: str, url: str,
+    source_name: str,
+    url: str,
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
+    ordered_source = get_db().get_marketplace_source(db_session, source_name)
     object_data = MarketplaceItemsManager().get_item_object_using_source_credentials(
-        source_name, url
+        ordered_source.source, url
     )
 
     if url.endswith("/"):

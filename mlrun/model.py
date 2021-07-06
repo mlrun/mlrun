@@ -639,6 +639,10 @@ class RunTemplate(ModelObj):
 
             task.with_secrets('vault', ['secret1', 'secret2'...])
 
+            # If using with k8s secrets, the k8s secret is managed by MLRun, through the project-secrets
+            # mechanism. The secrets will be attached to the running pod as environment variables.
+            task.with_secrets('kubernetes', ['secret1', 'secret2'])
+
             # If using an empty secrets list [] then all accessible secrets will be available.
             task.with_secrets('vault', [])
 

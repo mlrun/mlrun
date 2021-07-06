@@ -527,13 +527,14 @@ class TestFeatureStore(TestMLRunSystem):
             "myparquet",
             path=path,
             time_field="time",
-            schedule=cron_trigger,
+#            schedule=cron_trigger,
         )
 
         feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
 
         target = ParquetTarget()
-        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
+        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=True))
+#        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
         sleep(60)
 
         features = ["blabla.*"]
@@ -559,6 +560,100 @@ class TestFeatureStore(TestMLRunSystem):
         vec_dict = vec_df.to_dict()
         assert len(vec_df) == 2 # the new ones are too "old"
         assert vec_dict["data"]["moshe"] == 50
+
+    def test_443(self):
+        from datetime import timedelta
+        from mlrun.api import schemas
+        # last_updated = target.get_last_updated()
+        now = datetime.now() + timedelta(minutes=2)
+        now_plus = now + timedelta(seconds=2)
+        #        cron_trigger = schemas.ScheduleCronTrigger(
+        #            second='*/1', start_time=now, end_time=now_plus
+        #        )
+
+        data = pd.DataFrame(
+            {
+                "time": [now, now - pd.Timedelta(minutes=1)],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+
+        # writing down a remote source
+        data.to_parquet(str(self.results_path / "first_iter.parquet"))
+
+        cron_trigger = '*/1 * * * *'
+
+        source = ParquetSource(
+            "myparquet",
+            path=self.results_path,
+            time_field="time",
+            #            schedule=cron_trigger,
+        )
+
+        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
+
+        target = ParquetTarget()
+        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=True))
+        #        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
+        sleep(60)
+
+        features = ["blabla.*"]
+        vec = fs.FeatureVector("blabla", features)
+        resp = fs.get_offline_features(vec)
+        vec_df = resp.to_dataframe()
+        vec_dict = vec_df.to_dict()
+        assert len(vec_df) == 2
+        assert vec_dict["data"]["moshe"] == 2000
+
+        data = pd.DataFrame(
+            {
+                "time": [now, now + pd.Timedelta(minutes=1), now + pd.Timedelta(minutes=1)],
+                "first_name": ["moshe", "dina", "katya"],
+                "data": [50, 10, 25],
+            }
+        )
+        data.to_parquet(str(self.results_path / "second_iter.parquet"))
+        sleep(60)
+        resp = fs.get_offline_features(vec)
+
+        vec_df = resp.to_dataframe()
+        vec_dict = vec_df.to_dict()
+        assert len(vec_df) == 2  # the new ones are too "old"
+        assert vec_dict["data"]["moshe"] == 50
+
+    def test_443_play(self):
+        from datetime import timedelta
+        now = datetime.now() + timedelta(minutes=2)
+
+        data = pd.DataFrame(
+            {
+                "time": [now, now - pd.Timedelta(minutes=1)],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+
+        # writing down a remote source
+        data.to_parquet(str(
+            self.results_path / _generate_random_name() / "par1.parquet"
+        ))
+
+        cron_trigger = '*/1 * * * *'
+
+        source = ParquetSource(
+            "myparquet",
+            path=self.results_path,
+            time_field="time",
+            schedule=cron_trigger,
+        )
+
+        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
+
+        target = ParquetTarget()
+        yyy = fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=True))
+        #        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
+        print(yyy)
 
 
     def test_split_graph(self):

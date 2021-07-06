@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
-import importlib.util as imputil
 import pathlib
 import shutil
 import typing
@@ -46,13 +45,18 @@ from ..run import (
     get_object,
     import_function,
     new_function,
-    run_pipeline,
     wait_for_pipeline_completion,
 )
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from .pipelines import (
+    WorkflowSpec,
+    create_pipeline,
+    enrich_functions_source,
+    run_project_pipeline,
+)
 
 
 class ProjectError(Exception):
@@ -654,7 +658,7 @@ class MlrunProject(ModelObj):
     def get_enriched_functions(self):
         """get a dict of enriched/prepared function objects to use in pipelines"""
         funcs = self.sync_functions()
-        return _enrich_functions_source(self, funcs)
+        return enrich_functions_source(self, funcs)
 
     @property
     def context(self) -> str:
@@ -1403,38 +1407,29 @@ class MlrunProject(ModelObj):
             else:
                 raise ValueError("workflow name or path must be specified")
 
-        code = None
-        if not workflow_path:
-            if name not in self.spec._workflows:
-                raise ValueError(f"workflow {name} not found")
-            workflow_path, code, arguments, engine = self.spec._get_wf_cfg(
-                name, arguments
-            )
+        # code = None
+        if workflow_path:
+            workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
+        else:
+            workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
+            workflow_spec.args = arguments or workflow_spec.args
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path
-        if engine == "kfp":
-            handler = _run_kf_pipeline
-        elif engine == "local":
-            handler = _run_local_pipeline
-        else:
-            raise ValueError(f"unsupported workflow engine {engine}")
-
-        run = handler(
+        run = run_project_pipeline(
+            engine or workflow_spec.engine or "kfp",
             self,
             name,
-            workflow_path,
+            workflow_spec,
             self.spec._function_objects,
             secrets=self._secrets,
-            arguments=arguments,
             artifact_path=artifact_path,
             namespace=namespace,
-            ttl=ttl,
         )
-        if code:
-            remove(workflow_path)
+        workflow_spec.clear_tmp()
         if watch and engine == "kfp":
-            self.get_run_status(run)
+            # todo: change to use generic engine.wait_for_completion()
+            self.get_run_status(run.run_id)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -1451,7 +1446,7 @@ class MlrunProject(ModelObj):
             raise ValueError(f"workflow {name} not found")
 
         workflow_path, code, _, engine = self.spec._get_wf_cfg(name)
-        pipeline = _create_pipeline(
+        pipeline = create_pipeline(
             self, workflow_path, self.spec._function_objects, secrets=self._secrets
         )
         artifact_path = artifact_path or self.spec.artifact_path
@@ -1915,133 +1910,6 @@ def _init_function_from_obj_legacy(func, project, name=None):
     if project.tag:
         func.metadata.tag = project.tag
     return name or func.metadata.name, func
-
-
-def _create_pipeline(
-    project, pipeline, funcs, secrets=None, engine="kfp", arguments=None
-):
-    functions = _enrich_functions_source(project, funcs)
-    spec = imputil.spec_from_file_location("workflow", pipeline)
-    if spec is None:
-        raise ImportError(f"cannot import workflow {pipeline}")
-    mod = imputil.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-
-    setattr(mod, "funcs", functions)
-    setattr(mod, "this_project", project)
-
-    if hasattr(mod, "init_workflow"):
-        getattr(mod, "init_workflow")(functions, project, secrets, arguments)
-    if hasattr(mod, "init_functions"):
-        getattr(mod, "init_functions")(functions, project, secrets)
-
-    # verify all functions are in this project (init_functions may add new functions)
-    for f in functions.values():
-        f.metadata.project = project.metadata.name
-
-    handler = "kfpipeline" if engine == "kfp" else "pipeline"
-    if not hasattr(mod, handler):
-        raise ValueError(f"pipeline function ({handler}) not found")
-
-    return getattr(mod, handler)
-
-
-def _run_kf_pipeline(
-    project,
-    name,
-    pipeline,
-    functions,
-    secrets=None,
-    arguments=None,
-    artifact_path=None,
-    namespace=None,
-    ttl=None,
-):
-    kfpipeline = _create_pipeline(
-        project, pipeline, functions, secrets, arguments=arguments
-    )
-
-    namespace = namespace or config.namespace
-    id = run_pipeline(
-        kfpipeline,
-        project=project.metadata.name,
-        arguments=arguments,
-        experiment=name,
-        namespace=namespace,
-        artifact_path=artifact_path,
-        ttl=ttl,
-    )
-    return id
-
-
-def _run_local_pipeline(
-    project,
-    name,
-    pipeline,
-    functions,
-    secrets=None,
-    arguments=None,
-    artifact_path=None,
-    namespace=None,
-    ttl=None,
-):
-    runs = {}
-
-    def run_decorator(func):
-        def wrapped(*args, **kw):
-            labels = kw.get("labels", {})
-            labels["workflow-name"] = name
-            kw["labels"] = labels
-            run: mlrun.RunObject = func._old_run(*args, **kw)
-            if run:
-                run._function = func
-                run._notified = False
-                runs[run.uid()] = run
-            return run
-
-        func._old_run = func.run
-        return wrapped
-
-    for f in functions.values():
-        f.run = run_decorator(f)
-
-    pipeline = _create_pipeline(
-        project, pipeline, functions, secrets, engine="local", arguments=arguments
-    )
-    project.notifiers.push_start_message(project.metadata.name)
-    artifact_path = artifact_path or mlrun.mlconf.artifact_path
-    try:
-        pipeline(
-            project,
-            functions=functions,
-            arguments=arguments,
-            secrets=secrets,
-            artifact_path=artifact_path,
-        )
-    except Exception as e:
-        project.notifiers.push(f"Pipeline run failed!, error: {e}")
-
-    mlrun.run.wait_for_runs_completion(runs.values())
-    project.notifiers.push_run_results(runs.values())
-    return ""
-
-
-def _enrich_functions_source(project, funcs):
-    functions = {}
-    for name, func in funcs.items():
-        f = func.copy()
-        f.metadata.project = project.metadata.name
-        src = f.spec.build.source
-        if project.spec.source and src and src in [".", "./"]:
-            if project.spec.mountdir:
-                f.spec.workdir = project.spec.mountdir
-                f.spec.build.source = ""
-            else:
-                f.spec.build.source = project.spec.source
-                f.spec.build.load_source_on_run = project.spec.load_source_on_run
-
-        functions[name] = f
-    return functions
 
 
 def github_webhook(request):

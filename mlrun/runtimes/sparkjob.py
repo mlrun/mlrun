@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import typing
 from copy import deepcopy
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -26,7 +25,7 @@ from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
-from mlrun.runtimes.constants import SparkApplicationStates
+from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
 from ..execution import MLClientCtx
 from ..model import RunObject
@@ -342,59 +341,7 @@ class SparkRuntime(KubejobRuntime):
                 self.spec.command = "local://" + self.spec.command
             update_in(job, "spec.mainApplicationFile", self.spec.command)
         update_in(job, "spec.arguments", self.spec.args or [])
-        resp = self._submit_job(job, meta.namespace)
-        # name = get_in(resp, 'metadata.name', 'unknown')
-
-        state = get_in(resp, "status.applicationState.state", "SUBMITTED")
-        logger.info(f"SparkJob {meta.name} state=STARTING")
-        while state not in ["RUNNING", "COMPLETED", "FAILED"]:
-            resp = self.get_job(meta.name, meta.namespace)
-            state = get_in(resp, "status.applicationState.state")
-            time.sleep(1)
-
-        if state == "FAILED":
-            logger.error(f"SparkJob {meta.name} state={state}")
-            execution.set_state(
-                "error", f"SparkJob {meta.name} finished with state {state}",
-            )
-
-        if resp:
-            logged_state = state or "unknown"
-            logger.info(f"SparkJob {meta.name} state={logged_state}")
-            if state:
-                driver, status = self._get_driver(meta.name, meta.namespace)
-                execution.set_hostname(driver)
-                execution.set_state(state.lower())
-                if self.kfp:
-                    status = self._get_k8s().watch(driver, meta.namespace)
-                    logger.info(f"SparkJob {meta.name} finished with state {status}",)
-                    if status == "succeeded":
-                        execution.set_state("completed")
-                    else:
-                        execution.set_state(
-                            "error",
-                            f"SparkJob {meta.name} finished with state {status}",
-                        )
-                else:
-                    logger.info(
-                        f"SparkJob {meta.name} driver pod {driver} state {status}",
-                    )
-                    resp = self.get_job(meta.name, meta.namespace)
-                    ui_ingress = (
-                        resp.get("status", {})
-                        .get("driverInfo", {})
-                        .get("webUIIngressAddress")
-                    )
-                    if ui_ingress:
-                        runobj.status.status_text = f"UI is available while the job is running: http://{ui_ingress}"
-            else:
-                pods_phase = self.get_pods(meta.name, meta.namespace)
-                logger.error(
-                    f"SparkJob status unknown or failed, check pods: {pods_phase}",
-                )
-                execution.set_state(
-                    "error", f"SparkJob {meta.name} finished with unknown state",
-                )
+        self._submit_job(job, meta.namespace)
 
         return None
 
@@ -460,6 +407,11 @@ class SparkRuntime(KubejobRuntime):
         )
 
     def with_requests(self, mem=None, cpu=None):
+        raise NotImplementedError(
+            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+        )
+
+    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         raise NotImplementedError(
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
         )
@@ -588,6 +540,33 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                 .replace("Z", "+00:00")
             )
         return in_terminal_state, completion_time, desired_run_state
+
+    def _update_ui_url(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        uid: str,
+        crd_object,
+        run: Dict = None,
+        leader_session: Optional[str] = None,
+    ):
+        app_state = (
+            crd_object.get("status", {}).get("applicationState", {}).get("state")
+        )
+        state = SparkApplicationStates.spark_application_state_to_run_state(app_state)
+        ui_url = None
+        if state == RunStates.running:
+            ui_url = (
+                crd_object.get("status", {})
+                .get("driverInfo", {})
+                .get("webUIIngressAddress")
+            )
+        db_ui_url = run.get("status", {}).get("ui_url")
+        if db_ui_url == ui_url:
+            return
+        run.setdefault("status", {})["ui_url"] = ui_url
+        db.store_run(db_session, run, uid, project, leader_session=leader_session)
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:

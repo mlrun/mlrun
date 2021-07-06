@@ -1,8 +1,10 @@
+import typing
+
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors
@@ -20,6 +22,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         uid: str,
         iter: int,
         data: dict,
+        leader_session: typing.Optional[str] = None,
     ):
         logger.debug("Updating run", project=project, uid=uid, iter=iter, data=data)
         # TODO: do some desired state for run, it doesn't make sense that API user changes the status in order to
@@ -50,6 +53,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
                 session,
                 label_selector=f"mlrun/project={project},mlrun/uid={uid}",
                 force=True,
+                leader_session=leader_session,
             )
         mlrun.api.utils.singletons.db.get_db().update_run(
             session, data, uid, project, iter

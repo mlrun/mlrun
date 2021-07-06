@@ -15,7 +15,6 @@
 import time
 from copy import deepcopy
 from datetime import datetime
-from urllib.parse import urlparse
 
 import fsspec
 import v3io.dataplane
@@ -139,21 +138,30 @@ class V3ioStore(DataStore):
         # todo: full = key, size, last_modified
         return [obj.key[subpath_length:] for obj in response.output.contents]
 
+    def rm(self, path, recursive=False, maxdepth=None):
+        """ Recursive rm file/folder
+        Workaround for v3io-fs not supporting recursive directory removal """
 
-def parse_v3io_path(url):
-    """return v3io table path from url"""
-    parsed_url = urlparse(url)
-    scheme = parsed_url.scheme.lower()
-    if scheme != "v3io" and scheme != "v3ios":
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "url must start with v3io://[host]/{container}/{path}, got " + url
-        )
-    endpoint = parsed_url.hostname
-    if endpoint:
-        if parsed_url.port:
-            endpoint += f":{parsed_url.port}"
-        prefix = "https" if scheme == "v3ios" else "http"
-        endpoint = f"{prefix}://{endpoint}"
-    else:
-        endpoint = None
-    return endpoint, parsed_url.path.strip("/") + "/"
+        fs = self.get_filesystem()
+        if isinstance(path, str):
+            path = [path]
+        maxdepth = maxdepth if not maxdepth else maxdepth - 1
+        to_rm = set()
+        path = [fs._strip_protocol(p) for p in path]
+        for p in path:
+            if recursive:
+                find_out = fs.find(p, maxdepth=maxdepth, withdirs=True, detail=True)
+                rec = set(
+                    sorted(
+                        [
+                            f["name"] + ("/" if f["type"] == "directory" else "")
+                            for f in find_out.values()
+                        ]
+                    )
+                )
+                to_rm |= rec
+            if p not in to_rm and (recursive is False or fs.exists(p)):
+                p = p + ("/" if fs.isdir(p) else "")
+                to_rm.add(p)
+        for p in reversed(list(sorted(to_rm))):
+            fs.rm_file(p)

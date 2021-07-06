@@ -1,14 +1,15 @@
 name: Unstable
 
 on:
-  push:
   # Create unstable release on push to development
+  push:
     branches:
     - development
 
 jobs:
+
   # Create a release on push to development
-  release-preperation:
+  release-preparation:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -18,8 +19,8 @@ jobs:
       if: github.event_name == 'push'
       uses: dev-drprasad/delete-tag-and-release@v0.1.3
       with:
-        delete_release: true
-        tag_name: unstable
+        delete_release: true # default: false
+        tag_name: unstable # tag name to delete
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -37,4 +38,4 @@ jobs:
           - Git sha ${{ github.sha }}
           - Updated at ${{ github.event.head_commit.timestamp}}
         draft: false
-        prerelease: true
+        prerelease: false

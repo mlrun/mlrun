@@ -1,6 +1,7 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .artifact import ArtifactCategories
+from .auth import AuthInfo
 from .background_task import (
     BackgroundTask,
     BackgroundTaskMetadata,
@@ -15,6 +16,7 @@ from .constants import (
     HeaderNames,
     OrderType,
     PatchMode,
+    ProjectsRole,
     SortField,
 )
 from .feature_store import (
@@ -39,6 +41,7 @@ from .feature_store import (
     FeatureVectorsOutput,
 )
 from .frontend_spec import FrontendSpec
+from .function import FunctionState
 from .model_endpoints import (
     Features,
     FeatureValues,
@@ -59,6 +62,7 @@ from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     Project,
+    ProjectDesiredState,
     ProjectMetadata,
     ProjectsOutput,
     ProjectSpec,
@@ -80,4 +84,9 @@ from .schedule import (
     SchedulesOutput,
     ScheduleUpdate,
 )
-from .secret import SecretProviderName, SecretsData, UserSecretCreationRequest
+from .secret import (
+    SecretKeysData,
+    SecretProviderName,
+    SecretsData,
+    UserSecretCreationRequest,
+)

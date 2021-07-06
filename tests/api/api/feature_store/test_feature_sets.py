@@ -92,6 +92,33 @@ def _assert_extra_fields_exist(json_response):
     assert json_response["status"]["extra_status"]["field2"] == "value2"
 
 
+def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set1"
+    tag = "my_tag1"
+    feature_set = _generate_feature_set(name)
+    feature_set["metadata"]["tag"] = tag
+
+    result = _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
+    assert result["metadata"]["tag"] == tag
+    uid = result["metadata"]["uid"]
+
+    result = _store_and_assert_feature_set(client, project_name, name, uid, feature_set)
+    assert result["metadata"]["tag"] is None
+
+
+def test_feature_set_create_without_tag(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+    feature_set["metadata"].pop("tag")
+
+    response = _feature_set_create_and_assert(client, project_name, feature_set)
+    assert response["metadata"]["tag"] == "latest"
+
+
 def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
 
@@ -147,13 +174,13 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     for feature_set_json in response["feature_sets"]:
         _assert_extra_fields_exist(feature_set_json)
 
-    _list_and_assert_objects(client, "feature_sets", project_name, "name=feature", 2)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=~feature", 2)
     _list_and_assert_objects(client, "feature_sets", project_name, "entity=buyer", 1)
     _list_and_assert_objects(
         client, "feature_sets", project_name, "entity=ticker&entity=bid", 2
     )
     _list_and_assert_objects(
-        client, "feature_sets", project_name, "name=feature&entity=buyer", 0
+        client, "feature_sets", project_name, "name=~feature&entity=buyer", 0
     )
     # Test various label filters
     _list_and_assert_objects(
@@ -560,13 +587,13 @@ def test_entities_list(db: Session, client: TestClient) -> None:
 
         _feature_set_create_and_assert(client, project_name, feature_set)
     _list_and_assert_objects(client, "entities", project_name, "name=entity_0", 1)
-    _list_and_assert_objects(client, "entities", project_name, "name=entity", count)
+    _list_and_assert_objects(client, "entities", project_name, "name=~entity", count)
     _list_and_assert_objects(client, "entities", project_name, "label=color", count)
     _list_and_assert_objects(
         client, "entities", project_name, f"label=color={colors[1]}", count // 2
     )
     _list_and_assert_objects(
-        client, "entities", project_name, "name=entity&label=id=id_0", 1
+        client, "entities", project_name, "name=~entity&label=id=id_0", 1
     )
 
     # set a new tag
@@ -607,7 +634,7 @@ def test_features_list(db: Session, client: TestClient) -> None:
 
     _list_and_assert_objects(client, "features", project_name, "name=feature1", 1)
     # name is a like query, so expecting all 4 features to return
-    _list_and_assert_objects(client, "features", project_name, "name=feature", 4)
+    _list_and_assert_objects(client, "features", project_name, "name=~feature", 4)
     _list_and_assert_objects(client, "features", project_name, "label=owner=me", 1)
 
     # set a new tag
@@ -683,7 +710,7 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
         client, project_name, feature_set, versioned=False
     )
 
-    allowed_added_fields = ["updated", "tag", "uid", "project"]
+    allowed_added_fields = ["created", "updated", "tag", "uid", "project"]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_set, feature_set_response, allowed_added_fields
     )
@@ -718,6 +745,25 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
 
     # Verify we still have just 1 object in the DB
     _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 1)
+
+
+def test_feature_set_name_exact_and_fuzzy_list(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "FeatureSET123"
+    feature_set = _generate_feature_set(name)
+    _feature_set_create_and_assert(client, project_name, feature_set)
+    _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 1)
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name.lower()}", 0
+    )
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name=~{name.lower()}", 1
+    )
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=~set", 1)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=~SET", 1)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=set", 0)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=SET", 0)
 
 
 def test_multi_label_query(db: Session, client: TestClient) -> None:

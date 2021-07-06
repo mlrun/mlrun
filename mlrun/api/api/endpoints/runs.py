@@ -22,6 +22,7 @@ async def store_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -32,7 +33,13 @@ async def store_run(
 
     logger.info("Storing run", data=data)
     await run_in_threadpool(
-        get_db().store_run, db_session, data, uid, project, iter=iter
+        get_db().store_run,
+        db_session,
+        data,
+        uid,
+        project,
+        iter=iter,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {}
 
@@ -44,6 +51,7 @@ async def update_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -53,7 +61,13 @@ async def update_run(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     await run_in_threadpool(
-        mlrun.api.crud.Runs().update_run, db_session, project, uid, iter, data,
+        mlrun.api.crud.Runs().update_run,
+        db_session,
+        project,
+        uid,
+        iter,
+        data,
+        auth_verifier.auth_info.session,
     )
     return {}
 

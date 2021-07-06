@@ -50,11 +50,14 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     name = "feature_set1"
     feature_vector = _generate_feature_vector(name)
     feature_vector["metadata"]["project"] = project_name
+    feature_vector["metadata"].pop("tag")
 
     feature_vector_response = _create_and_assert_feature_vector(
         client, project_name, feature_vector, True
     )
-    allowed_added_fields = ["uid", "updated", "tag"]
+    allowed_added_fields = ["uid", "created", "updated", "tag"]
+    assert feature_vector_response["metadata"]["tag"] == "latest"
+
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )
@@ -73,7 +76,6 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     )
     assert feature_vector_response.status_code == HTTPStatus.OK.value
     # When querying by uid, tag will not be returned
-    feature_vector["metadata"].pop("tag")
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response.json(), allowed_added_fields
     )
@@ -106,7 +108,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
 
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count)
     _list_and_assert_objects(
-        client, "feature_vectors", project_name, "name=ooga", ooga_name_count
+        client, "feature_vectors", project_name, "name=~ooga", ooga_name_count
     )
     _list_and_assert_objects(
         client,
@@ -128,7 +130,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
         client,
         "feature_vectors",
         project_name,
-        "state=dead&name=booga",
+        "state=dead&name=~booga",
         ooga_name_count,
     )
     _list_and_assert_objects(client, "feature_vectors", "wrong_project", None, 0)
@@ -154,7 +156,15 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
     response = _assert_store_feature_vector(
         client, project_name, name, "tag1", feature_vector
     )
+    assert response["metadata"]["tag"] == "tag1"
     uid = response["metadata"]["uid"]
+
+    # Put same object using uid - should not return tag
+    response = _assert_store_feature_vector(
+        client, project_name, name, uid, feature_vector
+    )
+    assert response["metadata"]["tag"] is None
+
     # Change fields that will not affect the uid, verify object is overwritten
     feature_vector["status"]["state"] = "modified"
 
@@ -338,7 +348,7 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
         client, project_name, feature_vector, versioned=False
     )
 
-    allowed_added_fields = ["uid", "updated", "tag", "project"]
+    allowed_added_fields = ["uid", "created", "updated", "tag", "project"]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )

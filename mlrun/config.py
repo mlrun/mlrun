@@ -15,7 +15,7 @@
 Configuration system.
 
 Configuration can be in either a configuration file specified by
-MLRUN_CONFIG_FILE environment variable or by environmenet variables.
+MLRUN_CONFIG_FILE environment variable or by environment variables.
 
 Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
@@ -44,6 +44,7 @@ default_config = {
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
+    "default_nuclio_runtime": "python:3.7",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -88,6 +89,7 @@ default_config = {
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
     "v3io_framesd": "http://framesd:8080",
+    "datastore": {"async_source_mode": "disabled"},
     # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
@@ -102,17 +104,36 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "authentication": {
+            "mode": "none",  # one of none, basic, bearer, iguazio
+            "basic": {"username": "", "password": ""},
+            "bearer": {"token": ""},
+            "iguazio": {
+                "session_verification_endpoint": "data_sessions/verifications/app_service",
+            },
+        },
+        "nuclio": {"default_service_type": "NodePort"},  # one of ClusterIP | NodePort
+        "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
-            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
+            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
+            # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
+            # multiple schedules scheduled to the same time, there might be delays, the default of the scheduler for
+            # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
+            # it to None. the default for coalesce it True just adding it here to be explicit
+            "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
         },
         "projects": {
             "leader": "mlrun",
             "followers": "",
+            # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
             "counters_cache_ttl": "10 seconds",
+            # access key to be used when the leader is iguazio and polling is done from it
+            "iguazio_access_key": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -157,15 +178,19 @@ default_config = {
             "default_secret_name": None,
             "secret_path": "~/.mlrun/azure_vault",
         },
+        "kubernetes": {
+            "project_secret_name": "mlrun-project-secrets-{project}",
+            "env_variable_prefix": "MLRUN_K8S_SECRET__",
+        },
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/fs/{kind}",
-            "nosql": "v3io:///projects/{project}/fs/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": None,
+        "flush_interval": 300,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects

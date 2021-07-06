@@ -3,6 +3,7 @@ import pytest
 import mlrun.errors
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
+from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
@@ -12,6 +13,18 @@ from mlrun.utils.helpers import (
     verify_field_regex,
 )
 from mlrun.utils.regex import run_name
+
+
+def test_retry_until_successful_fatal_failure():
+    original_exception = Exception("original")
+
+    def _raise_fatal_failure():
+        raise mlrun.utils.helpers.FatalFailureException(original_exception)
+
+    with pytest.raises(Exception, match=str(original_exception)):
+        mlrun.utils.helpers.retry_until_successful(
+            0, 1, logger, True, _raise_fatal_failure
+        )
 
 
 def test_run_name_regex():
@@ -153,14 +166,56 @@ def test_enrich_image():
             "images_to_enrich_registry": "mlrun/mlrun,mlrun/ml-base,mlrun/ml-models",
         },
         {
+            "image": "mlrun/ml-base:0.5.2",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2",
+            "images_to_enrich_registry": "mlrun/mlrun:0.5.2,mlrun/ml-base:0.5.2,mlrun/ml-models:0.5.2",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "quay.io/mlrun/ml-base",
+            "expected_output": "quay.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "expected_output": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s$,^mlrun/ml-base:0.5.2-unstable-adsf76s$",
+        },
+        {
             "image": "mlrun/mlrun",
             "expected_output": "mlrun/mlrun:0.5.2-unstable-adsf76s",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun:bla",
+            "expected_output": "ghcr.io/mlrun/mlrun:bla",
+            "images_to_enrich_registry": "mlrun/mlrun",
+            "images_registry": "ghcr.io",
+        },
+        {
+            "image": "mlrun/mlrun:bla",
+            "expected_output": "mlrun/mlrun:bla",
+            "images_to_enrich_registry": "mlrun/mlrun",
+            "images_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun:0.5.3",
+            "expected_output": "mlrun/mlrun:0.5.3",
+            "images_to_enrich_registry": "mlrun/mlrun:0.5.2",
+        },
     ]
-    config.images_registry = "ghcr.io/"
     config.images_tag = "0.5.2-unstable-adsf76s"
     for case in cases:
+        config.images_registry = case.get("images_registry", "ghcr.io/")
         if case.get("images_to_enrich_registry") is not None:
             config.images_to_enrich_registry = case["images_to_enrich_registry"]
         image = case["image"]

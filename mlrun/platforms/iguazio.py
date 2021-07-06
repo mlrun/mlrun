@@ -17,9 +17,11 @@ import warnings
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
+from urllib.parse import urlparse
 
 import requests
 import urllib3
+import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
@@ -369,8 +371,6 @@ class OutputStream:
         create=True,
         endpoint=None,
     ):
-        import v3io
-
         self._v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         self._container, self._stream_path = split_path(stream_path)
         if create:
@@ -393,6 +393,61 @@ class OutputStream:
         self._v3io_client.put_records(
             container=self._container, path=self._stream_path, records=records
         )
+
+
+class V3ioStreamClient:
+    def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
+        endpoint, stream_path = parse_v3io_path(url)
+        seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
+        seek_to = seek_to or "LATEST"
+        seek_to = seek_to.upper()
+        if seek_to not in seek_options:
+            raise ValueError(f'seek_to must be one of {", ".join(seek_options)}')
+
+        self._url = url
+        self._container, self._stream_path = split_path(stream_path)
+        self._shard_id = shard_id
+        self._seek_to = seek_to
+        self._client = v3io.dataplane.Client(endpoint=endpoint)
+        self._seek_done = False
+        self._location = ""
+        self._kwargs = kwargs
+
+    @property
+    def url(self):
+        return self._url
+
+    @property
+    def shard_id(self):
+        return self._shard_id
+
+    def seek(self):
+        response = self._client.stream.seek(
+            self._container,
+            self._stream_path,
+            self._shard_id,
+            self._seek_to,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            **self._kwargs,
+        )
+        if response.status_code == 404 and "ResourceNotFound" in str(response.body):
+            return 0
+        response.raise_for_status()
+        self._location = response.output.location
+        self._seek_done = True
+        return response.status_code
+
+    def get_records(self):
+        if not self._seek_done:
+            resp = self.seek()
+            if resp == 0:
+                return []
+        response = self._client.stream.get_records(
+            self._container, self._stream_path, self._shard_id, self._location
+        )
+        response.raise_for_status()
+        self._location = response.output.next_location
+        return response.output.records
 
 
 def create_control_session(url, username, password):
@@ -419,7 +474,7 @@ def is_iguazio_endpoint(endpoint_url: str) -> bool:
     return ".default-tenant." in endpoint_url
 
 
-def is_iguazio_control_session(value: str) -> bool:
+def is_iguazio_session(value: str) -> bool:
     # TODO: find a better heuristic
     return len(value) > 20 and "-" in value
 
@@ -445,13 +500,21 @@ def add_or_refresh_credentials(
     api_url: str, username: str = "", password: str = "", token: str = ""
 ) -> (str, str, str):
 
-    # this may be called in "open source scenario" so in this case (not iguazio endpoint) simply do nothing
-    if not is_iguazio_endpoint(api_url) or is_iguazio_control_session(password):
+    if is_iguazio_session(password):
         return username, password, token
 
     username = username or os.environ.get("V3IO_USERNAME")
     password = password or os.environ.get("V3IO_PASSWORD")
     token = token or os.environ.get("V3IO_ACCESS_KEY")
+
+    # When it's not iguazio endpoint it's one of two options:
+    # Enterprise, but we're in the cluster (and not from remote), e.g. url will be something like http://mlrun-api:8080
+    # In which we enforce to have access key which is needed for the API auth
+    # Open source in which auth is not enabled so no creds needed
+    # We don't really have an easy/nice way to differentiate between the two so we're just sending creds anyways
+    # (ideally if we could identify we're in enterprise we would have verify here that token and username have value)
+    if not is_iguazio_endpoint(api_url):
+        return "", "", token
     iguazio_dashboard_url = "https://dashboard" + api_url[api_url.find(".") :]
 
     # in 2.8 mlrun api is protected with control session, from 2.10 it's protected with access key
@@ -479,3 +542,22 @@ def add_or_refresh_credentials(
     control_session = create_control_session(iguazio_dashboard_url, username, password)
     _cached_control_session = (control_session, now, username, password)
     return username, control_session, ""
+
+
+def parse_v3io_path(url, suffix="/"):
+    """return v3io table path from url"""
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme.lower()
+    if scheme != "v3io" and scheme != "v3ios":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "url must start with v3io://[host]/{container}/{path}, got " + url
+        )
+    endpoint = parsed_url.hostname
+    if endpoint:
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        prefix = "https" if scheme == "v3ios" else "http"
+        endpoint = f"{prefix}://{endpoint}"
+    else:
+        endpoint = None
+    return endpoint, parsed_url.path.strip("/") + suffix

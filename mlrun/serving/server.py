@@ -14,7 +14,7 @@
 
 __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 
-
+import asyncio
 import json
 import os
 import socket
@@ -32,7 +32,7 @@ from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
-from .states import RootFlowState, RouterState, get_function, graph_root_setter
+from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 
 
 class _StreamContext:
@@ -83,7 +83,7 @@ class GraphServer(ModelObj):
         secret_sources=None,
     ):
         self._graph = None
-        self.graph: Union[RouterState, RootFlowState] = graph
+        self.graph: Union[RouterStep, RootFlowStep] = graph
         self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
@@ -106,7 +106,7 @@ class GraphServer(ModelObj):
         self._current_function = function
 
     @property
-    def graph(self) -> Union[RootFlowState, RouterState]:
+    def graph(self) -> Union[RootFlowStep, RouterStep]:
         return self._graph
 
     @graph.setter
@@ -124,10 +124,15 @@ class GraphServer(ModelObj):
     def _get_db(self):
         return mlrun.get_run_db(secrets=self._secrets)
 
-    def init(
-        self, context, namespace, resource_cache: ResourceCache = None, logger=None
+    def init_states(
+        self,
+        context,
+        namespace,
+        resource_cache: ResourceCache = None,
+        logger=None,
+        is_mock=False,
     ):
-        """for internal use, initialize all states (recursively)"""
+        """for internal use, initialize all steps (recursively)"""
 
         if self.secret_sources:
             self._secrets = SecretsStore.from_list(self.secret_sources)
@@ -137,6 +142,7 @@ class GraphServer(ModelObj):
         self.resource_cache = resource_cache or ResourceCache()
 
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
+        context.is_mock = is_mock
         context.root = self.graph
 
         context.stream = _StreamContext(
@@ -158,8 +164,14 @@ class GraphServer(ModelObj):
             handler(self)
 
         context.root = self.graph
-        self.graph.init_object(context, namespace, self.load_mode, reset=True)
-        return v2_serving_handler
+
+    def init_object(self, namespace):
+        self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
+        return (
+            v2_serving_async_handler
+            if config.datastore.async_source_mode == "enabled"
+            else v2_serving_handler
+        )
 
     def test(
         self,
@@ -170,7 +182,7 @@ class GraphServer(ModelObj):
         silent=False,
         get_body=True,
     ):
-        """invoke a test event into the server to simulate/test server behaviour
+        """invoke a test event into the server to simulate/test server behavior
 
         example::
 
@@ -182,7 +194,7 @@ class GraphServer(ModelObj):
         :param body:       message body (dict or json str/bytes)
         :param method:     optional, GET, POST, ..
         :param content_type:  optional, http mime type
-        :param silent:     dont raise on error responses (when not 20X)
+        :param silent:     don't raise on error responses (when not 20X)
         :param get_body:   return the body as py object (vs serialize response into json)
         """
         if not self.graph:
@@ -212,6 +224,15 @@ class GraphServer(ModelObj):
                 body=message, content_type="text/plain", status_code=400
             )
 
+        if asyncio.iscoroutine(response):
+            return self._process_async_response(context, response, get_body)
+        else:
+            return self._process_response(context, response, get_body)
+
+    async def _process_async_response(self, context, response, get_body):
+        return self._process_response(context, await response, get_body)
+
+    def _process_response(self, context, response, get_body):
         body = response.body
         if isinstance(body, context.Response) or get_body:
             return body
@@ -239,7 +260,8 @@ def v2_serving_init(context, namespace=None):
     if config.log_level.lower() == "debug":
         server.verbose = True
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
-    serving_handler = server.init(context, namespace or get_caller_globals())
+    server.init_states(context, namespace or get_caller_globals())
+    serving_handler = server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "server", server)
@@ -251,6 +273,11 @@ def v2_serving_init(context, namespace=None):
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
     return context.server.run(event, context, get_body)
+
+
+async def v2_serving_async_handler(context, event, get_body=False):
+    """hook for nuclio handler()"""
+    return await context.server.run(event, context, get_body)
 
 
 def create_graph_server(
@@ -265,7 +292,7 @@ def create_graph_server(
 
     Usage example::
 
-        server = create_graph_server(graph=RouterState(), parameters={})
+        server = create_graph_server(graph=RouterStep(), parameters={})
         server.init(None, globals())
         server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
         print(server.test("/v2/models/my/infer", testdata))
@@ -319,7 +346,7 @@ class Response(object):
 class GraphContext:
     """Graph context object"""
 
-    def __init__(self, level="debug", logger=None, server=None, nuclio_context=None):
+    def __init__(self, level="info", logger=None, server=None, nuclio_context=None):
         self.state = None
         self.logger = logger
         self.worker_id = 0
@@ -339,6 +366,7 @@ class GraphContext:
         self.current_function = None
         self.get_store_resource = None
         self.get_table = None
+        self.is_mock = False
 
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:

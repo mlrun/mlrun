@@ -6,7 +6,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors
@@ -53,6 +53,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
+        leader_session: typing.Optional[str] = None,
     ):
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
@@ -62,6 +63,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
                 label_selector,
                 force,
                 grace_period,
+                leader_session,
             )
 
     def delete_runtime(
@@ -71,6 +73,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
+        leader_session: typing.Optional[str] = None,
     ):
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             mlrun.api.api.utils.log_and_raise(
@@ -83,6 +86,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             label_selector,
             force,
             grace_period,
+            leader_session,
         )
 
     def delete_runtime_object(
@@ -93,6 +97,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
+        leader_session: typing.Optional[str] = None,
     ):
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             mlrun.api.api.utils.log_and_raise(
@@ -106,4 +111,5 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             label_selector,
             force,
             grace_period,
+            leader_session,
         )

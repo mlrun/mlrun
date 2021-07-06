@@ -2,7 +2,7 @@ import collections
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import humanfriendly
 import mergedeep
@@ -11,11 +11,12 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
-import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
+    generate_query_predicate_for_name,
     label_set,
     run_labels,
     run_start_time,
@@ -58,7 +59,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
+class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {
@@ -69,9 +70,19 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def initialize(self, session):
         return
 
-    def store_log(self, session, uid, project="", body=b"", append=False):
+    def store_log(
+        self,
+        session,
+        uid,
+        project="",
+        body=b"",
+        append=False,
+        leader_session: Optional[str] = None,
+    ):
         project = project or config.default_project
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(
+            session, project, leader_session=leader_session
+        )
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -102,12 +113,22 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def _list_logs(self, session: Session, project: str):
         return self._query(session, Log, project=project).all()
 
-    def store_run(self, session, run_data, uid, project="", iter=0):
+    def store_run(
+        self,
+        session,
+        run_data,
+        uid,
+        project="",
+        iter=0,
+        leader_session: Optional[str] = None,
+    ):
         project = project or config.default_project
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(
+            session, project, leader_session=leader_session
+        )
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -215,9 +236,26 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         session.commit()
 
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project=""
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        leader_session: Optional[str] = None,
     ):
-        self._store_artifact(session, key, artifact, uid, iter, tag, project)
+        self._store_artifact(
+            session,
+            key,
+            artifact,
+            uid,
+            iter,
+            tag,
+            project,
+            leader_session=leader_session,
+        )
 
     def _store_artifact(
         self,
@@ -230,10 +268,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project="",
         tag_artifact=True,
         ensure_project=True,
+        leader_session: Optional[str] = None,
     ):
         project = project or config.default_project
         if ensure_project:
-            get_project_member().ensure_project(session, project)
+            get_project_member().ensure_project(
+                session, project, leader_session=leader_session
+            )
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -324,8 +365,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter: int = None,
+        best_iteration: bool = False,
     ):
         project = project or config.default_project
+
+        if best_iteration and iter is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "best-iteration cannot be used when iter is specified"
+            )
 
         # TODO: Refactor this area
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
@@ -339,13 +386,32 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 ids = self._resolve_tag(session, Artifact, project, tag)
 
         artifacts = ArtifactList()
-        for artifact in self._find_artifacts(
+        artifact_records = self._find_artifacts(
             session, project, ids, labels, since, until, name, kind, category, iter
-        ):
+        )
+        indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
+        for artifact in artifact_records:
+            has_iteration = self._name_with_iter_regex.match(artifact.key)
+
+            # Handle case of looking for best iteration. In that case if there's a linked iteration, we look
+            # for it in the results and return the linked artifact if exists. If original iter is not 0 then
+            # we skip this item.
+            if best_iteration:
+                if has_iteration:
+                    continue
+                link_iteration = artifact.struct.get("link_iteration")
+                if link_iteration:
+                    linked_key = f"{link_iteration}-{artifact.key}"
+                    linked_artifact = indexed_artifacts.get(linked_key)
+                    if linked_artifact:
+                        artifact = linked_artifact
+                    else:
+                        continue
+
             # We need special handling for the case where iter==0, since in that case no iter prefix will exist.
             # Regex support is db-specific, and SQLAlchemy actually implements Python regex for SQLite anyway,
             # and even that only in SA 1.4. So doing this here rather than in the query.
-            if iter == 0 and self._name_with_iter_regex.match(artifact.key):
+            if iter == 0 and has_iteration:
                 continue
 
             artifact_struct = artifact.struct
@@ -398,7 +464,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             self.del_artifact(session, artifact.key, "", project)
 
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False
+        self,
+        session,
+        function,
+        name,
+        project="",
+        tag="",
+        versioned=False,
+        leader_session: Optional[str] = None,
     ):
         logger.debug(
             "Storing function to DB",
@@ -409,7 +482,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             function=function,
         )
         project = project or config.default_project
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(
+            session, project, leader_session=leader_session
+        )
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -605,8 +680,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        leader_session: Optional[str] = None,
     ):
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(
+            session, project, leader_session=leader_session
+        )
         schedule = self._get_schedule_record(session, project, name)
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
@@ -647,7 +725,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, project=project, kind=kind)
         if name is not None:
-            query = query.filter(Schedule.name.ilike(f"%{name}%"))
+            query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Schedule, labels)
 
@@ -824,19 +902,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
-        if deletion_strategy == schemas.DeletionStrategy.restrict:
-            project_record = self._get_project_record(
-                session, name, raise_on_not_found=False
-            )
-            if not project_record:
-                return
-            self._verify_project_has_no_related_resources(session, name)
-        elif deletion_strategy == schemas.DeletionStrategy.cascade:
-            self._delete_project_related_resources(session, name)
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown deletion strategy: {deletion_strategy}"
-            )
         self._delete(session, Project, name=name)
 
     def list_projects(
@@ -856,7 +921,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # calculating the project summary data is done by doing cross project queries (and not per project) so we're
         # building it outside of the loop
         if format_ == mlrun.api.schemas.Format.summary:
-            projects = self._generate_projects_summaries(session, project_names)
+            projects = self.generate_projects_summaries(session, project_names)
         else:
             for project_record in project_records:
                 if format_ == mlrun.api.schemas.Format.name_only:
@@ -971,7 +1036,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         return self._cache["project_resources_counters"]["result"]
 
-    def _generate_projects_summaries(
+    def generate_projects_summaries(
         self, session: Session, projects: List[str]
     ) -> List[mlrun.api.schemas.ProjectSummary]:
         (
@@ -1033,6 +1098,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
 
+    def is_project_exists(self, session: Session, name: str):
+        project_record = self._get_project_record(
+            session, name, raise_on_not_found=False
+        )
+        if not project_record:
+            return False
+        return True
+
     def _get_project_record(
         self,
         session: Session,
@@ -1056,33 +1129,33 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         return project_record
 
-    def _verify_project_has_no_related_resources(self, session: Session, project: str):
-        artifacts = self._find_artifacts(session, project, "*")
+    def verify_project_has_no_related_resources(self, session: Session, name: str):
+        artifacts = self._find_artifacts(session, name, "*")
         self._verify_empty_list_of_project_related_resources(
-            project, artifacts, "artifacts"
+            name, artifacts, "artifacts"
         )
-        logs = self._list_logs(session, project)
-        self._verify_empty_list_of_project_related_resources(project, logs, "logs")
-        runs = self._find_runs(session, None, project, []).all()
-        self._verify_empty_list_of_project_related_resources(project, runs, "runs")
-        schedules = self.list_schedules(session, project=project)
+        logs = self._list_logs(session, name)
+        self._verify_empty_list_of_project_related_resources(name, logs, "logs")
+        runs = self._find_runs(session, None, name, []).all()
+        self._verify_empty_list_of_project_related_resources(name, runs, "runs")
+        schedules = self.list_schedules(session, project=name)
         self._verify_empty_list_of_project_related_resources(
-            project, schedules, "schedules"
+            name, schedules, "schedules"
         )
-        functions = self._list_project_functions(session, project)
+        functions = self._list_project_functions(session, name)
         self._verify_empty_list_of_project_related_resources(
-            project, functions, "functions"
+            name, functions, "functions"
         )
-        feature_sets = self.list_feature_sets(session, project).feature_sets
+        feature_sets = self.list_feature_sets(session, name).feature_sets
         self._verify_empty_list_of_project_related_resources(
-            project, feature_sets, "feature_sets"
+            name, feature_sets, "feature_sets"
         )
-        feature_vectors = self.list_feature_vectors(session, project).feature_vectors
+        feature_vectors = self.list_feature_vectors(session, name).feature_vectors
         self._verify_empty_list_of_project_related_resources(
-            project, feature_vectors, "feature_vectors"
+            name, feature_vectors, "feature_vectors"
         )
 
-    def _delete_project_related_resources(self, session: Session, name: str):
+    def delete_project_related_resources(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)
@@ -1158,7 +1231,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # Find object IDs by tag, project and feature-set-name (which is a like query)
         tag_query = self._query(session, cls.Tag, project=project, name=tag)
         if name:
-            tag_query = tag_query.filter(cls.Tag.obj_name.ilike(f"%{name}%"))
+            tag_query = tag_query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, name)
+            )
 
         # Generate a mapping from each object id (note: not uid, it's the DB ID) to its associated tags.
         obj_id_tags = {}
@@ -1216,7 +1291,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         )
 
         if name:
-            query = query.filter(query_class.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(query_class.name, name)
+            )
         if labels:
             query = self._add_labels_filter(session, query, query_class, labels)
         if tag:
@@ -1390,7 +1467,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureSet, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureSet.name, name)
+            )
         if tag:
             query = query.filter(FeatureSet.id.in_(obj_id_tags.keys()))
         if entities:
@@ -1512,10 +1591,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
         db_object.updated = updated_datetime
+        if not db_object.created:
+            db_object.created = common_object_dict["metadata"].pop(
+                "created", None
+            ) or datetime.now(timezone.utc)
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
 
         common_object_dict["metadata"]["updated"] = str(updated_datetime)
+        common_object_dict["metadata"]["created"] = str(db_object.created)
 
         # In case of an unversioned object, we don't want to return uid to user queries. However,
         # the uid DB field has to be set, since it's used for uniqueness in the DB.
@@ -1537,6 +1621,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
+        leader_session: Optional[str] = None,
     ):
         self._validate_store_parameters(feature_set, project, name, tag, uid)
 
@@ -1559,7 +1644,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 return uid
 
             feature_set.metadata.tag = tag
-            return self.create_feature_set(session, project, feature_set, versioned)
+            return self.create_feature_set(
+                session, project, feature_set, versioned, leader_session
+            )
 
         uid = self._common_object_validate_and_perform_uid_change(
             feature_set_dict, tag, versioned, original_uid
@@ -1579,7 +1666,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return uid
 
     def _validate_and_enrich_record_for_creation(
-        self, session, new_object, db_class, project, versioned
+        self,
+        session,
+        new_object,
+        db_class,
+        project,
+        versioned,
+        leader_session: Optional[str] = None,
     ):
         object_type = new_object.__class__.__name__
 
@@ -1597,7 +1690,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         new_object.metadata.project = project
 
-        get_project_member().ensure_project(session, project)
+        get_project_member().ensure_project(
+            session, project, leader_session=leader_session
+        )
         tag = new_object.metadata.tag or "latest"
 
         object_dict = new_object.dict(exclude_none=True)
@@ -1621,10 +1716,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         return uid, tag, object_dict
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+        self,
+        session,
+        project,
+        feature_set: schemas.FeatureSet,
+        versioned=True,
+        leader_session: Optional[str] = None,
     ):
         (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
-            session, feature_set, FeatureSet, project, versioned
+            session, feature_set, FeatureSet, project, versioned, leader_session
         )
 
         db_feature_set = FeatureSet(project=project)
@@ -1646,6 +1746,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        leader_session: Optional[str] = None,
     ):
         feature_set_record = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set_record:
@@ -1672,6 +1773,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             uid,
             versioned,
             always_overwrite=True,
+            leader_session=leader_session,
         )
 
     def _delete_feature_store_object(self, session, cls, project, name, tag, uid):
@@ -1708,14 +1810,19 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)
 
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+        self,
+        session,
+        project,
+        feature_vector: schemas.FeatureVector,
+        versioned=True,
+        leader_session: Optional[str] = None,
     ):
         (
             uid,
             tag,
             feature_vector_dict,
         ) = self._validate_and_enrich_record_for_creation(
-            session, feature_vector, FeatureVector, project, versioned
+            session, feature_vector, FeatureVector, project, versioned, leader_session
         )
 
         db_feature_vector = FeatureVector(project=project)
@@ -1784,7 +1891,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         query = self._query(session, FeatureVector, project=project, state=state)
 
         if name is not None:
-            query = query.filter(FeatureVector.name.ilike(f"%{name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(FeatureVector.name, name)
+            )
         if tag:
             query = query.filter(FeatureVector.id.in_(obj_id_tags.keys()))
         if labels:
@@ -1823,6 +1932,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
+        leader_session: Optional[str] = None,
     ):
         self._validate_store_parameters(feature_vector, project, name, tag, uid)
 
@@ -1846,7 +1956,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
             feature_vector.metadata.tag = tag
             return self.create_feature_vector(
-                session, project, feature_vector, versioned
+                session, project, feature_vector, versioned, leader_session
             )
 
         uid = self._common_object_validate_and_perform_uid_change(
@@ -1876,6 +1986,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        leader_session: Optional[str] = None,
     ):
         feature_vector_record = self._get_feature_vector(
             session, project, name, tag, uid
@@ -1903,6 +2014,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             uid,
             versioned,
             always_overwrite=True,
+            leader_session=leader_session,
         )
 
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):
@@ -1932,7 +2044,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         query = self._query(session, cls.Tag, project=project, name=tag_name)
         if obj_name:
-            query = query.filter(cls.Tag.obj_name.ilike(f"%{obj_name}%"))
+            query = query.filter(
+                generate_query_predicate_for_name(cls.Tag.obj_name, obj_name)
+            )
 
         for tag in query:
             uids.append(self._query(session, cls).get(tag.obj_id).uid)
@@ -1995,17 +2109,40 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         session.commit()
 
     def _upsert(self, session, obj, ignore=False):
-        try:
-            session.add(obj)
-            session.commit()
-        except SQLAlchemyError as err:
-            session.rollback()
-            cls = obj.__class__.__name__
-            logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
-            if not ignore:
-                raise mlrun.errors.MLRunConflictError(
-                    f"Conflict - {cls} already exists"
-                ) from err
+        def _try_commit_obj():
+            try:
+                session.add(obj)
+                session.commit()
+            except SQLAlchemyError as err:
+                session.rollback()
+                cls = obj.__class__.__name__
+                if "database is locked" in str(err):
+                    logger.warning(
+                        "Database is locked. Retrying", cls=cls, err=str(err)
+                    )
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Failed adding resource, database is locked"
+                    ) from err
+                logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
+                if not ignore:
+                    # We want to retry only when database is locked so for any other scenario escalate to fatal failure
+                    try:
+                        raise mlrun.errors.MLRunConflictError(
+                            f"Conflict - {cls} already exists"
+                        ) from err
+                    except mlrun.errors.MLRunConflictError as exc:
+                        raise mlrun.utils.helpers.FatalFailureException(
+                            original_exception=exc
+                        )
+
+        if config.httpdb.db.commit_retry_timeout:
+            mlrun.utils.helpers.retry_until_successful(
+                config.httpdb.db.commit_retry_interval,
+                config.httpdb.db.commit_retry_timeout,
+                logger,
+                False,
+                _try_commit_obj,
+            )
 
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
@@ -2045,11 +2182,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         for run in query:
             run_json = run.struct
             if name:
-                if (
-                    not run_json
-                    or not isinstance(run_json, dict)
-                    or name not in run_json.get("metadata", {}).get("name", "")
-                ):
+                if not run_json or not isinstance(run_json, dict):
+                    continue
+
+                run_name = run_json.get("metadata", {}).get("name", "")
+                if name.startswith("~"):
+                    if name[1:].casefold() not in run_name.casefold():
+                        continue
+                elif name != run_name:
                     continue
             if state:
                 if not self._is_run_matching_state(run, run_json, state):
@@ -2101,7 +2241,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             .subquery("max_key")
         )
 
-        # Join curreny query with sub query on (project, key, uid)
+        # Join current query with sub query on (project, key, uid)
         return query.join(
             subq,
             and_(
@@ -2109,6 +2249,41 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 Artifact.key == subq.c.key,
                 Artifact.uid == subq.c.uid,
             ),
+        )
+
+    def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
+        if not name and not iter:
+            return query
+
+        # Escape special chars (_,%) since we still need to do a like query because of the iter.
+        # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
+        # this helps filter the situations where we match a suffix by mistake due to the like query.
+        exact_name = (
+            name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
+        )
+
+        if name and name.startswith("~"):
+            # Like query
+            iter_prefix = f"{iter}-" if iter else ""
+            return query.filter(
+                Artifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%", escape="\\")
+            )
+
+        # From here on, it's either exact name match or no name
+        if iter:
+            if name:
+                return query.filter(Artifact.key == f"{iter}-{name}")
+            return query.filter(Artifact.key.ilike(f"{iter}-%"))
+
+        # Exact match, no iter specified
+        return query.filter(
+            or_(
+                Artifact.key == name,
+                and_(
+                    Artifact.key.like(f"%-{exact_name}", escape="\\"),
+                    func.length(Artifact.key) < len(name) + 4,
+                ),
+            )
         )
 
     def _find_artifacts(
@@ -2155,21 +2330,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
-        name_query = ""
-        if iter:
-            # Note that this only covers cases where iter>0
-            name_query = f"{iter}-"
-        if name is not None:
-            name_query = name_query + f"%{name}"
-        if name_query != "":
-            query = query.filter(Artifact.key.ilike(f"{name_query}%"))
+        query = self._add_artifact_name_and_iter_query(query, name, iter)
 
         if kind:
             return self._filter_artifacts_by_kinds(query, [kind])
 
         elif category:
-            return self._filter_artifacts_by_category(query, category)
-
+            filtered_artifacts = self._filter_artifacts_by_category(query, category)
+            # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
+            #        the wrong category. Remove this when we refactor this area.
+            return self._filter_out_extra_link_artifacts(filtered_artifacts)
         else:
             return query.all()
 
@@ -2208,8 +2378,35 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 filtered_artifacts.append(artifact)
         return filtered_artifacts
 
+    # TODO - this is a hack needed since link artifacts will be returned even for artifacts of
+    #        the wrong category. Remove this when we refactor this area.
+    @staticmethod
+    def _filter_out_extra_link_artifacts(artifacts):
+        # Only keep link artifacts that point at "real" artifacts that already exist in the results
+        existing_keys = set()
+        link_artifacts = []
+        filtered_artifacts = []
+        for artifact in artifacts:
+            if artifact.struct.get("kind") != "link":
+                existing_keys.add(artifact.key)
+                filtered_artifacts.append(artifact)
+            else:
+                link_artifacts.append(artifact)
+
+        for link_artifact in link_artifacts:
+            link_iteration = link_artifact.struct.get("link_iteration")
+            if not link_iteration:
+                continue
+            linked_key = f"{link_iteration}-{link_artifact.key}"
+            if linked_key in existing_keys:
+                filtered_artifacts.append(link_artifact)
+
+        return filtered_artifacts
+
     def _find_functions(self, session, name, project, uids=None, labels=None):
-        query = self._query(session, Function, name=name, project=project)
+        query = self._query(session, Function, project=project)
+        if name:
+            query = query.filter(generate_query_predicate_for_name(Function.name, name))
         if uids:
             query = query.filter(Function.uid.in_(uids))
 
@@ -2322,6 +2519,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         feature_vector_resp = schemas.FeatureVector(**feature_vector_full_dict)
 
         feature_vector_resp.metadata.tag = tag
+        feature_vector_resp.metadata.created = feature_vector_record.created
         return feature_vector_resp
 
     def _transform_project_record_to_schema(

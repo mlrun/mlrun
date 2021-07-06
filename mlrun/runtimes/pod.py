@@ -373,6 +373,20 @@ class KubeResource(BaseRuntime):
         volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
 
+    def _add_project_k8s_secrets_to_spec(self, secrets, runobj=None, project=None):
+        project_name = project or runobj.metadata.project
+        if project_name is None:
+            logger.warning("No project provided. Cannot add k8s secrets")
+            return
+
+        secret_name = self._get_k8s().get_project_secret_name(project_name)
+        existing_secret_keys = (
+            self._get_k8s().get_project_secret_keys(project_name) or {}
+        )
+        for key, env_var_name in secrets.items():
+            if key in existing_secret_keys:
+                self.set_env_from_secret(env_var_name, secret_name, key)
+
     def _add_vault_params_to_spec(self, runobj=None, project=None):
         project_name = project or runobj.metadata.project
         if project_name is None:

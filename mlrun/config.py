@@ -178,7 +178,10 @@ default_config = {
             "default_secret_name": None,
             "secret_path": "~/.mlrun/azure_vault",
         },
-        "kubernetes": {"project_secret_name": "mlrun-project-secrets-{project}"},
+        "kubernetes": {
+            "project_secret_name": "mlrun-project-secrets-{project}",
+            "env_variable_prefix": "MLRUN_K8S_SECRET__",
+        },
     },
     "feature_store": {
         "data_prefixes": {

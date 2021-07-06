@@ -75,7 +75,7 @@ api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 extras_require = {
     # from 1.17.50 it requires botocore>=1.20.50,<1.21.0 which conflicts with s3fs 0.5.2 that has aiobotocore>=1.0.1
     # which resolves to 1.3.0 which has botocore>=1.20.49,<1.20.50
-    # boto3 1.17.49 has botocore<1.21.0,>=1.20.49, so we must add botocore explictly
+    # boto3 1.17.49 has botocore<1.21.0,>=1.20.49, so we must add botocore explicitly
     "s3": [
         "boto3~=1.9, <1.17.50",
         "botocore>=1.20.49,<1.20.50",

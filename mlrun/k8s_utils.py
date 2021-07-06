@@ -326,13 +326,13 @@ class K8sHelper:
 
         return service_account.secrets[0].name
 
-    def _get_project_secret_name(self, project):
+    def get_project_secret_name(self, project):
         return mlconfig.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
     def store_project_secrets(self, project, secrets, namespace=""):
-        secret_name = self._get_project_secret_name(project)
+        secret_name = self.get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -357,13 +357,13 @@ class K8sHelper:
         self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
     def delete_project_secrets(self, project, secrets, namespace=""):
-        secret_name = self._get_project_secret_name(project)
+        secret_name = self.get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
-            # If secret does not exist, return as if the deletion was successfuly
+            # If secret does not exist, return as if the deletion was successfully
             if exc.status == 404:
                 return
             else:
@@ -384,7 +384,7 @@ class K8sHelper:
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
     def get_project_secret_keys(self, project, namespace=""):
-        secret_name = self._get_project_secret_name(project)
+        secret_name = self.get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
 
         try:

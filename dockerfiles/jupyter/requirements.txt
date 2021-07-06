@@ -6,4 +6,4 @@ scikit-plot~=0.3.7
 xgboost~=1.1
 graphviz~=0.16.0
 python-dotenv~=0.17.0
-git+git://github.com/liranbg/nuclio-jupyter@use-internal-external-invocation-url#egg=nuclio-jupyter[jupyter-server]
+nuclio-jupyter[jupyter-server]~=0.8.16

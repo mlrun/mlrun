@@ -221,6 +221,8 @@ class SparkRuntime(KubejobRuntime):
             raise MLRunBadRequestError("Sparkjob must contain driver requests")
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        self._validate()
+        
         if runobj.metadata.iteration:
             self.store_run(runobj)
         job = deepcopy(_sparkjob_template)

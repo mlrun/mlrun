@@ -135,7 +135,9 @@ class TestFeatureStore(TestMLRunSystem):
         resp.to_parquet(str(self.results_path / "query.parquet"))
 
         # check simple api without join with other df
-        resp = fs.get_offline_features(vector)
+        vector.save()
+        # test vector uri
+        resp = fs.get_offline_features(vector.uri)
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
@@ -157,6 +159,16 @@ class TestFeatureStore(TestMLRunSystem):
         assert (
             len(resp2[0]) == features_size - 1
         ), "unexpected online vector size"  # -1 label
+        svc.close()
+
+        # test uri taken from dashboard
+        svc = fs.get_online_feature_service(
+            f"store://feature-vectors/{self.project_name}/myvector:latest"
+        )
+        resp3 = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+        assert (
+            resp3[0]["name"] == "Alphabet Inc" and resp3[1]["exchange"] == "NASDAQ"
+        ), "unexpected online result"
         svc.close()
 
     def test_ingest_and_query(self):

@@ -20,7 +20,7 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore.store_resources import parse_store_uri
+from ..datastore.store_resources import is_store_uri, parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
     get_default_targets,
@@ -31,7 +31,7 @@ from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
-from ..utils import get_caller_globals, logger
+from ..utils import StorePrefix, get_caller_globals, logger
 from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
 from .feature_set import FeatureSet
 from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService
@@ -49,7 +49,18 @@ spark_transform_handler = "transform"
 
 def _features_to_vector(features):
     if isinstance(features, str):
-        vector = get_feature_vector_by_uri(features)
+        if is_store_uri(features):
+            prefix, uri = parse_store_uri(features)
+            if prefix == StorePrefix.FeatureVector:
+                vector = get_feature_vector_by_uri(uri)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"the store uri ({features}) prefix should match feature vector prefix (prefix={prefix})"
+                )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"illegal features uri ({features})"
+            )
     elif isinstance(features, FeatureVector):
         vector = features
     else:

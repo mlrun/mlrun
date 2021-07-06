@@ -440,6 +440,8 @@ class RemoteRuntime(KubeResource):
             # save the (first) function external invocation url
             # this is made for backwards compatability because the user, at this point, may
             # work remotely and need the external invocation url on the spec.command
+            # TODO: when using `ClusterIP`, this block might not fulfilled
+            #       as long as function doesnt have ingresses
             if self.status.external_invocation_urls:
                 address = self.status.external_invocation_urls[0]
                 self.spec.command = f"http://{address}"

@@ -213,6 +213,13 @@ class SparkRuntime(KubejobRuntime):
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
+    def _validate(self):
+        from mlrun.errors import MLRunBadRequestError
+        if "requests" not in self.spec.executor_resources:
+            raise MLRunBadRequestError("Sparkjob must contain executor requests")
+        if "requests" not in self.spec.driver_resources:
+            raise MLRunBadRequestError("Sparkjob must contain driver requests")
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         if runobj.metadata.iteration:
             self.store_run(runobj)

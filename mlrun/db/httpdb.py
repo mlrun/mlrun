@@ -178,7 +178,6 @@ class HTTPRunDB(RunDBInterface):
             if resp.content:
                 try:
                     data = resp.json()
-                    logger.warning("benb data = " + resp)
                     reason = data.get("detail", {}).get("reason", "")
                 except Exception:
                     reason = ""

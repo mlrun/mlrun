@@ -902,7 +902,7 @@ def get_nuclio_deploy_status(
     name = get_fullname(name, project, tag)
 
     state, address, last_log_timestamp, outputs, function_status = get_deploy_status(
-        api_address, name, last_log_timestamp, verbose, resolve_address
+        api_address, name, last_log_timestamp, verbose, resolve_address, return_function_status=True
     )
 
     text = "\n".join(outputs) if outputs else ""

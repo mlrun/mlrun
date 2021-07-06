@@ -866,24 +866,30 @@ class TestFeatureStore(TestMLRunSystem):
                 "data": [2000, 10],
             }
         )
-
         # writing down a remote source
-        data.to_parquet(str(self.results_path / "first_iter.parquet"))
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
 
         cron_trigger = '*/1 * * * *'
 
         source = ParquetSource(
             "myparquet",
-            path=self.results_path,
+            path=path, #### should be directory only
             time_field="time",
-            #            schedule=cron_trigger,
+            schedule=cron_trigger,
         )
 
         feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
-
-        target = ParquetTarget()
-        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=True))
+ #       target = ParquetTarget()
+        #        yyy = fs.ingest(feature_set, source, targets=[target])
+        yyy = fs.ingest(feature_set, source, run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
         #        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
+
+        print(yyy)
+
         sleep(60)
 
         features = ["blabla.*"]
@@ -893,6 +899,9 @@ class TestFeatureStore(TestMLRunSystem):
         vec_dict = vec_df.to_dict()
         assert len(vec_df) == 2
         assert vec_dict["data"]["moshe"] == 2000
+
+        sleep(600)
+        return
 
         data = pd.DataFrame(
             {
@@ -910,38 +919,43 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(vec_df) == 2  # the new ones are too "old"
         assert vec_dict["data"]["moshe"] == 50
 
-    def test_443_play(self):
-        from datetime import timedelta
-        now = datetime.now() + timedelta(minutes=2)
-
-        data = pd.DataFrame(
-            {
-                "time": [now, now - pd.Timedelta(minutes=1)],
-                "first_name": ["moshe", "yosi"],
-                "data": [2000, 10],
-            }
-        )
-
-        # writing down a remote source
-        data.to_parquet(str(
-            self.results_path / _generate_random_name() / "par1.parquet"
-        ))
-
-        cron_trigger = '*/1 * * * *'
-
-        source = ParquetSource(
-            "myparquet",
-            path=self.results_path,
-            time_field="time",
-            schedule=cron_trigger,
-        )
-
-        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
-
-        target = ParquetTarget()
-        yyy = fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=True))
-        #        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
-        print(yyy)
+#     def test_443_play(self):
+#         from datetime import timedelta
+#         now = datetime.now() + timedelta(minutes=2)
+#
+#         data = pd.DataFrame(
+#             {
+#                 "time": [now, now - pd.Timedelta(minutes=1)],
+#                 "first_name": ["moshe", "yosi"],
+#                 "data": [2000, 10],
+#             }
+#         )
+#
+#         dir_name = "/tmp/vvvvvvv/"
+#
+#         os.mkdir(dir_name)
+#
+#         # writing down a remote source
+#         data.to_parquet(dir_name + "par1.parquet")
+#
+#         cron_trigger = '*/1 * * * *'
+#
+#         source = ParquetSource(
+#             "myparquet",
+#             path=dir_name,
+#             time_field="time",
+#             schedule=cron_trigger,
+#         )
+#
+#         feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
+#
+#         target = ParquetTarget()
+# #        yyy = fs.ingest(feature_set, source, targets=[target])
+#         yyy = fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
+#         print(yyy)
+#
+#         os.remove(dir_name+"par1.parquet")
+#         os.rmdir(dir_name)
 
 
     def test_split_graph(self):

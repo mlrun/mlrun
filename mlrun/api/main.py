@@ -56,7 +56,7 @@ async def http_status_error_handler(
         status_code=status_code,
     )
     return await http_exception_handler(
-        request, fastapi.HTTPException(status_code=status_code, detail=exc)
+        request, fastapi.HTTPException(status_code=status_code, detail=(f"reason=%s", error_message))
     )
 
 

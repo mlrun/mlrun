@@ -54,6 +54,8 @@ class TestServingRuntime(TestNuclioRuntime):
                         state="ready",
                         nuclio_name=f"nuclio-{func.metadata.name}",
                         address="http://127.0.0.1:1234",
+                        external_invocation_urls=["http://somewhere-far-away.com"],
+                        internal_invocation_urls=["http://127.0.0.1:1234"],
                     )
                 }
             }

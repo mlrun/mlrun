@@ -28,24 +28,25 @@ from .utils import logger
 _k8s = None
 
 
-def get_k8s_helper(namespace=None, silent=False):
+def get_k8s_helper(namespace=None, silent=False, log=False):
     """
     :param silent: set to true if you're calling this function from a code that might run from remotely (outside of a
     k8s cluster)
+    :param log: sometimes we want to avoid logging when executing init_k8s_config
     """
     global _k8s
     if not _k8s:
-        _k8s = K8sHelper(namespace, silent=silent)
+        _k8s = K8sHelper(namespace, silent=silent, log=log)
     return _k8s
 
 
 class K8sHelper:
-    def __init__(self, namespace=None, config_file=None, silent=False):
+    def __init__(self, namespace=None, config_file=None, silent=False, log=True):
         self.namespace = namespace or mlconfig.namespace
         self.config_file = config_file
         self.running_inside_kubernetes_cluster = False
         try:
-            self._init_k8s_config()
+            self._init_k8s_config(log)
             self.v1api = client.CoreV1Api()
             self.crdapi = client.CustomObjectsApi()
         except Exception:
@@ -362,7 +363,7 @@ class K8sHelper:
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
-            # If secret does not exist, return as if the deletion was successfuly
+            # If secret does not exist, return as if the deletion was successfully
             if exc.status == 404:
                 return
             else:

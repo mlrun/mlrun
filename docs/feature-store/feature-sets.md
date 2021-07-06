@@ -142,7 +142,7 @@ When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the f
 There are multiple data source options including http, kafka, kinesis, v3io stream, etc. <br>
 
 ```python
-# Create a real time function that recieve http requests
+# Create a real time function that receive http requests
 # the "ingest" function runs the feature engineering logic on live events
 source = HTTPSource()
 func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())

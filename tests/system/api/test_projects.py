@@ -148,7 +148,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             filename=filename,
             handler="secret_test_function",
             kind="job",
-            image="mlrun/mlrun"
+            image="mlrun/mlrun",
         )
 
         task = mlrun.new_task().with_secrets("kubernetes", list(secrets.keys()))

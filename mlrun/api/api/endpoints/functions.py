@@ -18,7 +18,11 @@ from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, runtime_resources_map
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
+from mlrun.runtimes.function import (
+    deploy_nuclio_function,
+    get_nuclio_deploy_status,
+    resolve_function_internal_invocation_url,
+)
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 
 router = APIRouter()
@@ -216,11 +220,18 @@ def build_status(
         if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
 
-        internal_invocation_urls = status.get("internalInvocationUrls", [])
-        external_invocation_urls = status.get("externalInvocationUrls", [])
+        # internal / external invocation urls were added on nuclio 1.6.x
+        # and hence, it might be empty
+        # to backward compatible with older nuclio versions, we use hard-coded default values
+        internal_invocation_urls = status.get(
+            "internalInvocationUrls", [resolve_function_internal_invocation_url(name)]
+        )
+        external_invocation_urls = status.get(
+            "externalInvocationUrls", [address] if address else []
+        )
 
         # on nuclio > 1.6.x we get the external invocation url on the status block
-        if external_invocation_urls:
+        if external_invocation_urls and not address:
             address = external_invocation_urls[0]
 
         update_in(fn, "status.nuclio_name", nuclio_name)

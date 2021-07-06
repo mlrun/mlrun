@@ -407,6 +407,7 @@ class RemoteRuntime(KubeResource):
             self.status = data["data"].get("status")
             # ready = data.get("ready", False)
 
+            text = ""
             while state not in ["ready", "error", "unhealthy"]:
                 sleep(1)
                 try:
@@ -902,7 +903,12 @@ def get_nuclio_deploy_status(
     name = get_fullname(name, project, tag)
 
     state, address, last_log_timestamp, outputs, function_status = get_deploy_status(
-        api_address, name, last_log_timestamp, verbose, resolve_address, return_function_status=True
+        api_address,
+        name,
+        last_log_timestamp,
+        verbose,
+        resolve_address,
+        return_function_status=True,
     )
 
     text = "\n".join(outputs) if outputs else ""

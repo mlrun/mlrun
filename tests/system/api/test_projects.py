@@ -1,3 +1,4 @@
+import pathlib
 from http import HTTPStatus
 
 import deepdiff
@@ -131,3 +132,28 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         # Negative test - try to list_secrets for k8s secrets (not implemented)
         with pytest.raises(mlrun.errors.MLRunBadRequestError):
             self._run_db.list_project_secrets(self.project_name, provider="kubernetes")
+
+    def test_k8s_project_secrets_with_runtime(self):
+        secrets = {"secret1": "JustMySecret", "secret2": "!@#$$%^^&&"}
+
+        # Setup k8s secrets
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
+        self._run_db.create_project_secrets(self.project_name, "kubernetes", secrets)
+
+        # Run a function using k8s secrets
+        filename = str(pathlib.Path(__file__).parent / "assets" / "function.py")
+        function = mlrun.code_to_function(
+            name="test-func",
+            project=self.project_name,
+            filename=filename,
+            handler="secret_test_function",
+            kind="job",
+        )
+
+        task = mlrun.new_task().with_secrets("kubernetes", list(secrets.keys()))
+        run = function.run(task, params={"secrets": list(secrets.keys())})
+        for key, value in secrets.items():
+            assert run.outputs[key] == value
+
+        # Cleanup secrets
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")

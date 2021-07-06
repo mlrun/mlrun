@@ -303,6 +303,22 @@ class TestRuntimeBase:
         # Make sure all variables were accounted for
         assert len(expected_variables) == 0
 
+    @staticmethod
+    def _assert_pod_env_from_secrets(pod_env, expected_variables):
+        for env_variable in pod_env:
+            if (
+                isinstance(env_variable, V1EnvVar)
+                and env_variable.value_from is not None
+            ):
+                name = env_variable.name
+                if name in expected_variables:
+                    expected_value = expected_variables[name]
+                    secret_key = env_variable.value_from.secret_key_ref.key
+                    secret_name = env_variable.value_from.secret_key_ref.name
+                    assert expected_value[secret_name] == secret_key
+                    expected_variables.pop(name)
+        assert len(expected_variables) == 0
+
     def _get_pod_creation_args(self):
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[1]
@@ -416,6 +432,7 @@ class TestRuntimeBase:
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
+        expected_env_from_secrets={},
     ):
         if assert_create_pod_called:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -440,6 +457,7 @@ class TestRuntimeBase:
             expected_env["MLRUN_NAMESPACE"] = self.namespace
 
         self._assert_pod_env(pod_env, expected_env)
+        self._assert_pod_env_from_secrets(pod_env, expected_env_from_secrets)
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
                 env_variable = dict(name=env_variable.name, value=env_variable.value)

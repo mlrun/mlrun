@@ -2,7 +2,7 @@ import os
 import random
 import string
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import fsspec
 import pandas as pd
@@ -631,6 +631,24 @@ class TestFeatureStore(TestMLRunSystem):
 
         svc.close()
 
+    def test_time_with_timezone(self):
+        data = pd.DataFrame(
+            {
+                "time": [
+                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=timezone.utc),
+                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=timezone.utc),
+                ],
+                "first_name": ["katya", "dina"],
+                "bid": [2000, 10],
+            }
+        )
+        data_set = fs.FeatureSet("fs4", entities=[Entity("first_name")])
+
+        df = fs.ingest(data_set, data, return_df=True)
+
+        data.set_index("first_name", inplace=True)
+        assert_frame_equal(df, data)
+
     def test_offline_features_filter_non_partitioned(self):
         data = pd.DataFrame(
             {
@@ -962,6 +980,36 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get(entity_rows=[{"name": "PQR"}])
         assert resp[0]["value"] == 6
         svc.close()
+
+    def test_parquet_target_vector_overwrite(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        fset = fs.FeatureSet(name="fvec-parquet-fset", entities=[fs.Entity("name")])
+        fs.ingest(fset, df1)
+
+        features = ["fvec-parquet-fset.*"]
+        fvec = fs.FeatureVector("fvec-parquet", features=features)
+
+        target = ParquetTarget()
+        off1 = fs.get_offline_features(fvec, target=target)
+        dfout1 = pd.read_parquet(target._target_path)
+
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(off1.to_dataframe().sort_index())
+        )
+        assert df1.set_index(keys="name").sort_index().equals(dfout1.sort_index())
+
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+        fs.ingest(fset, df2)
+        off2 = fs.get_offline_features(fvec, target=target)
+        dfout2 = pd.read_parquet(target._target_path)
+        assert (
+            df2.set_index(keys="name")
+            .sort_index()
+            .equals(off2.to_dataframe().sort_index())
+        )
+        assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
 
     def test_override_false(self):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})

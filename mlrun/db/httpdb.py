@@ -35,6 +35,7 @@ from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
+from ..runtimes import BaseRuntime
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
 
@@ -887,7 +888,12 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def get_builder_status(
-        self, func, offset=0, logs=True, last_log_timestamp=0, verbose=False
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
     ):
         """ Retrieve the status of a build operation currently in progress.
 
@@ -932,6 +938,12 @@ class HTTPRunDB(RunDBInterface):
             if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 func.status.address = resp.headers.get("x-mlrun-address", "")
                 func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+                func.status.internal_invocation_urls = resp.headers.get(
+                    "x-mlrun-internal-invocation-urls", ""
+                ).split(",")
+                func.status.external_invocation_urls = resp.headers.get(
+                    "x-mlrun-external-invocation-urls", ""
+                ).split(",")
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")

@@ -400,7 +400,7 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
-    def add_vault_config_to_spec(self):
+    def add_secrets_config_to_spec(self):
         if self.spec.secret_sources:
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
             if self._secrets.has_vault_source():
@@ -408,6 +408,11 @@ class ServingRuntime(RemoteRuntime):
             if self._secrets.has_azure_vault_source():
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
+                )
+            k8s_secrets = self._secrets.get_k8s_secrets()
+            if k8s_secrets:
+                self._add_project_k8s_secrets_to_spec(
+                    k8s_secrets, project=self.metadata.project
                 )
 
     def deploy(self, dashboard="", project="", tag="", verbose=False):

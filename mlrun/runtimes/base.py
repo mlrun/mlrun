@@ -1155,7 +1155,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
         """
-        Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Funtion of the job kind
+        Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Function of the job kind
         a kubernetes job is being generated, on the opposite a Function of the daskjob kind generates a dask cluster,
         and every Run is being executed using this cluster, i.e. no resources are created for the Run.
         This function should return true for runtimes in which Run are coupled to the underlying resources and therefore

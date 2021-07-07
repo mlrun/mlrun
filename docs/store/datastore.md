@@ -57,14 +57,19 @@ a simple parameter we used the `params` dictionary attribute. the input value is
 (per data store schema) as explained above.
 
 The {py:class}`~mlrun.datastore.DataItem` support multiple convenience methods such as:
-* **get**, **put** - to read/write data
-* **download**, **upload** - to download/upload files
-* **as_df** - to convert the data to a DataFrame object
+* **get()**, **put()** - to read/write data
+* **download()**, **upload()** - to download/upload files
+* **as_df()** - to convert the data to a DataFrame object
 * **local** - to get a local file link to the data (will be downloaded locally if needed)
-* **listdir**, **stat** - file system like methods
+* **listdir()**, **stat** - file system like methods
 * **meta** - access to the artifact metadata (in case of an artifact uri)
+* **show()** - will visualize the data in Jupyter (as image, html, etc.)
 
 Check the **{py:class}`~mlrun.datastore.DataItem`** class documentation for details
+
+we can easily get a run output artifact as a `DataItem` (allowing us to view/use the artifact) using:
+
+    prep_data_run.artifact('cleaned_data').show()
 
 In order to get a DataItem object from a url use {py:func}`~mlrun.run.get_data_item` or 
 {py:func}`~mlrun.run.get_data_object` (returns the `DataItem.get()`), for example:

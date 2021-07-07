@@ -142,7 +142,7 @@ Run object has the following methods/properties:
 - `outputs` &mdash; returns a dictionary of the run results and artifact paths.
 - `logs(watch=True)` &mdash; returns the latest logs.
     Use `Watch=False` to disable the interactive mode in running jobs.
-- `artifact(key)` &mdash; returns full artifact details for the provided key.
+- `artifact(key)` &mdash; returns artifact for the provided key (as {py:class}`~mlrun.datastore.DataItem` object).
 - `output(key)` &mdash; returns a specific result or an artifact path for the provided key.
 - `wait_for_completion()` &mdash; wait for async run to complete
 - `refresh()` &mdash; refresh run state from the db/service

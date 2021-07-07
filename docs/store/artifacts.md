@@ -162,13 +162,15 @@ get_data_run = run_local(name='get_data',
                          artifact_path=artifact_path)
 ```
 
-The dataset location is returned in the `outputs` field, therefore you can get the location by calling `get_data_run.outputs['iris_dataset']` and use the `get_dataitem` function to get the dataset itself.
+The dataset location is returned in the `outputs` field, therefore you can get the location by calling `get_data_run.artifact('iris_dataset')` to get the dataset itself.
 
 
 ``` python
 # Read your data set
-from mlrun.run import get_dataitem
-dataset = get_dataitem(get_data_run.outputs['iris_dataset'])
+get_data_run.artifact('iris_dataset').as_df()
+
+# Visualize an artifact in Jupyter (image, html, df, ..)
+get_data_run.artifact('confusion-matrix').show()
 ```
 
 Call `dataset.meta.stats` to obtain the data statistics. You can also get the data as a Pandas Dataframe by calling the `dataset.as_df()`.

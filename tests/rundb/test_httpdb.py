@@ -261,6 +261,8 @@ def test_artifacts(create_server):
     db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 2, "bad number of artifacts"
+    assert artifacts.objects()[0].key == key, "not a valid artifact object"
+    assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
 
     artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
     assert len(artifacts) == 1, "bad number of artifacts"

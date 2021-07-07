@@ -336,8 +336,11 @@ class DataItem:
             **kwargs,
         )
 
-    def show(self):
-        """show the data object content in Jupyter"""
+    def show(self, format=None):
+        """show the data object content in Jupyter
+
+        :param format: format to use (when there is no/wrong suffix), e.g. 'png'
+        """
         if not is_ipython:
             logger.error("show() will only display data in Jupyter/IPython")
             return
@@ -345,6 +348,9 @@ class DataItem:
         from IPython import display
 
         suffix = self.suffix.lower()
+        if format:
+            suffix = "." + format
+
         if suffix in [".jpg", ".png", ".gif"]:
             display.display(display.Image(self.get(), format=suffix[1:]))
         elif suffix in [".htm", ".html"]:
@@ -354,6 +360,8 @@ class DataItem:
             display.display(display.HTML(html))
         elif suffix in [".csv", ".pq", ".parquet"]:
             display.display(self.as_df())
+        elif suffix in [".yaml", ".txt", ".py"]:
+            display.display(display.Pretty(self.get()))
         elif suffix == ".json":
             display.display(display.JSON(orjson.loads(self.get())))
         elif suffix == ".md":

@@ -818,6 +818,7 @@ class RunObject(RunTemplate):
                     "Run did not reach terminal state on time"
                 )
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+            self.logs(watch=False)
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"
             )

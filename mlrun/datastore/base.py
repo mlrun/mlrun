@@ -17,13 +17,14 @@ from os import getenv, path, remove
 from tempfile import mktemp
 
 import fsspec
+import orjson
 import pandas as pd
 import pyarrow.parquet as pq
 import requests
 import urllib3
 
 import mlrun.errors
-from mlrun.utils import logger
+from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
 if not verify_ssl:
@@ -334,6 +335,26 @@ class DataItem:
             format=format,
             **kwargs,
         )
+
+    def show(self):
+        """show the data object content in Jupyter"""
+        if not is_ipython:
+            logger.error("show() will only display data in Jupyter/IPython")
+            return
+
+        from IPython import display
+
+        suffix = self.suffix.lower()
+        if suffix in [".jpg", ".png", ".gif"]:
+            display.display(display.Image(self.get(), format=suffix[1:]))
+        elif suffix in [".htm", ".html"]:
+            display.display(display.HTML(self.get()))
+        elif suffix in [".csv", ".pq", ".parquet"]:
+            display.display(display.HTML(self.as_df().to_html()))
+        elif suffix == ".json":
+            display.display(display.JSON(orjson.loads(self.get())))
+        else:
+            logger.error(f"unsupported show() format {suffix}")
 
     def __str__(self):
         return self.url

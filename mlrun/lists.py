@@ -133,7 +133,7 @@ class ArtifactList(list):
         """return as a list of artifact objects"""
         return [dict_to_artifact(artifact) for artifact in self]
 
-    def dataitems(self) -> List[mlrun.DataItem]:
+    def dataitems(self) -> List["mlrun.DataItem"]:
         """return as a list of DataItem objects"""
         return [mlrun.get_dataitem(get_artifact_target(artifact)) for artifact in self]
 

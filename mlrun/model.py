@@ -738,7 +738,7 @@ class RunObject(RunTemplate):
                 outputs[a["key"]] = get_artifact_target(a, self.metadata.project)
         return outputs
 
-    def artifact(self, key):
+    def artifact(self, key) -> "mlrun.DataItem":
         """return artifact DataItem by key"""
         if self.outputs_wait_for_completion:
             self.wait_for_completion()

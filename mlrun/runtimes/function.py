@@ -826,7 +826,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     )
 
     return nuclio.deploy.deploy_config(
-        config=function_config,
+        function_config,
         dashboard_url=dashboard,
         name=function_name,
         project=project_name,

@@ -626,6 +626,11 @@ class RemoteRuntime(KubeResource):
 
             path = self._resolve_invocation_url(path, force_external_address)
 
+        if headers is None:
+            headers = {}
+
+        # if function is scaled to zero, let the DLX know we want to wake it up
+        headers.setdefault("x-nuclio-target", self.metadata.name)
         kwargs = {}
         if body:
             if isinstance(body, (str, bytes)):

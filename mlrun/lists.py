@@ -17,6 +17,7 @@ import pandas as pd
 
 import mlrun
 
+from .artifacts import Artifact, dict_to_artifact
 from .config import config
 from .render import artifacts_to_html, runs_to_html
 from .utils import flatten, get_artifact_target, get_in
@@ -128,9 +129,9 @@ class ArtifactList(list):
         if not display:
             return html
 
-    def objects(self) -> List[mlrun.artifacts.Artifact]:
+    def objects(self) -> List[Artifact]:
         """return as a list of artifact objects"""
-        return [mlrun.artifacts.dict_to_artifact(artifact) for artifact in self]
+        return [dict_to_artifact(artifact) for artifact in self]
 
     def dataitems(self) -> List[mlrun.DataItem]:
         """return as a list of DataItem objects"""

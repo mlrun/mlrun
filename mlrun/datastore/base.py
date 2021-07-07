@@ -348,11 +348,16 @@ class DataItem:
         if suffix in [".jpg", ".png", ".gif"]:
             display.display(display.Image(self.get(), format=suffix[1:]))
         elif suffix in [".htm", ".html"]:
-            display.display(display.HTML(self.get()))
+            html = self.get()
+            if isinstance(html, str):
+                html = html.decode('utf-8')
+            display.display(display.HTML(html))
         elif suffix in [".csv", ".pq", ".parquet"]:
-            display.display(display.HTML(self.as_df().to_html()))
+            display.display(self.as_df())
         elif suffix == ".json":
             display.display(display.JSON(orjson.loads(self.get())))
+        elif suffix == ".md":
+            display.display(display.Markdown(self.get()))
         else:
             logger.error(f"unsupported show() format {suffix}")
 

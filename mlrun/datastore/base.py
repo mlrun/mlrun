@@ -349,7 +349,7 @@ class DataItem:
             display.display(display.Image(self.get(), format=suffix[1:]))
         elif suffix in [".htm", ".html"]:
             html = self.get()
-            if isinstance(html, str):
+            if isinstance(html, bytes):
                 html = html.decode("utf-8")
             display.display(display.HTML(html))
         elif suffix in [".csv", ".pq", ".parquet"]:
@@ -357,9 +357,12 @@ class DataItem:
         elif suffix == ".json":
             display.display(display.JSON(orjson.loads(self.get())))
         elif suffix == ".md":
-            display.display(display.Markdown(self.get()))
+            body = self.get()
+            if isinstance(body, bytes):
+                body = body.decode("utf-8")
+            display.display(display.Markdown(body))
         else:
-            logger.error(f"unsupported show() format {suffix}")
+            logger.error(f"unsupported show() format {suffix} for {self.url}")
 
     def __str__(self):
         return self.url

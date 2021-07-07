@@ -51,12 +51,7 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import (
-    WorkflowSpec,
-    create_pipeline,
-    enrich_functions_source,
-    run_project_pipeline,
-)
+from .pipelines import WorkflowSpec, create_pipeline, run_project_pipeline
 
 
 class ProjectError(Exception):
@@ -102,10 +97,17 @@ def load_project(
 ):
     """Load an MLRun project from git or tar or dir
 
+    example::
+
+        # load project and run the 'main' workflow
+        project = load_project("./", git://github.com/mlrun/demo-xgb-project.git)
+        project.run("main", arguments={'data': data_url})
+
     :param context:      project local directory path
-    :param url:          git or tar.gz sources archive path e.g.:
+    :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
-                         db://<project-name>
+                         http://mysite/archived-project.zip
+                         <project-name>
     :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
@@ -143,13 +145,11 @@ def load_project(
             clone_tgz(url, context, secrets)
         elif url.endswith(".zip"):
             clone_zip(url, context, secrets)
-        elif url.startswith("db://"):
+        else:
             if user_project:
                 user = environ.get("V3IO_USERNAME") or getpass.getuser()
                 url = f"{url}-{user}"
             project = _load_project_from_db(url, secrets)
-        else:
-            raise ValueError(f"unsupported code archive {url}")
 
     else:
         init_repo()
@@ -654,11 +654,6 @@ class MlrunProject(ModelObj):
         return mlrun.datastore.get_store_resource(
             uri, secrets=self._secrets, project=self.metadata.name
         )
-
-    def get_enriched_functions(self):
-        """get a dict of enriched/prepared function objects to use in pipelines"""
-        funcs = self.sync_functions()
-        return enrich_functions_source(self, funcs)
 
     @property
     def context(self) -> str:

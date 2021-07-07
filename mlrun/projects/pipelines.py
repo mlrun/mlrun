@@ -14,15 +14,36 @@
 
 import importlib.util as imputil
 import os
+import traceback
 from tempfile import mktemp
 
 from kfp.compiler import compiler
 
 import mlrun
-from mlrun.utils import new_pipe_meta
+from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
+
+
+class _PipelineContext:
+    def __init__(self):
+        self.project = None
+        self.workflow = None
+        self.functions = None
+        self.workflow_id = None
+
+    def set(self, project, workflow, functions):
+        self.project = project
+        self.workflow = workflow
+        self.functions = functions
+
+    def get_function(self, key):
+        if self.functions:
+            return self.functions.load_or_set_function(key)
+
+
+pipeline_context = _PipelineContext()
 
 
 def get_workflow_engine(engine_kind):
@@ -84,13 +105,55 @@ class WorkflowSpec(mlrun.model.ModelObj):
             self._tmp_path = workflow_path
         else:
             workflow_path = self.path or ""
-            if self.context and not workflow_path.startswith("/"):
-                workflow_path = os.path.join(self.context, workflow_path)
+            if context and not workflow_path.startswith("/"):
+                workflow_path = os.path.join(context, workflow_path)
         return workflow_path
 
     def clear_tmp(self):
         if self._tmp_path:
             os.remove(self._tmp_path)
+
+
+class FunctionsDict(dict):
+    def __init__(self, project, functions=None, decorator=None, db=None):
+        dict.__init__(self, functions)
+        self.project = project
+        self._db = db or mlrun.get_run_db()
+        self._decorator = decorator
+
+    def _enrich(self, function):
+        function = _enrich_function_source(self.project, function)
+        if self._decorator:
+            self._decorator(function)
+        return function
+
+    def load_or_set_function(self, key, default=None):
+        if key in dict.keys(self):
+            return self._enrich(dict.__getitem__(self, key))
+
+        if default:
+            function = default
+        else:
+            project_name = self.project.metadata.name
+            project_instance, name, tag, hash_key = parse_versioned_object_uri(
+                key, project_name
+            )
+            runtime = self._db.get_function(name, project_instance, tag, hash_key)
+            function = mlrun.new_function(runtime=runtime)
+
+        dict.__setitem__(self, key, function)
+        print(f"GET func[{key}] = {function}")
+        return self._enrich(function)
+
+    def get(self, key, default=None):
+        return self.load_or_set_function(key, default)
+
+    def __getitem__(self, key):
+        return self.load_or_set_function(key)
+
+    def __setitem__(self, key, val):
+        print(f"SET [{key}] = {val}")
+        dict.__setitem__(self, key, val)
 
 
 class _PipelineRunStatus:
@@ -144,11 +207,9 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         workflow_file = workflow_spec.get_source_file(project.spec.context)
+        functions = FunctionsDict(project, project.spec._function_objects)
         pipeline = create_pipeline(
-            project,
-            workflow_file,
-            project.spec._function_objects,
-            secrets=project._secrets,
+            project, workflow_file, functions, secrets=project._secrets,
         )
         artifact_path = artifact_path or project.spec.artifact_path
 
@@ -168,6 +229,8 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
     ):
         workflow_file = workflow_spec.get_source_file(project.spec.context)
+        functions = FunctionsDict(project, functions)
+        pipeline_context.set(project, workflow_spec, functions)
         kfpipeline = create_pipeline(
             project, workflow_file, functions, secrets, arguments=workflow_spec.args
         )
@@ -210,18 +273,50 @@ class _LocalRunner:
         namespace=None,
     ):
         workflow_file = workflow_spec.get_source_file(project.spec.context)
-        run = _run_local_pipeline(
-            project,
-            name,
-            workflow_file,
-            functions,
-            secrets=secrets,
-            arguments=workflow_spec.args,
-            artifact_path=artifact_path,
-            namespace=namespace,
-            ttl=workflow_spec.ttl,
+        runs = {}
+        workflow_id = name
+
+        def run_decorator(func):
+            def wrapped(*args, **kw):
+                labels = kw.get("labels") or {}
+                labels["workflow"] = workflow_id
+                kw["labels"] = labels
+                run: mlrun.RunObject = func._old_run(*args, **kw)
+                if run:
+                    run._function = func
+                    run._notified = False
+                    runs[run.uid()] = run
+                return run
+
+            func._old_run = func.run
+            func.run = wrapped
+
+        for f in functions.values():
+            run_decorator(f)
+
+        functions = FunctionsDict(project, functions, decorator=run_decorator)
+        pipeline_context.set(project, workflow_spec, functions)
+        pipeline = create_pipeline(
+            project, workflow_file, functions, secrets, arguments=workflow_spec.args
         )
-        return _PipelineRunStatus(run, cls)
+        project.notifiers.push_start_message(project.metadata.name)
+        artifact_path = artifact_path or mlrun.mlconf.artifact_path
+        try:
+            pipeline(
+                project,
+                functions=functions,
+                arguments=workflow_spec.args,
+                secrets=secrets,
+                artifact_path=artifact_path,
+            )
+        except Exception as e:
+            trace = traceback.format_exc()
+            logger.error(trace)
+            project.notifiers.push(f"Pipeline run failed!, error: {e}\n{trace}")
+
+        mlrun.run.wait_for_runs_completion(runs.values())
+        project.notifiers.push_run_results(runs.values())
+        return _PipelineRunStatus(workflow_id, cls)
 
     @staticmethod
     def wait_for_completion(run_id, timeout=None, expected_statuses=None):
@@ -239,6 +334,7 @@ def _run_kf_pipeline(
     namespace=None,
     ttl=None,
 ):
+    functions = FunctionsDict(project, functions)
     kfpipeline = create_pipeline(
         project, pipeline, functions, secrets, arguments=arguments
     )
@@ -256,62 +352,9 @@ def _run_kf_pipeline(
     return id
 
 
-def _run_local_pipeline(
-    project,
-    name,
-    pipeline,
-    functions,
-    secrets=None,
-    arguments=None,
-    artifact_path=None,
-    namespace=None,
-    ttl=None,
-):
-    runs = {}
-
-    def run_decorator(func):
-        def wrapped(*args, **kw):
-            labels = kw.get("labels", {})
-            labels["workflow-name"] = name
-            kw["labels"] = labels
-            run: mlrun.RunObject = func._old_run(*args, **kw)
-            if run:
-                run._function = func
-                run._notified = False
-                runs[run.uid()] = run
-            return run
-
-        func._old_run = func.run
-        return wrapped
-
-    for f in functions.values():
-        f.run = run_decorator(f)
-
-    pipeline = create_pipeline(
-        project, pipeline, functions, secrets, arguments=arguments
-    )
-    project.notifiers.push_start_message(project.metadata.name)
-    artifact_path = artifact_path or mlrun.mlconf.artifact_path
-    try:
-        pipeline(
-            project,
-            functions=functions,
-            arguments=arguments,
-            secrets=secrets,
-            artifact_path=artifact_path,
-        )
-    except Exception as e:
-        project.notifiers.push(f"Pipeline run failed!, error: {e}")
-
-    mlrun.run.wait_for_runs_completion(runs.values())
-    project.notifiers.push_run_results(runs.values())
-    return ""
-
-
 def create_pipeline(
-    project, pipeline, funcs, secrets=None, arguments=None, handler=None
+    project, pipeline, functions, secrets=None, arguments=None, handler=None
 ):
-    functions = enrich_functions_source(project, funcs)
     spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:
         raise ImportError(f"cannot import workflow {pipeline}")
@@ -340,19 +383,15 @@ def create_pipeline(
     return getattr(mod, handler)
 
 
-def enrich_functions_source(project, funcs):
-    functions = {}
-    for name, func in funcs.items():
-        f = func.copy()
-        f.metadata.project = project.metadata.name
-        src = f.spec.build.source
-        if project.spec.source and src and src in [".", "./"]:
-            if project.spec.mountdir:
-                f.spec.workdir = project.spec.mountdir
-                f.spec.build.source = ""
-            else:
-                f.spec.build.source = project.spec.source
-                f.spec.build.load_source_on_run = project.spec.load_source_on_run
-
-        functions[name] = f
-    return functions
+def _enrich_function_source(project, func):
+    f = func.copy()
+    f.metadata.project = project.metadata.name
+    src = f.spec.build.source
+    if project.spec.source and src and src in [".", "./"]:
+        if project.spec.mountdir:
+            f.spec.workdir = project.spec.mountdir
+            f.spec.build.source = ""
+        else:
+            f.spec.build.source = project.spec.source
+            f.spec.build.load_source_on_run = project.spec.load_source_on_run
+    return f

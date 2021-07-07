@@ -14,10 +14,10 @@
 
 
 import pandas as pd
-
+import mlrun
 from .config import config
 from .render import artifacts_to_html, runs_to_html
-from .utils import flatten, get_in
+from .utils import flatten, get_in, get_artifact_target
 
 
 class RunList(list):
@@ -119,6 +119,12 @@ class ArtifactList(list):
         html = artifacts_to_html(df, display, classes=classes)
         if not display:
             return html
+
+    def objects(self):
+        return [mlrun.artifacts.dict_to_artifact(artifact) for artifact in self]
+
+    def dataitems(self):
+        return [mlrun.get_dataitem(get_artifact_target(artifact)) for artifact in self]
 
 
 class FunctionList(list):

@@ -90,7 +90,7 @@ they host common and object specific metadata such as:
 * type specific attributes
 
 Artifacts can be obtained via the SDK through type specific APIs or using generic artifact APIs such as:
-* {py:func}`~mlrun.run.get_data_item` - get the {py:class}`~mlrun.datastore.DataItem` object for reading/downloading the artifact content
+* {py:func}`~mlrun.run.get_dataitem` - get the {py:class}`~mlrun.datastore.DataItem` object for reading/downloading the artifact content
 * {py:func}`~mlrun.datastore.get_store_resource` - get the artifact object
 
 example artifact URLs:

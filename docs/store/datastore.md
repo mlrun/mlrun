@@ -71,9 +71,9 @@ we can easily get a run output artifact as a `DataItem` (allowing us to view/use
 
     prep_data_run.artifact('cleaned_data').show()
 
-In order to get a DataItem object from a url use {py:func}`~mlrun.run.get_data_item` or 
-{py:func}`~mlrun.run.get_data_object` (returns the `DataItem.get()`), for example:
+In order to get a DataItem object from a url use {py:func}`~mlrun.run.get_dataitem` or 
+{py:func}`~mlrun.run.get_object` (returns the `DataItem.get()`), for example:
 
-    df = mlrun.get_data_item('s3://demo-data/mydata.csv').as_df()
-    print(mlrun.get_data_object('https://my-site/data.json'))
+    df = mlrun.get_dataitem('s3://demo-data/mydata.csv').as_df()
+    print(mlrun.get_object('https://my-site/data.json'))
 

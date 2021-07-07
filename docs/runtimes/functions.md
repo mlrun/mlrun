@@ -24,8 +24,8 @@ use in your projects.
 **Functions** (function objects) can be created by using any of the following methods:
 
 - **{py:func}`~mlrun.run.new_function`** - creates a function for local run or from container, from code repository/archive, from function spec.
-- **{py:func}`~mlrun.code_to_function`** - creates a function from local or remote source code (single file) or from a notebook (code file will be embedded in the function object).
-- **{py:func}`~mlrun.import_function`** - imports a function from a local or remote YAML function-configuration file or 
+- **{py:func}`~mlrun.run.code_to_function`** - creates a function from local or remote source code (single file) or from a notebook (code file will be embedded in the function object).
+- **{py:func}`~mlrun.run.import_function`** - imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
   or from the function marketplace (e.g. `hub://describe`).
 

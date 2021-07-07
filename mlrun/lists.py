@@ -135,7 +135,12 @@ class ArtifactList(list):
 
     def dataitems(self) -> List["mlrun.DataItem"]:
         """return as a list of DataItem objects"""
-        return [mlrun.get_dataitem(get_artifact_target(artifact)) for artifact in self]
+        dataitems = []
+        for item in self:
+            artifact = get_artifact_target(item)
+            if artifact:
+                dataitems.append(mlrun.get_dataitem(artifact))
+        return dataitems
 
 
 class FunctionList(list):

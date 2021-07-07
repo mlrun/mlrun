@@ -255,7 +255,7 @@ def test_artifacts(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, key, body = "p9", "u19", "k802", "tomato"
-    artifact = Artifact(key, body)
+    artifact = Artifact(key, body, target_path="a.txt")
 
     db.store_artifact(key, artifact, uid, project=prj)
     db.store_artifact(key, artifact, uid, project=prj, iter=42)

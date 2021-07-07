@@ -745,7 +745,8 @@ class RunObject(RunTemplate):
         artifact = self._artifact(key)
         if artifact:
             uri = get_artifact_target(artifact, self.metadata.project)
-            return mlrun.get_dataitem(uri)
+            if uri:
+                return mlrun.get_dataitem(uri)
         return None
 
     def _artifact(self, key):

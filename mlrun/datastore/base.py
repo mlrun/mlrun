@@ -273,9 +273,12 @@ class DataItem:
         """DataItem url e.g. /dir/path, s3://bucket/path"""
         return self._url
 
-    def get(self, size=None, offset=0):
+    def get(self, size=None, offset=0, decode=False):
         """read all or a range and return the content"""
-        return self._store.get(self._path, size=size, offset=offset)
+        body = self._store.get(self._path, size=size, offset=offset)
+        if decode and isinstance(body, bytes):
+            body = body.decode("utf-8")
+        return body
 
     def download(self, target_path):
         """download to the target dir/path"""
@@ -354,21 +357,15 @@ class DataItem:
         if suffix in [".jpg", ".png", ".gif"]:
             display.display(display.Image(self.get(), format=suffix[1:]))
         elif suffix in [".htm", ".html"]:
-            html = self.get()
-            if isinstance(html, bytes):
-                html = html.decode("utf-8")
-            display.display(display.HTML(html))
+            display.display(display.HTML(self.get(decode=True)))
         elif suffix in [".csv", ".pq", ".parquet"]:
             display.display(self.as_df())
         elif suffix in [".yaml", ".txt", ".py"]:
-            display.display(display.Pretty(self.get()))
+            display.display(display.Pretty(self.get(decode=True)))
         elif suffix == ".json":
             display.display(display.JSON(orjson.loads(self.get())))
         elif suffix == ".md":
-            body = self.get()
-            if isinstance(body, bytes):
-                body = body.decode("utf-8")
-            display.display(display.Markdown(body))
+            display.display(display.Markdown(self.get(decode=True)))
         else:
             logger.error(f"unsupported show() format {suffix} for {self.url}")
 

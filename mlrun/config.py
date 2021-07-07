@@ -113,7 +113,23 @@ default_config = {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
             },
         },
-        "nuclio": {"default_service_type": "NodePort"},  # one of ClusterIP | NodePort
+        "nuclio": {
+            # One of ClusterIP | NodePort
+            "default_service_type": "NodePort",
+            # The following modes apply when user did not configure an ingress
+            #
+            #   name        |  description
+            #  ---------------------------------------------------------------------
+            #   never       |  never enrich with an ingress
+            #   always      |  always enrich with an ingress, regardless the service type
+            #   onClusterIP |  enrich with an ingress only when `mlrun.config.httpdb.nuclio.default_service_type`
+            #                  is set to ClusterIP
+            #  ---------------------------------------------------------------------
+            # Note: adding a mode requires special handling on
+            # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
+            # - mlrun.runtimes.function.enrich_function_with_ingress
+            "add_templated_ingress_host_mode": "never",
+        },
         "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be

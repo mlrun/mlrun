@@ -425,7 +425,17 @@ class RemoteRuntime(KubeResource):
                 logger.error("Nuclio function failed to deploy")
                 raise RunError(f"cannot deploy {text}")
 
-            if self.status.address:
+            # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
+            #       now, functions can be not exposed (using service type ClusterIP) and hence
+            #       for BC we first try to populate the external invocation url, and then
+            #       if not exists, take the internal invocation url
+            if self.status.external_invocation_urls:
+                self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
+                save_record = True
+            elif self.status.internal_invocation_urls:
+                self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
+                save_record = True
+            elif self.status.address:
                 self.spec.command = f"http://{self.status.address}"
                 save_record = True
 

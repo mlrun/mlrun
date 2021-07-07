@@ -350,7 +350,7 @@ class DataItem:
         elif suffix in [".htm", ".html"]:
             html = self.get()
             if isinstance(html, str):
-                html = html.decode('utf-8')
+                html = html.decode("utf-8")
             display.display(display.HTML(html))
         elif suffix in [".csv", ".pq", ".parquet"]:
             display.display(self.as_df())

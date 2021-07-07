@@ -14,10 +14,12 @@
 
 
 import pandas as pd
+
 import mlrun
+
 from .config import config
 from .render import artifacts_to_html, runs_to_html
-from .utils import flatten, get_in, get_artifact_target
+from .utils import flatten, get_artifact_target, get_in
 
 
 class RunList(list):

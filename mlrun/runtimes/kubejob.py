@@ -252,6 +252,9 @@ class KubejobRuntime(KubeResource):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
+            k8s_secrets = self._secrets.get_k8s_secrets()
+            if k8s_secrets:
+                self._add_project_k8s_secrets_to_spec(k8s_secrets, runobj)
 
         pod_spec = func_to_pod(
             self.full_image_path(), self, extra_env, command, args, self.spec.workdir

@@ -272,7 +272,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         self, log_file_path: str = None, enable_cycle_markers: bool = False
     ):
         """Add Horovod Timeline activity tracking to the job to analyse
-        its performence.
+        its performance.
 
         The data will be saved as JSON to {log_file_path}. It can then be viewed via
         a trace viewer like chrome or edge's `edge://tracing`.
@@ -307,13 +307,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         bayes_opt_max_samples: int = None,
         gaussian_process_noise: float = None,
     ):
-        """Adds an Autotuner to help optimize Horovod's Parameters for better performence.
+        """Adds an Autotuner to help optimize Horovod's Parameters for better performance.
 
         The autotuner will collect metrics and tune horovod's parameters while running using
-        Bayesian optimiation. This may affect the performence of the run initially but after
-        arriving to the best parameters should increase performence.
+        Bayesian optimiation. This may affect the performance of the run initially but after
+        arriving to the best parameters should increase performance.
 
-        Since autotuning imposes a tradeoff between early performence for better performence
+        Since autotuning imposes a tradeoff between early performance for better performance
         later on, It's advised to enable it when both:
         - Training should take a long timeout
         - Scaling efficiency was found lacking with the default settings

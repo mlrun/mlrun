@@ -28,24 +28,25 @@ from .utils import logger
 _k8s = None
 
 
-def get_k8s_helper(namespace=None, silent=False):
+def get_k8s_helper(namespace=None, silent=False, log=False):
     """
     :param silent: set to true if you're calling this function from a code that might run from remotely (outside of a
     k8s cluster)
+    :param log: sometimes we want to avoid logging when executing init_k8s_config
     """
     global _k8s
     if not _k8s:
-        _k8s = K8sHelper(namespace, silent=silent)
+        _k8s = K8sHelper(namespace, silent=silent, log=log)
     return _k8s
 
 
 class K8sHelper:
-    def __init__(self, namespace=None, config_file=None, silent=False):
+    def __init__(self, namespace=None, config_file=None, silent=False, log=True):
         self.namespace = namespace or mlconfig.namespace
         self.config_file = config_file
         self.running_inside_kubernetes_cluster = False
         try:
-            self._init_k8s_config()
+            self._init_k8s_config(log)
             self.v1api = client.CoreV1Api()
             self.crdapi = client.CustomObjectsApi()
         except Exception:
@@ -325,13 +326,13 @@ class K8sHelper:
 
         return service_account.secrets[0].name
 
-    def _get_project_secret_name(self, project):
+    def get_project_secret_name(self, project):
         return mlconfig.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
     def store_project_secrets(self, project, secrets, namespace=""):
-        secret_name = self._get_project_secret_name(project)
+        secret_name = self.get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -356,13 +357,13 @@ class K8sHelper:
         self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
     def delete_project_secrets(self, project, secrets, namespace=""):
-        secret_name = self._get_project_secret_name(project)
+        secret_name = self.get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
-            # If secret does not exist, return as if the deletion was successfuly
+            # If secret does not exist, return as if the deletion was successfully
             if exc.status == 404:
                 return
             else:
@@ -383,8 +384,7 @@ class K8sHelper:
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
-
-        secret_name = self._get_project_secret_name(project)
+        secret_name = self.get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
 
         try:
@@ -410,6 +410,9 @@ class K8sHelper:
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
             return results
+
+        # If not asking for specific keys, return all
+        secret_keys = secret_keys or secrets_data.keys()
 
         for key in secret_keys:
             encoded_value = secrets_data.get(key)

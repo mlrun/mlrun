@@ -1,17 +1,9 @@
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
-from typing import List, Optional
+from typing import List
 
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Cookie,
-    Depends,
-    Query,
-    Request,
-    Response,
-)
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -26,7 +18,11 @@ from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, runtime_resources_map
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
+from mlrun.runtimes.function import (
+    deploy_nuclio_function,
+    get_nuclio_deploy_status,
+    resolve_function_internal_invocation_url,
+)
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 
 router = APIRouter()
@@ -40,7 +36,7 @@ async def store_function(
     name: str,
     tag: str = "",
     versioned: bool = False,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -59,7 +55,7 @@ async def store_function(
         project,
         tag=tag,
         versioned=versioned,
-        leader_session=iguazio_session,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {
         "hash_key": hash_key,
@@ -111,7 +107,7 @@ def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -128,11 +124,11 @@ async def build_function(
     fn, ready = await run_in_threadpool(
         _build_function,
         db_session,
+        auth_verifier.auth_info,
         function,
         with_mlrun,
         skip_deployed,
         mlrun_version_specifier,
-        iguazio_session,
     )
     return {
         "data": fn.to_dict(),
@@ -146,7 +142,7 @@ async def build_function(
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -162,12 +158,12 @@ async def start_function(
     background_task = await run_in_threadpool(
         mlrun.api.utils.background_tasks.Handler().create_background_task,
         db_session,
-        iguazio_session,
+        auth_verifier.auth_info.session,
         function.metadata.project,
         background_tasks,
         _start_function,
         function,
-        iguazio_session,
+        auth_verifier.auth_info,
     )
 
     return background_task
@@ -200,7 +196,7 @@ def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     fn = get_db().get_function(db_session, name, project, tag)
@@ -215,14 +211,32 @@ def build_status(
             nuclio_name,
             last_log_timestamp,
             text,
+            status,
         ) = get_nuclio_deploy_status(
             name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
         )
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
-        if state == "error":
+        if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
+
+        # internal / external invocation urls were added on nuclio 1.6.x
+        # and hence, it might be empty
+        # to backward compatible with older nuclio versions, we use hard-coded default values
+        internal_invocation_urls = status.get(
+            "internalInvocationUrls", [resolve_function_internal_invocation_url(name)]
+        )
+        external_invocation_urls = status.get(
+            "externalInvocationUrls", [address] if address else []
+        )
+
+        # on nuclio > 1.6.x we get the external invocation url on the status block
+        if external_invocation_urls and not address:
+            address = external_invocation_urls[0]
+
         update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
         update_in(fn, "status.state", state)
         update_in(fn, "status.address", address)
 
@@ -238,7 +252,7 @@ def build_status(
             project,
             tag,
             versioned=versioned,
-            leader_session=iguazio_session,
+            leader_session=auth_verifier.auth_info.session,
         )
         return Response(
             content=text,
@@ -247,6 +261,8 @@ def build_status(
                 "x-mlrun-function-status": state,
                 "x-mlrun-last-timestamp": str(last_log_timestamp),
                 "x-mlrun-address": address,
+                "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+                "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
                 "x-mlrun-name": nuclio_name,
             },
         )
@@ -299,7 +315,7 @@ def build_status(
         project,
         tag,
         versioned=versioned,
-        leader_session=iguazio_session,
+        leader_session=auth_verifier.auth_info.session,
     )
 
     return Response(
@@ -316,21 +332,22 @@ def build_status(
 
 def _build_function(
     db_session,
+    auth_info: mlrun.api.schemas.AuthInfo,
     function,
     with_mlrun,
     skip_deployed,
     mlrun_version_specifier,
-    leader_session,
 ):
     fn = None
     ready = None
     try:
         fn = new_function(runtime=function)
 
-        run_db = get_run_db_instance(db_session, leader_session)
+        run_db = get_run_db_instance(db_session, auth_info.session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
+            mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
             deploy_nuclio_function(fn)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
@@ -365,7 +382,7 @@ def _parse_start_function_body(db_session, data):
     return new_function(runtime=runtime)
 
 
-def _start_function(function, leader_session: Optional[str] = None):
+def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
     db_session = mlrun.api.db.session.create_session()
     try:
         resource = runtime_resources_map.get(function.kind)
@@ -375,8 +392,9 @@ def _start_function(function, leader_session: Optional[str] = None):
                 reason="runtime error: 'start' not supported by this runtime",
             )
         try:
-            run_db = get_run_db_instance(db_session, leader_session)
+            run_db = get_run_db_instance(db_session, auth_info.session)
             function.set_db_connection(run_db)
+            mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function)
             function.save(versioned=False)

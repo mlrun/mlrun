@@ -23,7 +23,7 @@ import nuclio
 import requests
 from aiohttp.client import ClientSession
 from kubernetes import client
-from nuclio.deploy import deploy_config, find_dashboard_url, get_deploy_status
+from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
@@ -31,6 +31,7 @@ from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
 
 from ..config import config as mlconf
+from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
@@ -130,10 +131,25 @@ class NuclioSpec(KubeResourceSpec):
 
 
 class NuclioStatus(FunctionStatus):
-    def __init__(self, state=None, nuclio_name=None, address=None):
+    def __init__(
+        self,
+        state=None,
+        nuclio_name=None,
+        address=None,
+        internal_invocation_urls=None,
+        external_invocation_urls=None,
+    ):
         super().__init__(state)
 
         self.nuclio_name = nuclio_name
+
+        # exists on nuclio >= 1.6.x
+        # infers the function invocation urls
+        self.internal_invocation_urls = internal_invocation_urls or []
+        self.external_invocation_urls = external_invocation_urls or []
+
+        # still exists for backwards compatability reasons.
+        # on latest Nuclio (>= 1.6.x) versions, use external_invocation_urls / internal_invocation_urls instead
         self.address = address
 
 
@@ -364,13 +380,15 @@ class RemoteRuntime(KubeResource):
         self.spec.min_replicas = shards
         self.spec.max_replicas = shards
 
-    def add_vault_config_to_spec(self):
+    def add_secrets_config_to_spec(self):
         # Currently secrets are only handled in Serving runtime.
         pass
 
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,
     ):
+        # todo: verify that the function name is normalized
+
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
@@ -381,6 +399,7 @@ class RemoteRuntime(KubeResource):
         state = ""
         last_log_timestamp = 1
 
+        save_record = False
         if not dashboard:
             db = self._get_db()
             logger.info("Starting remote function deploy")
@@ -388,7 +407,8 @@ class RemoteRuntime(KubeResource):
             self.status = data["data"].get("status")
             # ready = data.get("ready", False)
 
-            while state not in ["ready", "error"]:
+            text = ""
+            while state not in ["ready", "error", "unhealthy"]:
                 sleep(1)
                 try:
                     text, last_log_timestamp = db.get_builder_status(
@@ -406,19 +426,38 @@ class RemoteRuntime(KubeResource):
 
             if self.status.address:
                 self.spec.command = f"http://{self.status.address}"
-                self.save(versioned=False)
+                save_record = True
 
         else:
             self.save(versioned=False)
             self._ensure_run_db()
-            address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
-            if address:
+            internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
+                self, dashboard=dashboard, watch=True
+            )
+            self.status.internal_invocation_urls = internal_invocation_urls
+            self.status.external_invocation_urls = external_invocation_urls
+
+            # save the (first) function external invocation url
+            # this is made for backwards compatability because the user, at this point, may
+            # work remotely and need the external invocation url on the spec.command
+            # TODO: when using `ClusterIP`, this block might not fulfilled
+            #       as long as function doesnt have ingresses
+            if self.status.external_invocation_urls:
+                address = self.status.external_invocation_urls[0]
                 self.spec.command = f"http://{address}"
                 self.status.state = "ready"
                 self.status.address = address
-                self.save(versioned=False)
+                save_record = True
 
-        logger.info(f"function deployed, address={self.status.address}")
+        logger.info(
+            "successfully deployed function",
+            internal_invocation_urls=self.status.internal_invocation_urls,
+            external_invocation_urls=self.status.external_invocation_urls,
+        )
+
+        if save_record:
+            self.save(versioned=False)
+
         return self.spec.command
 
     def with_node_selection(
@@ -432,18 +471,33 @@ class RemoteRuntime(KubeResource):
     def _get_state(
         self,
         dashboard="",
-        last_log_timestamp=None,
+        last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
-    ):
+        resolve_address=True,
+    ) -> typing.Tuple[str, str, typing.Optional[float]]:
         if dashboard:
-            state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(
+            (
+                state,
+                address,
+                name,
+                last_log_timestamp,
+                text,
+                function_status,
+            ) = get_nuclio_deploy_status(
                 self.metadata.name,
                 self.metadata.project,
                 self.metadata.tag,
                 dashboard,
                 last_log_timestamp=last_log_timestamp,
                 verbose=verbose,
+                resolve_address=resolve_address,
+            )
+            self.status.internal_invocation_urls = function_status.get(
+                "internalInvocationUrls", []
+            )
+            self.status.external_invocation_urls = function_status.get(
+                "externalInvocationUrls", []
             )
             self.status.state = state
             self.status.nuclio_name = name
@@ -480,7 +534,7 @@ class RemoteRuntime(KubeResource):
         """
         Resolves a nuclio function working dir and handler inside an archive/git repo
         :param handler: a path describing working dir and handler of a nuclio function
-        :return: (wokring_dir, handler) tuple, as nuclio expects to get it
+        :return: (working_dir, handler) tuple, as nuclio expects to get it
 
         Example: ("a/b/c#main:Handler) -> ("a/b/c", "main:Handler")
         """
@@ -550,7 +604,15 @@ class RemoteRuntime(KubeResource):
             verbose=verbose,
         )
 
-    def invoke(self, path, body=None, method=None, headers=None, dashboard=""):
+    def invoke(
+        self,
+        path,
+        body=None,
+        method=None,
+        headers=None,
+        dashboard="",
+        force_external_address=False,
+    ):
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
@@ -560,9 +622,8 @@ class RemoteRuntime(KubeResource):
                     raise ValueError(
                         "no function address or not ready, first run .deploy()"
                     )
-            if path.startswith("/"):
-                path = path[1:]
-            path = f"http://{self.status.address}/{path}"
+
+            path = self._resolve_invocation_url(path, force_external_address)
 
         kwargs = {}
         if body:
@@ -571,6 +632,7 @@ class RemoteRuntime(KubeResource):
             else:
                 kwargs["json"] = body
         try:
+            logger.info("invoking function", method=method, path=path)
             resp = requests.request(method, path, headers=headers, **kwargs)
         except OSError as err:
             raise OSError(f"error: cannot run function at url {path}, {err}")
@@ -593,7 +655,7 @@ class RemoteRuntime(KubeResource):
         if state != "ready":
             if state:
                 raise RunError(f"cannot run, function in state {state}")
-            state = self._get_state(raise_on_exception=True)
+            state, _, _ = self._get_state(raise_on_exception=True)
             if state != "ready":
                 logger.info("starting nuclio build!")
                 self.deploy()
@@ -671,6 +733,28 @@ class RemoteRuntime(KubeResource):
 
         return results
 
+    def _resolve_invocation_url(self, path, force_external_address):
+
+        if path.startswith("/"):
+            path = path[1:]
+
+        # internal / external invocation urls is a nuclio >= 1.6.x feature
+        # try to infer the invocation url from the internal and if not exists, use external.
+        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
+        if (
+            not force_external_address
+            and self.status.internal_invocation_urls
+            and get_k8s_helper(
+                silent=True, log=False
+            ).is_running_inside_kubernetes_cluster()
+        ):
+            return f"http://{self.status.internal_invocation_urls[0]}/{path}"
+
+        if self.status.external_invocation_urls:
+            return f"http://{self.status.external_invocation_urls[0]}/{path}"
+        else:
+            return f"http://{self.status.address}/{path}"
+
 
 def parse_logs(logs):
     logs = json.loads(logs)
@@ -719,7 +803,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
     # Add vault configurations to function's pod spec, if vault secret source was added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
-    function.add_vault_config_to_spec()
+    function.add_secrets_config_to_spec()
 
     env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
     for key, value in function._get_runtime_env().items():
@@ -730,14 +814,19 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     tag = function.metadata.tag
     handler = function.spec.function_handler
 
-    # In Nuclio 1.6.0 default serviceType changed to "ClusterIP", make sure we're using NodePort
-    spec.set_config("spec.serviceType", "NodePort")
+    # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
+    spec.set_config("spec.serviceType", mlconf.httpdb.nuclio.default_service_type)
     if function.spec.readiness_timeout:
         spec.set_config("spec.readinessTimeoutSeconds", function.spec.readiness_timeout)
     if function.spec.resources:
         spec.set_config("spec.resources", function.spec.resources)
     if function.spec.no_cache:
         spec.set_config("spec.build.noCache", True)
+    if function.spec.build.functionSourceCode:
+        spec.set_config(
+            "spec.build.functionSourceCode", function.spec.build.functionSourceCode
+        )
+
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)
         spec.set_config("spec.maxReplicas", function.spec.replicas)
@@ -746,9 +835,16 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
     dashboard = dashboard or mlconf.nuclio_dashboard_url
-    if function.spec.base_spec:
+    if function.spec.base_spec or function.spec.build.functionSourceCode:
+        config = function.spec.base_spec
+        if not config:
+            # if base_spec was not set (when not using code_to_function) and we have base64 code
+            # we create the base spec with essential attributes
+            config = nuclio.config.new_config()
+            update_in(config, "spec.handler", handler or "main:handler")
+
         config = nuclio.config.extend_config(
-            function.spec.base_spec, spec, tag, function.spec.build.code_origin
+            config, spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
@@ -760,16 +856,6 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         name = get_fullname(function.metadata.name, project, tag)
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
-        return nuclio.deploy.deploy_config(
-            config,
-            dashboard,
-            name=name,
-            project=project,
-            tag=tag,
-            verbose=function.verbose,
-            create_new=True,
-            watch=watch,
-        )
     else:
 
         name, config, code = nuclio.build_file(
@@ -792,27 +878,50 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         function.status.nuclio_name = name
 
         update_in(config, "metadata.name", name)
-        return deploy_config(
-            config,
-            dashboard_url=dashboard,
-            name=name,
-            project=project,
-            tag=tag,
-            verbose=function.verbose,
-            create_new=True,
-            watch=watch,
-        )
+
+    return nuclio.deploy.deploy_config(
+        config,
+        dashboard_url=dashboard,
+        name=name,
+        project=project,
+        tag=tag,
+        verbose=function.verbose,
+        create_new=True,
+        watch=watch,
+        return_address_mode=nuclio.deploy.ReturnAddressModes.all,
+    )
+
+
+def resolve_function_internal_invocation_url(function_name, namespace=""):
+    # hard-coding the internal invocation url
+    # template: nuclio-<function_name>.(<namespace>.)?svc.cluster.local:8080
+
+    # both might be empty
+    templated_namespace = namespace if namespace else mlconf.namespace
+    templated_namespace += "." if templated_namespace else ""
+    return f"nuclio-{function_name}.{templated_namespace}svc.cluster.local:8080"
 
 
 def get_nuclio_deploy_status(
-    name, project, tag, dashboard="", last_log_timestamp=None, verbose=False
+    name,
+    project,
+    tag,
+    dashboard="",
+    last_log_timestamp=0,
+    verbose=False,
+    resolve_address=True,
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
 
-    state, address, last_log_timestamp, outputs = get_deploy_status(
-        api_address, name, last_log_timestamp, verbose
+    state, address, last_log_timestamp, outputs, function_status = get_deploy_status(
+        api_address,
+        name,
+        last_log_timestamp,
+        verbose,
+        resolve_address,
+        return_function_status=True,
     )
 
     text = "\n".join(outputs) if outputs else ""
-    return state, address, name, last_log_timestamp, text
+    return state, address, name, last_log_timestamp, text, function_status

@@ -433,7 +433,7 @@ def deploy_ingestion_service(
         featureset, source, targets, run_config.parameters
     )
 
-    name = name or f"{featureset.metadata.name}_ingest"
+    name = name or f"{featureset.metadata.name}-ingest"
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():

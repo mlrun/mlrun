@@ -64,7 +64,7 @@ fn = mlrun.code_to_function('training',
                             kind='job',
                             handler='my_training_function')
 
-# Creating the task to run our funciton with our dataset
+# Creating the task to run our function with our dataset
 task = mlrun.new_task('training', 
                       inputs={'dataset': f'store://feature-vectors/{project}/{feature_vector_name}'}) # The feature vector is given as an input to the function
 

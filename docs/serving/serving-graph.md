@@ -213,7 +213,7 @@ graph.to(name="load_url", handler="load_url")\
      .to(name="printer", handler="myprint", function="enrich")\
      .to(">>", "output_stream", path=out_stream)
 
-# specify the "enrich" child function, add extra package requierments
+# specify the "enrich" child function, add extra package requirements
 child = fn.add_child_function('enrich', './nlp.py', 'mlrun/mlrun')
 child.spec.build.commands = ["python -m pip install spacy",
                              "python -m spacy download en_core_web_sm"]

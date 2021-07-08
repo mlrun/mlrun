@@ -252,6 +252,7 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 > - Using Docker is limited to local runtimes.
 > - By default, the MLRun API service will run inside the Jupyter server, set the MLRUN_DBPATH env var in Jupyter to point to an alternative service address.
 > - The artifacts and DB will be stored under **/home/jovyan/data**, use docker -v option to persist the content on the host (e.g. `-v $(SHARED_DIR}:/home/jovyan/data`)
+> - If Docker is running on Windows with WSL 2, you must create SHARED_DIR before running these commadns. Provide the full path when executing  (e.g. `mkdir /mnt/c/mlrun-data`  `SHARED_DIR=/mnt/c/mlrun-data` )
 
 ```sh
 SHARED_DIR=~/mlrun-data

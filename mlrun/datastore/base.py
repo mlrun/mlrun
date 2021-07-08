@@ -218,7 +218,29 @@ class DataStore:
 
 
 class DataItem:
-    """Data input/output class abstracting access to various local/remote data sources"""
+    """Data input/output class abstracting access to various local/remote data sources
+
+    DataItem objects are passed into functions and can be used inside the function, when a function run completes
+    users can access the run data via the run.artifact(key) which returns a DataItem object.
+    users can also convert a data url (e.g. s3://bucket/key.csv) to a DataItem using `mlrun.get_dataitem(url)`.
+
+    Example::
+
+        # using data item inside a function
+        def my_func(context, data: DataItem):
+            df = data.as_df()
+
+
+        # reading run results using DataItem (run.artifact())
+        train_run = train_iris_func.run(inputs={'dataset': dataset},
+                                        params={'label_column': 'label'})
+
+        train_run.artifact('confusion-matrix').show()
+        test_set = train_run.artifact('test_set').as_df()
+
+        # create and use DataItem from uri
+        data = mlrun.get_dataitem('http://xyz/data.json').get()
+    """
 
     def __init__(
         self,
@@ -273,23 +295,38 @@ class DataItem:
         """DataItem url e.g. /dir/path, s3://bucket/path"""
         return self._url
 
-    def get(self, size=None, offset=0, decode=False):
-        """read all or a range and return the content"""
+    def get(self, size=None, offset=0, encoding=None):
+        """read all or a byte range and return the content
+
+        :param size:     number of bytes to get
+        :param offset:   fetch from offset (in bytes)
+        :param encoding: encoding (e.g. "utf-8") for converting bytes to str
+        """
         body = self._store.get(self._path, size=size, offset=offset)
-        if decode and isinstance(body, bytes):
-            body = body.decode("utf-8")
+        if encoding and isinstance(body, bytes):
+            body = body.decode(encoding)
         return body
 
     def download(self, target_path):
-        """download to the target dir/path"""
+        """download to the target dir/path
+
+        :param target_path: local target path for the downloaded item
+        """
         self._store.download(self._path, target_path)
 
     def put(self, data, append=False):
-        """write/upload the data, append is only supported by some datastores"""
+        """write/upload the data, append is only supported by some datastores
+
+        :param data:   data (bytes/str) to write
+        :param append: append data to the end of the object, NOT SUPPORTED BY SOME OBJECT STORES!
+        """
         self._store.put(self._path, data, append=append)
 
     def upload(self, src_path):
-        """upload the source file (src_path) """
+        """upload the source file (src_path)
+
+        :param src_path: source file path to read from and upload
+        """
         self._store.upload(self._path, src_path)
 
     def stat(self):
@@ -345,7 +382,9 @@ class DataItem:
         :param format: format to use (when there is no/wrong suffix), e.g. 'png'
         """
         if not is_ipython:
-            logger.error("show() will only display data in Jupyter/IPython")
+            logger.warning(
+                "Jupyter/IPython was not detected, .show() will only display inside Jupyter"
+            )
             return
 
         from IPython import display
@@ -357,15 +396,15 @@ class DataItem:
         if suffix in [".jpg", ".png", ".gif"]:
             display.display(display.Image(self.get(), format=suffix[1:]))
         elif suffix in [".htm", ".html"]:
-            display.display(display.HTML(self.get(decode=True)))
+            display.display(display.HTML(self.get(encoding="utf-8")))
         elif suffix in [".csv", ".pq", ".parquet"]:
             display.display(self.as_df())
         elif suffix in [".yaml", ".txt", ".py"]:
-            display.display(display.Pretty(self.get(decode=True)))
+            display.display(display.Pretty(self.get(encoding="utf-8")))
         elif suffix == ".json":
             display.display(display.JSON(orjson.loads(self.get())))
         elif suffix == ".md":
-            display.display(display.Markdown(self.get(decode=True)))
+            display.display(display.Markdown(self.get(encoding="utf-8")))
         else:
             logger.error(f"unsupported show() format {suffix} for {self.url}")
 

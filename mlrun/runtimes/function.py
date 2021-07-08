@@ -38,6 +38,7 @@ from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
+from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
 
@@ -424,7 +425,17 @@ class RemoteRuntime(KubeResource):
                 logger.error("Nuclio function failed to deploy")
                 raise RunError(f"cannot deploy {text}")
 
-            if self.status.address:
+            # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
+            #       now, functions can be not exposed (using service type ClusterIP) and hence
+            #       for BC we first try to populate the external invocation url, and then
+            #       if not exists, take the internal invocation url
+            if self.status.external_invocation_urls:
+                self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
+                save_record = True
+            elif self.status.internal_invocation_urls:
+                self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
+                save_record = True
+            elif self.status.address:
                 self.spec.command = f"http://{self.status.address}"
                 save_record = True
 
@@ -625,6 +636,14 @@ class RemoteRuntime(KubeResource):
 
             path = self._resolve_invocation_url(path, force_external_address)
 
+        if headers is None:
+            headers = {}
+
+        # if function is scaled to zero, let the DLX know we want to wake it up
+        full_function_name = get_fullname(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
+        headers.setdefault("x-nuclio-target", full_function_name)
         kwargs = {}
         if body:
             if isinstance(body, (str, bytes)):
@@ -799,6 +818,50 @@ def get_fullname(name, project, tag):
 
 
 def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
+    dashboard = dashboard or mlconf.nuclio_dashboard_url
+    function_name, project_name, function_config = compile_function_config(function)
+
+    # if mode allows it, enrich function http trigger with an ingress
+    enrich_function_with_ingress(
+        function_config,
+        mlconf.httpdb.nuclio.add_templated_ingress_host_mode,
+        mlconf.httpdb.nuclio.default_service_type,
+    )
+
+    return nuclio.deploy.deploy_config(
+        function_config,
+        dashboard_url=dashboard,
+        name=function_name,
+        project=project_name,
+        tag=function.metadata.tag,
+        verbose=function.verbose,
+        create_new=True,
+        watch=watch,
+        return_address_mode=nuclio.deploy.ReturnAddressModes.all,
+    )
+
+
+def resolve_function_ingresses(function_spec):
+    http_trigger = resolve_function_http_trigger(function_spec)
+    if not http_trigger:
+        return []
+
+    ingresses = []
+    for _, ingress_config in (
+        http_trigger.get("attributes", {}).get("ingresses", {}).items()
+    ):
+        ingresses.append(ingress_config)
+    return ingresses
+
+
+def resolve_function_http_trigger(function_spec):
+    for trigger_name, trigger_config in function_spec.get("triggers", {}).items():
+        if trigger_config.get("kind") != "http":
+            continue
+        return trigger_config
+
+
+def compile_function_config(function: RemoteRuntime):
     function.set_config("metadata.labels.mlrun/class", function.kind)
 
     # Add vault configurations to function's pod spec, if vault secret source was added.
@@ -834,7 +897,6 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         spec.set_config("spec.minReplicas", function.spec.min_replicas)
         spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
-    dashboard = dashboard or mlconf.nuclio_dashboard_url
     if function.spec.base_spec or function.spec.build.functionSourceCode:
         config = function.spec.base_spec
         if not config:
@@ -879,17 +941,55 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
         update_in(config, "metadata.name", name)
 
-    return nuclio.deploy.deploy_config(
-        config,
-        dashboard_url=dashboard,
-        name=name,
-        project=project,
-        tag=tag,
-        verbose=function.verbose,
-        create_new=True,
-        watch=watch,
-        return_address_mode=nuclio.deploy.ReturnAddressModes.all,
-    )
+    return name, project, config
+
+
+def enrich_function_with_ingress(config, mode, service_type):
+
+    # do not enrich with an ingress
+    if mode == NuclioIngressAddTemplatedIngressModes.never:
+        return
+
+    ingresses = resolve_function_ingresses(config["spec"])
+
+    # function has ingresses already, nothing to add / enrich
+    if ingresses:
+        return
+
+    # if exists, get the http trigger the function has
+    # we would enrich it with an ingress
+    http_trigger = resolve_function_http_trigger(config["spec"])
+    if not http_trigger:
+
+        # function has an HTTP trigger without an ingress
+        # TODO: read from nuclio-api frontend-spec
+        http_trigger = {
+            "kind": "http",
+            "name": "http",
+            "maxWorkers": 1,
+            "workerAvailabilityTimeoutMilliseconds": 10000,  # 10 seconds
+            "attributes": {},
+        }
+
+    def enrich():
+        http_trigger.setdefault("attributes", {}).setdefault("ingresses", {})["0"] = {
+            "paths": ["/"],
+            # this would tell Nuclio to use its default ingress host template
+            # and would auto assign a host for the ingress
+            "hostTemplate": "@nuclio.fromDefault",
+        }
+        http_trigger["attributes"]["serviceType"] = service_type
+        config["spec"].setdefault("triggers", {})[http_trigger["name"]] = http_trigger
+
+    if mode == NuclioIngressAddTemplatedIngressModes.always:
+        enrich()
+    elif mode == NuclioIngressAddTemplatedIngressModes.on_cluster_ip:
+
+        # service type is not cluster ip, bail out
+        if service_type and service_type.lower() != "clusterip":
+            return
+
+        enrich()
 
 
 def resolve_function_internal_invocation_url(function_name, namespace=""):

@@ -73,6 +73,10 @@ class DataStore:
         """return fsspec file system object, if supported"""
         return None
 
+    def supports_isdir(self):
+        """Whether the data store supports isdir"""
+        return True
+
     def _get_secret_or_env(self, key, default=None):
         return self._secret(key) or getenv(key, default)
 
@@ -189,7 +193,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            if fs.isdir(url):
+            if self.supports_isdir() and fs.isdir(url):
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -478,6 +482,9 @@ class HttpStore(DataStore):
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("http")
         return self._filesystem
+
+    def supports_isdir(self):
+        return False
 
     def upload(self, key, src_path):
         raise ValueError("unimplemented")

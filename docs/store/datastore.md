@@ -56,6 +56,14 @@ Note that in order to call our function with an `input` we used the `inputs` dic
 a simple parameter we used the `params` dictionary attribute. the input value is the specific item uri 
 (per data store schema) as explained above.
 
+Reading the data results from our run:
+we can easily get a run output artifact as a `DataItem` (allowing us to view/use the artifact) using:
+
+```python
+# read the data locally as a Dataframe
+prep_data_run.artifact('cleaned_data').as_df()
+```
+
 The {py:class}`~mlrun.datastore.DataItem` support multiple convenience methods such as:
 * **get()**, **put()** - to read/write data
 * **download()**, **upload()** - to download/upload files
@@ -66,10 +74,6 @@ The {py:class}`~mlrun.datastore.DataItem` support multiple convenience methods s
 * **show()** - will visualize the data in Jupyter (as image, html, etc.)
 
 Check the **{py:class}`~mlrun.datastore.DataItem`** class documentation for details
-
-we can easily get a run output artifact as a `DataItem` (allowing us to view/use the artifact) using:
-
-    prep_data_run.artifact('cleaned_data').show()
 
 In order to get a DataItem object from a url use {py:func}`~mlrun.run.get_dataitem` or 
 {py:func}`~mlrun.run.get_object` (returns the `DataItem.get()`), for example:

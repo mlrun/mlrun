@@ -640,7 +640,10 @@ class RemoteRuntime(KubeResource):
             headers = {}
 
         # if function is scaled to zero, let the DLX know we want to wake it up
-        headers.setdefault("x-nuclio-target", self.metadata.name)
+        full_function_name = get_fullname(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
+        headers.setdefault("x-nuclio-target", full_function_name)
         kwargs = {}
         if body:
             if isinstance(body, (str, bytes)):

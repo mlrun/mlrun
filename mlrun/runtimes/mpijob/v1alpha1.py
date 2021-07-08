@@ -24,7 +24,7 @@ from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
 from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1Alpha1States
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
-from mlrun.utils import update_in, get_in
+from mlrun.utils import get_in, update_in
 
 
 class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
@@ -75,6 +75,11 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
             self._update_container(job, "image", self.full_image_path())
         update_in(job, "spec.template.spec.volumes", self.spec.volumes)
         self._update_container(job, "volumeMounts", self.spec.volume_mounts)
+        update_in(job, "spec.template.spec.nodeName", self.spec.node_name)
+        update_in(job, "spec.template.spec.nodeSelector", self.spec.node_selector)
+        update_in(
+            job, "spec.template.spec.affinity", self.spec._get_sanitized_affinity()
+        )
 
         extra_env = self._generate_runtime_env(runobj)
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
@@ -148,7 +153,7 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         return in_terminal_state, completion_time, desired_run_state
 
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

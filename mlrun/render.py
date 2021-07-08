@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import uuid
-import pandas as pd
-from os import path, environ
 import pathlib
-from .utils import is_ipython, get_in, dict_to_list
-from .datastore import uri_to_ipython
+import uuid
+from os import environ, path
+
+import pandas as pd
+
 from .config import config
+from .datastore import uri_to_ipython
+from .utils import dict_to_list, get_in, is_ipython
 
 JUPYTER_SERVER_ROOT = environ.get("HOME", "/User")
 supported_viewers = [
@@ -323,7 +325,7 @@ def get_tblframe(df, display, classes=None):
     return ipython_display(html, display)
 
 
-uid_template = '<div title="{}"><a href="{}/{}/{}/jobs/monitor/{}/info" target="_blank" >...{}</a></div>'
+uid_template = '<div title="{}"><a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank" >...{}</a></div>'
 
 
 def runs_to_html(df, display=True, classes=None, short=False):

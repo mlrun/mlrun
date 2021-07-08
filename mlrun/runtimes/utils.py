@@ -25,12 +25,11 @@ import mlrun
 from mlrun.db import get_run_db
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
-from .generators import selector
+
 from ..artifacts import TableArtifact
 from ..config import config
-from ..utils import get_in
-from ..utils import logger
-from ..utils import helpers
+from ..utils import get_in, helpers, logger
+from .generators import selector
 
 
 class RunError(Exception):
@@ -132,7 +131,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True):
             line = "> " + "-" * 15 + f" Iteration: ({iteration}) " + "-" * 15 + "\n"
             out = line + out
         if show:
-            print(out)
+            print(out, flush=True)
         if db and not skip:
             uid = runobj.metadata.uid
             project = runobj.metadata.project or ""
@@ -169,10 +168,10 @@ def add_code_metadata(path=""):
 
     try:
         from git import (
-            Repo,
-            InvalidGitRepositoryError,
             GitCommandNotFound,
+            InvalidGitRepositoryError,
             NoSuchPathError,
+            Repo,
         )
     except ImportError:
         return None
@@ -233,7 +232,7 @@ def results_to_iter(results, runspec, execution):
     if not runspec:
         return summary
 
-    criteria = runspec.spec.selector
+    criteria = runspec.spec.hyper_param_options.selector
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
         logger.warning(
@@ -257,7 +256,7 @@ def results_to_iter(results, runspec, execution):
     )
     if failed:
         execution.set_state(
-            error=f"{failed} or {len(results)} tasks failed, check logs in db for details",
+            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
             commit=False,
         )
     elif running == 0:
@@ -271,7 +270,7 @@ def generate_function_image_name(function):
     _, repository = helpers.get_parsed_docker_registry()
     if not repository:
         repository = "mlrun"
-    return f".{repository}/func-{project}-{function.metadata.name}-{tag}"
+    return f".{repository}/func-{project}-{function.metadata.name}:{tag}"
 
 
 def set_named_item(obj, item):
@@ -318,7 +317,10 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def get_resource_labels(function, run=None, scrape_metrics=False):
+def get_resource_labels(function, run=None, scrape_metrics=None):
+    scrape_metrics = (
+        scrape_metrics if scrape_metrics is not None else config.scrape_metrics
+    )
     run_uid, run_name, run_project, run_owner = None, None, None, None
     if run:
         run_uid = run.metadata.uid
@@ -411,6 +413,9 @@ def enrich_function_from_dict(function, function_dict):
         "resources",
         "image_pull_policy",
         "replicas",
+        "node_name",
+        "node_selector",
+        "affinity",
     ]:
         override_value = getattr(override_function.spec, attribute, None)
         if override_value:

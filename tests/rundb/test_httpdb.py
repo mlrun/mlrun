@@ -13,27 +13,26 @@
 # limitations under the License.
 
 import codecs
-import deepdiff
 from collections import namedtuple
 from os import environ
 from pathlib import Path
 from shutil import rmtree
 from socket import socket
-from subprocess import Popen, run, PIPE, DEVNULL
+from subprocess import DEVNULL, PIPE, Popen, run
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
 
+import deepdiff
 import pytest
 
-from mlrun.api import schemas
 import mlrun.errors
-from mlrun import RunObject
-from mlrun.artifacts import Artifact
-from mlrun.db import RunDBError
-from mlrun.db.httpdb import HTTPRunDB
-from tests.conftest import wait_for_server, tests_root_directory
 import mlrun.projects.project
+from mlrun import RunObject
+from mlrun.api import schemas
+from mlrun.artifacts import Artifact
+from mlrun.db.httpdb import HTTPRunDB
+from tests.conftest import tests_root_directory, wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple("Server", "url conn workdir")
@@ -92,6 +91,8 @@ def docker_fixture():
             "build",
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
+            "--build-arg",
+            "MLRUN_PYTHON_VERSION=3.7.9",
             "--tag",
             docker_tag,
             ".",
@@ -119,7 +120,9 @@ def docker_fixture():
 
         # retrieve container bind port + host
         out = run(["docker", "port", container_id, "8080"], stdout=PIPE, check=True)
-        host = out.stdout.decode("utf-8").strip()
+        # usually the output is something like b'0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
+        # b'0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
+        host = out.stdout.decode("utf-8").splitlines()[0]
 
         url = f"http://{host}"
         print(f"api url: {url}")
@@ -255,40 +258,52 @@ def test_artifacts(create_server):
     artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
+    db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 1, "bad number of artifacs"
+    assert len(artifacts) == 2, "bad number of artifacts"
+
+    artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
+    assert len(artifacts) == 1, "bad number of artifacts"
+
+    # Only 1 will be returned since it's only looking for iter 0
+    artifacts = db.list_artifacts(project=prj, tag="*", best_iteration=True)
+    assert len(artifacts) == 1, "bad number of artifacts"
 
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 0, "bad number of artifacs after del"
+    assert len(artifacts) == 0, "bad number of artifacts after del"
 
 
 def test_basic_auth(create_server):
-    user, passwd = "bugs", "bunny"
+    user, password = "bugs", "bunny"
     env = {
-        "MLRUN_httpdb__user": user,
-        "MLRUN_httpdb__password": passwd,
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "basic",
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__USERNAME": user,
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__PASSWORD": password,
     }
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.user = user
-    db.password = passwd
+    db.password = password
     db.list_runs()
 
 
 def test_bearer_auth(create_server):
     token = "banana"
-    env = {"MLRUN_httpdb__token": token}
+    env = {
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "bearer",
+        "MLRUN_HTTPDB__AUTHENTICATION__BEARER__TOKEN": token,
+    }
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn
 
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
     db.token = token
@@ -422,7 +437,15 @@ def test_feature_sets(create_server):
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
+    assert len(feature_sets) == count, "bad list results - wrong number of members"
 
+    feature_sets = db.list_feature_sets(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+    )
     assert len(feature_sets) == count, "bad list results - wrong number of members"
 
     feature_set = db.get_feature_set(name, project)
@@ -496,7 +519,15 @@ def test_feature_vectors(create_server):
         patch_mode=schemas.PatchMode.additive,
     )
     feature_vectors = db.list_feature_vectors(project=project)
+    assert len(feature_vectors) == count, "bad list results - wrong number of members"
 
+    feature_vectors = db.list_feature_vectors(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+    )
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
 
     feature_vector = db.get_feature_vector(name, project)

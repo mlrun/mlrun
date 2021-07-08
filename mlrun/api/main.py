@@ -11,19 +11,19 @@ from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.errors
 from mlrun.api.api.api import api_router
-from mlrun.api.db.session import create_session, close_session
+from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
-    run_function_periodically,
     cancel_all_periodic_functions,
+    run_function_periodically,
 )
 from mlrun.api.utils.singletons.db import get_db, initialize_db
 from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
 from mlrun.api.utils.singletons.project_member import (
-    initialize_project_member,
     get_project_member,
+    initialize_project_member,
 )
-from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_scheduler
+from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
@@ -176,7 +176,9 @@ def _monitor_runs():
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(get_db(), db_session)
+                runtime_handler.monitor_runs(
+                    get_db(), db_session, config.httpdb.projects.iguazio_access_key
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring", exc=str(exc), kind=kind
@@ -191,7 +193,9 @@ def _cleanup_runtimes():
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.delete_resources(get_db(), db_session)
+                runtime_handler.delete_resources(
+                    get_db(), db_session, config.httpdb.projects.iguazio_access_key
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed deleting resources. Ignoring", exc=str(exc), kind=kind

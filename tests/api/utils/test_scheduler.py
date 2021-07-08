@@ -1,5 +1,6 @@
 import asyncio
 import pathlib
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Generator
 
@@ -9,7 +10,9 @@ from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.api.deps
 import mlrun.api.utils.singletons.project_member
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
@@ -23,7 +26,7 @@ async def scheduler(db: Session) -> Generator:
     logger.info("Creating scheduler")
     config.httpdb.scheduling.min_allowed_interval = "0"
     scheduler = Scheduler()
-    await scheduler.start(db)
+    await scheduler.start(db, mlrun.api.schemas.AuthInfo())
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     yield scheduler
     logger.info("Stopping scheduler")
@@ -38,8 +41,44 @@ async def bump_counter():
     call_counter += 1
 
 
+async def bump_counter_and_wait():
+    global call_counter
+    call_counter += 1
+    await asyncio.sleep(2)
+
+
 async def do_nothing():
     pass
+
+
+@pytest.mark.asyncio
+async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler):
+    global call_counter
+    call_counter = 0
+    now = datetime.now()
+    expected_call_counter = 1
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_2_seconds = now + timedelta(seconds=1 + expected_call_counter)
+    # this way we're leaving ourselves one second to create the schedule preventing transient test failure
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_2_seconds
+    )
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        bump_counter,
+        cron_trigger,
+    )
+    # purposely doing time.sleep to block the reactor to ensure a job is still scheduled although its planned
+    # execution time passed
+    time.sleep(2 + expected_call_counter)
+    await asyncio.sleep(1)
+    assert call_counter == expected_call_counter
 
 
 @pytest.mark.asyncio
@@ -58,6 +97,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     project = config.default_project
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.local_function,
@@ -78,6 +118,7 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.job,
@@ -86,10 +127,14 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
     )
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 0
-    response_1 = await scheduler.invoke_schedule(db, project, schedule_name)
+    response_1 = await scheduler.invoke_schedule(
+        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+    )
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
-    response_2 = await scheduler.invoke_schedule(db, project, schedule_name)
+    response_2 = await scheduler.invoke_schedule(
+        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+    )
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 2
     for run in runs:
@@ -122,6 +167,7 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.job,
@@ -157,6 +203,7 @@ async def test_create_schedule_success_cron_trigger_validation(
         cron_trigger = schemas.ScheduleCronTrigger(**case)
         scheduler.create_schedule(
             db,
+            mlrun.api.schemas.AuthInfo(),
             "project",
             f"schedule-name-{index}",
             schemas.ScheduleKinds.local_function,
@@ -189,6 +236,7 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
         with pytest.raises(ValueError) as excinfo:
             scheduler.create_schedule(
                 db,
+                mlrun.api.schemas.AuthInfo(),
                 "project",
                 "schedule-name",
                 schemas.ScheduleKinds.local_function,
@@ -196,6 +244,36 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
                 cron_trigger,
             )
         assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_failure_already_exists(
+    db: Session, scheduler: Scheduler
+):
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
+
+    with pytest.raises(mlrun.errors.MLRunConflictError) as excinfo:
+        scheduler.create_schedule(
+            db,
+            mlrun.api.schemas.AuthInfo(),
+            project,
+            schedule_name,
+            schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+        )
+    assert "Conflict - Schedule already exists" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -232,6 +310,7 @@ async def test_get_schedule_datetime_fields_timezone(db: Session, scheduler: Sch
     project = config.default_project
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.local_function,
@@ -259,6 +338,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
     project = config.default_project
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.local_function,
@@ -288,6 +368,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
     schedule_name_2 = "schedule-name-2"
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name_2,
         schemas.ScheduleKinds.local_function,
@@ -342,6 +423,15 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
+async def test_get_schedule_failure_not_found(db: Session, scheduler: Scheduler):
+    schedule_name = "schedule-name"
+    project = config.default_project
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.get_schedule(db, project, schedule_name)
+    assert "Schedule not found" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
 async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
     cases = [
         {"name": "some_prefix-mlrun", "should_find": True},
@@ -363,6 +453,7 @@ async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
         should_find = case["should_find"]
         scheduler.create_schedule(
             db,
+            mlrun.api.schemas.AuthInfo(),
             project,
             name,
             schemas.ScheduleKinds.local_function,
@@ -372,7 +463,7 @@ async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
         if should_find:
             expected_schedule_names.append(name)
 
-    schedules = scheduler.list_schedules(db, project, "mlrun")
+    schedules = scheduler.list_schedules(db, project, "~mlrun")
     assert len(schedules.schedules) == len(expected_schedule_names)
     for schedule in schedules.schedules:
         assert schedule.name in expected_schedule_names
@@ -386,6 +477,7 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
     project = config.default_project
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.local_function,
@@ -401,6 +493,9 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
     schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 0
 
+    # verify another delete pass successfully
+    scheduler.delete_schedule(db, project, schedule_name)
+
 
 @pytest.mark.asyncio
 async def test_rescheduling(db: Session, scheduler: Scheduler):
@@ -415,6 +510,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     project = config.default_project
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.local_function,
@@ -430,7 +526,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     assert call_counter == 1
 
     # start the scheduler and and assert another run
-    await scheduler.start(db)
+    await scheduler.start(db, mlrun.api.schemas.AuthInfo())
     await asyncio.sleep(1)
     assert call_counter == 2
 
@@ -453,6 +549,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
+        mlrun.api.schemas.AuthInfo(),
         project,
         schedule_name,
         schemas.ScheduleKinds.job,
@@ -475,7 +572,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update labels
     scheduler.update_schedule(
-        db, project, schedule_name, labels=labels_2,
+        db, mlrun.api.schemas.AuthInfo(), project, schedule_name, labels=labels_2,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -491,7 +588,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update nothing
     scheduler.update_schedule(
-        db, project, schedule_name,
+        db, mlrun.api.schemas.AuthInfo(), project, schedule_name,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -507,7 +604,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update labels to empty dict
     scheduler.update_schedule(
-        db, project, schedule_name, labels={},
+        db, mlrun.api.schemas.AuthInfo(), project, schedule_name, labels={},
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -530,7 +627,11 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second,
     )
     scheduler.update_schedule(
-        db, project, schedule_name, cron_trigger=cron_trigger,
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        cron_trigger=cron_trigger,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -560,6 +661,78 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     assert runs[0]["status"]["state"] == RunStates.completed
 
 
+@pytest.mark.asyncio
+async def test_update_schedule_failure_not_found(db: Session, scheduler: Scheduler):
+    schedule_name = "schedule-name"
+    project = config.default_project
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.update_schedule(
+            db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        )
+    assert "Schedule not found" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    # The function waits 2 seconds and the schedule runs every second for 4 seconds. So:
+    # For 1 concurrent job, the second and fourth jobs should be skipped resulting in 2 runs.
+    # For 2 concurrent jobs, the third job should be skipped resulting in 3 runs.
+    # For 3 concurrent jobs, no job should be skipped resulting in 4 runs.
+    "concurrency_limit,run_amount",
+    [(1, 2), (2, 3), (3, 4)],
+)
+@pytest.mark.parametrize(
+    "schedule_kind", [schemas.ScheduleKinds.job, schemas.ScheduleKinds.local_function]
+)
+async def test_schedule_job_concurrency_limit(
+    db: Session,
+    scheduler: Scheduler,
+    concurrency_limit: int,
+    run_amount: int,
+    schedule_kind: schemas.ScheduleKinds,
+):
+    global call_counter
+    call_counter = 0
+
+    now = datetime.now()
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
+    )
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduled_object = (
+        _create_mlrun_function_and_matching_scheduled_object(
+            db, project, handler="sleep_two_seconds"
+        )
+        if schedule_kind == schemas.ScheduleKinds.job
+        else bump_counter_and_wait
+    )
+
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 0
+
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        schedule_kind,
+        scheduled_object,
+        cron_trigger,
+        concurrency_limit=concurrency_limit,
+    )
+
+    # wait so all runs will complete
+    await asyncio.sleep(7)
+    if schedule_kind == schemas.ScheduleKinds.job:
+        runs = get_db().list_runs(db, project=project)
+        assert len(runs) == run_amount
+    else:
+        assert call_counter == run_amount
+
+
 def _assert_schedule(
     schedule: schemas.ScheduleOutput,
     project,
@@ -578,7 +751,9 @@ def _assert_schedule(
     assert DeepDiff(schedule.labels, labels, ignore_order=True) == {}
 
 
-def _create_mlrun_function_and_matching_scheduled_object(db: Session, project: str):
+def _create_mlrun_function_and_matching_scheduled_object(
+    db: Session, project: str, handler: str = "do_nothing"
+):
     function_name = "my-function"
     code_path = pathlib.Path(__file__).absolute().parent / "function.py"
     function = mlrun.code_to_function(
@@ -592,7 +767,7 @@ def _create_mlrun_function_and_matching_scheduled_object(db: Session, project: s
         "task": {
             "spec": {
                 "function": f"{project}/{function_name}@{hash_key}",
-                "handler": "do_nothing",
+                "handler": handler,
             },
             "metadata": {"name": "my-task", "project": f"{project}"},
         }

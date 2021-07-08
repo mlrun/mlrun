@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import sys
 from base64 import b64encode
-from os import remove, path, getenv
+from os import getenv, path, remove
 from tempfile import mktemp
 
 import fsspec
+import pandas as pd
+import pyarrow.parquet as pq
 import requests
 import urllib3
-import pandas as pd
 
 import mlrun.errors
 from mlrun.utils import logger
@@ -71,6 +72,10 @@ class DataStore:
         """return fsspec file system object, if supported"""
         return None
 
+    def supports_isdir(self):
+        """Whether the data store supports isdir"""
+        return True
+
     def _get_secret_or_env(self, key, default=None):
         return self._secret(key) or getenv(key, default)
 
@@ -121,7 +126,18 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def as_df(self, url, subpath, columns=None, df_module=None, format="", **kwargs):
+    def as_df(
+        self,
+        url,
+        subpath,
+        columns=None,
+        df_module=None,
+        format="",
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
         df_module = df_module or pd
         if url.endswith(".csv") or format == "csv":
             if columns:
@@ -130,7 +146,44 @@ class DataStore:
         elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns
-            reader = df_module.read_parquet
+
+            def reader(*args, **kwargs):
+                if start_time or end_time:
+                    if sys.version_info < (3, 7):
+                        raise ValueError(
+                            f"feature not supported for python version {sys.version_info}"
+                        )
+
+                    from storey.utils import find_filters
+
+                    dataset = pq.ParquetDataset(url, filesystem=fs)
+                    if dataset.partitions:
+                        partitions = dataset.partitions.partition_names
+                        time_attributes = [
+                            "year",
+                            "month",
+                            "day",
+                            "hour",
+                            "minute",
+                            "second",
+                        ]
+                        partitions_time_attributes = [
+                            j for j in time_attributes if j in partitions
+                        ]
+                    else:
+                        partitions_time_attributes = []
+                    filters = []
+                    find_filters(
+                        partitions_time_attributes,
+                        start_time,
+                        end_time,
+                        filters,
+                        time_column,
+                    )
+                    kwargs["filters"] = filters
+
+                return df_module.read_parquet(*args, **kwargs)
+
         elif url.endswith(".json") or format == "json":
             reader = df_module.read_json
 
@@ -139,7 +192,15 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            return reader(fs.open(url), **kwargs)
+            if self.supports_isdir() and fs.isdir(url):
+                storage_options = self.get_storage_options()
+                if storage_options:
+                    kwargs["storage_options"] = storage_options
+                return reader(url, **kwargs)
+            else:
+                # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
+                # support the storage_options parameter.
+                return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()
         self.download(self._join(subpath), tmp)
@@ -154,6 +215,9 @@ class DataStore:
             "secret_pfx": self.secret_pfx,
             "options": self.options,
         }
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
 
 class DataItem:
@@ -213,7 +277,7 @@ class DataItem:
         return self._url
 
     def get(self, size=None, offset=0):
-        """read all or a range and return thge content"""
+        """read all or a range and return the content"""
         return self._store.get(self._path, size=size, offset=offset)
 
     def download(self, target_path):
@@ -257,7 +321,9 @@ class DataItem:
         self.download(self._local_path)
         return self._local_path
 
-    def as_df(self, columns=None, df_module=None, format="", **kwargs):
+    def as_df(
+        self, columns=None, df_module=None, format="", **kwargs,
+    ):
         """return a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select
@@ -343,6 +409,9 @@ class HttpStore(DataStore):
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("http")
         return self._filesystem
+
+    def supports_isdir(self):
+        return False
 
     def upload(self, key, src_path):
         raise ValueError("unimplemented")

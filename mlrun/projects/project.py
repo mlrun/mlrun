@@ -12,44 +12,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
+import importlib.util as imputil
+import pathlib
 import shutil
+import typing
 import warnings
-
-from ..db import get_run_db
-from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
-from ..secrets import SecretsStore
-from ..model import ModelObj
-import tarfile
+from os import environ, path, remove
 from tempfile import mktemp
-from git import Repo
 
 import yaml
-from os import path, remove, environ
-
-from ..datastore import store_manager
-from ..config import config
-from ..run import (
-    import_function,
-    code_to_function,
-    new_function,
-    download_object,
-    run_pipeline,
-    get_object,
-    wait_for_pipeline_completion,
-)
-import importlib.util as imputil
-from urllib.parse import urlparse
+from git import Repo
 from kfp import compiler
 
-from ..utils import (
-    update_in,
-    new_pipe_meta,
-    logger,
-    RunNotifications,
+import mlrun.api.schemas
+import mlrun.errors
+import mlrun.utils.regex
+
+from ..artifacts import (
+    ArtifactManager,
+    ArtifactProducer,
+    DatasetArtifact,
+    ModelArtifact,
+    dict_to_artifact,
+)
+from ..config import config
+from ..datastore import store_manager
+from ..db import get_run_db
+from ..features import Feature
+from ..model import ModelObj
+from ..run import (
+    code_to_function,
+    get_object,
+    import_function,
+    new_function,
+    run_pipeline,
+    wait_for_pipeline_completion,
 )
 from ..runtimes.utils import add_code_metadata
-import mlrun.api.schemas
-import mlrun.api.utils.projects.leader
+from ..secrets import SecretsStore
+from ..utils import RunNotifications, logger, new_pipe_meta, update_in
+from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 
 
 class ProjectError(Exception):
@@ -116,6 +118,8 @@ def load_project(
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets)
+        elif url.endswith(".zip"):
+            clone_zip(url, context, secrets)
         elif url.startswith("db://"):
             if user_project:
                 user = environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -129,7 +133,7 @@ def load_project(
             raise ValueError(f"context {context} is not an existing dir path")
         try:
             repo = Repo(context)
-            url = _get_repo_url(repo)
+            url = get_repo_url(repo)
         except Exception:
             if init_git:
                 repo = Repo.init(context)
@@ -171,7 +175,7 @@ def _load_project_dir(context, name="", subpath=""):
 
 def _load_project_from_db(url, secrets):
     db = get_run_db(secrets=secrets)
-    project_name = url.replace("git://", "")
+    project_name = url.replace("db://", "")
     return db.get_project(project_name)
 
 
@@ -236,8 +240,20 @@ class ProjectMetadata(ModelObj):
     @name.setter
     def name(self, name):
         if name:
-            mlrun.api.utils.projects.leader.Member.validate_project_name(name)
+            self.validate_project_name(name)
         self._name = name
+
+    @staticmethod
+    def validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
+        try:
+            mlrun.utils.helpers.verify_field_regex(
+                "project.metadata.name", name, mlrun.utils.regex.project_name
+            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
 
 
 class ProjectSpec(ModelObj):
@@ -287,7 +303,7 @@ class ProjectSpec(ModelObj):
         """source url or git repo"""
         if not self._source:
             if self.repo:
-                url = _get_repo_url(self.repo)
+                url = get_repo_url(self.repo)
                 if url:
                     self._source = url
 
@@ -522,7 +538,7 @@ class MlrunProject(ModelObj):
 
     @property
     def name(self) -> str:
-        """This is a property of the spec, look there for documentation
+        """This is a property of the metadata, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
         warnings.warn(
             "This is a property of the metadata, use project.metadata.name instead"
@@ -541,6 +557,28 @@ class MlrunProject(ModelObj):
             PendingDeprecationWarning,
         )
         self.metadata.name = name
+
+    @property
+    def artifact_path(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifact_path instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.artifact_path
+
+    @artifact_path.setter
+    def artifact_path(self, artifact_path):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifact_path instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.artifact_path = artifact_path
 
     @property
     def source(self) -> str:
@@ -777,6 +815,9 @@ class MlrunProject(ModelObj):
     ):
         am = self._get_artifact_manager()
         artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            artifact_path, self.metadata.name
+        )
         producer = ArtifactProducer(
             "project",
             self.metadata.name,
@@ -796,6 +837,167 @@ class MlrunProject(ModelObj):
             target_path=target_path,
         )
         self.spec.set_artifact(item.key, item.base_dict())
+        return item
+
+    def log_dataset(
+        self,
+        key,
+        df,
+        tag="",
+        local_path=None,
+        artifact_path=None,
+        upload=True,
+        labels=None,
+        format="",
+        preview=None,
+        stats=False,
+        target_path="",
+        extra_data=None,
+        **kwargs,
+    ):
+        """
+        log a dataset artifact and optionally upload it to datastore
+
+        example::
+
+            raw_data = {
+                "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+                "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+                "age": [42, 52, 36, 24, 73],
+                "testScore": [25, 94, 57, 62, 70],
+            }
+            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            context.log_dataset("mydf", df=df, stats=True)
+
+        :param key:           artifact key
+        :param df:            dataframe object
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: target artifact path (when not using the default)
+                              to define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
+        :param tag:           version tag
+        :param format:        optional, format to use (e.g. csv, parquet, ..)
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param preview:       number of lines to store as preview in the artifact metadata
+        :param stats:         calculate and store dataset stats in the artifact metadata
+        :param extra_data:    key/value list of extra files/charts to link with this dataset
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+
+        :returns: artifact object
+        """
+        ds = DatasetArtifact(
+            key,
+            df,
+            preview=preview,
+            extra_data=extra_data,
+            format=format,
+            stats=stats,
+            **kwargs,
+        )
+
+        item = self.log_artifact(
+            ds,
+            local_path=local_path,
+            artifact_path=artifact_path or self.spec.artifact_path,
+            target_path=target_path,
+            tag=tag,
+            upload=upload,
+            labels=labels,
+        )
+        return item
+
+    def log_model(
+        self,
+        key,
+        body=None,
+        framework="",
+        tag="",
+        model_dir=None,
+        model_file=None,
+        algorithm=None,
+        metrics=None,
+        parameters=None,
+        artifact_path=None,
+        upload=True,
+        labels=None,
+        inputs: typing.List[Feature] = None,
+        outputs: typing.List[Feature] = None,
+        feature_vector: str = None,
+        feature_weights: list = None,
+        training_set=None,
+        label_column=None,
+        extra_data=None,
+    ):
+        """log a model artifact and optionally upload it to datastore
+
+        example::
+
+            context.log_model("model", body=dumps(model),
+                              model_file="model.pkl",
+                              metrics=context.results,
+                              training_set=training_df,
+                              label_column='label',
+                              feature_vector=feature_vector_uri,
+                              labels={"app": "fraud"})
+
+        :param key:             artifact key or artifact class ()
+        :param body:            will use the body as the artifact content
+        :param model_file:      path to the local model file we upload (see also model_dir)
+        :param model_dir:       path to the local dir holding the model file and extra files
+        :param artifact_path:   target artifact path (when not using the default)
+                                to define a subpath under the default location use:
+                                `artifact_path=context.artifact_subpath('data')`
+        :param framework:       name of the ML framework
+        :param algorithm:       training algorithm name
+        :param tag:             version tag
+        :param metrics:         key/value dict of model metrics
+        :param parameters:      key/value dict of model parameters
+        :param inputs:          ordered list of model input features (name, type, ..)
+        :param outputs:         ordered list of model output/result elements (name, type, ..)
+        :param upload:          upload to datastore (default is True)
+        :param labels:          a set of key/value labels to tag the artifact with
+        :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+        :param feature_weights: list of feature weights, one per input column
+        :param training_set:    training set dataframe, used to infer inputs & outputs
+        :param label_column:    which columns in the training set are the label (target) columns
+        :param extra_data:      key/value list of extra files/charts to link with this dataset
+                                value can be abs/relative path string | bytes | artifact object
+
+        :returns: artifact object
+        """
+
+        if training_set is not None and inputs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify inputs and training set together"
+            )
+
+        model = ModelArtifact(
+            key,
+            body,
+            model_file=model_file,
+            metrics=metrics,
+            parameters=parameters,
+            inputs=inputs,
+            outputs=outputs,
+            framework=framework,
+            algorithm=algorithm,
+            feature_vector=feature_vector,
+            feature_weights=feature_weights,
+            extra_data=extra_data,
+        )
+        if training_set is not None:
+            model.infer_from_df(training_set, label_column)
+
+        item = self.log_artifact(
+            model,
+            local_path=model_dir,
+            artifact_path=artifact_path or self.spec.artifact_path,
+            tag=tag,
+            upload=upload,
+            labels=labels,
+        )
         return item
 
     def reload(self, sync=False):
@@ -914,9 +1116,9 @@ class MlrunProject(ModelObj):
             remote = remote or "origin"
             self.spec.repo.git.pull(remote, branch)
         elif url and url.endswith(".tar.gz"):
-            if not self.spec.context:
-                raise ValueError("target dit (context) is not set")
             clone_tgz(url, self.spec.context, self._secrets)
+        elif url and url.endswith(".zip"):
+            clone_zip(url, self.spec.context, self._secrets)
 
     def create_remote(self, url, name="origin"):
         """create remote for the project git
@@ -1044,10 +1246,10 @@ class MlrunProject(ModelObj):
             logger.warning(
                 "get_vault_secrets executed locally. This is not recommended and may become deprecated soon"
             )
-            self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
+            return self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
 
         run_db = get_run_db(secrets=self._secrets)
-        project_secrets = run_db.get_project_secrets(
+        project_secrets = run_db.list_project_secrets(
             self.metadata.name,
             self._secrets.vault.token,
             mlrun.api.schemas.SecretProviderName.vault,
@@ -1222,6 +1424,9 @@ class MlrunProject(ModelObj):
         filepath = filepath or path.join(
             self.spec.context, self.spec.subpath, "project.yaml"
         )
+        project_dir = pathlib.Path(filepath).parent
+        if not project_dir.exists():
+            project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
 
@@ -1270,7 +1475,7 @@ class MlrunProjectLegacy(ModelObj):
         """source url or git repo"""
         if not self._source:
             if self.repo:
-                url = _get_repo_url(self.repo)
+                url = get_repo_url(self.repo)
                 if url:
                     self._source = url
 
@@ -1681,71 +1886,3 @@ def github_webhook(request):
         return {"msg": "Ok"}
 
     return {"msg": "pushed"}
-
-
-def clone_git(url, context, secrets, clone):
-    url_obj = urlparse(url)
-    if not context:
-        raise ValueError("please specify a target (context) directory for clone")
-
-    if path.exists(context) and path.isdir(context):
-        if clone:
-            shutil.rmtree(context)
-        else:
-            try:
-                repo = Repo(context)
-                return _get_repo_url(repo), repo
-            except Exception:
-                pass
-
-    host = url_obj.hostname or "github.com"
-    if url_obj.port:
-        host += f":{url_obj.port}"
-
-    token = url_obj.username or secrets.get("GITHUB_TOKEN") or secrets.get("git_user")
-    password = url_obj.password or secrets.get("git_password") or "x-oauth-basic"
-    if token:
-        clone_path = f"https://{token}:{password}@{host}{url_obj.path}"
-    else:
-        clone_path = f"https://{host}{url_obj.path}"
-
-    branch = None
-    if url_obj.fragment:
-        refs = url_obj.fragment
-        if refs.startswith("refs/"):
-            branch = refs[refs.rfind("/") + 1 :]
-        else:
-            url = url.replace("#" + refs, f"#refs/heads/{refs}")
-
-    repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
-    return url, repo
-
-
-def clone_tgz(url, context, secrets):
-    if not context:
-        raise ValueError("please specify a target (context) directory for clone")
-
-    if path.exists(context) and path.isdir(context):
-        shutil.rmtree(context)
-    tmp = mktemp()
-    download_object(url, tmp, secrets=secrets)
-    tf = tarfile.open(tmp)
-    tf.extractall(context)
-    tf.close()
-    remove(tmp)
-
-
-def _get_repo_url(repo):
-    url = ""
-    remotes = [remote.url for remote in repo.remotes]
-    if not remotes:
-        return ""
-
-    url = remotes[0]
-    url = url.replace("https://", "git://")
-    try:
-        url = f"{url}#refs/heads/{repo.active_branch.name}"
-    except Exception:
-        pass
-
-    return url

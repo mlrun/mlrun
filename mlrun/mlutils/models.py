@@ -1,9 +1,9 @@
 import json
-from inspect import signature, _empty
 from importlib import import_module
+from inspect import _empty, signature
 
 # for backwards compatibility - can be removed when we separate the hub branches for 0.6.x ad 0.5.x
-from .plots import eval_model_v2, eval_class_model  # noqa: F401
+from .plots import eval_class_model, eval_model_v2  # noqa: F401
 
 
 def get_class_fit(module_pkg_class: str):
@@ -39,6 +39,8 @@ def gen_sklearn_model(model_pkg, skparams):
     else:
         model_config = get_class_fit(model_pkg)
 
+    # we used to use skparams as is (without .items()) so supporting both cases for backwards compatibility
+    skparams = skparams.items() if isinstance(skparams, dict) else skparams
     for k, v in skparams:
         if k.startswith("CLASS_"):
             model_config["CLASS"][k[6:]] = v

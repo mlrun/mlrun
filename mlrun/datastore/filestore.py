@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import path, makedirs, listdir, stat
+from os import listdir, makedirs, path, stat
 from shutil import copyfile
 
 import fsspec

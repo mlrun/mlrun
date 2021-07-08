@@ -1,17 +1,11 @@
 import os
+
+import kfp.compiler
+import kfp.dsl
 import pytest
 
-import kfp.dsl
-import kfp.compiler
-
-from mlrun import (
-    code_to_function,
-    new_task,
-    run_pipeline,
-    wait_for_pipeline_completion,
-)
+from mlrun import code_to_function, new_task, run_pipeline, wait_for_pipeline_completion
 from mlrun.platforms.other import mount_v3io
-
 from tests.system.base import TestMLRunSystem
 
 
@@ -29,7 +23,6 @@ class TestJobs(TestMLRunSystem):
 
         self._trainer.spec.build.commands.append("pip install pandas")
         self._trainer.spec.build.base_image = "mlrun/mlrun"
-        self._trainer.spec.command = code_path
         self._trainer.apply(mount_v3io())
 
         self._logger.debug("Deploying trainer")

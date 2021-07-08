@@ -13,10 +13,14 @@
 # limitations under the License.
 
 from typing import List
+
 import pandas as pd
 
-from ..feature_vector import OfflineVectorResponse
+import mlrun
+import mlrun.errors
+
 from ...utils import logger
+from ..feature_vector import OfflineVectorResponse
 
 
 class LocalFeatureMerger:
@@ -24,7 +28,24 @@ class LocalFeatureMerger:
         self._result_df = None
         self.vector = vector
 
-    def start(self, entity_rows=None, entity_timestamp_column=None, target=None):
+    def start(
+        self,
+        entity_rows=None,
+        entity_timestamp_column=None,
+        target=None,
+        drop_columns=None,
+        start_time=None,
+        end_time=None,
+    ):
+        index_columns = []
+        drop_indexes = False if self.vector.spec.with_indexes else True
+
+        def append_index(key):
+            if drop_indexes and key and key not in index_columns:
+                index_columns.append(key)
+
+        if entity_timestamp_column:
+            index_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
         if self.vector.metadata.name:
             self.vector.save()
@@ -37,22 +58,41 @@ class LocalFeatureMerger:
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            df = feature_set.to_dataframe(columns=column_names, df_module=df_module)
-
+            df = feature_set.to_dataframe(
+                columns=column_names,
+                df_module=df_module,
+                start_time=start_time,
+                end_time=end_time,
+                time_column=entity_timestamp_column,
+            )
             # rename columns with aliases
             df.rename(
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
             dfs.append(df)
+            append_index(feature_set.spec.timestamp_key)
+            for key in feature_set.spec.entities.keys():
+                append_index(key)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+        if drop_columns or index_columns:
+            for field in drop_columns or []:
+                if field not in index_columns:
+                    index_columns.append(field)
+
+            self._result_df.drop(columns=index_columns, inplace=True, errors="ignore")
 
         if target:
-            logger.info(f"writing target: {target.path}")
-            target.write_dataframe(self._result_df)
-            if self.vector.metadata.name:
-                target.set_resource(self.vector)
-                target.update_resource_status("ready")
+            is_persistent_vector = self.vector.metadata.name is not None
+            if not target.path and not is_persistent_vector:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "target path was not specified"
+                )
+            target.set_resource(self.vector)
+            size = target.write_dataframe(self._result_df)
+            if is_persistent_vector:
+                target_status = target.update_resource_status("ready", size=size)
+                logger.info(f"wrote target: {target_status}")
                 self.vector.save()
         return OfflineVectorResponse(self)
 

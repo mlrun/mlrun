@@ -1,8 +1,10 @@
-import mlrun
-from mlrun.utils import logger
 import pytest
-from .demo_states import *  # noqa
 
+import mlrun
+from mlrun.serving import GraphContext
+from mlrun.utils import logger
+
+from .demo_states import *  # noqa
 
 engines = [
     "sync",
@@ -60,6 +62,27 @@ def test_handler(engine):
         server.wait_for_completion()
     # the json.dumps converts the 6 to "6" (string)
     assert resp == "6", f"got unexpected result {resp}"
+
+
+def myfunc1(x, context=None):
+    assert isinstance(context, GraphContext), "didnt get a valid context"
+    return x * 2
+
+
+def myfunc2(x):
+    return x * 2
+
+
+def test_handler_with_context():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to(name="s1", handler=myfunc1).to(name="s2", handler=myfunc2).to(
+        name="s3", handler=myfunc1
+    )
+    server = fn.to_mock_server()
+    resp = server.test(body=5)
+    # expext 5 * 2 * 2 * 2 = 40
+    assert resp == 40, f"got unexpected result {resp}"
 
 
 def test_init_class():

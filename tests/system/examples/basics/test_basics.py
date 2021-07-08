@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from mlrun import run_local, new_task
+from mlrun import new_task, run_local
 from mlrun.artifacts import PlotArtifact
-
 from tests.system.base import TestMLRunSystem
 
 
@@ -54,7 +53,6 @@ class TestBasics(TestMLRunSystem):
             output_path=str(self.results_path / run_uid),
             secret_sources=[],
             data_stores=[],
-            scrape_metrics=False,
         )
 
         assert run_object.state() == "completed"

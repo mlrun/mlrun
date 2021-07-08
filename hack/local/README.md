@@ -27,12 +27,12 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 ```
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:0.6.0
-docker pull mlrun/mlrun-ui:0.6.0
+docker pull mlrun/jupyter:0.6.4
+docker pull mlrun/mlrun-ui:0.6.4
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.0
-docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.0
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.6.4
+docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.6.4
 ```
 
 When the execution completes &mdash;
@@ -119,9 +119,17 @@ Vault needs to be installed in your environment. This document does not cover th
 refer to [**Vault documentation**](https://www.vaultproject.io/docs/install) for instructions.
 
 Once Vault is running locally, you need to enable Kubernetes authentication for vault. Follow the instructions in [**Kubernetes auth method**](https://www.vaultproject.io/docs/auth/kubernetes) to enable it. 
-This involves setting up a service account with `TokenReview` permissions - the page linked above explains how to configure that properly.
+This involves setting up a service account with `TokenReview` permissions - follow the instructions in
+[**Vault Agent with Kubernetes**](https://learn.hashicorp.com/tutorials/vault/agent-kubernetes) - follow
+the steps for service-account creation and configuring Vault to use it.
 
 #### Configuring MLRun API service to work with Vault
+
+> **Note:**
+> By default, the MLRun API uses a service-account that does not have permissions to perform list of serviceaccounts. 
+> This permission is required for the Vault functionality, so you'll need to manually edit the `mlrun-api` role and
+> add `serviceaccounts` to the list of APIs that are permitted.
+
 The MLRun API service needs to have permissions to manipulate Vault k8s roles, Vault policies and of course handle secrets. The Vault authentication
 method within MLRun uses a JWT token to authenticate using k8s mode. The JWT token can be placed in one of two locations:
 
@@ -137,7 +145,7 @@ We will use the 1st approach here - to configure the MLRun API pod, perform the 
 For example, If using Minikube on Mac and you're running Vault on your local laptop then it 
 should be set to `http://docker.for.mac.localhost:8200`. If you're running Vault on another
 pod then the URL should just be the DNS name of that pod.
-2. Set the Vault role for the pod to be `user:mlrun-api`. The role is specified through the `MLRUN__SECRET_STORES__VAULT__ROLE` environment variable
+2. Set the Vault role for the pod to be `user:mlrun-api`. The role is specified through the `MLRUN_SECRET_STORES__VAULT__ROLE` environment variable
 (which maps to the MLRun config parameter `secret_stores.vault.role`).
 3. Set a service-account name for the MLRun API pod. By default the service account used is `mlrun-api`, and this is 
 the value used in the rest of this example. If you modify the service account name, make sure you modify the rest of the steps accordingly.

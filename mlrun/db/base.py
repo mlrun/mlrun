@@ -14,9 +14,10 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Optional, Union
 
 from mlrun.api import schemas
+from mlrun.api.schemas import ModelEndpoint
 
 
 class RunDBError(Exception):
@@ -44,6 +45,10 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def update_run(self, updates: dict, uid, project="", iter=0):
+        pass
+
+    @abstractmethod
+    def abort_run(self, uid, project="", iter=0):
         pass
 
     @abstractmethod
@@ -82,7 +87,15 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
+        best_iteration: bool = False,
     ):
         pass
 
@@ -199,6 +212,10 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 
@@ -227,7 +244,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         pass
 
     @abstractmethod
@@ -253,6 +270,10 @@ class RunDBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 
@@ -281,7 +302,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         pass
 
     @abstractmethod
@@ -308,7 +329,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
-    def get_project_secrets(
+    def list_project_secrets(
         self,
         project: str,
         token: str,
@@ -319,6 +340,26 @@ class RunDBInterface(ABC):
     ) -> schemas.SecretsData:
         pass
 
+    def list_project_secret_keys(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        token: str = None,
+    ) -> schemas.SecretKeysData:
+        pass
+
+    def delete_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, schemas.SecretProviderName
+        ] = schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ):
+        pass
+
     @abstractmethod
     def create_user_secrets(
         self,
@@ -327,5 +368,48 @@ class RunDBInterface(ABC):
             str, schemas.SecretProviderName
         ] = schemas.SecretProviderName.vault,
         secrets: dict = None,
+    ):
+        pass
+
+    @abstractmethod
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_endpoint_record(
+        self, project: str, endpoint_id: str, access_key: Optional[str] = None
+    ):
+        pass
+
+    @abstractmethod
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+        access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
+        access_key: Optional[str] = None,
     ):
         pass

@@ -1,9 +1,9 @@
 import pytest
 from sqlalchemy.orm import Session
 
+from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from tests.api.db.conftest import dbs
-from mlrun.api import schemas
 
 
 def _create_feature_set(name):

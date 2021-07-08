@@ -4,21 +4,22 @@ from mlrun.api.api import deps
 from mlrun.api.api.endpoints import (
     artifacts,
     background_tasks,
+    feature_store,
     files,
+    frontend_spec,
     functions,
+    grafana_proxy,
     healthz,
     logs,
+    model_endpoints,
     pipelines,
     projects,
     runs,
     runtimes,
     schedules,
+    secrets,
     submit,
     tags,
-    feature_sets,
-    model_endpoints,
-    secrets,
-    grafana_proxy,
 )
 
 api_router = APIRouter()
@@ -62,8 +63,13 @@ api_router.include_router(
     tags.router, tags=["tags"], dependencies=[Depends(deps.AuthVerifier)]
 )
 api_router.include_router(
-    feature_sets.router,
-    tags=["feature-sets"],
+    feature_store.router,
+    tags=["feature-store"],
+    dependencies=[Depends(deps.AuthVerifier)],
+)
+api_router.include_router(
+    frontend_spec.router,
+    tags=["frontend-specs"],
     dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(

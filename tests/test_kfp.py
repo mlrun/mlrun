@@ -23,7 +23,7 @@ import pytest
 import yaml
 
 import mlrun.kfpops
-from mlrun import new_task, new_function
+from mlrun import new_function, new_task
 from mlrun.artifacts import ChartArtifact
 from mlrun.utils import logger
 
@@ -148,7 +148,7 @@ def _assert_iteration_output_dir_files(output_dir):
         contents = results_file.read()
         assert contents == results_body
     assert os.path.exists(output_dir + "/chart.html")
-    assert os.path.exists(output_dir + "/mydf.csv")
+    assert os.path.exists(output_dir + "/mydf.parquet")
 
 
 def _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss):

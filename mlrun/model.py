@@ -13,16 +13,18 @@
 # limitations under the License.
 
 import inspect
+import re
+import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
-import re
-from typing import Tuple, Dict
+from typing import Dict, List, Optional, Tuple, Union
+
 import mlrun
 
 from .config import config
-from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
+from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
 
 class ModelObj:
@@ -64,17 +66,23 @@ class ModelObj:
         return struct
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         """create an object from a python dictionary"""
         struct = {} if struct is None else struct
+        deprecated_fields = deprecated_fields or {}
         fields = fields or cls._dict_fields
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
         if struct:
             for key, val in struct.items():
-                if key in fields:
+                if key in fields and key not in deprecated_fields:
                     setattr(new_obj, key, val)
+            for deprecated_field, new_field in deprecated_fields.items():
+                field_value = struct.get(new_field) or struct.get(deprecated_field)
+                if field_value:
+                    setattr(new_obj, new_field, field_value)
+
         return new_obj
 
     def to_yaml(self):
@@ -284,10 +292,12 @@ class ImageBuilder(ModelObj):
         secret=None,
         code_origin=None,
         registry=None,
+        load_source_on_run=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
-        self.source = source  #: course
+        self.codeEntryAttributes = ""  #: codeEntryAttributes
+        self.source = source  #: source
         self.code_origin = code_origin  #: code_origin
         self.image = image  #: image
         self.base_image = base_image  #: base_image
@@ -295,6 +305,7 @@ class ImageBuilder(ModelObj):
         self.extra = extra  #: extra
         self.secret = secret  #: secret
         self.registry = registry  #: registry
+        self.load_source_on_run = load_source_on_run  #: load_source_on_run
         self.build_pod = None
 
 
@@ -326,6 +337,70 @@ class RunMetadata(ModelObj):
         self._iteration = iteration
 
 
+class HyperParamStrategies:
+    grid = "grid"
+    list = "list"
+    random = "random"
+    custom = "custom"
+
+    @staticmethod
+    def all():
+        return [
+            HyperParamStrategies.grid,
+            HyperParamStrategies.list,
+            HyperParamStrategies.random,
+            HyperParamStrategies.custom,
+        ]
+
+
+class HyperParamOptions(ModelObj):
+    """Hyper Parameter Options
+
+    Parameters:
+        param_file (str):       hyper params input file path/url, instead of inline
+        strategy (str):         hyper param strategy - grid, list or random
+        selector (str):         selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
+        stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
+        parallel_runs (int):    number of param combinations to run in parallel (over Dask)
+        dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
+        max_iterations (int):   max number of runs (in random strategy)
+        max_errors (int):       max number of child runs errors for the overall job to fail
+        teardown_dask (bool):   kill the dask cluster pods after the runs
+    """
+
+    def __init__(
+        self,
+        param_file=None,
+        strategy=None,
+        selector: HyperParamStrategies = None,
+        stop_condition=None,
+        parallel_runs=None,
+        dask_cluster_uri=None,
+        max_iterations=None,
+        max_errors=None,
+        teardown_dask=None,
+    ):
+        self.param_file = param_file
+        self.strategy = strategy
+        self.selector = selector
+        self.stop_condition = stop_condition
+        self.max_iterations = max_iterations
+        self.max_errors = max_errors
+        self.parallel_runs = parallel_runs
+        self.dask_cluster_uri = dask_cluster_uri
+        self.teardown_dask = teardown_dask
+
+    def validate(self):
+        if self.strategy and self.strategy not in HyperParamStrategies.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"illegal hyper param strategy, use {','.join(HyperParamStrategies.all())}"
+            )
+        if self.max_iterations and self.strategy != HyperParamStrategies.random:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "max_iterations is only valid in random strategy"
+            )
+
+
 class RunSpec(ModelObj):
     """Run specification"""
 
@@ -343,19 +418,23 @@ class RunSpec(ModelObj):
         function=None,
         secret_sources=None,
         data_stores=None,
-        tuning_strategy=None,
+        strategy=None,
         verbose=None,
-        scrape_metrics=False,
+        scrape_metrics=None,
+        hyper_param_options=None,
     ):
 
+        self._hyper_param_options = None
+        self._inputs = inputs
+        self._outputs = outputs
+
+        self.hyper_param_options = hyper_param_options
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
-        self.tuning_strategy = tuning_strategy
+        self.strategy = strategy
         self.selector = selector
         self.handler = handler
-        self._inputs = inputs
-        self._outputs = outputs
         self.input_path = input_path
         self.output_path = output_path
         self.function = function
@@ -370,6 +449,10 @@ class RunSpec(ModelObj):
             struct["handler"] = self.handler
         return struct
 
+    def is_hyper_job(self):
+        param_file = self.param_file or self.hyper_param_options.param_file
+        return param_file or self.hyperparams
+
     @property
     def inputs(self):
         return self._inputs
@@ -377,6 +460,16 @@ class RunSpec(ModelObj):
     @inputs.setter
     def inputs(self, inputs):
         self._inputs = self._verify_dict(inputs, "inputs")
+
+    @property
+    def hyper_param_options(self) -> HyperParamOptions:
+        return self._hyper_param_options
+
+    @hyper_param_options.setter
+    def hyper_param_options(self, hyper_param_options):
+        self._hyper_param_options = self._verify_dict(
+            hyper_param_options, "hyper_param_options", HyperParamOptions
+        )
 
     @property
     def outputs(self):
@@ -430,6 +523,7 @@ class RunStatus(ModelObj):
         start_time=None,
         last_update=None,
         iterations=None,
+        ui_url=None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -441,6 +535,7 @@ class RunStatus(ModelObj):
         self.start_time = start_time
         self.last_update = last_update
         self.iterations = iterations
+        self.ui_url = ui_url
 
 
 class RunTemplate(ModelObj):
@@ -469,25 +564,68 @@ class RunTemplate(ModelObj):
         self._metadata = self._verify_dict(metadata, "metadata", RunMetadata)
 
     def with_params(self, **kwargs):
+        """set task parameters using key=value, key2=value2, .."""
         self.spec.parameters = kwargs
         return self
 
     def with_input(self, key, path):
+        """set task data input, path is an Mlrun global DataItem uri
+
+        examples::
+
+            task.with_input("data", "/file-dir/path/to/file")
+            task.with_input("data", "s3://<bucket>/path/to/file")
+            task.with_input("data", "v3io://[<remote-host>]/<data-container>/path/to/file")
+        """
         if not self.spec.inputs:
             self.spec.inputs = {}
         self.spec.inputs[key] = path
         return self
 
-    def with_hyper_params(self, hyperparams, selector=None, strategy=None):
+    def with_hyper_params(
+        self,
+        hyperparams,
+        selector=None,
+        strategy: HyperParamStrategies = None,
+        **options,
+    ):
+        """set hyper param values and configurations,
+        see parameters in: :py:class:`HyperParamOptions`
+
+        example::
+
+            grid_params = {"p1": [2,4,1], "p2": [10,20]}
+            task = mlrun.new_task("grid-search")
+            task.with_hyper_params(grid_params, selector="max.accuracy")
+        """
         self.spec.hyperparams = hyperparams
-        self.spec.selector = selector
-        self.spec.tuning_strategy = strategy
+        self.spec.hyper_param_options = options
+        self.spec.hyper_param_options.selector = selector
+        self.spec.hyper_param_options.strategy = strategy
+        self.spec.hyper_param_options.validate()
         return self
 
-    def with_param_file(self, param_file, selector=None, strategy=None):
-        self.spec.param_file = param_file
-        self.spec.selector = selector
-        self.spec.tuning_strategy = strategy
+    def with_param_file(
+        self,
+        param_file,
+        selector=None,
+        strategy: HyperParamStrategies = None,
+        **options,
+    ):
+        """set hyper param values (from a file url) and configurations,
+        see parameters in: :py:class:`HyperParamOptions`
+
+        example::
+
+            grid_params = "s3://<my-bucket>/path/to/params.json"
+            task = mlrun.new_task("grid-search")
+            task.with_param_file(grid_params, selector="max.accuracy")
+        """
+        self.spec.hyper_param_options = options
+        self.spec.hyper_param_options.param_file = param_file
+        self.spec.hyper_param_options.selector = selector
+        self.spec.hyper_param_options.strategy = strategy
+        self.spec.hyper_param_options.validate()
         return self
 
     def with_secrets(self, kind, source):
@@ -498,7 +636,28 @@ class RunTemplate(ModelObj):
             task.with_secrets('file', 'file.txt')
             task.with_secrets('inline', {'key': 'val'})
             task.with_secrets('env', 'ENV1,ENV2')
+
             task.with_secrets('vault', ['secret1', 'secret2'...])
+
+            # If using with k8s secrets, the k8s secret is managed by MLRun, through the project-secrets
+            # mechanism. The secrets will be attached to the running pod as environment variables.
+            task.with_secrets('kubernetes', ['secret1', 'secret2'])
+
+            # If using an empty secrets list [] then all accessible secrets will be available.
+            task.with_secrets('vault', [])
+
+            # To use with Azure key vault, a k8s secret must be created with the following keys:
+            # kubectl -n <namespace> create secret generic azure-key-vault-secret \\
+            #     --from-literal=tenant_id=<service principal tenant ID> \\
+            #     --from-literal=client_id=<service principal client ID> \\
+            #     --from-literal=secret=<service principal secret key>
+
+            task.with_secrets('azure_vault', {
+                'name': 'my-vault-name',
+                'k8s_secret': 'azure-key-vault-secret',
+                # An empty secrets list may be passed ('secrets': []) to access all vault secrets.
+                'secrets': ['secret1', 'secret2'...]
+            })
 
         :param kind:   secret type (file, inline, env)
         :param source: secret data or link (see example)
@@ -513,6 +672,7 @@ class RunTemplate(ModelObj):
         return self
 
     def set_label(self, key, value):
+        """set a key/value label for the task"""
         self.metadata.labels[key] = str(value)
         return self
 
@@ -546,6 +706,7 @@ class RunObject(RunTemplate):
         self._status = self._verify_dict(status, "status", RunStatus)
 
     def output(self, key):
+        """return the value of a specific result or artifact by key"""
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
         artifact = self.artifact(key)
@@ -554,7 +715,16 @@ class RunObject(RunTemplate):
         return None
 
     @property
+    def ui_url(self) -> str:
+        """UI URL (for relevant runtimes)"""
+        self.refresh()
+        if not self._status.ui_url:
+            print("UI currently not available (status={})".format(self._status.state))
+        return self._status.ui_url
+
+    @property
     def outputs(self):
+        """return a dict of outputs, result values and artifact uris"""
         outputs = {}
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
@@ -564,6 +734,7 @@ class RunObject(RunTemplate):
         return outputs
 
     def artifact(self, key):
+        """return artifact metadata by key"""
         if self.status.artifacts:
             for a in self.status.artifacts:
                 if a["key"] == key:
@@ -571,9 +742,16 @@ class RunObject(RunTemplate):
         return None
 
     def uid(self):
+        """run unique id"""
         return self.metadata.uid
 
     def state(self):
+        """current run state"""
+        self.refresh()
+        return self.status.state or "unknown"
+
+    def refresh(self):
+        """refresh run state from the db"""
         db = mlrun.get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
@@ -581,13 +759,17 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            return get_in(run, "status.state", "unknown")
+            self.status = RunStatus.from_dict(run.get("status", {}))
+            self.status.from_dict(run.get("status", {}))
+            return self
 
     def show(self):
+        """show the current status widget, in jupyter notebook"""
         db = mlrun.get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
     def logs(self, watch=True, db=None):
+        """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
         if not db:
@@ -605,10 +787,26 @@ class RunObject(RunTemplate):
             print(f"final state: {state}")
         return state
 
+    def wait_for_completion(self, sleep=3, timeout=0):
+        """wait for async run to complete"""
+        total_time = 0
+        while True:
+            state = self.state()
+            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                break
+            time.sleep(sleep)
+            total_time += sleep
+            if timeout and total_time > timeout:
+                raise mlrun.errors.MLRunTimeoutError(
+                    "Run did not reach terminal state on time"
+                )
+        return state
+
     @staticmethod
-    def create_uri(project: str, uid: str, iteration: str, tag: str = ""):
+    def create_uri(project: str, uid: str, iteration: Union[int, str], tag: str = ""):
         if tag:
             tag = f":{tag}"
+        iteration = str(iteration)
         return f"{project}@{uid}#{iteration}{tag}"
 
     @staticmethod
@@ -656,7 +854,7 @@ def NewTask(
     hyper_params=None,
     param_file=None,
     selector=None,
-    tuning_strategy=None,
+    strategy=None,
     inputs=None,
     outputs=None,
     in_path=None,
@@ -680,7 +878,7 @@ def NewTask(
         hyper_params,
         param_file,
         selector,
-        tuning_strategy,
+        strategy,
         inputs,
         outputs,
         in_path,
@@ -699,7 +897,7 @@ def new_task(
     hyper_params=None,
     param_file=None,
     selector=None,
-    tuning_strategy=None,
+    hyper_param_options=None,
     inputs=None,
     outputs=None,
     in_path=None,
@@ -712,7 +910,7 @@ def new_task(
 
     :param name:            task name
     :param project:         task project
-    :param handler:         code entry-point/hanfler name
+    :param handler:         code entry-point/handler name
     :param params:          input parameters (dict)
     :param hyper_params:    dictionary of hyper parameters and list values, each
                             hyper param holds a list of values, the run will be
@@ -720,7 +918,7 @@ def new_task(
     :param param_file:      a csv file with parameter combinations, first row hold
                             the parameter names, following rows hold param values
     :param selector:        selection criteria for hyper params e.g. "max.accuracy"
-    :param tuning_strategy: selection strategy for hyper params e.g. list, grid, random
+    :param hyper_param_options:   hyper parameter options, see: :py:class:`HyperParamOptions`
     :param inputs:          dictionary of input objects + optional paths (if path is
                             omitted the path will be the in_path/key.
     :param outputs:         dictionary of input objects + optional paths (if path is
@@ -741,15 +939,20 @@ def new_task(
     run.metadata.project = project or run.metadata.project
     run.spec.handler = handler or run.spec.handler
     run.spec.parameters = params or run.spec.parameters
-    run.spec.hyperparams = hyper_params or run.spec.hyperparams
-    run.spec.param_file = param_file or run.spec.param_file
-    run.spec.tuning_strategy = tuning_strategy or run.spec.tuning_strategy
-    run.spec.selector = selector or run.spec.selector
     run.spec.inputs = inputs or run.spec.inputs
     run.spec.outputs = outputs or run.spec.outputs or []
     run.spec.input_path = in_path or run.spec.input_path
     run.spec.output_path = artifact_path or out_path or run.spec.output_path
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
+
+    run.spec.hyperparams = hyper_params or run.spec.hyperparams
+    run.spec.hyper_param_options = hyper_param_options or run.spec.hyper_param_options
+    run.spec.hyper_param_options.param_file = (
+        param_file or run.spec.hyper_param_options.param_file
+    )
+    run.spec.hyper_param_options.selector = (
+        selector or run.spec.hyper_param_options.selector
+    )
     return run
 
 
@@ -798,7 +1001,26 @@ class DataSource(ModelObj):
 class DataTargetBase(ModelObj):
     """data target spec, specify a destination for the feature set data"""
 
-    _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
+    _dict_fields = [
+        "name",
+        "kind",
+        "path",
+        "after_step",
+        "attributes",
+        "partitioned",
+        "key_bucketing_number",
+        "partition_cols",
+        "time_partitioning_granularity",
+        "max_events",
+        "flush_after_seconds",
+    ]
+
+    # TODO - remove once "after_state" is fully deprecated
+    @classmethod
+    def from_dict(cls, struct=None, fields=None):
+        return super().from_dict(
+            struct, fields=fields, deprecated_fields={"after_state": "after_step"}
+        )
 
     def __init__(
         self,
@@ -806,13 +1028,34 @@ class DataTargetBase(ModelObj):
         name: str = "",
         path=None,
         attributes: Dict[str, str] = None,
+        after_step=None,
+        partitioned: bool = False,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
         after_state=None,
     ):
+        if after_state:
+            warnings.warn(
+                "The after_state parameter is deprecated. Use after_step instead",
+                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+                PendingDeprecationWarning,
+            )
+            after_step = after_step or after_state
+
         self.name = name
         self.kind: str = kind
         self.path = path
-        self.after_state = after_state
+        self.after_step = after_step
         self.attributes = attributes or {}
+        self.partitioned = partitioned
+        self.key_bucketing_number = key_bucketing_number
+        self.partition_cols = partition_cols
+        self.time_partitioning_granularity = time_partitioning_granularity
+        self.max_events = max_events
+        self.flush_after_seconds = flush_after_seconds
 
 
 class FeatureSetProducer(ModelObj):
@@ -829,7 +1072,16 @@ class FeatureSetProducer(ModelObj):
 class DataTarget(DataTargetBase):
     """data target with extra status information (used in the feature-set/vector status)"""
 
-    _dict_fields = ["name", "kind", "path", "start_time", "online", "status", "is_dir"]
+    _dict_fields = [
+        "name",
+        "kind",
+        "path",
+        "start_time",
+        "online",
+        "status",
+        "updated",
+        "size",
+    ]
 
     def __init__(
         self, kind: str = None, name: str = "", path=None, online=None,
@@ -837,10 +1089,10 @@ class DataTarget(DataTargetBase):
         super().__init__(kind, name, path)
         self.status = ""
         self.updated = None
+        self.size = None
         self.online = online
         self.max_age = None
         self.start_time = None
-        self.is_dir = None
         self._producer = None
         self.producer = {}
 

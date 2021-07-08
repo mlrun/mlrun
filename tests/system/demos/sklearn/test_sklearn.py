@@ -1,7 +1,6 @@
 import pytest
 
 import mlrun
-
 from tests.system.base import TestMLRunSystem
 from tests.system.demos.base import TestDemo
 
@@ -28,7 +27,6 @@ class TestSKLearn(TestDemo):
         iris_generator_function.spec.remote = True
         iris_generator_function.spec.replicas = 1
         iris_generator_function.spec.service_type = "NodePort"
-        iris_generator_function.spec.command = function_path
         iris_generator_function.spec.build.commands.append(
             "pip install pandas sklearn pyarrow"
         )

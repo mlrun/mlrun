@@ -1,8 +1,7 @@
-from typing import List, Any, Dict
+from typing import Any, Dict, List, Optional
 
 from mlrun.api import schemas
-from mlrun.api.db.base import DBError
-from mlrun.api.db.base import DBInterface
+from mlrun.api.db.base import DBError, DBInterface
 from mlrun.db.base import RunDBError
 from mlrun.db.filedb import FileRunDB
 
@@ -14,7 +13,15 @@ class FileDB(DBInterface):
     def initialize(self, session):
         self.db.connect()
 
-    def store_log(self, session, uid, project="", body=None, append=False):
+    def store_log(
+        self,
+        session,
+        uid,
+        project="",
+        body=None,
+        append=False,
+        leader_session: Optional[str] = None,
+    ):
         return self._transform_run_db_error(
             self.db.store_log, uid, project, body, append
         )
@@ -22,7 +29,15 @@ class FileDB(DBInterface):
     def get_log(self, session, uid, project="", offset=0, size=0):
         return self._transform_run_db_error(self.db.get_log, uid, project, offset, size)
 
-    def store_run(self, session, struct, uid, project="", iter=0):
+    def store_run(
+        self,
+        session,
+        struct,
+        uid,
+        project="",
+        iter=0,
+        leader_session: Optional[str] = None,
+    ):
         return self._transform_run_db_error(
             self.db.store_run, struct, uid, project, iter
         )
@@ -76,7 +91,15 @@ class FileDB(DBInterface):
         )
 
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project=""
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        leader_session: Optional[str] = None,
     ):
         return self._transform_run_db_error(
             self.db.store_artifact, key, artifact, uid, iter, tag, project
@@ -98,6 +121,8 @@ class FileDB(DBInterface):
         until=None,
         kind=None,
         category: schemas.ArtifactCategories = None,
+        iter: int = None,
+        best_iteration: bool = False,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until
@@ -112,7 +137,14 @@ class FileDB(DBInterface):
         )
 
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False
+        self,
+        session,
+        function,
+        name,
+        project="",
+        tag="",
+        versioned=False,
+        leader_session: Optional[str] = None,
     ):
         return self._transform_run_db_error(
             self.db.store_function, function, name, project, tag, versioned
@@ -133,6 +165,20 @@ class FileDB(DBInterface):
 
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
+
+    def generate_projects_summaries(
+        self, session, projects: List[str]
+    ) -> List[schemas.ProjectSummary]:
+        raise NotImplementedError()
+
+    def delete_project_related_resources(self, session, name: str):
+        raise NotImplementedError()
+
+    def verify_project_has_no_related_resources(self, session, name: str):
+        raise NotImplementedError()
+
+    def is_project_exists(self, session, name: str):
+        raise NotImplementedError()
 
     def list_projects(
         self,
@@ -175,7 +221,12 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+        self,
+        session,
+        project,
+        feature_set: schemas.FeatureSet,
+        versioned=True,
+        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -189,6 +240,7 @@ class FileDB(DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
+        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -228,6 +280,10 @@ class FileDB(DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         raise NotImplementedError()
 
@@ -240,14 +296,20 @@ class FileDB(DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
-    def delete_feature_set(self, session, project, name):
+    def delete_feature_set(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+        self,
+        session,
+        project,
+        feature_vector: schemas.FeatureVector,
+        versioned=True,
+        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -264,6 +326,10 @@ class FileDB(DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
         raise NotImplementedError()
 
@@ -277,6 +343,7 @@ class FileDB(DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
+        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -289,10 +356,11 @@ class FileDB(DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 
-    def delete_feature_vector(self, session, project, name):
+    def delete_feature_vector(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
     def list_artifact_tags(self, session, project):
@@ -306,6 +374,7 @@ class FileDB(DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
         labels: Dict = None,
     ):
         raise NotImplementedError()
@@ -319,6 +388,8 @@ class FileDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
+        concurrency_limit: int = None,
+        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 

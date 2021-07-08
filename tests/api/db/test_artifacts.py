@@ -1,20 +1,21 @@
+import deepdiff
 import numpy
 import pandas
 import pytest
-import deepdiff
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
-from mlrun.artifacts.dataset import DatasetArtifact
-from mlrun.artifacts.model import ModelArtifact
+from sqlalchemy.orm.exc import MultipleResultsFound
 
 import mlrun.api.initial_data
+import mlrun.errors
 from mlrun.api import schemas
-from mlrun.api.db.base import DBInterface
-from tests.api.db.conftest import dbs
+from mlrun.api.db.base import DBError, DBInterface
+from mlrun.api.schemas.artifact import ArtifactCategories
+from mlrun.artifacts.dataset import DatasetArtifact
+from mlrun.artifacts.model import ModelArtifact
+from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
 from mlrun.utils import logger
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm.exc import MultipleResultsFound
-from mlrun.api.db.base import DBError
+from tests.api.db.conftest import dbs
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -45,8 +46,46 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_2
 
-    artifacts = db.list_artifacts(db_session, name="artifact_name")
+    artifacts = db.list_artifacts(db_session, name="~artifact_name")
     assert len(artifacts) == 2
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
+    artifact_name_1 = "artifact_name_1"
+    artifact_name_2 = "artifact_name_2"
+    artifact_1 = _generate_artifact(artifact_name_1)
+    artifact_2 = _generate_artifact(artifact_name_2)
+    uid = "artifact_uid"
+
+    # Use iters with multiple digits, to make sure filtering them via regex works
+    test_iters = [0, 5, 9, 42, 219, 2102]
+    for iter in test_iters:
+        artifact_1["iter"] = artifact_2["iter"] = iter
+        db.store_artifact(db_session, artifact_name_1, artifact_1, uid, iter)
+        db.store_artifact(db_session, artifact_name_2, artifact_2, uid, iter)
+
+    # No filter on iter. All are expected
+    artifacts = db.list_artifacts(db_session)
+    assert len(artifacts) == len(test_iters) * 2
+
+    # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
+    for iter in test_iters:
+        artifacts = db.list_artifacts(db_session, iter=iter)
+        assert len(artifacts) == 2
+        for artifact in artifacts:
+            assert artifact["iter"] == iter
+
+    # Negative test
+    artifacts = db.list_artifacts(db_session, iter=666)
+    assert len(artifacts) == 0
+
+    # Iter filter and a name filter, make sure query composition works
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1, iter=2102)
+    assert len(artifacts) == 1
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -152,6 +191,260 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
     assert artifact["kind"] == artifact_1_kind
     artifact = db.read_artifact(db_session, artifact_1_key, tag=artifact_1_uid)
     assert artifact.get("kind") is None
+    artifacts = db.list_artifacts(db_session, artifact_1_key, tag="latest")
+    assert len(artifacts) == 1
+    artifacts = db.list_artifacts(db_session, artifact_1_key, tag=artifact_1_uid)
+    assert len(artifacts) == 1
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Session):
+    artifact_key = "artifact_key_1"
+    artifact_1_uid = "artifact_uid_1"
+    artifact_2_uid = "artifact_uid_2"
+    artifact_1_body = _generate_artifact(artifact_key, uid=artifact_1_uid)
+    artifact_2_body = _generate_artifact(artifact_key, uid=artifact_2_uid)
+    artifact_1_tag = "artifact_tag_1"
+    artifact_2_tag = "artifact_tag_2"
+
+    db.store_artifact(
+        db_session, artifact_key, artifact_1_body, artifact_1_uid, tag=artifact_1_tag,
+    )
+    db.store_artifact(
+        db_session, artifact_key, artifact_2_body, artifact_2_uid, tag=artifact_2_tag,
+    )
+    artifacts = db.list_artifacts(db_session, artifact_key, tag="*")
+    assert len(artifacts) == 2
+    expected_uids = [artifact_1_uid, artifact_2_uid]
+    uids = [artifact["metadata"]["uid"] for artifact in artifacts]
+    assert deepdiff.DeepDiff(expected_uids, uids, ignore_order=True,) == {}
+    expected_tags = [artifact_1_tag, artifact_2_tag]
+    tags = [artifact["tag"] for artifact in artifacts]
+    assert deepdiff.DeepDiff(expected_tags, tags, ignore_order=True,) == {}
+    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_1_tag)
+    assert artifact["metadata"]["uid"] == artifact_1_uid
+    assert artifact["tag"] == artifact_1_tag
+    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)
+    assert artifact["metadata"]["uid"] == artifact_2_uid
+    assert artifact["tag"] == artifact_2_tag
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
+    """
+    We had a bug in which when we got a tag filter for read/list artifact, we were transforming this tag to list of
+    possible uids which is wrong, since a different artifact might have this uid as well, and we will return it,
+    although it's not really tag with the given tag
+    """
+    artifact_1_key = "artifact_key_1"
+    artifact_2_key = "artifact_key_2"
+    artifact_uid = "artifact_uid_1"
+    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_uid)
+    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_uid)
+    artifact_1_tag = "artifact_tag_1"
+    artifact_2_tag = "artifact_tag_2"
+
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_uid, tag=artifact_1_tag,
+    )
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_uid, tag=artifact_2_tag,
+    )
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.read_artifact(db_session, artifact_1_key, artifact_2_tag)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.read_artifact(db_session, artifact_2_key, artifact_1_tag)
+    # just verifying it's not raising
+    db.read_artifact(db_session, artifact_1_key, artifact_1_tag)
+    db.read_artifact(db_session, artifact_2_key, artifact_2_tag)
+    # check list
+    artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
+    assert len(artifacts) == 1
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+    assert len(artifacts) == 1
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
+    artifact_1_key = "artifact_key_1"
+    artifact_2_key = "artifact_key_2"
+    artifact_1_uid = "artifact_uid_1"
+    artifact_2_uid = "artifact_uid_2"
+    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
+    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
+    artifact_1_tag = "artifact_tag_one"
+    artifact_2_tag = "artifact_tag_two"
+
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_1_uid, tag=artifact_1_tag,
+    )
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_2_uid, tag=artifact_2_tag,
+    )
+    db.del_artifacts(db_session, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
+    assert len(artifacts) == 0
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+    assert len(artifacts) == 1
+    db.del_artifacts(db_session, tag=artifact_2_uid)
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+    assert len(artifacts) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
+    artifact_1_key = "pre_artifact_key_suffix"
+    artifact_2_key = "pre-artifact-key-suffix"
+    artifact_1_uid = "artifact_uid_1"
+    artifact_2_uid = "artifact_uid_2"
+    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
+    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
+
+    # Store each twice - once with no iter, and once with an iter
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_1_uid,
+    )
+    artifact_1_body["iter"] = 42
+    db.store_artifact(
+        db_session, artifact_1_key, artifact_1_body, artifact_1_uid, iter=42,
+    )
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_2_uid,
+    )
+    artifact_2_body["iter"] = 42
+    db.store_artifact(
+        db_session, artifact_2_key, artifact_2_body, artifact_2_uid, iter=42,
+    )
+
+    def _list_and_assert_count(key, count, iter=None):
+        results = db.list_artifacts(db_session, name=key, iter=iter)
+        assert len(results) == count
+        return results
+
+    # Ensure fuzzy query works, and we have everything we need
+    _list_and_assert_count("~key", count=4)
+
+    # Do an exact match with underscores in the name - must escape the _ do it doesn't do a like query
+    list_results = _list_and_assert_count(artifact_1_key, count=2)
+    for artifact in list_results:
+        assert artifact["metadata"]["name"] == artifact_1_key
+
+    _list_and_assert_count("%key%", count=0)
+    # Verify we don't get artifacts whose name is "%-suffix" due to the like query used in the DB
+    _list_and_assert_count("suffix", count=0)
+    # This should also be filtered, since the prefix is "pre" which is 3 chars. There's a known caveat if
+    # prefix is 1 or 2 chars long.
+    _list_and_assert_count("artifact-key-suffix", count=0)
+
+    _list_and_assert_count(artifact_1_key, iter=42, count=1)
+    _list_and_assert_count("~key", iter=42, count=2)
+    _list_and_assert_count("~key", iter=666, count=0)
+
+
+def _generate_artifact_with_iterations(
+    db, db_session, key, uid, num_iters, best_iter, kind
+):
+    for iter in range(num_iters):
+        artifact_body = _generate_artifact(
+            key, kind=kind.value if iter != 0 else "link", uid=uid
+        )
+        if iter == 0:
+            artifact_body["link_iteration"] = best_iter
+        artifact_body["iter"] = iter
+        db.store_artifact(
+            db_session, key, artifact_body, uid, iter=iter,
+        )
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
+    artifact_1_key = "artifact-1"
+    artifact_1_uid = "uid-1"
+    artifact_2_key = "artifact-2"
+    artifact_2_uid = "uid-2"
+    artifact_no_link_key = "single-artifact"
+    artifact_no_link_uid = "uid-3"
+
+    num_iters = 5
+    best_iter_1 = 2
+    best_iter_2 = 4
+    _generate_artifact_with_iterations(
+        db,
+        db_session,
+        artifact_1_key,
+        artifact_1_uid,
+        num_iters,
+        best_iter_1,
+        ArtifactCategories.model,
+    )
+    _generate_artifact_with_iterations(
+        db,
+        db_session,
+        artifact_2_key,
+        artifact_2_uid,
+        num_iters,
+        best_iter_2,
+        ArtifactCategories.dataset,
+    )
+
+    # Add non-hyper-param artifact. Single object with iter 0, not pointing at anything
+    artifact_body = _generate_artifact(artifact_no_link_key, artifact_no_link_uid)
+    artifact_body["iter"] = 0
+    db.store_artifact(
+        db_session, artifact_no_link_key, artifact_body, artifact_no_link_uid, iter=0
+    )
+
+    results = db.list_artifacts(db_session, name="~artifact")
+    assert len(results) == num_iters * 2 + 1
+
+    results = db.list_artifacts(db_session, name=artifact_1_key, best_iteration=True)
+    assert len(results) == 1 and results[0]["iter"] == best_iter_1
+
+    expected_iters = {
+        artifact_1_key: best_iter_1,
+        artifact_2_key: best_iter_2,
+        artifact_no_link_key: 0,
+    }
+    results = db.list_artifacts(db_session, name="~artifact", best_iteration=True)
+    assert len(results) == 3
+    for artifact in results:
+        artifact_name = artifact["metadata"]["name"]
+        assert (
+            artifact_name in expected_iters
+            and expected_iters[artifact_name] == artifact["iter"]
+        )
+
+    results = db.list_artifacts(
+        db_session, best_iteration=True, category=ArtifactCategories.model
+    )
+    assert len(results) == 1 and results[0]["iter"] == best_iter_1
+
+    # Should get only object-2 (which is of dataset type) and the link artifact
+    results = db.list_artifacts(db_session, category=ArtifactCategories.dataset)
+    assert len(results) == num_iters
+    for artifact in results:
+        assert artifact["metadata"]["name"] == artifact_2_key
+
+    # Negative test - asking for both best_iter and iter
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        results = db.list_artifacts(
+            db_session, name="~artifact", best_iteration=True, iter=0
+        )
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -364,7 +657,7 @@ def test_data_migration_fix_datasets_large_previews(
             artifact_with_valid_preview_after_migration,
             artifact_with_valid_preview.to_dict(),
             ignore_order=True,
-            exclude_paths=["root['updated']"],
+            exclude_paths=["root['updated']", "root['tag']"],
         )
         == {}
     )
@@ -383,6 +676,7 @@ def test_data_migration_fix_datasets_large_previews(
                 "root['stats']",
                 "root['schema']",
                 "root['preview']",
+                "root['tag']",
             ],
         )
         == {}

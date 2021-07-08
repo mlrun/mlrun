@@ -16,9 +16,11 @@
 
 import mlrun
 from mlrun.config import config
-from mlrun.utils.helpers import parse_versioned_object_uri
-from .v3io import parse_v3io_path
+from mlrun.utils.helpers import parse_artifact_uri, parse_versioned_object_uri
+
+from ..platforms.iguazio import parse_v3io_path
 from ..utils import DB_SCHEMA, StorePrefix
+from .targets import get_online_target
 
 
 def is_store_uri(url):
@@ -62,7 +64,7 @@ class ResourceCache:
     def get_table(self, uri):
         """get storey Table object by uri"""
         try:
-            from storey import Table, Driver, V3ioDriver
+            from storey import Driver, Table, V3ioDriver
         except ImportError:
             raise ImportError("storey package is not installed, use pip install storey")
 
@@ -74,12 +76,28 @@ class ResourceCache:
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
             endpoint, uri = parse_v3io_path(uri)
-            self._tabels[uri] = Table(uri, V3ioDriver(webapi=endpoint))
+            self._tabels[uri] = Table(
+                uri,
+                V3ioDriver(webapi=endpoint),
+                flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+            )
             return self._tabels[uri]
 
-        # todo: map store:// uri's to Table objects
+        if is_store_uri(uri):
+            resource = get_store_resource(uri)
+            if resource.kind in [
+                mlrun.api.schemas.ObjectKind.feature_set.value,
+                mlrun.api.schemas.ObjectKind.feature_vector.value,
+            ]:
+                target = get_online_target(resource)
+                if not target:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"resource {uri} does not have an online data source"
+                    )
+                self._tabels[uri] = target.get_table_object()
+                return self._tabels[uri]
 
-        raise ValueError(f"table {uri} not found in cache")
+        raise mlrun.errors.MLRunInvalidArgumentError(f"table {uri} not found in cache")
 
     def cache_resource(self, uri, value, default=False):
         """cache store resource (artifact/feature-set/feature-vector)"""
@@ -126,30 +144,23 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
         return db.get_feature_vector(name, project, tag, uid)
 
     elif StorePrefix.is_artifact(kind):
-        project, name, tag, uid = parse_versioned_object_uri(
+        project, key, iteration, tag, uid = parse_artifact_uri(
             uri, project or config.default_project
         )
-        iteration = None
-        if "/" in name:
-            loc = uri.find("/")
-            name = uri[:loc]
-            try:
-                iteration = int(uri[loc + 1 :])
-            except ValueError:
-                raise ValueError(
-                    f"illegal store path {uri}, iteration must be integer value"
-                )
 
         resource = db.read_artifact(
-            name, project=project, tag=tag or uid, iter=iteration
+            key, project=project, tag=tag or uid, iter=iteration
         )
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             resource = db.read_artifact(
-                name, tag=tag, iter=resource.get("link_iteration", 0), project=project,
+                key, tag=tag, iter=resource.get("link_iteration", 0), project=project,
             )
         if resource:
-            return mlrun.artifacts.dict_to_artifact(resource)
+            # import here to avoid circular imports
+            from mlrun.artifacts import dict_to_artifact
+
+            return dict_to_artifact(resource)
 
     else:
         stores = mlrun.store_manager.set(secrets, db=db)

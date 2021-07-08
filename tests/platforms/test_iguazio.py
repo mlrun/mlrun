@@ -1,13 +1,13 @@
 import os
-import pytest
-import deepdiff
 from http import HTTPStatus
 from unittest.mock import Mock
-import mlrun
-import mlrun.errors
 
+import deepdiff
+import pytest
 import requests
 
+import mlrun
+import mlrun.errors
 from mlrun.platforms import add_or_refresh_credentials
 
 
@@ -66,6 +66,16 @@ def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
 
     result_username, result_access_key, _ = add_or_refresh_credentials(api_url)
     assert username == result_username
+    assert access_key == result_access_key
+
+
+def test_add_or_refresh_credentials_kubernetes_svc_url_success(monkeypatch):
+    access_key = "access_key"
+    api_url = "http://mlrun-api:8080"
+    env = os.environ
+    env["V3IO_ACCESS_KEY"] = access_key
+
+    _, _, result_access_key = add_or_refresh_credentials(api_url)
     assert access_key == result_access_key
 
 
@@ -140,9 +150,11 @@ def test_mount_v3io():
             "set_user": True,
         },
         {"set_user": True},
+        {"set_user": True, "user": "some_other_user"},
     ]
     for case in cases:
         username = "username"
+        v3io_api_path = "v3io_api"
         tested_function = mlrun.new_function(
             "tested-function-name",
             "function-project",
@@ -156,13 +168,16 @@ def test_mount_v3io():
         if case.get("set_user"):
             os.environ["V3IO_USERNAME"] = username
             os.environ["V3IO_ACCESS_KEY"] = "access-key"
+            os.environ["V3IO_API"] = v3io_api_path
         else:
             os.environ.pop("V3IO_USERNAME", None)
             os.environ.pop("V3IO_ACCESS_KEY", None)
+            os.environ.pop("V3IO_API", None)
         mount_v3io_kwargs = {
             "remote": case.get("remote"),
             "mount_path": case.get("mount_path"),
             "volume_mounts": case.get("volume_mounts"),
+            "user": case.get("user"),
         }
         mount_v3io_kwargs = {k: v for k, v in mount_v3io_kwargs.items() if v}
         if case.get("expect_failure"):
@@ -175,12 +190,14 @@ def test_mount_v3io():
                 expectation_modifier_kwargs = {
                     "remote": case.get("remote"),
                     "mount_path": case.get("mount_path"),
+                    "user": case.get("user"),
                 }
             else:
                 expectation_modifier = mlrun.mount_v3io_extended
                 expectation_modifier_kwargs = {
                     "remote": case.get("remote"),
                     "mounts": case.get("volume_mounts"),
+                    "user": case.get("user"),
                 }
             expectation_modifier_kwargs = {
                 k: v for k, v in expectation_modifier_kwargs.items() if v
@@ -196,6 +213,21 @@ def test_mount_v3io():
             expectation_function.apply(
                 expectation_modifier(**expectation_modifier_kwargs)
             )
+
+            # Verify that env variables are set and overridden correctly
+            env_variables = {
+                env_variable["name"]: env_variable["value"]
+                for env_variable in tested_function.spec.env
+            }
+            expected_user = username
+            if case.get("user"):
+                expected_user = case["user"]
+            assert env_variables["V3IO_USERNAME"] == expected_user
+            expected_api_path = mlrun.config.config.v3io_api
+            if case.get("set_user"):
+                expected_api_path = v3io_api_path
+            assert env_variables["V3IO_API"] == expected_api_path
+
             assert (
                 deepdiff.DeepDiff(
                     expectation_function.spec.volumes,

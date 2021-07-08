@@ -1,10 +1,11 @@
+import pathlib
+
 import numpy
 import pandas
 import pandas.io.json
-import pathlib
-import tests.conftest
 
 import mlrun.artifacts.dataset
+import tests.conftest
 
 
 def test_dataset_preview_size_limit():
@@ -51,15 +52,43 @@ def test_dataset_preview_size_limit():
     assert artifact.stats is None
 
 
-def test_dataset_upload():
+def test_dataset_upload_parquet():
     """
     This test fails when we use numpy>=1.20 and is here to reproduce the scenario that didn't work
     which caused us to upbound numpy to 1.20
     see https://github.com/Azure/MachineLearningNotebooks/issues/1314
     """
+    artifact = _generate_dataset_artifact(format_="parquet")
+    artifact.upload()
+
+
+def test_dataset_upload_csv():
+    """
+    This test fails when we use pandas<1.2 and is here to reproduce the scenario that didn't work
+    which caused us to downbound pandas to 1.2
+    see https://pandas.pydata.org/docs/whatsnew/v1.2.0.html#support-for-binary-file-handles-in-to-csv
+    """
+    artifact = _generate_dataset_artifact(format_="csv")
+    artifact.upload()
+
+
+def test_dataset_upload_with_src_path_filling_hash():
+    data_frame = pandas.DataFrame({"x": [1, 2]})
+    src_path = pathlib.Path(tests.conftest.results) / "dataset"
+    target_path = pathlib.Path(tests.conftest.results) / "target-dataset"
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=data_frame, target_path=str(target_path), format="csv",
+    )
+    data_frame.to_csv(src_path)
+    artifact.src_path = src_path
+    artifact.upload()
+    assert artifact.hash is not None
+
+
+def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"
     artifact = mlrun.artifacts.dataset.DatasetArtifact(
-        df=data_frame, target_path=str(target_path)
+        df=data_frame, target_path=str(target_path), format=format_,
     )
-    artifact.upload()
+    return artifact

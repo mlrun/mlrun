@@ -15,46 +15,55 @@
 import importlib.util as imputil
 import json
 import socket
-from typing import Union, List, Tuple, Optional
+import time
 import uuid
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
+from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
 from kfp import Client
 from nuclio import build_file
 
-import mlrun.errors
 import mlrun.api.schemas
+import mlrun.errors
+import mlrun.utils.helpers
+
 from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .k8s_utils import get_k8s_helper
-from .model import RunObject, BaseMetadata, RunTemplate
+from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
+    DaskCluster,
     HandlerRuntime,
+    KubejobRuntime,
     LocalRuntime,
+    MpiRuntimeV1,
+    MpiRuntimeV1Alpha1,
     RemoteRuntime,
+    RemoteSparkRuntime,
     RuntimeKinds,
-    get_runtime_class,
     ServingRuntime,
+    SparkRuntime,
+    get_runtime_class,
 )
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
+    extend_hub_uri_if_needed,
     get_in,
     logger,
-    parse_versioned_object_uri,
-    update_in,
     new_pipe_meta,
-    extend_hub_uri_if_needed,
+    parse_versioned_object_uri,
+    retry_until_successful,
+    update_in,
 )
-from .utils import retry_until_successful
 
 
 class RunStatuses(object):
@@ -105,6 +114,7 @@ def run_local(
     params: dict = None,
     inputs: dict = None,
     artifact_path: str = "",
+    mode: str = None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -153,7 +163,7 @@ def run_local(
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
-    fn = new_function(meta.name, command=command, args=args)
+    fn = new_function(meta.name, command=command, args=args, mode=mode)
     meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
@@ -268,7 +278,12 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
 
 def get_or_create_ctx(
-    name: str, event=None, spec=None, with_env: bool = True, rundb: str = ""
+    name: str,
+    event=None,
+    spec=None,
+    with_env: bool = True,
+    rundb: str = "",
+    project: str = "",
 ):
     """called from within the user program to obtain a run context
 
@@ -284,6 +299,7 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
+    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
 
     :return: execution context
 
@@ -319,9 +335,6 @@ def get_or_create_ctx(
     if global_context.get() and not spec and not event:
         return global_context.get()
 
-    if "global_mlrun_context" in globals() and not spec and not event:
-        return globals().get("global_mlrun_context")
-
     newspec = {}
     config = environ.get("MLRUN_EXEC_CONFIG")
     if event:
@@ -342,6 +355,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
 
+    newspec.setdefault("metadata", {})
     update_in(newspec, "metadata.name", name, replace=False)
     autocommit = False
     tmp = environ.get("MLRUN_META_TMPFILE")
@@ -349,6 +363,10 @@ def get_or_create_ctx(
     if out:
         autocommit = True
         logger.info(f"logging run results to: {out}")
+
+    newspec["metadata"]["project"] = (
+        project or newspec["metadata"].get("project") or mlconf.default_project
+    )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
@@ -453,16 +471,25 @@ def new_function(
     args: list = None,
     runtime=None,
     mode=None,
+    handler: str = None,
+    source: str = None,
+    requirements: Union[str, List[str]] = None,
     kfp=None,
 ):
     """Create a new ML function from base properties
 
     example::
 
-           # define a container based function
-           f = new_function(command='job://training.py -v', image='myrepo/image:latest')
+           # define a container based function (the `training.py` must exist in the container workdir)
+           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job')
+           f.run(params={"x": 5})
 
-           # define a handler function (execute a local function handler)
+           # define a container based function which reads its source from a git archive
+           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job',
+                            source='git://github.com/mlrun/something.git')
+           f.run(params={"x": 5})
+
+           # define a local handler function (execute a local function handler)
            f = new_function().run(task, handler=myfunction)
 
     :param name:     function name
@@ -475,7 +502,17 @@ def new_function(
     :param args:     command line arguments (override the ones in command)
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
+    :param mode:     runtime mode, "args" mode will push params into command template, example:
+                      command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
+                     "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
+                      `{}` for parameters like in the "args" mode
+    :param handler:  The default function handler to call for the job or nuclio function, in batch functions
+                     (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
+                     the entire file will be executed (as main).
+                     for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
+    :param source:   valid path to git, zip, or tar file, e.g. `git://github.com/mlrun/something.git`,
+                     `http://some/url/file.zip`
+    :param requirements: list of python packages or pip requirements file path, defaults to None
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
@@ -495,7 +532,7 @@ def new_function(
         elif kind in RuntimeKinds.all():
             runner = get_runtime_class(kind).from_dict(runtime)
         else:
-            supported_runtimes = ",".join(RuntimeKinds.all() + ["local"])
+            supported_runtimes = ",".join(RuntimeKinds.all())
             raise Exception(
                 f"unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
             )
@@ -524,6 +561,18 @@ def new_function(
     runner.kfp = kfp
     if mode:
         runner.spec.mode = mode
+    if source:
+        if not hasattr(runner, "with_source_archive"):
+            raise ValueError(
+                f"source archive option is not supported for {kind} runtime"
+            )
+        runner.with_source_archive(source)
+    if requirements:
+        runner.with_requirements(requirements)
+    if handler:
+        runner.spec.default_handler = handler
+        if kind.startswith("nuclio"):
+            runner.spec.function_handler = handler
     return runner
 
 
@@ -533,9 +582,6 @@ def _process_runtime(command, runtime, kind):
     if runtime and isinstance(runtime, dict):
         kind = kind or runtime.get("kind", "")
         command = command or get_in(runtime, "spec.command", "")
-        runtime_args = get_in(runtime, "spec.args", [])
-        if runtime_args and command:
-            command = f"{command} {' '.join(runtime_args)}"
     if "://" in command and command.startswith("http"):
         kind = kind or RuntimeKinds.remote
     if not runtime:
@@ -543,22 +589,11 @@ def _process_runtime(command, runtime, kind):
     update_in(runtime, "spec.command", command)
     runtime["kind"] = kind
     if kind != RuntimeKinds.remote:
-        parse_command(runtime, command)
+        if command:
+            update_in(runtime, "spec.command", command)
     else:
         update_in(runtime, "spec.function_kind", "mlrun")
     return kind, runtime
-
-
-def parse_command(runtime, url):
-    idx = url.find("#")
-    if idx > -1:
-        update_in(runtime, "spec.image", url[:idx])
-        url = url[idx + 1 :]
-
-    if url:
-        arg_list = url.split()
-        update_in(runtime, "spec.command", arg_list[0])
-        update_in(runtime, "spec.args", arg_list[1:])
 
 
 def code_to_function(
@@ -569,47 +604,98 @@ def code_to_function(
     handler: str = "",
     kind: str = "",
     image: str = None,
-    code_output="",
-    embed_code=True,
-    description="",
+    code_output: str = "",
+    embed_code: bool = True,
+    description: str = "",
     requirements: Union[str, List[str]] = None,
-    categories: list = None,
-    labels: dict = None,
-    with_doc=True,
-):
-    """convert code or notebook to function object with embedded code
-    code stored in the function spec and can be refreshed using .with_code()
-    eliminate the need to build container images every time we edit the code
+    categories: List[str] = None,
+    labels: Dict[str, str] = None,
+    with_doc: bool = True,
+) -> Union[
+    MpiRuntimeV1Alpha1,
+    MpiRuntimeV1,
+    RemoteRuntime,
+    ServingRuntime,
+    DaskCluster,
+    KubejobRuntime,
+    LocalRuntime,
+    SparkRuntime,
+    RemoteSparkRuntime,
+]:
+    """Convenience function to insert code and configure an mlrun runtime.
 
-    if `filename=` is not specified it will try and grab the code from the current notebook
+    Easiest way to construct a runtime type object. Provides the most often
+    used configuration options for all runtimes as parameters.
+
+    Instantiated runtimes are considered "functions" in mlrun, but they are
+    anything from nuclio functions to generic kubernetes pods to spark jobs.
+    Functions are meant to be focused, and as such limited in scope and size.
+    Typically a function can be expressed in a single python module with
+    added support from custom docker images and commands for the environment.
+    The returned runtime object can be further configured if more
+    customization is required.
+
+    One of the most important parameters is "kind". This is what is used to
+    specify the chosen runtimes. The options are:
+
+    - local: execute a local python or shell script
+    - job: insert the code into a Kubernetes pod and execute it
+    - nuclio: insert the code into a real-time serverless nuclio function
+    - serving: insert code into orchestrated nuclio function(s) forming a DAG
+    - dask: run the specified python code / script as Dask Distributed job
+    - mpijob: run distributed Horovod jobs over the MPI job operator
+    - spark: run distributed Spark job using Spark Kubernetes Operator
+    - remote-spark: run distributed Spark job on remote Spark service
+
+    Learn more about function runtimes here:
+    https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
+
+    :param name:         function name, typically best to use hyphen-case
+    :param project:      project used to namespace the function, defaults to "default"
+    :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
+    :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
+    :param handler:      The default function handler to call for the job or nuclio function, in batch functions
+                         (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
+                         the entire file will be executed (as main).
+                         for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
+    :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
+    :param image:        base docker image to use for building the function container, defaults to None
+    :param code_output:  specify "." to generate python module from the current jupyter notebook
+    :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
+                         defaults to True
+    :param description:  short function description, defaults to ""
+    :param requirements: list of python packages or pip requirements file path, defaults to None
+    :param categories:   list of categories for mlrun function marketplace, defaults to None
+    :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
+    :param with_doc:     indicates whether to document the function parameters, defaults to True
+
+    :return:
+           pre-configured function object from a mlrun runtime class
 
     example::
+        import mlrun
 
         # create job function object from notebook code and add doc/metadata
-        import mlrun
         fn = mlrun.code_to_function('file_utils', kind='job',
                                     handler='open_archive', image='mlrun/mlrun',
                                     description = "this function opens a zip archive into a local/mounted folder",
                                     categories = ['fileutils'],
                                     labels = {'author': 'me'})
 
-    :param name:         function name
-    :param project:      function project (none for default)
-    :param tag:          function tag (none for 'latest')
-    :param filename:     blank for current notebook, or path to .py/.ipynb file
-    :param handler:      name of function handler (if not main)
-    :param kind:          optional, runtime type local, job, dask, mpijob, ..
-    :param image:        optional, container image
-    :param code_output:  save the generated code (from notebook) in that path
-    :param embed_code:   embed the source code into the function spec
-    :param description:  function description
-    :param requirements: python requirements file path or list of packages
-    :param categories:   list of categories (for function marketplace)
-    :param labels:       dict of label names and values to tag the function
-    :param with_doc:     document the function parameters
+    example::
+        import mlrun
+        from pathlib import Path
 
-    :return:
-           function object
+        # create file
+        Path('mover.py').touch()
+
+        # create nuclio function object from python module call mover.py
+        fn = mlrun.code_to_function('nuclio-mover', kind='nuclio',
+                                    filename='mover.py', image='python:3.7',
+                                    description = "this function moves files from one system to another",
+                                    requirements = ["pandas"],
+                                    labels = {'author': 'me'})
+
     """
     filebase, _ = path.splitext(path.basename(filename))
 
@@ -682,8 +768,6 @@ def code_to_function(
         if embed_code:
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
-            if with_doc:
-                update_function_entry_points(r, code)
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -699,8 +783,6 @@ def code_to_function(
 
     if kind is None or kind in ["", "Function"]:
         raise ValueError("please specify the function kind")
-    elif kind in ["local"]:
-        r = LocalRuntime()
     elif kind in RuntimeKinds.all():
         r = get_runtime_class(kind)()
     else:
@@ -778,15 +860,11 @@ def run_pipeline(
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
 
     artifact_path = artifact_path or mlconf.artifact_path
+    artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+        artifact_path, project or mlconf.default_project
+    )
     if artifact_path and "{{run.uid}}" in artifact_path:
         artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")
-    if artifact_path and "{{run.project}}" in artifact_path:
-        if not project:
-            raise ValueError(
-                "project name must be specified with this"
-                + f" artifact_path template {artifact_path}"
-            )
-        artifact_path.replace("{{run.project}}", project)
     if not artifact_path:
         raise ValueError("artifact path was not specified")
 
@@ -951,7 +1029,7 @@ def list_pipelines(
     """List pipelines
 
     :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
-    :param page_token: A page token to request the next page of results. The token is acquried from the nextPageToken
+    :param page_token: A page token to request the next page of results. The token is acquired from the nextPageToken
                        field of the response from the previous call or can be omitted when fetching the first page.
     :param page_size:  The number of pipelines to be listed per page. If there are more pipelines than this number, the
                        response message will contain a nextPageToken field you can use to fetch the next page.
@@ -960,7 +1038,7 @@ def list_pipelines(
     :param filter_:    A url-encoded, JSON-serialized Filter protocol buffer, see:
                        [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto).
     :param namespace:  Kubernetes namespace if other than default
-    :param project:    Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that
+    :param project:    Can be used to retrieve only specific project pipelines. "*" for all projects. Note that
                        filtering by project can't be used together with pagination, sorting, or custom filter.
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
@@ -989,3 +1067,51 @@ def download_object(url, target, secrets=None):
     """download mlrun dataitem (from path/url to target path)"""
     stores = store_manager.set(secrets)
     stores.object(url=url).download(target_path=target)
+
+
+def wait_for_runs_completion(runs: list, sleep=3, timeout=0, silent=False):
+    """wait for multiple runs to complete
+
+    Note: need to use `watch=False` in `.run()` so the run will not wait for completion
+
+    example::
+
+        # run two training functions in parallel and wait for the results
+        inputs = {'dataset': cleaned_data}
+        run1 = train.run(name='train_lr', inputs=inputs, watch=False,
+                         params={'model_pkg_class': 'sklearn.linear_model.LogisticRegression',
+                                 'label_column': 'label'})
+        run2 = train.run(name='train_lr', inputs=inputs, watch=False,
+                         params={'model_pkg_class': 'sklearn.ensemble.RandomForestClassifier',
+                                 'label_column': 'label'})
+        completed = wait_for_runs_completion([run1, run2])
+
+    :param runs:    list of run objects (the returned values of function.run())
+    :param sleep:   time to sleep between checks (in seconds)
+    :param timeout: maximum time to wait in seconds (0 for unlimited)
+    :param silent:  set to True for silent exit on timeout
+    :return: list of completed runs
+    """
+    completed = []
+    total_time = 0
+    while True:
+        running = []
+        for run in runs:
+            state = run.state()
+            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                completed.append(run)
+            else:
+                running.append(run)
+        if len(running) == 0:
+            break
+        time.sleep(sleep)
+        total_time += sleep
+        if timeout and total_time > timeout:
+            if silent:
+                break
+            raise mlrun.errors.MLRunTimeoutError(
+                "some runs did not reach terminal state on time"
+            )
+        runs = running
+
+    return completed

@@ -3,11 +3,11 @@ from datetime import timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import RunStates, PodPhases
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
@@ -15,6 +15,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.job)
+        self.runtime_handler.wait_for_deletion_interval = 0
 
         labels = {
             "mlrun/class": self._get_class_name(),
@@ -42,11 +43,23 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             RuntimeKinds.job, expected_pods=pods
         )
 
+    def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
+        pods = self._mock_list_resources_pods()
+        self._assert_runtime_handler_list_resources(
+            RuntimeKinds.job,
+            expected_pods=pods,
+            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+        )
+
     def test_delete_resources_completed_pod(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.completed_pod],
             # additional time for the get_logger_pods
             [self.completed_pod],
+            # additional time for wait for pods deletion - simulate pod not removed yet
+            [self.completed_pod],
+            # additional time for wait for pods deletion - simulate pod gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
@@ -98,6 +111,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             [self.running_pod],
             # additional time for the get_logger_pods
             [self.running_pod],
+            # additional time for wait for pods deletion - simulate pod gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()

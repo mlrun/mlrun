@@ -1,13 +1,30 @@
+import pytest
+
+import mlrun.errors
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
+from mlrun.utils import logger
 from mlrun.utils.helpers import (
-    verify_field_regex,
-    extend_hub_uri_if_needed,
-    enrich_image_url,
-    get_parsed_docker_registry,
     StorePrefix,
+    enrich_image_url,
+    extend_hub_uri_if_needed,
+    fill_artifact_path_template,
+    get_parsed_docker_registry,
+    verify_field_regex,
 )
 from mlrun.utils.regex import run_name
+
+
+def test_retry_until_successful_fatal_failure():
+    original_exception = Exception("original")
+
+    def _raise_fatal_failure():
+        raise mlrun.utils.helpers.FatalFailureException(original_exception)
+
+    with pytest.raises(Exception, match=str(original_exception)):
+        mlrun.utils.helpers.retry_until_successful(
+            0, 1, logger, True, _raise_fatal_failure
+        )
 
 
 def test_run_name_regex():
@@ -118,10 +135,89 @@ def test_enrich_image():
         },
         {"image": "fake_mlrun/ml-models", "expected_output": "fake_mlrun/ml-models"},
         {"image": "some_repo/some_image", "expected_output": "some_repo/some_image"},
+        {
+            "image": "some-repo/some-image",
+            "expected_output": "ghcr.io/some-repo/some-image",
+            "images_to_enrich_registry": "some-repo/some-image",
+        },
+        {
+            "image": "some-repo/some-image:some-tag",
+            "expected_output": "ghcr.io/some-repo/some-image:some-tag",
+            "images_to_enrich_registry": "some-repo/some-image",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "mlrun/mlrun:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "some-repo/some-image",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "ghcr.io/mlrun/mlrun:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "some-repo/some-image,mlrun/mlrun",
+        },
+        {
+            "image": "mlrun/mlrun:some-tag",
+            "expected_output": "ghcr.io/mlrun/mlrun:some-tag",
+            "images_to_enrich_registry": "some-repo/some-image,mlrun/mlrun",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "mlrun/mlrun,mlrun/ml-base,mlrun/ml-models",
+        },
+        {
+            "image": "mlrun/ml-base:0.5.2",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2",
+            "images_to_enrich_registry": "mlrun/mlrun:0.5.2,mlrun/ml-base:0.5.2,mlrun/ml-models:0.5.2",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "quay.io/mlrun/ml-base",
+            "expected_output": "quay.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "expected_output": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
+            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s$,^mlrun/ml-base:0.5.2-unstable-adsf76s$",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "mlrun/mlrun:0.5.2-unstable-adsf76s",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun:bla",
+            "expected_output": "ghcr.io/mlrun/mlrun:bla",
+            "images_to_enrich_registry": "mlrun/mlrun",
+            "images_registry": "ghcr.io",
+        },
+        {
+            "image": "mlrun/mlrun:bla",
+            "expected_output": "mlrun/mlrun:bla",
+            "images_to_enrich_registry": "mlrun/mlrun",
+            "images_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun:0.5.3",
+            "expected_output": "mlrun/mlrun:0.5.3",
+            "images_to_enrich_registry": "mlrun/mlrun:0.5.2",
+        },
     ]
-    config.images_registry = "ghcr.io/"
     config.images_tag = "0.5.2-unstable-adsf76s"
     for case in cases:
+        config.images_registry = case.get("images_registry", "ghcr.io/")
+        if case.get("images_to_enrich_registry") is not None:
+            config.images_to_enrich_registry = case["images_to_enrich_registry"]
         image = case["image"]
         expected_output = case["expected_output"]
         output = enrich_image_url(image)
@@ -195,3 +291,39 @@ def test_parse_store_uri():
     for case in cases:
         output = parse_store_uri(case["uri"])
         assert case["expected_output"] == output
+
+
+def test_fill_artifact_path_template():
+    cases = [
+        {
+            "artifact_path": "v3io://just/regular/path",
+            "expected_artifact_path": "v3io://just/regular/path",
+        },
+        {
+            "artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
+            "expected_artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
+        },
+        {
+            "artifact_path": "v3io://template-project-not-provided/{{project}}",
+            "raise": True,
+        },
+        {
+            "artifact_path": "v3io://template-project-provided/{{project}}",
+            "project": "some-project",
+            "expected_artifact_path": "v3io://template-project-provided/some-project",
+        },
+        {
+            "artifact_path": "v3io://legacy-template-project-provided/{{run.project}}",
+            "project": "some-project",
+            "expected_artifact_path": "v3io://legacy-template-project-provided/some-project",
+        },
+    ]
+    for case in cases:
+        if case.get("raise"):
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fill_artifact_path_template(case["artifact_path"], case.get("project"))
+        else:
+            filled_artifact_path = fill_artifact_path_template(
+                case["artifact_path"], case.get("project")
+            )
+            assert case["expected_artifact_path"] == filled_artifact_path

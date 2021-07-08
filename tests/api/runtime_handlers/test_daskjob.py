@@ -3,8 +3,7 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.runtimes.constants import PodPhases
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
@@ -12,6 +11,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.dask)
+        self.runtime_handler.wait_for_deletion_interval = 0
 
         # initializing them here to save space in tests
         scheduler_pod_labels = {
@@ -69,7 +69,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.cluster_service = self._generate_service(service_name, service_labels)
 
-    def test_list_resources(self):
+    def test_list_resources(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
         services = self._mock_list_services([self.cluster_service])
         self._assert_runtime_handler_list_resources(
@@ -79,6 +79,10 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_delete_resources_completed_cluster(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.completed_worker_pod, self.completed_scheduler_pod],
+            # additional time for wait for pods deletion - simulate pods not removed yet
+            [self.completed_worker_pod, self.completed_scheduler_pod],
+            # additional time for wait for pods deletion - simulate pods gone
+            [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_list_services([self.cluster_service])
@@ -114,6 +118,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler, len(list_namespaced_pods_calls)
         )
+
+    def test_monitor_run(self, db: Session, client: TestClient):
+        """
+        There's no real monitoring for dask (see mlrun.runtimes.daskjob.DaskRuntimeHandler.monitor_run for explanation
+        why) this test is only to have coverage for the piece of code there
+        """
+        self.runtime_handler.monitor_runs(get_db(), db, None)
 
     def _mock_list_resources_pods(self):
         mocked_responses = TestDaskjobRuntimeHandler._mock_list_namespaced_pods(

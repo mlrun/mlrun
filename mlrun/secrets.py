@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from ast import literal_eval
-from .utils import list2dict
-from .utils import VaultStore
 from os import environ
+
+from mlrun.config import config
+
+from .utils import AzureVaultStore, VaultStore, list2dict
 
 
 class SecretsStore:
@@ -74,6 +76,31 @@ class SecretsStore:
                 self._hidden_secrets[prefix + key] = value
             self._hidden_sources.append({"kind": kind, "source": source})
 
+        elif kind == "azure_vault":
+            if isinstance(source, str):
+                source = literal_eval(source)
+            if not isinstance(source, dict):
+                raise ValueError("Azure vault secrets must be of type dict")
+            if "name" not in source:
+                raise ValueError(
+                    "'name' must be provided in the source to define an Azure vault"
+                )
+
+            azure_vault = AzureVaultStore(source["name"])
+            for key, value in azure_vault.get_secrets(source["secrets"]).items():
+                self._hidden_secrets[prefix + key] = value
+            self._hidden_sources.append({"kind": kind, "source": source})
+        elif kind == "kubernetes":
+            if isinstance(source, str):
+                source = literal_eval(source)
+            if not isinstance(source, list):
+                raise ValueError("k8s secrets must be of type list")
+            for secret in source:
+                env_value = environ.get(self._k8s_env_variable_name_for_secret(secret))
+                if env_value:
+                    self._hidden_secrets[prefix + secret] = env_value
+            self._hidden_sources.append({"kind": kind, "source": source})
+
     def get(self, key, default=None):
         return self._secrets.get(key) or self._hidden_secrets.get(key) or default
 
@@ -93,3 +120,24 @@ class SecretsStore:
 
     def has_vault_source(self):
         return any(source["kind"] == "vault" for source in self._hidden_sources)
+
+    def has_azure_vault_source(self):
+        return any(source["kind"] == "azure_vault" for source in self._hidden_sources)
+
+    def get_azure_vault_k8s_secret(self):
+        for source in self._hidden_sources:
+            if source["kind"] == "azure_vault":
+                return source["source"].get("k8s_secret", None)
+
+    @staticmethod
+    def _k8s_env_variable_name_for_secret(secret_name):
+        return config.secret_stores.kubernetes.env_variable_prefix + secret_name.upper()
+
+    def get_k8s_secrets(self):
+        for source in self._hidden_sources:
+            if source["kind"] == "kubernetes":
+                return {
+                    secret: self._k8s_env_variable_name_for_secret(secret)
+                    for secret in source["source"]
+                }
+        return None

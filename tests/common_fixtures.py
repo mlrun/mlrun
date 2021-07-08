@@ -10,15 +10,17 @@ import v3io.dataplane
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.config
-import mlrun.db
 import mlrun.datastore
+import mlrun.db
+import mlrun.k8s_utils
 import mlrun.utils
+import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import create_session, _init_engine
+from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
-from tests.conftest import root_path, rundb_path, logs_path
+from tests.conftest import logs_path, root_path, rundb_path
 
 session_maker: Callable
 
@@ -31,6 +33,7 @@ def config_test_base():
     environ["MLRUN_httpdb__dirpath"] = rundb_path
     environ["MLRUN_httpdb__logs_path"] = logs_path
     environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
+    environ["MLRUN_httpdb__projects__counters_cache_ttl"] = "0 seconds"
     log_level = "DEBUG"
     environ["MLRUN_log_level"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
@@ -40,6 +43,12 @@ def config_test_base():
     mlrun.db._run_db = None
     mlrun.db._last_db_url = None
     mlrun.datastore.store_manager._db = None
+
+    # remove singletons in case they were changed (we don't want changes to pass between tests)
+    mlrun.utils.singleton.Singleton._instances = {}
+
+    mlrun.k8s_utils._k8s = None
+    mlrun.runtimes.utils.cached_mpijob_crd_version = None
 
 
 @pytest.fixture

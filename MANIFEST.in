@@ -16,6 +16,7 @@ include Dockerfile*
 include Makefile
 include README.md
 include mlrun/utils/version/version.json
+include mlrun/api/alembic.ini
 include *requirements.txt
 recursive-include examples *
 recursive-include hack *

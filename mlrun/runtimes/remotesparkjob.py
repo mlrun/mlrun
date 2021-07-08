@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-
-from .pod import KubeResourceSpec
-from .kubejob import KubejobRuntime, KubeRuntimeHandler
-from mlrun.config import config
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from subprocess import run
+
+from mlrun.config import config
+
+from ..model import RunObject
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from .kubejob import KubejobRuntime, KubeRuntimeHandler
+from .pod import KubeResourceSpec
 
 
 class RemoteSparkSpec(KubeResourceSpec):
@@ -40,7 +42,10 @@ class RemoteSparkSpec(KubeResourceSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
-        igz_spark=None,
+        provider=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
         super().__init__(
             command=command,
@@ -60,12 +65,47 @@ class RemoteSparkSpec(KubeResourceSpec):
             service_account=service_account,
             build=build,
             image_pull_secret=image_pull_secret,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
-        self.igz_spark = igz_spark
+        self.provider = provider
+
+
+class RemoteSparkProviders(object):
+    iguazio = "iguazio"
 
 
 class RemoteSparkRuntime(KubejobRuntime):
     kind = "remote-spark"
+    default_image = ".remote-spark-default-image"
+
+    @classmethod
+    def deploy_default_image(cls):
+        from mlrun import get_run_db
+        from mlrun.run import new_function
+
+        sj = new_function(
+            kind="remote-spark", name="remote-spark-default-image-deploy-temp"
+        )
+        sj.spec.build.image = cls.default_image
+        sj.with_spark_service(spark_service="dummy-spark")
+        sj.deploy()
+        get_run_db().delete_function(name=sj.metadata.name)
+
+    @property
+    def is_deployed(self):
+        if (
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+        ):
+            return True
+        return super().is_deployed
+
+    def _run(self, runobj: RunObject, execution):
+        self.spec.image = self.spec.image or self.default_image
+        super()._run(runobj=runobj, execution=execution)
 
     @property
     def spec(self) -> RemoteSparkSpec:
@@ -75,21 +115,25 @@ class RemoteSparkRuntime(KubejobRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", RemoteSparkSpec)
 
-    def with_igz_spark(self, spark_service):
-        self.spec.igz_spark = True
-        self.spec.env.append({"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"})
-        self.apply(mount_v3io_extended())
-        self.apply(
-            mount_v3iod(
-                namespace=config.namespace,
-                v3io_config_configmap=spark_service + "-submit",
+    def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
+        """Attach spark service to function"""
+        self.spec.provider = provider
+        if provider == RemoteSparkProviders.iguazio:
+            self.spec.env.append(
+                {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
             )
-        )
+            self.apply(mount_v3io_extended())
+            self.apply(
+                mount_v3iod(
+                    namespace=config.namespace,
+                    v3io_config_configmap=spark_service + "-submit",
+                )
+            )
 
     @property
     def _resolve_default_base_image(self):
         if (
-            self.spec.igz_spark
+            self.spec.provider == RemoteSparkProviders.iguazio
             and config.spark_app_image
             and config.spark_app_image_tag
         ):
@@ -98,7 +142,14 @@ class RemoteSparkRuntime(KubejobRuntime):
             return app_image + ":" + config.spark_app_image_tag
         return None
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
@@ -108,12 +159,13 @@ class RemoteSparkRuntime(KubejobRuntime):
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
+            mlrun_version_specifier=mlrun_version_specifier,
         )
 
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
-    def _consider_run_on_resources_deletion() -> bool:
+    def _are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

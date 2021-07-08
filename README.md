@@ -219,7 +219,7 @@ Functions (function objects) can be created by using any of the following method
 - **`new_function`** &mdash; creates a function "from scratch" or from another function.
 - **`code_to_function`** &mdash; creates a function from local or remote source code or from a web notebook.
 - **`import_function`** &mdash; imports a function from a local or remote YAML function-configuration file or from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`).
-- **`function_to_module`** &mdash; import MLrun function or code as a local python module (can also be used inside another parent function) 
+- **`function_to_module`** &mdash; import MLRun function or code as a local python module (can also be used inside another parent function) 
 You can use the `save` function method to save a function object in the MLRun database, or the `export` method to save a YAML function-configuration function to your preferred local or remote location.
 For function-method details and examples, see the embedded documentation/help text.
 

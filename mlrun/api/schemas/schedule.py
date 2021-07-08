@@ -1,8 +1,9 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Union, Any, Dict
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
+
 from mlrun.api.schemas.object import LabelRecord
 
 
@@ -69,6 +70,7 @@ class ScheduleUpdate(BaseModel):
     cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
     desired_state: Optional[str]
     labels: Optional[dict]
+    concurrency_limit: Optional[int]
 
 
 # Properties to receive via API on creation
@@ -79,6 +81,7 @@ class ScheduleInput(BaseModel):
     cron_trigger: Union[str, ScheduleCronTrigger]
     desired_state: Optional[str]
     labels: Optional[dict]
+    concurrency_limit: Optional[int]
 
 
 # the schedule object returned from the db layer

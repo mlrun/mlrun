@@ -14,16 +14,19 @@ router = APIRouter()
 def create_schedule(
     project: str,
     schedule: schemas.ScheduleInput,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().create_schedule(
         db_session,
+        auth_verifier.auth_info,
         project,
         schedule.name,
         schedule.kind,
         schedule.scheduled_object,
         schedule.cron_trigger,
         labels=schedule.labels,
+        concurrency_limit=schedule.concurrency_limit,
     )
     return Response(status_code=HTTPStatus.CREATED.value)
 
@@ -33,10 +36,12 @@ def update_schedule(
     project: str,
     name: str,
     schedule: schemas.ScheduleUpdate,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().update_schedule(
         db_session,
+        auth_verifier.auth_info,
         project,
         name,
         schedule.scheduled_object,
@@ -76,9 +81,14 @@ def get_schedule(
 
 @router.post("/projects/{project}/schedules/{name}/invoke")
 async def invoke_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    return await get_scheduler().invoke_schedule(db_session, project, name)
+    return await get_scheduler().invoke_schedule(
+        db_session, auth_verifier.auth_info, project, name
+    )
 
 
 @router.delete(

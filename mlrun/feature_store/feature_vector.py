@@ -12,20 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+from copy import copy
 from typing import List
-import mlrun
+
 import pandas as pd
 
+import mlrun
 
-from ..features import Feature
-from ..model import VersionedObjMetadata
-from ..feature_store.common import parse_feature_string, get_feature_set_by_uri
-from ..model import ModelObj, ObjectList, DataSource, DataTarget
 from ..config import config as mlconf
-from ..runtimes.function_reference import FunctionReference
-from ..serving.states import RootFlowState
-from ..datastore.targets import get_offline_target, ParquetTarget, CSVTarget
 from ..datastore import get_store_uri
+from ..datastore.targets import CSVTarget, ParquetTarget, get_offline_target
+from ..feature_store.common import (
+    get_feature_set_by_uri,
+    parse_feature_string,
+    parse_project_name_from_feature_string,
+)
+from ..features import Feature
+from ..model import DataSource, DataTarget, ModelObj, ObjectList, VersionedObjMetadata
+from ..runtimes.function_reference import FunctionReference
+from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
 
 
@@ -38,11 +43,12 @@ class FeatureVectorSpec(ModelObj):
         entity_fields=None,
         timestamp_field=None,
         graph=None,
-        label_column=None,
+        label_feature=None,
+        with_indexes=None,
         function=None,
         analysis=None,
     ):
-        self._graph: RootFlowState = None
+        self._graph: RootFlowStep = None
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
         self._function: FunctionReference = None
@@ -53,7 +59,8 @@ class FeatureVectorSpec(ModelObj):
         self.entity_fields = entity_fields or []
         self.graph = graph
         self.timestamp_field = timestamp_field
-        self.label_column = label_column
+        self.label_feature = label_feature
+        self.with_indexes = with_indexes
         self.function = function
         self.analysis = analysis or {}
 
@@ -76,13 +83,13 @@ class FeatureVectorSpec(ModelObj):
         self._entity_fields = ObjectList.from_list(Feature, entity_fields)
 
     @property
-    def graph(self) -> RootFlowState:
+    def graph(self) -> RootFlowStep:
         """feature vector transformation graph/DAG"""
         return self._graph
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", RootFlowState)
+        self._graph = self._verify_dict(graph, "graph", RootFlowStep)
         self._graph.engine = "async"
 
     @property
@@ -101,6 +108,7 @@ class FeatureVectorStatus(ModelObj):
         state=None,
         targets=None,
         features=None,
+        label_column=None,
         stats=None,
         preview=None,
         run_uri=None,
@@ -109,6 +117,7 @@ class FeatureVectorStatus(ModelObj):
         self._features: ObjectList = None
 
         self.state = state or "created"
+        self.label_column = label_column
         self.targets = targets
         self.stats = stats or {}
         self.preview = preview or []
@@ -138,17 +147,34 @@ class FeatureVectorStatus(ModelObj):
 
 
 class FeatureVector(ModelObj):
-    """Feature vector, specify selected features, their metadata and material views"""
+    """Feature vector, specify selected features, their metadata and material views
+    :param name: List of names of targets to delete (default: delete all ingested targets)
+    :param features: list of feature to collect to this vector. format <project>/<feature_set>.<feature_name or *>
+    :param label_feature: feature name to be used as label data
+    :param description: vector description
+    :param with_indexes: whether to keep the entity and timestamp columns in the response """
 
     kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, features=None, description=None):
+    def __init__(
+        self,
+        name=None,
+        features=None,
+        label_feature=None,
+        description=None,
+        with_indexes=None,
+    ):
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
 
-        self.spec = FeatureVectorSpec(description=description, features=features)
+        self.spec = FeatureVectorSpec(
+            description=description,
+            features=features,
+            label_feature=label_feature,
+            with_indexes=with_indexes,
+        )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
 
@@ -231,7 +257,7 @@ class FeatureVector(ModelObj):
         if update_spec:
             self.spec = from_db.spec
 
-    def parse_features(self):
+    def parse_features(self, offline=True):
         """parse and validate feature list (from vector) and add metadata from feature sets
 
         :returns
@@ -241,6 +267,11 @@ class FeatureVector(ModelObj):
         processed_features = {}  # dict of name to (featureset, feature object)
         feature_set_objects = {}
         feature_set_fields = collections.defaultdict(list)
+        features = copy(self.spec.features)
+        if offline and self.spec.label_feature:
+            features.append(self.spec.label_feature)
+            _, name, alias = parse_feature_string(self.spec.label_feature)
+            self.status.label_column = alias or name
 
         def add_feature(name, alias, feature_set_object):
             if alias in processed_features.keys():
@@ -253,11 +284,13 @@ class FeatureVector(ModelObj):
             featureset_name = feature_set_object.metadata.name
             feature_set_fields[featureset_name].append((name, alias))
 
-        for feature in self.spec.features:
+        for feature in features:
+            project_name, feature = parse_project_name_from_feature_string(feature)
             feature_set, feature_name, alias = parse_feature_string(feature)
             if feature_set not in feature_set_objects.keys():
                 feature_set_objects[feature_set] = get_feature_set_by_uri(
-                    feature_set, self.metadata.project
+                    feature_set,
+                    project_name if project_name is not None else self.metadata.project,
                 )
             feature_set_object = feature_set_objects[feature_set]
 
@@ -291,16 +324,17 @@ class FeatureVector(ModelObj):
 class OnlineVectorService:
     """get_online_feature_service response object"""
 
-    def __init__(self, vector, graph):
+    def __init__(self, vector, graph, index_columns):
         self.vector = vector
         self._controller = graph.controller
+        self._index_columns = index_columns
 
     @property
     def status(self):
-        """vector prep function status (ready, running, error)"""
+        """vector merger function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: List[dict]):
+    def get(self, entity_rows: List[dict], as_list=False):
         """get feature vector given the provided entity inputs"""
         results = []
         futures = []
@@ -308,7 +342,28 @@ class OnlineVectorService:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
         for future in futures:
             result = future.await_result()
-            results.append(result.body)
+            data = result.body
+            for key in self._index_columns:
+                if data and key in data:
+                    del data[key]
+            if not data:
+                data = None
+            else:
+                requested_columns = self.vector.status.features.keys()
+                actual_columns = data.keys()
+                for column in requested_columns:
+                    if (
+                        column not in actual_columns
+                        and column != self.vector.status.label_column
+                    ):
+                        data[column] = None
+            if as_list:
+                data = [
+                    result.body[key]
+                    for key in self.vector.status.features.keys()
+                    if key != self.vector.status.label_column
+                ]
+            results.append(data)
 
         return results
 
@@ -337,10 +392,12 @@ class OfflineVectorResponse:
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        return ParquetTarget(path=target_path).write_dataframe(
+        size = ParquetTarget(path=target_path).write_dataframe(
             self._merger.get_df(), **kw
         )
+        return size
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
+        size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
+        return size

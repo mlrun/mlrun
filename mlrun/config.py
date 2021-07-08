@@ -15,16 +15,17 @@
 Configuration system.
 
 Configuration can be in either a configuration file specified by
-MLRUN_CONFIG_FILE environment variable or by environmenet variables.
+MLRUN_CONFIG_FILE environment variable or by environment variables.
 
 Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
+import base64
 import copy
 import json
 import os
-import base64
+import urllib.parse
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
@@ -43,21 +44,27 @@ default_config = {
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
+    "default_nuclio_runtime": "python:3.7",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
+    # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
+    # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
+    # mlrun/ml-base, etc...)
+    "images_to_enrich_registry": "^mlrun/*",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
     "igz_version": "",  # the version of the iguazio system the API is running on
+    "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
-    "default_image": "python:3.6-jessie",
+    "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
@@ -70,17 +77,19 @@ default_config = {
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
-    "runs_monitoring_interval": "5",
+    "runs_monitoring_interval": "30",
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
+    "scrape_metrics": True,
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
-    "v3io_framesd": "http://framesd:8081",
+    "v3io_framesd": "http://framesd:8080",
+    "datastore": {"async_source_mode": "disabled"},
     # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
@@ -95,15 +104,52 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "authentication": {
+            "mode": "none",  # one of none, basic, bearer, iguazio
+            "basic": {"username": "", "password": ""},
+            "bearer": {"token": ""},
+            "iguazio": {
+                "session_verification_endpoint": "data_sessions/verifications/app_service",
+            },
+        },
+        "nuclio": {
+            # One of ClusterIP | NodePort
+            "default_service_type": "NodePort",
+            # The following modes apply when user did not configure an ingress
+            #
+            #   name        |  description
+            #  ---------------------------------------------------------------------
+            #   never       |  never enrich with an ingress
+            #   always      |  always enrich with an ingress, regardless the service type
+            #   onClusterIP |  enrich with an ingress only when `mlrun.config.httpdb.nuclio.default_service_type`
+            #                  is set to ClusterIP
+            #  ---------------------------------------------------------------------
+            # Note: adding a mode requires special handling on
+            # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
+            # - mlrun.runtimes.function.enrich_function_with_ingress
+            "add_templated_ingress_host_mode": "never",
+        },
+        "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
-            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
-            "min_allowed_interval": "10 minutes"
+            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
+            "min_allowed_interval": "10 minutes",
+            "default_concurrency_limit": 1,
+            # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
+            # multiple schedules scheduled to the same time, there might be delays, the default of the scheduler for
+            # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
+            # it to None. the default for coalesce it True just adding it here to be explicit
+            "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
         },
         "projects": {
             "leader": "mlrun",
             "followers": "",
+            # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
+            "counters_cache_ttl": "10 seconds",
+            # access key to be used when the leader is iguazio and polling is done from it
+            "iguazio_access_key": "",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -125,9 +171,10 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
-        "container": "projects",
-        "stream_url": "v3io:///projects/{project}/model-endpoints/stream",
-        "model_endpoint_monitoring": {"container": "projects"},
+        "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
+        "store_prefixes": {
+            "default": "v3io:///projects/{project}/model-endpoints/{kind}"
+        },
     },
     "secret_stores": {
         "vault": {
@@ -142,14 +189,24 @@ default_config = {
             # This config is for debug/testing purposes only!
             "user_token": "",
         },
+        "azure_vault": {
+            "url": "https://{name}.vault.azure.net",
+            "default_secret_name": None,
+            "secret_path": "~/.mlrun/azure_vault",
+        },
+        "kubernetes": {
+            "project_secret_name": "mlrun-project-secrets-{project}",
+            "env_variable_prefix": "MLRUN_K8S_SECRET__",
+        },
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/fs/{kind}",
-            "nosql": "v3io:///projects/{project}/fs/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
+        "flush_interval": 300,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -285,6 +342,36 @@ class Config:
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value)
 
+    @property
+    def iguazio_api_url(self):
+        """
+        we want to be able to run with old versions of the service who runs the API (which doesn't configure this
+        value) so we're doing best effort to try and resolve it from other configurations
+        TODO: Remove this hack when 0.6.x is old enough
+        """
+        if not self._iguazio_api_url:
+            if self.httpdb.builder.docker_registry and self.igz_version:
+                return self._extract_iguazio_api_from_docker_registry_url()
+        return self._iguazio_api_url
+
+    def _extract_iguazio_api_from_docker_registry_url(self):
+        docker_registry_url = self.httpdb.builder.docker_registry
+        # add schema otherwise parsing go wrong
+        if "://" not in docker_registry_url:
+            docker_registry_url = f"http://{docker_registry_url}"
+        parsed_registry_url = urllib.parse.urlparse(docker_registry_url)
+        registry_hostname = parsed_registry_url.hostname
+        # replace the first domain section (app service name) with dashboard
+        first_dot_index = registry_hostname.find(".")
+        if first_dot_index < 0:
+            # if not found it's not the format we know - can't resolve the api url from the registry url
+            return ""
+        return f"https://dashboard{registry_hostname[first_dot_index:]}"
+
+    @iguazio_api_url.setter
+    def iguazio_api_url(self, value):
+        self._iguazio_api_url = value
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -323,12 +410,15 @@ def _do_populate(env=None):
     if data:
         config.update(data)
 
-    # HACK to enable kfp_image and dask_kfp_image property to both have dynamic default and to use the value from
-    # dict/env like other configurations
+    # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
+    # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
+    # underscore
     config._cfg["_kfp_image"] = config._cfg["kfp_image"]
     del config._cfg["kfp_image"]
     config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]
     del config._cfg["dask_kfp_image"]
+    config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
+    del config._cfg["iguazio_api_url"]
 
 
 def _convert_str(value, typ):
@@ -361,15 +451,6 @@ def read_env(env=None, prefix=env_prefix):
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
-
-    # TODO: remove this - and verify dbpath is set correctly in all flows
-    # Here we're just guessing that there is a service named mlrun-api, if there is, there will be an env var for it's
-    # port - MLRUN_API_PORT - so we're using the env var existence to know whether our guess is right.
-    # the existence of config.httpdb.api_url tell that we're running in an API context so no need to set the dbpath
-    svc = env.get("MLRUN_API_PORT")
-    if svc and not config.get("dbpath") and not config.get("httpdb", {}).get("api_url"):
-        port = default_config["httpdb"]["port"] or 8080
-        config["dbpath"] = f"http://mlrun-api:{port}"
 
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API)

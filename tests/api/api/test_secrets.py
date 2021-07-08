@@ -1,11 +1,11 @@
 from http import HTTPStatus
+from random import randrange
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import pytest
 from mlrun import mlconf
-from random import randrange
 from mlrun.api import schemas
 
 # Set a valid Vault token to run this test.

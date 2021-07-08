@@ -1,15 +1,23 @@
+import base64
 import os
+import unittest.mock
+
+import deepdiff
+import nuclio
 import pytest
-from tests.api.runtimes.base import TestRuntimeBase
-from mlrun.runtimes.function import deploy_nuclio_function
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from mlrun import code_to_function
-import unittest.mock
-import nuclio
-import deepdiff
-import base64
 from mlrun.platforms.iguazio import split_path
+from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
+from mlrun.runtimes.function import (
+    compile_function_config,
+    deploy_nuclio_function,
+    enrich_function_with_ingress,
+    resolve_function_ingresses,
+)
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestNuclioRuntime(TestRuntimeBase):
@@ -23,12 +31,13 @@ class TestNuclioRuntime(TestRuntimeBase):
     def custom_setup(self):
         self.image_name = "test/image:latest"
         self.code_handler = "test_func"
+
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
     @staticmethod
     def _mock_nuclio_deploy_config():
-        nuclio.deploy.deploy_config = unittest.mock.Mock()
+        nuclio.deploy.deploy_config = unittest.mock.Mock(return_value="some-server")
 
     @staticmethod
     def _get_expected_struct_for_http_trigger(parameters):
@@ -84,29 +93,43 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         return runtime
 
-    def _assert_deploy_called_basic_config(self):
+    def _assert_deploy_called_basic_config(
+        self, expected_class="remote", call_count=1, expected_params=[]
+    ):
         deploy_mock = nuclio.deploy.deploy_config
-        deploy_mock.assert_called_once()
+        assert deploy_mock.call_count == call_count
 
-        full_function_name = f"{self.project}-{self.name}"
+        call_args_list = deploy_mock.call_args_list
+        for single_call_args in call_args_list:
+            args, kwargs = single_call_args
+            if expected_params:
+                current_parameters = expected_params.pop(0)
+                expected_function_name = current_parameters["function_name"]
+                source_filename = current_parameters["file_name"]
+            else:
+                expected_function_name = f"{self.project}-{self.name}"
+                source_filename = self.code_filename
 
-        args, kwargs = deploy_mock.call_args
+            assert kwargs["name"] == expected_function_name
+            assert kwargs["project"] == self.project
 
-        assert kwargs["name"] == full_function_name
-        assert kwargs["project"] == self.project
+            deploy_config = args[0]
+            function_metadata = deploy_config["metadata"]
+            assert function_metadata["name"] == expected_function_name
+            expected_labels = {"mlrun/class": expected_class}
+            assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
 
-        deploy_config = args[0]
-        function_metadata = deploy_config["metadata"]
-        assert function_metadata["name"] == full_function_name
-        expected_labels = {"mlrun/class": "remote"}
-        assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
+            build_info = deploy_config["spec"]["build"]
 
-        code_base64 = base64.b64encode(open(self.code_filename, "rb").read()).decode(
-            "utf-8"
-        )
-        build_info = deploy_config["spec"]["build"]
-        assert build_info["functionSourceCode"] == code_base64
-        assert build_info["baseImage"] == self.image_name
+            # Nuclio source code in some cases adds a suffix to the code, initializing nuclio context.
+            # We just verify that the code provided starts with our code.
+            original_source_code = open(source_filename, "r").read()
+            spec_source_code = base64.b64decode(
+                build_info["functionSourceCode"]
+            ).decode("utf-8")
+            assert spec_source_code.startswith(original_source_code)
+
+            assert build_info["baseImage"] == self.image_name
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
         args, _ = nuclio.deploy.deploy_config.call_args
@@ -176,6 +199,67 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
         self._assert_pod_env(env_config, expected_env)
 
+    def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
+        """
+        Expect no ingress template to be created, thought its mode is "always",
+        since the function already have a pre-configured ingress
+        """
+        function = self._generate_runtime("nuclio")
+
+        # both ingress and node port
+        ingress_host = "something.com"
+        function.with_http(host=ingress_host, paths=["/"], port=30030)
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "NodePort"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.always, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert len(ingresses) > 0, "Expected one ingress to be created"
+        for ingress in ingresses:
+            assert "hostTemplate" not in ingress, "No host template should be added"
+            assert ingress["host"] == ingress_host
+
+    def test_enrich_with_ingress_always(self, db: Session, client: TestClient):
+        """
+        Expect ingress template to be created as the configuration templated ingress mode is "always"
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "NodePort"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.always, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses[0]["hostTemplate"] != ""
+
+    def test_enrich_with_ingress_on_cluster_ip(self, db: Session, client: TestClient):
+        """
+        Expect ingress template to be created as the configuration templated ingress mode is "onClusterIP" while the
+        function service type is ClusterIP
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "ClusterIP"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.on_cluster_ip, service_type,
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses[0]["hostTemplate"] != ""
+
+    def test_enrich_with_ingress_never(self, db: Session, client: TestClient):
+        """
+        Expect no ingress to be created automatically as the configuration templated ingress mode is "never"
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "DoesNotMatter"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.never, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses == []
+
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime("nuclio")
 
@@ -218,3 +302,103 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()
         self._assert_nuclio_v3io_mount(local_path, remote_path)
+
+    def test_load_function_with_source_archive_git(self):
+        fn = self._generate_runtime("nuclio")
+        fn.with_source_archive(
+            "git://github.com/org/repo#my-branch",
+            handler="path/inside/repo#main:handler",
+            secrets={"GIT_PASSWORD": "my-access-token"},
+        )
+
+        assert fn.spec.base_spec == {
+            "apiVersion": "nuclio.io/v1",
+            "kind": "Function",
+            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+            "spec": {
+                "runtime": "python:3.7",
+                "handler": "main:handler",
+                "env": [],
+                "volumes": [],
+                "build": {
+                    "commands": [],
+                    "noBaseImagesPull": True,
+                    "path": "https://github.com/org/repo",
+                    "codeEntryType": "git",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/repo",
+                        "reference": "refs/heads/my-branch",
+                        "username": "",
+                        "password": "my-access-token",
+                    },
+                },
+            },
+        }
+
+    def test_load_function_with_source_archive_s3(self):
+        fn = self._generate_runtime("nuclio")
+        fn.with_source_archive(
+            "s3://my-bucket/path/in/bucket/my-functions-archive",
+            handler="path/inside/functions/archive#main:Handler",
+            runtime="golang",
+            secrets={
+                "AWS_ACCESS_KEY_ID": "some-id",
+                "AWS_SECRET_ACCESS_KEY": "some-secret",
+            },
+        )
+
+        assert fn.spec.base_spec == {
+            "apiVersion": "nuclio.io/v1",
+            "kind": "Function",
+            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+            "spec": {
+                "runtime": "golang",
+                "handler": "main:Handler",
+                "env": [],
+                "volumes": [],
+                "build": {
+                    "commands": [],
+                    "noBaseImagesPull": True,
+                    "path": "s3://my-bucket/path/in/bucket/my-functions-archive",
+                    "codeEntryType": "s3",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/functions/archive",
+                        "s3Bucket": "my-bucket",
+                        "s3ItemKey": "path/in/bucket/my-functions-archive",
+                        "s3AccessKeyId": "some-id",
+                        "s3SecretAccessKey": "some-secret",
+                        "s3SessionToken": "",
+                    },
+                },
+            },
+        }
+
+    def test_load_function_with_source_archive_v3io(self):
+        fn = self._generate_runtime("nuclio")
+        fn.with_source_archive(
+            "v3ios://host.com/container/my-functions-archive.zip",
+            handler="path/inside/functions/archive#main:handler",
+            secrets={"V3IO_ACCESS_KEY": "ma-access-key"},
+        )
+
+        assert fn.spec.base_spec == {
+            "apiVersion": "nuclio.io/v1",
+            "kind": "Function",
+            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+            "spec": {
+                "runtime": "python:3.7",
+                "handler": "main:handler",
+                "env": [],
+                "volumes": [],
+                "build": {
+                    "commands": [],
+                    "noBaseImagesPull": True,
+                    "path": "https://host.com/container/my-functions-archive.zip",
+                    "codeEntryType": "archive",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/functions/archive",
+                        "headers": {"headers": {"X-V3io-Session-Key": "ma-access-key"}},
+                    },
+                },
+            },
+        }

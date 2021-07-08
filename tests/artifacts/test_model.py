@@ -1,7 +1,7 @@
 import pandas as pd
-import mlrun
 
-from mlrun.artifacts.model import ModelArtifact, update_model, get_model
+import mlrun
+from mlrun.artifacts.model import ModelArtifact, get_model, update_model
 from mlrun.features import Feature
 from tests.conftest import results
 

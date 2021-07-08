@@ -1,67 +1,92 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .artifact import ArtifactCategories
+from .auth import AuthInfo
 from .background_task import (
-    BackgroundTaskState,
     BackgroundTask,
     BackgroundTaskMetadata,
     BackgroundTaskSpec,
+    BackgroundTaskState,
     BackgroundTaskStatus,
 )
-from .constants import Format, PatchMode, HeaderNames, DeletionStrategy
+from .constants import (
+    DeletionStrategy,
+    FeatureStorePartitionByField,
+    Format,
+    HeaderNames,
+    OrderType,
+    PatchMode,
+    ProjectsRole,
+    SortField,
+)
 from .feature_store import (
-    Feature,
-    FeatureRecord,
+    EntitiesOutput,
     Entity,
+    EntityListOutput,
     EntityRecord,
-    FeatureSetSpec,
+    Feature,
+    FeatureListOutput,
+    FeatureRecord,
     FeatureSet,
-    FeatureSetRecord,
-    FeatureSetsOutput,
     FeatureSetDigestOutput,
     FeatureSetDigestSpec,
-    FeatureListOutput,
+    FeatureSetIngestInput,
+    FeatureSetIngestOutput,
+    FeatureSetRecord,
+    FeatureSetsOutput,
+    FeatureSetSpec,
     FeaturesOutput,
-    EntityListOutput,
-    EntitiesOutput,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
+from .frontend_spec import FrontendSpec
+from .function import FunctionState
 from .model_endpoints import (
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpoint,
-    ModelEndpointStateList,
-    ModelEndpointState,
     Features,
     FeatureValues,
-    Histogram,
-    Metric,
     GrafanaColumn,
+    GrafanaDataPoint,
+    GrafanaNumberColumn,
+    GrafanaStringColumn,
     GrafanaTable,
+    GrafanaTimeSeriesTarget,
+    Metric,
+    ModelEndpoint,
+    ModelEndpointList,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
 )
-from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
-from .pipeline import PipelinesPagination, PipelinesOutput
+from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     Project,
+    ProjectDesiredState,
     ProjectMetadata,
-    ProjectSpec,
     ProjectsOutput,
-    ProjectStatus,
+    ProjectSpec,
     ProjectState,
+    ProjectStatus,
+    ProjectSummary,
+)
+from .runtime_resource import (
+    GroupedRuntimeResourcesOutput,
+    ListRuntimeResourcesGroupByField,
+    RuntimeResourcesOutput,
 )
 from .schedule import (
-    SchedulesOutput,
-    ScheduleOutput,
     ScheduleCronTrigger,
-    ScheduleKinds,
-    ScheduleUpdate,
     ScheduleInput,
+    ScheduleKinds,
+    ScheduleOutput,
     ScheduleRecord,
+    SchedulesOutput,
+    ScheduleUpdate,
 )
 from .secret import (
-    SecretsData,
+    SecretKeysData,
     SecretProviderName,
+    SecretsData,
     UserSecretCreationRequest,
 )

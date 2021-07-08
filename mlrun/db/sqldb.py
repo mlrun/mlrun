@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union
+from typing import List, Optional, Union
 
 import mlrun.api.schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
-from .base import RunDBInterface, RunDBError
-
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
@@ -29,9 +27,14 @@ from .base import RunDBInterface, RunDBError
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
+from ..api.schemas import ModelEndpoint
+from .base import RunDBError, RunDBInterface
+
+
 class SQLDB(RunDBInterface):
-    def __init__(self, dsn, session=None):
+    def __init__(self, dsn, session=None, leader_session: Optional[str] = None):
         self.session = session
+        self.leader_session = leader_session
         self.dsn = dsn
         self.db = None
 
@@ -43,7 +46,13 @@ class SQLDB(RunDBInterface):
 
     def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(
-            self.db.store_log, self.session, uid, project, body, append
+            self.db.store_log,
+            self.session,
+            uid,
+            project,
+            body,
+            append,
+            self.leader_session,
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
@@ -53,13 +62,22 @@ class SQLDB(RunDBInterface):
 
     def store_run(self, struct, uid, project="", iter=0):
         return self._transform_db_error(
-            self.db.store_run, self.session, struct, uid, project, iter
+            self.db.store_run,
+            self.session,
+            struct,
+            uid,
+            project,
+            iter,
+            self.leader_session,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         return self._transform_db_error(
             self.db.update_run, self.session, updates, uid, project, iter
         )
+
+    def abort_run(self, uid, project="", iter=0):
+        raise NotImplementedError()
 
     def read_run(self, uid, project=None, iter=None):
         return self._transform_db_error(
@@ -102,7 +120,15 @@ class SQLDB(RunDBInterface):
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         return self._transform_db_error(
-            self.db.store_artifact, self.session, key, artifact, uid, iter, tag, project
+            self.db.store_artifact,
+            self.session,
+            key,
+            artifact,
+            uid,
+            iter,
+            tag,
+            project,
+            self.leader_session,
         )
 
     def read_artifact(self, key, tag="", iter=None, project=""):
@@ -111,7 +137,15 @@ class SQLDB(RunDBInterface):
         )
 
     def list_artifacts(
-        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        name=None,
+        project=None,
+        tag=None,
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
+        best_iteration: bool = False,
     ):
         return self._transform_db_error(
             self.db.list_artifacts,
@@ -122,6 +156,8 @@ class SQLDB(RunDBInterface):
             labels,
             since,
             until,
+            iter=iter,
+            best_iteration=best_iteration,
         )
 
     def del_artifact(self, key, tag="", project=""):
@@ -143,6 +179,7 @@ class SQLDB(RunDBInterface):
             project,
             tag,
             versioned,
+            self.leader_session,
         )
 
     def get_function(self, name, project="", tag="", hash_key=""):
@@ -235,15 +272,21 @@ class SQLDB(RunDBInterface):
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
-            self.db.create_feature_set, self.session, project, feature_set, versioned
+            self.db.create_feature_set,
+            self.session,
+            project,
+            feature_set,
+            versioned,
+            self.leader_session,
         )
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
-        return self._transform_db_error(
+        feature_set = self._transform_db_error(
             self.db.get_feature_set, self.session, project, name, tag, uid
         )
+        return feature_set.dict()
 
     def list_features(
         self,
@@ -273,6 +316,10 @@ class SQLDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
+        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
+        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
         return self._transform_db_error(
             self.db.list_feature_sets,
@@ -284,12 +331,27 @@ class SQLDB(RunDBInterface):
             entities,
             features,
             labels,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
         )
 
     def store_feature_set(
-        self, feature_set, name=None, project="", tag=None, uid=None, versioned=True
+        self,
+        feature_set: Union[dict, mlrun.api.schemas.FeatureSet],
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
+        if isinstance(feature_set, dict):
+            feature_set = mlrun.api.schemas.FeatureSet(**feature_set)
+
         name = name or feature_set.metadata.name
+        project = project or feature_set.metadata.project
+
         return self._transform_db_error(
             self.db.store_feature_set,
             self.session,
@@ -299,6 +361,7 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
+            self.leader_session,
         )
 
     def patch_feature_set(
@@ -313,11 +376,12 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
+            self.leader_session,
         )
 
-    def delete_feature_set(self, name, project=""):
+    def delete_feature_set(self, name, project="", tag=None, uid=None):
         return self._transform_db_error(
-            self.db.delete_feature_set, self.session, project, name
+            self.db.delete_feature_set, self.session, project, name, tag, uid
         )
 
     def create_feature_vector(self, feature_vector, project="", versioned=True):
@@ -327,6 +391,7 @@ class SQLDB(RunDBInterface):
             project,
             feature_vector,
             versioned,
+            self.leader_session,
         )
 
     def get_feature_vector(
@@ -343,6 +408,10 @@ class SQLDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
+        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
+        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
         return self._transform_db_error(
             self.db.list_feature_vectors,
@@ -352,6 +421,10 @@ class SQLDB(RunDBInterface):
             tag,
             state,
             labels,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
         )
 
     def store_feature_vector(
@@ -366,6 +439,7 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
+            self.leader_session,
         )
 
     def patch_feature_vector(
@@ -386,11 +460,12 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
+            self.leader_session,
         )
 
-    def delete_feature_vector(self, name, project=""):
+    def delete_feature_vector(self, name, project="", tag=None, uid=None):
         return self._transform_db_error(
-            self.db.delete_feature_vector, self.session, project, name,
+            self.db.delete_feature_vector, self.session, project, name, tag, uid
         )
 
     def list_pipelines(
@@ -417,7 +492,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def get_project_secrets(
+    def list_project_secrets(
         self,
         project: str,
         token: str,
@@ -428,6 +503,26 @@ class SQLDB(RunDBInterface):
     ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
 
+    def list_project_secret_keys(
+        self,
+        project: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        token: str = None,
+    ) -> mlrun.api.schemas.SecretKeysData:
+        raise NotImplementedError()
+
+    def delete_project_secrets(
+        self,
+        project: str,
+        provider: Union[
+            str, mlrun.api.schemas.SecretProviderName
+        ] = mlrun.api.schemas.SecretProviderName.vault,
+        secrets: List[str] = None,
+    ):
+        raise NotImplementedError()
+
     def create_user_secrets(
         self,
         user: str,
@@ -435,5 +530,42 @@ class SQLDB(RunDBInterface):
             str, mlrun.api.schemas.SecretProviderName
         ] = mlrun.api.schemas.SecretProviderName.vault,
         secrets: dict = None,
+    ):
+        raise NotImplementedError()
+
+    def create_or_patch(
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: ModelEndpoint,
+        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+        raise NotImplementedError()
+
+    def list_endpoints(
+        self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def get_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        features: bool = False,
+        access_key=None,
     ):
         raise NotImplementedError()

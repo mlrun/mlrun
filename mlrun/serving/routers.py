@@ -15,12 +15,13 @@
 import concurrent
 import copy
 import json
-from datetime import datetime
 from enum import Enum
 from io import BytesIO
 
-import mlrun
 from numpy.core.fromnumeric import mean
+
+import mlrun
+from mlrun.utils import now_date
 
 from .v2_serving import _ModelLogPusher
 
@@ -489,9 +490,9 @@ class VotingEnsemble(BaseModelRouter):
         Returns
         -------
         Response
-            Event repsonse after running the requested logic
+            Event response after running the requested logic
         """
-        start = datetime.now()
+        start = now_date()
 
         # Handle and verify the request
         event = self.preprocess(event)
@@ -550,7 +551,7 @@ class VotingEnsemble(BaseModelRouter):
     def extract_results_from_response(self, response):
         """Extracts the prediction from the model response.
         This function is used to allow multiple model return types. and allow for easy
-        extention to the user's ensemble and models best practices.
+        extension to the user's ensemble and models best practices.
 
         Parameters
         ----------
@@ -600,7 +601,7 @@ class VotingEnsemble(BaseModelRouter):
                     try:
                         results.append(future.result())
                     except Exception as exc:
-                        print(f"{future.fullname} generated an exception: {exc}")
+                        print(f"child route generated an exception: {exc}")
                 results = [
                     self.extract_results_from_response(event.body["outputs"])
                     for event in results

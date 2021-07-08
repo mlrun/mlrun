@@ -18,25 +18,35 @@ __all__ = [
     "get_offline_features",
     "get_online_feature_service",
     "ingest",
-    "infer_metadata",
-    "run_ingestion_job",
+    "preview",
     "deploy_ingestion_service",
+    "delete_feature_set",
+    "delete_feature_vector",
+    "get_feature_set",
+    "get_feature_vector",
     "Feature",
     "Entity",
     "FeatureSet",
     "FeatureVector",
+    "RunConfig",
+    "OfflineVectorResponse",
+    "OnlineVectorService",
 ]
 
 
-from .feature_set import FeatureSet
-from .feature_vector import FeatureVector
-from ..features import Feature, Entity
 from ..data_types import InferOptions, ValueType
+from ..features import Entity, Feature
 from .api import (
+    delete_feature_set,
+    delete_feature_vector,
+    deploy_ingestion_service,
+    get_feature_set,
+    get_feature_vector,
     get_offline_features,
     get_online_feature_service,
     ingest,
-    infer_metadata,
-    run_ingestion_job,
-    deploy_ingestion_service,
+    preview,
 )
+from .common import RunConfig
+from .feature_set import FeatureSet
+from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService

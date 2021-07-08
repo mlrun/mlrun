@@ -11,15 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import hashlib
+import os
 
 import yaml
 
 import mlrun
+import mlrun.errors
+
+from ..datastore import get_store_uri, is_store_uri, store_manager
 from ..model import ModelObj
-from ..datastore import is_store_uri, get_store_uri, store_manager
-from ..utils import StorePrefix
+from ..utils import StorePrefix, calculate_local_file_hash, generate_artifact_uri
 
 calc_hash = True
 
@@ -101,10 +103,10 @@ class Artifact(ModelObj):
         return self.target_path
 
     def get_store_url(self, with_tag=True, project=None):
-        uri_project = project or self.project
-        uri = "/".join([uri_project, self.db_key])
-        if with_tag:
-            uri += "#" + self.tree
+        tag = self.tree if with_tag else None
+        uri = generate_artifact_uri(
+            project or self.project, self.db_key, tag, self.iter
+        )
         return get_store_uri(StorePrefix.Artifact, uri)
 
     def base_dict(self):
@@ -145,7 +147,7 @@ class Artifact(ModelObj):
 
     def _upload_file(self, src, target=None):
         if calc_hash:
-            self.hash = file_hash(src)
+            self.hash = calculate_local_file_hash(src)
         self.size = os.stat(src).st_size
         store_manager.object(url=target or self.target_path).upload(src)
 
@@ -198,16 +200,6 @@ class LinkArtifact(Artifact):
         self.link_iteration = link_iteration
         self.link_key = link_key
         self.link_tree = link_tree
-
-
-def file_hash(filename):
-    h = hashlib.sha1()
-    b = bytearray(128 * 1024)
-    mv = memoryview(b)
-    with open(filename, "rb", buffering=0) as f:
-        for n in iter(lambda: f.readinto(mv), 0):
-            h.update(mv[:n])
-    return h.hexdigest()
 
 
 def blob_hash(data):

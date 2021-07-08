@@ -1,18 +1,23 @@
-import unittest.mock
-from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.utils import create_logger
-from mlrun.runtimes.constants import PodPhases
-from kubernetes import client
-from datetime import datetime, timezone
-from copy import deepcopy
-from mlrun.config import config as mlconf
 import json
-from mlrun.model import new_task
-import deepdiff
 import pathlib
 import sys
+import unittest.mock
 from base64 import b64encode
+from copy import deepcopy
+from datetime import datetime, timezone
+
+import deepdiff
+from kubernetes import client
+from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
+
+from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.config import config as mlconf
+from mlrun.model import new_task
+from mlrun.runtimes.constants import PodPhases
+from mlrun.utils import create_logger
+from mlrun.utils.azure_vault import AzureVaultStore
+from mlrun.utils.vault import VaultStore
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -29,6 +34,15 @@ class TestRuntimeBase:
         self.artifact_path = "/tmp"
         self.function_name_label = "mlrun/name"
         self.code_filename = str(self.assets_path / "sample_function.py")
+        self.requirements_file = str(self.assets_path / "requirements.txt")
+
+        self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
+        self.vault_secret_value = "secret123!@"
+        self.vault_secret_name = "vault-secret"
+
+        self.azure_vault_secrets = ["azure_secret1", "azure_secret2"]
+        self.azure_secret_value = "azure-secret-123!@"
+        self.azure_vault_secret_name = "k8s-vault-secret"
 
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -72,6 +86,79 @@ class TestRuntimeBase:
             name=self.name, project=self.project, artifact_path=self.artifact_path
         )
 
+    def _generate_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PreferredSchedulingTerm(
+                        weight=1,
+                        preference=k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="some_node_label",
+                                    operator="In",
+                                    values=[
+                                        "possible-label-value-1",
+                                        "possible-label-value-2",
+                                    ],
+                                )
+                            ]
+                        ),
+                    )
+                ],
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="some_node_label",
+                                    operator="In",
+                                    values=[
+                                        "required-label-value-1",
+                                        "required-label-value-2",
+                                    ],
+                                )
+                            ]
+                        ),
+                    ]
+                ),
+            ),
+            pod_affinity=k8s_client.V1PodAffinity(
+                required_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1PodAffinityTerm(
+                        label_selector=k8s_client.V1LabelSelector(
+                            match_labels={"some-pod-label-key": "some-pod-label-value"}
+                        ),
+                        namespaces=["namespace-a", "namespace-b"],
+                        topology_key="key-1",
+                    )
+                ]
+            ),
+            pod_anti_affinity=k8s_client.V1PodAntiAffinity(
+                preferred_during_scheduling_ignored_during_execution=[
+                    k8s_client.V1WeightedPodAffinityTerm(
+                        weight=1,
+                        pod_affinity_term=k8s_client.V1PodAffinityTerm(
+                            label_selector=k8s_client.V1LabelSelector(
+                                match_expressions=[
+                                    k8s_client.V1LabelSelectorRequirement(
+                                        key="some_pod_label",
+                                        operator="NotIn",
+                                        values=[
+                                            "forbidden-label-value-1",
+                                            "forbidden-label-value-2",
+                                        ],
+                                    )
+                                ]
+                            ),
+                            namespaces=["namespace-c"],
+                            topology_key="key-2",
+                        ),
+                    )
+                ]
+            ),
+        )
+
     def _mock_create_namespaced_pod(self):
         def _generate_pod(namespace, pod):
             terminated_container_state = client.V1ContainerStateTerminated(
@@ -99,6 +186,29 @@ class TestRuntimeBase:
 
         get_k8s().v1api.create_namespaced_pod = unittest.mock.Mock(
             side_effect=_generate_pod
+        )
+
+    # Vault now supported in KubeJob and Serving, so moved to base.
+    def _mock_vault_functionality(self):
+        secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
+        VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
+
+        azure_secret_dict = {
+            key: self.azure_secret_value for key in self.azure_vault_secrets
+        }
+        AzureVaultStore.get_secrets = unittest.mock.Mock(return_value=azure_secret_dict)
+
+        object_meta = client.V1ObjectMeta(
+            name="test-service-account", namespace=self.namespace
+        )
+        secret = client.V1ObjectReference(
+            name=self.vault_secret_name, namespace=self.namespace
+        )
+        service_account = client.V1ServiceAccount(
+            metadata=object_meta, secrets=[secret]
+        )
+        get_k8s().v1api.read_namespaced_service_account = unittest.mock.Mock(
+            return_value=service_account
         )
 
     def _execute_run(self, runtime, **kwargs):
@@ -191,6 +301,22 @@ class TestRuntimeBase:
                 expected_variables.pop(name)
 
         # Make sure all variables were accounted for
+        assert len(expected_variables) == 0
+
+    @staticmethod
+    def _assert_pod_env_from_secrets(pod_env, expected_variables):
+        for env_variable in pod_env:
+            if (
+                isinstance(env_variable, V1EnvVar)
+                and env_variable.value_from is not None
+            ):
+                name = env_variable.name
+                if name in expected_variables:
+                    expected_value = expected_variables[name]
+                    secret_key = env_variable.value_from.secret_key_ref.key
+                    secret_name = env_variable.value_from.secret_key_ref.name
+                    assert expected_value[secret_name] == secret_key
+                    expected_variables.pop(name)
         assert len(expected_variables) == 0
 
     def _get_pod_creation_args(self):
@@ -300,9 +426,13 @@ class TestRuntimeBase:
         expected_requests=None,
         expected_code=None,
         expected_env={},
+        expected_node_name=None,
+        expected_node_selector=None,
+        expected_affinity=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
+        expected_env_from_secrets={},
     ):
         if assert_create_pod_called:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -310,29 +440,14 @@ class TestRuntimeBase:
 
         assert self._get_namespace_arg() == self.namespace
 
-        pod_spec = self._get_pod_creation_args()
-        self._assert_labels(pod_spec.metadata.labels, expected_runtime_class_name)
+        pod = self._get_pod_creation_args()
+        self._assert_labels(pod.metadata.labels, expected_runtime_class_name)
 
-        container_spec = pod_spec.spec.containers[0]
+        container_spec = pod.spec.containers[0]
 
-        if expected_limits:
-            assert (
-                deepdiff.DeepDiff(
-                    container_spec.resources["limits"],
-                    expected_limits,
-                    ignore_order=True,
-                )
-                == {}
-            )
-        if expected_requests:
-            assert (
-                deepdiff.DeepDiff(
-                    container_spec.resources["requests"],
-                    expected_requests,
-                    ignore_order=True,
-                )
-                == {}
-            )
+        self._assert_container_resources(
+            container_spec, expected_limits, expected_requests
+        )
 
         pod_env = container_spec.env
 
@@ -342,6 +457,7 @@ class TestRuntimeBase:
             expected_env["MLRUN_NAMESPACE"] = self.namespace
 
         self._assert_pod_env(pod_env, expected_env)
+        self._assert_pod_env_from_secrets(pod_env, expected_env_from_secrets)
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
                 env_variable = dict(name=env_variable.name, value=env_variable.value)
@@ -365,4 +481,46 @@ class TestRuntimeBase:
         if expected_code:
             assert expected_code_found
 
-        assert pod_spec.spec.containers[0].image == self.image_name
+        if expected_node_name:
+            assert pod.spec.node_name == expected_node_name
+
+        if expected_node_selector:
+            assert (
+                deepdiff.DeepDiff(
+                    pod.spec.node_selector, expected_node_selector, ignore_order=True,
+                )
+                == {}
+            )
+        if expected_affinity:
+            assert (
+                deepdiff.DeepDiff(
+                    pod.spec.affinity.to_dict(),
+                    expected_affinity.to_dict(),
+                    ignore_order=True,
+                )
+                == {}
+            )
+
+        assert pod.spec.containers[0].image == self.image_name
+
+    def _assert_container_resources(
+        self, container_spec, expected_limits, expected_requests
+    ):
+        if expected_limits:
+            assert (
+                deepdiff.DeepDiff(
+                    container_spec.resources["limits"],
+                    expected_limits,
+                    ignore_order=True,
+                )
+                == {}
+            )
+        if expected_requests:
+            assert (
+                deepdiff.DeepDiff(
+                    container_spec.resources["requests"],
+                    expected_requests,
+                    ignore_order=True,
+                )
+                == {}
+            )

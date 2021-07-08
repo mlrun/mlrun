@@ -56,8 +56,6 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
             volume_mount_path=volume_mount_path,
             volume_name=volume_name or "pvc",
         )
-    if "V3IO_ACCESS_KEY" in os.environ:
-        return mount_v3io(name=volume_name or "v3io")
     if "MLRUN_PVC_MOUNT" in os.environ:
         mount = os.environ.get("MLRUN_PVC_MOUNT")
         items = mount.split(":")
@@ -68,6 +66,8 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
             volume_mount_path=items[1],
             volume_name=volume_name or "pvc",
         )
+    if "V3IO_ACCESS_KEY" in os.environ:
+        return mount_v3io(name=volume_name or "v3io")
     raise ValueError("failed to auto mount, need to set env vars")
 
 

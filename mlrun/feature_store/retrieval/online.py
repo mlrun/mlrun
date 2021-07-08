@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import mlrun
-
 from mlrun.datastore.store_resources import ResourceCache
-from mlrun.serving.server import create_graph_server
 from mlrun.datastore.targets import get_online_target
+from mlrun.serving.server import create_graph_server
 
 
 def _build_feature_vector_graph(
@@ -34,13 +33,12 @@ def _build_feature_vector_graph(
         aliases = {name: alias for name, alias in columns if alias}
 
         entity_list = list(featureset.spec.entities.keys())
-        key_column = entity_list[0]
         next = next.to(
             "storey.QueryByKey",
             f"query-{name}",
             features=column_names,
             table=featureset.uri,
-            key=key_column,
+            key=entity_list,
             aliases=aliases,
         )
     for name in start_states:
@@ -59,18 +57,23 @@ def _build_feature_vector_graph(
 
 def init_feature_vector_graph(vector):
     try:
-        from storey import Source
+        from storey import SyncEmitSource
     except ImportError as exc:
         raise ImportError(f"storey not installed, use pip install storey, {exc}")
 
-    feature_set_objects, feature_set_fields = vector.parse_features()
+    feature_set_objects, feature_set_fields = vector.parse_features(False)
     graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)
-    graph.set_flow_source(Source())
+    graph.set_flow_source(SyncEmitSource())
     server = create_graph_server(graph=graph, parameters={})
 
     cache = ResourceCache()
+    index_columns = []
     for featureset in feature_set_objects.values():
         driver = get_online_target(featureset)
         cache.cache_table(featureset.uri, driver.get_table_object())
-    server.init(None, None, cache)
-    return graph
+        for key in featureset.spec.entities.keys():
+            if not vector.spec.with_indexes and key not in index_columns:
+                index_columns.append(key)
+    server.init_states(context=None, namespace=None, resource_cache=cache)
+    server.init_object(None)
+    return graph, index_columns

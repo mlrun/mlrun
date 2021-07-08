@@ -23,27 +23,28 @@ from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .execution import MLClientCtx
-from .model import RunTemplate, NewTask, new_task, RunObject
+from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
-    mount_v3io,
-    v3io_cred,
-    mount_v3io_extended,
     VolumeMount,
+    auto_mount,
+    mount_v3io,
+    mount_v3io_extended,
     mount_v3io_legacy,
+    v3io_cred,
 )
-from .projects import load_project, new_project
+from .projects import ProjectMetadata, load_project, new_project
 from .run import (
-    get_or_create_ctx,
-    new_function,
     code_to_function,
-    import_function,
-    run_pipeline,
-    run_local,
     function_to_module,
-    get_object,
-    get_pipeline,
-    wait_for_pipeline_completion,
     get_dataitem,
+    get_object,
+    get_or_create_ctx,
+    get_pipeline,
+    import_function,
+    new_function,
+    run_local,
+    run_pipeline,
+    wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server
 from .utils.version import Version
@@ -80,8 +81,9 @@ def set_environment(
 
     example::
 
+        from os import path
         artifact_path = set_environment(project='my-project')
-        data_subpath = os.join(artifact_path, 'data')
+        data_subpath = path.join(artifact_path, 'data')
 
     :param api_path:       location/url of mlrun api service
     :param artifact_path:  path/url for storing experiment artifacts
@@ -108,6 +110,9 @@ def set_environment(
     if project and user_project:
         user = environ.get("V3IO_USERNAME") or getpass.getuser()
         project = f"{project}-{user}"
+
+    if project:
+        ProjectMetadata.validate_project_name(project)
 
     mlconf.default_project = project or mlconf.default_project
 

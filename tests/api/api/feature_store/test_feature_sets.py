@@ -1,11 +1,14 @@
 from http import HTTPStatus
 from uuid import uuid4
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from .base import (
-    _patch_object,
-    _list_and_assert_objects,
     _assert_diff_as_expected_except_for_specific_metadata,
+    _list_and_assert_objects,
+    _patch_object,
+    _test_partition_by_for_feature_store_objects,
 )
 
 
@@ -89,6 +92,33 @@ def _assert_extra_fields_exist(json_response):
     assert json_response["status"]["extra_status"]["field2"] == "value2"
 
 
+def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set1"
+    tag = "my_tag1"
+    feature_set = _generate_feature_set(name)
+    feature_set["metadata"]["tag"] = tag
+
+    result = _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
+    assert result["metadata"]["tag"] == tag
+    uid = result["metadata"]["uid"]
+
+    result = _store_and_assert_feature_set(client, project_name, name, uid, feature_set)
+    assert result["metadata"]["tag"] is None
+
+
+def test_feature_set_create_without_tag(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+    feature_set["metadata"].pop("tag")
+
+    response = _feature_set_create_and_assert(client, project_name, feature_set)
+    assert response["metadata"]["tag"] == "latest"
+
+
 def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
 
@@ -144,13 +174,13 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     for feature_set_json in response["feature_sets"]:
         _assert_extra_fields_exist(feature_set_json)
 
-    _list_and_assert_objects(client, "feature_sets", project_name, "name=feature", 2)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=~feature", 2)
     _list_and_assert_objects(client, "feature_sets", project_name, "entity=buyer", 1)
     _list_and_assert_objects(
         client, "feature_sets", project_name, "entity=ticker&entity=bid", 2
     )
     _list_and_assert_objects(
-        client, "feature_sets", project_name, "name=feature&entity=buyer", 0
+        client, "feature_sets", project_name, "name=~feature&entity=buyer", 0
     )
     # Test various label filters
     _list_and_assert_objects(
@@ -159,6 +189,24 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     _list_and_assert_objects(client, "feature_sets", project_name, "label=color", 2)
     # handling multiple label queries has issues right now - needs to fix and re-run this test.
     # _assert_list_objects(client, "feature_sets", project_name, "label=owner=bob&label=color=red", 2)
+
+
+def test_feature_set_list_partition_by(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    count = 5
+    for i in range(count):
+        name = f"feature_set_{i}"
+        feature_set = _generate_feature_set(name)
+        _store_and_assert_feature_set(client, project_name, name, "older", feature_set)
+        # Must change the uid, otherwise it will just re-tag the same object
+        feature_set["metadata"]["extra_metadata"] = 200
+        _store_and_assert_feature_set(client, project_name, name, "newer", feature_set)
+        feature_set["metadata"]["extra_metadata"] = 300
+        _store_and_assert_feature_set(client, project_name, name, "newest", feature_set)
+
+    _test_partition_by_for_feature_store_objects(
+        client, "feature_sets", project_name, count
+    )
 
 
 def test_feature_set_patch(db: Session, client: TestClient) -> None:
@@ -270,6 +318,54 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 2)
 
 
+def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set"
+    feature_set = _generate_feature_set(name)
+
+    count = 5
+    uids = {}
+    for i in range(count):
+        # Store different copies of the feature set with different uids and tags
+        feature_set["metadata"]["extra_metadata"] = i * 100
+        tag = f"tag{i}"
+        result = _store_and_assert_feature_set(
+            client, project_name, name, f"tag{i}", feature_set
+        )
+        uids[result["metadata"]["uid"]] = tag
+
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name}", count
+    )
+
+    delete_by_tag = True
+    objects_left = count
+    for uid, tag in uids.items():
+        reference = tag if delete_by_tag else uid
+        delete_by_tag = not delete_by_tag
+
+        response = client.delete(
+            f"/api/projects/{project_name}/feature-sets/{name}/references/{reference}"
+        )
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
+        objects_left = objects_left - 1
+        _list_and_assert_objects(
+            client, "feature_sets", project_name, f"name={name}", objects_left
+        )
+
+    for i in range(count):
+        feature_set["metadata"]["extra_metadata"] = i * 100
+        _store_and_assert_feature_set(
+            client, project_name, name, f"tag{i}", feature_set
+        )
+
+    # Now delete by name
+    response = client.delete(f"/api/projects/{project_name}/feature-sets/{name}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 0)
+
+
 def test_feature_set_create_failure_already_exists(
     db: Session, client: TestClient
 ) -> None:
@@ -375,6 +471,45 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
+def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+
+    # Put a new object - verify it's created
+    response = _store_and_assert_feature_set(
+        client, project_name, name, "tag1", feature_set
+    )
+    uid = response["metadata"]["uid"]
+
+    # Put the same object with a different tag - this should result in just adding a tag
+    response = _store_and_assert_feature_set(
+        client, project_name, name, "tag2", feature_set
+    )
+    assert response["metadata"]["uid"] == uid
+
+    response = _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name}", 2
+    )["feature_sets"]
+
+    expected_tags = {"tag1", "tag2"}
+    returned_tags = set()
+    for feature_set_response in response:
+        returned_tags.add(feature_set_response["metadata"]["tag"])
+    assert expected_tags == returned_tags
+
+    # Storing object with same tag - should just update
+    feature_set["metadata"]["extra_metadata"] = 200
+    _store_and_assert_feature_set(client, project_name, name, "tag2", feature_set)
+
+    _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 2)
+
+    response = _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name}&tag=tag2", 1
+    )["feature_sets"]
+    assert response[0]["metadata"]["extra_metadata"] == 200
+
+
 def test_feature_set_create_without_labels(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     name = "feature_set1"
@@ -452,13 +587,13 @@ def test_entities_list(db: Session, client: TestClient) -> None:
 
         _feature_set_create_and_assert(client, project_name, feature_set)
     _list_and_assert_objects(client, "entities", project_name, "name=entity_0", 1)
-    _list_and_assert_objects(client, "entities", project_name, "name=entity", count)
+    _list_and_assert_objects(client, "entities", project_name, "name=~entity", count)
     _list_and_assert_objects(client, "entities", project_name, "label=color", count)
     _list_and_assert_objects(
         client, "entities", project_name, f"label=color={colors[1]}", count // 2
     )
     _list_and_assert_objects(
-        client, "entities", project_name, "name=entity&label=id=id_0", 1
+        client, "entities", project_name, "name=~entity&label=id=id_0", 1
     )
 
     # set a new tag
@@ -499,7 +634,7 @@ def test_features_list(db: Session, client: TestClient) -> None:
 
     _list_and_assert_objects(client, "features", project_name, "name=feature1", 1)
     # name is a like query, so expecting all 4 features to return
-    _list_and_assert_objects(client, "features", project_name, "name=feature", 4)
+    _list_and_assert_objects(client, "features", project_name, "name=~feature", 4)
     _list_and_assert_objects(client, "features", project_name, "label=owner=me", 1)
 
     # set a new tag
@@ -575,7 +710,7 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
         client, project_name, feature_set, versioned=False
     )
 
-    allowed_added_fields = ["updated", "tag", "uid", "project"]
+    allowed_added_fields = ["created", "updated", "tag", "uid", "project"]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_set, feature_set_response, allowed_added_fields
     )
@@ -610,6 +745,25 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
 
     # Verify we still have just 1 object in the DB
     _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 1)
+
+
+def test_feature_set_name_exact_and_fuzzy_list(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "FeatureSET123"
+    feature_set = _generate_feature_set(name)
+    _feature_set_create_and_assert(client, project_name, feature_set)
+    _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 1)
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name={name.lower()}", 0
+    )
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, f"name=~{name.lower()}", 1
+    )
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=~set", 1)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=~SET", 1)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=set", 0)
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=SET", 0)
 
 
 def test_multi_label_query(db: Session, client: TestClient) -> None:

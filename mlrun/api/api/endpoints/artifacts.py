@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
+# curl -d@/path/to/artifact http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -24,6 +24,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -42,6 +43,7 @@ async def store_artifact(
         iter=iter,
         tag=tag,
         project=project,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {}
 
@@ -95,10 +97,20 @@ def list_artifacts(
     kind: str = None,
     category: schemas.ArtifactCategories = None,
     labels: List[str] = Query([], alias="label"),
+    iter: int = Query(None, ge=0),
+    best_iteration: bool = Query(False, alias="best-iteration"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = get_db().list_artifacts(
-        db_session, name, project, tag, labels, kind=kind, category=category,
+        db_session,
+        name,
+        project,
+        tag,
+        labels,
+        kind=kind,
+        category=category,
+        iter=iter,
+        best_iteration=best_iteration,
     )
     return {
         "artifacts": artifacts,

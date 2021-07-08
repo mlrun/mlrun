@@ -1,6 +1,7 @@
+import pandas as pd
+
 from mlrun import get_or_create_ctx
 from mlrun.artifacts import ChartArtifact
-import pandas as pd
 
 
 def my_job(context, p1=1, p2="x"):

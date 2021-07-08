@@ -14,10 +14,17 @@
 import threading
 import time
 import traceback
-from typing import Dict
-from datetime import datetime
+from typing import Dict, Optional
 
 import mlrun
+from mlrun.api.schemas import (
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
+)
+from mlrun.datastore import _DummyStream
+from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 
 class V2ModelServer:
@@ -103,6 +110,8 @@ class V2ModelServer:
             else:
                 self._load_and_update_state()
 
+        _init_endpoint_record(self.context, self._model_logger)
+
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
         if key in self._params:
@@ -178,7 +187,7 @@ class V2ModelServer:
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
-        start = datetime.now()
+        start = now_date()
         op = event.path.strip("/")
 
         if op == "predict" or op == "infer":
@@ -291,8 +300,9 @@ class _ModelLogPusher:
         self.verbose = context.verbose
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
-        self.stream_batch = int(context.get_param("log_stream_sample", 1))
-        self.stream_sample = int(context.get_param("log_stream_batch", 1))
+        self.stream_path = context.stream.stream_uri
+        self.stream_batch = int(context.get_param("log_stream_batch", 1))
+        self.stream_sample = int(context.get_param("log_stream_sample", 1))
         self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id
         self._sample_iter = 0
@@ -327,7 +337,7 @@ class _ModelLogPusher:
 
         self._sample_iter = (self._sample_iter + 1) % self.stream_sample
         if self.output_stream and self._sample_iter == 0:
-            microsec = (datetime.now() - start).microseconds
+            microsec = (now_date() - start).microseconds
 
             if self.stream_batch > 1:
                 if self._batch_iter == 0:
@@ -359,3 +369,43 @@ class _ModelLogPusher:
                 if getattr(self.model, "metrics", None):
                     data["metrics"] = self.model.metrics
                 self.output_stream.push([data])
+
+
+def _init_endpoint_record(context, model_logger: Optional[_ModelLogPusher]):
+    if model_logger is None or isinstance(model_logger.output_stream, _DummyStream):
+        return
+
+    try:
+        project, uri, tag, hash_key = parse_versioned_object_uri(
+            model_logger.function_uri
+        )
+
+        if model_logger.model.version:
+            model = f"{model_logger.model.name}:{model_logger.model.version}"
+        else:
+            model = model_logger.model.name
+
+        model_endpoint = ModelEndpoint(
+            metadata=ModelEndpointMetadata(
+                project=project, labels=model_logger.model.labels
+            ),
+            spec=ModelEndpointSpec(
+                function_uri=model_logger.function_uri,
+                model=model,
+                model_class=model_logger.model.__class__.__name__,
+                model_uri=model_logger.model.model_path,
+                stream_path=model_logger.stream_path,
+                active=True,
+            ),
+            status=ModelEndpointStatus(),
+        )
+
+        db = mlrun.get_run_db()
+
+        db.create_or_patch(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
+    except Exception as e:
+        logger.error("Failed to create endpoint record", exc=e)

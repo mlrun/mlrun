@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import time
+
 import fsspec
 from azure.storage.blob import BlobServiceClient
+
 from .base import DataStore, FileStats
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already

@@ -2,9 +2,10 @@
 # Artifacts and Versioning <!-- omit in toc -->
 
 - [Overview](#overview)
+  - [Artifact Path](#artifact-path)
+  - [Artifact URIs, Metadata and Versioning](#artifact-uris-metadata-and-versioning)
 - [Datasets](#datasets)
   - [Logging a Dataset From a Job](#logging-a-dataset-from-a-job)
-- [Models](./models.md)
 - [Plots](#plots)
 
 ## Overview
@@ -41,14 +42,14 @@ You can set the default artifact_path for your environment using the {py:func}`~
 
 You can override the default artifact_path configuration by setting the artifact_path parameter of 
 the {py:func}`~mlrun.set_environment` function. You can use variables in the artifacts path, 
-such as {{run.project}} for the name of the running project or {{run.uid}} for the current job/pipeline run UID. 
-(The default artifacts path uses {{run.project}}.) The following example configures the artifacts path to an 
+such as {{project}} for the name of the running project or {{run.uid}} for the current job/pipeline run UID. 
+(The default artifacts path uses {{project}}.) The following example configures the artifacts path to an 
 artifacts directory in the current active directory (./artifacts)
 
     set_environment(project=project_name, artifact_path='./artifacts')
 
 ```{admonition} For Iguazio Platform Users
-In the Iguazio Data Science Patform, the default artifacts path is a <project name>/artifacts directory in the 
+In the Iguazio Data Science Platform, the default artifacts path is a <project name>/artifacts directory in the 
 predefined “projects” data container — /v3io/projects/<project name>/artifacts 
 (for example, /v3io/projects/myproject/artifacts for a “myproject” project).
 ```
@@ -63,7 +64,8 @@ For example, the following code extracts the path to the artifacts directory of 
 to a `training_artifacts` variable:
 
 ```python
-training_artifacts = os.join(artifact_path, 'training')
+from os import path
+training_artifacts = path.join(artifact_path, 'training')
 ```
 
 > **Note:** The artifacts path is using [data store URLs](./datastore.md) which are not necessarily local file paths 

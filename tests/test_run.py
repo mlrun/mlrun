@@ -12,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import pathlib
+from unittest.mock import Mock
+
 import pandas as pd
+import pytest
+
+import mlrun
+import mlrun.errors
+from mlrun import get_run_db, new_function, new_task
 from tests.conftest import (
     examples_path,
     has_secrets,
-    tests_root_directory,
     out_path,
     tag_test,
+    tests_root_directory,
     verify_state,
 )
-from unittest.mock import Mock
-import mlrun
-from mlrun import new_task, get_run_db, new_function
 
 
 def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
@@ -88,6 +91,13 @@ def test_failed_schedule_not_creating_run():
     function.store_run = Mock()
     function.run(handler=my_func, schedule="* * * * *")
     assert 0 == function.store_run.call_count
+
+
+def test_schedule_with_local_exploding():
+    function = new_function()
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+        function.run(local=True, schedule="* * * * *")
+    assert "local and schedule cannot be used together" in str(excinfo.value)
 
 
 def test_invalid_name():
@@ -165,6 +175,21 @@ def test_hyper_grid():
     assert run.output("best_iteration") == 6, "wrong best iteration"
 
 
+def test_hyper_grid_parallel():
+    grid_params = '{"p2": [2,1,3], "p3": [10,20]}'
+    mlrun.datastore.set_in_memory_item("params.json", grid_params)
+
+    run_spec = tag_test(base_spec, "test_hyper_grid")
+    run_spec.with_param_file(
+        "memory://params.json", selector="r1", strategy="grid", parallel_runs=2
+    )
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    # 3 x p2, 2 x p3 = 6 iterations + 1 header line
+    assert len(run.status.iterations) == 1 + 2 * 3, "wrong number of iterations"
+
+
 def test_hyper_list():
     list_params = '{"p2": [2,3,1], "p3": [10,30,20]}'
     mlrun.datastore.set_in_memory_item("params.json", list_params)
@@ -181,11 +206,52 @@ def test_hyper_list():
     assert run.output("best_iteration") == 2, "wrong best iteration"
 
 
+def test_hyper_list_with_stop():
+    list_params = '{"p2": [2,3,7,4,5], "p3": [10,10,10,10,10]}'
+    mlrun.datastore.set_in_memory_item("params.json", list_params)
+
+    run_spec = tag_test(base_spec, "test_hyper_list_with_stop")
+    run_spec.with_param_file(
+        "memory://params.json",
+        selector="max.r1",
+        strategy="list",
+        stop_condition="r1>=70",
+    )
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run
+    assert len(run.status.iterations) == 1 + 3, "wrong number of iterations"
+    assert run.output("best_iteration") == 3, "wrong best iteration"
+
+
+def test_hyper_parallel_with_stop():
+    list_params = '{"p2": [2,3,7,4,5], "p3": [10,10,10,10,10]}'
+    mlrun.datastore.set_in_memory_item("params.json", list_params)
+
+    run_spec = mlrun.new_task(params={"p1": 1})
+    run_spec.with_hyper_params(
+        {"p2": [2, 3, 7, 4, 5], "p3": [10, 10, 10, 10, 10]},
+        parallel_runs=2,
+        selector="max.r1",
+        strategy="list",
+        stop_condition="r1>=70",
+    )
+    run = new_function().run(run_spec, handler=hyper_func)
+
+    verify_state(run)
+    # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run
+    # may have one extra iterations in flight so checking both 4 or 5
+    assert len(run.status.iterations) in [4, 5], "wrong number of iterations"
+    assert run.output("best_iteration") == 3, "wrong best iteration"
+
+
 def test_hyper_random():
     grid_params = {"p2": [2, 1, 3], "p3": [10, 20, 30]}
     run_spec = tag_test(base_spec, "test_hyper_random")
-    run_spec.with_hyper_params(grid_params, selector="r1", strategy="random")
-    run_spec.spec.parameters["MAX_RANDOM_EVALS"] = 5
+    run_spec.with_hyper_params(
+        grid_params, selector="r1", strategy="random", max_iterations=5
+    )
     run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)
@@ -235,11 +301,11 @@ def test_local_handler():
     verify_state(result)
 
 
-def test_local_no_context():
+def test_local_args():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
     result = new_function(
-        command=f"{tests_root_directory}/no_ctx.py", mode="noctx"
+        command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}"
     ).run(spec)
     verify_state(result)
 
@@ -248,4 +314,4 @@ def test_local_no_context():
     log = str(log)
     print(state)
     print(log)
-    assert log.find(", '--xyz', '789']") != -1, "params not detected in noctx"
+    assert log.find(", '--xyz', '789']") != -1, "params not detected in argv"

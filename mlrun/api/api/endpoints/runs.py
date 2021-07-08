@@ -1,10 +1,11 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.utils.singletons.db import get_db
@@ -21,6 +22,7 @@ async def store_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -31,7 +33,13 @@ async def store_run(
 
     logger.info("Storing run", data=data)
     await run_in_threadpool(
-        get_db().store_run, db_session, data, uid, project, iter=iter
+        get_db().store_run,
+        db_session,
+        data,
+        uid,
+        project,
+        iter=iter,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {}
 
@@ -43,6 +51,7 @@ async def update_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -51,9 +60,14 @@ async def update_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.info("Updating run", data=data)
     await run_in_threadpool(
-        get_db().update_run, db_session, data, uid, project, iter=iter
+        mlrun.api.crud.Runs().update_run,
+        db_session,
+        project,
+        uid,
+        iter,
+        data,
+        auth_verifier.auth_info.session,
     )
     return {}
 

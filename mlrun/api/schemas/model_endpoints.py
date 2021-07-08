@@ -1,102 +1,120 @@
-from hashlib import md5
-from typing import Optional, List, Tuple, Any, Dict, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
-from mlrun.api.schemas.object import (
-    ObjectKind,
-    ObjectSpec,
-    ObjectStatus,
-)
+from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.utils.model_monitoring import create_model_endpoint_id
 
 
 class ModelEndpointMetadata(BaseModel):
     project: Optional[str]
-    tag: Optional[str]
     labels: Optional[dict]
+    uid: Optional[str]
 
     class Config:
         extra = Extra.allow
 
 
 class ModelEndpointSpec(ObjectSpec):
-    model: Optional[str]
-    function: Optional[str]
+    function_uri: Optional[str]  # <project_name>/<function_name>:<tag>
+    model: Optional[str]  # <model_name>:<version>
     model_class: Optional[str]
+    model_uri: Optional[str]
+    feature_names: Optional[List[str]]
+    label_names: Optional[List[str]]
+    stream_path: Optional[str]
+    algorithm: Optional[str]
+    monitor_configuration: Optional[dict]
+    active: Optional[bool]
+
+
+class Metric(BaseModel):
+    name: str
+    values: List[Tuple[str, float]]
+
+
+class Histogram(BaseModel):
+    buckets: List[float]
+    counts: List[int]
+
+
+class FeatureValues(BaseModel):
+    min: float
+    mean: float
+    max: float
+    histogram: Histogram
+
+    @classmethod
+    def from_dict(cls, stats: Optional[dict]):
+        if stats:
+            return FeatureValues(
+                min=stats["min"],
+                mean=stats["mean"],
+                max=stats["max"],
+                histogram=Histogram(buckets=stats["hist"][1], counts=stats["hist"][0]),
+            )
+        else:
+            return None
+
+
+class Features(BaseModel):
+    name: str
+    weight: float
+    expected: Optional[FeatureValues]
+    actual: Optional[FeatureValues]
+
+    @classmethod
+    def new(
+        cls,
+        feature_name: str,
+        feature_stats: Optional[dict],
+        current_stats: Optional[dict],
+    ):
+        return cls(
+            name=feature_name,
+            weight=-1.0,
+            expected=FeatureValues.from_dict(feature_stats),
+            actual=FeatureValues.from_dict(current_stats),
+        )
+
+
+class ModelEndpointStatus(ObjectStatus):
+    feature_stats: Optional[dict]
+    current_stats: Optional[dict]
+    first_request: Optional[str]
+    last_request: Optional[str]
+    accuracy: Optional[float]
+    error_count: Optional[int]
+    drift_status: Optional[str]
+    drift_measures: Optional[dict]
+    metrics: Optional[Dict[str, Metric]]
+    features: Optional[List[Features]]
+
+    class Config:
+        extra = Extra.allow
 
 
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
-    status: ObjectStatus
-    id: Optional[str] = None
+    status: ModelEndpointStatus
 
     class Config:
         extra = Extra.allow
 
     def __init__(self, **data: Any):
         super().__init__(**data)
-        self.id = self.create_endpoint_id()
-
-    def create_endpoint_id(self):
-        if not self.spec.function or not self.spec.model or not self.metadata.tag:
-            raise ValueError(
-                "ModelEndpoint.spec.function, ModelEndpoint.spec.model "
-                "and ModelEndpoint.metadata.tag must be initalized"
+        if self.metadata.uid is None:
+            uid = create_model_endpoint_id(
+                function_uri=self.spec.function_uri, versioned_model=self.spec.model,
             )
-
-        endpoint_unique_string = (
-            f"{self.spec.function}_{self.spec.model}_{self.metadata.tag}"
-        )
-        md5_str = md5(endpoint_unique_string.encode("utf-8")).hexdigest()
-        return f"{self.metadata.project}.{md5_str}"
+            self.metadata.uid = str(uid)
 
 
-class Histogram(BaseModel):
-    buckets: List[Tuple[float, float]]
-    count: List[int]
-
-
-class Metric(BaseModel):
-    name: str
-    start_timestamp: str
-    end_timestamp: str
-    headers: List[str]
-    values: List[Tuple[str, float]]
-    min: float
-    avg: float
-    max: float
-
-
-class FeatureValues(BaseModel):
-    min: float
-    avg: float
-    max: float
-    histogram: Histogram
-
-
-class Features(BaseModel):
-    name: str
-    weight: float
-    expected: FeatureValues
-    actual: Optional[FeatureValues]
-
-
-class ModelEndpointState(BaseModel):
-    endpoint: ModelEndpoint
-    first_request: Optional[str] = None
-    last_request: Optional[str] = None
-    accuracy: Optional[float] = None
-    error_count: Optional[int] = None
-    drift_status: Optional[str] = None
-    metrics: Dict[str, Metric] = {}
-    features: List[Features] = []
-
-
-class ModelEndpointStateList(BaseModel):
-    endpoints: List[ModelEndpointState]
+class ModelEndpointList(BaseModel):
+    endpoints: List[ModelEndpoint]
 
 
 class GrafanaColumn(BaseModel):
@@ -104,7 +122,33 @@ class GrafanaColumn(BaseModel):
     type: str
 
 
+class GrafanaNumberColumn(GrafanaColumn):
+    text: str
+    type: str = "number"
+
+
+class GrafanaStringColumn(GrafanaColumn):
+    text: str
+    type: str = "string"
+
+
 class GrafanaTable(BaseModel):
     columns: List[GrafanaColumn]
-    rows: List[List[Optional[Union[int, float, str]]]]
+    rows: List[List[Optional[Union[float, int, str]]]] = []
     type: str = "table"
+
+    def add_row(self, *args):
+        self.rows.append(list(args))
+
+
+class GrafanaDataPoint(BaseModel):
+    value: float
+    timestamp: int  # Unix timestamp in milliseconds
+
+
+class GrafanaTimeSeriesTarget(BaseModel):
+    target: str
+    datapoints: List[Tuple[float, int]] = []
+
+    def add_data_point(self, data_point: GrafanaDataPoint):
+        self.datapoints.append((data_point.value, data_point.timestamp))

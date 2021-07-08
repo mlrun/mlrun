@@ -1,13 +1,15 @@
 import os
 import unittest
-from tests.api.runtimes.base import TestRuntimeBase
+
+from dask import distributed
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 import mlrun
-from mlrun.platforms import auto_mount
-from dask import distributed
 from mlrun import mlconf
+from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestDaskRuntime(TestRuntimeBase):
@@ -43,8 +45,15 @@ class TestDaskRuntime(TestRuntimeBase):
         unittest.mock.patch.stopall()
 
     def _get_pod_creation_args(self):
+        return self._get_worker_pod_creation_args()
+
+    def _get_worker_pod_creation_args(self):
         args, _ = self.kube_cluster_mock.call_args
         return args[0]
+
+    def _get_scheduler_pod_creation_args(self):
+        _, kwargs = self.kube_cluster_mock.call_args
+        return kwargs["scheduler_pod_template"]
 
     def _get_namespace_arg(self):
         _, kwargs = self.kube_cluster_mock.call_args
@@ -52,7 +61,7 @@ class TestDaskRuntime(TestRuntimeBase):
 
     def _generate_runtime(self):
         # This is following the steps in
-        # https://docs.mlrun.org/en/latest/runtimes/dask-mlrun.html#set-up-the-enviroment
+        # https://docs.mlrun.org/en/latest/runtimes/dask-mlrun.html#set-up-the-environment
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
 
@@ -75,13 +84,34 @@ class TestDaskRuntime(TestRuntimeBase):
 
         return dask_cluster
 
-    def test_dask_runtime(self, db: Session, client: TestClient):
-        runtime = self._generate_runtime()
+    def _assert_scheduler_pod_args(self,):
+        scheduler_pod = self._get_scheduler_pod_creation_args()
+        scheduler_container_spec = scheduler_pod.spec.containers[0]
+        assert scheduler_container_spec.args == ["dask-scheduler"]
 
-        expected_requests = generate_resources(mem="2G", cpu=3)
-        runtime.with_requests(
-            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+    def _assert_pods_resources(
+        self,
+        expected_worker_requests,
+        expected_worker_limits,
+        expected_scheduler_requests,
+        expected_scheduler_limits,
+    ):
+        worker_pod = self._get_pod_creation_args()
+        worker_container_spec = worker_pod.spec.containers[0]
+        self._assert_container_resources(
+            worker_container_spec, expected_worker_limits, expected_worker_requests
         )
+        scheduler_pod = self._get_scheduler_pod_creation_args()
+        scheduler_container_spec = scheduler_pod.spec.containers[0]
+        self._assert_container_resources(
+            scheduler_container_spec,
+            expected_scheduler_limits,
+            expected_scheduler_requests,
+        )
+
+    def test_dask_runtime(self, db: Session, client: TestClient):
+        runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
+
         _ = runtime.client
 
         self.kube_cluster_mock.assert_called_once()
@@ -90,6 +120,71 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_runtime_class_name="dask",
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
-            expected_requests=expected_requests,
         )
         self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
+        self._assert_scheduler_pod_args()
+
+    def test_dask_runtime_with_resources(self, db: Session, client: TestClient):
+        runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
+
+        expected_requests = generate_resources(mem="2G", cpu=3)
+        runtime.with_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
+        gpu_type = "nvidia.com/gpu"
+        expected_gpus = 2
+        expected_scheduler_limits = generate_resources(
+            mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type
+        )
+        expected_worker_limits = generate_resources(
+            mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type
+        )
+        runtime.with_scheduler_limits(
+            mem=expected_scheduler_limits["memory"],
+            cpu=expected_scheduler_limits["cpu"],
+        )
+        runtime.with_worker_limits(
+            mem=expected_worker_limits["memory"], cpu=expected_worker_limits["cpu"],
+        )
+        runtime.gpus(expected_gpus, gpu_type)
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+        )
+        self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
+        self._assert_pods_resources(
+            expected_requests,
+            expected_worker_limits,
+            expected_requests,
+            expected_scheduler_limits,
+        )
+
+    def test_dask_with_node_selection(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        node_name = "some-node-name"
+        runtime.with_node_selection(node_name)
+        node_selector = {
+            "label-a": "val1",
+            "label-2": "val2",
+        }
+        runtime.with_node_selection(node_selector=node_selector)
+        affinity = self._generate_affinity()
+        runtime.with_node_selection(affinity=affinity)
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_node_name=node_name,
+            expected_node_selector=node_selector,
+            expected_affinity=affinity,
+        )

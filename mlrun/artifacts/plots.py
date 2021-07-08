@@ -17,7 +17,6 @@ from io import BytesIO
 from ..utils import dict_to_json
 from .base import Artifact
 
-
 plot_template = """<h3 style="text-align:center">{}</h3>
 <img title="{}" src="data:image/png;base64,{}">"""
 

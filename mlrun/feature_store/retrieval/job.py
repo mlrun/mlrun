@@ -5,17 +5,16 @@ from mlrun.model import new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
 
+from ..common import RunConfig
+
 
 def run_merge_job(
     vector,
     target,
     entity_rows=None,
     timestamp_column=None,
-    local=None,
-    watch=None,
-    function=None,
-    secrets=None,
-    auto_mount=None,
+    run_config=None,
+    drop_columns=None,
 ):
     name = vector.metadata.name
     if not name:
@@ -25,37 +24,42 @@ def run_merge_job(
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
     name = f"{name}_merger"
-    if not function:
-        function_ref = vector.spec.function
-        if not function_ref.to_dict():
+    run_config = run_config or RunConfig()
+    if not run_config.function:
+        function_ref = vector.spec.function.copy()
+        if function_ref.is_empty():
             function_ref = FunctionReference(name=name, kind="job")
-        function_ref.image = (
-            function_ref.image or mlrun.mlconf.feature_store.default_job_image
-        )
         if not function_ref.url:
             function_ref.code = _default_merger_handler
-        function = function_ref.to_function()
+        run_config.function = function_ref
 
-    if auto_mount:
-        function.apply(mlrun.platforms.auto_mount())
-
+    function = run_config.to_function(
+        "job", mlrun.mlconf.feature_store.default_job_image
+    )
     function.metadata.project = vector.metadata.project
+    function.metadata.name = function.metadata.name or name
     task = new_task(
         name=name,
         params={
             "vector_uri": vector.uri,
             "target": target.to_dict(),
             "timestamp_column": timestamp_column,
+            "drop_columns": drop_columns,
         },
         inputs={"entity_rows": entity_rows},
     )
-    if secrets:
-        task.with_secrets("inline", secrets)
+    task.spec.secret_sources = run_config.secret_sources
+    task.set_label("job-type", "feature-merge").set_label("feature-vector", vector.uri)
     task.metadata.uid = uuid.uuid4().hex
     vector.status.run_uri = task.metadata.uid
     vector.save()
 
-    run = function.run(task, handler="merge_handler", local=local, watch=watch)
+    run = function.run(
+        task,
+        handler=run_config.handler or "merge_handler",
+        local=run_config.local,
+        watch=run_config.watch,
+    )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
     return RemoteVectorResponse(vector, run)
 
@@ -85,14 +89,14 @@ class RemoteVectorResponse:
     def target_uri(self):
         """return path of the results file"""
         self._is_ready()
-        return self.run.output("target_uri")
+        return self.run.output("target")["path"]
 
 
 _default_merger_handler = """
 import mlrun
 from mlrun.feature_store.retrieval import LocalFeatureMerger
-from mlrun.feature_store.targets import get_target_driver
-def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = None, timestamp_column=None):
+from mlrun.datastore.targets import get_target_driver
+def merge_handler(context, vector_uri, target, entity_rows=None, timestamp_column=None, drop_columns=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
@@ -101,10 +105,8 @@ def merge_handler(context, vector_uri, target, entity_rows: mlrun.DataItem = Non
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = LocalFeatureMerger(vector)
-    resp = merger.start(entity_rows, entity_timestamp_column, store_target)
-
-    context.logger.info("merge task completed, targets:")
-    context.logger.info(f"{vector.status.targets.to_dict()}")
+    resp = merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns)
+    target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)
-    context.log_result('target_uri', store_target.path)
+    context.log_result('target', target)
 """

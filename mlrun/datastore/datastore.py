@@ -16,12 +16,13 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
-from .base import DataItem, HttpStore, DataStore
+
+from ..utils import DB_SCHEMA, run_keys
+from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
 from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
-from ..utils import run_keys, DB_SCHEMA
 
 in_memory_store = InMemoryStore()
 
@@ -133,7 +134,12 @@ class StoreManager:
             )
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")
-        return resource, resource.get_target_path()
+        target = resource.get_target_path()
+        if not target:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"resource {url} does not have a valid/persistent offline target"
+            )
+        return resource, target
 
     def object(self, url, key="", project="") -> DataItem:
         meta = artifact_url = None

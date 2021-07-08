@@ -5,9 +5,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from .base import (
-    _patch_object,
-    _list_and_assert_objects,
     _assert_diff_as_expected_except_for_specific_metadata,
+    _list_and_assert_objects,
+    _patch_object,
+    _test_partition_by_for_feature_store_objects,
 )
 
 
@@ -49,11 +50,14 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     name = "feature_set1"
     feature_vector = _generate_feature_vector(name)
     feature_vector["metadata"]["project"] = project_name
+    feature_vector["metadata"].pop("tag")
 
     feature_vector_response = _create_and_assert_feature_vector(
         client, project_name, feature_vector, True
     )
-    allowed_added_fields = ["uid", "updated", "tag"]
+    allowed_added_fields = ["uid", "created", "updated", "tag"]
+    assert feature_vector_response["metadata"]["tag"] == "latest"
+
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )
@@ -72,7 +76,6 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     )
     assert feature_vector_response.status_code == HTTPStatus.OK.value
     # When querying by uid, tag will not be returned
-    feature_vector["metadata"].pop("tag")
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response.json(), allowed_added_fields
     )
@@ -105,7 +108,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
 
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count)
     _list_and_assert_objects(
-        client, "feature_vectors", project_name, "name=ooga", ooga_name_count
+        client, "feature_vectors", project_name, "name=~ooga", ooga_name_count
     )
     _list_and_assert_objects(
         client,
@@ -127,7 +130,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
         client,
         "feature_vectors",
         project_name,
-        "state=dead&name=booga",
+        "state=dead&name=~booga",
         ooga_name_count,
     )
     _list_and_assert_objects(client, "feature_vectors", "wrong_project", None, 0)
@@ -151,19 +154,25 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
 
     # Put a new object - verify it's created
     response = _assert_store_feature_vector(
-        client, project_name, name, "latest", feature_vector
+        client, project_name, name, "tag1", feature_vector
     )
+    assert response["metadata"]["tag"] == "tag1"
     uid = response["metadata"]["uid"]
+
+    # Put same object using uid - should not return tag
+    response = _assert_store_feature_vector(
+        client, project_name, name, uid, feature_vector
+    )
+    assert response["metadata"]["tag"] is None
+
     # Change fields that will not affect the uid, verify object is overwritten
     feature_vector["status"]["state"] = "modified"
 
     response = _assert_store_feature_vector(
-        client, project_name, name, "latest", feature_vector
+        client, project_name, name, "tag1", feature_vector
     )
     assert response["metadata"]["uid"] == uid
     assert response["status"]["state"] == "modified"
-
-    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 1)
 
     # Now modify in a way that will affect uid, add a field to the metadata.
     # Since referencing the object as "latest", a new version (with new uid) should be created.
@@ -184,6 +193,35 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
         json=feature_vector,
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+
+def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_vector1"
+    feature_vector = _generate_feature_vector(name)
+
+    _assert_store_feature_vector(client, project_name, name, "tag1", feature_vector)
+
+    _assert_store_feature_vector(client, project_name, name, "tag2", feature_vector)
+
+    response = _list_and_assert_objects(
+        client, "feature_vectors", project_name, f"name={name}", 2
+    )["feature_vectors"]
+    expected_tags = {"tag1", "tag2"}
+    returned_tags = set()
+    for feature_vector_response in response:
+        returned_tags.add(feature_vector_response["metadata"]["tag"])
+    assert expected_tags == returned_tags
+
+    # Storing object with same tag - should just update
+    feature_vector["metadata"]["extra_metadata"] = 200
+    _assert_store_feature_vector(client, project_name, name, "tag2", feature_vector)
+
+    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 2)
+    response = _list_and_assert_objects(
+        client, "feature_vectors", project_name, f"name={name}&tag=tag2", 1
+    )["feature_vectors"]
+    assert response[0]["metadata"]["extra_metadata"] == 200
 
 
 def test_feature_vector_patch(db: Session, client: TestClient) -> None:
@@ -254,6 +292,54 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 2)
 
 
+def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_vector"
+    feature_vector = _generate_feature_vector(name)
+
+    count = 5
+    uids = {}
+    for i in range(count):
+        # Store different copies of the feature set with different uids and tags
+        feature_vector["metadata"]["extra_metadata"] = i * 100
+        tag = f"tag{i}"
+        result = _assert_store_feature_vector(
+            client, project_name, name, f"tag{i}", feature_vector
+        )
+        uids[result["metadata"]["uid"]] = tag
+
+    _list_and_assert_objects(
+        client, "feature_vectors", project_name, f"name={name}", count
+    )
+
+    delete_by_tag = True
+    objects_left = count
+    for uid, tag in uids.items():
+        reference = tag if delete_by_tag else uid
+        delete_by_tag = not delete_by_tag
+
+        response = client.delete(
+            f"/api/projects/{project_name}/feature-vectors/{name}/references/{reference}"
+        )
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
+        objects_left = objects_left - 1
+        _list_and_assert_objects(
+            client, "feature_vectors", project_name, f"name={name}", objects_left
+        )
+
+    for i in range(count):
+        feature_vector["metadata"]["extra_metadata"] = i * 100
+        _assert_store_feature_vector(
+            client, project_name, name, f"tag{i}", feature_vector
+        )
+
+    # Now delete by name
+    response = client.delete(f"/api/projects/{project_name}/feature-vectors/{name}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 0)
+
+
 def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     name = "feature_vector1"
@@ -262,7 +348,7 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
         client, project_name, feature_vector, versioned=False
     )
 
-    allowed_added_fields = ["uid", "updated", "tag", "project"]
+    allowed_added_fields = ["uid", "created", "updated", "tag", "project"]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )
@@ -293,4 +379,28 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
         patched_feature_vector,
         allowed_added_fields,
         expected_diff,
+    )
+
+
+def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    count = 5
+    for i in range(count):
+        name = f"feature_vector_{i}"
+        feature_vector = _generate_feature_vector(name)
+        _assert_store_feature_vector(
+            client, project_name, name, "older", feature_vector
+        )
+        # Must change the uid, otherwise it will just re-tag the same object
+        feature_vector["metadata"]["extra_metadata"] = 200
+        _assert_store_feature_vector(
+            client, project_name, name, "newer", feature_vector
+        )
+        feature_vector["metadata"]["extra_metadata"] = 300
+        _assert_store_feature_vector(
+            client, project_name, name, "newest", feature_vector
+        )
+
+    _test_partition_by_for_feature_store_objects(
+        client, "feature_vectors", project_name, count
     )

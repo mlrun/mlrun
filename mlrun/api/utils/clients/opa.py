@@ -24,7 +24,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         self._permission_query_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_query_path
         )
-        self._request_timeout = int(mlrun.mlconf.httpdb.authorization.opa.request_timeout)
+        self._request_timeout = int(
+            mlrun.mlconf.httpdb.authorization.opa.request_timeout
+        )
         self._log_level = int(mlrun.mlconf.httpdb.authorization.opa.log_level)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
 

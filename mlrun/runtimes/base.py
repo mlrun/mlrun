@@ -945,7 +945,9 @@ class BaseRuntimeHandler(ABC):
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
         # We currently don't support removing runtime resources in non k8s env
-        if not mlrun.k8s_utils.get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
             return {}
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
@@ -972,7 +974,9 @@ class BaseRuntimeHandler(ABC):
         leader_session: Optional[str] = None,
     ):
         # We currently don't support removing runtime resources in non k8s env
-        if not mlrun.k8s_utils.get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
             return
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()

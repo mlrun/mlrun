@@ -7,6 +7,9 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 import deepdiff
+import fastapi.testclient
+import pytest
+import sqlalchemy.orm
 from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
@@ -18,9 +21,6 @@ from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
 from mlrun.utils.vault import VaultStore
-import pytest
-import fastapi.testclient
-import sqlalchemy.orm
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -58,7 +58,9 @@ class TestRuntimeBase:
         )
 
     @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+    def setup_method_fixture(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
         # We want this mock for every test, ideally we would have simply put it in the setup_method
         # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
         # in order to be able to mock k8s stuff

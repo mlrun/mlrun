@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
@@ -47,6 +48,30 @@ def test_create_project_failure_already_exists(db: Session, client: TestClient) 
     assert response.status_code == HTTPStatus.CONFLICT.value
 
 
+def test_delete_project_in_non_k8s_env(db: Session, client: TestClient) -> None:
+    name1 = f"prj-{uuid4().hex}"
+    project_1 = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
+    )
+
+    # create
+    response = client.post("/api/projects", json=project_1.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=False
+    )
+
+    # delete
+    response = client.delete(
+        f"/api/projects/{name1}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+
 def test_delete_project_with_resources(db: Session, client: TestClient):
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
@@ -77,6 +102,7 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert mlrun.api.crud.Runtimes().delete_runtimes.call_count == 1
 
     project_to_keep_table_name_records_count_map_after_project_removal = _assert_resources_in_project(
         db, project_to_keep
@@ -339,6 +365,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert mlrun.api.crud.Runtimes().delete_runtimes.call_count == 1
 
     # ensure function is gone
     response = client.get(f"/api/func/{name1}/{function_name}")

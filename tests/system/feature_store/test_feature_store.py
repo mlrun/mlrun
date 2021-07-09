@@ -43,6 +43,10 @@ class MyMap(MapClass):
         return event
 
 
+def my_func(df):
+    return df
+
+
 def myfunc1(x, context=None):
     assert context is not None, "context is none"
     x = x.drop(columns=["exchange"])
@@ -401,7 +405,7 @@ class TestFeatureStore(TestMLRunSystem):
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
         path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
-        path = path.format(name=name, kind=kind, project="system-test-project")
+        path = path.format(name=name, kind=kind, project=self.project_name)
         dataset = pq.ParquetDataset(path, filesystem=file_system,)
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 
@@ -1070,7 +1074,6 @@ class TestFeatureStore(TestMLRunSystem):
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
 
-    # ML-693
     def test_ingest_dataframe_index(self):
         orig_df = pd.DataFrame([{"x", "y"}])
         orig_df.index.name = "idx"
@@ -1078,6 +1081,87 @@ class TestFeatureStore(TestMLRunSystem):
         fset = fs.FeatureSet("myfset", entities=[Entity("idx")])
         fs.ingest(
             fset, orig_df, [ParquetTarget()], infer_options=fs.InferOptions.default()
+        )
+
+    def test_ingest_with_column_conversion(self):
+        orig_df = source = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2002-04-01 04:32:34.000"),
+                    pd.Timestamp("2002-04-01 15:05:37.000"),
+                    pd.Timestamp("2002-03-31 23:46:07.000"),
+                ],
+                "ssrxbtok": [488441267876, 438975336749, 298802679370],
+                "nkxuonfx": [0.241233, 0.160264, 0.045345],
+                "xzvipbmo": [True, False, None],
+                "bikyseca": ["ONE", "TWO", "THREE"],
+                "napxsuhp": [True, False, True],
+                "oegndrxe": [
+                    pd.Timestamp("2002-04-01 04:32:34.000"),
+                    pd.Timestamp("2002-04-01 05:06:34.000"),
+                    pd.Timestamp("2002-04-01 05:38:34.000"),
+                ],
+                "aatxnkgx": [-227504700006, -470002151801, -33193685176],
+                "quupyoxi": ["FOUR", "FIVE", "SIX"],
+                "temdojgz": [0.570031, 0.677182, 0.276053],
+            },
+            index=None,
+        )
+
+        fset = fs.FeatureSet(
+            "rWQTKqbhje",
+            timestamp_key="time_stamp",
+            entities=[
+                Entity("{}".format(k["name"]))
+                for k in [
+                    {
+                        "dtype": "float",
+                        "null_values": False,
+                        "name": "temdojgz",
+                        "df_dtype": "float64",
+                    },
+                    {
+                        "dtype": "str",
+                        "null_values": False,
+                        "name": "bikyseca",
+                        "df_dtype": "object",
+                    },
+                    {
+                        "dtype": "float",
+                        "null_values": False,
+                        "name": "nkxuonfx",
+                        "df_dtype": "float64",
+                    },
+                ]
+            ],
+        )
+
+        fset.graph.to(name="s1", handler="my_func")
+        ikjqkfcz = ParquetTarget(path="v3io:///bigdata/ifrlsjvxgv", partitioned=False)
+        fs.ingest(fset, source, targets=[ikjqkfcz])
+
+        features = ["rWQTKqbhje.*"]
+        vector = fs.FeatureVector("WPAyrYux", features)
+        vector.spec.with_indexes = False
+        resp = fs.get_offline_features(vector)
+        off_df = resp.to_dataframe()
+        del orig_df["time_stamp"]
+        if None in list(orig_df.index.names):
+            orig_df.set_index(["temdojgz", "bikyseca", "nkxuonfx"], inplace=True)
+        orig_df = orig_df.sort_values(
+            by=["temdojgz", "bikyseca", "nkxuonfx"]
+        ).sort_index(axis=1)
+        off_df = off_df.sort_values(by=["temdojgz", "bikyseca", "nkxuonfx"]).sort_index(
+            axis=1
+        )
+        pd.testing.assert_frame_equal(
+            off_df,
+            orig_df,
+            check_dtype=True,
+            check_index_type=True,
+            check_column_type=True,
+            check_like=True,
+            check_names=True,
         )
 
 

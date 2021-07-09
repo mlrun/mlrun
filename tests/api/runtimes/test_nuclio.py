@@ -4,22 +4,23 @@ import unittest.mock
 
 import deepdiff
 import nuclio
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from mlrun import code_to_function
 from mlrun.platforms.iguazio import split_path
-from mlrun.runtimes.function import deploy_nuclio_function
+from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
+from mlrun.runtimes.function import (
+    compile_function_config,
+    deploy_nuclio_function,
+    enrich_function_with_ingress,
+    resolve_function_ingresses,
+)
 from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestNuclioRuntime(TestRuntimeBase):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
 
     def custom_setup(self):
@@ -192,6 +193,67 @@ class TestNuclioRuntime(TestRuntimeBase):
             "MLRUN_NAMESPACE": self.namespace,
         }
         self._assert_pod_env(env_config, expected_env)
+
+    def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
+        """
+        Expect no ingress template to be created, thought its mode is "always",
+        since the function already have a pre-configured ingress
+        """
+        function = self._generate_runtime("nuclio")
+
+        # both ingress and node port
+        ingress_host = "something.com"
+        function.with_http(host=ingress_host, paths=["/"], port=30030)
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "NodePort"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.always, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert len(ingresses) > 0, "Expected one ingress to be created"
+        for ingress in ingresses:
+            assert "hostTemplate" not in ingress, "No host template should be added"
+            assert ingress["host"] == ingress_host
+
+    def test_enrich_with_ingress_always(self, db: Session, client: TestClient):
+        """
+        Expect ingress template to be created as the configuration templated ingress mode is "always"
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "NodePort"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.always, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses[0]["hostTemplate"] != ""
+
+    def test_enrich_with_ingress_on_cluster_ip(self, db: Session, client: TestClient):
+        """
+        Expect ingress template to be created as the configuration templated ingress mode is "onClusterIP" while the
+        function service type is ClusterIP
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "ClusterIP"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.on_cluster_ip, service_type,
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses[0]["hostTemplate"] != ""
+
+    def test_enrich_with_ingress_never(self, db: Session, client: TestClient):
+        """
+        Expect no ingress to be created automatically as the configuration templated ingress mode is "never"
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "DoesNotMatter"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.never, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses == []
 
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime("nuclio")

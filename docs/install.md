@@ -146,7 +146,7 @@ Your applications are now available in your local browser:
 
 ### Start Working
 
-Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
+Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**docs/quick-start.ipynb**](https://github.com/mlrun/mlrun/blob/master/docs/quick-start.ipynb) notebook.
 
 > **Important:**
 >
@@ -266,5 +266,5 @@ docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e ML
 
 When the execution completes &mdash;
 
-- Open Jupyter Lab on port 30040 and run the code in the [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
+- Open Jupyter Lab on port 30040 and run the code in the [**mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 - Use the MLRun dashboard on port 30050.

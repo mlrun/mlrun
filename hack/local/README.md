@@ -37,7 +37,7 @@ docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLR
 
 When the execution completes &mdash;
 
-- Open Jupyter Notebook on port 8888 and run the code in the [**examples/mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
+- Open Jupyter Notebook on port 8888 and run the code in the [**mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
 - Use the MLRun dashboard on port 4000.
 
 <a id="k8s-cluster"></a>
@@ -102,7 +102,7 @@ To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](doc
 <a id="k8s-install-start-working"></a>
 ### Start Working
 
-- Open Jupyter Notebook on NodePort `30040` and run the code in the [**examples/mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
+- Open Jupyter Notebook on NodePort `30040` and run the code in the [**mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
 - Use the dashboard at NodePort `30068`.
 
 > **Note:**

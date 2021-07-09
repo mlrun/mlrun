@@ -86,6 +86,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             raise mlrun.errors.MLRunAccessDeniedError(
                 f"Not allowed to {action} resource {resource}"
             )
+        return allowed
 
     def _generate_resource_string(
         self, project_name: str, resource_type: str, resource: str

@@ -21,11 +21,7 @@ from .test_nuclio import TestNuclioRuntime
 
 
 class TestServingRuntime(TestNuclioRuntime):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
         self._mock_vault_functionality()
         # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build

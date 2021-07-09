@@ -18,6 +18,9 @@ from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
 from mlrun.utils.vault import VaultStore
+import pytest
+import fastapi.testclient
+import sqlalchemy.orm
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -54,6 +57,19 @@ class TestRuntimeBase:
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+        # We want this mock for every test, ideally we would have simply put it in the setup_method
+        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
+        # in order to be able to mock k8s stuff
+        get_k8s().v1api = unittest.mock.Mock()
+        get_k8s().crdapi = unittest.mock.Mock()
+        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
+        # enable inheriting classes to do the same
+        self.custom_setup_after_fixtures()
+
     def teardown_method(self, method):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
@@ -76,6 +92,9 @@ class TestRuntimeBase:
         pass
 
     def custom_setup(self):
+        pass
+
+    def custom_setup_after_fixtures(self):
         pass
 
     def custom_teardown(self):

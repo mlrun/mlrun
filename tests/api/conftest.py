@@ -53,13 +53,5 @@ def client() -> Generator:
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
-        # in case some test setup already mocked them, don't override it
-        if not hasattr(get_k8s(), "v1api"):
-            get_k8s().v1api = unittest.mock.Mock()
-        if not hasattr(get_k8s(), "crdapi"):
-            get_k8s().crdapi = unittest.mock.Mock()
-        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-            return_value=True
-        )
         with TestClient(app) as c:
             yield c

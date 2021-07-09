@@ -5,7 +5,6 @@ from http import HTTPStatus
 
 import deepdiff
 import nuclio
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 

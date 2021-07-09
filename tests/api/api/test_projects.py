@@ -1,7 +1,6 @@
 import copy
 import datetime
 import typing
-import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 

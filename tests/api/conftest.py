@@ -1,4 +1,3 @@
-import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
@@ -10,7 +9,6 @@ from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import app
 from mlrun.api.utils.singletons.db import initialize_db
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
 from mlrun.utils import logger

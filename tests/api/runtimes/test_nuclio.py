@@ -4,7 +4,6 @@ import unittest.mock
 
 import deepdiff
 import nuclio
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -15,11 +14,7 @@ from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestNuclioRuntime(TestRuntimeBase):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
 
     def custom_setup(self):

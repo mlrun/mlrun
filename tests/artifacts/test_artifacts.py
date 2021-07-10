@@ -1,5 +1,6 @@
 import mlrun
 import mlrun.artifacts
+from tests.conftest import out_path, rundb_path
 
 
 def test_artifacts_export_required_fields():
@@ -24,8 +25,8 @@ def test_artifacts_export_required_fields():
 
 
 def test_artifact_uri():
-    context = mlrun.get_or_create_ctx("test-artifact")
-    artifact = context.log_artifact("data", body="abc")
+    context = mlrun.get_or_create_ctx("test-artifact", rundb=rundb_path)
+    artifact = context.log_artifact("data", body="abc", artifact_path=out_path)
 
     prefix, uri = mlrun.datastore.parse_store_uri(artifact.uri)
     assert prefix == "artifacts", "illegal artifact uri"

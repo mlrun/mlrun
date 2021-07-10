@@ -24,8 +24,8 @@ use in your projects.
 **Functions** (function objects) can be created by using any of the following methods:
 
 - **{py:func}`~mlrun.run.new_function`** - creates a function for local run or from container, from code repository/archive, from function spec.
-- **{py:func}`~mlrun.code_to_function`** - creates a function from local or remote source code (single file) or from a notebook (code file will be embedded in the function object).
-- **{py:func}`~mlrun.import_function`** - imports a function from a local or remote YAML function-configuration file or 
+- **{py:func}`~mlrun.run.code_to_function`** - creates a function from local or remote source code (single file) or from a notebook (code file will be embedded in the function object).
+- **{py:func}`~mlrun.run.import_function`** - imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
   or from the function marketplace (e.g. `hub://describe`).
 
@@ -142,7 +142,7 @@ Run object has the following methods/properties:
 - `outputs` &mdash; returns a dictionary of the run results and artifact paths.
 - `logs(watch=True)` &mdash; returns the latest logs.
     Use `Watch=False` to disable the interactive mode in running jobs.
-- `artifact(key)` &mdash; returns full artifact details for the provided key.
+- `artifact(key)` &mdash; returns artifact for the provided key (as {py:class}`~mlrun.datastore.DataItem` object).
 - `output(key)` &mdash; returns a specific result or an artifact path for the provided key.
 - `wait_for_completion()` &mdash; wait for async run to complete
 - `refresh()` &mdash; refresh run state from the db/service

@@ -96,6 +96,16 @@ class Artifact(ModelObj):
     def inline(self, body):
         self._body = body
 
+    @property
+    def uri(self):
+        return self.get_store_url()
+
+    @property
+    def dataitem(self):
+        uri = self.get_store_url()
+        if uri:
+            return mlrun.get_dataitem(uri)
+
     def get_body(self):
         return self._body
 

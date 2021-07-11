@@ -17,11 +17,12 @@ from io import BytesIO
 from ..utils import dict_to_json
 from .base import Artifact
 
-plot_template = """<h3 style="text-align:center">{}</h3>
-<img title="{}" src="data:image/png;base64,{}">"""
-
 
 class PlotArtifact(Artifact):
+    _TEMPLATE = """
+<h3 style="text-align:center">{}</h3>
+<img title="{}" src="data:image/png;base64,{}">
+"""
     kind = "plot"
 
     def __init__(
@@ -55,10 +56,11 @@ class PlotArtifact(Artifact):
             data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode("utf-8")
-        return plot_template.format(self.description or self.key, self.key, data_uri)
+        return self._TEMPLATE.format(self.description or self.key, self.key, data_uri)
 
 
-chart_template = """
+class ChartArtifact(Artifact):
+    _TEMPLATE = """
 <html>
   <head>
     <script
@@ -82,8 +84,6 @@ chart_template = """
 </html>
 """
 
-
-class ChartArtifact(Artifact):
     kind = "chart"
 
     def __init__(
@@ -103,7 +103,7 @@ class ChartArtifact(Artifact):
         self.header = header or []
         self.title = title
         self.rows = []
-        if data:
+        if data is not None:
             if header:
                 self.rows = data
             else:
@@ -121,7 +121,42 @@ class ChartArtifact(Artifact):
             self.options["title"] = self.title or self.key
         data = [self.header] + self.rows
         return (
-            chart_template.replace("$data$", dict_to_json(data))
+            self._TEMPLATE.replace("$data$", dict_to_json(data))
             .replace("$opts$", dict_to_json(self.options))
             .replace("$chart$", self.chart)
         )
+
+
+class BokehArtifact(Artifact):
+    """
+    Bokeh artifact is an artifact for saving Bokeh generated figures. They will be stored in html format.
+    """
+
+    from bokeh.plotting import Figure
+
+    kind = "bokeh"
+
+    def __init__(
+        self, figure: Figure, key: str = None, target_path: str = None,
+    ):
+        """
+        Initialize a Bokeh artifact with the given figure.
+
+        :param figure:      Bokeh figure to save as an artifact.
+        :param key:         Key for the artifact to be stored in the database.
+        :param target_path: Path to save the artifact.
+        """
+        super().__init__(key=key, target_path=target_path, viewer="bokeh")
+        self._figure = figure
+        self.format = "html"
+
+    def get_body(self):
+        """
+        Get the artifact's body - the bokeh figure's html code.
+
+        :return: The figure's html code.
+        """
+        from bokeh.embed import file_html
+        from bokeh.resources import CDN
+
+        return file_html(self._figure, CDN, "my plot")

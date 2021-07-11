@@ -277,6 +277,10 @@ def ingest(
                         ",".join(overwrite_supported_targets)
                     )
                 )
+            if hasattr(target, "is_single_file") and target.is_single_file():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Overwriting isn't supported in single files. Please use folder path."
+                )
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(

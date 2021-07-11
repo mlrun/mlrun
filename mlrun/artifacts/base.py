@@ -45,6 +45,7 @@ class Artifact(ModelObj):
         "extra_data",
     ]
     kind = ""
+    _store_prefix = StorePrefix.Artifact
 
     def __init__(
         self,
@@ -84,10 +85,12 @@ class Artifact(ModelObj):
 
     @property
     def is_dir(self):
+        """this is a directory"""
         return False
 
     @property
     def inline(self):
+        """inline data (body)"""
         if self._inline:
             return self.get_body()
         return None
@@ -98,31 +101,37 @@ class Artifact(ModelObj):
 
     @property
     def uri(self):
+        """return artifact uri (store://..)"""
         return self.get_store_url()
 
-    @property
     def dataitem(self):
+        """return a DataItem object (if available) representing the artifact content"""
         uri = self.get_store_url()
         if uri:
             return mlrun.get_dataitem(uri)
 
     def get_body(self):
+        """get the artifact body when inline"""
         return self._body
 
     def get_target_path(self):
+        """get the absolute target path for the artifact"""
         return self.target_path
 
     def get_store_url(self, with_tag=True, project=None):
+        """get the artifact uri (store://..) with optional parameters"""
         tag = self.tree if with_tag else None
         uri = generate_artifact_uri(
             project or self.project, self.db_key, tag, self.iter
         )
-        return get_store_uri(StorePrefix.Artifact, uri)
+        return get_store_uri(self._store_prefix, uri)
 
     def base_dict(self):
+        """return short dict form of the artifact"""
         return super().to_dict()
 
     def to_dict(self, fields=None):
+        """return long dict form of the artifact"""
         return super().to_dict(
             self._dict_fields
             + ["updated", "labels", "annotations", "producer", "sources", "project"]
@@ -141,6 +150,7 @@ class Artifact(ModelObj):
         return super().from_dict(struct, fields=fields)
 
     def upload(self):
+        """internal, upload to target store"""
         src_path = self.src_path
         body = self.get_body()
         if body:

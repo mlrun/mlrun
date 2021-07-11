@@ -32,7 +32,7 @@ from ..utils import logger
 
 
 def init_featureset_graph(
-    source, featureset, namespace, targets=None, return_df=True,
+    source, featureset, namespace, targets=None, return_df=True, verbose=False
 ):
     """create storey ingestion graph/DAG from feature set object"""
 
@@ -41,7 +41,7 @@ def init_featureset_graph(
 
     # init targets (and table)
     targets = targets or []
-    server = create_graph_server(graph=graph, parameters={}, verbose=True)
+    server = create_graph_server(graph=graph, parameters={}, verbose=verbose)
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
     if graph.engine != "sync":

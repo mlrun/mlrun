@@ -66,7 +66,7 @@ def test_file():
         print("k2 url:", k2.uri)
 
         # test that we can get the artifact as dataitem
-        assert k1.dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
+        assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
         alist = listdir(tmpdir)
         print(alist)

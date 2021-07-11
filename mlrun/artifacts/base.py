@@ -104,7 +104,7 @@ class Artifact(ModelObj):
         """return artifact uri (store://..)"""
         return self.get_store_url()
 
-    def dataitem(self):
+    def to_dataitem(self):
         """return a DataItem object (if available) representing the artifact content"""
         uri = self.get_store_url()
         if uri:

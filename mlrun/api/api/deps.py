@@ -6,9 +6,6 @@ from fastapi import Request
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
-import mlrun.api.utils.authorizers.authorizer
-import mlrun.api.utils.authorizers.nop
-import mlrun.api.utils.authorizers.opa
 import mlrun.api.utils.clients.iguazio
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.session import close_session, create_session
@@ -31,18 +28,6 @@ class AuthVerifier:
         self.auth_info = mlrun.api.schemas.AuthInfo()
 
         self._authenticate_request(request)
-        self._authorize_request(request)
-
-    def _authorize_request(self, request: Request):
-        if config.httpdb.authorization.mode == "none":
-            authorizer = mlrun.api.utils.authorizers.nop.Authorizer()
-        elif config.httpdb.authorization.mode == "opa":
-            authorizer = mlrun.api.utils.authorizers.opa.Authorizer()
-        else:
-            raise NotImplementedError(
-                f"Configured authorization mode is not supported. mode={config.httpdb.authorization.mode}"
-            )
-        authorizer.authorize(request)
 
     def _authenticate_request(self, request: Request):
         header = request.headers.get("Authorization", "")
@@ -86,6 +71,9 @@ class AuthVerifier:
                 self.auth_info.data_session = request.headers["x-data-session-override"]
             elif "data" in planes:
                 self.auth_info.data_session = self.auth_info.session
+        self.auth_info.projects_role = request.headers.get(
+            mlrun.api.schemas.HeaderNames.projects_role
+        )
 
     @staticmethod
     def _basic_auth_required():

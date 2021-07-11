@@ -23,8 +23,8 @@ from dateutil.parser import parse as parse_time
 
 import mlrun.api.schemas
 import mlrun.errors
-from ..api import schemas
 
+from ..api import schemas
 from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..datastore import store_manager
@@ -723,14 +723,14 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_marketplace_source(self, source: Union[
-        dict, schemas.OrderedMarketplaceSource
-    ]):
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.OrderedMarketplaceSource]
+    ):
         raise NotImplementedError()
 
-    def store_marketplace_source(self, source_name: str, source: Union[
-        dict, schemas.OrderedMarketplaceSource
-    ]):
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.OrderedMarketplaceSource]
+    ):
         raise NotImplementedError()
 
     def list_marketplace_sources(self):
@@ -742,12 +742,25 @@ class FileRunDB(RunDBInterface):
     def delete_marketplace_source(self, source_name: str):
         raise NotImplementedError()
 
-    def get_marketplace_catalog(self, source_name: str, channel: str = None, version: str = None, tag: str = None,
-                                force_refresh: bool = False):
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
         raise NotImplementedError()
 
-    def get_marketplace_item(self, source_name: str, item_name: str, channel: str = "development", version: str = None,
-                             tag: str = "latest", force_refresh: bool = False):
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
+    ):
         raise NotImplementedError()
 
 

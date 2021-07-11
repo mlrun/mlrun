@@ -23,6 +23,13 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         self._internal_project_name = config.marketplace.k8s_secrets_project_name
         self._catalogs = {}
 
+    @staticmethod
+    def _get_k8s():
+        k8s_helper = get_k8s()
+        if not k8s_helper.is_running_inside_kubernetes_cluster():
+            return None
+        return k8s_helper
+
     def add_source(self, source: MarketplaceSource):
         source_name = source.metadata.name
         credentials = source.spec.credentials
@@ -30,16 +37,21 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
             self._store_source_credentials(source_name, credentials)
 
     def remove_source(self, source_name):
+        self._catalogs.pop(source_name, None)
+        if not self._get_k8s():
+            return
+
         secret_prefix = source_name + secret_name_separator
         source_credentials = self._get_source_credentials(source_name)
         if not source_credentials:
             return
         secrets_to_delete = [secret_prefix + key for key in source_credentials]
-        get_k8s().delete_project_secrets(self._internal_project_name, secrets_to_delete)
-        self._catalogs.pop(source_name, None)
+        self._get_k8s().delete_project_secrets(
+            self._internal_project_name, secrets_to_delete
+        )
 
     def _store_source_credentials(self, source_name, credentials: dict):
-        if not get_k8s():
+        if not self._get_k8s():
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "MLRun is not configured with k8s, marketplace source credentials cannot be stored securely"
             )
@@ -48,16 +60,16 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         adjusted_credentials = {
             secret_prefix + key: value for key, value in credentials.items()
         }
-        get_k8s().store_project_secrets(
+        self._get_k8s().store_project_secrets(
             self._internal_project_name, adjusted_credentials
         )
 
     def _get_source_credentials(self, source_name):
-        if not get_k8s():
+        if not self._get_k8s():
             return {}
 
         secret_prefix = source_name + secret_name_separator
-        secrets = get_k8s().get_project_secret_values(self._internal_project_name)
+        secrets = self._get_k8s().get_project_secret_values(self._internal_project_name)
         source_secrets = {}
         for key, value in secrets.items():
             if key.startswith(secret_prefix):

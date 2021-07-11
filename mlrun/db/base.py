@@ -419,20 +419,13 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def create_marketplace_source(
-        self,
-        source: Union[
-            dict, schemas.OrderedMarketplaceSource
-        ]
+        self, source: Union[dict, schemas.OrderedMarketplaceSource]
     ):
         pass
 
     @abstractmethod
     def store_marketplace_source(
-        self,
-        source_name: str,
-        source: Union[
-            dict, schemas.OrderedMarketplaceSource
-        ]
+        self, source_name: str, source: Union[dict, schemas.OrderedMarketplaceSource]
     ):
         pass
 
@@ -455,7 +448,7 @@ class RunDBInterface(ABC):
         channel: str = None,
         version: str = None,
         tag: str = None,
-        force_refresh: bool = False
+        force_refresh: bool = False,
     ):
         pass
 
@@ -467,6 +460,6 @@ class RunDBInterface(ABC):
         channel: str = "development",
         version: str = None,
         tag: str = "latest",
-        force_refresh: bool = False
+        force_refresh: bool = False,
     ):
         pass

@@ -2203,9 +2203,9 @@ class HTTPRunDB(RunDBInterface):
         )
         return schemas.ModelEndpoint(**response.json())
 
-    def create_marketplace_source(self, source: Union[
-        dict, schemas.OrderedMarketplaceSource
-    ]):
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.OrderedMarketplaceSource]
+    ):
         """
         Add a new marketplace source.
 
@@ -2228,7 +2228,7 @@ class HTTPRunDB(RunDBInterface):
             private_source = mlrun.api.schemas.OrderedMarketplaceSource(
                 order=-1,
                 source=mlrun.api.schemas.MarketplaceSource(
-                    metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="private-source", description="a private source"),
+                    metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="priv", description="a private source"),
                     spec=mlrun.api.schemas.MarketplaceSourceSpec(path="/local/path/to/source", channel="development")
                 )
             )
@@ -2238,8 +2238,12 @@ class HTTPRunDB(RunDBInterface):
             another_source = mlrun.api.schemas.OrderedMarketplaceSource(
                 order=1,
                 source=mlrun.api.schemas.MarketplaceSource(
-                    metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="private-source-2", description="another private source"),
-                    spec=mlrun.api.schemas.MarketplaceSourceSpec(path="/local/path/to/source/2", channel="development", credentials={...})
+                    metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="priv-2", description="another source"),
+                    spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                        path="/local/path/to/source/2",
+                        channel="development",
+                        credentials={...}
+                    )
                 )
             )
             db.create_marketplace_source(another_source)
@@ -2251,14 +2255,12 @@ class HTTPRunDB(RunDBInterface):
         path = "marketplace/sources"
         if isinstance(source, schemas.OrderedMarketplaceSource):
             source = source.dict()
-        response = self.api_call(
-            method="POST", path=path, json=source
-        )
+        response = self.api_call(method="POST", path=path, json=source)
         return schemas.OrderedMarketplaceSource(**response.json())
 
-    def store_marketplace_source(self, source_name: str, source: Union[
-        dict, schemas.OrderedMarketplaceSource
-    ]):
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.OrderedMarketplaceSource]
+    ):
         """
         Create or replace a marketplace source.
         For an example of the source format and explanation of the source order logic,
@@ -2310,8 +2312,14 @@ class HTTPRunDB(RunDBInterface):
         path = f"marketplace/sources/{source_name}"
         self.api_call(method="DELETE", path=path)
 
-    def get_marketplace_catalog(self, source_name: str, channel: str = None, version: str = None, tag: str = None,
-                                force_refresh: bool = False):
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
         """
         Retrieve the item catalog for a specified marketplace source.
         The list of items can be filtered according to various metadata filters.
@@ -2326,18 +2334,25 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
             of :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem` entries.
         """
-        path = f"marketplace/sources/{source_name}/items",
+        path = (f"marketplace/sources/{source_name}/items",)
         params = {
             "channel": channel,
             "version": version,
             "tag": tag,
-            "force-refresh": force_refresh
+            "force-refresh": force_refresh,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return schemas.MarketplaceCatalog(**response.json())
 
-    def get_marketplace_item(self, source_name: str, item_name: str, channel: str = "development", version: str = None,
-                             tag: str = "latest", force_refresh: bool = False):
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
+    ):
         """
         Retrieve a specific marketplace item.
 
@@ -2350,12 +2365,12 @@ class HTTPRunDB(RunDBInterface):
             rely on cached information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem`.
         """
-        path = f"marketplace/sources/{source_name}/items/{item_name}",
+        path = (f"marketplace/sources/{source_name}/items/{item_name}",)
         params = {
             "channel": channel,
             "version": version,
             "tag": tag,
-            "force-refresh": force_refresh
+            "force-refresh": force_refresh,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return schemas.MarketplaceItem(**response.json())

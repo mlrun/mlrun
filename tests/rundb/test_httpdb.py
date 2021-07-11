@@ -638,13 +638,19 @@ def _assert_projects(expected_project, project):
 def _assert_source_lists_match(db, expected_response):
     response = db.list_marketplace_sources()
 
-    exclude_paths = ["root['source']['metadata']['updated']", "root['source']['metadata']['created']"]
+    exclude_paths = [
+        "root['source']['metadata']['updated']",
+        "root['source']['metadata']['created']",
+    ]
     for i in range(len(expected_response)):
-        assert deepdiff.DeepDiff(
-            expected_response[i].dict(),
-            response[i].dict(),
-            exclude_paths=exclude_paths
-        ) == {}
+        assert (
+            deepdiff.DeepDiff(
+                expected_response[i].dict(),
+                response[i].dict(),
+                exclude_paths=exclude_paths,
+            )
+            == {}
+        )
 
 
 def test_marketplace(create_server):
@@ -652,15 +658,18 @@ def test_marketplace(create_server):
     db: HTTPRunDB = server.conn
 
     default_source = mlrun.api.schemas.OrderedMarketplaceSource(
-        order=-1,
-        source=mlrun.api.schemas.MarketplaceSource.generate_default_source()
+        order=-1, source=mlrun.api.schemas.MarketplaceSource.generate_default_source()
     )
     _assert_source_lists_match(db, [default_source])
 
     new_source = mlrun.api.schemas.OrderedMarketplaceSource(
         source=mlrun.api.schemas.MarketplaceSource(
-            metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="source-1", description="a private source"),
-            spec=mlrun.api.schemas.MarketplaceSourceSpec(path="/local/path/to/source", channel="development")
+            metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+                name="source-1", description="a private source"
+            ),
+            spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                path="/local/path/to/source", channel="development"
+            ),
         )
     )
     db.create_marketplace_source(new_source)
@@ -670,9 +679,13 @@ def test_marketplace(create_server):
     new_source_2 = mlrun.api.schemas.OrderedMarketplaceSource(
         order=1,
         source=mlrun.api.schemas.MarketplaceSource(
-            metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="source-2", description="2nd private source"),
-            spec=mlrun.api.schemas.MarketplaceSourceSpec(path="/local/path/to/source", channel="prod")
-        )
+            metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+                name="source-2", description="2nd private source"
+            ),
+            spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                path="/local/path/to/source", channel="prod"
+            ),
+        ),
     )
 
     db.create_marketplace_source(new_source_2)

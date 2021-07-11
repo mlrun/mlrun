@@ -389,7 +389,7 @@ class K8sHelper:
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException as exc:
+        except ApiException:
             return None
 
         return k8s_secret.data

@@ -38,7 +38,7 @@ class MarketplaceSource(BaseModel):
     kind: ObjectKind = Field(ObjectKind.marketplace_source, const=True)
     metadata: MarketplaceObjectMetadata
     spec: MarketplaceSourceSpec
-    status: ObjectStatus
+    status: Optional[ObjectStatus] = ObjectStatus(state="created")
 
     def get_full_uri(self, relative_path):
         return "{base}/{channel}/{relative_path}".format(

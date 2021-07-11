@@ -329,6 +329,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def list_project_secrets(
         self,
         project: str,
@@ -340,6 +341,7 @@ class RunDBInterface(ABC):
     ) -> schemas.SecretsData:
         pass
 
+    @abstractmethod
     def list_project_secret_keys(
         self,
         project: str,
@@ -350,6 +352,7 @@ class RunDBInterface(ABC):
     ) -> schemas.SecretKeysData:
         pass
 
+    @abstractmethod
     def delete_project_secrets(
         self,
         project: str,
@@ -411,5 +414,59 @@ class RunDBInterface(ABC):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def create_marketplace_source(
+        self,
+        source: Union[
+            dict, schemas.OrderedMarketplaceSource
+        ]
+    ):
+        pass
+
+    @abstractmethod
+    def store_marketplace_source(
+        self,
+        source_name: str,
+        source: Union[
+            dict, schemas.OrderedMarketplaceSource
+        ]
+    ):
+        pass
+
+    @abstractmethod
+    def list_marketplace_sources(self):
+        pass
+
+    @abstractmethod
+    def get_marketplace_source(self, source_name: str):
+        pass
+
+    @abstractmethod
+    def delete_marketplace_source(self, source_name: str):
+        pass
+
+    @abstractmethod
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False
+    ):
+        pass
+
+    @abstractmethod
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False
     ):
         pass

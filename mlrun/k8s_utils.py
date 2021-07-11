@@ -390,10 +390,6 @@ class K8sHelper:
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
-            # If secret doesn't exist, return empty list
-            if exc.status != 404:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
-                raise exc
             return None
 
         return k8s_secret.data

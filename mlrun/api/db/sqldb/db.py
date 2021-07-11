@@ -2543,7 +2543,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)
 
-    def _insert_and_reorder_table_items(
+    def _move_and_reorder_table_items(
         self, session, moved_object, move_to=None, move_from=None
     ):
         # If move_to is None - delete object. If move_from is None - insert a new object
@@ -2662,7 +2662,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             ordered_source
         )
 
-        self._insert_and_reorder_table_items(
+        self._move_and_reorder_table_items(
             session, source_record, move_to=order, move_from=None
         )
 
@@ -2687,7 +2687,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             ordered_source, source_record
         )
 
-        self._insert_and_reorder_table_items(
+        self._move_and_reorder_table_items(
             session, source_record, move_to=order, move_from=current_order
         )
 
@@ -2696,10 +2696,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     ) -> List[schemas.OrderedMarketplaceSource]:
         results = []
         query = self._query(session, MarketplaceSource).order_by(
-            MarketplaceSource.order.asc()
+            MarketplaceSource.order.desc()
         )
         for record in query:
-            results.append(self._transform_marketplace_source_record_to_schema(record))
+            ordered_source = self._transform_marketplace_source_record_to_schema(record)
+            # Need this to make the list return such that the default source is last in the response.
+            if ordered_source.order != -1:
+                results.insert(0, ordered_source)
+            else:
+                results.append(ordered_source)
         return results
 
     def delete_marketplace_source(self, session, name):
@@ -2713,7 +2718,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 "Attempting to delete the global marketplace source."
             )
 
-        self._insert_and_reorder_table_items(
+        self._move_and_reorder_table_items(
             session, source_record, move_to=None, move_from=current_order
         )
 

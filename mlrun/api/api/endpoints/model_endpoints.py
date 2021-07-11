@@ -1,10 +1,10 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Cookie, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
-import mlrun.api.api
+import mlrun.api.api.deps
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError
@@ -21,7 +21,9 @@ def create_or_patch(
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
-    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
     """
@@ -41,7 +43,7 @@ def create_or_patch(
         db_session=db_session,
         access_key=access_key,
         model_endpoint=model_endpoint,
-        leader_session=iguazio_session,
+        leader_session=auth_verifier.auth_info.session,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

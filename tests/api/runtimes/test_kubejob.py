@@ -1,4 +1,5 @@
 import os
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -6,19 +7,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import generate_resources
+from mlrun.secrets import SecretsStore
 from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestKubejobRuntime(TestRuntimeBase):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()
 
     def custom_setup(self):
@@ -148,6 +147,41 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._execute_run(runtime)
         self._assert_pod_creation_config()
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
+
+    def test_run_with_k8s_secrets(self, db: Session, client: TestClient):
+        project_secret_name = "dummy_secret_name"
+        secret_keys = ["secret1", "secret2", "secret3"]
+
+        # Need to do some mocking, so code thinks that the secret contains these keys. Otherwise it will not add
+        # the env. variables to the pod spec.
+        get_k8s().get_project_secret_name = unittest.mock.Mock(
+            return_value=project_secret_name
+        )
+        get_k8s().get_project_secret_keys = unittest.mock.Mock(return_value=secret_keys)
+
+        runtime = self._generate_runtime()
+
+        task = self._generate_task()
+        task.metadata.project = self.project
+        secret_source = {
+            "kind": "kubernetes",
+            "source": secret_keys,
+        }
+        task.with_secrets(secret_source["kind"], secret_keys)
+
+        # What we expect in this case is that environment variables will be added to the pod which get their
+        # value from the k8s secret, using the correct keys.
+        expected_env_from_secrets = {}
+        for key in secret_keys:
+            env_variable_name = SecretsStore._k8s_env_variable_name_for_secret(key)
+            expected_env_from_secrets[env_variable_name] = {project_secret_name: key}
+
+        self._execute_run(runtime, runspec=task)
+
+        self._assert_pod_creation_config(
+            expected_secrets=secret_source,
+            expected_env_from_secrets=expected_env_from_secrets,
+        )
 
     def test_run_with_vault_secrets(self, db: Session, client: TestClient):
         self._mock_vault_functionality()

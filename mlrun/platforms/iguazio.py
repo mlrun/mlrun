@@ -474,7 +474,7 @@ def is_iguazio_endpoint(endpoint_url: str) -> bool:
     return ".default-tenant." in endpoint_url
 
 
-def is_iguazio_control_session(value: str) -> bool:
+def is_iguazio_session(value: str) -> bool:
     # TODO: find a better heuristic
     return len(value) > 20 and "-" in value
 
@@ -500,13 +500,21 @@ def add_or_refresh_credentials(
     api_url: str, username: str = "", password: str = "", token: str = ""
 ) -> (str, str, str):
 
-    # this may be called in "open source scenario" so in this case (not iguazio endpoint) simply do nothing
-    if not is_iguazio_endpoint(api_url) or is_iguazio_control_session(password):
+    if is_iguazio_session(password):
         return username, password, token
 
     username = username or os.environ.get("V3IO_USERNAME")
     password = password or os.environ.get("V3IO_PASSWORD")
     token = token or os.environ.get("V3IO_ACCESS_KEY")
+
+    # When it's not iguazio endpoint it's one of two options:
+    # Enterprise, but we're in the cluster (and not from remote), e.g. url will be something like http://mlrun-api:8080
+    # In which we enforce to have access key which is needed for the API auth
+    # Open source in which auth is not enabled so no creds needed
+    # We don't really have an easy/nice way to differentiate between the two so we're just sending creds anyways
+    # (ideally if we could identify we're in enterprise we would have verify here that token and username have value)
+    if not is_iguazio_endpoint(api_url):
+        return "", "", token
     iguazio_dashboard_url = "https://dashboard" + api_url[api_url.find(".") :]
 
     # in 2.8 mlrun api is protected with control session, from 2.10 it's protected with access key

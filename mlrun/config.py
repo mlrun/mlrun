@@ -113,12 +113,34 @@ default_config = {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
             },
         },
+        "nuclio": {
+            # One of ClusterIP | NodePort
+            "default_service_type": "NodePort",
+            # The following modes apply when user did not configure an ingress
+            #
+            #   name        |  description
+            #  ---------------------------------------------------------------------
+            #   never       |  never enrich with an ingress
+            #   always      |  always enrich with an ingress, regardless the service type
+            #   onClusterIP |  enrich with an ingress only when `mlrun.config.httpdb.nuclio.default_service_type`
+            #                  is set to ClusterIP
+            #  ---------------------------------------------------------------------
+            # Note: adding a mode requires special handling on
+            # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
+            # - mlrun.runtimes.function.enrich_function_with_ingress
+            "add_templated_ingress_host_mode": "never",
+        },
         "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
+            # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
+            # multiple schedules scheduled to the same time, there might be delays, the default of the scheduler for
+            # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
+            # it to None. the default for coalesce it True just adding it here to be explicit
+            "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
         },
         "projects": {
             "leader": "mlrun",
@@ -172,7 +194,10 @@ default_config = {
             "default_secret_name": None,
             "secret_path": "~/.mlrun/azure_vault",
         },
-        "kubernetes": {"project_secret_name": "mlrun-project-secrets-{project}"},
+        "kubernetes": {
+            "project_secret_name": "mlrun-project-secrets-{project}",
+            "env_variable_prefix": "MLRUN_K8S_SECRET__",
+        },
     },
     "feature_store": {
         "data_prefixes": {

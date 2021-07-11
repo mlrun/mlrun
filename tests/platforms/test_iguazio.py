@@ -69,6 +69,16 @@ def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
     assert access_key == result_access_key
 
 
+def test_add_or_refresh_credentials_kubernetes_svc_url_success(monkeypatch):
+    access_key = "access_key"
+    api_url = "http://mlrun-api:8080"
+    env = os.environ
+    env["V3IO_ACCESS_KEY"] = access_key
+
+    _, _, result_access_key = add_or_refresh_credentials(api_url)
+    assert access_key == result_access_key
+
+
 def test_mount_v3io_legacy():
     username = "username"
     access_key = "access-key"
@@ -204,7 +214,7 @@ def test_mount_v3io():
                 expectation_modifier(**expectation_modifier_kwargs)
             )
 
-            # Verify that env variables are set and overriden correctly
+            # Verify that env variables are set and overridden correctly
             env_variables = {
                 env_variable["name"]: env_variable["value"]
                 for env_variable in tested_function.spec.env

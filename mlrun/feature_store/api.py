@@ -277,6 +277,10 @@ def ingest(
                         ",".join(overwrite_supported_targets)
                     )
                 )
+            if hasattr(target, "is_single_file") and target.is_single_file():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Overwriting isn't supported in single files. Please use folder path."
+                )
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -433,7 +437,7 @@ def deploy_ingestion_service(
         featureset, source, targets, run_config.parameters
     )
 
-    name = name or f"{featureset.metadata.name}_ingest"
+    name = name or f"{featureset.metadata.name}-ingest"
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():

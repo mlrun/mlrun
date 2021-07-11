@@ -20,9 +20,10 @@ This guide outlines the steps for installing and running MLRun locally.
 To use MLRun with your local Docker registry, run the MLRun API service, dashboard, and example Jupyter server by using the following script.
 
 > **Note:**
+> - Using Docker is limited to local runtimes.
 > - By default the MLRun API service will run inside the Jupyter server, set the MLRUN_DBPATH env var in Jupyter to point to an alternative service address.
 > - The artifacts and DB will be stored under **/home/jovyan/data**, use docker -v option to persist the content on the host (e.g. `-v ${SHARED_DIR}:/home/jovyan/data`)
-> - Using Docker is limited to local runtimes.
+> - If Docker is running on Windows with WSL 2, you must create SHARED_DIR before running these commadns. Provide the full path when executing  (e.g. `mkdir /mnt/c/mlrun-data`  `SHARED_DIR=/mnt/c/mlrun-data`)
 
 ```
 SHARED_DIR=~/mlrun-data
@@ -37,7 +38,7 @@ docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLR
 
 When the execution completes &mdash;
 
-- Open Jupyter Notebook on port 8888 and run the code in the [**examples/mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
+- Open Jupyter Notebook on port 8888 and run the code in the [**mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
 - Use the MLRun dashboard on port 4000.
 
 <a id="k8s-cluster"></a>
@@ -102,7 +103,7 @@ To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](doc
 <a id="k8s-install-start-working"></a>
 ### Start Working
 
-- Open Jupyter Notebook on NodePort `30040` and run the code in the [**examples/mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
+- Open Jupyter Notebook on NodePort `30040` and run the code in the [**mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
 - Use the dashboard at NodePort `30068`.
 
 > **Note:**

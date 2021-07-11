@@ -71,7 +71,8 @@ def init_featureset_graph(
         target = get_target_driver(target, featureset)
         size = target.write_dataframe(data)
         target_status = target.update_resource_status("ready", size=size)
-        logger.info(f"wrote target: {target_status}")
+        if verbose:
+            logger.info(f"wrote target: {target_status}")
 
     return data
 

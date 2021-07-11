@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
 
+import pandas as pd
 from storey import MapClass
 
 this_path = "mlrun.feature_store.steps"
@@ -250,9 +251,17 @@ class DateExtractor(MapClass):
                 raise ValueError(f"{self.timestamp_col} does not exist in the event")
 
         # Extract specified parts
+        timestamp = pd.Timestamp(timestamp)
         for part in self.parts:
             # Extract part
             extracted_part = getattr(timestamp, part)
             # Add to event
             event[self._get_key_name(part, self.timestamp_col)] = extracted_part
         return event
+
+    def to_dict(self):
+        return {
+            "class_name": this_path + ".DateExtractor",
+            "name": self.name or "DateExtractor",
+            "class_args": {"parts": self.parts, "timestamp_col": self.timestamp_col},
+        }

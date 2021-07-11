@@ -214,11 +214,12 @@ class SparkRuntime(KubejobRuntime):
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _validate(self):
-        from mlrun.errors import MLRunInvalidArgumentError
+        # currently we use KeyError because it is handled correctly and show the message to the user
+        # TODO - Change to use MLRunError types when fastapi framework handles the errors correctly
         if "requests" not in self.spec.executor_resources:
             raise KeyError("Sparkjob must contain executor requests")
         if "requests" not in self.spec.driver_resources:
-            raise MLRunInvalidArgumentError("Sparkjob must contain driver requests")
+            raise KeyError("Sparkjob must contain driver requests")
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate()

@@ -944,6 +944,11 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+        # We currently don't support removing runtime resources in non k8s env
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
+            return {}
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(project, label_selector)
@@ -968,6 +973,11 @@ class BaseRuntimeHandler(ABC):
         grace_period: int = config.runtime_resources_deletion_grace_period,
         leader_session: Optional[str] = None,
     ):
+        # We currently don't support removing runtime resources in non k8s env
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
+            return
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector("*", label_selector)

@@ -106,6 +106,7 @@ class ServingSpec(NuclioSpec):
         error_stream=None,
         track_models=None,
         secret_sources=None,
+        default_content_type=None,
     ):
 
         super().__init__(
@@ -145,6 +146,7 @@ class ServingSpec(NuclioSpec):
         self.error_stream = error_stream
         self.track_models = track_models
         self.secret_sources = secret_sources or []
+        self.default_content_type = default_content_type
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -463,6 +465,7 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
+            "default_content_type": self.spec.default_content_type,
         }
 
         if self.spec.secret_sources:

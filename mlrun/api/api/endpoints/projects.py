@@ -109,8 +109,7 @@ def patch_project(
 # curl http://localhost:8080/project/<name>
 @router.get("/projects/{name}", response_model=schemas.Project)
 def get_project(
-    name: str,
-    db_session: Session = fastapi.Depends(deps.get_db_session),
+    name: str, db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     return get_project_member().get_project(db_session, name)
 

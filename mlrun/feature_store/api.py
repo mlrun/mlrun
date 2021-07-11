@@ -52,6 +52,11 @@ def _features_to_vector(features):
         vector = get_feature_vector_by_uri(features)
     elif isinstance(features, FeatureVector):
         vector = features
+        if not vector.metadata.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "feature vector name must be specified"
+            )
+        vector.save()
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"illegal features value/type ({type(features)})"

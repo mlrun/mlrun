@@ -47,8 +47,7 @@ class LocalFeatureMerger:
         if entity_timestamp_column:
             index_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
-        if self.vector.metadata.name:
-            self.vector.save()
+        self.vector.save()
 
         # load dataframes
         feature_sets = []

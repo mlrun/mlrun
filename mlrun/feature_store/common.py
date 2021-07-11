@@ -16,7 +16,7 @@ from copy import copy
 import mlrun
 import mlrun.errors
 from mlrun.runtimes.function_reference import FunctionReference
-from mlrun.utils import parse_versioned_object_uri, StorePrefix
+from mlrun.utils import StorePrefix, parse_versioned_object_uri
 
 from ..config import config
 

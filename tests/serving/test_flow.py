@@ -122,11 +122,11 @@ def test_content_type():
     server = fn.to_mock_server()
 
     # test that we json.load() when the content type is json
-    resp = server.test(body={'a':1})
+    resp = server.test(body={"a": 1})
     assert resp == "dict", "invalid type"
     resp = server.test(body="[1,2]")
     assert resp == "str", "invalid type"
-    resp = server.test(body={'a':1}, content_type="application/json")
+    resp = server.test(body={"a": 1}, content_type="application/json")
     assert resp == "dict", "invalid type"
     resp = server.test(body="[1,2]", content_type="application/json")
     assert resp == "list", "did not load json"

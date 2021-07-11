@@ -25,7 +25,9 @@ async def permission_query_path() -> str:
 
 
 @pytest.fixture()
-async def opa_client(api_url: str, permission_query_path: str,) -> mlrun.api.utils.clients.opa.Client:
+async def opa_client(
+    api_url: str, permission_query_path: str,
+) -> mlrun.api.utils.clients.opa.Client:
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
     client = mlrun.api.utils.clients.opa.Client()
@@ -35,72 +37,69 @@ async def opa_client(api_url: str, permission_query_path: str,) -> mlrun.api.uti
 
 
 def test_query_permissions_success(
-        api_url: str,
-        permission_query_path: str,
-        opa_client: mlrun.api.utils.clients.opa.Client,
-        requests_mock: requests_mock_package.Mocker,
+    api_url: str,
+    permission_query_path: str,
+    opa_client: mlrun.api.utils.clients.opa.Client,
+    requests_mock: requests_mock_package.Mocker,
 ):
-    resource = '/projects/project-name/functions/function-name'
+    resource = "/projects/project-name/functions/function-name"
     action = mlrun.api.schemas.AuthorizationAction.create
     auth_info = mlrun.api.schemas.AuthInfo(
-        user_id="user-id",
-        user_group_ids=["user-group-id-1", "user-group-id-2"]
+        user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
     def mock_permission_query_success(request, context):
         assert (
-                deepdiff.DeepDiff(
-                    opa_client._generate_permission_request_body(resource, action.value, auth_info),
-                    request.json(),
-                    ignore_order=True,
-                )
-                == {}
+            deepdiff.DeepDiff(
+                opa_client._generate_permission_request_body(
+                    resource, action.value, auth_info
+                ),
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
         )
         context.status_code = http.HTTPStatus.OK.value
-        return {
-            "result": True
-        }
+        return {"result": True}
 
-    requests_mock.post(f"{api_url}{permission_query_path}", json=mock_permission_query_success)
-    allowed = opa_client.query_permissions(
-        resource,
-        action,
-        auth_info
+    requests_mock.post(
+        f"{api_url}{permission_query_path}", json=mock_permission_query_success
     )
+    allowed = opa_client.query_permissions(resource, action, auth_info)
     assert allowed is True
 
 
 def test_query_permissions_failure(
-        api_url: str,
-        permission_query_path: str,
-        opa_client: mlrun.api.utils.clients.opa.Client,
-        requests_mock: requests_mock_package.Mocker,
+    api_url: str,
+    permission_query_path: str,
+    opa_client: mlrun.api.utils.clients.opa.Client,
+    requests_mock: requests_mock_package.Mocker,
 ):
-    resource = '/projects/project-name/functions/function-name'
+    resource = "/projects/project-name/functions/function-name"
     action = mlrun.api.schemas.AuthorizationAction.create
     auth_info = mlrun.api.schemas.AuthInfo(
-        user_id="user-id",
-        user_group_ids=["user-group-id-1", "user-group-id-2"]
+        user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
     def mock_permission_query_failure(request, context):
         assert (
-                deepdiff.DeepDiff(
-                    opa_client._generate_permission_request_body(resource, action.value, auth_info),
-                    request.json(),
-                    ignore_order=True,
-                )
-                == {}
+            deepdiff.DeepDiff(
+                opa_client._generate_permission_request_body(
+                    resource, action.value, auth_info
+                ),
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
         )
         context.status_code = http.HTTPStatus.OK.value
-        return {
-            "result": False
-        }
-    requests_mock.post(f"{api_url}{permission_query_path}", json=mock_permission_query_failure)
-    with pytest.raises(mlrun.errors.MLRunAccessDeniedError, match=f"Not allowed to {action} resource {resource}"):
-        opa_client.query_permissions(
-            resource,
-            action,
-            auth_info
-        )
+        return {"result": False}
 
+    requests_mock.post(
+        f"{api_url}{permission_query_path}", json=mock_permission_query_failure
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunAccessDeniedError,
+        match=f"Not allowed to {action} resource {resource}",
+    ):
+        opa_client.query_permissions(resource, action, auth_info)

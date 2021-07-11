@@ -4,8 +4,6 @@ from http import HTTPStatus
 import fastapi
 from sqlalchemy.orm import Session
 
-import mlrun.api.utils.clients.opa
-import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.utils.singletons.project_member import get_project_member

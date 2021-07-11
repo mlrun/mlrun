@@ -495,6 +495,7 @@ class ServingRuntime(RemoteRuntime):
             track_models=self.spec.track_models,
             function_uri=self._function_uri(),
             secret_sources=self.spec.secret_sources,
+            default_content_type=self.spec.default_content_type,
             **kwargs,
         )
         server.init_states(

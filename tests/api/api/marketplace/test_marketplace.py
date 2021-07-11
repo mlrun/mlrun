@@ -49,6 +49,9 @@ class K8sMock:
 def _mock_k8s_secrets(mock_object):
     config.namespace = "default-tenant"
 
+    get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
+    )
     get_k8s().get_project_secrets = unittest.mock.Mock(
         side_effect=mock_object.get_project_secrets
     )

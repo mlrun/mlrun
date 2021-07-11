@@ -139,6 +139,7 @@ with warnings.catch_warnings():
         project = Column(String)
         uid = Column(String)
         updated = Column(TIMESTAMP)
+        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         labels = relationship(Label)
 
@@ -155,6 +156,7 @@ with warnings.catch_warnings():
         name = Column(String)
         project = Column(String)
         uid = Column(String)
+        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         updated = Column(TIMESTAMP)
         labels = relationship(Label)
@@ -165,6 +167,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         uid = Column(String)
         project = Column(String)
+        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
 
     class Run(Base, HasStruct):
@@ -181,6 +184,7 @@ with warnings.catch_warnings():
         project = Column(String)
         iteration = Column(Integer)
         state = Column(String)
+        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
@@ -200,6 +204,7 @@ with warnings.catch_warnings():
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
         last_run_uri = Column(String)
+        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
@@ -247,6 +252,7 @@ with warnings.catch_warnings():
         source = Column(String)
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
+        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
         state = Column(String)

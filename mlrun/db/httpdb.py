@@ -407,7 +407,7 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
         last_update_time_to: datetime = None,
-    ):
+    ) -> RunList:
         """ Retrieve a list of runs, filtered by various options.
         Example::
 
@@ -532,7 +532,7 @@ class HTTPRunDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
-    ):
+    ) -> ArtifactList:
         """ List artifacts filtered by various parameters.
 
         Examples::

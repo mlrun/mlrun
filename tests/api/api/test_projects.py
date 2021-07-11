@@ -1,7 +1,6 @@
 import copy
 import datetime
 import typing
-import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -14,6 +13,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
@@ -65,9 +65,6 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
-
-    # mock runtime resources deletion
-    mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
 
     # deletion strategy - cascading - should succeed and remove all related resources
     response = client.delete(
@@ -327,9 +324,6 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
-
-    # mock runtime resources deletion
-    mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
 
     # delete - cascading strategy, will succeed and delete function
     response = client.delete(

@@ -1,3 +1,4 @@
+import json
 import os
 import unittest.mock
 
@@ -101,8 +102,19 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
 
         node_selector = {
-            "label-a": "val1",
+            "label-1": "val1",
             "label-2": "val2",
+        }
+        mlrun.mlconf.default_function_node_selector = json.dumps(node_selector)
+        runtime.with_node_selection(node_selector=node_selector)
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(expected_node_selector=node_selector)
+
+        runtime = self._generate_runtime()
+
+        node_selector = {
+            "label-3": "val3",
+            "label-4": "val4",
         }
         runtime.with_node_selection(node_selector=node_selector)
         self._execute_run(runtime)

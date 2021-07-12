@@ -21,10 +21,18 @@ k8s_resource_quantity_regex = [r"^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"]
 
 run_name = label_value
 
-# sparkjob name value format
-# the actual limit is for 63 characters, but due to mlrun and spark operator additions for unique
-# values - the limit is set to 30
-sparkjob_name = dns_1123_label + [r"^.{0,35}$"]
+# Sparkjob name value format
+# The actual limit is 63 characters, but due to mlrun and spark operator additions for unique
+# values - the limit is set to 30.
+# The names of the generated resources are in the format: [function_name]-[uid*8]-[generated_resource_name]
+#   function_name - the name provided by the user
+#   uid*8 - is 8 characters generated in mlrun to give the resources a guaranteed unique name.
+#   generated_resource_name - for each resource added a describing suffix (e.g driver) in that case
+#       the longest suffix is "-[uid*13]-driver-svc" which contains 25 characters. Therefore the limit should be
+#       63 - 25 - 9 = 29
+#       NOTE: If a name is between 30-33 characters - the function will complete successfully without creating the
+#           driver-svc meaning there is no way to get the response through a ui
+sparkjob_name = dns_1123_label + [r"^.{0,29}$"]
 
 # A project name have the following restrictions:
 # It should be a valid Nuclio Project CRD name which is dns 1123 subdomain

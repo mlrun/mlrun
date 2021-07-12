@@ -104,7 +104,7 @@ class LocalFeatureMerger:
         featureset_dfs: List[pd.DataFrame],
     ):
         merged_df = entity_df
-        if entity_df is None:
+        if entity_df is None and featureset_dfs:
             merged_df = featureset_dfs.pop(0)
             featureset = featuresets.pop(0)
             entity_timestamp_column = (

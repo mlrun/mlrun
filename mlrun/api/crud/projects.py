@@ -62,7 +62,7 @@ class Projects(
             projects_store_override or mlrun.api.utils.singletons.db.get_db()
         )
         if deletion_strategy.is_restricted():
-            if not projects_store.is_project_exists(session, name):
+            if not projects_store.is_project_exists(session, name, leader_session=leader_session):
                 return
             mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
                 session, name

@@ -23,6 +23,17 @@ class Member(
     mlrun.api.utils.projects.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
+    class ProjectsStoreMode:
+        none = "none"
+        cache = "cache"
+
+        @staticmethod
+        def all():
+            return [
+                Member.ProjectsStoreMode.none,
+                Member.ProjectsStoreMode.cache,
+            ]
+
     class ProjectsStore:
         """
         See mlrun.api.crud.projects.delete_project for explanation for this ugly thing
@@ -31,8 +42,14 @@ class Member(
         def __init__(self, project_member):
             self.project_member = project_member
 
-        def is_project_exists(self, session, name: str):
-            return name in self.project_member._projects
+        def is_project_exists(self, session, name: str, leader_session: typing.Optional[str] = None):
+            if self.project_member.projects_store_mode == self.project_member.ProjectsStoreMode.cache:
+                return name in self.project_member._projects
+            elif self.project_member.projects_store_mode == self.project_member.ProjectsStoreMode.none:
+                projects_output = self.project_member.list_projects(session,
+                                                                    format_=mlrun.api.schemas.Format.name_only,
+                                                                    leader_session=leader_session)
+                return name in projects_output.projects
 
         def delete_project(
             self,
@@ -40,28 +57,33 @@ class Member(
             name: str,
             deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         ):
-            if name in self.project_member._projects:
-                del self.project_member._projects[name]
+            if self.project_member.projects_store_mode == self.project_member.ProjectsStoreMode.cache:
+                if name in self.project_member._projects:
+                    del self.project_member._projects[name]
+            return
 
     def initialize(self):
         logger.info("Initializing projects follower")
+        self.projects_store_mode = mlrun.mlconf.httpdb.projects.follower_projects_store_mode
+        if self.projects_store_mode not in self.ProjectsStoreMode.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Provided projects store mode is not supported. mode={self.projects_store_mode}")
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
         self._projects_store_for_deletion = self.ProjectsStore(self)
-        self._leader_name = mlrun.config.config.httpdb.projects.leader
+        self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
         if self._leader_name == "iguazio":
             self._leader_client = mlrun.api.utils.clients.iguazio.Client()
-            if not mlrun.config.config.httpdb.projects.iguazio_access_key:
+            if not mlrun.mlconf.httpdb.projects.iguazio_access_key:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio access key must be configured when the leader is Iguazio"
                 )
-            self._sync_session = mlrun.config.config.httpdb.projects.iguazio_access_key
+            self._sync_session = mlrun.mlconf.httpdb.projects.iguazio_access_key
         elif self._leader_name == "nop":
             self._leader_client = mlrun.api.utils.projects.remotes.nop_leader.Member()
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.config.config.httpdb.projects.periodic_sync_interval
+            mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
@@ -84,9 +106,10 @@ class Member(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
-            if project.metadata.name in self._projects:
-                raise mlrun.errors.MLRunConflictError("Project already exists")
-            self._projects[project.metadata.name] = project
+            if self.projects_store_mode == self.ProjectsStoreMode.cache:
+                if project.metadata.name in self._projects:
+                    raise mlrun.errors.MLRunConflictError("Project already exists")
+                self._projects[project.metadata.name] = project
             return project, False
         else:
             return self._leader_client.create_project(
@@ -103,7 +126,8 @@ class Member(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
-            self._projects[project.metadata.name] = project
+            if self.projects_store_mode == self.ProjectsStoreMode.cache:
+                self._projects[project.metadata.name] = project
             return project, False
         else:
             return self._leader_client.store_project(
@@ -155,11 +179,15 @@ class Member(
         return False
 
     def get_project(
-        self, db_session: sqlalchemy.orm.Session, name: str
+        self, db_session: sqlalchemy.orm.Session, name: str,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
-        if name not in self._projects:
-            raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
-        return self._projects[name]
+        if self.projects_store_mode == self.ProjectsStoreMode.cache:
+            if name not in self._projects:
+                raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
+            return self._projects[name]
+        elif self.projects_store_mode == self.ProjectsStoreMode.none:
+            return self._leader_client.get_project(leader_session, name)
 
     def list_projects(
         self,
@@ -168,8 +196,14 @@ class Member(
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        projects = list(self._projects.values())
+        projects = []
+        if self.projects_store_mode == self.ProjectsStoreMode.cache:
+            projects = list(self._projects.values())
+        elif self.projects_store_mode == self.ProjectsStoreMode.none:
+            projects, _ = self._leader_client.list_projects(leader_session)
+
         # filter projects
         if owner:
             raise NotImplementedError(

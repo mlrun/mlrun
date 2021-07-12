@@ -108,8 +108,9 @@ def patch_project(
 @router.get("/projects/{name}", response_model=schemas.Project)
 def get_project(
     name: str, db_session: Session = fastapi.Depends(deps.get_db_session),
+        auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
 ):
-    return get_project_member().get_project(db_session, name)
+    return get_project_member().get_project(db_session, name, auth_verifier.auth_info.session)
 
 
 @router.delete(
@@ -147,6 +148,7 @@ def list_projects(
     owner: str = None,
     labels: typing.List[str] = fastapi.Query(None, alias="label"),
     state: schemas.ProjectState = None,
+        auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
-    return get_project_member().list_projects(db_session, owner, format_, labels, state)
+    return get_project_member().list_projects(db_session, owner, format_, labels, state, auth_verifier.auth_info.session)

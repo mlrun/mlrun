@@ -1157,7 +1157,11 @@ class RemoteHttpHandler:
             raise RuntimeError(f"bad function response {resp.text}")
 
         data = resp.content
-        if self.format == "json" or resp.headers["content-type"] == "application/json":
+        if (
+            self.format == "json"
+            or resp.headers["content-type"] == "application/json"
+            and isinstance(data, (str, bytes))
+        ):
             data = json.loads(data)
         event.body = data
         return event

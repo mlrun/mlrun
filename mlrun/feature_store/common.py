@@ -67,7 +67,7 @@ def get_feature_set_by_uri(uri, project=None):
     default_project = project or config.default_project
 
     # parse store://.. uri
-    if mlrun.datastore.is_store_uri():
+    if mlrun.datastore.is_store_uri(uri):
         prefix, new_uri = mlrun.datastore.parse_store_uri(uri)
         if prefix != StorePrefix.FeatureSet:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -85,7 +85,7 @@ def get_feature_vector_by_uri(uri, project=None):
     default_project = project or config.default_project
 
     # parse store://.. uri
-    if mlrun.datastore.is_store_uri():
+    if mlrun.datastore.is_store_uri(uri):
         prefix, new_uri = mlrun.datastore.parse_store_uri(uri)
         if prefix != StorePrefix.FeatureVector:
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -71,7 +71,7 @@ RUN conda config --add channels conda-forge && \
         python=3.7 \
         cudatoolkit=${CUDA_VER} \
         cython \
-        tensorflow-gpu=2.2.0 \
+        tensorflow-gpu=2.4.1 \
     && conda clean -aqy
 
 RUN conda install -n base -c rapidsai -c nvidia \

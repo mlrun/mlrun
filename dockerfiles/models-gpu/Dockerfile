@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.2.2
+ARG CUDA_VER=11.3.1
 
 FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
@@ -64,19 +64,21 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 
 RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
+    conda config --add channels nvidia && \
     conda update -n base conda && \
     conda install -n base \
         cmake \
+        python=3.7 \
         cudatoolkit=${CUDA_VER} \
         cython \
         tensorflow-gpu=2.2.0 \
     && conda clean -aqy
 
 RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7 \
+    -c anaconda -c conda-forge -c defaults rapids=0.12 \
     && conda clean -aqy
 
-RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1 \
+RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=${CUDA_VER} \
     && conda clean -aqy
 
 RUN python -m pip install --upgrade pip~=20.2.0

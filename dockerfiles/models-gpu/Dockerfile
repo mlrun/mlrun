@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=10.1
+ARG CUDA_VER=11.4
 
-FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:${CUDA_VER}-cudnn7-devel-ubuntu18.04
+
+# need to be redeclared since used in the from
+ARG CUDA_VER
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -64,7 +67,7 @@ RUN conda config --add channels conda-forge && \
     conda update -n base conda && \
     conda install -n base \
         cmake \
-        cudatoolkit=10.1 \
+        cudatoolkit=${CUDA_VER} \
         cython \
         tensorflow-gpu=2.2.0 \
     && conda clean -aqy

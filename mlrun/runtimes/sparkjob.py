@@ -216,7 +216,7 @@ class SparkRuntime(KubejobRuntime):
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _validate(self, runobj: RunObject):
-        # KeyError is used because it is raised and handled correctly and eventually shows
+        # ValueError is used because it is raised and handled correctly and eventually shows
         # the informative message to the user
         # TODO - Change to use MLRunError types when fastapi framework handles the internal exceptions correctly
 

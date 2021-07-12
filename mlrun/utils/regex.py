@@ -32,7 +32,7 @@ run_name = label_value
 #       63 - 25 - 9 = 29
 #       NOTE: If a name is between 30-33 characters - the function will complete successfully without creating the
 #           driver-svc meaning there is no way to get the response through a ui
-sparkjob_name = dns_1123_label + [r"^.{0,29}$"]
+sparkjob_name = label_value + [r"^.{0,29}$"]
 
 # A project name have the following restrictions:
 # It should be a valid Nuclio Project CRD name which is dns 1123 subdomain

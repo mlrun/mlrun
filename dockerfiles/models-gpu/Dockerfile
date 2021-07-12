@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.4
+ARG CUDA_VER=11.3.1
 
 FROM nvidia/cuda:${CUDA_VER}-cudnn7-devel-ubuntu18.04
 

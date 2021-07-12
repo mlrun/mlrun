@@ -222,15 +222,15 @@ class SparkRuntime(KubejobRuntime):
 
         # validating length limit for sparkjob's function name
         try:
-            verify_field_regex("name", runobj.metadata.name, sparkjob_name)
+            verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
         except Exception as exc:
-            raise KeyError(exc)
+            raise ValueError(exc)
 
         # validating existence of required fields
         if "requests" not in self.spec.executor_resources:
-            raise KeyError("Sparkjob must contain executor requests")
+            raise ValueError("Sparkjob must contain executor requests")
         if "requests" not in self.spec.driver_resources:
-            raise KeyError("Sparkjob must contain driver requests")
+            raise ValueError("Sparkjob must contain driver requests")
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)

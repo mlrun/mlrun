@@ -13,7 +13,7 @@
 # limitations under the License.
 ARG CUDA_VER=11.3.1
 
-FROM nvidia/cuda:${CUDA_VER}-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER

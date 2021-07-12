@@ -42,13 +42,23 @@ class Member(
         def __init__(self, project_member):
             self.project_member = project_member
 
-        def is_project_exists(self, session, name: str, leader_session: typing.Optional[str] = None):
-            if self.project_member.projects_store_mode == self.project_member.ProjectsStoreMode.cache:
+        def is_project_exists(
+            self, session, name: str, leader_session: typing.Optional[str] = None
+        ):
+            if (
+                self.project_member.projects_store_mode
+                == self.project_member.ProjectsStoreMode.cache
+            ):
                 return name in self.project_member._projects
-            elif self.project_member.projects_store_mode == self.project_member.ProjectsStoreMode.none:
-                projects_output = self.project_member.list_projects(session,
-                                                                    format_=mlrun.api.schemas.Format.name_only,
-                                                                    leader_session=leader_session)
+            elif (
+                self.project_member.projects_store_mode
+                == self.project_member.ProjectsStoreMode.none
+            ):
+                projects_output = self.project_member.list_projects(
+                    session,
+                    format_=mlrun.api.schemas.Format.name_only,
+                    leader_session=leader_session,
+                )
                 return name in projects_output.projects
 
         def delete_project(
@@ -57,16 +67,23 @@ class Member(
             name: str,
             deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         ):
-            if self.project_member.projects_store_mode == self.project_member.ProjectsStoreMode.cache:
+            if (
+                self.project_member.projects_store_mode
+                == self.project_member.ProjectsStoreMode.cache
+            ):
                 if name in self.project_member._projects:
                     del self.project_member._projects[name]
             return
 
     def initialize(self):
         logger.info("Initializing projects follower")
-        self.projects_store_mode = mlrun.mlconf.httpdb.projects.follower_projects_store_mode
+        self.projects_store_mode = (
+            mlrun.mlconf.httpdb.projects.follower_projects_store_mode
+        )
         if self.projects_store_mode not in self.ProjectsStoreMode.all():
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Provided projects store mode is not supported. mode={self.projects_store_mode}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Provided projects store mode is not supported. mode={self.projects_store_mode}"
+            )
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
         self._projects_store_for_deletion = self.ProjectsStore(self)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
@@ -179,7 +196,9 @@ class Member(
         return False
 
     def get_project(
-        self, db_session: sqlalchemy.orm.Session, name: str,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
         if self.projects_store_mode == self.ProjectsStoreMode.cache:

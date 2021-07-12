@@ -232,7 +232,7 @@ class SparkRuntime(KubejobRuntime):
             raise KeyError("Sparkjob must contain driver requests")
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
-        self._validate()
+        self._validate(runobj)
 
         if runobj.metadata.iteration:
             self.store_run(runobj)

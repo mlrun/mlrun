@@ -24,7 +24,7 @@ run_name = label_value
 # sparkjob name value format
 # the actual limit is for 63 characters, but due to mlrun and spark operator additions for unique
 # values - the limit is set to 30
-sparkjob_name = label_value.append(r"^.{0,30}$")
+sparkjob_name = label_value + [r"^.{0,30}$"]
 
 # A project name have the following restrictions:
 # It should be a valid Nuclio Project CRD name which is dns 1123 subdomain

@@ -82,7 +82,9 @@ class LocalFeatureMerger:
             self._result_df.drop(columns=index_columns, inplace=True, errors="ignore")
 
         if self.vector.status.label_column:
-            self._result_df = self._result_df.dropna(subset=[self.vector.status.label_column])
+            self._result_df = self._result_df.dropna(
+                subset=[self.vector.status.label_column]
+            )
 
         if target:
             is_persistent_vector = self.vector.metadata.name is not None

@@ -291,7 +291,9 @@ class Config:
     def get_default_function_node_selector():
         default_function_node_selector = {}
         if config.default_function_node_selector:
-            default_function_node_selector = json.loads(config.default_function_node_selector)
+            default_function_node_selector = json.loads(
+                config.default_function_node_selector
+            )
 
         return default_function_node_selector
 

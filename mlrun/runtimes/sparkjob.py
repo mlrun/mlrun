@@ -26,6 +26,8 @@ from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
+from mlrun.utils.helpers import verify_field_regex
+from mlrun.utils.regex import sparkjob_name
 
 from ..execution import MLClientCtx
 from ..model import RunObject
@@ -213,9 +215,17 @@ class SparkRuntime(KubejobRuntime):
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
-    def _validate(self):
+    def _validate(self, runobj: RunObject):
         # currently we use KeyError because it is handled correctly and show the message to the user
         # TODO - Change to use MLRunError types when fastapi framework handles the errors correctly
+
+        # validating length limit for sparkjob's function name
+        try:
+            verify_field_regex("name", runobj.metadata.name, sparkjob_name)
+        except Exception as exc:
+            raise KeyError(exc)
+
+        # validating existence of required fields
         if "requests" not in self.spec.executor_resources:
             raise KeyError("Sparkjob must contain executor requests")
         if "requests" not in self.spec.driver_resources:

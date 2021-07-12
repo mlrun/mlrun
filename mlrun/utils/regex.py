@@ -21,6 +21,11 @@ k8s_resource_quantity_regex = [r"^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"]
 
 run_name = label_value
 
+# sparkjob name value format
+# the actual limit is for 63 characters, but due to mlrun and spark operator additions for unique
+# values - the limit is set to 30
+sparkjob_name = label_value.append(r"^.{0,30}$")
+
 # A project name have the following restrictions:
 # It should be a valid Nuclio Project CRD name which is dns 1123 subdomain
 # It should be a valid k8s label value since Nuclio use the project name in labels of resources

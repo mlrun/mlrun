@@ -256,6 +256,7 @@ class HTTPRunDB(RunDBInterface):
                 else config.scrape_metrics
             )
             config.hub_url = server_cfg.get("hub_url") or config.hub_url
+            config.default_function_node_selector = server_cfg.get("default_function_node_selector") or config.default_function_node_selector
         except Exception:
             pass
         return self

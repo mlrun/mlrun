@@ -1,6 +1,15 @@
+import enum
 import typing
 
 import pydantic
+
+
+class PipelinesFormat(str, enum.Enum):
+    full = "full"
+    metadata_only = "metadata_only"
+    summary = "summary"
+    name_only = "name_only"
+
 
 
 class PipelinesPagination(str):

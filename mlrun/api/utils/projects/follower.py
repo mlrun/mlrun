@@ -56,7 +56,7 @@ class Member(
             ):
                 projects_output = self.project_member.list_projects(
                     session,
-                    format_=mlrun.api.schemas.Format.name_only,
+                    format_=mlrun.api.schemas.ProjectsFormat.name_only,
                     leader_session=leader_session,
                 )
                 return name in projects_output.projects
@@ -212,7 +212,7 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
         leader_session: typing.Optional[str] = None,
@@ -241,11 +241,11 @@ class Member(
             )
         project_names = list(map(lambda project: project.metadata.name, projects))
         # format output
-        if format_ == mlrun.api.schemas.Format.name_only:
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             projects = project_names
-        elif format_ == mlrun.api.schemas.Format.full:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
             pass
-        elif format_ == mlrun.api.schemas.Format.summary:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.summary:
             # importing here to avoid circular import (db using project member using mlrun follower using db)
             from mlrun.api.utils.singletons.db import get_db
 

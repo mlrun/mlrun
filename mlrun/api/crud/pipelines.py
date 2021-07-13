@@ -18,7 +18,7 @@ def list_pipelines(
     sort_by: str = "",
     page_token: str = "",
     filter_: str = "",
-    format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.metadata_only,
+    format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
     page_size: typing.Optional[int] = None,
 ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
     if project != "*" and (page_token or page_size or sort_by or filter_):
@@ -62,11 +62,11 @@ def list_pipelines(
 
 def _format_runs(
     runs: typing.List[dict],
-    format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.metadata_only,
+    format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
 ) -> typing.List[dict]:
-    if format_ == mlrun.api.schemas.Format.full:
+    if format_ == mlrun.api.schemas.PipelinesFormat.full:
         return runs
-    elif format_ == mlrun.api.schemas.Format.metadata_only:
+    elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
         formatted_runs = []
         for run in runs:
             formatted_runs.append(
@@ -87,7 +87,7 @@ def _format_runs(
                 }
             )
         return formatted_runs
-    elif format_ == mlrun.api.schemas.Format.name_only:
+    elif format_ == mlrun.api.schemas.PipelinesFormat.name_only:
         formatted_runs = []
         for run in runs:
             formatted_runs.append(run.get("name"))

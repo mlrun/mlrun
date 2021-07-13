@@ -30,8 +30,8 @@ def list_pipelines(
     sort_by: str = "",
     page_token: str = "",
     filter_: str = Query("", alias="filter"),
-    format_: mlrun.api.schemas.Format = Query(
-        mlrun.api.schemas.Format.metadata_only, alias="format"
+    format_: mlrun.api.schemas.PipelinesFormat = Query(
+        mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     page_size: int = Query(None, gt=0, le=200),
 ):
@@ -80,8 +80,8 @@ async def submit_pipeline(
 def get_pipeline(
     run_id,
     namespace: str = Query(config.namespace),
-    format_: mlrun.api.schemas.Format = Query(
-        mlrun.api.schemas.Format.metadata_only, alias="format"
+    format_: mlrun.api.schemas.PipelinesFormat = Query(
+        mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     project: str = None,
     db_session: Session = Depends(deps.get_db_session),
@@ -93,8 +93,8 @@ def get_pipeline(
 def get_project_pipeline(
     run_id,
     namespace: str = Query(config.namespace),
-    format_: mlrun.api.schemas.Format = Query(
-        mlrun.api.schemas.Format.metadata_only, alias="format"
+    format_: mlrun.api.schemas.PipelinesFormat = Query(
+        mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     project: str = None,
     db_session: Session = Depends(deps.get_db_session),
@@ -105,7 +105,7 @@ def get_project_pipeline(
 def _get_pipeline(
     run_id,
     namespace: str,
-    format_: mlrun.api.schemas.Format,
+    format_: mlrun.api.schemas.PipelinesFormat,
     project: str,
     db_session: Session,
 ):
@@ -115,7 +115,7 @@ def _get_pipeline(
         run = client.get_run(run_id)
         if run:
             run = run.to_dict()
-            if not format_ or format_ == mlrun.api.schemas.Format.summary:
+            if not format_ or format_ == mlrun.api.schemas.PipelinesFormat.summary:
                 run = get_short_kfp_run(run, project=project, session=db_session)
 
     except Exception as exc:

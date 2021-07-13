@@ -1031,7 +1031,7 @@ def list_pipelines(
     filter_="",
     namespace=None,
     project="*",
-    format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.metadata_only,
+    format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
@@ -1050,7 +1050,7 @@ def list_pipelines(
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
-        format_ = mlrun.api.schemas.Format.full
+        format_ = mlrun.api.schemas.PipelinesFormat.full
     run_db = get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size

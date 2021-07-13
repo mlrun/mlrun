@@ -908,7 +908,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self,
         session: Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
@@ -920,13 +920,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         projects = []
         # calculating the project summary data is done by doing cross project queries (and not per project) so we're
         # building it outside of the loop
-        if format_ == mlrun.api.schemas.Format.summary:
+        if format_ == mlrun.api.schemas.ProjectsFormat.summary:
             projects = self.generate_projects_summaries(session, project_names)
         else:
             for project_record in project_records:
-                if format_ == mlrun.api.schemas.Format.name_only:
+                if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
                     projects = project_names
-                elif format_ == mlrun.api.schemas.Format.full:
+                elif format_ == mlrun.api.schemas.ProjectsFormat.full:
                     projects.append(
                         self._transform_project_record_to_schema(
                             session, project_record

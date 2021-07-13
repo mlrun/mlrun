@@ -13,8 +13,10 @@
 # limitations under the License.
 import warnings
 from typing import TYPE_CHECKING, List, Optional
+import datetime
 
 import pandas as pd
+from ..utils import logger
 
 # Storey is not compatible with Python 3.6. We have to import this module in httpdb.
 # So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
@@ -211,6 +213,15 @@ class FeatureSetStatus(ModelObj):
 
     def update_target(self, target: DataTarget):
         self._targets.update(target)
+
+    def update_last_written_for_target(self, target_path: str, last_written: datetime.datetime):
+        print("HERE!!!!!!!!!!!! " + target_path + str(last_written))
+        for target in self._targets:
+            print("first is " + target_path + " " + target.path)
+            if target.path == target_path:
+                logger.info("updating!!!!!!")
+                target.last_written = last_written
+                print("updating object" + str(self))
 
 
 class FeatureSet(ModelObj):
@@ -587,6 +598,8 @@ class FeatureSet(ModelObj):
         as_dict["spec"]["features"] = as_dict["spec"].get(
             "features", []
         )  # bypass DB bug
+        print("savvvving " + str(as_dict))
+        print("object when saving is " + str(self.status))
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):
@@ -598,5 +611,8 @@ class FeatureSet(ModelObj):
             feature_set = FeatureSet.from_dict(feature_set)
 
         self.status = feature_set.status
+        print("self.status after reload is " + str(self.status))
         if update_spec:
             self.spec = feature_set.spec
+        print("update spec is " + str(update_spec))
+        print("sssself spec is " + str(self.spec))

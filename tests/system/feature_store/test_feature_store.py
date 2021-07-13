@@ -851,19 +851,17 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_443(self):
         from datetime import timedelta
-        from mlrun.api import schemas
-        # last_updated = target.get_last_updated()
+        # from mlrun.api import schemas
+
         now = datetime.now() + timedelta(minutes=2)
-        now_plus = now + timedelta(seconds=2)
         #        cron_trigger = schemas.ScheduleCronTrigger(
         #            second='*/1', start_time=now, end_time=now_plus
         #        )
 
         data = pd.DataFrame(
             {
-                "time": [now, now - pd.Timedelta(minutes=1)],
-                "first_name": ["moshe", "yosi"],
-                "data": [2000, 10],
+                "time": [pd.Timestamp("2021-01-10 10:00:00"), pd.Timestamp("2021-01-10 11:00:00")],
+                "first_name": ["moshe", "yosi"], "data": [2000, 10],
             }
         )
         # writing down a remote source
@@ -877,85 +875,43 @@ class TestFeatureStore(TestMLRunSystem):
 
         source = ParquetSource(
             "myparquet",
-            path=path, #### should be directory only
+            path=path,
             time_field="time",
             schedule=cron_trigger,
         )
 
-        feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
-#       target = ParquetTarget()
-        #        yyy = fs.ingest(feature_set, source, targets=[target])
-        yyy = fs.ingest(feature_set, source, run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
-        #        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
-
-        print(yyy)
-
+        feature_set = fs.FeatureSet(name="fs_443", entities=[fs.Entity("first_name")], timestamp_key='time')
+        fs.ingest(feature_set, source, run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
         sleep(60)
 
-        features = ["blabla.*"]
-        vec = fs.FeatureVector("blabla", features)
+        features = ["fs_443.*"]
+        vec = fs.FeatureVector("fs_443-vec", features)
         resp = fs.get_offline_features(vec)
         vec_df = resp.to_dataframe()
         vec_dict = vec_df.to_dict()
-        assert len(vec_df) == 2
-        assert vec_dict["data"]["moshe"] == 2000
-
-        return
-        sleep(600)
+        expected = {'data': {'moshe': 2000, 'yosi': 10}}
+        assert expected == vec_dict
 
         data = pd.DataFrame(
             {
-                "time": [now, now + pd.Timedelta(minutes=1), now + pd.Timedelta(minutes=1)],
+                "time": [pd.Timestamp("2021-01-10 12:00:00"), pd.Timestamp("2021-01-10 13:00:00"), now + pd.Timedelta(minutes=10)],
                 "first_name": ["moshe", "dina", "katya"],
                 "data": [50, 10, 25],
             }
         )
-        data.to_parquet(str(self.results_path / "second_iter.parquet"))
+        # writing down a remote source
+        target2 = ParquetTarget() #pass a path here?
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
         sleep(60)
         resp = fs.get_offline_features(vec)
-
         vec_df = resp.to_dataframe()
         vec_dict = vec_df.to_dict()
-        assert len(vec_df) == 2  # the new ones are too "old"
-        assert vec_dict["data"]["moshe"] == 50
 
-#     def test_443_play(self):
-#         from datetime import timedelta
-#         now = datetime.now() + timedelta(minutes=2)
-#
-#         data = pd.DataFrame(
-#             {
-#                 "time": [now, now - pd.Timedelta(minutes=1)],
-#                 "first_name": ["moshe", "yosi"],
-#                 "data": [2000, 10],
-#             }
-#         )
-#
-#         dir_name = "/tmp/vvvvvvv/"
-#
-#         os.mkdir(dir_name)
-#
-#         # writing down a remote source
-#         data.to_parquet(dir_name + "par1.parquet")
-#
-#         cron_trigger = '*/1 * * * *'
-#
-#         source = ParquetSource(
-#             "myparquet",
-#             path=dir_name,
-#             time_field="time",
-#             schedule=cron_trigger,
-#         )
-#
-#         feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
-#
-#         target = ParquetTarget()
-# #        yyy = fs.ingest(feature_set, source, targets=[target])
-#         yyy = fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
-#         print(yyy)
-#
-#         os.remove(dir_name+"par1.parquet")
-#         os.rmdir(dir_name)
+        expected = {'data': {'moshe': 50, 'dina': 10}}
+        assert expected == vec_dict
+#        sleep(120)
 
 
     def test_split_graph(self):

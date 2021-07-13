@@ -1090,6 +1090,7 @@ class DataTarget(DataTargetBase):
         "status",
         "updated",
         "size",
+        "last_written"
     ]
 
     def __init__(
@@ -1102,6 +1103,7 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
+        self.last_written = None
         self._producer = None
         self.producer = {}
 

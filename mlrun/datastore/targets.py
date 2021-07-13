@@ -182,20 +182,27 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     features = resource.spec.features
     table = None
 
+    print("tttthere are " + str(len(list(key_columns))) + " key columsn")
+
     for target in targets:
         driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
+        print("333333333333 " + str(list(key_columns)))
         driver.add_writer_step(
             graph,
             target.after_step or final_step,
             features=features if not target.after_step else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
+            featureset_status=resource.status,
         )
     if to_df:
         # add dataframe target, will return a dataframe
         driver = DFTarget()
+        print("444444444444 " + str(list(key_columns)))
+#        k = 6/0
+
         driver.add_writer_step(
             graph,
             final_step,
@@ -414,7 +421,7 @@ class BaseStoreTarget(DataTargetBase):
         return target
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         raise NotImplementedError()
 
@@ -427,6 +434,7 @@ class BaseStoreTarget(DataTargetBase):
             PendingDeprecationWarning,
         )
         """add storey writer state to graph"""
+        print("111111111 " + str(key_columns))
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def purge(self):
@@ -563,7 +571,7 @@ class ParquetTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         column_list = self._get_column_list(
             features=features,
@@ -607,6 +615,11 @@ class ParquetTarget(BaseStoreTarget):
         tuple_key_columns = []
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
+
+        if self.attributes:
+            self.attributes["featureset_status"] = featureset_status
+        else:
+            self.attributes = {"featureset_status": featureset_status}
 
         graph.add_step(
             name=self.name or "ParquetTarget",
@@ -679,7 +692,7 @@ class CSVTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         column_list = self._get_column_list(
@@ -750,7 +763,7 @@ class NoSqlTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         table = self._resource.uri
@@ -829,7 +842,7 @@ class StreamTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         from storey import V3ioDriver
 
@@ -873,7 +886,7 @@ class TSDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         endpoint, uri = parse_v3io_path(self._target_path)
@@ -963,7 +976,7 @@ class CustomTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
@@ -998,10 +1011,11 @@ class DFTarget(BaseStoreTarget):
             PendingDeprecationWarning,
         )
         """add storey writer state to graph"""
+        print("222222222222 " + str(key_columns))
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         # todo: column filter

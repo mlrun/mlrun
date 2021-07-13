@@ -236,7 +236,11 @@ def ingest(
     if run_config:
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
+        print("CHECKING!!!!!")
+        logger.info("CHECKING!!!!!")
         if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
+            # this flow does not happen when runnign locally!!!!!!
+            print("ulala ulala setting start time")
             source.start_time = featureset.status.targets[0].last_written #for now the first. later min
             source.end_time = datetime.now()
         source, run_config.parameters = set_task_params(
@@ -248,6 +252,7 @@ def ingest(
         )
 
     if mlrun_context:
+        print("CHECKING2!!!!!")
         # extract ingestion parameters from mlrun context
         if featureset or source is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -260,6 +265,21 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
             )
+
+        print("source.schedule is " + str(source.schedule))
+#        print("targers " + str(featureset.status.targets))
+#        if len(featureset.status.targets) > 0:
+#            print("there are targets!!!" + str(featureset.status.targets[0]))
+
+        if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
+            print("ulala ulala setting start time")
+            mlrun_context.logger.info("ulala ulala setting start time")
+            # last_written is a string.
+            source.start_time = datetime.fromisoformat(featureset.status.targets[0].last_written) #for now the first. later min
+            source.end_time = datetime.now()
+            print("start time is " + str(source.start_time) + " type is " + str(type(source.start_time)))
+            print("end tine is " + str(source.end_time))
+
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
         return_df = False
 
@@ -267,12 +287,16 @@ def ingest(
 
     purge_targets = targets or featureset.spec.targets or get_default_targets()
     if overwrite:
+        print("fffolowing1 " + str(featureset.spec))
         validate_target_list(targets=purge_targets)
         purge_target_names = [
             t if isinstance(t, str) else t.name for t in purge_targets
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
+        print("fffolowing2 " + str(featureset.spec))
+
     else:
+        print("fffolowing3 " + str(featureset.spec))
         for target in purge_targets:
             overwrite_supported_targets = [TargetTypes.parquet, TargetTypes.nosql]
             if target.kind not in overwrite_supported_targets:
@@ -281,6 +305,7 @@ def ingest(
                         ",".join(overwrite_supported_targets)
                     )
                 )
+        print("fffolowing4 " + str(featureset.spec))
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -300,6 +325,7 @@ def ingest(
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
+#        print("issss it ?????")
         source = mlrun.store_manager.object(url=source).as_df()
 
     schema_options = InferOptions.get_common_options(
@@ -313,7 +339,11 @@ def ingest(
         infer_options, InferOptions.all_stats()
     )
     return_df = return_df or infer_stats != InferOptions.Null
+    print("fffolowing1 " + str(featureset.spec))
     featureset.save()
+
+#    print("start is " + str(source._start_time) + " type is " + str(type(source._start_time)))
+#    print("end is " + str(source._end_time) + " type is " + str(type(source._end_time)))
 
     targets = targets or featureset.spec.targets or get_default_targets()
     df = init_featureset_graph(

@@ -1,8 +1,10 @@
+import json
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List
 
+import v3io
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -12,18 +14,23 @@ import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
+from mlrun.api.crud.model_endpoints import ModelEndpoints
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, runtime_resources_map
+from mlrun.runtimes import (
+    RuntimeKinds,
+    runtime_resources_map,
+)
 from mlrun.runtimes.function import (
     deploy_nuclio_function,
     get_nuclio_deploy_status,
     resolve_function_internal_invocation_url,
 )
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 
 router = APIRouter()
 
@@ -353,6 +360,21 @@ def _build_function(
             deploy_nuclio_function(fn)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
+
+            if fn.kind == RuntimeKinds.serving:
+                # Handle model monitoring
+                try:
+                    if fn.spec.track_models:
+                        logger.info("Tracking enabled, initializing model monitoring")
+                        _create_model_monitoring_stream(project=fn.metadata.project)
+                        ModelEndpoints.deploy_monitoring_functions(
+                            project=fn.metadata.project,
+                            db_session=db_session,
+                            auth_info=auth_info,
+                        )
+                except Exception as e:
+                    logger.exception(e)
+
         else:
             ready = build_runtime(
                 fn, with_mlrun, mlrun_version_specifier, skip_deployed
@@ -432,3 +454,32 @@ def _get_function_status(data):
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+
+
+def _create_model_monitoring_stream(project: str):
+
+    stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind="stream"
+    )
+
+    _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+    # TODO: How should we configure sharding here?
+    logger.info(
+        "Creating endpoint stream",
+        stream_path=stream_path,
+        container=container,
+        endpoint=config.v3io_api,
+    )
+
+    v3io_client = v3io.dataplane.Client(endpoint=config.v3io_api)
+    response = v3io_client.create_stream(
+        container=container,
+        path=stream_path,
+        shard_count=1,
+        retention_period_hours=24,
+        raise_for_status=v3io.dataplane.RaiseForStatus.never,
+    )
+
+    if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+        response.raise_for_status([409, 204])

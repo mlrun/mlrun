@@ -1,11 +1,14 @@
 import json
+import textwrap
 from typing import Any, Dict, List, Mapping, Optional
 
+from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
 
 import mlrun.api.api.utils
 import mlrun.datastore.store_resources
+from mlrun.api.api.utils import get_run_db_instance, _submit_run
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -22,6 +25,9 @@ from mlrun.errors import (
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
 )
+from mlrun.k8s_utils import get_k8s_helper
+from mlrun.runtimes import KubejobRuntime, RemoteRuntime
+from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
@@ -351,6 +357,120 @@ class ModelEndpoints:
                 endpoint.status.metrics = endpoint_metrics
 
         return endpoint
+
+    @staticmethod
+    def deploy_monitoring_functions(
+        project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo
+    ):
+        if not _check_secret_exists(project, "MODEL_MONITORING_API_KEY"):
+            error = """
+                Missing 'MODEL_MONITORING_API_KEY' project secret, if you wish to enable model tracking supply the project with an 
+                authorized api key by using:
+                
+                from mlrun import get_run_db
+                db = get_run_db()
+                db.create_project_secrets(
+                    <PROJECT_NAME>,
+                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                    secrets={"MODEL_MONITORING_API_KEY": <API_KEY>}
+                )
+                """
+            raise MLRunBadRequestError(textwrap.dedent(error))
+
+        ModelEndpoints.deploy_model_monitoring_stream_processing(project)
+        ModelEndpoints.deploy_model_monitoring_batch_processing(
+            db_session, project, auth_info
+        )
+
+    @staticmethod
+    def deploy_model_monitoring_stream_processing(project: str):
+        try:
+            logger.info(
+                f"Checking deployment status for model-monitoring-stream [{project}]"
+            )
+            get_nuclio_deploy_status(
+                name="model-monitoring-stream", project=project, tag=""
+            )
+            logger.info(
+                f"Detected model-monitoring-stream [{project}] already deployed"
+            )
+            return
+        except DeployError:
+            pass
+
+        logger.info(f"Deploying model-monitoring-stream [{project}]")
+        logger.debug("Importing model-monitoring-stream function from function hub")
+        fn: RemoteRuntime = mlrun.import_function(
+            "hub://model_monitoring_stream:development"
+        )
+        fn.metadata.project = project
+
+        stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind="stream"
+        )
+
+        fn.add_v3io_stream_trigger(
+            stream_path=stream_path, name="monitoring_stream_trigger"
+        )
+
+        env_params = {
+            "project": project,
+            "v3io_framesd": config.v3io_framesd,
+        }
+
+        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps(env_params))
+        _add_secret(fn, project, "MODEL_MONITORING_API_KEY")
+        fn.apply(mlrun.mount_v3io())
+        deploy_nuclio_function(fn)
+
+    @staticmethod
+    def deploy_model_monitoring_batch_processing(
+        project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo,
+    ):
+        run_db = get_run_db_instance(db_session, auth_info.session)
+
+        # Test if mlrun-job already deployed
+        function_list = run_db.list_functions(
+            name="model-monitoring-batch", project=project
+        )
+        if function_list:
+            logger.info(f"Detected model-monitoring-batch [{project}] already deployed")
+            return
+
+        logger.info(f"Deploying model-monitoring-batch [{project}]")
+        logger.debug("Importing model-monitoring-batch function from function hub")
+
+        fn: KubejobRuntime = mlrun.import_function(
+            "hub://model_monitoring_batch:experimental"
+        )
+        fn.set_db_connection(run_db)
+
+        fn.metadata.project = project
+        fn.apply(mlrun.mount_v3io())
+        _add_secret(fn, project, "MODEL_MONITORING_API_KEY")
+
+        function_uri = fn.save()
+
+        task = mlrun.new_task(name="model-monitoring-batch", project=project)
+
+        data = {
+            "task": task.to_dict(),
+            "schedule": "0 */1 * * *",
+            "functionUrl": function_uri,
+        }
+
+        _submit_run(db_session=db_session, auth_info=auth_info, data=data)
+
+
+def _check_secret_exists(project_name: str, secret: str):
+    existing_secret_keys = get_k8s_helper().get_project_secret_keys(project_name) or {}
+    return secret in existing_secret_keys
+
+
+def _add_secret(fn, project_name: str, secret: str):
+    secret_name = get_k8s_helper().get_project_secret_name(project_name)
+    if _check_secret_exists(project_name, secret):
+        fn.set_env_from_secret(secret, secret_name, secret)
 
 
 def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool = True):

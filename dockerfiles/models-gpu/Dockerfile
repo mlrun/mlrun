@@ -62,6 +62,8 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
+RUN conda install python=3.7.9 pip~=20.2.0
+
 RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
     conda config --add channels nvidia && \
@@ -70,10 +72,6 @@ RUN conda config --add channels conda-forge && \
     conda update -n base conda && \
     conda install -n base \
         cmake \
-        python=3.7 \
-    && conda clean -aqy
-
-RUN conda install -n base \
         cudatoolkit=${CUDA_VER} \
         cython \
         tensorflow-gpu=2.4.1 \
@@ -81,8 +79,6 @@ RUN conda install -n base \
         pytorch \
         torchvision \
     && conda clean -aqy
-
-RUN python -m pip install --upgrade pip~=20.2.0
 
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)

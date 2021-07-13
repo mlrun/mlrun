@@ -380,7 +380,7 @@ class ModelEndpoints:
 
         ModelEndpoints.deploy_model_monitoring_stream_processing(project)
         ModelEndpoints.deploy_model_monitoring_batch_processing(
-            db_session, project, auth_info
+            project=project, db_session=db_session, auth_info=auth_info,
         )
 
     @staticmethod

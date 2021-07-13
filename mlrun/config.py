@@ -90,8 +90,8 @@ default_config = {
     "v3io_api": "http://v3io-webapi:8081",
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
-    # default node selector to be applied to all functions - json string format
-    "default_function_node_selector": "{}",
+    # default node selector to be applied to all functions - json string base64 encoded format
+    "default_function_node_selector": "e30=",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -291,8 +291,11 @@ class Config:
     def get_default_function_node_selector():
         default_function_node_selector = {}
         if config.default_function_node_selector:
-            default_function_node_selector = json.loads(
+            default_function_node_selector_json_string = base64.b64decode(
                 config.default_function_node_selector
+            ).decode()
+            default_function_node_selector = json.loads(
+                default_function_node_selector_json_string
             )
 
         return default_function_node_selector

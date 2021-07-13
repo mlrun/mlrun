@@ -48,6 +48,7 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
     conda update -n base -c defaults conda && \
+    conda config --set channel_priority strict && \
     conda install -n base \
         python=3.7 \
         pip~=20.2.0 \

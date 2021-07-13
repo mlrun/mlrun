@@ -64,7 +64,8 @@ For example, the following code extracts the path to the artifacts directory of 
 to a `training_artifacts` variable:
 
 ```python
-training_artifacts = os.join(artifact_path, 'training')
+from os import path
+training_artifacts = path.join(artifact_path, 'training')
 ```
 
 > **Note:** The artifacts path is using [data store URLs](./datastore.md) which are not necessarily local file paths 
@@ -89,7 +90,7 @@ they host common and object specific metadata such as:
 * type specific attributes
 
 Artifacts can be obtained via the SDK through type specific APIs or using generic artifact APIs such as:
-* {py:func}`~mlrun.run.get_data_item` - get the {py:class}`~mlrun.datastore.DataItem` object for reading/downloading the artifact content
+* {py:func}`~mlrun.run.get_dataitem` - get the {py:class}`~mlrun.datastore.DataItem` object for reading/downloading the artifact content
 * {py:func}`~mlrun.datastore.get_store_resource` - get the artifact object
 
 example artifact URLs:
@@ -161,13 +162,15 @@ get_data_run = run_local(name='get_data',
                          artifact_path=artifact_path)
 ```
 
-The dataset location is returned in the `outputs` field, therefore you can get the location by calling `get_data_run.outputs['iris_dataset']` and use the `get_dataitem` function to get the dataset itself.
+The dataset location is returned in the `outputs` field, therefore you can get the location by calling `get_data_run.artifact('iris_dataset')` to get the dataset itself.
 
 
 ``` python
 # Read your data set
-from mlrun.run import get_dataitem
-dataset = get_dataitem(get_data_run.outputs['iris_dataset'])
+get_data_run.artifact('iris_dataset').as_df()
+
+# Visualize an artifact in Jupyter (image, html, df, ..)
+get_data_run.artifact('confusion-matrix').show()
 ```
 
 Call `dataset.meta.stats` to obtain the data statistics. You can also get the data as a Pandas Dataframe by calling the `dataset.as_df()`.

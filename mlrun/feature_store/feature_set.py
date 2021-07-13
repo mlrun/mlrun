@@ -431,6 +431,23 @@ class FeatureSet(ModelObj):
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
                             or a list of same unit windows e.g ['1h', '6h']
+                            windows are transformed to fixed windows or
+                            sliding windows depending whether period parameter
+                            provided.
+
+                            - Sliding window is fixed-size overlapping windows
+                              that slides with time.
+                              The window size determines the size of the sliding window
+                              and the period determines the step size to slide.
+                              Period must be integral divisor of the window size.
+                              If the period is not provided then fixed windows is used.
+
+                            - Fixed window is fixed-size, non-overlapping, gap-less window.
+                              The window is referred to as a tumbling window.
+                              In this case, each record on an in-application stream belongs
+                              to a specific window. It is processed only once
+                              (when the query processes the window to which the record belongs).
+
         :param period:     optional, sliding window granularity, e.g. '10m'
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead
@@ -564,6 +581,7 @@ class FeatureSet(ModelObj):
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
         db = self._get_run_db()
+        self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
         as_dict["spec"]["features"] = as_dict["spec"].get(

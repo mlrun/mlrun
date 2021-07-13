@@ -710,7 +710,7 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
         client, project_name, feature_set, versioned=False
     )
 
-    allowed_added_fields = ["updated", "tag", "uid", "project"]
+    allowed_added_fields = ["created", "updated", "tag", "uid", "project"]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_set, feature_set_response, allowed_added_fields
     )

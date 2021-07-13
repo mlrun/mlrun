@@ -13,6 +13,7 @@
 # limitations under the License.
 import getpass
 import importlib.util as imputil
+import pathlib
 import shutil
 import typing
 import warnings
@@ -24,8 +25,8 @@ from git import Repo
 from kfp import compiler
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.leader
 import mlrun.errors
+import mlrun.utils.regex
 
 from ..artifacts import (
     ArtifactManager,
@@ -174,7 +175,7 @@ def _load_project_dir(context, name="", subpath=""):
 
 def _load_project_from_db(url, secrets):
     db = get_run_db(secrets=secrets)
-    project_name = url.replace("git://", "")
+    project_name = url.replace("db://", "")
     return db.get_project(project_name)
 
 
@@ -239,8 +240,20 @@ class ProjectMetadata(ModelObj):
     @name.setter
     def name(self, name):
         if name:
-            mlrun.api.utils.projects.leader.Member.validate_project_name(name)
+            self.validate_project_name(name)
         self._name = name
+
+    @staticmethod
+    def validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
+        try:
+            mlrun.utils.helpers.verify_field_regex(
+                "project.metadata.name", name, mlrun.utils.regex.project_name
+            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
 
 
 class ProjectSpec(ModelObj):
@@ -1236,7 +1249,7 @@ class MlrunProject(ModelObj):
             return self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
 
         run_db = get_run_db(secrets=self._secrets)
-        project_secrets = run_db.get_project_secrets(
+        project_secrets = run_db.list_project_secrets(
             self.metadata.name,
             self._secrets.vault.token,
             mlrun.api.schemas.SecretProviderName.vault,
@@ -1419,6 +1432,9 @@ class MlrunProject(ModelObj):
         filepath = filepath or path.join(
             self.spec.context, self.spec.subpath, "project.yaml"
         )
+        project_dir = pathlib.Path(filepath).parent
+        if not project_dir.exists():
+            project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
 

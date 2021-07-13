@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 import pyarrow
+from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
-from .data_types import InferOptions, pa_type_to_value_type
+from .data_types import InferOptions, pa_type_to_value_type, pd_schema_to_value_type
 
 default_num_bins = 20
 
@@ -19,6 +20,7 @@ def infer_schema_from_df(
     timestamp_fields = []
     current_entities = list(entities.keys())
     entity_columns = entity_columns or []
+    index_columns = dict()
 
     def upsert_entity(name, value_type):
         if name in current_entities:
@@ -32,7 +34,7 @@ def infer_schema_from_df(
         column = schema.names[i]
         value_type = pa_type_to_value_type(schema.types[i])
         if column in df.index.names:
-            index_type = value_type
+            index_columns[column] = value_type
             continue
         is_entity = column in entity_columns or column in current_entities
         if is_entity:
@@ -48,13 +50,24 @@ def infer_schema_from_df(
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
+    index_type = None
     if InferOptions.get_common_options(options, InferOptions.Index):
         # infer types of index fields
         if df.index.name:
+            if df.index.name in index_columns:
+                index_type = index_columns[df.index.name]
+            if not index_type:
+                field = convert_pandas_type_to_json_field(df.index)
+                index_type = pd_schema_to_value_type(field["type"])
             # Workaround to infer a boolean index correctly, and not as 'str'.
             upsert_entity(df.index.name, index_type)
         elif df.index.nlevels > 1:
             for level, name in zip(df.index.levels, df.index.names):
+                if name in index_columns:
+                    index_type = index_columns[name]
+                else:
+                    field = convert_pandas_type_to_json_field(df.index)
+                    index_type = pd_schema_to_value_type(field["type"])
                 upsert_entity(name, index_type)
                 if index_type == "datetime":
                     timestamp_fields.append(name)

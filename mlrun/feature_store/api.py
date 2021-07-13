@@ -52,6 +52,11 @@ def _features_to_vector(features):
         vector = get_feature_vector_by_uri(features)
     elif isinstance(features, FeatureVector):
         vector = features
+        if not vector.metadata.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "feature vector name must be specified"
+            )
+        vector.save()
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"illegal features value/type ({type(features)})"
@@ -277,6 +282,10 @@ def ingest(
                         ",".join(overwrite_supported_targets)
                     )
                 )
+            if hasattr(target, "is_single_file") and target.is_single_file():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Overwriting isn't supported in single files. Please use folder path."
+                )
 
     if spark_context and featureset.spec.engine != "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -328,6 +337,7 @@ def preview(
     timestamp_key=None,
     namespace=None,
     options: InferOptions = None,
+    verbose=False,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -349,6 +359,7 @@ def preview(
     :param timestamp_key:  timestamp column name
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param verbose:        verbose log
     """
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
@@ -375,7 +386,9 @@ def preview(
                 entity_columns,
                 InferOptions.get_common_options(options, InferOptions.Entities),
             )
-        source = init_featureset_graph(source, featureset, namespace, return_df=True)
+        source = init_featureset_graph(
+            source, featureset, namespace, return_df=True, verbose=verbose
+        )
 
     df = infer_from_static_df(source, featureset, entity_columns, options)
     return df
@@ -406,6 +419,7 @@ def deploy_ingestion_service(
     targets: List[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
+    verbose=False,
 ):
     """Start real-time ingestion service using nuclio function
 
@@ -424,6 +438,7 @@ def deploy_ingestion_service(
     :param targets:       list of data target objects
     :param name:          name name for the job/function
     :param run_config:    service runtime configuration (function object/uri, resources, etc..)
+    :param verbose:       verbose log
     """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -433,7 +448,7 @@ def deploy_ingestion_service(
         featureset, source, targets, run_config.parameters
     )
 
-    name = name or f"{featureset.metadata.name}_ingest"
+    name = name or f"{featureset.metadata.name}-ingest"
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():
@@ -456,7 +471,7 @@ def deploy_ingestion_service(
     function.spec.graph_initializer = (
         "mlrun.feature_store.ingestion.featureset_initializer"
     )
-    function.verbose = True
+    function.verbose = function.verbose or verbose
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
     return function.deploy()
@@ -485,7 +500,10 @@ def _ingest_with_spark(
 
             spark = SparkSession.builder.appName(session_name).getOrCreate()
 
-        df = source.to_spark_df(spark)
+        if isinstance(source, pd.DataFrame):
+            df = spark.createDataFrame(source)
+        else:
+            df = source.to_spark_df(spark)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
@@ -592,18 +610,25 @@ def get_feature_vector(uri, project=None):
     return get_feature_vector_by_uri(uri, project)
 
 
-def delete_feature_set(name, project="", tag=None, uid=None):
+def delete_feature_set(name, project="", tag=None, uid=None, force=False):
     """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
     :param uid: Specific object's uid
+    :param force: Delete feature set without purging its targets
 
     If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
     """
     db = mlrun.get_run_db()
+    if not force:
+        feature_set = db.get_feature_set(name=name, project=project, tag=tag, uid=uid)
+        if feature_set.status.targets:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "delete_feature_set requires targets purging. Use either FeatureSet's purge_targets or the force flag."
+            )
     return db.delete_feature_set(name=name, project=project, tag=tag, uid=uid)
 
 

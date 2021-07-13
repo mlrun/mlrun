@@ -648,6 +648,11 @@ class ParquetTarget(BaseStoreTarget):
             time_column=time_column,
         )
 
+    def is_single_file(self):
+        if self.path:
+            return self.path.endswith(".parquet") or self.path.endswith(".pq")
+        return False
+
 
 class CSVTarget(BaseStoreTarget):
     kind = TargetTypes.csv
@@ -755,7 +760,10 @@ class NoSqlTarget(BaseStoreTarget):
         key_columns = list(key_columns.keys())
         table = self._resource.uri
         column_list = self._get_column_list(
-            features=features, timestamp_key=None, key_columns=key_columns
+            features=features,
+            timestamp_key=None,
+            key_columns=key_columns,
+            with_type=True,
         )
         if not self.columns:
             aggregate_features = (
@@ -763,7 +771,9 @@ class NoSqlTarget(BaseStoreTarget):
                 if features
                 else []
             )
-            column_list = [col for col in column_list if col not in aggregate_features]
+            column_list = [
+                col for col in column_list if col[0] not in aggregate_features
+            ]
 
         graph.add_step(
             name=self.name or "NoSqlTarget",
@@ -1036,6 +1046,12 @@ def _get_target_path(driver, resource):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
+    if not suffix:
+        if (
+            kind == ParquetTarget.kind
+            and resource.kind == mlrun.api.schemas.ObjectKind.feature_vector
+        ):
+            suffix = ".parquet"
     kind_prefix = (
         "sets"
         if resource.kind == mlrun.api.schemas.ObjectKind.feature_set

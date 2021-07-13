@@ -57,7 +57,7 @@ RUN conda config --add channels conda-forge && \
         cmake \
         cudatoolkit=${CUDA_VER} \
         cython \
-        tensorflow-gpu=2.4.1 \
+        tensorflow-gpu \
         rapids=21.06 \
         pytorch \
         torchvision \

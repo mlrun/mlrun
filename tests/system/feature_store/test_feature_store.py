@@ -883,7 +883,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(name="blabla", entities=[fs.Entity("first_name")], timestamp_key='time')
- #       target = ParquetTarget()
+#       target = ParquetTarget()
         #        yyy = fs.ingest(feature_set, source, targets=[target])
         yyy = fs.ingest(feature_set, source, run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
         #        fs.ingest(feature_set, source, targets=[target], run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
@@ -900,8 +900,8 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(vec_df) == 2
         assert vec_dict["data"]["moshe"] == 2000
 
-        sleep(600)
         return
+        sleep(600)
 
         data = pd.DataFrame(
             {

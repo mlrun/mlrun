@@ -313,7 +313,9 @@ class RunDBInterface(ABC):
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
-        format_: Union[str, schemas.ProjectsFormat] = schemas.ProjectsFormat.metadata_only,
+        format_: Union[
+            str, schemas.ProjectsFormat
+        ] = schemas.ProjectsFormat.metadata_only,
         page_size: int = None,
     ) -> schemas.PipelinesOutput:
         pass

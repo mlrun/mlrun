@@ -1,18 +1,18 @@
 import ast
 import http
 import json
-import mlrun.api.api.utils
 import typing
 
 import kfp
+import sqlalchemy.orm
 
 import mlrun
-import mlrun.kfpops
-import mlrun.utils.singleton
+import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.kfpops
 import mlrun.utils.helpers
-import sqlalchemy.orm
+import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
@@ -65,27 +65,33 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         return total_size, next_page_token, runs
 
     def get_pipeline(
-            self,
-            db_session: sqlalchemy.orm.Session,
-            run_id: str,
-            project: typing.Optional[str] = None,
-            namespace: str = mlrun.mlconf.namespace,
-            format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary):
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: typing.Optional[str] = None,
+        namespace: str = mlrun.mlconf.namespace,
+        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary,
+    ):
         kfp_client = kfp.Client(namespace=namespace)
         try:
             run = kfp_client.get_run(run_id)
             if run:
                 run = run.to_dict()
                 if format_ == mlrun.api.schemas.PipelinesFormat.summary:
-                    run = mlrun.kfpops.format_summary_from_kfp_run(run, project=project, session=db_session)
+                    run = mlrun.kfpops.format_summary_from_kfp_run(
+                        run, project=project, session=db_session
+                    )
                 elif format_ == mlrun.api.schemas.PipelinesFormat.full:
                     pass
                 else:
-                    raise NotImplementedError(f"Provided format is not supported. format={format_}")
+                    raise NotImplementedError(
+                        f"Provided format is not supported. format={format_}"
+                    )
 
         except Exception as exc:
             mlrun.api.api.utils.log_and_raise(
-                http.HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {exc}"
+                http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                reason=f"get kfp error: {exc}",
             )
 
         return run
@@ -124,8 +130,9 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                 formatted_runs.append(run.get("name"))
             return formatted_runs
         else:
-            raise NotImplementedError(f"Provided format is not supported. format={format_}")
-
+            raise NotImplementedError(
+                f"Provided format is not supported. format={format_}"
+            )
 
     def _resolve_project_from_command(
         self,
@@ -137,7 +144,8 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         # project has precedence over function url so search for it first
         for index, argument in enumerate(command):
             if (
-                (argument == "-p" and hyphen_p_is_also_project) or argument == "--project"
+                (argument == "-p" and hyphen_p_is_also_project)
+                or argument == "--project"
             ) and index + 1 < len(command):
                 return command[index + 1]
         if has_func_url_flags:
@@ -147,7 +155,12 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                 ):
                     function_url = command[index + 1]
                     if function_url.startswith("db://"):
-                        project, _, _, _ = mlrun.utils.helpers.parse_versioned_object_uri(
+                        (
+                            project,
+                            _,
+                            _,
+                            _,
+                        ) = mlrun.utils.helpers.parse_versioned_object_uri(
                             function_url[len("db://") :]
                         )
                         if project:
@@ -171,7 +184,6 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                                 return project
 
         return None
-
 
     def _resolve_pipeline_project(self, pipeline):
         workflow_manifest = json.loads(

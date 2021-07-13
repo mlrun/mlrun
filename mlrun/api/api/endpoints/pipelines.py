@@ -15,7 +15,6 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
-from mlrun.kfpops import format_summary_from_kfp_run
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -83,7 +82,9 @@ def get_pipeline_legacy(
     namespace: str = Query(config.namespace),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return mlrun.api.crud.Pipelines().get_pipeline(db_session, run_id, namespace=namespace)
+    return mlrun.api.crud.Pipelines().get_pipeline(
+        db_session, run_id, namespace=namespace
+    )
 
 
 @router.get("/projects/{project}/pipelines/{run_id}")
@@ -96,7 +97,9 @@ def get_pipeline(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return mlrun.api.crud.Pipelines().get_pipeline(db_session, run_id, project, namespace, format_)
+    return mlrun.api.crud.Pipelines().get_pipeline(
+        db_session, run_id, project, namespace, format_
+    )
 
 
 def _submit_pipeline(request, data, namespace, experiment_name, run_name):

@@ -57,12 +57,12 @@ from .model_endpoints import (
     ModelEndpointStatus,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
-from .pipeline import PipelinesOutput, PipelinesPagination, PipelinesFormat
+from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
     Project,
-ProjectsFormat,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectsFormat,
     ProjectsOutput,
     ProjectSpec,
     ProjectState,

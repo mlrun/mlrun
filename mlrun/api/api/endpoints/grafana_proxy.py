@@ -11,12 +11,12 @@ from starlette.concurrency import run_in_threadpool
 from mlrun.api.api import deps
 from mlrun.api.crud.model_endpoints import EVENTS, ModelEndpoints, get_access_key
 from mlrun.api.schemas import (
-    ProjectsFormat,
     GrafanaColumn,
     GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaTable,
     GrafanaTimeSeriesTarget,
+    ProjectsFormat,
 )
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.errors import MLRunBadRequestError
@@ -93,7 +93,9 @@ async def grafana_proxy_model_endpoints_search(
 def grafana_list_projects(db_session: Session) -> List[str]:
     db = get_db()
 
-    projects_output = db.list_projects(session=db_session, format_=ProjectsFormat.name_only)
+    projects_output = db.list_projects(
+        session=db_session, format_=ProjectsFormat.name_only
+    )
     return projects_output.projects
 
 

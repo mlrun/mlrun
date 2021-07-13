@@ -990,10 +990,13 @@ def wait_for_pipeline_completion(
     return resp
 
 
-def get_pipeline(run_id, namespace=None,
-                 format_: Union[
-                     str, mlrun.api.schemas.PipelinesFormat
-                 ] = mlrun.api.schemas.PipelinesFormat.summary,):
+def get_pipeline(
+    run_id,
+    namespace=None,
+    format_: Union[
+        str, mlrun.api.schemas.PipelinesFormat
+    ] = mlrun.api.schemas.PipelinesFormat.summary,
+):
     """Get Pipeline status
 
     :param run_id:     id of pipelines run

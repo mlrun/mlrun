@@ -1685,7 +1685,9 @@ class HTTPRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: Union[str, mlrun.api.schemas.ProjectsFormat] = mlrun.api.schemas.ProjectsFormat.full,
+        format_: Union[
+            str, mlrun.api.schemas.ProjectsFormat
+        ] = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: Union[str, mlrun.api.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -1850,7 +1852,9 @@ class HTTPRunDB(RunDBInterface):
 
     def _wait_for_project_to_be_deleted(self, project_name: str):
         def _verify_project_deleted():
-            projects = self.list_projects(format_=mlrun.api.schemas.ProjectsFormat.name_only)
+            projects = self.list_projects(
+                format_=mlrun.api.schemas.ProjectsFormat.name_only
+            )
             if project_name in projects:
                 raise Exception("Project still exists")
 

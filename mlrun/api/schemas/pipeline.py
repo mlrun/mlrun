@@ -11,7 +11,6 @@ class PipelinesFormat(str, enum.Enum):
     name_only = "name_only"
 
 
-
 class PipelinesPagination(str):
     default_page_size = 20
     # https://github.com/kubeflow/pipelines/blob/master/backend/src/apiserver/list/list.go#L363

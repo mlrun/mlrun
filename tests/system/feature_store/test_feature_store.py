@@ -135,7 +135,9 @@ class TestFeatureStore(TestMLRunSystem):
         resp.to_parquet(str(self.results_path / "query.parquet"))
 
         # check simple api without join with other df
-        resp = fs.get_offline_features(vector)
+        # test the use of vector uri
+        vector.save()
+        resp = fs.get_offline_features(vector.uri)
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
@@ -1015,7 +1017,42 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
 
-    def test_override_false(self):
+    def test_overwrite_specified_nosql_path(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        targets = [NoSqlTarget(path="v3io:///bigdata/overwrite-spec")]
+
+        fset = fs.FeatureSet(name="overwrite-spec-path", entities=[fs.Entity("name")])
+        features = ["overwrite-spec-path.*"]
+        fvec = fs.FeatureVector("overwrite-spec-path-fvec", features=features)
+
+        fs.ingest(fset, df1, targets=targets)
+
+        fs.ingest(fset, df2, targets=targets)
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        resp = svc.get(entity_rows=[{"name": "ABC"}])
+        assert resp[0] is None
+        svc.close()
+
+    def test_overwrite_single_parquet_file(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        targets = [ParquetTarget(path="v3io:///bigdata/overwrite-pq-spec/my.parquet")]
+
+        fset = fs.FeatureSet(
+            name="overwrite-pq-spec-path", entities=[fs.Entity("name")]
+        )
+
+        fs.ingest(fset, df1, targets=targets)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df2, targets=targets, overwrite=False)
+
+    def test_overwrite_false(self):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
         df3 = pd.concat([df1, df2])

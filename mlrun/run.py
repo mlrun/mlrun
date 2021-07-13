@@ -990,12 +990,17 @@ def wait_for_pipeline_completion(
     return resp
 
 
-def get_pipeline(run_id, namespace=None, format_=None):
+def get_pipeline(run_id, namespace=None,
+                 format_: Union[
+                     str, mlrun.api.schemas.PipelinesFormat
+                 ] = mlrun.api.schemas.PipelinesFormat.summary,):
     """Get Pipeline status
 
     :param run_id:     id of pipelines run
     :param namespace:  k8s namespace if not default
-    :param long:       return long response format
+    :param format_:    Format of the results. Possible values are:
+            - ``summary`` (default value) - Return summary of the object data.
+            - ``full`` (default value) - Return full pipeline object.
 
     :return: kfp run dict
     """

@@ -35,9 +35,9 @@ from .utils import (
 KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 
-project_annotation = "mlrun/run-project"
-run_annotation = "mlrun/run-type"
-function_annotation = "mlrun/function"
+project_annotation = "mlrun/project"
+run_annotation = "mlrun/pipeline-step-type"
+function_annotation = "mlrun/function-uri"
 
 
 def is_num(v):
@@ -619,7 +619,7 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
     cop.add_pod_annotation(function_annotation, func_url or function.uri)
 
 
-def get_kfp_dag_and_resolve_project(run, project=None):
+def generate_kfp_dag_and_resolve_project(run, project=None):
     workflow = run["pipeline_runtime"].get("workflow_manifest", None)
     if not workflow:
         return None
@@ -661,7 +661,7 @@ def get_kfp_dag_and_resolve_project(run, project=None):
 
 def format_summary_from_kfp_run(run, project=None, session=None):
     override_project = project if project and project != "*" else None
-    dag, project = get_kfp_dag_and_resolve_project(run, override_project)
+    dag, project = generate_kfp_dag_and_resolve_project(run, override_project)
     run_id = get_in(run, "run.id")
 
     # enrich DAG with mlrun run info

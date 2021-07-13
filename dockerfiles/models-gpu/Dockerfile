@@ -38,23 +38,6 @@ RUN apt-get update && \
         graphviz && \
     rm -rf /var/lib/apt/lists/*
 
-ARG OMPI=4.1.0
-
-# Install Open MPI
-RUN mkdir /tmp/openmpi && \
-    cd /tmp/openmpi && \
-    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
-    tar zxf openmpi-${OMPI}.tar.gz && \
-    cd openmpi-${OMPI} && \
-    ./configure --enable-orterun-prefix-by-default && \
-    make -j`nproc` all && \
-    make install && \
-    ldconfig && \
-    rm -rf /tmp/openmpi    
-
-ENV OMPI_ALLOW_RUN_AS_ROOT=1
-ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-
 RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
@@ -79,6 +62,23 @@ RUN conda config --add channels conda-forge && \
         pytorch \
         torchvision \
     && conda clean -aqy
+
+ARG OMPI=4.1.0
+
+# Install Open MPI
+RUN mkdir /tmp/openmpi && \
+    cd /tmp/openmpi && \
+    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
+    tar zxf openmpi-${OMPI}.tar.gz && \
+    cd openmpi-${OMPI} && \
+    ./configure --enable-orterun-prefix-by-default && \
+    make -j`nproc` all && \
+    make install && \
+    ldconfig && \
+    rm -rf /tmp/openmpi    
+
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)

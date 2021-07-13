@@ -92,7 +92,7 @@ def get_pipeline(
     project: str,
     namespace: str = Query(config.namespace),
     format_: mlrun.api.schemas.PipelinesFormat = Query(
-        mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
+        mlrun.api.schemas.PipelinesFormat.summary, alias="format"
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):

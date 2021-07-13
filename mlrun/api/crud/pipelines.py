@@ -70,7 +70,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             run_id: str,
             project: typing.Optional[str] = None,
             namespace: str = mlrun.mlconf.namespace,
-            format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only):
+            format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary):
         kfp_client = kfp.Client(namespace=namespace)
         try:
             run = kfp_client.get_run(run_id)

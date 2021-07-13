@@ -45,11 +45,9 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
-RUN conda update -n base -c defaults conda
-
 RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
-    conda update -n base conda && \
+    conda update -n base -c defaults conda && \
     conda install -n base \
         python=3.7 \
         pip~=20.2.0 \

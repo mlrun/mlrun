@@ -105,7 +105,7 @@ def test_invalid_name():
         # name cannot have / in it
         new_function().run(name="asd/asd", handler=my_func)
     assert (
-        "Field run.metadata.name is malformed. Does not match required pattern"
+        "Field 'run.metadata.name' is malformed. Does not match required pattern"
         in str(excinfo.value)
     )
 
@@ -116,6 +116,7 @@ def test_with_params():
 
     assert result.output("accuracy") == 16, "failed to run"
     assert result.status.artifacts[0].get("key") == "chart", "failed to run"
+    assert result.artifact("chart").url, "failed to return artifact data item"
 
 
 @pytest.mark.skipif(not has_secrets(), reason="no secrets")

@@ -43,6 +43,10 @@ class MyMap(MapClass):
         return event
 
 
+def my_func(df):
+    return df
+
+
 def myfunc1(x, context=None):
     assert context is not None, "context is none"
     x = x.drop(columns=["exchange"])
@@ -131,7 +135,9 @@ class TestFeatureStore(TestMLRunSystem):
         resp.to_parquet(str(self.results_path / "query.parquet"))
 
         # check simple api without join with other df
-        resp = fs.get_offline_features(vector)
+        # test the use of vector uri
+        vector.save()
+        resp = fs.get_offline_features(vector.uri)
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
@@ -1011,7 +1017,42 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
 
-    def test_override_false(self):
+    def test_overwrite_specified_nosql_path(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        targets = [NoSqlTarget(path="v3io:///bigdata/overwrite-spec")]
+
+        fset = fs.FeatureSet(name="overwrite-spec-path", entities=[fs.Entity("name")])
+        features = ["overwrite-spec-path.*"]
+        fvec = fs.FeatureVector("overwrite-spec-path-fvec", features=features)
+
+        fs.ingest(fset, df1, targets=targets)
+
+        fs.ingest(fset, df2, targets=targets)
+
+        svc = fs.get_online_feature_service(fvec)
+        resp = svc.get(entity_rows=[{"name": "PQR"}])
+        assert resp[0]["value"] == 6
+        resp = svc.get(entity_rows=[{"name": "ABC"}])
+        assert resp[0] is None
+        svc.close()
+
+    def test_overwrite_single_parquet_file(self):
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+        df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        targets = [ParquetTarget(path="v3io:///bigdata/overwrite-pq-spec/my.parquet")]
+
+        fset = fs.FeatureSet(
+            name="overwrite-pq-spec-path", entities=[fs.Entity("name")]
+        )
+
+        fs.ingest(fset, df1, targets=targets)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(fset, df2, targets=targets, overwrite=False)
+
+    def test_overwrite_false(self):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
         df3 = pd.concat([df1, df2])
@@ -1070,7 +1111,6 @@ class TestFeatureStore(TestMLRunSystem):
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
 
-    # ML-693
     def test_ingest_dataframe_index(self):
         orig_df = pd.DataFrame([{"x", "y"}])
         orig_df.index.name = "idx"
@@ -1078,6 +1118,87 @@ class TestFeatureStore(TestMLRunSystem):
         fset = fs.FeatureSet("myfset", entities=[Entity("idx")])
         fs.ingest(
             fset, orig_df, [ParquetTarget()], infer_options=fs.InferOptions.default()
+        )
+
+    def test_ingest_with_column_conversion(self):
+        orig_df = source = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2002-04-01 04:32:34.000"),
+                    pd.Timestamp("2002-04-01 15:05:37.000"),
+                    pd.Timestamp("2002-03-31 23:46:07.000"),
+                ],
+                "ssrxbtok": [488441267876, 438975336749, 298802679370],
+                "nkxuonfx": [0.241233, 0.160264, 0.045345],
+                "xzvipbmo": [True, False, None],
+                "bikyseca": ["ONE", "TWO", "THREE"],
+                "napxsuhp": [True, False, True],
+                "oegndrxe": [
+                    pd.Timestamp("2002-04-01 04:32:34.000"),
+                    pd.Timestamp("2002-04-01 05:06:34.000"),
+                    pd.Timestamp("2002-04-01 05:38:34.000"),
+                ],
+                "aatxnkgx": [-227504700006, -470002151801, -33193685176],
+                "quupyoxi": ["FOUR", "FIVE", "SIX"],
+                "temdojgz": [0.570031, 0.677182, 0.276053],
+            },
+            index=None,
+        )
+
+        fset = fs.FeatureSet(
+            "rWQTKqbhje",
+            timestamp_key="time_stamp",
+            entities=[
+                Entity("{}".format(k["name"]))
+                for k in [
+                    {
+                        "dtype": "float",
+                        "null_values": False,
+                        "name": "temdojgz",
+                        "df_dtype": "float64",
+                    },
+                    {
+                        "dtype": "str",
+                        "null_values": False,
+                        "name": "bikyseca",
+                        "df_dtype": "object",
+                    },
+                    {
+                        "dtype": "float",
+                        "null_values": False,
+                        "name": "nkxuonfx",
+                        "df_dtype": "float64",
+                    },
+                ]
+            ],
+        )
+
+        fset.graph.to(name="s1", handler="my_func")
+        ikjqkfcz = ParquetTarget(path="v3io:///bigdata/ifrlsjvxgv", partitioned=False)
+        fs.ingest(fset, source, targets=[ikjqkfcz])
+
+        features = ["rWQTKqbhje.*"]
+        vector = fs.FeatureVector("WPAyrYux", features)
+        vector.spec.with_indexes = False
+        resp = fs.get_offline_features(vector)
+        off_df = resp.to_dataframe()
+        del orig_df["time_stamp"]
+        if None in list(orig_df.index.names):
+            orig_df.set_index(["temdojgz", "bikyseca", "nkxuonfx"], inplace=True)
+        orig_df = orig_df.sort_values(
+            by=["temdojgz", "bikyseca", "nkxuonfx"]
+        ).sort_index(axis=1)
+        off_df = off_df.sort_values(by=["temdojgz", "bikyseca", "nkxuonfx"]).sort_index(
+            axis=1
+        )
+        pd.testing.assert_frame_equal(
+            off_df,
+            orig_df,
+            check_dtype=True,
+            check_index_type=True,
+            check_column_type=True,
+            check_like=True,
+            check_names=True,
         )
 
 

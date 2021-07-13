@@ -23,6 +23,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
+from ..utils import StorePrefix
 from .base import Artifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
@@ -48,6 +49,7 @@ class ModelArtifact(Artifact):
         "feature_stats",
     ]
     kind = "model"
+    _store_prefix = StorePrefix.Model
 
     def __init__(
         self,
@@ -102,7 +104,13 @@ class ModelArtifact(Artifact):
         self._outputs = ObjectList.from_list(Feature, outputs)
 
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
-        """infer inputs, outputs, and stats from provided df (training set)"""
+        """infer inputs, outputs, and stats from provided df (training set)
+
+        :param df:      dataframe to infer from
+        :param label_columns: name of the label (target) column
+        :param with_stats:    infer statistics (min, max, .. histogram)
+        :param num_bins:      number of bins for histogram
+        """
         subset = df
         inferer = get_infer_interface(subset)
         if label_columns:

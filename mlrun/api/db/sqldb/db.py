@@ -1098,7 +1098,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
 
-    def is_project_exists(self, session: Session, name: str):
+    def is_project_exists(self, session: Session, name: str, **kwargs):
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )

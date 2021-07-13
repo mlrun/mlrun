@@ -54,8 +54,12 @@ def test_infer_from_df():
     preview = featureset.status.preview
     # by default preview should be 20 lines + 1 for headers
     assert len(preview) == 21, "unexpected num of preview lines"
-    assert len(preview[0]) == df.shape[1], "unexpected num of header columns"
-    assert len(preview[1]) == df.shape[1], "unexpected num of value columns"
+    assert len(preview[0]) == df.shape[1] + len(
+        df.index.names
+    ), "unexpected num of header columns"
+    assert len(preview[1]) == df.shape[1] + len(
+        df.index.names
+    ), "unexpected num of value columns"
 
     features = sorted(featureset.spec.features.keys())
     stats = sorted(featureset.status.stats.keys())

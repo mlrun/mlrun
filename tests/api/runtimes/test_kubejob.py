@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import unittest.mock
@@ -105,7 +106,9 @@ class TestKubejobRuntime(TestRuntimeBase):
             "label-1": "val1",
             "label-2": "val2",
         }
-        mlrun.mlconf.default_function_node_selector = json.dumps(node_selector)
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
         runtime.with_node_selection(node_selector=node_selector)
         self._execute_run(runtime)
         self._assert_pod_creation_config(expected_node_selector=node_selector)

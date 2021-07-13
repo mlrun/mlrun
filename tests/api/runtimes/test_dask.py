@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import unittest
@@ -195,7 +196,9 @@ class TestDaskRuntime(TestRuntimeBase):
             "label-a": "val1",
             "label-2": "val2",
         }
-        mlrun.mlconf.default_function_node_selector = json.dumps(node_selector)
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
         runtime = self._generate_runtime()
         _ = runtime.client
 

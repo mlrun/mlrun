@@ -31,7 +31,7 @@ from nuclio import build_file
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.helpers
-from mlrun.kfpops import get_short_kfp_run, show_kfp_run
+from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
 from .config import config as mlconf
 from .datastore import store_manager
@@ -972,7 +972,7 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
-            resp = get_short_kfp_run(resp)
+            resp = format_summary_from_kfp_run(resp)
 
     show_kfp_run(resp)
     status = resp["run"]["status"] if resp else "unknown"
@@ -1017,7 +1017,7 @@ def get_pipeline(run_id, namespace=None, format_=None):
         if resp:
             resp = resp.to_dict()
             if not format_:
-                resp = get_short_kfp_run(resp)
+                resp = format_summary_from_kfp_run(resp)
 
     show_kfp_run(resp)
     return resp

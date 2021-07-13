@@ -1,14 +1,18 @@
 import ast
+import http
 import json
+import mlrun.api.api.utils
 import typing
 
 import kfp
 
 import mlrun
+import mlrun.kfpops
 import mlrun.utils.singleton
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+import sqlalchemy.orm
 from mlrun.utils import logger
 
 
@@ -16,7 +20,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
     def list_pipelines(
         self,
         project: str,
-        namespace: str = "",
+        namespace: str = mlrun.mlconf.namespace,
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
@@ -27,7 +31,6 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination, sorting, or custom filter"
             )
-        namespace = namespace or mlrun.mlconf.namespace
         kfp_client = kfp.Client(namespace=namespace)
         if project != "*":
             run_dicts = []
@@ -61,6 +64,27 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
         return total_size, next_page_token, runs
 
+    def get_pipeline(
+            self,
+            db_session: sqlalchemy.orm.Session,
+            run_id: str,
+            project: typing.Optional[str] = None,
+            namespace: str = mlrun.mlconf.namespace,
+            format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only):
+        kfp_client = kfp.Client(namespace=namespace)
+        try:
+            run = kfp_client.get_run(run_id)
+            if run:
+                run = run.to_dict()
+                if format_ == mlrun.api.schemas.PipelinesFormat.summary:
+                    run = mlrun.kfpops.format_summary_from_kfp_run(run, project=project, session=db_session)
+
+        except Exception as exc:
+            mlrun.api.api.utils.log_and_raise(
+                http.HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {exc}"
+            )
+
+        return run
 
     def _format_runs(
         self,

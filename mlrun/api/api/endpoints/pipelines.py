@@ -15,7 +15,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
-from mlrun.kfpops import get_short_kfp_run
+from mlrun.kfpops import format_summary_from_kfp_run
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -26,7 +26,7 @@ router = APIRouter()
 )
 def list_pipelines(
     project: str,
-    namespace: str = None,
+    namespace: str = config.namespace,
     sort_by: str = "",
     page_token: str = "",
     filter_: str = Query("", alias="filter"),
@@ -77,53 +77,26 @@ async def submit_pipeline(
 # curl http://localhost:8080/pipelines/:id
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
-def get_pipeline(
+# TODO: remove when 0.6.5 is no longer relevant
+def get_pipeline_legacy(
     run_id,
     namespace: str = Query(config.namespace),
-    format_: mlrun.api.schemas.PipelinesFormat = Query(
-        mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
-    ),
-    project: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return _get_pipeline(run_id, namespace, format_, project, db_session)
+    return mlrun.api.crud.Pipelines().get_pipeline(db_session, run_id, namespace=namespace)
 
 
 @router.get("/projects/{project}/pipelines/{run_id}")
-def get_project_pipeline(
+def get_pipeline(
     run_id,
+    project: str,
     namespace: str = Query(config.namespace),
     format_: mlrun.api.schemas.PipelinesFormat = Query(
         mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
-    project: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return _get_pipeline(run_id, namespace, format_, project, db_session)
-
-
-def _get_pipeline(
-    run_id,
-    namespace: str,
-    format_: mlrun.api.schemas.PipelinesFormat,
-    project: str,
-    db_session: Session,
-):
-
-    client = kfclient(namespace=namespace)
-    try:
-        run = client.get_run(run_id)
-        if run:
-            run = run.to_dict()
-            if not format_ or format_ == mlrun.api.schemas.PipelinesFormat.summary:
-                run = get_short_kfp_run(run, project=project, session=db_session)
-
-    except Exception as exc:
-        log_and_raise(
-            HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {exc}"
-        )
-
-    return run
+    return mlrun.api.crud.Pipelines().get_pipeline(db_session, run_id, project, namespace, format_)
 
 
 def _submit_pipeline(request, data, namespace, experiment_name, run_name):

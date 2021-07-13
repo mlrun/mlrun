@@ -79,7 +79,7 @@ async def submit_pipeline(
 @router.get("/pipelines/{run_id}/")
 # TODO: remove when 0.6.5 is no longer relevant
 def get_pipeline_legacy(
-    run_id,
+    run_id: str,
     namespace: str = Query(config.namespace),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -88,7 +88,7 @@ def get_pipeline_legacy(
 
 @router.get("/projects/{project}/pipelines/{run_id}")
 def get_pipeline(
-    run_id,
+    run_id: str,
     project: str,
     namespace: str = Query(config.namespace),
     format_: mlrun.api.schemas.PipelinesFormat = Query(

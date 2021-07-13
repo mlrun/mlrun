@@ -65,6 +65,9 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
     conda config --add channels nvidia && \
+    conda config --add channels rapidsai && \
+    conda config --add channels defaults && \
+    conda config --add channels pytorch && \
     conda update -n base conda && \
     conda install -n base \
         cmake \
@@ -72,13 +75,9 @@ RUN conda config --add channels conda-forge && \
         cudatoolkit=${CUDA_VER} \
         cython \
         tensorflow-gpu=2.4.1 \
-    && conda clean -aqy
-
-RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.19 \
-    && conda clean -aqy
-
-RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=${CUDA_VER} \
+        rapids=21.06 \
+        pytorch \
+        torchvision \
     && conda clean -aqy
 
 RUN python -m pip install --upgrade pip~=20.2.0

@@ -103,12 +103,14 @@ class Member(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
-        # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
-        try:
-            self._sync_projects()
-        except Exception as exc:
-            logger.warning("Initial projects sync failed", exc=str(exc))
-        self._start_periodic_sync()
+        # Only if we're storing the projects in cache, we need to maintain this cache i.e. run the periodic sync
+        if self.projects_store_mode == self.ProjectsStoreMode.cache:
+            # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
+            try:
+                self._sync_projects()
+            except Exception as exc:
+                logger.warning("Initial projects sync failed", exc=str(exc))
+            self._start_periodic_sync()
 
     def shutdown(self):
         logger.info("Shutting down projects leader")

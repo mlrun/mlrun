@@ -63,7 +63,10 @@ def test_file():
         context.artifact_path = tmpdir
         k1 = context.log_artifact("k1", body="abc", local_path="x.txt")
         k2 = context.log_dataset("k2", df=df, format="csv", db_key="k2key")
-        print("k2 url:", k2.get_store_url())
+        print("k2 url:", k2.uri)
+
+        # test that we can get the artifact as dataitem
+        assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
         alist = listdir(tmpdir)
         print(alist)
@@ -80,7 +83,7 @@ def test_file():
             mlrun.run.get_dataitem(tmpdir + "/x.txt").get() == b"abc"
         ), "failed to log in file artifact"
 
-        name = k2.get_store_url()
+        name = k2.uri
         artifact, _ = mlrun.artifacts.get_artifact_meta(name)
         print(artifact.to_yaml())
         mlrun.artifacts.update_dataset_meta(

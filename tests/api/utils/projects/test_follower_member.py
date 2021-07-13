@@ -22,6 +22,7 @@ async def projects_follower() -> typing.Generator[
     logger.info("Creating projects follower")
     mlrun.config.config.httpdb.projects.leader = "nop"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
+    mlrun.config.config.httpdb.projects.follower_projects_store_mode = "cache"
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     projects_follower = mlrun.api.utils.singletons.project_member.get_project_member()
     yield projects_follower

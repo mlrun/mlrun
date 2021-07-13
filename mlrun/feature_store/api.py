@@ -213,6 +213,19 @@ def ingest(
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True. deletes the targets that are about to be ingested)
     """
+    # pandas dataframes rename columns with space with _<attribute #>.
+    # we fix columns prior to manipulations
+    if (
+        source is not None
+        and isinstance(source, pd.DataFrame)
+        and hasattr(source.columns, "str")
+    ):
+        source.columns = (
+            source.columns.str.strip()
+            .str.replace(" ", "_")
+            .str.replace("(", "")
+            .str.replace(")", "")
+        )
     if featureset:
         if isinstance(featureset, str):
             # need to strip store prefix from the uri

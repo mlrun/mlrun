@@ -75,7 +75,7 @@ RUN conda config --add channels conda-forge && \
     && conda clean -aqy
 
 RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12 \
+    -c anaconda -c conda-forge -c defaults rapids=0.19 \
     && conda clean -aqy
 
 RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=${CUDA_VER} \

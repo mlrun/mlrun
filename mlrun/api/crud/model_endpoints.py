@@ -18,6 +18,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.api.schemas.model_endpoints import ModelEndpointList
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.artifacts import ModelArtifact
 from mlrun.config import config
 from mlrun.errors import (
@@ -427,12 +428,11 @@ class ModelEndpoints:
     def deploy_model_monitoring_batch_processing(
         project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo,
     ):
-        run_db = get_run_db_instance(db_session, auth_info.session)
-
         # Test if mlrun-job already deployed
-        function_list = run_db.list_functions(
-            name="model-monitoring-batch", project=project
+        function_list = get_db().list_functions(
+            session=db_session, name="model-monitoring-batch", project=project
         )
+
         if function_list:
             logger.info(f"Detected model-monitoring-batch [{project}] already deployed")
             return
@@ -443,7 +443,8 @@ class ModelEndpoints:
         fn: KubejobRuntime = mlrun.import_function(
             "hub://model_monitoring_batch:experimental"
         )
-        fn.set_db_connection(run_db)
+
+        fn.set_db_connection(get_run_db_instance(db_session, auth_info.session))
 
         fn.metadata.project = project
         fn.apply(mlrun.mount_v3io())

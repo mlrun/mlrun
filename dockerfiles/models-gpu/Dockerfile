@@ -66,12 +66,14 @@ RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
     conda config --add channels nvidia && \
     conda config --add channels rapidsai && \
-    conda config --add channels defaults && \
     conda config --add channels pytorch && \
     conda update -n base conda && \
     conda install -n base \
         cmake \
         python=3.7 \
+    && conda clean -aqy
+
+RUN conda install -n base \
         cudatoolkit=${CUDA_VER} \
         cython \
         tensorflow-gpu=2.4.1 \

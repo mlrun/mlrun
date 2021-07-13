@@ -324,6 +324,11 @@ def ingest(
     df = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df,
     )
+    if not InferOptions.get_common_options(
+        infer_stats, InferOptions.Index
+    ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
+        infer_stats += InferOptions.Index
+
     infer_from_static_df(df, featureset, options=infer_stats)
     _post_ingestion(mlrun_context, featureset, spark_context)
 

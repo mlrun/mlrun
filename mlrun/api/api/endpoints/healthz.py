@@ -27,6 +27,9 @@ def health():
         "ui_projects_prefix": _get_config_value_if_not_default("ui.projects_prefix"),
         "scrape_metrics": _get_config_value_if_not_default("scrape_metrics"),
         "hub_url": _get_config_value_if_not_default("hub_url"),
+        "default_function_node_selector": _get_config_value_if_not_default(
+            "default_function_node_selector"
+        ),
     }
 
 

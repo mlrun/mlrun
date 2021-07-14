@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 import unittest
 
@@ -187,4 +189,24 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_node_name=node_name,
             expected_node_selector=node_selector,
             expected_affinity=affinity,
+        )
+
+    def test_dask_with_default_node_selector(self, db: Session, client: TestClient):
+        node_selector = {
+            "label-a": "val1",
+            "label-2": "val2",
+        }
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_node_selector=node_selector,
         )

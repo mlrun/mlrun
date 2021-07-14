@@ -13,7 +13,7 @@
 # limitations under the License.
 from copy import copy
 from datetime import datetime
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import mlrun
 
@@ -73,6 +73,21 @@ class BaseSourceDriver(DataSource):
 
 
 class CSVSource(BaseSourceDriver):
+    """
+        Reads CSV file as input source for a flow.
+
+        :parameter name: name of the source
+        :parameter path: path to CSV file
+        :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
+            (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
+        :parameter time_field: the CSV field to be parsed as the timestamp for events. May be an int (field index) or
+            string (field name) if with_header is True. Defaults to None (no timestamp field).
+        :parameter schedule: string to configure scheduling of the ingestion job.
+        :parameter attributes: additional parameters to pass to storey.
+        :parameter parse_dates: Optional. List of columns (names or integers, other than time_field) that will be
+            attempted to parse as date column.
+        """
+
     kind = "csv"
     support_storey = True
     support_spark = True
@@ -85,8 +100,10 @@ class CSVSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        parse_dates: Optional[Union[List[int], List[str]]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
+        self._parse_dates = parse_dates
 
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
@@ -101,6 +118,7 @@ class CSVSource(BaseSourceDriver):
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
+            parse_dates=self._parse_dates,
             **attributes,
         )
 
@@ -111,6 +129,11 @@ class CSVSource(BaseSourceDriver):
             "header": "true",
             "inferSchema": "true",
         }
+
+    def to_dataframe(self):
+        return mlrun.store_manager.object(url=self.path).as_df(
+            parse_dates=self._parse_dates
+        )
 
 
 class ParquetSource(BaseSourceDriver):
@@ -195,7 +218,10 @@ class DataFrameSource:
 
     def __init__(self, df, key_field=None, time_field=None, context=None):
         self._df = df
-        self.key_field = key_field
+        if isinstance(key_field, str):
+            self.key_field = [key_field]
+        else:
+            self.key_field = key_field
         self.time_field = time_field
         self.context = context
 

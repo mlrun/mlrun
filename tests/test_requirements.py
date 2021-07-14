@@ -85,15 +85,43 @@ def test_requirement_specifiers_inconsistencies():
     assert inconsistent_specifiers_map == {}
 
 
+def test_requirement_from_remote():
+    requirement_specifiers_map = _generate_requirement_specifiers_map(
+        [
+            "some-package~=1.9, <1.17.50",
+            "other-package==0.1",
+            "git+https://github.com/mlrun/something.git@some-branch#egg=more-package",
+        ]
+    )
+    assert len(requirement_specifiers_map) > 0
+    assert requirement_specifiers_map["some-package"] == [
+        "~=1.9, <1.17.50",
+    ]
+    assert requirement_specifiers_map["other-package"] == [
+        "==0.1",
+    ]
+    assert requirement_specifiers_map["more-package"] == [
+        "git+https://github.com/mlrun/something.git@some-branch",
+    ]
+
+
 def _generate_requirement_specifiers_map(requirement_specifiers):
-    regex = (
+    specific_module_regex = (
         r"^"
         r"(?P<requirementName>[a-zA-Z\-0-9_]+)"
         r"(?P<requirementExtra>\[[a-zA-Z\-0-9_]+\])?"
         r"(?P<requirementSpecifier>.*)"
     )
+    remote_location_regex = (
+        r"^(?P<requirementSpecifier>.*)#egg=(?P<requirementName>[^#]+)"
+    )
     requirement_specifiers_map = collections.defaultdict(list)
     for requirement_specifier in requirement_specifiers:
+        regex = (
+            remote_location_regex
+            if "#egg=" in requirement_specifier
+            else specific_module_regex
+        )
         match = re.fullmatch(regex, requirement_specifier)
         assert (
             match is not None
@@ -143,5 +171,22 @@ def _is_ignored_requirement_line(line):
 
 
 def _load_requirements(path):
-    with open(path) as file:
-        return [line.strip() for line in file if not _is_ignored_requirement_line(line)]
+    """
+    Load dependencies from requirements file, exactly like `setup.py`
+    """
+    with open(path) as fp:
+        deps = []
+        for line in fp:
+            if _is_ignored_requirement_line(line):
+                continue
+            line = line.strip()
+
+            # e.g.: git+https://github.com/nuclio/nuclio-jupyter.git@some-branch#egg=nuclio-jupyter
+            if "#egg=" in line:
+                _, package = line.split("#egg=")
+                deps.append(f"{package} @ {line}")
+                continue
+
+            # append package
+            deps.append(line)
+        return deps

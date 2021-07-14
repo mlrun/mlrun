@@ -12,11 +12,13 @@ MLRun uses the concept of Tasks to encapsulate runtime parameters. Tasks are use
 such as hyper-parameters, and can also be used to pass details about secrets that are going to be used in the 
 runtime.
 
-To pass secret parameters, use the Task's `with_secrets()` function. For example, the following command will
+To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.with_secrets()` function. For example, the following command will
 pass secrets provided by a kubernetes secret to the execution context (see next sections for a discussion of secret
 providers):
 
-```python
+```{code-block} python
+:emphasize-lines: 8-8
+
 function = mlrun.code_to_function(
     name="secret_func",
     filename="my_code.py",
@@ -29,34 +31,39 @@ run = function.run(task, ...)
 ```
 
 Within the code in `my_code.py`, the handler can access these secrets by using the 
-`context.get_secret()` API:
+{py:func}`~mlrun.execution.MLClientCtx.get_secret()` API:
 
-```python
+```{code-block} python
+:emphasize-lines: 3-3
+
 def test_function(context, db_name):
     context.logger.info("running function")
     db_password = context.get_secret("DB_PASSWORD")
     # Rest of code can use db_password to perform processing.
+    ...
 ```
 
-The `with_secrets` method tells MLRun what secrets the executed code will need access to. The MLRun framework prepares
-the needed infrastructure to make these secrets available to the runtime, and passes information about them to the 
-execution framework by specifying those secrets in the spec of the runtime. For example, if running a kubernetes
-job, the secret keys will be noted in the generated pod's spec.
+The {py:func}`~mlrun.model.RunTemplate.with_secrets()` function tells MLRun what secrets the executed code will need 
+access to. The MLRun framework prepares the needed infrastructure to make these secrets available to the runtime, 
+and passes information about them to the execution framework by specifying those secrets in the spec of the runtime. 
+For example, if running a kubernetes job, the secret keys will be noted in the generated pod's spec.
 
 The actual details of MLRun's handling of the secrets differ per the **secret provider** used. The following sections
 provide more details on these providers and how they handle secrets and their values.
 
-Regardless of the type of secret provider used, the executed code uses the same `get_secret` API to gain access to the 
-value of the secrets passed to it, as shown in the above example.
+Regardless of the type of secret provider used, the executed code uses the same 
+{py:func}`~mlrun.execution.MLClientCtx.get_secret()` API to gain access to the value of the secrets passed to it, 
+as shown in the above example.
 
 ## Secret providers
 As mentioned, MLRun provides the user with several secret providers. Each of those providers functions differently and 
 has different traits with respect to what secrets can be passed and how they're handled. It's important to understand 
 these parameters to make sure secrets are not compromised and their secrecy is maintained.
 
-Generally speaking, the `inline`, `env` and `file` providers do not guarantee confidentiality of the secret values 
-handled by them, and should only be used for development and demo purposes. The `kubernetes` and `azure_vault` 
-providers are more secure and should be used for every other use-case.
+Generally speaking, the [Inline](#inline), [Env](#environment) and [File](#file) providers do not guarantee 
+confidentiality of the secret values handled by them, and should only be used for development and demo purposes. 
+The [Kubernetes](#kubernetes) and [Azure Vault](#azure-vault) providers are secure and should be used for any 
+other use-case.
 
 
 ### Inline
@@ -107,8 +114,11 @@ In terms of exposure of secret values, this method is the same as for inline or 
 ### Kubernetes
 MLRun can use a Kubernetes (k8s) secret to store and retrieve secret values as required. This way
 of passing secrets is currently supported by the `job` and `serving` runtimes.  The k8s provider creates a
-k8s secret per project, and can store multiple secret keys within this secret. MLRun has an API that
-allows the user to perform operations on these secrets - this can be done through the `httpdb` class. For example:
+k8s secret per project, and can store multiple secret keys within this secret. 
+
+#### Populating the kubernetes secret
+To populate the MLRun k8s secret with secret values, MLRun provides APIs that allow the user to perform operations
+on the secrets - this can be done through the {py:class}`~mlrun.db.httpdb.HTTPRunDB` class. For example:
 
 ```python
 secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
@@ -119,15 +129,20 @@ mlrun.get_run_db().create_project_secrets(
 )
 ```
 
-> **Warning:**
-> 
-> Once the secrets are populated, this code should be removed to protect the confidentiality of the secret 
-> values.
+```{warning}
+This action should not be part of the code committed to `git` or part of ongoing execution - it is only a setup 
+action, which normally should only be executed once. After the secrets are populated, this code should be removed 
+to protect the confidentiality of the secret values.
+```
 
-The `httpdb` API does not allow the user to observe secret values, but it does allow users to see the keys that belong
-to a given project, assuming the user has permissions on that specific project. See the `httpdb` class
-documentation for additional details.
+The {py:class}`~mlrun.db.httpdb.HTTPRunDB` API does not allow the user to observe secret values, but it does allow 
+users to see the keys that belong to a given project, assuming the user has permissions on that specific project. 
+See the {py:class}`~mlrun.db.httpdb.HTTPRunDB` class documentation for additional details.
 
+When MLRun is executed in the Iguazio platform, the secret management APIs are protected by the platform such
+that only users with permissions to acess and modify a specific project can alter its secrets.
+
+#### Accessing the secrets
 To provide access to these secrets to an executing job, call the following:
 
 ```python
@@ -154,9 +169,10 @@ k8s RBAC and ensuring that logging into the k8s nodes as a user with elevated pe
 MLRun can serve secrets from an Azure key Vault. Azure key Vaults support 3 types of entities - `keys`, `secrets` and 
 `certificates`. MLRun only supports accessing `secret` entities.
 
-To enable this, a secret must first be created in the k8s cluster which contains the Azure key Vault credentials. This
-secret should include credentials providing access to your specific Azure key Vault. To configure this, the following
-steps are needed:
+#### Setting up access to Azure key vault
+To enable this functionality, a secret must first be created in the k8s cluster which contains the Azure key Vault 
+credentials. This secret should include credentials providing access to your specific Azure key Vault. 
+To configure this, the following steps are needed:
 
 1. Set up a key vault in your Azure subscription
 2. Create a service principal in Azure that will be granted access to the key vault. For creating a service principal 
@@ -181,8 +197,11 @@ steps are needed:
        --from-literal=client_id=<client id>
     ```
 
-    > **Note:** The names of the secret keys *must* be as shown in the above example, as they are queried by name by MLRun.
+```{note}
+The names of the secret keys *must* be as shown in the above example, as MLRun queries them by these exact names.
+```
 
+#### Accessing Azure key vault secrets
 Once these steps are done, use `with_secrets` in the following manner:
 
 ```python
@@ -201,12 +220,13 @@ to be accessed from that specific vault. If it's empty (as in the example above)
 accessed by their key name.
 
 For example, if the Azure Vault has a secret whose name is `MY_AZURE_SECRET` and using the above example for
-`with_secrets`, the executed code can use the following statement to access this secret:
+{py:func}`~mlrun.model.RunTemplate.with_secrets()`, the executed code can use the following statement to access 
+this secret:
 
 ```python
-context.get_secret("MY_AZURE_SECRET")
+azure_secret = context.get_secret("MY_AZURE_SECRET")
 ```
 
 In terms of confidentiality, the executed pod will have the Azure secret provided by the user mounted to it. This means
 that the access-keys to the vault will be visible to a user that `exec`s into the pod in question. The same security
-rules should be followed as described in the `kubernetes` section above. 
+rules should be followed as described in the [Kubernetes](#kubernetes) section above. 

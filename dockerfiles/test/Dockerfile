@@ -27,9 +27,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         g++ \
         git-core \
         gnupg2 \
+        graphviz \
         make \
         software-properties-common \
-        graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -

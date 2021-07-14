@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.2.2
+ARG CUDA_VER=11.0
 
 FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
@@ -52,10 +52,7 @@ RUN conda config --add channels conda-forge && \
         pip~=20.2.0 \
     && conda clean -aqy
 
-RUN conda install -n base nvidia::cudatoolkit=${CUDA_VER} \
-    && conda clean -aqy
-
-RUN conda install -n base -c rapidsai -c conda-forge "rapids>=0.12" \
+RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VER} \
     && conda clean -aqy
 
 RUN conda install -n base pytorch::pytorch pytorch::torchvision \

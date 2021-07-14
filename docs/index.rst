@@ -72,7 +72,7 @@ Table Of Content
    :caption: Online Pipelines & Serving:
 
    serving/index
-   model_monitoring/model-monitoring-deployment
+   model_monitoring/index
 
 .. toctree::
    :maxdepth: 1

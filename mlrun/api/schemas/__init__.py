@@ -40,6 +40,7 @@ from .feature_store import (
     FeatureVectorsOutput,
 )
 from .frontend_spec import FrontendSpec
+from .function import FunctionState
 from .model_endpoints import (
     Features,
     FeatureValues,
@@ -82,4 +83,9 @@ from .schedule import (
     SchedulesOutput,
     ScheduleUpdate,
 )
-from .secret import SecretProviderName, SecretsData, UserSecretCreationRequest
+from .secret import (
+    SecretKeysData,
+    SecretProviderName,
+    SecretsData,
+    UserSecretCreationRequest,
+)

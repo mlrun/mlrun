@@ -7,6 +7,9 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 import deepdiff
+import fastapi.testclient
+import pytest
+import sqlalchemy.orm
 from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
@@ -54,6 +57,21 @@ class TestRuntimeBase:
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        # We want this mock for every test, ideally we would have simply put it in the setup_method
+        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
+        # in order to be able to mock k8s stuff
+        get_k8s().v1api = unittest.mock.Mock()
+        get_k8s().crdapi = unittest.mock.Mock()
+        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
+        # enable inheriting classes to do the same
+        self.custom_setup_after_fixtures()
+
     def teardown_method(self, method):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
@@ -76,6 +94,9 @@ class TestRuntimeBase:
         pass
 
     def custom_setup(self):
+        pass
+
+    def custom_setup_after_fixtures(self):
         pass
 
     def custom_teardown(self):
@@ -303,6 +324,22 @@ class TestRuntimeBase:
         # Make sure all variables were accounted for
         assert len(expected_variables) == 0
 
+    @staticmethod
+    def _assert_pod_env_from_secrets(pod_env, expected_variables):
+        for env_variable in pod_env:
+            if (
+                isinstance(env_variable, V1EnvVar)
+                and env_variable.value_from is not None
+            ):
+                name = env_variable.name
+                if name in expected_variables:
+                    expected_value = expected_variables[name]
+                    secret_key = env_variable.value_from.secret_key_ref.key
+                    secret_name = env_variable.value_from.secret_key_ref.name
+                    assert expected_value[secret_name] == secret_key
+                    expected_variables.pop(name)
+        assert len(expected_variables) == 0
+
     def _get_pod_creation_args(self):
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[1]
@@ -416,6 +453,7 @@ class TestRuntimeBase:
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
+        expected_env_from_secrets={},
     ):
         if assert_create_pod_called:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -440,6 +478,7 @@ class TestRuntimeBase:
             expected_env["MLRUN_NAMESPACE"] = self.namespace
 
         self._assert_pod_env(pod_env, expected_env)
+        self._assert_pod_env_from_secrets(pod_env, expected_env_from_secrets)
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
                 env_variable = dict(name=env_variable.name, value=env_variable.value)

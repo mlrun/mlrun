@@ -16,10 +16,11 @@ from copy import copy
 import mlrun
 import mlrun.errors
 from mlrun.runtimes.function_reference import FunctionReference
-from mlrun.utils import parse_versioned_object_uri
+from mlrun.utils import StorePrefix, parse_versioned_object_uri
 
 from ..config import config
 
+project_separator = "/"
 feature_separator = "."
 expected_message = f"in the form feature-set{feature_separator}feature[ as alias]"
 
@@ -44,10 +45,36 @@ def parse_feature_string(feature):
     return feature_set.strip(), feature_name.strip(), None
 
 
+def parse_project_name_from_feature_string(feature):
+    """parse feature string into project name and feature"""
+    # expected format: <project-name>/<feature>
+    if project_separator not in feature:
+        return None, feature
+
+    splitted = feature.split(project_separator)
+    if len(splitted) > 2:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"feature {feature} must be {expected_message}, cannot have more than one '/'"
+        )
+    project_name = splitted[0]
+    feature_name = splitted[1]
+    return project_name.strip(), feature_name.strip()
+
+
 def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     default_project = project or config.default_project
+
+    # parse store://.. uri
+    if mlrun.datastore.is_store_uri(uri):
+        prefix, new_uri = mlrun.datastore.parse_store_uri(uri)
+        if prefix != StorePrefix.FeatureSet:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"provided store uri ({uri}) does not represent a feature set (prefix={prefix})"
+            )
+        uri = new_uri
+
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
     return db.get_feature_set(name, project, tag, uid)
 
@@ -56,6 +83,16 @@ def get_feature_vector_by_uri(uri, project=None):
     """get feature vector object from db by uri"""
     db = mlrun.get_run_db()
     default_project = project or config.default_project
+
+    # parse store://.. uri
+    if mlrun.datastore.is_store_uri(uri):
+        prefix, new_uri = mlrun.datastore.parse_store_uri(uri)
+        if prefix != StorePrefix.FeatureVector:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"provided store uri ({uri}) does not represent a feature vector (prefix={prefix})"
+            )
+        uri = new_uri
+
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
     return db.get_feature_vector(name, project, tag, uid)
 
@@ -68,7 +105,7 @@ class RunConfig:
     the apply() method is used to set resources like volumes, the with_secret() method adds secrets
 
     Parameters:
-        function:      this can be function uri or function object or path to function code (.py/.iynb) or
+        function:      this can be function uri or function object or path to function code (.py/.ipynb) or
                        a :py:class:`~mlrun.runtimes.function_reference.FunctionReference`
                        the function define the code, dependencies, and resources
         image (str):   function container image

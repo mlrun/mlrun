@@ -255,12 +255,14 @@ def test_artifacts(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, key, body = "p9", "u19", "k802", "tomato"
-    artifact = Artifact(key, body)
+    artifact = Artifact(key, body, target_path="a.txt")
 
     db.store_artifact(key, artifact, uid, project=prj)
     db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 2, "bad number of artifacts"
+    assert artifacts.objects()[0].key == key, "not a valid artifact object"
+    assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
 
     artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
     assert len(artifacts) == 1, "bad number of artifacts"
@@ -275,10 +277,11 @@ def test_artifacts(create_server):
 
 
 def test_basic_auth(create_server):
-    user, passwd = "bugs", "bunny"
+    user, password = "bugs", "bunny"
     env = {
-        "MLRUN_httpdb__user": user,
-        "MLRUN_httpdb__password": passwd,
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "basic",
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__USERNAME": user,
+        "MLRUN_HTTPDB__AUTHENTICATION__BASIC__PASSWORD": password,
     }
     server: Server = create_server(env)
 
@@ -288,13 +291,16 @@ def test_basic_auth(create_server):
         db.list_runs()
 
     db.user = user
-    db.password = passwd
+    db.password = password
     db.list_runs()
 
 
 def test_bearer_auth(create_server):
     token = "banana"
-    env = {"MLRUN_httpdb__token": token}
+    env = {
+        "MLRUN_HTTPDB__AUTHENTICATION__MODE": "bearer",
+        "MLRUN_HTTPDB__AUTHENTICATION__BEARER__TOKEN": token,
+    }
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn

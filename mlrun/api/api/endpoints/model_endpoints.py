@@ -1,8 +1,10 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Cookie, Depends, Query, Request, Response
+from sqlalchemy.orm import Session
 
+import mlrun.api.api
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError
@@ -15,7 +17,12 @@ router = APIRouter()
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 def create_or_patch(
-    request: Request, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
+    request: Request,
+    project: str,
+    endpoint_id: str,
+    model_endpoint: ModelEndpoint,
+    iguazio_session: Optional[str] = Cookie(None, alias="session"),
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
     """
     Either create or updates the kv record of a given ModelEndpoint object
@@ -31,7 +38,10 @@ def create_or_patch(
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
     ModelEndpoints.create_or_patch(
-        access_key=access_key, model_endpoint=model_endpoint,
+        db_session=db_session,
+        access_key=access_key,
+        model_endpoint=model_endpoint,
+        leader_session=iguazio_session,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

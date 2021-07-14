@@ -1,7 +1,7 @@
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Cookie, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
+# curl -d@/path/to/artifact http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -24,6 +24,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
+    iguazio_session: Optional[str] = Cookie(None, alias="session"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -42,6 +43,7 @@ async def store_artifact(
         iter=iter,
         tag=tag,
         project=project,
+        leader_session=iguazio_session,
     )
     return {}
 

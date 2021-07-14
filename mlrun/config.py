@@ -15,7 +15,7 @@
 Configuration system.
 
 Configuration can be in either a configuration file specified by
-MLRUN_CONFIG_FILE environment variable or by environmenet variables.
+MLRUN_CONFIG_FILE environment variable or by environment variables.
 
 Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
@@ -89,6 +89,7 @@ default_config = {
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
     "v3io_framesd": "http://framesd:8080",
+    "datastore": {"async_source_mode": "disabled"},
     # url template for default model tracking stream
     "httpdb": {
         "port": 8080,
@@ -104,11 +105,25 @@ default_config = {
         "db_type": "sqldb",
         "max_workers": "",
         "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "authentication": {
+            "mode": "none",  # one of none, basic, bearer, iguazio
+            "basic": {"username": "", "password": ""},
+            "bearer": {"token": ""},
+            "iguazio": {
+                "session_verification_endpoint": "data_sessions/verifications/app_service",
+            },
+        },
+        "authorization": {"mode": "none"},  # one of none, opa
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
+            # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
+            # multiple schedules scheduled to the same time, there might be delays, the default of the scheduler for
+            # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
+            # it to None. the default for coalesce it True just adding it here to be explicit
+            "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
         },
         "projects": {
             "leader": "mlrun",
@@ -161,6 +176,10 @@ default_config = {
             "url": "https://{name}.vault.azure.net",
             "default_secret_name": None,
             "secret_path": "~/.mlrun/azure_vault",
+        },
+        "kubernetes": {
+            "project_secret_name": "mlrun-project-secrets-{project}",
+            "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
     },
     "feature_store": {

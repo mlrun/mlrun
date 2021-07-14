@@ -27,7 +27,7 @@ class SystemTestPreparer:
 
         git_url = "https://github.com/mlrun/mlrun.git"
         provctl_releases = "https://api.github.com/repos/iguazio/provazio/releases"
-        provctl_release_search_amount = 3
+        provctl_release_search_amount = 10
         provctl_binary_format = "provctl-{release_name}-linux-amd64"
 
     def __init__(

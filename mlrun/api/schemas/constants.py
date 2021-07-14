@@ -12,13 +12,6 @@ class Format(str, Enum):
     summary = "summary"
 
 
-class ProjectsRole(str, Enum):
-    iguazio = "iguazio"
-    mlrun = "mlrun"
-    nuclio = "nuclio"
-    nop = "nop"
-
-
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"

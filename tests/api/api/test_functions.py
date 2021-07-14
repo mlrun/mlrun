@@ -30,6 +30,7 @@ def test_build_status_pod_not_found(db: Session, client: TestClient):
     )
     assert response.status_code == HTTPStatus.OK.value
 
+    mlrun.api.utils.singletons.k8s.get_k8s().v1api = unittest.mock.Mock()
     mlrun.api.utils.singletons.k8s.get_k8s().v1api.read_namespaced_pod = unittest.mock.Mock(
         side_effect=kubernetes.client.rest.ApiException(
             status=HTTPStatus.NOT_FOUND.value

@@ -22,9 +22,6 @@ router = fastapi.APIRouter()
 def create_project(
     project: schemas.Project,
     response: fastapi.Response,
-    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
-        None, alias=schemas.HeaderNames.projects_role
-    ),
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
@@ -34,7 +31,7 @@ def create_project(
     project, is_running_in_background = get_project_member().create_project(
         db_session,
         project,
-        projects_role,
+        auth_verifier.auth_info.projects_role,
         auth_verifier.auth_info.session,
         wait_for_completion=wait_for_completion,
     )
@@ -55,9 +52,6 @@ def create_project(
 def store_project(
     project: schemas.Project,
     name: str,
-    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
-        None, alias=schemas.HeaderNames.projects_role
-    ),
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
@@ -68,7 +62,7 @@ def store_project(
         db_session,
         name,
         project,
-        projects_role,
+        auth_verifier.auth_info.projects_role,
         auth_verifier.auth_info.session,
         wait_for_completion=wait_for_completion,
     )
@@ -90,9 +84,6 @@ def patch_project(
     patch_mode: schemas.PatchMode = fastapi.Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
-        None, alias=schemas.HeaderNames.projects_role
-    ),
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
@@ -104,7 +95,7 @@ def patch_project(
         name,
         project,
         patch_mode,
-        projects_role,
+        auth_verifier.auth_info.projects_role,
         auth_verifier.auth_info.session,
         wait_for_completion=wait_for_completion,
     )
@@ -115,8 +106,14 @@ def patch_project(
 
 # curl http://localhost:8080/project/<name>
 @router.get("/projects/{name}", response_model=schemas.Project)
-def get_project(name: str, db_session: Session = fastapi.Depends(deps.get_db_session)):
-    return get_project_member().get_project(db_session, name)
+def get_project(
+    name: str,
+    db_session: Session = fastapi.Depends(deps.get_db_session),
+    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+):
+    return get_project_member().get_project(
+        db_session, name, auth_verifier.auth_info.session
+    )
 
 
 @router.delete(
@@ -128,9 +125,6 @@ def delete_project(
     deletion_strategy: schemas.DeletionStrategy = fastapi.Header(
         schemas.DeletionStrategy.default(), alias=schemas.HeaderNames.deletion_strategy
     ),
-    projects_role: typing.Optional[schemas.ProjectsRole] = fastapi.Header(
-        None, alias=schemas.HeaderNames.projects_role
-    ),
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
@@ -141,7 +135,7 @@ def delete_project(
         db_session,
         name,
         deletion_strategy,
-        projects_role,
+        auth_verifier.auth_info.projects_role,
         auth_verifier.auth_info.session,
         wait_for_completion=wait_for_completion,
     )
@@ -157,6 +151,9 @@ def list_projects(
     owner: str = None,
     labels: typing.List[str] = fastapi.Query(None, alias="label"),
     state: schemas.ProjectState = None,
+    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
-    return get_project_member().list_projects(db_session, owner, format_, labels, state)
+    return get_project_member().list_projects(
+        db_session, owner, format_, labels, state, auth_verifier.auth_info.session
+    )

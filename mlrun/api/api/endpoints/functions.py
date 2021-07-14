@@ -18,7 +18,11 @@ from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, runtime_resources_map
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
+from mlrun.runtimes.function import (
+    deploy_nuclio_function,
+    get_nuclio_deploy_status,
+    resolve_function_internal_invocation_url,
+)
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 
 router = APIRouter()
@@ -207,14 +211,34 @@ def build_status(
             nuclio_name,
             last_log_timestamp,
             text,
+            status,
         ) = get_nuclio_deploy_status(
             name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
         )
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
-        if state == "error":
+        if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
+
+        # internal / external invocation urls were added on nuclio 1.6.x
+        # and hence, it might be empty
+        # to backward compatible with older nuclio versions, we use hard-coded default values
+        internal_invocation_urls = status.get(
+            "internalInvocationUrls", [resolve_function_internal_invocation_url(name)]
+        )
+        external_invocation_urls = status.get(
+            "externalInvocationUrls", [address] if address else []
+        )
+
+        # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+        # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+        # and hence, for BC it would be filled with the external invocation url first item
+        # or completely empty.
+        address = external_invocation_urls[0] if external_invocation_urls else ""
+
         update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
         update_in(fn, "status.state", state)
         update_in(fn, "status.address", address)
 
@@ -239,6 +263,8 @@ def build_status(
                 "x-mlrun-function-status": state,
                 "x-mlrun-last-timestamp": str(last_log_timestamp),
                 "x-mlrun-address": address,
+                "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+                "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
                 "x-mlrun-name": nuclio_name,
             },
         )

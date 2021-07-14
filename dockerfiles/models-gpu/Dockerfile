@@ -45,8 +45,8 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
-RUN conda update -n base -c defaults conda && \
-    conda config --set channel_priority strict && \
+RUN conda config --add channels conda-forge && \
+    conda update -n base -c defaults conda && \
     conda install -n base \
         python=3.7 \
         pip~=20.2.0 \
@@ -55,13 +55,13 @@ RUN conda update -n base -c defaults conda && \
 RUN conda install -n base nvidia::cudatoolkit=${CUDA_VER} \
     && conda clean -aqy
 
-RUN conda install -n base -c rapidsai -c defaults "rapids>=0.12" \
+RUN conda install -n base -c rapidsai -c conda-forge "rapids>=0.12" \
     && conda clean -aqy
 
 RUN conda install -n base pytorch::pytorch pytorch::torchvision \
     && conda clean -aqy
 
-RUN conda install -n base cmake cython tensorflow-gpu \
+RUN conda install -n base cmake cython "tensorflow-gpu>=2" \
     && conda clean -aqy
 
 ARG OMPI=4.1.0

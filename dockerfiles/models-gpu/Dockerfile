@@ -45,9 +45,7 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
-RUN conda config --add channels conda-forge && \
-    conda config --add channels anaconda && \
-    conda update -n base -c defaults conda && \
+RUN conda update -n base -c defaults conda && \
     conda config --set channel_priority strict && \
     conda install -n base \
         python=3.7 \
@@ -57,7 +55,7 @@ RUN conda config --add channels conda-forge && \
 RUN conda install -n base nvidia::cudatoolkit=${CUDA_VER} \
     && conda clean -aqy
 
-RUN conda install -n base -c rapidsai -c anaconda "rapids>=0.12" \
+RUN conda install -n base -c rapidsai -c defaults "rapids>=0.12" \
     && conda clean -aqy
 
 RUN conda install -n base pytorch::pytorch pytorch::torchvision \

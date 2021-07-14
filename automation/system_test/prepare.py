@@ -1,5 +1,4 @@
 import json
-import semver
 import pathlib
 import subprocess
 import sys
@@ -8,6 +7,7 @@ import time
 import click
 import paramiko
 import requests
+import semver
 import yaml
 
 import mlrun.utils
@@ -248,11 +248,12 @@ class SystemTestPreparer:
 
     def _get_provctl_version_and_url(self):
         def extract_version_from_release(release):
-            tag = release['tag_name']
+            tag = release["tag_name"]
             version = tag
             # remove prefix v if exists
             version = version.replace("v", "")
             return semver.VersionInfo.parse(version)
+
         response = requests.get(
             self.Constants.provctl_releases,
             headers={"Authorization": f"token {self._github_access_token}"},

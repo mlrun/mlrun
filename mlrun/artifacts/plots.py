@@ -159,4 +159,4 @@ class BokehArtifact(Artifact):
         from bokeh.embed import file_html
         from bokeh.resources import CDN
 
-        return file_html(self._figure, CDN, "my plot")
+        return file_html(self._figure, CDN, self.key)

@@ -102,7 +102,10 @@ class Member(
         return False
 
     def get_project(
-        self, db_session: sqlalchemy.orm.Session, name: str
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
         return self._leader_follower.get_project(db_session, name)
 
@@ -113,6 +116,7 @@ class Member(
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
             db_session, owner, format_, labels, state

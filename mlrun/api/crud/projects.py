@@ -50,7 +50,7 @@ class Projects(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         leader_session: typing.Optional[str] = None,
-        # In follower the store of the projects objects themselves is just a dict in the follower member class
+        # In follower mode the store of the projects objects themselves is just a dict in the follower member class
         # therefore two methods here (existence check + deletion) need to happen on the store itself (and not the db
         # like the rest of the actions) so enabling to overriding this store with this arg..
         # I felt like defining another layer and interface only for these two methods is an overkill, so although it's a
@@ -62,7 +62,9 @@ class Projects(
             projects_store_override or mlrun.api.utils.singletons.db.get_db()
         )
         if deletion_strategy.is_restricted():
-            if not projects_store.is_project_exists(session, name):
+            if not projects_store.is_project_exists(
+                session, name, leader_session=leader_session
+            ):
                 return
             mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
                 session, name

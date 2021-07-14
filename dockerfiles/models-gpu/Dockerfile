@@ -55,10 +55,10 @@ RUN conda config --add channels conda-forge && \
 RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VER} \
     && conda clean -aqy
 
-RUN conda install -n base pytorch::pytorch pytorch::torchvision \
+RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
     && conda clean -aqy
 
-RUN conda install -n base cmake cython "tensorflow-gpu>=2" \
+RUN conda install -n base cmake cython tensorflow-gpu==2.2.0 \
     && conda clean -aqy
 
 ARG OMPI=4.1.0

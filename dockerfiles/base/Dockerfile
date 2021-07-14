@@ -9,13 +9,13 @@ ENV PIP_NO_CACHE_DIR=1
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -y \
-    gcc \
-    git-core \
-    wget \
-    curl \
     build-essential \
     cmake \
+    curl \
+    gcc \
+    git-core \
     graphviz \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun

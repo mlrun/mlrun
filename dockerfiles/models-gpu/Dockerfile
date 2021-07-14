@@ -33,9 +33,9 @@ RUN apt-get update && \
         build-essential \
         cmake \
         curl \
-        git \
-        wget \
-        graphviz && \
+        git-core \
+        graphviz \
+        wget && \
     rm -rf /var/lib/apt/lists/*
 
 RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \

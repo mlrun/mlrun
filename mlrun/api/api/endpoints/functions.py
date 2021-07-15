@@ -1,4 +1,5 @@
 import json
+import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
@@ -15,6 +16,12 @@ import mlrun.api.utils.background_tasks
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
 from mlrun.api.crud.model_endpoints import ModelEndpoints
+from mlrun.api.schemas import (
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointStatus,
+    ModelEndpointSpec,
+)
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
@@ -23,6 +30,7 @@ from mlrun.run import new_function
 from mlrun.runtimes import (
     RuntimeKinds,
     runtime_resources_map,
+    ServingRuntime,
 )
 from mlrun.runtimes.function import (
     deploy_nuclio_function,
@@ -364,6 +372,9 @@ def _build_function(
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
                 try:
+                    _init_model_monitoring_endpoint_records(
+                        fn, db_session=db_session, auth_info=auth_info,
+                    )
                     if fn.spec.track_models:
                         logger.info("Tracking enabled, initializing model monitoring")
                         _create_model_monitoring_stream(project=fn.metadata.project)
@@ -472,7 +483,9 @@ def _create_model_monitoring_stream(project: str):
         endpoint=config.v3io_api,
     )
 
-    v3io_client = v3io.dataplane.Client(endpoint=config.v3io_api)
+    v3io_client = v3io.dataplane.Client(
+        endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+    )
     response = v3io_client.create_stream(
         container=container,
         path=stream_path,
@@ -483,3 +496,55 @@ def _create_model_monitoring_stream(project: str):
 
     if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
         response.raise_for_status([409, 204])
+
+
+def _init_model_monitoring_endpoint_records(
+    fn: ServingRuntime, db_session, auth_info: mlrun.api.schemas.AuthInfo
+):
+    function_uri = fn.uri
+    project = fn.metadata.project
+    labels = fn.metadata.labels
+
+    stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind="stream"
+    )
+
+    for model_name, values in fn.spec.graph.routes.items():
+        class_args = values.get("class_args", {})
+        model_path = class_args.get("model_path", None)
+        if not model_path:
+            continue
+
+        try:
+            path_parts = model_path.split("/")
+            file_name = path_parts[-1]
+            _, version = file_name.split(":")
+            if version:
+                model_name = f"{model_name}:{version}"
+        except ValueError:
+            pass
+
+        class_name = values.get("class_name")
+
+        try:
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(project=project, labels=labels),
+                spec=ModelEndpointSpec(
+                    function_uri=function_uri,
+                    model=model_name,
+                    model_class=class_name,
+                    model_uri=model_path,
+                    stream_path=stream_path,
+                    active=True,
+                ),
+                status=ModelEndpointStatus(),
+            )
+
+            ModelEndpoints.create_or_patch(
+                db_session=db_session,
+                access_key=os.environ.get("V3IO_ACCESS_KEY"),
+                model_endpoint=model_endpoint,
+                leader_session=auth_info.session,
+            )
+        except Exception as e:
+            logger.error("Failed to create endpoint record", exc=e)

@@ -37,6 +37,7 @@ from mlrun.runtimes.function import (
     get_nuclio_deploy_status,
     resolve_function_internal_invocation_url,
 )
+from mlrun.serving import TaskStep
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 
@@ -501,16 +502,13 @@ def _create_model_monitoring_stream(project: str):
 def _init_model_monitoring_endpoint_records(
     fn: ServingRuntime, db_session, auth_info: mlrun.api.schemas.AuthInfo
 ):
-    function_uri = fn.uri
-    project = fn.metadata.project
-    labels = fn.metadata.labels
 
     stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=project, kind="stream"
+        project=fn.metadata.project, kind="stream"
     )
 
     for model_name, values in fn.spec.graph.routes.items():
-        class_args = values.get("class_args", {})
+        class_args = values.class_args or {}
         model_path = class_args.get("model_path", None)
         if not model_path:
             continue
@@ -524,15 +522,15 @@ def _init_model_monitoring_endpoint_records(
         except ValueError:
             pass
 
-        class_name = values.get("class_name")
-
         try:
             model_endpoint = ModelEndpoint(
-                metadata=ModelEndpointMetadata(project=project, labels=labels),
+                metadata=ModelEndpointMetadata(
+                    project=fn.metadata.project, labels=fn.metadata.labels
+                ),
                 spec=ModelEndpointSpec(
-                    function_uri=function_uri,
+                    function_uri=fn.uri,
                     model=model_name,
-                    model_class=class_name,
+                    model_class=values.class_name,
                     model_uri=model_path,
                     stream_path=stream_path,
                     active=True,

@@ -66,6 +66,7 @@ Table Of Content
    projects
    ci-pipeline
    load-from-marketplace
+   secrets
 
 .. toctree::
    :maxdepth: 1

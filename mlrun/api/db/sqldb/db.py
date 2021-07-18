@@ -244,7 +244,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         iter=None,
         tag="",
         project="",
-        leader_session: Optional[str] = None,
     ):
         self._store_artifact(
             session,
@@ -254,7 +253,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             iter,
             tag,
             project,
-            leader_session=leader_session,
         )
 
     def _store_artifact(
@@ -267,14 +265,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         tag="",
         project="",
         tag_artifact=True,
-        ensure_project=True,
-        leader_session: Optional[str] = None,
     ):
         project = project or config.default_project
-        if ensure_project:
-            get_project_member().ensure_project(
-                session, project, leader_session=leader_session
-            )
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:

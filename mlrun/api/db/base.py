@@ -101,7 +101,6 @@ class DBInterface(ABC):
         iter=None,
         tag="",
         project="",
-        leader_session: Optional[str] = None,
     ):
         pass
 

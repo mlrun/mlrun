@@ -99,7 +99,6 @@ class FileDB(DBInterface):
         iter=None,
         tag="",
         project="",
-        leader_session: Optional[str] = None,
     ):
         return self._transform_run_db_error(
             self.db.store_artifact, key, artifact, uid, iter, tag, project

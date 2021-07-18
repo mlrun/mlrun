@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud.artifacts
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
@@ -35,15 +36,15 @@ async def store_artifact(
 
     logger.debug("Storing artifact", data=data)
     await run_in_threadpool(
-        get_db().store_artifact,
+        mlrun.api.crud.artifacts.Artifacts().store_artifact,
         db_session,
         key,
         data,
         uid,
-        iter=iter,
-        tag=tag,
-        project=project,
-        leader_session=auth_verifier.auth_info.session,
+        tag,
+        iter,
+        project,
+        auth_verifier.auth_info,
     )
     return {}
 

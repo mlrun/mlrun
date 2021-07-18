@@ -128,7 +128,6 @@ class SQLDB(RunDBInterface):
             iter,
             tag,
             project,
-            self.leader_session,
         )
 
     def read_artifact(self, key, tag="", iter=None, project=""):

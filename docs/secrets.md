@@ -140,7 +140,7 @@ users to see the keys that belong to a given project, assuming the user has perm
 See the {py:class}`~mlrun.db.httpdb.HTTPRunDB` class documentation for additional details.
 
 When MLRun is executed in the Iguazio platform, the secret management APIs are protected by the platform such
-that only users with permissions to acess and modify a specific project can alter its secrets.
+that only users with permissions to access and modify a specific project can alter its secrets.
 
 #### Accessing the secrets
 To provide access to these secrets to an executing job, call the following:
@@ -193,7 +193,7 @@ To configure this, the following steps are needed:
     ```shell
     kubectl -n <namespace> create secret generic <azure_key_vault_k8s_secret> \
        --from-literal=secret=<secret key> \
-       --from-literal=tenant_id=<tanant id> \
+       --from-literal=tenant_id=<tenant id> \
        --from-literal=client_id=<client id>
     ```
 

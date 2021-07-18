@@ -22,6 +22,11 @@ class AuthorizationAction(str, enum.Enum):
     store = "store"
 
 
+class AuthorizationResourceTypes(str, enum.Enum):
+    function = "function"
+    artifact = "artifact"
+
+
 class AuthInfo(pydantic.BaseModel):
     # Basic + Iguazio auth
     username: typing.Optional[str] = None

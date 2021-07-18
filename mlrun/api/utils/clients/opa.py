@@ -30,50 +30,44 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         self._log_level = int(mlrun.mlconf.httpdb.authorization.opa.log_level)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
 
-    def filter_projects_by_permissions(
-        self, project_names: typing.List[str], auth_info: mlrun.api.schemas.AuthInfo,
-    ) -> typing.List[str]:
+    def filter_resources_by_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resources: typing.List,
+        project_and_resource_name_extractor: typing.Callable,
+        auth_info: mlrun.api.schemas.AuthInfo,
+    ) -> typing.List:
         # TODO: execute in parallel
-        filtered_projects = []
-        for project_name in project_names:
-            allowed = self.query_project_permissions(
+        filtered_resources = []
+        for resource in resources:
+            project_name, resource_name = project_and_resource_name_extractor(resource)
+            allowed = self.query_resource_permissions(
+                resource_type,
                 project_name,
+                resource_name,
                 mlrun.api.schemas.AuthorizationAction.read,
                 auth_info,
                 raise_on_forbidden=False,
             )
             if allowed:
-                filtered_projects.append(project_name)
-        return filtered_projects
+                filtered_resources.append(project_name)
+        return filtered_resources
 
-    def query_project_permissions(
+    def query_resource_permissions(
         self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         project_name: str,
+        resource_name: str,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
         if not project_name:
             project_name = "*"
+        if not resource_name:
+            resource_name = "*"
         return self.query_permissions(
-            self._generate_resource_string(project_name, "project", project_name),
-            action,
-            auth_info,
-            raise_on_forbidden,
-        )
-
-    def query_artifact_permissions(
-        self,
-        project_name: str,
-        artifact_name: str,
-        action: mlrun.api.schemas.AuthorizationAction,
-        auth_info: mlrun.api.schemas.AuthInfo,
-        raise_on_forbidden: bool = True,
-    ) -> bool:
-        if not project_name:
-            project_name = "*"
-        return self.query_permissions(
-            self._generate_resource_string(project_name, "artifact", artifact_name),
+            self._generate_resource_string(project_name, resource_type, resource_name),
             action,
             auth_info,
             raise_on_forbidden,
@@ -123,12 +117,14 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         return allowed
 
     def _generate_resource_string(
-        self, project_name: str, resource_type: str, resource_name: str
+        self,
+        project_name: str,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resource_name: str,
     ):
         return {
-            "project": "/projects/{project_name}",
-            "function": "/projects/{project_name}/functions/{resource_name}",
-            "artifact": "/projects/{project_name}/artifacts/{resource_name}",
+            mlrun.api.schemas.AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
+            mlrun.api.schemas.AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
         }[resource_type].format(project_name=project_name, resource_name=resource_name)
 
     def _is_request_from_leader(

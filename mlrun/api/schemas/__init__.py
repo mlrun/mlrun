@@ -1,7 +1,12 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .artifact import ArtifactCategories
-from .auth import AuthInfo, AuthorizationAction, ProjectsRole
+from .auth import (
+    AuthInfo,
+    AuthorizationAction,
+    AuthorizationResourceTypes,
+    ProjectsRole,
+)
 from .background_task import (
     BackgroundTask,
     BackgroundTaskMetadata,

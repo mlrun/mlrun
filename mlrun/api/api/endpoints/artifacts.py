@@ -106,18 +106,20 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    artifacts = get_db().list_artifacts(
+    artifacts = mlrun.api.crud.artifacts.Artifacts().list_artifacts(
         db_session,
-        name,
         project,
+        name,
         tag,
         labels,
-        kind=kind,
-        category=category,
-        iter=iter,
-        best_iteration=best_iteration,
+        kind,
+        category,
+        iter,
+        best_iteration,
+        auth_verifier.auth_info,
     )
     return {
         "artifacts": artifacts,

@@ -1,3 +1,5 @@
+import typing
+
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
@@ -24,8 +26,12 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
-        mlrun.api.utils.clients.opa.Client().query_artifact_permissions(
-            project, key, mlrun.api.schemas.AuthorizationAction.store, auth_info
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.api.schemas.AuthorizationAction.store,
+            auth_info,
         )
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=auth_info.session
@@ -43,11 +49,48 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> dict:
-        mlrun.api.utils.clients.opa.Client().query_artifact_permissions(
-            project, key, mlrun.api.schemas.AuthorizationAction.read, auth_info
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
         return mlrun.api.utils.singletons.db.get_db().read_artifact(
             db_session, key, tag, iter, project,
+        )
+
+    def list_artifacts(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str = mlrun.mlconf.default_project,
+        name: str = "",
+        tag: str = "latest",
+        labels: typing.List[str] = None,
+        kind: typing.Optional[str] = None,
+        category: typing.Optional[mlrun.api.schemas.ArtifactCategories] = None,
+        iter: typing.Optional[int] = None,
+        best_iteration: bool = False,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ) -> typing.List:
+        if labels is None:
+            labels = []
+        artifacts = mlrun.api.utils.singletons.db.get_db().list_artifacts(
+            db_session,
+            name,
+            project,
+            tag,
+            labels,
+            kind=kind,
+            category=category,
+            iter=iter,
+            best_iteration=best_iteration,
+        )
+        return mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+            artifacts,
+            lambda artifact: (artifact["project"], artifact["db_key"]),
+            auth_info,
         )
 
     def delete_artifact(
@@ -58,8 +101,12 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
-        mlrun.api.utils.clients.opa.Client().query_artifact_permissions(
-            project, key, mlrun.api.schemas.AuthorizationAction.delete, auth_info
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
         )
         return mlrun.api.utils.singletons.db.get_db().del_artifact(
             db_session, key, tag, project

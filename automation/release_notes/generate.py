@@ -1,4 +1,5 @@
 import re
+import requests
 import subprocess
 import tempfile
 
@@ -57,7 +58,7 @@ class ReleaseNotesGenerator:
                 ],
             )
 
-            commits = self._run_command(
+            commits_for_highlights = self._run_command(
                 "git",
                 args=[
                     "log",
@@ -67,10 +68,20 @@ class ReleaseNotesGenerator:
                 cwd=repo_dir,
             )
 
-        self._generate_release_notes_from_commits(commits)
+            commits_for_pull_requests = self._run_command(
+                "git",
+                args=[
+                    "log",
+                    '--pretty=format:"%h %s"',
+                    f"{self._previous_release}..HEAD",
+                ],
+                cwd=repo_dir,
+            )
 
-    def _generate_release_notes_from_commits(self, commits):
-        highlight_notes = self._generate_highlight_notes_from_commits(commits)
+        self._generate_release_notes_from_commits(commits_for_highlights, commits_for_pull_requests)
+
+    def _generate_release_notes_from_commits(self, commits_for_highlights, commits_for_pull_requests):
+        highlight_notes = self._generate_highlight_notes_from_commits(commits_for_highlights)
         # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
@@ -85,7 +96,7 @@ class ReleaseNotesGenerator:
 
 
 #### Pull requests:
-{commits}
+{commits_for_pull_requests}
         """
         )
 
@@ -97,12 +108,22 @@ class ReleaseNotesGenerator:
             scope = match.groupdict()["scope"] or "Unknown"
             message = match.groupdict()["commitMessage"]
             pull_request_number = match.groupdict()["pullRequestNumber"]
+            commit_id = match.groupdict()["commitId"]
+            username = match.groupdict()["username"]
+            github_username = self._resolve_github_username(commit_id, username)
             # currently just defaulting to hedingber TODO: resolve the real author name
             highlighted_notes += (
-                f"* **{scope}**: {message}, {pull_request_number}, @hedingber\n"
+                f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
             )
 
         return highlighted_notes
+
+    def _resolve_github_username(self, commit_id, username):
+        response = requests.get(f"https://api.github.com/repos/mlrun/mlrun/commits/{commit_id}",
+                                # lock to v3 of the api to prevent breakages
+                                headers={"Accept": "application/vnd.github.v3+json"})
+        default_username = username if username else "unknown"
+        return response.json().get("commit", {}).get("author", {}).get("name", default_username)
 
     @staticmethod
     def _run_command(command, args=None, cwd=None):

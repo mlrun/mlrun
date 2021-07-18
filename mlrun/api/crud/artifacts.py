@@ -1,5 +1,3 @@
-import http
-
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
@@ -16,27 +14,22 @@ import mlrun.utils.singleton
 
 class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
     def store_artifact(
-            self,
-            db_session: sqlalchemy.orm.Session,
-            key: str,
-            data: dict,
-            uid: str,
-            tag: str = "latest",
-            iter: int = 0,
-            project: str = mlrun.mlconf.default_project,
-            auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        self,
+        db_session: sqlalchemy.orm.Session,
+        key: str,
+        data: dict,
+        uid: str,
+        tag: str = "latest",
+        iter: int = 0,
+        project: str = mlrun.mlconf.default_project,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
-        mlrun.api.utils.clients.opa.Client().query_artifact_permissions(project, key, mlrun.api.schemas.AuthorizationAction.store,
-                                                                        auth_info)
+        mlrun.api.utils.clients.opa.Client().query_artifact_permissions(
+            project, key, mlrun.api.schemas.AuthorizationAction.store, auth_info
+        )
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=auth_info.session
         )
         mlrun.api.utils.singletons.db.get_db().store_artifact(
-        db_session,
-        key,
-        data,
-        uid,
-        iter,
-        tag,
-        project,
+            db_session, key, data, uid, iter, tag, project,
         )

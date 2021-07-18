@@ -91,14 +91,7 @@ class FileDB(DBInterface):
         )
 
     def store_artifact(
-        self,
-        session,
-        key,
-        artifact,
-        uid,
-        iter=None,
-        tag="",
-        project="",
+        self, session, key, artifact, uid, iter=None, tag="", project="",
     ):
         return self._transform_run_db_error(
             self.db.store_artifact, key, artifact, uid, iter, tag, project

@@ -63,12 +63,12 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
 
     def query_artifact_permissions(
-            self,
-            project_name: str,
-            artifact_name: str,
-            action: mlrun.api.schemas.AuthorizationAction,
-            auth_info: mlrun.api.schemas.AuthInfo,
-            raise_on_forbidden: bool = True,
+        self,
+        project_name: str,
+        artifact_name: str,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
     ) -> bool:
         if not project_name:
             project_name = "*"
@@ -88,8 +88,18 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> bool:
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.api.schemas.AuthorizationAction.store:
-            create_allowed = self.query_permissions(resource, mlrun.api.schemas.AuthorizationAction.create, auth_info, raise_on_forbidden)
-            update_allowed = self.query_permissions(resource, mlrun.api.schemas.AuthorizationAction.update, auth_info, raise_on_forbidden)
+            create_allowed = self.query_permissions(
+                resource,
+                mlrun.api.schemas.AuthorizationAction.create,
+                auth_info,
+                raise_on_forbidden,
+            )
+            update_allowed = self.query_permissions(
+                resource,
+                mlrun.api.schemas.AuthorizationAction.update,
+                auth_info,
+                raise_on_forbidden,
+            )
             return create_allowed and update_allowed
         if (
             self._is_request_from_leader(auth_info.projects_role)

@@ -93,14 +93,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_artifact(
-        self,
-        session,
-        key,
-        artifact,
-        uid,
-        iter=None,
-        tag="",
-        project="",
+        self, session, key, artifact, uid, iter=None, tag="", project="",
     ):
         pass
 

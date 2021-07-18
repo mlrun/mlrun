@@ -236,23 +236,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         session.commit()
 
     def store_artifact(
-        self,
-        session,
-        key,
-        artifact,
-        uid,
-        iter=None,
-        tag="",
-        project="",
+        self, session, key, artifact, uid, iter=None, tag="", project="",
     ):
         self._store_artifact(
-            session,
-            key,
-            artifact,
-            uid,
-            iter,
-            tag,
-            project,
+            session, key, artifact, uid, iter, tag, project,
         )
 
     def _store_artifact(

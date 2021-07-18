@@ -68,9 +68,12 @@ def read_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = get_db().read_artifact(db_session, key, tag=tag, iter=iter, project=project)
+    data = mlrun.api.crud.artifacts.Artifacts().read_artifact(
+        db_session, key, tag, iter, project, auth_verifier.auth_info
+    )
     return {
         "data": data,
     }

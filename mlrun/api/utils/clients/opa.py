@@ -53,6 +53,30 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 filtered_resources.append(project_name)
         return filtered_resources
 
+    def query_resources_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resources: typing.List,
+        project_and_resource_name_extractor: typing.Callable,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        allowed = True
+        # TODO: execute in parallel
+        for resource in resources:
+            project_name, resource_name = project_and_resource_name_extractor(resource)
+            resource_allowed = self.query_resource_permissions(
+                resource_type,
+                project_name,
+                resource_name,
+                action,
+                auth_info,
+                raise_on_forbidden,
+            )
+            allowed = allowed and resource_allowed
+        return allowed
+
     def query_resource_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,

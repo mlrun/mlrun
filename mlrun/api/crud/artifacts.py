@@ -49,3 +49,18 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         return mlrun.api.utils.singletons.db.get_db().read_artifact(
             db_session, key, tag, iter, project,
         )
+
+    def delete_artifact(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        key: str,
+        tag: str = "latest",
+        project: str = mlrun.mlconf.default_project,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        mlrun.api.utils.clients.opa.Client().query_artifact_permissions(
+            project, key, mlrun.api.schemas.AuthorizationAction.delete, auth_info
+        )
+        return mlrun.api.utils.singletons.db.get_db().del_artifact(
+            db_session, key, tag, project
+        )

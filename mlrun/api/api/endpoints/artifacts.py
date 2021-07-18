@@ -81,14 +81,17 @@ def read_artifact(
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
 @router.delete("/artifact/{project}/{uid}")
-def del_artifact(
+def delete_artifact(
     project: str,
     uid: str,
     key: str,
     tag: str = "",
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().del_artifact(db_session, key, tag, project)
+    mlrun.api.crud.artifacts.Artifacts().delete_artifact(
+        db_session, key, tag, project, auth_verifier.auth_info
+    )
     return {}
 
 

@@ -14,7 +14,8 @@ def test_commit_regex_matching():
             "expected_pull_request_number": "#705",
         },
         {
-            "commit_line": "a654a04e {Hedingber} [CI] Fixing release branch automation to include file deletions (#685)",
+            "commit_line": "a654a04e {Hedingber} [CI] Fixing release branch automation to include file deletions (#685)"
+            "",
             "expected_commit_id": "a654a04e",
             "expected_username": "Hedingber",
             "expected_scope": "CI",
@@ -23,7 +24,7 @@ def test_commit_regex_matching():
         },
         {
             "commit_line": "ced0e66 {urihoenig} [Builder] Make init container image configurable, set pull policy and p"
-                           "in version (3.13.1) (#696)",
+            "in version (3.13.1) (#696)",
             "expected_commit_id": "ced0e66",
             "expected_username": "urihoenig",
             "expected_scope": "Builder",

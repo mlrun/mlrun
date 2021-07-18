@@ -1,9 +1,9 @@
 import re
-import requests
 import subprocess
 import tempfile
 
 import click
+import requests
 
 import mlrun.utils
 
@@ -98,10 +98,16 @@ class ReleaseNotesGenerator:
                 cwd=repo_dir,
             )
 
-        self._generate_release_notes_from_commits(commits_for_highlights, commits_for_pull_requests)
+        self._generate_release_notes_from_commits(
+            commits_for_highlights, commits_for_pull_requests
+        )
 
-    def _generate_release_notes_from_commits(self, commits_for_highlights, commits_for_pull_requests):
-        highlight_notes = self._generate_highlight_notes_from_commits(commits_for_highlights)
+    def _generate_release_notes_from_commits(
+        self, commits_for_highlights, commits_for_pull_requests
+    ):
+        highlight_notes = self._generate_highlight_notes_from_commits(
+            commits_for_highlights
+        )
         # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
@@ -149,9 +155,11 @@ class ReleaseNotesGenerator:
         """
         if username in self._git_to_github_usernames_map:
             return self._git_to_github_usernames_map[username]
-        response = requests.get(f"https://api.github.com/repos/mlrun/mlrun/commits/{commit_id}",
-                                # lock to v3 of the api to prevent breakages
-                                headers={"Accept": "application/vnd.github.v3+json"})
+        response = requests.get(
+            f"https://api.github.com/repos/mlrun/mlrun/commits/{commit_id}",
+            # lock to v3 of the api to prevent breakages
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
         default_username = username if username else "unknown"
         return response.json().get("author", {}).get("login", default_username)
 

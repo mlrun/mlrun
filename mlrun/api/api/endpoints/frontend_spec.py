@@ -37,7 +37,7 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
 
 
 def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
-    project_membership = mlrun.api.schemas.ProjectMembershipMode.disabled
+    project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
-        project_membership = mlrun.api.schemas.ProjectMembershipMode.enabled
+        project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.enabled
     return mlrun.api.schemas.FeatureFlags(project_membership=project_membership)

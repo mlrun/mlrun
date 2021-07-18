@@ -39,7 +39,7 @@ from .feature_store import (
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
-from .frontend_spec import FrontendSpec, FeatureFlags, ProjectMembershipMode
+from .frontend_spec import FrontendSpec, FeatureFlags, ProjectMembershipFeatureFlag
 from .function import FunctionState
 from .model_endpoints import (
     Features,

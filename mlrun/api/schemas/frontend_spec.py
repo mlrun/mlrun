@@ -4,13 +4,13 @@ import enum
 import pydantic
 
 
-class ProjectMembershipMode(str, enum.Enum):
+class ProjectMembershipFeatureFlag(str, enum.Enum):
     enabled = "enabled"
     disabled = "disabled"
 
 
 class FeatureFlags(pydantic.BaseModel):
-    project_membership: ProjectMembershipMode
+    project_membership: ProjectMembershipFeatureFlag
 
 
 class FrontendSpec(pydantic.BaseModel):

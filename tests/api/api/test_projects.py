@@ -213,7 +213,9 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
 
 
-def test_delete_project_deletion_strategy_check(db: Session, client: TestClient) -> None:
+def test_delete_project_deletion_strategy_check(
+    db: Session, client: TestClient
+) -> None:
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
         spec=mlrun.api.schemas.ProjectSpec(),
@@ -241,7 +243,9 @@ def test_delete_project_deletion_strategy_check(db: Session, client: TestClient)
     # add function to project 1
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
-    response = client.post(f"/api/func/{project.metadata.name}/{function_name}", json=function)
+    response = client.post(
+        f"/api/func/{project.metadata.name}/{function_name}", json=function
+    )
     assert response.status_code == HTTPStatus.OK.value
 
     # deletion strategy - check - should fail because there are resources

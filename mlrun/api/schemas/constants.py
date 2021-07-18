@@ -66,7 +66,9 @@ class DeletionStrategy(str, Enum):
         elif self.is_cascading():
             return "cascading"
         elif self.value == DeletionStrategy.check.value:
-            raise NotImplementedError("Iguazio does not support the check deletion strategy")
+            raise NotImplementedError(
+                "Iguazio does not support the check deletion strategy"
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"

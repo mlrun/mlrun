@@ -25,6 +25,7 @@ class AuthorizationAction(str, enum.Enum):
 class AuthorizationResourceTypes(str, enum.Enum):
     function = "function"
     artifact = "artifact"
+    background_task = "background-task"
 
 
 class AuthInfo(pydantic.BaseModel):

@@ -158,7 +158,7 @@ async def start_function(
     background_task = await run_in_threadpool(
         mlrun.api.utils.background_tasks.Handler().create_background_task,
         db_session,
-        auth_verifier.auth_info.session,
+        auth_verifier.auth_info,
         function.metadata.project,
         background_tasks,
         _start_function,

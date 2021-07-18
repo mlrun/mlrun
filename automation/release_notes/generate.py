@@ -13,7 +13,9 @@ class ReleaseNotesGenerator:
     commit_regex = (
         r"^"
         r"(?P<commitId>[a-zA-Z0-9]+)"
-        r" "
+        r" {"
+        r"(?P<username>[a-zA-Z0-9-_\s]+)"
+        r"} "
         r"(\[(?P<scope>[^\]]*)\])?"
         r"( )?"
         r"(?P<commitMessage>.*)"
@@ -59,7 +61,7 @@ class ReleaseNotesGenerator:
                 "git",
                 args=[
                     "log",
-                    '--pretty=format:"%h %s"',
+                    '--pretty=format:"%h {%an} %s"',
                     f"{self._previous_release}..HEAD",
                 ],
                 cwd=repo_dir,

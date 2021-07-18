@@ -28,7 +28,10 @@ def test_get_frontend_spec(
         )
         == {}
     )
-    assert frontend_spec.feature_flags.project_membership == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
+    assert (
+        frontend_spec.feature_flags.project_membership
+        == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
+    )
 
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(

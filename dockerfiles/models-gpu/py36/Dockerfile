@@ -1,6 +1,6 @@
-ARG CUDA_VER=11.0
+ARG CUDA_VER=10.1
 
-FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:${CUDA_VER}-cudnn7-devel-ubuntu18.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
@@ -42,7 +42,7 @@ RUN conda config --add channels conda-forge && \
 RUN conda install -n base cmake cython \
     && conda clean -aqy
 
-RUN conda install -n base -c rapidsai -c nvidia -c conda-forge "rapids>=0.12" python=3.6 cudatoolkit=${CUDA_VER} \
+RUN conda install -n base -c rapidsai -c nvidia -c conda-forge "rapids==0.12" python=3.6 cudatoolkit=${CUDA_VER} \
     && conda clean -aqy
 
 RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \

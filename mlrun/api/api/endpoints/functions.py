@@ -213,7 +213,12 @@ def build_status(
             text,
             status,
         ) = get_nuclio_deploy_status(
-            name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
+            name,
+            project,
+            tag,
+            last_log_timestamp=last_log_timestamp,
+            verbose=verbose,
+            auth_info=auth_verifier.auth_info,
         )
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
@@ -350,7 +355,7 @@ def _build_function(
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
-            deploy_nuclio_function(fn)
+            deploy_nuclio_function(fn, auth_info=auth_info)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:

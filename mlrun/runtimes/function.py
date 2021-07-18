@@ -30,6 +30,7 @@ import mlrun.errors
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
 
+from ..api.schemas import AuthInfo
 from ..config import config as mlconf
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
@@ -386,7 +387,12 @@ class RemoteRuntime(KubeResource):
         pass
 
     def deploy(
-        self, dashboard="", project="", tag="", verbose=False,
+        self,
+        dashboard="",
+        project="",
+        tag="",
+        verbose=False,
+        auth_info: AuthInfo = None,
     ):
         # todo: verify that the function name is normalized
 
@@ -443,7 +449,7 @@ class RemoteRuntime(KubeResource):
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
-                self, dashboard=dashboard, watch=True
+                self, dashboard=dashboard, watch=True, auth_info=auth_info,
             )
             self.status.internal_invocation_urls = internal_invocation_urls
             self.status.external_invocation_urls = external_invocation_urls
@@ -486,6 +492,7 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         raise_on_exception=True,
         resolve_address=True,
+        auth_info: AuthInfo = None,
     ) -> typing.Tuple[str, str, typing.Optional[float]]:
         if dashboard:
             (
@@ -503,6 +510,7 @@ class RemoteRuntime(KubeResource):
                 last_log_timestamp=last_log_timestamp,
                 verbose=verbose,
                 resolve_address=resolve_address,
+                auth_info=auth_info,
             )
             self.status.internal_invocation_urls = function_status.get(
                 "internalInvocationUrls", []
@@ -623,12 +631,13 @@ class RemoteRuntime(KubeResource):
         headers=None,
         dashboard="",
         force_external_address=False,
+        auth_info: AuthInfo = None,
     ):
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
             if not self.status.address:
-                state, _, _ = self._get_state(dashboard)
+                state, _, _ = self._get_state(dashboard, auth_info=auth_info)
                 if state != "ready" or not self.status.address:
                     raise ValueError(
                         "no function address or not ready, first run .deploy()"
@@ -817,7 +826,9 @@ def get_fullname(name, project, tag):
     return name
 
 
-def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
+def deploy_nuclio_function(
+    function: RemoteRuntime, dashboard="", watch=False, auth_info: AuthInfo = None
+):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(function)
 
@@ -1010,6 +1021,7 @@ def get_nuclio_deploy_status(
     last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
+    auth_info: AuthInfo = None,
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)

@@ -24,6 +24,7 @@ import requests
 from aiohttp.client import ClientSession
 from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
+from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
@@ -849,6 +850,7 @@ def deploy_nuclio_function(
         create_new=True,
         watch=watch,
         return_address_mode=nuclio.deploy.ReturnAddressModes.all,
+        auth_info=_to_nuclio_auth_info(auth_info),
     )
 
 
@@ -1033,7 +1035,11 @@ def get_nuclio_deploy_status(
         verbose,
         resolve_address,
         return_function_status=True,
+        auth_info=_to_nuclio_auth_info(auth_info),
     )
 
     text = "\n".join(outputs) if outputs else ""
     return state, address, name, last_log_timestamp, text, function_status
+
+def _to_nuclio_auth_info(auth_info:AuthInfo = None):
+    return NuclioAuthInfo.from_session_key(auth_info.session) if auth_info else None

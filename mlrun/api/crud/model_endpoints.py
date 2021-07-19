@@ -385,7 +385,7 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    async def deploy_model_monitoring_stream_processing(project: str):
+    def deploy_model_monitoring_stream_processing(project: str):
         try:
             logger.info(
                 f"Checking deployment status for model-monitoring-stream [{project}]"

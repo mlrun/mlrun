@@ -402,7 +402,7 @@ class ModelEndpoints:
         logger.info(f"Deploying model-monitoring-stream [{project}]")
         logger.debug("Importing model-monitoring-stream function from function hub")
         fn: RemoteRuntime = mlrun.import_function(
-            "hub://model_monitoring_stream:development"
+            "hub://model_monitoring_stream:experimental"
         )
         fn.metadata.project = project
 

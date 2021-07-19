@@ -256,7 +256,8 @@ class TestFeatureStore(TestMLRunSystem):
         print(features)
         print(stats)
         stats.remove("timestamp")
-        assert features == stats, "didnt infer stats for all features"
+        stats.remove(key)
+        assert features == stats, "didn't infer stats for all features"
 
     def test_non_partitioned_target_in_dir(self):
         source = CSVSource(

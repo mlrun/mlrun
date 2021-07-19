@@ -81,6 +81,7 @@ class GraphServer(ModelObj):
         error_stream=None,
         track_models=None,
         secret_sources=None,
+        default_content_type=None,
     ):
         self._graph = None
         self.graph: Union[RouterStep, RootFlowStep] = graph
@@ -100,6 +101,7 @@ class GraphServer(ModelObj):
         self._secrets = SecretsStore.from_list(secret_sources)
         self._db_conn = None
         self.resource_cache = None
+        self.default_content_type = default_content_type
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -213,6 +215,14 @@ class GraphServer(ModelObj):
         server_context = self.context
         context = context or server_context
         try:
+            if not event.content_type and self.default_content_type:
+                event.content_type = self.default_content_type
+            if (
+                isinstance(event.body, (str, bytes))
+                and event.content_type
+                and event.content_type in ["json", "application/json"]
+            ):
+                event.body = json.loads(event.body)
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
             message = str(exc)

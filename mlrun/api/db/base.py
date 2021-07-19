@@ -231,7 +231,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def is_project_exists(self, session, name: str):
+    # adding **kwargs to leave room for other projects store implementations see mlrun.api.crud.projects.delete_project
+    # for explanations
+    def is_project_exists(self, session, name: str, **kwargs):
         pass
 
     @abstractmethod

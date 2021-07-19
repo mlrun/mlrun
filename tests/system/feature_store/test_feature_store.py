@@ -135,7 +135,9 @@ class TestFeatureStore(TestMLRunSystem):
         resp.to_parquet(str(self.results_path / "query.parquet"))
 
         # check simple api without join with other df
-        resp = fs.get_offline_features(vector)
+        # test the use of vector uri
+        vector.save()
+        resp = fs.get_offline_features(vector.uri)
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
@@ -254,7 +256,8 @@ class TestFeatureStore(TestMLRunSystem):
         print(features)
         print(stats)
         stats.remove("timestamp")
-        assert features == stats, "didnt infer stats for all features"
+        stats.remove(key)
+        assert features == stats, "didn't infer stats for all features"
 
     def test_non_partitioned_target_in_dir(self):
         source = CSVSource(

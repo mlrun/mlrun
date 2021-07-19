@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 
 import click
+import requests
 
 import mlrun.utils
 
@@ -13,7 +14,9 @@ class ReleaseNotesGenerator:
     commit_regex = (
         r"^"
         r"(?P<commitId>[a-zA-Z0-9]+)"
-        r" "
+        r" {"
+        r"(?P<username>[a-zA-Z0-9-_\s]+)"
+        r"} "
         r"(\[(?P<scope>[^\]]*)\])?"
         r"( )?"
         r"(?P<commitMessage>.*)"
@@ -31,6 +34,26 @@ class ReleaseNotesGenerator:
         self._release = release
         self._previous_release = previous_release
         self._release_branch = release_branch
+        # adding a map with the common contributors to prevent going to github API on every commit (better performance,
+        # and prevent rate limiting)
+        self._git_to_github_usernames_map = {
+            "Hedingber": "Hedingber",
+            "gilad-shaham": "gilad-shaham",
+            "Saar Cohen": "theSaarco",
+            "urihoenig": "urihoenig",
+            "Eyal Salomon": "eyalsol",
+            "Katya Katsenelenbogen": "katyakats",
+            "Ben": "benbd86",
+            "Yaron Haviv": "yaronha",
+            "Marcelo Litovsky": "marcelonyc",
+            "Liran BG": "liranbg",
+            "Gal Topper": "gtopper",
+            "Dina Nimrodi": "dinal",
+            "Michael": "Michaelliv",
+            "guy1992l": "guy1992l",
+            "Nick Brown": "ihs-nick",
+            "Oded Messer": "omesser",
+        }
 
     def run(self):
         self._logger.info(
@@ -55,7 +78,17 @@ class ReleaseNotesGenerator:
                 ],
             )
 
-            commits = self._run_command(
+            commits_for_highlights = self._run_command(
+                "git",
+                args=[
+                    "log",
+                    '--pretty=format:"%h {%an} %s"',
+                    f"{self._previous_release}..HEAD",
+                ],
+                cwd=repo_dir,
+            )
+
+            commits_for_pull_requests = self._run_command(
                 "git",
                 args=[
                     "log",
@@ -65,10 +98,16 @@ class ReleaseNotesGenerator:
                 cwd=repo_dir,
             )
 
-        self._generate_release_notes_from_commits(commits)
+        self._generate_release_notes_from_commits(
+            commits_for_highlights, commits_for_pull_requests
+        )
 
-    def _generate_release_notes_from_commits(self, commits):
-        highlight_notes = self._generate_highlight_notes_from_commits(commits)
+    def _generate_release_notes_from_commits(
+        self, commits_for_highlights, commits_for_pull_requests
+    ):
+        highlight_notes = self._generate_highlight_notes_from_commits(
+            commits_for_highlights
+        )
         # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
@@ -83,7 +122,7 @@ class ReleaseNotesGenerator:
 
 
 #### Pull requests:
-{commits}
+{commits_for_pull_requests}
         """
         )
 
@@ -95,12 +134,34 @@ class ReleaseNotesGenerator:
             scope = match.groupdict()["scope"] or "Unknown"
             message = match.groupdict()["commitMessage"]
             pull_request_number = match.groupdict()["pullRequestNumber"]
-            # currently just defaulting to hedingber TODO: resolve the real author name
+            commit_id = match.groupdict()["commitId"]
+            username = match.groupdict()["username"]
+            github_username = self._resolve_github_username(commit_id, username)
             highlighted_notes += (
-                f"* **{scope}**: {message}, {pull_request_number}, @hedingber\n"
+                f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
             )
 
         return highlighted_notes
+
+    def _resolve_github_username(self, commit_id, username):
+        """
+        The username we get here is coming from the output of git log command, so it's the git username.
+        We want to resolve the Github username, since when using these, Github automatically make the name clickable
+        (links to the Github profile)
+        Note that if for some reason we couldn't find the Github username we default to the git username which won't be
+        clickable but at least will give the author name
+        To prevent getting rate limit from Github API a static map (git username -> github username) of common
+        contributors was added
+        """
+        if username in self._git_to_github_usernames_map:
+            return self._git_to_github_usernames_map[username]
+        response = requests.get(
+            f"https://api.github.com/repos/mlrun/mlrun/commits/{commit_id}",
+            # lock to v3 of the api to prevent breakages
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
+        default_username = username if username else "unknown"
+        return response.json().get("author", {}).get("login", default_username)
 
     @staticmethod
     def _run_command(command, args=None, cwd=None):

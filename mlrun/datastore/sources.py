@@ -237,7 +237,6 @@ class DataFrameSource:
 
        :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
        :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-            (no timestamp field).
        :parameter context: MLRun context. Defaults to None
     """
 

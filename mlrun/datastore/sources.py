@@ -138,7 +138,7 @@ class CSVSource(BaseSourceDriver):
 
 class ParquetSource(BaseSourceDriver):
     """
-       Reads Parquet file as input source for a flow.
+       Reads Parquet file/dir as input source for a flow.
 
        :parameter name: name of the source
        :parameter path: path to Parquet file or directory

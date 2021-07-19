@@ -144,13 +144,12 @@ class ParquetSource(BaseSourceDriver):
        :parameter path: path to Parquet file or directory
        :parameter key_field: the column to be used as the key for events. Can be a list of keys.
        :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-            (no timestamp field).
        :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
             'filter_column' >= start_filter. Default is None
        :parameter end_filter: datetime. If not None, the results will be filtered by partitions
             'filter_column' < end_filter. Default is None
-       :parameter filter_column: Optional. if not None, the results will be filtered by this column and before and/or
-            after
+       :parameter filter_column: Optional. if not None, the results will be filtered by this column and
+            start_filter & end_filter
        :parameter schedule: string to configure scheduling of the ingestion job.
        :parameter attributes: additional parameters to pass to storey.
     """

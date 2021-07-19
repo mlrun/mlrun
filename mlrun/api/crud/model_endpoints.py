@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Mapping, Optional
 
 from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 from v3io.dataplane import RaiseForStatus
 
 import mlrun.api.api.utils
@@ -361,7 +360,7 @@ class ModelEndpoints:
         return endpoint
 
     @staticmethod
-    async def deploy_monitoring_functions(
+    def deploy_monitoring_functions(
         project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo
     ):
         if not _check_secret_exists(project, "MODEL_MONITORING_API_KEY"):
@@ -379,8 +378,8 @@ class ModelEndpoints:
                 """
             raise MLRunBadRequestError(textwrap.dedent(error))
 
-        await ModelEndpoints.deploy_model_monitoring_stream_processing(project)
-        await ModelEndpoints.deploy_model_monitoring_batch_processing(
+        ModelEndpoints.deploy_model_monitoring_stream_processing(project)
+        ModelEndpoints.deploy_model_monitoring_batch_processing(
             project=project, db_session=db_session, auth_info=auth_info,
         )
 
@@ -423,10 +422,10 @@ class ModelEndpoints:
         fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps(env_params))
         _add_secret(fn, project, "MODEL_MONITORING_API_KEY")
         fn.apply(mlrun.mount_v3io())
-        await run_in_threadpool(deploy_nuclio_function, fn)
+        deploy_nuclio_function(fn)
 
     @staticmethod
-    async def deploy_model_monitoring_batch_processing(
+    def deploy_model_monitoring_batch_processing(
         project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # Test if mlrun-job already deployed
@@ -461,8 +460,7 @@ class ModelEndpoints:
             "functionUrl": function_uri,
         }
 
-        await mlrun.api.api.utils.submit_run(db_session, auth_info, data)
-        # _submit_run(db_session=db_session, auth_info=auth_info, data=data)
+        _submit_run(db_session=db_session, auth_info=auth_info, data=data)
 
 
 def _check_secret_exists(project_name: str, secret: str):

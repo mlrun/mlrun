@@ -37,7 +37,6 @@ from mlrun.runtimes.function import (
     get_nuclio_deploy_status,
     resolve_function_internal_invocation_url,
 )
-from mlrun.serving import TaskStep
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 
@@ -137,6 +136,11 @@ async def build_function(
     with_mlrun = strtobool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
+
+    await run_in_threadpool(
+        _deploy_model_monitoring, db_session, auth_verifier.auth_info, function
+    )
+
     fn, ready = await run_in_threadpool(
         _build_function,
         db_session,
@@ -369,24 +373,6 @@ def _build_function(
             deploy_nuclio_function(fn)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
-
-            if fn.kind == RuntimeKinds.serving:
-                # Handle model monitoring
-                try:
-                    _init_model_monitoring_endpoint_records(
-                        fn, db_session=db_session, auth_info=auth_info,
-                    )
-                    if fn.spec.track_models:
-                        logger.info("Tracking enabled, initializing model monitoring")
-                        _create_model_monitoring_stream(project=fn.metadata.project)
-                        ModelEndpoints.deploy_monitoring_functions(
-                            project=fn.metadata.project,
-                            db_session=db_session,
-                            auth_info=auth_info,
-                        )
-                except Exception as e:
-                    logger.exception(e)
-
         else:
             ready = build_runtime(
                 fn, with_mlrun, mlrun_version_specifier, skip_deployed
@@ -397,6 +383,29 @@ def _build_function(
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
     return fn, ready
+
+
+async def _deploy_model_monitoring(
+    db_session, auth_info: mlrun.api.schemas.AuthInfo, function
+):
+    fn = new_function(runtime=function)
+
+    if fn.kind == RuntimeKinds.serving:
+        # Handle model monitoring
+        try:
+            await _init_model_monitoring_endpoint_records(
+                fn, db_session=db_session, auth_info=auth_info,
+            )
+            if fn.spec.track_models:
+                logger.info("Tracking enabled, initializing model monitoring")
+                await _create_model_monitoring_stream(project=fn.metadata.project)
+                await ModelEndpoints.deploy_monitoring_functions(
+                    project=fn.metadata.project,
+                    db_session=db_session,
+                    auth_info=auth_info,
+                )
+        except Exception as e:
+            logger.exception(e)
 
 
 def _parse_start_function_body(db_session, data):
@@ -468,7 +477,7 @@ def _get_function_status(data):
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
 
 
-def _create_model_monitoring_stream(project: str):
+async def _create_model_monitoring_stream(project: str):
 
     stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind="stream"
@@ -487,7 +496,9 @@ def _create_model_monitoring_stream(project: str):
     v3io_client = v3io.dataplane.Client(
         endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
     )
-    response = v3io_client.create_stream(
+
+    response = await run_in_threadpool(
+        v3io_client.create_stream,
         container=container,
         path=stream_path,
         shard_count=1,
@@ -499,7 +510,7 @@ def _create_model_monitoring_stream(project: str):
         response.raise_for_status([409, 204])
 
 
-def _init_model_monitoring_endpoint_records(
+async def _init_model_monitoring_endpoint_records(
     fn: ServingRuntime, db_session, auth_info: mlrun.api.schemas.AuthInfo
 ):
 
@@ -538,7 +549,8 @@ def _init_model_monitoring_endpoint_records(
                 status=ModelEndpointStatus(),
             )
 
-            ModelEndpoints.create_or_patch(
+            await run_in_threadpool(
+                ModelEndpoints.create_or_patch,
                 db_session=db_session,
                 access_key=os.environ.get("V3IO_ACCESS_KEY"),
                 model_endpoint=model_endpoint,

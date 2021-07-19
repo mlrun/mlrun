@@ -7,8 +7,8 @@ MLRun provides a model monitoring service that tracks the performance of models 
 See the following sections for details and examples.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :glob:
 
-  model-monitoring-deployment
-  initial-setup-configuration
+   model-monitoring-deployment
+   initial-setup-configuration

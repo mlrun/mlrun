@@ -1,6 +1,6 @@
 .. _model_monitoring:
 
-Model Monitoring (beta)
+Model Monitoring Overview
 ========================
 
 MLRun provides a model monitoring service that tracks the performance of models in production.

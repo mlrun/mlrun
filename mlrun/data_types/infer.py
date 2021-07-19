@@ -116,6 +116,7 @@ def get_df_preview(df, preview_lines=20):
     shortdf = df
     if length > preview_lines:
         shortdf = df.head(preview_lines)
+    shortdf = shortdf.reset_index(inplace=False)
     return [shortdf.columns.values.tolist()] + shortdf.values.tolist()
 
 

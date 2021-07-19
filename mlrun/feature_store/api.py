@@ -292,16 +292,13 @@ def ingest(
 
     purge_targets = targets or featureset.spec.targets or get_default_targets()
     if overwrite:
-        print("fffolowing1 " + str(featureset.spec))
         validate_target_list(targets=purge_targets)
         purge_target_names = [
             t if isinstance(t, str) else t.name for t in purge_targets
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
-        print("fffolowing2 " + str(featureset.spec))
 
     else:
-        print("fffolowing3 " + str(featureset.spec))
         for target in purge_targets:
             overwrite_supported_targets = [TargetTypes.parquet, TargetTypes.nosql]
             if target.kind not in overwrite_supported_targets:

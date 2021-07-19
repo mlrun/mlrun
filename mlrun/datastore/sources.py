@@ -150,7 +150,8 @@ class ParquetSource(BaseSourceDriver):
             'filter_column' < end_filter. Default is None
        :parameter filter_column: Optional. if not None, the results will be filtered by this column and
             start_filter & end_filter
-       :parameter schedule: string to configure scheduling of the ingestion job.
+       :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+            cause the job to run every 30 minutes
        :parameter attributes: additional parameters to pass to storey.
     """
 

@@ -451,6 +451,7 @@ class ModelEndpoints:
         _add_secret(fn, project, "MODEL_MONITORING_API_KEY")
 
         function_uri = fn.save()
+        function_uri = function_uri.replace("db://", "")
 
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
 

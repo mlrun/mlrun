@@ -187,7 +187,8 @@ default_config = {
     "model_endpoint_monitoring": {
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         "store_prefixes": {
-            "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}"
+            "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
+            "user_space": "v3io:///project/{project}/model-endpoints/{kind}"
         },
     },
     "secret_stores": {

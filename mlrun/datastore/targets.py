@@ -182,13 +182,10 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     features = resource.spec.features
     table = None
 
-    print("tttthere are " + str(len(list(key_columns))) + " key columsn")
-
     for target in targets:
         driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
-        print("333333333333 " + str(list(key_columns)))
         driver.add_writer_step(
             graph,
             target.after_step or final_step,
@@ -200,8 +197,6 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     if to_df:
         # add dataframe target, will return a dataframe
         driver = DFTarget()
-        print("444444444444 " + str(list(key_columns)))
-#        k = 6/0
 
         driver.add_writer_step(
             graph,
@@ -434,7 +429,6 @@ class BaseStoreTarget(DataTargetBase):
             PendingDeprecationWarning,
         )
         """add storey writer state to graph"""
-        print("111111111 " + str(key_columns))
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def purge(self):
@@ -1016,7 +1010,6 @@ class DFTarget(BaseStoreTarget):
             PendingDeprecationWarning,
         )
         """add storey writer state to graph"""
-        print("222222222222 " + str(key_columns))
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(

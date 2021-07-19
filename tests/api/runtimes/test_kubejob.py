@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 import unittest.mock
 
@@ -17,11 +19,7 @@ from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestKubejobRuntime(TestRuntimeBase):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()
 
     def custom_setup(self):
@@ -105,8 +103,21 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
 
         node_selector = {
-            "label-a": "val1",
+            "label-1": "val1",
             "label-2": "val2",
+        }
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        runtime.with_node_selection(node_selector=node_selector)
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(expected_node_selector=node_selector)
+
+        runtime = self._generate_runtime()
+
+        node_selector = {
+            "label-3": "val3",
+            "label-4": "val4",
         }
         runtime.with_node_selection(node_selector=node_selector)
         self._execute_run(runtime)

@@ -1,4 +1,3 @@
-import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
@@ -10,7 +9,6 @@ from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import app
 from mlrun.api.utils.singletons.db import initialize_db
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
 from mlrun.utils import logger
@@ -53,10 +51,5 @@ def client() -> Generator:
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
-        # in case some test setup already mocked them, don't override it
-        if not hasattr(get_k8s(), "v1api"):
-            get_k8s().v1api = unittest.mock.Mock()
-        if not hasattr(get_k8s(), "crdapi"):
-            get_k8s().crdapi = unittest.mock.Mock()
         with TestClient(app) as c:
             yield c

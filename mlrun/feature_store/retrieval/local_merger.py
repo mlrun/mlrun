@@ -47,8 +47,7 @@ class LocalFeatureMerger:
         if entity_timestamp_column:
             index_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
-        if self.vector.metadata.name:
-            self.vector.save()
+        self.vector.save()
 
         # load dataframes
         feature_sets = []
@@ -81,6 +80,11 @@ class LocalFeatureMerger:
                     index_columns.append(field)
 
             self._result_df.drop(columns=index_columns, inplace=True, errors="ignore")
+
+        if self.vector.status.label_column:
+            self._result_df = self._result_df.dropna(
+                subset=[self.vector.status.label_column]
+            )
 
         if target:
             is_persistent_vector = self.vector.metadata.name is not None

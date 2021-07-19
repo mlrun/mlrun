@@ -13,6 +13,7 @@ RUN python -m pip install --upgrade pip~=20.2.0
 WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
+COPY --chown=$NB_UID:$NB_GID ./examples/mlrun_basics.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
 

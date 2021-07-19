@@ -661,6 +661,11 @@ class ParquetTarget(BaseStoreTarget):
             time_column=time_column,
         )
 
+    def is_single_file(self):
+        if self.path:
+            return self.path.endswith(".parquet") or self.path.endswith(".pq")
+        return False
+
 
 class CSVTarget(BaseStoreTarget):
     kind = TargetTypes.csv

@@ -230,9 +230,11 @@ def build_status(
             "externalInvocationUrls", [address] if address else []
         )
 
-        # on nuclio > 1.6.x we get the external invocation url on the status block
-        if external_invocation_urls and not address:
-            address = external_invocation_urls[0]
+        # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+        # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+        # and hence, for BC it would be filled with the external invocation url first item
+        # or completely empty.
+        address = external_invocation_urls[0] if external_invocation_urls else ""
 
         update_in(fn, "status.nuclio_name", nuclio_name)
         update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)

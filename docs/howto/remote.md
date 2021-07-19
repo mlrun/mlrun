@@ -43,7 +43,7 @@ Set environment variables to define your MLRun configuration. As a minimum requi
 1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
 
     ```ini
-    MLRUN_DBPATH=<API endpoint of the MLRun APIs service engpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
+    MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
     
 2. In order to store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your artifact. You can use `{{project}}` to include the project name in the path `{{run.uid}}` to include the specific run uid in the artifact path. For example:
@@ -88,7 +88,7 @@ Create an environment file called `mlrun.env` in your workspace folder. Copy-pas
 
 ``` ini
 # Remote URL to mlrun service
-MLRUN_DBPATH=<API endpoint of the MLRun APIs service engpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
+MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
 # Root artifact path on the remote server
 MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}">
 # Iguazio platform username
@@ -161,7 +161,7 @@ Create a file `mlrun_env.sh`, and copy-paste the code below; replace the `<...>`
 #!/usr/bin/env bash
 
 # Remote URL to mlrun service
-export MLRUN_DBPATH=<API endpoint of the MLRun APIs service engpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
+export MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
 # Root artifact path on the remote server
 export MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}">
 # Iguazio platform username

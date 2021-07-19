@@ -256,6 +256,10 @@ class HTTPRunDB(RunDBInterface):
                 else config.scrape_metrics
             )
             config.hub_url = server_cfg.get("hub_url") or config.hub_url
+            config.default_function_node_selector = (
+                server_cfg.get("default_function_node_selector")
+                or config.default_function_node_selector
+            )
         except Exception:
             pass
         return self
@@ -407,7 +411,7 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
         last_update_time_to: datetime = None,
-    ):
+    ) -> RunList:
         """ Retrieve a list of runs, filtered by various options.
         Example::
 
@@ -532,7 +536,7 @@ class HTTPRunDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
-    ):
+    ) -> ArtifactList:
         """ List artifacts filtered by various parameters.
 
         Examples::

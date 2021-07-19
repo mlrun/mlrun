@@ -218,7 +218,10 @@ class DataFrameSource:
 
     def __init__(self, df, key_field=None, time_field=None, context=None):
         self._df = df
-        self.key_field = key_field
+        if isinstance(key_field, str):
+            self.key_field = [key_field]
+        else:
+            self.key_field = key_field
         self.time_field = time_field
         self.context = context
 

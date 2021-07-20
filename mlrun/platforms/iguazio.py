@@ -25,6 +25,7 @@ import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
+from mlrun.utils.helpers import logger
 
 _cached_control_session = None
 
@@ -382,6 +383,16 @@ class OutputStream:
         self._container, self._stream_path = split_path(stream_path)
 
         if create:
+
+            logger.debug(
+                "Creating output stream",
+                endpoint=endpoint,
+                container=self._container,
+                stream_path=self._stream_path,
+                shards=shards,
+                retention_in_hours=retention_in_hours,
+            )
+
             response = self._v3io_client.create_stream(
                 container=self._container,
                 path=self._stream_path,

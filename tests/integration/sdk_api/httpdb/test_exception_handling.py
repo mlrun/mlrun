@@ -75,7 +75,6 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             mlrun.errors.MLRunRuntimeError,
             match=r"HTTPConnectionPool\(host='does-not-exist', port=80\): Max retries exceeded with url: \/api\/project"
             r"s\/some-project \(Caused by NewConnectionError\('<urllib3\.connection\.HTTPConnection object at (\S*)>: F"
-            r"ailed to establish a new connection: \[Errno 8] nodename nor servname provided, or not known'\)\): Failed"
-            r" retrieving project some-project",
+            r"ailed to establish a new connection: \[Errno (.*)'\)\): Failed retrieving project some-project",
         ):
             mlrun.get_run_db().get_project("some-project")

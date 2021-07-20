@@ -55,8 +55,10 @@ async def http_status_error_handler(
         error_message=error_message,
         status_code=status_code,
     )
+    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
+    #  version can be changed to detail=error_message
     return await http_exception_handler(
-        request, fastapi.HTTPException(status_code=status_code, detail=error_message)
+        request, fastapi.HTTPException(status_code=status_code, detail={'reason': error_message})
     )
 
 

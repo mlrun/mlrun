@@ -411,7 +411,7 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
             self.status = data["data"].get("status")
-            self._wait_for_function_deployment(verbose=verbose)
+            self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
             #       now, functions can be not exposed (using service type ClusterIP) and hence
@@ -459,7 +459,7 @@ class RemoteRuntime(KubeResource):
 
         return self.spec.command
 
-    def _wait_for_function_deployment(self, verbose=False):
+    def _wait_for_function_deployment(self, db, verbose=False):
         text = ""
         state = ""
         last_log_timestamp = 1

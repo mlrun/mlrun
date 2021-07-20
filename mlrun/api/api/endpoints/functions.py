@@ -18,11 +18,7 @@ from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, runtime_resources_map
-from mlrun.runtimes.function import (
-    deploy_nuclio_function,
-    get_nuclio_deploy_status,
-    resolve_function_internal_invocation_url,
-)
+from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 
 router = APIRouter()
@@ -225,15 +221,8 @@ def build_status(
         if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
 
-        # internal / external invocation urls were added on nuclio 1.6.x
-        # and hence, it might be empty
-        # to backward compatible with older nuclio versions, we use hard-coded default values
-        internal_invocation_urls = status.get(
-            "internalInvocationUrls", [resolve_function_internal_invocation_url(name)]
-        )
-        external_invocation_urls = status.get(
-            "externalInvocationUrls", [address] if address else []
-        )
+        internal_invocation_urls = status.get("internalInvocationUrls", [])
+        external_invocation_urls = status.get("externalInvocationUrls", [])
 
         # on earlier versions of mlrun, address used to represent the nodePort external invocation url
         # now that functions can be not exposed (using service_type clusterIP) this no longer relevant

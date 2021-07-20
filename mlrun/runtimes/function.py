@@ -1005,16 +1005,6 @@ def enrich_function_with_ingress(config, mode, service_type):
         enrich()
 
 
-def resolve_function_internal_invocation_url(function_name, namespace=""):
-    # hard-coding the internal invocation url
-    # template: nuclio-<function_name>.(<namespace>.)?svc.cluster.local:8080
-
-    # both might be empty
-    templated_namespace = namespace if namespace else mlconf.namespace
-    templated_namespace += "." if templated_namespace else ""
-    return f"nuclio-{function_name}.{templated_namespace}svc.cluster.local:8080"
-
-
 def get_nuclio_deploy_status(
     name,
     project,

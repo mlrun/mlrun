@@ -79,5 +79,9 @@ class ProjectSummary(pydantic.BaseModel):
 
 
 class ProjectsOutput(pydantic.BaseModel):
-    # use the format query param to control whether the full object will be returned or only the names
-    projects: typing.List[typing.Union[Project, str, ProjectSummary]]
+    # The format query param controls the project type used:
+    # full - Project
+    # name_only - str
+    # summary - ProjectSummary
+    # leader - dict
+    projects: typing.List[typing.Union[Project, str, ProjectSummary, dict]]

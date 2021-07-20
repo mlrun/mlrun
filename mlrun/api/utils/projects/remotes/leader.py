@@ -50,6 +50,10 @@ class Member(abc.ABC):
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         pass
 
+    @abc.abstractmethod
+    def format_as_leader_project(self, project: mlrun.api.schemas.Project) -> dict:
+        pass
+
     def patch_project(
         self,
         session: str,

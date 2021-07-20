@@ -60,3 +60,6 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         return mlrun.api.utils.singletons.project_member.get_project_member().get_project(
             session, name
         )
+
+    def format_as_leader_project(self, project: mlrun.api.schemas.Project) -> dict:
+        return project

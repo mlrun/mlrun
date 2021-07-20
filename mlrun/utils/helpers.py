@@ -142,7 +142,7 @@ def verify_field_of_type(field_name: str, field_value, expected_type: type):
         # the informative message to the user
         # TODO: Change to use MLRunError types when fastapi framework handles the internal exceptions correctly
         raise ValueError(f"Field '{field_name}' should be of type {expected_type.__name__} "
-                         f"(got: {type(field_value).__name__} with value {field_value}).")
+                         f"(got: {type(field_value).__name__} with value: {field_value}).")
 
 
 def now_date():
@@ -197,6 +197,11 @@ def get_in(obj, keys, default=None):
             return default
         obj = obj[key]
     return obj
+
+
+def verify_and_update_in(obj, key, value, expected_type: type, append=False, replace=True):
+    verify_field_of_type(key, value, expected_type)
+    update_in(obj, key, value, append, replace)
 
 
 def update_in(obj, key, value, append=False, replace=True):

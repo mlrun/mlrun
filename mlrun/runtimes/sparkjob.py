@@ -26,14 +26,12 @@ from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
-from mlrun.utils.helpers import verify_field_regex
-from mlrun.utils.helpers import verify_field_of_type
 from mlrun.utils.regex import sparkjob_name
 
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import get_in, logger, update_in
+from ..utils import get_in, logger, update_in, verify_field_regex, verify_and_update_in
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
@@ -252,26 +250,30 @@ class SparkRuntime(KubejobRuntime):
             update_in(job, "spec.sparkVersion", self.spec.spark_version)
 
         if self.spec.restart_policy:
-            update_in(job, "spec.restartPolicy.type", self.spec.restart_policy["type"])
-            update_in(
+            verify_and_update_in(job, "spec.restartPolicy.type", self.spec.restart_policy["type"], str)
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onFailureRetries",
                 self.spec.restart_policy["retries"],
+                int,
             )
-            update_in(
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onFailureRetryInterval",
                 self.spec.restart_policy["retry_interval"],
+                int,
             )
-            update_in(
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onSubmissionFailureRetries",
                 self.spec.restart_policy["submission_retries"],
+                int,
             )
-            update_in(
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onSubmissionFailureRetryInterval",
                 self.spec.restart_policy["submission_retry_interval"],
+                int,
             )
 
         update_in(job, "metadata", meta.to_dict())
@@ -307,38 +309,26 @@ class SparkRuntime(KubejobRuntime):
 
         if "limits" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["limits"]:
-                verify_field_of_type(
-                    "executor_resources.limits.cpu",
-                    self.spec.executor_resources["limits"]["cpu"],
-                    str
-                )
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.executor.coreLimit",
                     self.spec.executor_resources["limits"]["cpu"],
+                    str,
                 )
         if "requests" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["requests"]:
-                verify_field_of_type(
-                    "executor_resources.requests.cpu",
-                    self.spec.executor_resources["requests"]["cpu"],
-                    int
-                )
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.executor.cores",
                     self.spec.executor_resources["requests"]["cpu"],
+                    int,
                 )
             if "memory" in self.spec.executor_resources["requests"]:
-                verify_field_of_type(
-                    "executor_resources.requests.memory",
-                    self.spec.executor_resources["requests"]["memory"],
-                    str
-                )
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.executor.memory",
                     self.spec.executor_resources["requests"]["memory"],
+                    str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
                 resources=self.spec.executor_resources["requests"]
@@ -348,34 +338,26 @@ class SparkRuntime(KubejobRuntime):
                 update_in(job, "spec.executor.gpu.quantity", gpu_quantity)
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
-                verify_field_of_type("driver_resources.limits.cpu", self.spec.driver_resources["limits"]["cpu"], str)
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.driver.coreLimit",
                     self.spec.driver_resources["limits"]["cpu"],
+                    str,
                 )
         if "requests" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["requests"]:
-                verify_field_of_type(
-                    "driver_resources.requests.cpu",
-                    self.spec.driver_resources["requests"]["cpu"],
-                    int
-                )
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.driver.cores",
                     self.spec.driver_resources["requests"]["cpu"],
+                    int,
                 )
             if "memory" in self.spec.driver_resources["requests"]:
-                verify_field_of_type(
-                    "driver_resources.requests.memory",
-                    self.spec.driver_resources["requests"]["memory"],
-                    str
-                )
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.driver.memory",
                     self.spec.driver_resources["requests"]["memory"],
+                    str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
                 resources=self.spec.driver_resources["requests"]

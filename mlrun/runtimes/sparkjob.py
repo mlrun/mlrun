@@ -322,7 +322,7 @@ class SparkRuntime(KubejobRuntime):
                 verify_field_of_type(
                     "executor_resources.requests.cpu",
                     self.spec.executor_resources["requests"]["cpu"],
-                    str
+                    int
                 )
                 update_in(
                     job,
@@ -359,7 +359,7 @@ class SparkRuntime(KubejobRuntime):
                 verify_field_of_type(
                     "driver_resources.requests.cpu",
                     self.spec.driver_resources["requests"]["cpu"],
-                    str
+                    int
                 )
                 update_in(
                     job,

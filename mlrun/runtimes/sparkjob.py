@@ -27,6 +27,7 @@ from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.utils.helpers import verify_field_regex
+from mlrun.utils.helpers import verify_field_of_type
 from mlrun.utils.regex import sparkjob_name
 
 from ..execution import MLClientCtx
@@ -218,7 +219,7 @@ class SparkRuntime(KubejobRuntime):
     def _validate(self, runobj: RunObject):
         # ValueError is used because it is raised and handled correctly and eventually shows
         # the informative message to the user
-        # TODO - Change to use MLRunError types when fastapi framework handles the internal exceptions correctly
+        # TODO: Change to use MLRunError types when fastapi framework handles the internal exceptions correctly
 
         # validating length limit for sparkjob's function name
         try:
@@ -306,6 +307,11 @@ class SparkRuntime(KubejobRuntime):
 
         if "limits" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["limits"]:
+                verify_field_of_type(
+                    "executor_resources.limits.cpu",
+                    self.spec.executor_resources["limits"]["cpu"],
+                    str
+                )
                 update_in(
                     job,
                     "spec.executor.coreLimit",
@@ -313,12 +319,22 @@ class SparkRuntime(KubejobRuntime):
                 )
         if "requests" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["requests"]:
+                verify_field_of_type(
+                    "executor_resources.requests.cpu",
+                    self.spec.executor_resources["requests"]["cpu"],
+                    str
+                )
                 update_in(
                     job,
                     "spec.executor.cores",
                     self.spec.executor_resources["requests"]["cpu"],
                 )
             if "memory" in self.spec.executor_resources["requests"]:
+                verify_field_of_type(
+                    "executor_resources.requests.memory",
+                    self.spec.executor_resources["requests"]["memory"],
+                    str
+                )
                 update_in(
                     job,
                     "spec.executor.memory",
@@ -332,6 +348,7 @@ class SparkRuntime(KubejobRuntime):
                 update_in(job, "spec.executor.gpu.quantity", gpu_quantity)
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
+                verify_field_of_type("driver_resources.limits.cpu", self.spec.driver_resources["limits"]["cpu"], str)
                 update_in(
                     job,
                     "spec.driver.coreLimit",
@@ -339,12 +356,22 @@ class SparkRuntime(KubejobRuntime):
                 )
         if "requests" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["requests"]:
+                verify_field_of_type(
+                    "driver_resources.requests.cpu",
+                    self.spec.driver_resources["requests"]["cpu"],
+                    str
+                )
                 update_in(
                     job,
                     "spec.driver.cores",
                     self.spec.driver_resources["requests"]["cpu"],
                 )
             if "memory" in self.spec.driver_resources["requests"]:
+                verify_field_of_type(
+                    "driver_resources.requests.memory",
+                    self.spec.driver_resources["requests"]["memory"],
+                    str
+                )
                 update_in(
                     job,
                     "spec.driver.memory",

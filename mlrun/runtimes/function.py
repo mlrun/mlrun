@@ -476,10 +476,7 @@ class RemoteRuntime(KubeResource):
                 print(text)
 
         if state != "ready":
-            log_kwargs = {"function_state": state}
-            if text:
-                log_kwargs["reason"] = text
-            logger.error("Nuclio function failed to deploy", **log_kwargs)
+            logger.error("Nuclio function failed to deploy", function_state=state)
             raise RunError(f"function {self.metadata.name} deployment failed")
 
     def with_node_selection(

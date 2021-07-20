@@ -404,7 +404,6 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-        state = ""
 
         save_record = False
         if not dashboard:
@@ -462,6 +461,7 @@ class RemoteRuntime(KubeResource):
 
     def _wait_for_function_deployment(self, verbose=False):
         text = ""
+        state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
             sleep(1)

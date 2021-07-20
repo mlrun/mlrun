@@ -1,3 +1,5 @@
+
+import traceback
 import asyncio
 import concurrent.futures
 import os
@@ -69,6 +71,7 @@ async def http_status_error_handler(
         "Request handling returned error status",
         error_message=error_message,
         status_code=status_code,
+        traceback=traceback.format_exc()
     )
     # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
     #  version can be changed to detail=error_message
@@ -118,6 +121,7 @@ async def log_request_response(request: fastapi.Request, call_next):
             uri=path_with_query_string,
             method=request.method,
             exc=exc,
+            traceback=traceback.format_exc()
         )
         raise
     else:

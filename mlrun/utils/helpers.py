@@ -141,7 +141,7 @@ def verify_field_of_type(field_name: str, field_value, expected_type: type):
         # ValueError is used because it is raised and handled correctly and eventually shows
         # the informative message to the user
         # TODO: Change to use MLRunError types when fastapi framework handles the internal exceptions correctly
-        raise ValueError(f"Field '{field_name}' should be of type {expected_type} (got: {field_value}).")
+        raise ValueError(f"Field '{field_name}' should be of type {expected_type.__name__} (got: {field_value}).")
 
 
 def now_date():

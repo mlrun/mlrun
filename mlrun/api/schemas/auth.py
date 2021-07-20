@@ -2,11 +2,8 @@ import enum
 import typing
 
 import pydantic
-
-from nuclio.auth import (
-    AuthInfo as NuclioAuthInfo,
-    AuthKinds as NuclioAuthKinds
-)
+from nuclio.auth import AuthInfo as NuclioAuthInfo
+from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 
 class ProjectsRole(str, enum.Enum):

@@ -3,6 +3,11 @@ import typing
 
 import pydantic
 
+from nuclio.auth import (
+    AuthInfo as NuclioAuthInfo,
+    AuthKinds as NuclioAuthKinds
+)
+
 
 class ProjectsRole(str, enum.Enum):
     iguazio = "iguazio"
@@ -31,3 +36,8 @@ class AuthInfo(pydantic.BaseModel):
     user_id: typing.Optional[str] = None
     user_group_ids: typing.List[str] = []
     projects_role: typing.Optional[ProjectsRole] = None
+
+    def to_nuclio_auth_info(self):
+        if self.session != "":
+            return NuclioAuthInfo(password=self.session, mode=NuclioAuthKinds.iguazio)
+        return None

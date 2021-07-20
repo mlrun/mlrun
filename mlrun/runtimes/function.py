@@ -850,7 +850,7 @@ def deploy_nuclio_function(
         create_new=True,
         watch=watch,
         return_address_mode=nuclio.deploy.ReturnAddressModes.all,
-        auth_info=auth_info.to_nuclio_auth_info(),
+        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
     )
 
 
@@ -1035,7 +1035,7 @@ def get_nuclio_deploy_status(
         verbose,
         resolve_address,
         return_function_status=True,
-        auth_info=auth_info.to_nuclio_auth_info(),
+        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
     )
 
     text = "\n".join(outputs) if outputs else ""

@@ -405,7 +405,6 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
         state = ""
-        last_log_timestamp = 1
 
         save_record = False
         if not dashboard:
@@ -413,24 +412,7 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
             self.status = data["data"].get("status")
-            # ready = data.get("ready", False)
-
-            text = ""
-            while state not in ["ready", "error", "unhealthy"]:
-                sleep(1)
-                try:
-                    text, last_log_timestamp = db.get_builder_status(
-                        self, last_log_timestamp=last_log_timestamp, verbose=verbose
-                    )
-                except RunDBError:
-                    raise ValueError("function or deploy process not found")
-                state = self.status.state
-                if text:
-                    print(text)
-
-            if state != "ready":
-                logger.error("Nuclio function failed to deploy")
-                raise RunError(f"cannot deploy {text}")
+            self._wait_for_function_deployment(verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
             #       now, functions can be not exposed (using service type ClusterIP) and hence
@@ -477,6 +459,30 @@ class RemoteRuntime(KubeResource):
             self.save(versioned=False)
 
         return self.spec.command
+
+    def _wait_for_function_deployment(self, verbose=False):
+        text = ""
+        last_log_timestamp = 1
+        while state not in ["ready", "error", "unhealthy"]:
+            sleep(1)
+            try:
+                text, last_log_timestamp = db.get_builder_status(
+                    self, last_log_timestamp=last_log_timestamp, verbose=verbose
+                )
+            except RunDBError:
+                raise ValueError("function or deploy process not found")
+            state = self.status.state
+            if text:
+                print(text)
+
+        if state != "ready":
+            log_kwargs = {
+                'function_state': state
+            }
+            if text:
+                log_kwargs['reason'] = text
+            logger.error("Nuclio function failed to deploy", **log_kwargs)
+            raise RunError(f"function {self.metadata.name} deployment failed")
 
     def with_node_selection(
         self,

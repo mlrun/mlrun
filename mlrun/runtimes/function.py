@@ -23,8 +23,8 @@ import nuclio
 import requests
 from aiohttp.client import ClientSession
 from kubernetes import client
-from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.auth import AuthInfo as NuclioAuthInfo
+from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
@@ -476,11 +476,9 @@ class RemoteRuntime(KubeResource):
                 print(text)
 
         if state != "ready":
-            log_kwargs = {
-                'function_state': state
-            }
+            log_kwargs = {"function_state": state}
             if text:
-                log_kwargs['reason'] = text
+                log_kwargs["reason"] = text
             logger.error("Nuclio function failed to deploy", **log_kwargs)
             raise RunError(f"function {self.metadata.name} deployment failed")
 
@@ -1047,5 +1045,6 @@ def get_nuclio_deploy_status(
     text = "\n".join(outputs) if outputs else ""
     return state, address, name, last_log_timestamp, text, function_status
 
-def _to_nuclio_auth_info(auth_info:AuthInfo = None):
+
+def _to_nuclio_auth_info(auth_info: AuthInfo = None):
     return NuclioAuthInfo.from_session_key(auth_info.session) if auth_info else None

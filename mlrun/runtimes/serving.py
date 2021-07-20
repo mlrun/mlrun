@@ -242,7 +242,8 @@ class ServingRuntime(RemoteRuntime):
         """
         self.spec.track_models = True
         if stream_path:
-            self.spec.parameters["log_stream"] = stream_path
+            logger.warn("Passing stream_path to set_tracking is no longer supported, ignoring stream_path")
+            # self.spec.parameters["log_stream"] = stream_path
         if batch:
             self.spec.parameters["log_stream_batch"] = batch
         if sample:

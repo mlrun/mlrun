@@ -370,9 +370,17 @@ class OutputStream:
         retention_in_hours=None,
         create=True,
         endpoint=None,
+        access_key=None,
     ):
-        self._v3io_client = v3io.dataplane.Client(endpoint=endpoint)
+        v3io_client_kwargs = {}
+        if endpoint:
+            v3io_client_kwargs["endpoint"] = endpoint
+        if access_key:
+            v3io_client_kwargs["access_key"] = access_key
+
+        self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
         self._container, self._stream_path = split_path(stream_path)
+
         if create:
             response = self._v3io_client.create_stream(
                 container=self._container,

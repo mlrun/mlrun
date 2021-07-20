@@ -37,7 +37,6 @@ from mlrun.runtimes.function import (
     get_nuclio_deploy_status,
     resolve_function_internal_invocation_url,
 )
-from mlrun.serving import TaskStep
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 
@@ -378,6 +377,7 @@ def _build_function(
                     )
                     if fn.spec.track_models:
                         logger.info("Tracking enabled, initializing model monitoring")
+                        _init_serving_function_stream_args(fn=fn)
                         _create_model_monitoring_stream(project=fn.metadata.project)
                         ModelEndpoints.deploy_monitoring_functions(
                             project=fn.metadata.project,
@@ -546,3 +546,15 @@ def _init_model_monitoring_endpoint_records(
             )
         except Exception as e:
             logger.error("Failed to create endpoint record", exc=e)
+
+
+def _init_serving_function_stream_args(fn: ServingRuntime):
+    if "stream_args" in fn.spec.parameters:
+        if "access_key" not in fn.spec.parameters["stream_args"]:
+            fn.spec.parameters["stream_args"]["access_key"] = os.environ.get(
+                "V3IO_ACCESS_KEY"
+            )
+    else:
+        fn.spec.parameters["stream_args"] = {
+            "access_key": os.environ.get("V3IO_ACCESS_KEY")
+        }

@@ -611,9 +611,9 @@ class ParquetTarget(BaseStoreTarget):
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
         if self.attributes:
-            self.attributes["featureset_status"] = featureset_status
+            self.attributes["update_last_written"] = featureset_status.update_last_written_for_target
         else:
-            self.attributes = {"featureset_status": featureset_status}
+            self.attributes = {"update_last_written": featureset_status.update_last_written_for_target}
 
         graph.add_step(
             name=self.name or "ParquetTarget",

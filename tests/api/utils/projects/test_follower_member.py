@@ -283,22 +283,22 @@ def test_list_project_format_summary(
 
 
 def test_list_project_leader_format(
-        db: sqlalchemy.orm.Session,
-        projects_follower: mlrun.api.utils.projects.follower.Member,
-        nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project(name="name-1")
     mlrun.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
         return_value=mlrun.api.schemas.ProjectsOutput(projects=[project])
     )
     projects = projects_follower.list_projects(
-        None, format_=mlrun.api.schemas.Format.leader, projects_role=mlrun.api.schemas.ProjectsRole.nop
+        None,
+        format_=mlrun.api.schemas.Format.leader,
+        projects_role=mlrun.api.schemas.ProjectsRole.nop,
     )
     assert (
-            deepdiff.DeepDiff(
-                projects.projects[0].data, project.dict(), ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(projects.projects[0].data, project.dict(), ignore_order=True,)
+        == {}
     )
 
 

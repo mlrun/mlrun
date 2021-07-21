@@ -513,22 +513,21 @@ def test_delete_project_without_wait(
 
 
 def test_format_as_leader_project(
-        api_url: str,
-        iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    api_url: str, iguazio_client: mlrun.api.utils.clients.iguazio.Client,
 ):
     project = _generate_project()
     iguazio_project = iguazio_client.format_as_leader_project(project)
     assert (
-            deepdiff.DeepDiff(
-                _build_project_response(
-                        iguazio_client, project
-                    )
-                ,
-                iguazio_project.data,
-                ignore_order=True,
-                exclude_paths=["root['attributes']['updated_at']", "root['attributes']['operational_status']"],
-            )
-            == {}
+        deepdiff.DeepDiff(
+            _build_project_response(iguazio_client, project),
+            iguazio_project.data,
+            ignore_order=True,
+            exclude_paths=[
+                "root['attributes']['updated_at']",
+                "root['attributes']['operational_status']",
+            ],
+        )
+        == {}
     )
 
 

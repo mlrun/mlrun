@@ -61,5 +61,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
             session, name
         )
 
-    def format_as_leader_project(self, project: mlrun.api.schemas.Project) -> mlrun.api.schemas.IguazioProject:
+    def format_as_leader_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.IguazioProject:
         return mlrun.api.schemas.IguazioProject(data=project.dict())

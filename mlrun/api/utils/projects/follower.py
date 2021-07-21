@@ -224,7 +224,9 @@ class Member(
         projects = []
         if format_ == mlrun.api.schemas.Format.leader:
             if not self._is_request_from_leader(projects_role):
-                raise mlrun.errors.MLRunAccessDeniedError("Leader format is allowed only to the leader")
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Leader format is allowed only to the leader"
+                )
             # importing here to avoid circular import (db using project member using mlrun follower using db)
             from mlrun.api.utils.singletons.db import get_db
 
@@ -234,7 +236,10 @@ class Member(
             # to be aware of the already existing projects so we're allowing only to the leader, to read from the DB,
             # and return it in the leader's format
             projects = get_db().list_projects(db_session, owner, format_, labels, state)
-            leader_projects = [self._leader_client.format_as_leader_project(project) for project in projects.projects]
+            leader_projects = [
+                self._leader_client.format_as_leader_project(project)
+                for project in projects.projects
+            ]
             return mlrun.api.schemas.ProjectsOutput(projects=leader_projects)
 
         if self.projects_store_mode == self.ProjectsStoreMode.cache:

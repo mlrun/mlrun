@@ -178,8 +178,12 @@ class Client(
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
-    def format_as_leader_project(self, project: mlrun.api.schemas.Project) -> mlrun.api.schemas.IguazioProject:
-        return mlrun.api.schemas.IguazioProject(data=self._transform_mlrun_project_to_iguazio_project(project)["data"])
+    def format_as_leader_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.IguazioProject:
+        return mlrun.api.schemas.IguazioProject(
+            data=self._transform_mlrun_project_to_iguazio_project(project)["data"]
+        )
 
     def _find_latest_updated_at(
         self, response_body: dict
@@ -293,7 +297,9 @@ class Client(
         return response
 
     @staticmethod
-    def _transform_mlrun_project_to_iguazio_project(project: mlrun.api.schemas.Project) -> dict:
+    def _transform_mlrun_project_to_iguazio_project(
+        project: mlrun.api.schemas.Project,
+    ) -> dict:
         body = {
             "data": {
                 "type": "project",

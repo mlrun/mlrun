@@ -927,7 +927,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 if format_ == mlrun.api.schemas.Format.name_only:
                     projects = project_names
                 # leader format is only for follower mode which will format the projects returned from here
-                elif format_ in [mlrun.api.schemas.Format.full, mlrun.api.schemas.Format.leader]:
+                elif format_ in [
+                    mlrun.api.schemas.Format.full,
+                    mlrun.api.schemas.Format.leader,
+                ]:
                     projects.append(
                         self._transform_project_record_to_schema(
                             session, project_record

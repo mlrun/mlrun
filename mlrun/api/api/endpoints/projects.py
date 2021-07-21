@@ -155,5 +155,11 @@ def list_projects(
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     return get_project_member().list_projects(
-        db_session, owner, format_, labels, state, auth_verifier.auth_info.projects_role, auth_verifier.auth_info.session
+        db_session,
+        owner,
+        format_,
+        labels,
+        state,
+        auth_verifier.auth_info.projects_role,
+        auth_verifier.auth_info.session,
     )

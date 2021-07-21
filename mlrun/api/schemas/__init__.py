@@ -44,7 +44,7 @@ from .feature_store import (
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
-from .frontend_spec import FrontendSpec
+from .frontend_spec import FeatureFlags, FrontendSpec, ProjectMembershipFeatureFlag
 from .function import FunctionState
 from .model_endpoints import (
     Features,
@@ -65,6 +65,7 @@ from .model_endpoints import (
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
+    IguazioProject,
     Project,
     ProjectDesiredState,
     ProjectMetadata,

@@ -60,6 +60,7 @@ from .model_endpoints import (
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
+    IguazioProject,
     Project,
     ProjectDesiredState,
     ProjectMetadata,

@@ -211,7 +211,7 @@ class SparkRuntime(KubejobRuntime):
             if resource_type not in ["cpu", "memory"]
         ]
         if len(gpu_type) > 1:
-            raise ValueError("Sparkjob supports only a single gpu type")
+            raise mlrun.errors.MLRunInvalidArgumentError("Sparkjob supports only a single gpu type")
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
@@ -335,7 +335,8 @@ class SparkRuntime(KubejobRuntime):
             )
             if gpu_type:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
-                update_in(job, "spec.executor.gpu.quantity", gpu_quantity)
+                if gpu_quantity:
+                    verify_and_update_in(job, "spec.executor.gpu.quantity", gpu_quantity, int)
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
                 verify_and_update_in(
@@ -364,7 +365,8 @@ class SparkRuntime(KubejobRuntime):
             )
             if gpu_type:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
-                update_in(job, "spec.driver.gpu.quantity", gpu_quantity)
+                if gpu_quantity:
+                    verify_and_update_in(job, "spec.driver.gpu.quantity", gpu_quantity, int)
 
         if self.spec.command:
             if "://" not in self.spec.command:

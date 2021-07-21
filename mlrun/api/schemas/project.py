@@ -84,6 +84,18 @@ class ProjectSummary(pydantic.BaseModel):
     runs_running_count: int
 
 
+class IguazioProject(pydantic.BaseModel):
+    data: dict
+
+
 class ProjectsOutput(pydantic.BaseModel):
-    # use the format query param to control whether the full object will be returned or only the names
-    projects: typing.List[typing.Union[Project, str, ProjectSummary]]
+    # The format query param controls the project type used:
+    # full - Project
+    # name_only - str
+    # summary - ProjectSummary
+    # leader - currently only IguazioProject supported
+    # The way pydantic handles typing.Union is that it takes the object and tries to coerce it to be the types of the
+    # union by the definition order. Therefore we can't currently add generic dict for all leader formats, but we need
+    # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
+    # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
+    projects: typing.List[typing.Union[Project, str, ProjectSummary, IguazioProject]]

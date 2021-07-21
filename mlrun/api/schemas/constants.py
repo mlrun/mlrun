@@ -25,6 +25,7 @@ class DeletionStrategy(str, Enum):
     restricted = "restricted"
     cascade = "cascade"
     cascading = "cascading"
+    check = "check"
 
     @staticmethod
     def default():
@@ -45,6 +46,8 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            return "check"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"
@@ -55,6 +58,10 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            raise NotImplementedError(
+                "Iguazio does not support the check deletion strategy"
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"

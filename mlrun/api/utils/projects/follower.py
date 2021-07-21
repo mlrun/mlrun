@@ -217,9 +217,31 @@ class Member(
         format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        # needed only for external usage when requesting leader format
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         projects = []
+        if format_ == mlrun.api.schemas.Format.leader:
+            if not self._is_request_from_leader(projects_role):
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Leader format is allowed only to the leader"
+                )
+            # importing here to avoid circular import (db using project member using mlrun follower using db)
+            from mlrun.api.utils.singletons.db import get_db
+
+            # Basically in follower mode our projects source of truth is the leader and the data in the DB is not
+            # relevant or maintained. The leader format purpose is a specific upgrade scenario where we're moving from
+            # leader mode (in which the projects are maintained in the DB) to follower mode in which the leader needs
+            # to be aware of the already existing projects so we're allowing only to the leader, to read from the DB,
+            # and return it in the leader's format
+            projects = get_db().list_projects(db_session, owner, format_, labels, state)
+            leader_projects = [
+                self._leader_client.format_as_leader_project(project)
+                for project in projects.projects
+            ]
+            return mlrun.api.schemas.ProjectsOutput(projects=leader_projects)
+
         if self.projects_store_mode == self.ProjectsStoreMode.cache:
             projects = list(self._projects.values())
         elif self.projects_store_mode == self.ProjectsStoreMode.none:

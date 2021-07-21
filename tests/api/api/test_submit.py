@@ -13,4 +13,4 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
     }
     resp = client.post("/api/submit_job", json=body)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
-    assert f"Function not found {function_reference}" in resp.json()["detail"]
+    assert f"Function not found {function_reference}" in resp.json()["detail"]["reason"]

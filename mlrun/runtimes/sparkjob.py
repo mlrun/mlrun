@@ -213,6 +213,7 @@ class SparkRuntime(KubejobRuntime):
         if len(gpu_type) > 1:
             raise mlrun.errors.MLRunInvalidArgumentError("Sparkjob supports only a single gpu type")
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
+        verify_field_of_type("gpu_type", gpu_type[0], str)
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _validate(self, runobj: RunObject):

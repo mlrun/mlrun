@@ -21,6 +21,7 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.errors
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
@@ -216,21 +217,18 @@ class SparkRuntime(KubejobRuntime):
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _validate(self, runobj: RunObject):
-        # ValueError is used because it is raised and handled correctly and eventually shows
-        # the informative message to the user
-        # TODO - Change to use MLRunError types when fastapi framework handles the internal exceptions correctly
-
         # validating length limit for sparkjob's function name
-        try:
-            verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
-        except Exception as exc:
-            raise ValueError(exc)
+        verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
 
         # validating existence of required fields
         if "requests" not in self.spec.executor_resources:
-            raise ValueError("Sparkjob must contain executor requests")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain executor requests"
+            )
         if "requests" not in self.spec.driver_resources:
-            raise ValueError("Sparkjob must contain driver requests")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain driver requests"
+            )
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)

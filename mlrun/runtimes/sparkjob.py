@@ -31,7 +31,7 @@ from mlrun.utils.regex import sparkjob_name
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import get_in, logger, update_in, verify_field_regex, verify_and_update_in
+from ..utils import get_in, logger, update_in, verify_field_regex, verify_field_of_type, verify_and_update_in
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
@@ -279,11 +279,13 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
-        update_in(job, "spec.executor.instances", self.spec.replicas or 1)
+        verify_and_update_in(job, "spec.executor.instances", self.spec.replicas or 1, int)
         update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
         if (not self.spec.image) and self._default_image:
             self.spec.image = self._default_image
+
+        verify_field_of_type("spec.image", self.spec.image, str)
         update_in(job, "spec.image", self.full_image_path())
 
         update_in(job, "spec.volumes", self.spec.volumes)

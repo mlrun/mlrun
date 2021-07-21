@@ -158,7 +158,7 @@ def _submit_run(
     project = None
     try:
         fn, task = _parse_submit_run_body(db_session, auth_info, data)
-        run_db = get_run_db_instance(db_session, auth_info.session)
+        run_db = get_run_db_instance(db_session, auth_info)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"

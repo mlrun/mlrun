@@ -11,7 +11,6 @@ from mlrun import v3io_cred
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise, parse_reference
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
@@ -226,7 +225,9 @@ def ingest_feature_set(
         auth_verifier.auth_info,
     )
     tag, uid = parse_reference(reference)
-    feature_set_record = get_db().get_feature_set(db_session, project, name, tag, uid)
+    feature_set_record = mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session, project, name, tag, uid, auth_verifier.auth_info
+    )
 
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
     # Need to override the default rundb since we're in the server.

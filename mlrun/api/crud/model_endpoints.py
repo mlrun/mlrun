@@ -373,7 +373,7 @@ class ModelEndpoints:
                 db.create_project_secrets(
                     <PROJECT_NAME>,
                     provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-                    secrets={"MODEL_MONITORING_API_KEY": <API_KEY>}
+                    secrets={"MODEL_MONITORING_ACCESS_KEY": <API_KEY>}
                 )
                 """
             raise MLRunBadRequestError(textwrap.dedent(error))
@@ -401,6 +401,8 @@ class ModelEndpoints:
 
         logger.info(f"Deploying model-monitoring-stream [{project}]")
         logger.debug("Importing model-monitoring-stream function from function hub")
+
+        # TODO remove custom function tag
         fn: RemoteRuntime = mlrun.import_function(
             "hub://model_monitoring_stream:experimental"
         )
@@ -413,14 +415,10 @@ class ModelEndpoints:
         fn.add_v3io_stream_trigger(
             stream_path=stream_path, name="monitoring_stream_trigger"
         )
+        # TODO remove custom image
+        fn.spec.image = "mlrun/mlrun:automation"
+        _add_secret(fn, project, "MODEL_MONITORING_ACCESS_KEY")
 
-        env_params = {
-            "project": project,
-            "v3io_framesd": config.v3io_framesd,
-        }
-
-        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps(env_params))
-        _add_secret(fn, project, "MODEL_MONITORING_API_KEY")
         fn.apply(mlrun.mount_v3io())
         deploy_nuclio_function(fn)
 
@@ -448,7 +446,10 @@ class ModelEndpoints:
 
         fn.metadata.project = project
         fn.apply(mlrun.mount_v3io())
-        _add_secret(fn, project, "MODEL_MONITORING_API_KEY")
+
+        # TODO remove custom image
+        fn.spec.image = "mlrun/mlrun:automation"
+        _add_secret(fn, project, "MODEL_MONITORING_ACCESS_KEY")
 
         function_uri = fn.save()
         function_uri = function_uri.replace("db://", "")

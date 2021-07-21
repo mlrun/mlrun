@@ -213,13 +213,8 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def create_feature_set(
-        self,
-        session,
-        project,
-        feature_set: schemas.FeatureSet,
-        versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+    ) -> str:
         raise NotImplementedError()
 
     def store_feature_set(
@@ -232,8 +227,7 @@ class FileDB(DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def get_feature_set(
@@ -284,12 +278,11 @@ class FileDB(DBInterface):
         session,
         project,
         name,
-        feature_set_update: dict,
+        feature_set_patch: dict,
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):

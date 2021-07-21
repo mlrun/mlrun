@@ -149,6 +149,10 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         return {
             mlrun.api.schemas.AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             mlrun.api.schemas.AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
+            mlrun.api.schemas.AuthorizationResourceTypes.background_task: "/projects/{project_name}/background-tasks/{r"
+            "esource_name}",
+            mlrun.api.schemas.AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_"
+            "name}",
         }[resource_type].format(project_name=project_name, resource_name=resource_name)
 
     def _is_request_from_leader(

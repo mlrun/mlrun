@@ -1604,10 +1604,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
-        self._validate_store_parameters(feature_set, project, name, tag, uid)
-
+    ) -> str:
         original_uid = uid
 
         _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
@@ -1627,9 +1624,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 return uid
 
             feature_set.metadata.tag = tag
-            return self.create_feature_set(
-                session, project, feature_set, versioned, leader_session
-            )
+            return self.create_feature_set(session, project, feature_set, versioned)
 
         uid = self._common_object_validate_and_perform_uid_change(
             feature_set_dict, tag, versioned, original_uid
@@ -1649,65 +1644,37 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         return uid
 
     def _validate_and_enrich_record_for_creation(
-        self,
-        session,
-        new_object,
-        db_class,
-        project,
-        versioned,
-        leader_session: Optional[str] = None,
+        self, session, new_object, db_class, project, versioned,
     ):
         object_type = new_object.__class__.__name__
 
-        name = new_object.metadata.name
-        if not name or not project:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{object_type} missing name or project"
-            )
-
-        object_project = new_object.metadata.project
-        if object_project and object_project != project:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{object_type} object with conflicting project name - {object_project}"
-            )
-
-        new_object.metadata.project = project
-
-        get_project_member().ensure_project(
-            session, project, leader_session=leader_session
-        )
-        tag = new_object.metadata.tag or "latest"
-
         object_dict = new_object.dict(exclude_none=True)
-        hash_key = fill_object_hash(object_dict, "uid", tag)
+        hash_key = fill_object_hash(object_dict, "uid", new_object.metadata.tag)
 
         if versioned:
             uid = hash_key
         else:
-            uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
+            uid = f"{unversioned_tagged_object_uid_prefix}{new_object.metadata.tag}"
             object_dict["metadata"]["uid"] = uid
 
         existing_object = self._get_class_instance_by_uid(
-            session, db_class, name, project, uid
+            session, db_class, new_object.metadata.name, project, uid
         )
         if existing_object:
-            object_uri = generate_object_uri(project, name, tag)
+            object_uri = generate_object_uri(
+                project, new_object.metadata.name, new_object.metadata.tag
+            )
             raise mlrun.errors.MLRunConflictError(
                 f"Adding an already-existing {object_type} - {object_uri}"
             )
 
-        return uid, tag, object_dict
+        return uid, new_object.metadata.tag, object_dict
 
     def create_feature_set(
-        self,
-        session,
-        project,
-        feature_set: schemas.FeatureSet,
-        versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+    ) -> str:
         (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
-            session, feature_set, FeatureSet, project, versioned, leader_session
+            session, feature_set, FeatureSet, project, versioned
         )
 
         db_feature_set = FeatureSet(project=project)
@@ -1725,12 +1692,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         session,
         project,
         name,
-        feature_set_update: dict,
+        feature_set_patch: dict,
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         feature_set_record = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set_record:
             feature_set_uri = generate_object_uri(project, name, tag)
@@ -1741,7 +1707,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         feature_set_struct = feature_set_record.dict(exclude_none=True)
         # using mergedeep for merging the patch content into the existing dictionary
         strategy = patch_mode.to_mergedeep_strategy()
-        mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
+        mergedeep.merge(feature_set_struct, feature_set_patch, strategy=strategy)
 
         versioned = feature_set_record.metadata.uid is not None
 
@@ -1756,7 +1722,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             uid,
             versioned,
             always_overwrite=True,
-            leader_session=leader_session,
         )
 
     def _delete_feature_store_object(self, session, cls, project, name, tag, uid):

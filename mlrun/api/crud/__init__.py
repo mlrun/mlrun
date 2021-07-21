@@ -1,4 +1,5 @@
 from .artifacts import Artifacts  # noqa: F401
+from .feature_store import FeatureStore  # noqa: F401
 from .logs import Logs  # noqa: F401
 from .pipelines import list_pipelines  # noqa: F401
 from .projects import Projects  # noqa: F401

@@ -271,12 +271,7 @@ class SQLDB(RunDBInterface):
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
-            self.db.create_feature_set,
-            self.session,
-            project,
-            feature_set,
-            versioned,
-            self.leader_session,
+            self.db.create_feature_set, self.session, project, feature_set, versioned,
         )
 
     def get_feature_set(
@@ -360,7 +355,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
-            self.leader_session,
         )
 
     def patch_feature_set(
@@ -375,7 +369,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
-            self.leader_session,
         )
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):

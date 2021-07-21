@@ -49,15 +49,15 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         name: str,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+            db_session, project, leader_session=auth_info.session,
+        )
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.background_task,
             project,
             name,
             mlrun.api.schemas.AuthorizationAction.create,
             auth_info,
-        )
-        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, leader_session=auth_info.session,
         )
         metadata = mlrun.api.schemas.BackgroundTaskMetadata(
             name=name, project=project, created=datetime.datetime.utcnow()

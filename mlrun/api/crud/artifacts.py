@@ -26,15 +26,15 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+            db_session, project, leader_session=auth_info.session
+        )
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.artifact,
             project,
             key,
             mlrun.api.schemas.AuthorizationAction.store,
             auth_info,
-        )
-        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, leader_session=auth_info.session
         )
         mlrun.api.utils.singletons.db.get_db().store_artifact(
             db_session, key, data, uid, iter, tag, project,

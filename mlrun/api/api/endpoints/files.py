@@ -3,10 +3,10 @@ from http import HTTPStatus
 
 import fastapi
 
+import mlrun.api.api.deps
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
 from mlrun.utils import logger
-import mlrun.api.api.deps
 
 router = fastapi.APIRouter()
 
@@ -19,7 +19,9 @@ def get_files(
     user: str = "",
     size: int = 0,
     offset: int = 0,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(mlrun.api.api.deps.AuthVerifier),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
 ):
     _, filename = objpath.split(objpath)
 
@@ -61,9 +63,14 @@ def get_files(
 
 # curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
 @router.get("/filestat")
-def get_filestat(schema: str = "", path: str = "",
-                 auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(mlrun.api.api.deps.AuthVerifier),
-                 user: str = ""):
+def get_filestat(
+    schema: str = "",
+    path: str = "",
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
+    user: str = "",
+):
     _, filename = path.split(path)
 
     path = get_obj_path(schema, path, user=user)

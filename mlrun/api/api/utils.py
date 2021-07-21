@@ -6,7 +6,7 @@ from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -60,9 +60,8 @@ def get_obj_path(schema, path, user=""):
 
 
 def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
-    access_key = auth_info.data_session
     return {
-        "V3IO_ACCESS_KEY": access_key,
+        "V3IO_ACCESS_KEY": auth_info.data_session,
     }
 
 

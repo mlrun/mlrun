@@ -66,11 +66,12 @@ def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
 
 
 def get_run_db_instance(
-    db_session: Session, leader_session: typing.Optional[str] = None
+    db_session: Session,
+    auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
 ):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session, leader_session)
+        run_db = SQLRunDB(db.dsn, db_session, auth_info)
     else:
         run_db = db.db
     run_db.connect()

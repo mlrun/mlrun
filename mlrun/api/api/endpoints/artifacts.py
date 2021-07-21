@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud.artifacts
+import mlrun.api.crud
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
@@ -36,7 +36,7 @@ async def store_artifact(
 
     logger.debug("Storing artifact", data=data)
     await run_in_threadpool(
-        mlrun.api.crud.artifacts.Artifacts().store_artifact,
+        mlrun.api.crud.Artifacts().store_artifact,
         db_session,
         key,
         data,
@@ -71,7 +71,7 @@ def get_artifact(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = mlrun.api.crud.artifacts.Artifacts().get_artifact(
+    data = mlrun.api.crud.Artifacts().get_artifact(
         db_session, key, tag, iter, project, auth_verifier.auth_info
     )
     return {
@@ -89,7 +89,7 @@ def delete_artifact(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.crud.artifacts.Artifacts().delete_artifact(
+    mlrun.api.crud.Artifacts().delete_artifact(
         db_session, key, tag, project, auth_verifier.auth_info
     )
     return {}
@@ -109,17 +109,17 @@ def list_artifacts(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    artifacts = mlrun.api.crud.artifacts.Artifacts().list_artifacts(
+    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
         db_session,
         project,
         name,
         tag,
         labels,
-        kind,
-        category,
-        iter,
-        best_iteration,
-        auth_verifier.auth_info,
+        kind=kind,
+        category=category,
+        iter=iter,
+        best_iteration=best_iteration,
+        auth_info=auth_verifier.auth_info,
     )
     return {
         "artifacts": artifacts,
@@ -136,7 +136,7 @@ def delete_artifacts(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.crud.artifacts.Artifacts().delete_artifacts(
+    mlrun.api.crud.Artifacts().delete_artifacts(
         db_session, project, name, tag, labels, auth_verifier.auth_info
     )
     return {}

@@ -59,8 +59,8 @@ def get_obj_path(schema, path, user=""):
     return path
 
 
-def get_secrets(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
+def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
+    access_key = auth_info.data_session
     return {
         "V3IO_ACCESS_KEY": access_key,
     }

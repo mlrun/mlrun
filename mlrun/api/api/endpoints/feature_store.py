@@ -10,7 +10,7 @@ import mlrun.feature_store
 from mlrun import v3io_cred
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import get_secrets, log_and_raise, parse_reference
+from mlrun.api.api.utils import log_and_raise, parse_reference
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
@@ -208,7 +208,6 @@ def _has_v3io_path(data_source, data_targets, feature_set):
     status_code=HTTPStatus.ACCEPTED.value,
 )
 def ingest_feature_set(
-    request: Request,
     project: str,
     name: str,
     reference: str,
@@ -248,8 +247,7 @@ def ingest_feature_set(
     # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are
     # user-context parameters, we cannot use the api context.
     if _has_v3io_path(data_source, data_targets, feature_set):
-        secrets = get_secrets(request)
-        access_key = secrets.get("V3IO_ACCESS_KEY", None)
+        access_key = auth_verifier.auth_info.data_session
 
         if not access_key or not username:
             log_and_raise(

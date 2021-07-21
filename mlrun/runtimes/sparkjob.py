@@ -36,9 +36,9 @@ from ..utils import (
     get_in,
     logger,
     update_in,
-    verify_field_regex,
-    verify_field_of_type,
     verify_and_update_in,
+    verify_field_of_type,
+    verify_field_regex,
 )
 from .base import RunError
 from .kubejob import KubejobRuntime
@@ -258,10 +258,7 @@ class SparkRuntime(KubejobRuntime):
 
         if self.spec.restart_policy:
             verify_and_update_in(
-                job,
-                "spec.restartPolicy.type",
-                self.spec.restart_policy["type"],
-                str
+                job, "spec.restartPolicy.type", self.spec.restart_policy["type"], str
             )
             verify_and_update_in(
                 job,
@@ -292,10 +289,7 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
         verify_and_update_in(
-            job,
-            "spec.executor.instances",
-            self.spec.replicas or 1,
-            int,
+            job, "spec.executor.instances", self.spec.replicas or 1, int,
         )
         update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
@@ -356,10 +350,7 @@ class SparkRuntime(KubejobRuntime):
                 update_in(job, "spec.executor.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job,
-                        "spec.executor.gpu.quantity",
-                        gpu_quantity,
-                        int,
+                        job, "spec.executor.gpu.quantity", gpu_quantity, int,
                     )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
@@ -391,10 +382,7 @@ class SparkRuntime(KubejobRuntime):
                 update_in(job, "spec.driver.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job,
-                        "spec.driver.gpu.quantity",
-                        gpu_quantity,
-                        int,
+                        job, "spec.driver.gpu.quantity", gpu_quantity, int,
                     )
 
         if self.spec.command:

@@ -293,7 +293,7 @@ def test_list_project_leader_format(
     )
     projects = projects_follower.list_projects(
         None,
-        format_=mlrun.api.schemas.Format.leader,
+        format_=mlrun.api.schemas.ProjectsFormat.leader,
         projects_role=mlrun.api.schemas.ProjectsRole.nop,
     )
     assert (

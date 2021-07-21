@@ -222,7 +222,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         projects = []
-        if format_ == mlrun.api.schemas.Format.leader:
+        if format_ == mlrun.api.schemas.ProjectsFormat.leader:
             if not self._is_request_from_leader(projects_role):
                 raise mlrun.errors.MLRunAccessDeniedError(
                     "Leader format is allowed only to the leader"

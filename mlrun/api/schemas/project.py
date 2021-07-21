@@ -11,6 +11,8 @@ class ProjectsFormat(str, enum.Enum):
     full = "full"
     name_only = "name_only"
     summary = "summary"
+    # internal - allowed only in follower mode, only for the leader for upgrade purposes
+    leader = "leader"
 
 
 class ProjectMetadata(pydantic.BaseModel):

@@ -136,13 +136,13 @@ def verify_field_regex(field_name, field_value, patterns):
             )
 
 
+# Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):
-        # ValueError is used because it is raised and handled correctly and eventually shows
-        # the informative message to the user
-        # TODO: Change to use MLRunError types when fastapi framework handles the internal exceptions correctly
-        raise ValueError(f"Field '{field_name}' should be of type {expected_type.__name__} "
-                         f"(got: {type(field_value).__name__} with value: {field_value}).")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"(got: {type(field_value).__name__} with value: {field_value})."
+        )
 
 
 def now_date():

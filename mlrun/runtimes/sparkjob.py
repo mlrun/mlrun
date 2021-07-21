@@ -334,7 +334,7 @@ class SparkRuntime(KubejobRuntime):
                 resources=self.spec.executor_resources["requests"]
             )
             if gpu_type:
-                verify_and_update_in(job, "spec.executor.gpu.name", gpu_type, str)
+                update_in(job, "spec.executor.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(job, "spec.executor.gpu.quantity", gpu_quantity, int)
         if "limits" in self.spec.driver_resources:
@@ -364,7 +364,7 @@ class SparkRuntime(KubejobRuntime):
                 resources=self.spec.driver_resources["requests"]
             )
             if gpu_type:
-                verify_and_update_in(job, "spec.driver.gpu.name", gpu_type, str)
+                update_in(job, "spec.driver.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(job, "spec.driver.gpu.quantity", gpu_quantity, int)
 
@@ -471,6 +471,7 @@ class SparkRuntime(KubejobRuntime):
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set executor pod required cpu/memory/gpu resources"""
+        verify_field_of_type("spec.executor.gpu.type", gpu_type, str)
         update_in(
             self.spec.executor_resources,
             "requests",
@@ -487,6 +488,7 @@ class SparkRuntime(KubejobRuntime):
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set driver pod required cpu/memory/gpu resources"""
+        verify_field_of_type("spec.driver.gpu.type", gpu_type, str)
         update_in(
             self.spec.driver_resources,
             "requests",

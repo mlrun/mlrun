@@ -66,6 +66,7 @@ from .project import (
     ProjectsOutput,
     ProjectSpec,
     ProjectState,
+IguazioProject,
     ProjectStatus,
     ProjectSummary,
 )

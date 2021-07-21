@@ -51,7 +51,7 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def format_as_leader_project(self, project: mlrun.api.schemas.Project) -> dict:
+    def format_as_leader_project(self, project: mlrun.api.schemas.Project) -> mlrun.api.schemas.IguazioProject:
         pass
 
     def patch_project(

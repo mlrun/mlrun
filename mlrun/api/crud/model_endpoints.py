@@ -418,6 +418,7 @@ class ModelEndpoints:
         # TODO remove custom image
         fn.spec.image = "mlrun/mlrun:automation"
         _add_secret(fn, project, "MODEL_MONITORING_ACCESS_KEY")
+        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
 
         fn.apply(mlrun.mount_v3io())
         deploy_nuclio_function(fn)

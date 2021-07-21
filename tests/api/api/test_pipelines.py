@@ -73,7 +73,7 @@ def test_list_pipelines_metadata_only(
 ) -> None:
     runs = _generate_run_mocks()
     expected_runs = [run.to_dict() for run in runs]
-    expected_runs = mlrun.api.crud.pipelines._format_runs(
+    expected_runs = mlrun.api.crud.pipelines.Pipelines()._format_runs(
         expected_runs, mlrun.api.schemas.PipelinesFormat.metadata_only
     )
     _mock_list_runs(kfp_client_mock, runs)
@@ -114,7 +114,7 @@ def test_list_pipelines_specific_project(
     runs = _generate_run_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
-    mlrun.api.crud.pipelines._resolve_pipeline_project = unittest.mock.Mock(
+    mlrun.api.crud.pipelines.Pipelines()._resolve_pipeline_project = unittest.mock.Mock(
         return_value=project
     )
     response = client.get(

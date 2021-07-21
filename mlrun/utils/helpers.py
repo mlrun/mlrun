@@ -199,7 +199,9 @@ def get_in(obj, keys, default=None):
     return obj
 
 
-def verify_and_update_in(obj, key, value, expected_type: type, append=False, replace=True):
+def verify_and_update_in(
+    obj, key, value, expected_type: type, append=False, replace=True
+):
     verify_field_of_type(key, value, expected_type)
     update_in(obj, key, value, append, replace)
 

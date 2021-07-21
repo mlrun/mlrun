@@ -32,7 +32,14 @@ from mlrun.utils.regex import sparkjob_name
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import get_in, logger, update_in, verify_field_regex, verify_field_of_type, verify_and_update_in
+from ..utils import (
+    get_in,
+    logger,
+    update_in,
+    verify_field_regex,
+    verify_field_of_type,
+    verify_and_update_in,
+)
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
@@ -211,7 +218,9 @@ class SparkRuntime(KubejobRuntime):
             if resource_type not in ["cpu", "memory"]
         ]
         if len(gpu_type) > 1:
-            raise mlrun.errors.MLRunInvalidArgumentError("Sparkjob supports only a single gpu type")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob supports only a single gpu type"
+            )
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
@@ -248,7 +257,12 @@ class SparkRuntime(KubejobRuntime):
             update_in(job, "spec.sparkVersion", self.spec.spark_version)
 
         if self.spec.restart_policy:
-            verify_and_update_in(job, "spec.restartPolicy.type", self.spec.restart_policy["type"], str)
+            verify_and_update_in(
+                job,
+                "spec.restartPolicy.type",
+                self.spec.restart_policy["type"],
+                str
+            )
             verify_and_update_in(
                 job,
                 "spec.restartPolicy.onFailureRetries",
@@ -277,7 +291,12 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
-        verify_and_update_in(job, "spec.executor.instances", self.spec.replicas or 1, int)
+        verify_and_update_in(
+            job,
+            "spec.executor.instances",
+            self.spec.replicas or 1,
+            int,
+        )
         update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
         if (not self.spec.image) and self._default_image:
@@ -336,7 +355,12 @@ class SparkRuntime(KubejobRuntime):
             if gpu_type:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
                 if gpu_quantity:
-                    verify_and_update_in(job, "spec.executor.gpu.quantity", gpu_quantity, int)
+                    verify_and_update_in(
+                        job,
+                        "spec.executor.gpu.quantity",
+                        gpu_quantity,
+                        int,
+                    )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
                 verify_and_update_in(
@@ -366,7 +390,12 @@ class SparkRuntime(KubejobRuntime):
             if gpu_type:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
                 if gpu_quantity:
-                    verify_and_update_in(job, "spec.driver.gpu.quantity", gpu_quantity, int)
+                    verify_and_update_in(
+                        job,
+                        "spec.driver.gpu.quantity",
+                        gpu_quantity,
+                        int,
+                    )
 
         if self.spec.command:
             if "://" not in self.spec.command:
@@ -508,7 +537,7 @@ class SparkRuntime(KubejobRuntime):
         submission_retry_interval=20,
     ):
         """set restart policy
-           restart_type=OnFailure/Never/Always"""
+        restart_type=OnFailure/Never/Always"""
         update_in(self.spec.restart_policy, "type", restart_type)
         update_in(self.spec.restart_policy, "retries", retries)
         update_in(self.spec.restart_policy, "retry_interval", retry_interval)

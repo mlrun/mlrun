@@ -63,7 +63,7 @@ def list_artifact_tags(
 
 # curl http://localhost:8080/projects/my-proj/artifact/key?tag=latest
 @router.get("/projects/{project}/artifact/{key:path}")
-def read_artifact(
+def get_artifact(
     project: str,
     key: str,
     tag: str = "latest",
@@ -71,7 +71,7 @@ def read_artifact(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = mlrun.api.crud.artifacts.Artifacts().read_artifact(
+    data = mlrun.api.crud.artifacts.Artifacts().get_artifact(
         db_session, key, tag, iter, project, auth_verifier.auth_info
     )
     return {

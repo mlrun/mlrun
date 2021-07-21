@@ -40,7 +40,7 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
             db_session, key, data, uid, iter, tag, project,
         )
 
-    def read_artifact(
+    def get_artifact(
         self,
         db_session: sqlalchemy.orm.Session,
         key: str,

@@ -363,9 +363,9 @@ class ModelEndpoints:
     def deploy_monitoring_functions(
         project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo
     ):
-        if not _check_secret_exists(project, "MODEL_MONITORING_API_KEY"):
+        if not _check_secret_exists(project, "MODEL_MONITORING_ACCESS_KEY"):
             error = """
-                Missing 'MODEL_MONITORING_API_KEY' project secret, if you wish to enable model tracking supply the project with an 
+                Missing 'MODEL_MONITORING_ACCESS_KEY' project secret, if you wish to enable model tracking supply the project with an 
                 authorized api key by using:
                 
                 from mlrun import get_run_db

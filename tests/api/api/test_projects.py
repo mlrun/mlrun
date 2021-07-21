@@ -1,7 +1,6 @@
 import copy
 import datetime
 import typing
-import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -14,6 +13,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
@@ -57,6 +57,15 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
     )
     _assert_resources_in_project(db, project_to_remove)
 
+    # deletion strategy - check - should fail because there are resources
+    response = client.delete(
+        f"/api/projects/{project_to_remove}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
     # deletion strategy - restricted - should fail because there are resources
     response = client.delete(
         f"/api/projects/{project_to_remove}",
@@ -65,9 +74,6 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
-
-    # mock runtime resources deletion
-    mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
 
     # deletion strategy - cascading - should succeed and remove all related resources
     response = client.delete(
@@ -90,6 +96,15 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
         )
         == {}
     )
+
+    # deletion strategy - check - should succeed cause no project
+    response = client.delete(
+        f"/api/projects/{project_to_remove}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # deletion strategy - restricted - should succeed cause no project
     response = client.delete(
@@ -196,6 +211,51 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
             )
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
+
+
+def test_delete_project_deletion_strategy_check(
+    db: Session, client: TestClient
+) -> None:
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.api.schemas.ProjectSpec(),
+    )
+
+    # create
+    response = client.post("/api/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # deletion strategy - check - should succeed because there are no resources
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    # ensure project not deleted
+    response = client.get(f"/api/projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project, response)
+
+    # add function to project 1
+    function_name = "function-name"
+    function = {"metadata": {"name": function_name}}
+    response = client.post(
+        f"/api/func/{project.metadata.name}/{function_name}", json=function
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    # deletion strategy - check - should fail because there are resources
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
 def test_projects_crud(db: Session, client: TestClient) -> None:
@@ -327,9 +387,6 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
-
-    # mock runtime resources deletion
-    mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
 
     # delete - cascading strategy, will succeed and delete function
     response = client.delete(

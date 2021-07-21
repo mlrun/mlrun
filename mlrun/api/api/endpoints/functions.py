@@ -207,14 +207,32 @@ def build_status(
             nuclio_name,
             last_log_timestamp,
             text,
+            status,
         ) = get_nuclio_deploy_status(
-            name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
+            name,
+            project,
+            tag,
+            last_log_timestamp=last_log_timestamp,
+            verbose=verbose,
+            auth_info=auth_verifier.auth_info,
         )
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
-        if state == "error":
+        if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
+
+        internal_invocation_urls = status.get("internalInvocationUrls", [])
+        external_invocation_urls = status.get("externalInvocationUrls", [])
+
+        # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+        # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+        # and hence, for BC it would be filled with the external invocation url first item
+        # or completely empty.
+        address = external_invocation_urls[0] if external_invocation_urls else ""
+
         update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
         update_in(fn, "status.state", state)
         update_in(fn, "status.address", address)
 
@@ -239,6 +257,8 @@ def build_status(
                 "x-mlrun-function-status": state,
                 "x-mlrun-last-timestamp": str(last_log_timestamp),
                 "x-mlrun-address": address,
+                "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+                "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
                 "x-mlrun-name": nuclio_name,
             },
         )
@@ -324,7 +344,7 @@ def _build_function(
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
-            deploy_nuclio_function(fn)
+            deploy_nuclio_function(fn, auth_info=auth_info)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:

@@ -26,7 +26,9 @@ class Member(abc.ABC):
         leader_session: typing.Optional[str] = None,
     ):
         project_names = self.list_projects(
-            db_session, format_=mlrun.api.schemas.Format.name_only
+            db_session,
+            format_=mlrun.api.schemas.Format.name_only,
+            leader_session=leader_session,
         )
         if name in project_names.projects:
             return
@@ -93,7 +95,10 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def get_project(
-        self, db_session: sqlalchemy.orm.Session, name: str
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
         pass
 
@@ -105,5 +110,7 @@ class Member(abc.ABC):
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         pass

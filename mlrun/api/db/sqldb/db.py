@@ -926,7 +926,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             for project_record in project_records:
                 if format_ == mlrun.api.schemas.Format.name_only:
                     projects = project_names
-                elif format_ == mlrun.api.schemas.Format.full:
+                # leader format is only for follower mode which will format the projects returned from here
+                elif format_ in [
+                    mlrun.api.schemas.Format.full,
+                    mlrun.api.schemas.Format.leader,
+                ]:
                     projects.append(
                         self._transform_project_record_to_schema(
                             session, project_record
@@ -1098,7 +1102,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
 
-    def is_project_exists(self, session: Session, name: str):
+    def is_project_exists(self, session: Session, name: str, **kwargs):
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )

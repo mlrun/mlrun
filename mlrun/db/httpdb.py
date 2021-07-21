@@ -24,7 +24,7 @@ import kfp
 import requests
 import semver
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util.retry import Retry
 
 import mlrun
 import mlrun.projects
@@ -35,6 +35,7 @@ from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
+from ..runtimes import BaseRuntime
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
 
@@ -53,7 +54,14 @@ def bool2str(val):
 
 
 http_adapter = HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    max_retries=Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        # we want to retry but not to raise since we do want that last response (to parse details on the
+        # error from response body) we'll handle raising ourselves
+        raise_on_status=False,
+    ),
 )
 
 
@@ -167,27 +175,30 @@ class HTTPRunDB(RunDBInterface):
             self.session.mount("https://", http_adapter)
 
         try:
-            resp = self.session.request(
+            response = self.session.request(
                 method, url, timeout=timeout, verify=False, **kw
             )
-        except requests.RequestException as err:
-            error = error or f"{method} {url}, error: {err}"
-            raise RunDBError(error) from err
+        except requests.RequestException as exc:
+            error = f"{str(exc)}: {error}" if error else str(exc)
+            raise mlrun.errors.MLRunRuntimeError(error) from exc
 
-        if not resp.ok:
-            if resp.content:
+        if not response.ok:
+            if response.content:
                 try:
-                    data = resp.json()
-                    reason = data.get("detail", {}).get("reason", "")
+                    data = response.json()
+                    error_details = data.get("detail", {})
+                    if not error_details:
+                        logger.warning("Failed parsing error response body", data=data)
                 except Exception:
-                    reason = ""
-            if reason:
-                error = error or f"{method} {url}, error: {reason}"
-                mlrun.errors.raise_for_status(resp, error)
+                    error_details = ""
+                if error_details:
+                    error_details = f"details: {error_details}"
+                    error = f"{error} {error_details}" if error else error_details
+                    mlrun.errors.raise_for_status(response, error)
 
-            mlrun.errors.raise_for_status(resp)
+            mlrun.errors.raise_for_status(response, error)
 
-        return resp
+        return response
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
@@ -255,6 +266,10 @@ class HTTPRunDB(RunDBInterface):
                 else config.scrape_metrics
             )
             config.hub_url = server_cfg.get("hub_url") or config.hub_url
+            config.default_function_node_selector = (
+                server_cfg.get("default_function_node_selector")
+                or config.default_function_node_selector
+            )
         except Exception:
             pass
         return self
@@ -406,7 +421,7 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
         last_update_time_to: datetime = None,
-    ):
+    ) -> RunList:
         """ Retrieve a list of runs, filtered by various options.
         Example::
 
@@ -531,7 +546,7 @@ class HTTPRunDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
-    ):
+    ) -> ArtifactList:
         """ List artifacts filtered by various parameters.
 
         Examples::
@@ -887,7 +902,12 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def get_builder_status(
-        self, func, offset=0, logs=True, last_log_timestamp=0, verbose=False
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
     ):
         """ Retrieve the status of a build operation currently in progress.
 
@@ -932,6 +952,12 @@ class HTTPRunDB(RunDBInterface):
             if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 func.status.address = resp.headers.get("x-mlrun-address", "")
                 func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+                func.status.internal_invocation_urls = resp.headers.get(
+                    "x-mlrun-internal-invocation-urls", ""
+                ).split(",")
+                func.status.external_invocation_urls = resp.headers.get(
+                    "x-mlrun-external-invocation-urls", ""
+                ).split(",")
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")

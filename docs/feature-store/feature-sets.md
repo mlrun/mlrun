@@ -140,7 +140,7 @@ The feature store enables users to start real-time ingestion service. <br>
 When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the feature store creates an elastic real time serverless function 
 (AKA nuclio function) which runs the pipeline and stores the data results in the "offline" and "online" feature store by default. <br>
 There are multiple data source options including http, kafka, kinesis, v3io stream, etc. <br>
-
+Due to the asynchronous nature of feature store's execution engine, an error will be reported on the following event the nuclio function will get. <br>
 ```python
 # Create a real time function that receive http requests
 # the "ingest" function runs the feature engineering logic on live events
@@ -155,7 +155,7 @@ To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_sto
 ### Data sources
 
 For batch ingestion the feature store supports dataframes or files (i.e. csv & parquet). <br>
-The files can reside on S3, NFS, Azure blob storage or on Iguazio platform. Please note that for working with S3/Azure extra requirements are needed, you can use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them.<br>
+The files can reside on S3, NFS, Azure blob storage or on Iguazio platform. Please note that for working with S3/Azure extra requirements are needed, you can use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them. When working with Azure, AZURE_STORAGE_CONNECTION_STRING environment variable must be defined. For working with S3, define "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" and "AWS_BUCKET".<br>
 For real time ingestion the source could be http, kafka or v3io stream, etc.
 When defining a source  it maps to a nuclio event triggers. <br>
 

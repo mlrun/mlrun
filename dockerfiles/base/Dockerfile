@@ -9,13 +9,13 @@ ENV PIP_NO_CACHE_DIR=1
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -y \
-    gcc \
-    git-core \
-    wget \
-    curl \
     build-essential \
     cmake \
+    curl \
+    gcc \
+    git-core \
     graphviz \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun
@@ -30,7 +30,7 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 
 ENV PATH /opt/conda/bin:$PATH
 
-RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=20.2.0
+RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=20.2.0 && conda clean -aqy
 
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt

@@ -282,9 +282,12 @@ def list_features(
     tag: str = None,
     entities: List[str] = Query(None, alias="entity"),
     labels: List[str] = Query(None, alias="label"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    features = get_db().list_features(db_session, project, name, tag, entities, labels)
+    features = mlrun.api.crud.feature_store.FeatureStore().list_features(
+        db_session, project, name, tag, entities, labels, auth_verifier.auth_info
+    )
     return features
 
 
@@ -294,9 +297,12 @@ def list_entities(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query(None, alias="label"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    features = get_db().list_entities(db_session, project, name, tag, labels)
+    features = mlrun.api.crud.feature_store.FeatureStore().list_entities(
+        db_session, project, name, tag, labels, auth_verifier.auth_info
+    )
     return features
 
 

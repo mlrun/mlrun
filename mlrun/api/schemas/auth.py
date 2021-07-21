@@ -28,6 +28,8 @@ class AuthorizationResourceTypes(str, enum.Enum):
     function = "function"
     artifact = "artifact"
     feature_set = "feature-set"
+    feature = "feature"
+    entity = "entity"
     background_task = "background-task"
 
 

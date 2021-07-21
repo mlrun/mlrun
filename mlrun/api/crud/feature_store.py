@@ -177,6 +177,53 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             db_session, project, name, tag, uid
         )
 
+    def list_features(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        tag: typing.Optional[str] = None,
+        entities: typing.List[str] = None,
+        labels: typing.List[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ) -> mlrun.api.schemas.FeaturesOutput:
+        features = mlrun.api.utils.singletons.db.get_db().list_features(
+            db_session, project, name, tag, entities, labels,
+        )
+        features = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.feature,
+            features.features,
+            lambda feature_list_output: (
+                feature_list_output.feature.name,
+                feature_list_output.feature_set_digest.metadata.project,
+            ),
+            auth_info,
+        )
+        return mlrun.api.schemas.FeaturesOutput(features=features)
+
+    def list_entities(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        tag: typing.Optional[str] = None,
+        labels: typing.List[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ) -> mlrun.api.schemas.EntitiesOutput:
+        entities = mlrun.api.utils.singletons.db.get_db().list_entities(
+            db_session, project, name, tag, labels,
+        )
+        entities = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.entity,
+            entities.entities,
+            lambda entity_list_output: (
+                entity_list_output.entity.name,
+                entity_list_output.feature_set_digest.metadata.project,
+            ),
+            auth_info,
+        )
+        return mlrun.api.schemas.EntitiesOutput(entities=entities)
+
     @staticmethod
     def _validate_identity_for_object_patch(
         object_type, object_patch, project, name, tag, uid

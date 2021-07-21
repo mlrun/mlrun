@@ -43,7 +43,7 @@ def create_or_patch(
         db_session=db_session,
         access_key=access_key,
         model_endpoint=model_endpoint,
-        leader_session=auth_verifier.auth_info.session,
+        auth_info=auth_verifier.auth_info,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

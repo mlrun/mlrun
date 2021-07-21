@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Respons
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
@@ -41,17 +42,16 @@ async def store_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug(data)
-    logger.info("store function: project=%s, name=%s, tag=%s", project, name, tag)
+    logger.debug("Storing function", project=project, name=name, tag=tag, data=data)
     hash_key = await run_in_threadpool(
-        get_db().store_function,
+        mlrun.api.crud.Functions().store_function,
         db_session,
         data,
         name,
         project,
         tag=tag,
         versioned=versioned,
-        leader_session=auth_verifier.auth_info.session,
+        auth_info=auth_verifier.auth_info,
     )
     return {
         "hash_key": hash_key,
@@ -65,9 +65,12 @@ def get_function(
     name: str,
     tag: str = "",
     hash_key="",
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    func = get_db().get_function(db_session, name, project, tag, hash_key)
+    func = mlrun.api.crud.Functions().get_function(
+        db_session, name, project, tag, hash_key, auth_verifier.auth_info
+    )
     return {
         "func": func,
     }
@@ -77,9 +80,14 @@ def get_function(
     "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 def delete_function(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().delete_function(db_session, project, name)
+    mlrun.api.crud.Functions().delete_function(
+        db_session, project, name, auth_verifier.auth_info
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -90,9 +98,12 @@ def list_functions(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    funcs = get_db().list_functions(db_session, name, project, tag, labels)
+    funcs = mlrun.api.crud.Functions().list_functions(
+        db_session, project, name, tag, labels, auth_verifier.auth_info
+    )
     return {
         "funcs": list(funcs),
     }

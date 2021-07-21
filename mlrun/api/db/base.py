@@ -137,15 +137,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_function(
-        self,
-        session,
-        function,
-        name,
-        project="",
-        tag="",
-        versioned=False,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, function, name, project="", tag="", versioned=False,
+    ) -> str:
         pass
 
     @abstractmethod

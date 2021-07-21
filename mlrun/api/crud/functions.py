@@ -14,109 +14,93 @@ import mlrun.runtimes
 import mlrun.utils.singleton
 
 
-class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
-    def store_artifact(
+class Functions(metaclass=mlrun.utils.singleton.Singleton,):
+    def store_function(
         self,
         db_session: sqlalchemy.orm.Session,
-        key: str,
-        data: dict,
-        uid: str,
-        tag: str = "latest",
-        iter: int = 0,
+        function: dict,
+        name: str,
         project: str = mlrun.mlconf.default_project,
+        tag: str = "",
+        versioned: bool = False,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-    ):
+    ) -> str:
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=auth_info.session
         )
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+            mlrun.api.schemas.AuthorizationResourceTypes.function,
             project,
-            key,
+            name,
             mlrun.api.schemas.AuthorizationAction.store,
             auth_info,
         )
-        mlrun.api.utils.singletons.db.get_db().store_artifact(
-            db_session, key, data, uid, iter, tag, project,
+        return mlrun.api.utils.singletons.db.get_db().store_function(
+            db_session, function, name, project, tag, versioned,
         )
 
-    def get_artifact(
+    def get_function(
         self,
         db_session: sqlalchemy.orm.Session,
-        key: str,
-        tag: str = "latest",
-        iter: int = 0,
+        name: str,
         project: str = mlrun.mlconf.default_project,
+        tag: str = "",
+        hash_key: str = "",
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> dict:
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+            mlrun.api.schemas.AuthorizationResourceTypes.function,
             project,
-            key,
+            name,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-        return mlrun.api.utils.singletons.db.get_db().read_artifact(
-            db_session, key, tag, iter, project,
+        return mlrun.api.utils.singletons.db.get_db().get_function(
+            db_session, name, project, tag, hash_key
         )
 
-    def list_artifacts(
+    def delete_function(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.function,
+            project,
+            name,
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+        return mlrun.api.utils.singletons.db.get_db().delete_function(
+            db_session, project, name
+        )
+
+    def list_functions(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "",
         labels: typing.List[str] = None,
-        since=None,
-        until=None,
-        kind: typing.Optional[str] = None,
-        category: typing.Optional[mlrun.api.schemas.ArtifactCategories] = None,
-        iter: typing.Optional[int] = None,
-        best_iteration: bool = False,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.List:
         if labels is None:
             labels = []
-        artifacts = mlrun.api.utils.singletons.db.get_db().list_artifacts(
-            db_session,
-            name,
-            project,
-            tag,
-            labels,
-            since,
-            until,
-            kind,
-            category,
-            iter,
-            best_iteration,
+        functions = mlrun.api.utils.singletons.db.get_db().list_functions(
+            db_session, name, project, tag, labels,
         )
         return mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
-            artifacts,
-            lambda artifact: (
-                artifact.get("project", mlrun.mlconf.default_project),
-                artifact["db_key"],
+            mlrun.api.schemas.AuthorizationResourceTypes.function,
+            functions,
+            lambda function: (
+                function.get("metadata", {}).get(
+                    "project", mlrun.mlconf.default_project
+                ),
+                function["metadata"]["name"],
             ),
             auth_info,
-        )
-
-    def delete_artifact(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        key: str,
-        tag: str = "latest",
-        project: str = mlrun.mlconf.default_project,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-    ):
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
-            project,
-            key,
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
-        return mlrun.api.utils.singletons.db.get_db().del_artifact(
-            db_session, key, tag, project
         )
 
     def delete_artifacts(

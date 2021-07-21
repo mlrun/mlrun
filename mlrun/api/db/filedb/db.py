@@ -129,15 +129,8 @@ class FileDB(DBInterface):
         )
 
     def store_function(
-        self,
-        session,
-        function,
-        name,
-        project="",
-        tag="",
-        versioned=False,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, function, name, project="", tag="", versioned=False,
+    ) -> str:
         return self._transform_run_db_error(
             self.db.store_function, function, name, project, tag, versioned
         )

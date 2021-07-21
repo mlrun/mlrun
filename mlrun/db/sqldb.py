@@ -196,29 +196,45 @@ class SQLDB(RunDBInterface):
 
     def store_function(self, function, name, project="", tag="", versioned=False):
         return self._transform_db_error(
-            self.db.store_function,
+            mlrun.api.crud.Functions().store_function,
             self.session,
             function,
             name,
             project,
             tag,
             versioned,
-            self.leader_session,
+            self.auth_info,
         )
 
     def get_function(self, name, project="", tag="", hash_key=""):
         return self._transform_db_error(
-            self.db.get_function, self.session, name, project, tag, hash_key
+            mlrun.api.crud.Functions().get_function,
+            self.session,
+            name,
+            project,
+            tag,
+            hash_key,
+            self.auth_info,
         )
 
     def delete_function(self, name: str, project: str = ""):
         return self._transform_db_error(
-            self.db.delete_function, self.session, project, name
+            mlrun.api.crud.Functions().delete_function,
+            self.session,
+            project,
+            name,
+            self.auth_info,
         )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
         return self._transform_db_error(
-            self.db.list_functions, self.session, name, project, tag, labels
+            mlrun.api.crud.Functions().list_functions,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
+            self.auth_info,
         )
 
     def list_artifact_tags(self, project=None):

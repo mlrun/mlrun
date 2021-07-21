@@ -443,15 +443,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             self.del_artifact(session, artifact.key, "", project)
 
     def store_function(
-        self,
-        session,
-        function,
-        name,
-        project="",
-        tag="",
-        versioned=False,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, function, name, project="", tag="", versioned=False,
+    ) -> str:
         logger.debug(
             "Storing function to DB",
             name=name,
@@ -461,9 +454,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             function=function,
         )
         project = project or config.default_project
-        get_project_member().ensure_project(
-            session, project, leader_session=leader_session
-        )
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 

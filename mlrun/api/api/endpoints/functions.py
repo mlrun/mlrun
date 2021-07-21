@@ -365,9 +365,6 @@ def _build_function(
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
-            deploy_nuclio_function(fn)
-            # deploy only start the process, the get status API is used to check readiness
-            ready = False
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -387,6 +384,9 @@ def _build_function(
                 except Exception as e:
                     logger.exception(e)
 
+            deploy_nuclio_function(fn)
+            # deploy only start the process, the get status API is used to check readiness
+            ready = False
         else:
             ready = build_runtime(
                 fn, with_mlrun, mlrun_version_specifier, skip_deployed
@@ -562,3 +562,5 @@ def _init_serving_function_stream_args(fn: ServingRuntime):
         fn.spec.parameters["stream_args"] = {
             "access_key": os.environ.get("V3IO_ACCESS_KEY")
         }
+
+    fn.save(versioned=True)

@@ -372,7 +372,10 @@ class SparkRuntime(KubejobRuntime):
             if "://" not in self.spec.command:
                 self.spec.command = "local://" + self.spec.command
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        verify_and_update_in(job, "spec.arguments", self.spec.args or [], list)
+        verify_field_of_type("spec.arguments", self.spec.args, list)
+        for argument in self.spec.args:
+            verify_field_of_type("spec.arguments[]", argument, str)
+        update_in(job, "spec.arguments", self.spec.args or [])
         self._submit_job(job, meta.namespace)
 
         return None

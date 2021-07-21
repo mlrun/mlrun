@@ -289,13 +289,8 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def create_feature_vector(
-        self,
-        session,
-        project,
-        feature_vector: schemas.FeatureVector,
-        versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+    ) -> str:
         raise NotImplementedError()
 
     def get_feature_vector(
@@ -328,8 +323,7 @@ class FileDB(DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def patch_feature_vector(
@@ -341,8 +335,7 @@ class FileDB(DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):

@@ -316,16 +316,17 @@ def create_feature_vector(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_vector_uid = get_db().create_feature_vector(
-        db_session, project, feature_vector, versioned, auth_verifier.auth_info.session
+    feature_vector_uid = mlrun.api.crud.feature_store.FeatureStore().create_feature_vector(
+        db_session, project, feature_vector, versioned, auth_verifier.auth_info
     )
 
-    return get_db().get_feature_vector(
+    return mlrun.api.crud.feature_store.FeatureStore().get_feature_vector(
         db_session,
         project,
         feature_vector.metadata.name,
-        tag=feature_vector.metadata.tag or "latest",
-        uid=feature_vector_uid,
+        feature_vector.metadata.tag or "latest",
+        feature_vector_uid,
+        auth_verifier.auth_info,
     )
 
 
@@ -337,10 +338,13 @@ def get_feature_vector(
     project: str,
     name: str,
     reference: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    return get_db().get_feature_vector(db_session, project, name, tag, uid)
+    return mlrun.api.crud.feature_store.FeatureStore().get_feature_vector(
+        db_session, project, name, tag, uid, auth_verifier.auth_info
+    )
 
 
 @router.get(
@@ -358,9 +362,10 @@ def list_feature_vectors(
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
     sort: schemas.SortField = Query(None, alias="partition-sort-by"),
     order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_vectors = get_db().list_feature_vectors(
+    feature_vectors = mlrun.api.crud.feature_store.FeatureStore().list_feature_vectors(
         db_session,
         project,
         name,
@@ -371,6 +376,7 @@ def list_feature_vectors(
         rows_per_partition,
         sort,
         order,
+        auth_verifier.auth_info,
     )
 
     return feature_vectors
@@ -390,7 +396,7 @@ def store_feature_vector(
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    uid = get_db().store_feature_vector(
+    uid = mlrun.api.crud.feature_store.FeatureStore().store_feature_vector(
         db_session,
         project,
         name,
@@ -398,10 +404,12 @@ def store_feature_vector(
         tag,
         uid,
         versioned,
-        leader_session=auth_verifier.auth_info.session,
+        auth_verifier.auth_info,
     )
 
-    return get_db().get_feature_vector(db_session, project, name, uid=uid, tag=tag)
+    return mlrun.api.crud.feature_store.FeatureStore().get_feature_vector(
+        db_session, project, name, tag, uid, auth_verifier.auth_info,
+    )
 
 
 @router.patch("/projects/{project}/feature-vectors/{name}/references/{reference}")
@@ -417,7 +425,7 @@ def patch_feature_vector(
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    get_db().patch_feature_vector(
+    mlrun.api.crud.feature_store.FeatureStore().patch_feature_vector(
         db_session,
         project,
         name,
@@ -425,7 +433,7 @@ def patch_feature_vector(
         tag,
         uid,
         patch_mode,
-        auth_verifier.auth_info.session,
+        auth_verifier.auth_info,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -436,10 +444,13 @@ def delete_feature_vector(
     project: str,
     name: str,
     reference: str = None,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag = uid = None
     if reference:
         tag, uid = parse_reference(reference)
-    get_db().delete_feature_vector(db_session, project, name, tag, uid)
+    mlrun.api.crud.feature_store.FeatureStore().delete_feature_vector(
+        db_session, project, name, tag, uid, auth_verifier.auth_info
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

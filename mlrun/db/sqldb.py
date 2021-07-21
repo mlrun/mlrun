@@ -383,7 +383,6 @@ class SQLDB(RunDBInterface):
             project,
             feature_vector,
             versioned,
-            self.leader_session,
         )
 
     def get_feature_vector(
@@ -431,7 +430,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
-            self.leader_session,
         )
 
     def patch_feature_vector(
@@ -452,7 +450,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
-            self.leader_session,
         )
 
     def delete_feature_vector(self, name, project="", tag=None, uid=None):

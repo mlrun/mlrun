@@ -1530,28 +1530,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self._update_feature_set_entities(feature_set, entities, replace)
 
     @staticmethod
-    def _validate_store_parameters(object_to_store, project, name, tag, uid):
-        object_type = object_to_store.__class__.__name__
-
-        if not tag and not uid:
-            raise ValueError(
-                f"cannot store {object_type} without reference (tag or uid)"
-            )
-
-        object_project = object_to_store.metadata.project
-        if object_project and object_project != project:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{object_type} object with conflicting project name - {object_project}"
-            )
-
-        object_to_store.metadata.project = project
-
-        if object_to_store.metadata.name != name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Changing name for an existing {object_type}"
-            )
-
-    @staticmethod
     def _common_object_validate_and_perform_uid_change(
         object_dict: dict, tag, versioned, existing_uid=None,
     ):
@@ -1758,19 +1736,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)
 
     def create_feature_vector(
-        self,
-        session,
-        project,
-        feature_vector: schemas.FeatureVector,
-        versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+    ) -> str:
         (
             uid,
             tag,
             feature_vector_dict,
         ) = self._validate_and_enrich_record_for_creation(
-            session, feature_vector, FeatureVector, project, versioned, leader_session
+            session, feature_vector, FeatureVector, project, versioned
         )
 
         db_feature_vector = FeatureVector(project=project)
@@ -1880,10 +1853,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
-        self._validate_store_parameters(feature_vector, project, name, tag, uid)
-
+    ) -> str:
         original_uid = uid
 
         _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
@@ -1904,7 +1874,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
             feature_vector.metadata.tag = tag
             return self.create_feature_vector(
-                session, project, feature_vector, versioned, leader_session
+                session, project, feature_vector, versioned
             )
 
         uid = self._common_object_validate_and_perform_uid_change(
@@ -1934,8 +1904,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         feature_vector_record = self._get_feature_vector(
             session, project, name, tag, uid
         )
@@ -1962,7 +1931,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             uid,
             versioned,
             always_overwrite=True,
-            leader_session=leader_session,
         )
 
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):

@@ -358,13 +358,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_vector(
-        self,
-        session,
-        project,
-        feature_vector: schemas.FeatureVector,
-        versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+    ) -> str:
         pass
 
     @abstractmethod
@@ -400,8 +395,7 @@ class DBInterface(ABC):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod
@@ -414,8 +408,7 @@ class DBInterface(ABC):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod

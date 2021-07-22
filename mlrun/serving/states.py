@@ -1091,6 +1091,7 @@ class FlowStep(BaseStep):
 
     def wait_for_completion(self):
         """wait for completion of run in async flows"""
+        print("is this async flow???????")
         if self._controller:
             if hasattr(self._controller, "terminate"):
                 self._controller.terminate()

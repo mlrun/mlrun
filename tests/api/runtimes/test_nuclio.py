@@ -200,7 +200,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         expected_node_name=None,
         expected_node_selector=None,
-        expected_affinity=None
+        expected_affinity=None,
     ):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]

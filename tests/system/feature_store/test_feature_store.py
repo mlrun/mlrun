@@ -154,6 +154,12 @@ class TestFeatureStore(TestMLRunSystem):
             resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
         ), "unexpected online result"
 
+        try:
+            resp = svc.get("GOOG")
+            assert False
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass
+
         resp = svc.get([{"ticker": "a"}])
         assert resp[0] is None
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])

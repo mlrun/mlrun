@@ -477,7 +477,7 @@ class RemoteRuntime(KubeResource):
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
-        raise NotImplementedError("Node selection is not supported for nuclio runtime")
+        super().with_node_selection(node_name, node_selector, affinity)
 
     def _get_state(
         self,
@@ -889,6 +889,12 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
+    if function.spec.node_selector:
+        spec.set_config("spec.node_selector", function.spec.node_selector)
+    if function.spec.node_name:
+        spec.set_config("spec.node_name", function.spec.node_name)
+    if function.spec.affinity:
+        spec.set_config("spec.affinity", function.spec.affinity)
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

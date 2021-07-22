@@ -903,11 +903,11 @@ def compile_function_config(function: RemoteRuntime):
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
     if function.spec.node_selector:
-        spec.set_config("spec.node_selector", function.spec.node_selector)
+        spec.set_config("spec.nodeSelector", function.spec.node_selector)
     if function.spec.node_name:
-        spec.set_config("spec.node_name", function.spec.node_name)
+        spec.set_config("spec.nodeName", function.spec.node_name)
     if function.spec.affinity:
-        spec.set_config("spec.affinity", function.spec.affinity)
+        spec.set_config("spec.nodeAffinity", function.spec.affinity)
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

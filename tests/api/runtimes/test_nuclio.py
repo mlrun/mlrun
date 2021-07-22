@@ -206,12 +206,12 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_spec = args[0]["spec"]
 
         if expected_node_name:
-            assert deploy_spec["node_name"] == expected_node_name
+            assert deploy_spec["nodeName"] == expected_node_name
 
         if expected_node_selector:
             assert (
                 deepdiff.DeepDiff(
-                    deploy_spec["node_selector"],
+                    deploy_spec["nodeSelector"],
                     expected_node_selector,
                     ignore_order=True,
                 )
@@ -220,7 +220,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         if expected_affinity:
             assert (
                 deepdiff.DeepDiff(
-                    deploy_spec["affinity"].to_dict(),
+                    deploy_spec["nodeAffinity"].to_dict(),
                     expected_affinity.to_dict(),
                     ignore_order=True,
                 )
@@ -335,7 +335,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime("nuclio")
 
         node_name = "some-node-name"
-        function.with_node_selection(node_name)
+        function.with_node_selection(node_name=node_name)
 
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()

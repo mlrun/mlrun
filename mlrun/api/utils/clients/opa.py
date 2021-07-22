@@ -157,6 +157,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             "ource_name}",
             mlrun.api.schemas.AuthorizationResourceTypes.feature: "/projects/{project_name}/features/{resource_name}",
             mlrun.api.schemas.AuthorizationResourceTypes.entity: "/projects/{project_name}/entities/{resource_name}",
+            mlrun.api.schemas.AuthorizationResourceTypes.log: "/projects/{project_name}/runs/{resource_name}/logs",
         }[resource_type].format(project_name=project_name, resource_name=resource_name)
 
     def _is_request_from_leader(

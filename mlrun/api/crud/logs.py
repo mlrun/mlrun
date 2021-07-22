@@ -3,6 +3,9 @@ from http import HTTPStatus
 
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
+import mlrun.utils.singleton
 from mlrun.api.api.utils import log_and_raise, log_path
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
@@ -10,30 +13,50 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes.constants import PodPhases
 
 
-# TODO: changed to be under a singleton like projects and runtimes
-class Logs:
-    @staticmethod
-    def store_log(body: bytes, project: str, uid: str, append: bool = True):
+class Logs(metaclass=mlrun.utils.singleton.Singleton,):
+    def store_log(
+        self,
+        body: bytes,
+        project: str,
+        uid: str,
+        append: bool = True,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.log,
+            project,
+            uid,
+            mlrun.api.schemas.AuthorizationAction.store,
+            auth_info,
+        )
         log_file = log_path(project, uid)
         log_file.parent.mkdir(parents=True, exist_ok=True)
         mode = "ab" if append else "wb"
         with log_file.open(mode) as fp:
             fp.write(body)
 
-    @staticmethod
     def get_logs(
+        self,
         db_session: Session,
         project: str,
         uid: str,
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.Tuple[str, bytes]:
         """
         :return: Tuple with:
             1. str of the run state (so watchers will know whether to continue polling for logs)
             2. bytes of the logs themselves
         """
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.log,
+            project,
+            uid,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
+        )
         out = b""
         log_file = log_path(project, uid)
         data = get_db().read_run(db_session, uid, project)
@@ -55,14 +78,12 @@ class Logs:
                             out = resp.encode()[offset:]
         return run_state, out
 
-    @staticmethod
-    def get_log_mtime(project: str, uid: str) -> int:
+    def get_log_mtime(self, project: str, uid: str) -> int:
         log_file = log_path(project, uid)
         if not log_file.exists():
             raise FileNotFoundError(f"Log file does not exist: {log_file}")
         return log_file.stat().st_mtime
 
-    @staticmethod
-    def log_file_exists(project: str, uid: str) -> bool:
+    def log_file_exists(self, project: str, uid: str) -> bool:
         log_file = log_path(project, uid)
         return log_file.exists()

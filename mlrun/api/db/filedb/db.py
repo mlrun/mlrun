@@ -14,13 +14,7 @@ class FileDB(DBInterface):
         self.db.connect()
 
     def store_log(
-        self,
-        session,
-        uid,
-        project="",
-        body=None,
-        append=False,
-        leader_session: Optional[str] = None,
+        self, session, uid, project="", body=None, append=False,
     ):
         return self._transform_run_db_error(
             self.db.store_log, uid, project, body, append

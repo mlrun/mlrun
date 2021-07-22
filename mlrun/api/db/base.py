@@ -30,13 +30,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_log(
-        self,
-        session,
-        uid,
-        project="",
-        body=None,
-        append=False,
-        leader_session: Optional[str] = None,
+        self, session, uid, project="", body=None, append=False,
     ):
         pass
 

@@ -52,18 +52,18 @@ class SQLDB(RunDBInterface):
 
     def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(
-            self.db.store_log,
-            self.session,
-            uid,
-            project,
-            body,
-            append,
-            self.leader_session,
+            mlrun.api.crud.Logs().store_log, body, project, uid, append, self.auth_info,
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
         return self._transform_db_error(
-            self.db.get_log, self.session, uid, project, offset, size
+            mlrun.api.crud.Logs().get_logs,
+            self.session,
+            project,
+            uid,
+            size,
+            offset,
+            auth_info=self.auth_info,
         )
 
     def store_run(self, struct, uid, project="", iter=0):

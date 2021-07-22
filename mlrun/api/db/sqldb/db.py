@@ -71,35 +71,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         return
 
     def store_log(
-        self,
-        session,
-        uid,
-        project="",
-        body=b"",
-        append=False,
-        leader_session: Optional[str] = None,
+        self, session, uid, project="", body=b"", append=False,
     ):
-        project = project or config.default_project
-        get_project_member().ensure_project(
-            session, project, leader_session=leader_session
-        )
-        log = self._query(session, Log, uid=uid, project=project).one_or_none()
-        if not log:
-            log = Log(uid=uid, project=project, body=body)
-        elif body:
-            if append:
-                log.body += body
-            else:
-                log.body = body
-        self._upsert(session, log)
+        raise NotImplementedError("DB should not be used for logs storage")
 
     def get_log(self, session, uid, project="", offset=0, size=0):
-        project = project or config.default_project
-        log = self._query(session, Log, uid=uid, project=project).one_or_none()
-        if not log:
-            return None, None
-        end = None if size == 0 else offset + size
-        return "", log.body[offset:end]
+        raise NotImplementedError("DB should not be used for logs storage")
 
     def delete_log(self, session: Session, project: str, uid: str):
         project = project or config.default_project

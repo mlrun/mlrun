@@ -148,6 +148,12 @@ class TestFeatureStore(TestMLRunSystem):
         # check non existing column
         resp = svc.get([{"bb": "AAPL"}])
 
+        # check that passing a dict (without list) works
+        resp = svc.get({"ticker": "GOOG"})
+        assert (
+                resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
+        ), "unexpected online result"
+
         resp = svc.get([{"ticker": "a"}])
         assert resp[0] is None
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])

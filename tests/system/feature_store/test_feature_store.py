@@ -151,7 +151,7 @@ class TestFeatureStore(TestMLRunSystem):
         # check that passing a dict (without list) works
         resp = svc.get({"ticker": "GOOG"})
         assert (
-                resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
+            resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
         ), "unexpected online result"
 
         resp = svc.get([{"ticker": "a"}])

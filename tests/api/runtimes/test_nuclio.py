@@ -220,7 +220,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         if expected_affinity:
             assert (
                 deepdiff.DeepDiff(
-                    deploy_spec["nodeAffinity"].to_dict(),
+                    deploy_spec["affinity"].to_dict(),
                     expected_affinity.to_dict(),
                     ignore_order=True,
                 )

@@ -34,6 +34,7 @@ class AuthorizationResourceTypes(str, enum.Enum):
     feature = "feature"
     entity = "entity"
     background_task = "background-task"
+    schedule = "schedule"
 
 
 class AuthInfo(pydantic.BaseModel):

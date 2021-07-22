@@ -10,7 +10,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.deps
 import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session

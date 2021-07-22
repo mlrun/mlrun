@@ -2,7 +2,6 @@ import typing
 
 import sqlalchemy.orm
 
-import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
 import mlrun.api.utils.projects.remotes.follower
@@ -10,7 +9,6 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.errors
-import mlrun.runtimes
 import mlrun.utils.singleton
 
 

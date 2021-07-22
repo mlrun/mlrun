@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.deps
 import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas

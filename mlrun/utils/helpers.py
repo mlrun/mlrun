@@ -98,7 +98,6 @@ except ImportError:
     pass
 
 if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
-
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -143,6 +142,16 @@ def verify_field_of_type(field_name: str, field_value, expected_type: type):
             f"Field '{field_name}' should be of type {expected_type.__name__} "
             f"(got: {type(field_value).__name__} with value: {field_value})."
         )
+
+
+# Verifying that a field input is of type list and all elements inside are of the expected element type.
+# If not the method raises a detailed MLRunInvalidArgumentError
+def verify_field_list_of_type(
+    field_name: str, field_value, expected_element_type: type
+):
+    verify_field_of_type(field_name, field_value, list)
+    for element in field_value:
+        verify_field_of_type(field_name, element, expected_element_type)
 
 
 def now_date():
@@ -206,6 +215,13 @@ def verify_and_update_in(
     update_in(obj, key, value, append, replace)
 
 
+def verify_list_and_update_in(
+    obj, key, value, expected_element_type: type, append=False, replace=True
+):
+    verify_field_list_of_type(key, value, expected_element_type)
+    update_in(obj, key, value, append, replace)
+
+
 def update_in(obj, key, value, append=False, replace=True):
     parts = key.split(".") if isinstance(key, str) else key
     for part in parts[:-1]:
@@ -258,7 +274,6 @@ def match_labels(labels, conditions):
 def match_times(time_from, time_to, obj, key):
     obj_time = get_in(obj, key)
     if not obj_time:
-
         # if obj doesn't have the required time, return false if either time_from or time_to were given
         return not time_from and not time_to
     obj_time = parser.isoparse(obj_time)

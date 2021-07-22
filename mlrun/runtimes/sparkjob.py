@@ -39,6 +39,7 @@ from ..utils import (
     verify_and_update_in,
     verify_field_of_type,
     verify_field_regex,
+    verify_list_and_update_in,
 )
 from .base import RunError
 from .kubejob import KubejobRuntime
@@ -389,10 +390,8 @@ class SparkRuntime(KubejobRuntime):
             if "://" not in self.spec.command:
                 self.spec.command = "local://" + self.spec.command
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        verify_field_of_type("spec.arguments", self.spec.args, list)
-        for argument in self.spec.args:
-            verify_field_of_type("spec.arguments[]", argument, str)
-        update_in(job, "spec.arguments", self.spec.args or [])
+
+        verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
         self._submit_job(job, meta.namespace)
 
         return None

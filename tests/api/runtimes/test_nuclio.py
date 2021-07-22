@@ -196,28 +196,35 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
         self._assert_pod_env(env_config, expected_env)
 
-    def _assert_node_selections(self, expected_node_name=None, expected_node_selector=None, expected_affinity=None):
+    def _assert_node_selections(
+            self,
+            expected_node_name=None,
+            expected_node_selector=None,
+            expected_affinity=None
+    ):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
         if expected_node_name:
-            assert deploy_spec['node_name'] == expected_node_name
+            assert deploy_spec["node_name"] == expected_node_name
 
         if expected_node_selector:
             assert (
                     deepdiff.DeepDiff(
-                        deploy_spec['node_selector'], expected_node_selector, ignore_order=True,
+                        deploy_spec["node_selector"],
+                        expected_node_selector,
+                        ignore_order=True,
                     )
                     == {}
             )
         if expected_affinity:
             assert (
-                    deepdiff.DeepDiff(
-                        deploy_spec['affinity'].to_dict(),
-                        expected_affinity.to_dict(),
-                        ignore_order=True,
-                    )
-                    == {}
+                deepdiff.DeepDiff(
+                    deploy_spec["affinity"].to_dict(),
+                    expected_affinity.to_dict(),
+                    ignore_order=True,
+                )
+                == {}
             )
 
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):

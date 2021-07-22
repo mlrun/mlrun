@@ -37,7 +37,6 @@ from ..utils import (
     logger,
     update_in,
     verify_and_update_in,
-    verify_field_of_type,
     verify_field_regex,
     verify_list_and_update_in,
 )
@@ -297,7 +296,6 @@ class SparkRuntime(KubejobRuntime):
         if (not self.spec.image) and self._default_image:
             self.spec.image = self._default_image
 
-        verify_field_of_type("spec.image", self.spec.image, str)
         update_in(job, "spec.image", self.full_image_path())
 
         update_in(job, "spec.volumes", self.spec.volumes)

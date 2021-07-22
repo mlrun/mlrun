@@ -26,6 +26,7 @@ class AuthorizationAction(str, enum.Enum):
 
 class AuthorizationResourceTypes(str, enum.Enum):
     log = "log"
+    runtime_resource = "runtime-resource"
     function = "function"
     artifact = "artifact"
     feature_set = "feature-set"

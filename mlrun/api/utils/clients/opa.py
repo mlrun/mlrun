@@ -159,6 +159,8 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.AuthorizationResourceTypes.entity: "/projects/{project_name}/entities/{resource_name}",
             mlrun.api.schemas.AuthorizationResourceTypes.log: "/projects/{project_name}/runs/{resource_name}/logs",
             mlrun.api.schemas.AuthorizationResourceTypes.schedule: "/projects/{project_name}/schedules/{resource_name}",
+            mlrun.api.schemas.AuthorizationResourceTypes.secret: "/projects/{project_name}/secrets/{resource_name}",
+            mlrun.api.schemas.AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
             # runtime resource doesn't have a get (one) object endpoint, it doesn't have an identifier
             mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources/"
             "",

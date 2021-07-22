@@ -11,6 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
+import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -186,6 +187,13 @@ def _submit_run(
                 "name": task["metadata"]["name"],
             }
         else:
+            mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+                mlrun.api.schemas.AuthorizationResourceTypes.run,
+                task["metadata"]["project"],
+                "",
+                mlrun.api.schemas.AuthorizationAction.create,
+                auth_info,
+            )
             run = fn.run(task, watch=False)
             run_uid = run.metadata.uid
             project = run.metadata.project

@@ -47,7 +47,7 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p2")
 
     tags = db.list_artifact_tags(db_session, "p1")
-    assert {"t1", "t2"} == set(tags), "bad tags"
+    assert [("p1", "k1", "t1"), ("p1", "k1", "t2")] == tags
 
 
 def test_list_artifact_date(db: SQLDB, db_session: Session):

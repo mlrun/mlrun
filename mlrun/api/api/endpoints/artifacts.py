@@ -6,6 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
@@ -52,9 +53,23 @@ async def store_artifact(
 # curl http://localhost:8080/artifact/p1/tags
 @router.get("/projects/{project}/artifact-tags")
 def list_artifact_tags(
-    project: str, db_session: Session = Depends(deps.get_db_session)
+    project: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    tags = get_db().list_artifact_tags(db_session, project)
+    tag_tuples = get_db().list_artifact_tags(db_session, project)
+    artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
+    allowed_artifact_keys = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        list(artifact_key_to_tag.keys()),
+        lambda artifact_key: (project, artifact_key,),
+        auth_verifier.auth_info,
+    )
+    tags = [
+        tag_tuple[2]
+        for tag_tuple in tag_tuples
+        if tag_tuple[1] in allowed_artifact_keys
+    ]
     return {
         "project": project,
         "tags": tags,

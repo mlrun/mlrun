@@ -1,5 +1,6 @@
 import collections
 import re
+import typing
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -572,13 +573,20 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         )
         return [row[0] for row in query]
 
-    def list_artifact_tags(self, session, project):
+    def list_artifact_tags(
+        self, session, project
+    ) -> typing.List[typing.Tuple[str, str, str]]:
+        """
+
+        :return: a list of Tuple of (project, artifact.key, tag)
+        """
         query = (
-            session.query(Artifact.Tag.name)
+            session.query(Artifact.key, Artifact.Tag.name)
             .filter(Artifact.Tag.project == project)
+            .join(Artifact)
             .distinct()
         )
-        return [row[0] for row in query]
+        return [(project, row[0], row[1]) for row in query]
 
     def create_schedule(
         self,

@@ -484,14 +484,6 @@ class RemoteRuntime(KubeResource):
             logger.error("Nuclio function failed to deploy", function_state=state)
             raise RunError(f"function {self.metadata.name} deployment failed")
 
-    def with_node_selection(
-        self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-    ):
-        super().with_node_selection(node_name, node_selector, affinity)
-
     def _get_state(
         self,
         dashboard="",

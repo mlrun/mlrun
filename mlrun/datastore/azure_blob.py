@@ -31,7 +31,7 @@ class AzureBlobStore(DataStore):
         if con_string:
             self.bsc = BlobServiceClient.from_connection_string(con_string)
         else:
-            self.bsc is None
+            self.bsc = None
             self.get_filesystem()
 
     def get_filesystem(self, silent=True):

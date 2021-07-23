@@ -16,6 +16,7 @@ from base64 import b64encode
 from os import getenv, path, remove
 from tempfile import mktemp
 
+import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
@@ -149,6 +150,7 @@ class DataStore:
                 kwargs["columns"] = columns
 
             def reader(*args, **kwargs):
+                import pdb;pdb.set_trace()
                 if start_time or end_time:
                     if sys.version_info < (3, 7):
                         raise ValueError(
@@ -157,7 +159,7 @@ class DataStore:
 
                     from storey.utils import find_filters
 
-                    dataset = pq.ParquetDataset(url, filesystem=fs)
+                    dataset = pq.ParquetDataset(args[0], filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names
                         time_attributes = [
@@ -193,14 +195,19 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
+<<<<<<< HEAD
             if self.supports_isdir() and fs.isdir(url):
+=======
+            if fs.isdir(url) or df_module != pd:
+                # Dask requires the storage_options parameter
+>>>>>>> 0dba58c2 (Updated line 196 to assure storage_options is passed to read_parquet if not using Pandas, since Dask requires storage_options.  Also changed line #226 from inplace=True to inplace=False.  Dask does not support dropping columns inplace.  Alternatively, we could test if the df is hasattr 'dask' and only apply if inplace, but this is a more general behavior.)
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
                 return reader(url, **kwargs)
             else:
                 # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
-                # support the storage_options parameter.
+                # support the storage_options parameter. 
                 return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()
@@ -217,8 +224,21 @@ class DataStore:
             "options": self.options,
         }
 
+<<<<<<< HEAD
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+=======
+
+def _drop_reserved_columns(df):
+    cols_to_drop = []
+    for col in df.columns:
+        if col.startswith("igzpart_"):
+            cols_to_drop.append(col)
+    if hasattr(df, 'dask'):
+        # Dask does not support dropping columns inplace
+        df = df.drop(labels=)
+    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
+>>>>>>> 0dba58c2 (Updated line 196 to assure storage_options is passed to read_parquet if not using Pandas, since Dask requires storage_options.  Also changed line #226 from inplace=True to inplace=False.  Dask does not support dropping columns inplace.  Alternatively, we could test if the df is hasattr 'dask' and only apply if inplace, but this is a more general behavior.)
 
 
 class DataItem:

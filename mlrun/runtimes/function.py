@@ -22,7 +22,6 @@ from time import sleep
 import nuclio
 import requests
 from aiohttp.client import ClientSession
-from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 

@@ -29,7 +29,7 @@ from .base import Artifact
 default_preview_rows_length = 20
 max_preview_columns = 100
 max_csv = 10000
-max_ddf_memory = 5
+max_ddf_memory = 1
 ddf_sample_pct = 0.2
 
 
@@ -151,7 +151,7 @@ class DatasetArtifact(Artifact):
         preview_rows_length = preview_rows_length or default_preview_rows_length
         if hasattr(df, "dask"):
             artifact.length = df.shape[0].compute()
-            preview_df = df.sample(ddf_sample_pct).compute()
+            preview_df = df.sample(frac=ddf_sample_pct).compute()
         else:
             artifact.length = df.shape[0]
             preview_df = df

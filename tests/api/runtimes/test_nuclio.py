@@ -18,6 +18,7 @@ from mlrun.runtimes.function import (
     enrich_function_with_ingress,
     resolve_function_ingresses,
 )
+from mlrun.runtimes.pod import KubeResourceSpec
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -198,6 +199,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def _assert_node_selections(
         self,
+        kube_resource_spec: KubeResourceSpec,
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
@@ -218,10 +220,12 @@ class TestNuclioRuntime(TestRuntimeBase):
                 == {}
             )
         if expected_affinity:
+
+            # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
             assert (
                 deepdiff.DeepDiff(
-                    deploy_spec["affinity"].to_dict(),
-                    expected_affinity.to_dict(),
+                    kube_resource_spec._transform_affinity_to_k8s_class_instance(deploy_spec["affinity"]),
+                    expected_affinity,
                     ignore_order=True,
                 )
                 == {}
@@ -339,7 +343,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()
-        self._assert_node_selections(expected_node_name=node_name)
+        self._assert_node_selections(function.spec, expected_node_name=node_name)
 
         function = self._generate_runtime("nuclio")
 
@@ -353,7 +357,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.with_node_selection(node_selector=node_selector)
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(call_count=2)
-        self._assert_node_selections(expected_node_selector=node_selector)
+        self._assert_node_selections(function.spec, expected_node_selector=node_selector)
 
         function = self._generate_runtime("nuclio")
 
@@ -364,20 +368,22 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.with_node_selection(node_selector=node_selector)
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(call_count=3)
-        self._assert_node_selections(expected_node_selector=node_selector)
+        self._assert_node_selections(function.spec, expected_node_selector=node_selector)
 
         function = self._generate_runtime("nuclio")
         affinity = self._generate_affinity()
+
         function.with_node_selection(affinity=affinity)
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(call_count=4)
-        self._assert_node_selections(expected_affinity=affinity)
+        self._assert_node_selections(function.spec, expected_affinity=affinity)
 
         function = self._generate_runtime("nuclio")
         function.with_node_selection(node_name, node_selector, affinity)
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(call_count=5)
         self._assert_node_selections(
+            function.spec,
             expected_node_name=node_name,
             expected_node_selector=node_selector,
             expected_affinity=affinity,

@@ -913,7 +913,7 @@ def compile_function_config(function: RemoteRuntime):
     if function.spec.node_name:
         spec.set_config("spec.nodeName", function.spec.node_name)
     if function.spec.affinity:
-        spec.set_config("spec.affinity", function.spec.affinity)
+        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

@@ -150,7 +150,6 @@ class DataStore:
                 kwargs["columns"] = columns
 
             def reader(*args, **kwargs):
-                import pdb;pdb.set_trace()
                 if start_time or end_time:
                     if sys.version_info < (3, 7):
                         raise ValueError(

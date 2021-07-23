@@ -8,7 +8,7 @@ import nuclio
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.errors
+from mlrun import mlconf
 from mlrun import code_to_function
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
@@ -351,7 +351,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "label-1": "val1",
             "label-2": "val2",
         }
-        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+        mlconf.default_function_node_selector = base64.b64encode(
             json.dumps(node_selector).encode("utf-8")
         )
         function.with_node_selection(node_selector=node_selector)

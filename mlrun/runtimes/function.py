@@ -72,6 +72,9 @@ class NuclioSpec(KubeResourceSpec):
         service_account=None,
         readiness_timeout=None,
         default_handler=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
 
         super().__init__(
@@ -90,6 +93,9 @@ class NuclioSpec(KubeResourceSpec):
             entry_points=entry_points,
             description=description,
             default_handler=default_handler,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
 
         self.base_spec = base_spec or ""

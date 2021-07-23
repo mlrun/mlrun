@@ -223,10 +223,7 @@ def _drop_reserved_columns(df):
     for col in df.columns:
         if col.startswith("igzpart_"):
             cols_to_drop.append(col)
-    if hasattr(df, 'dask'):
-        # Dask does not support dropping columns inplace
-        df = df.drop(labels=)
-    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
+    df = df.drop(labels=cols_to_drop, axis=1, errors="ignore")
 
 
 class DataItem:

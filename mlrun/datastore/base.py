@@ -16,6 +16,7 @@ from base64 import b64encode
 from os import getenv, path, remove
 from tempfile import mktemp
 
+import dask.dataframe as dd
 import fsspec
 import pandas as pd
 import pyarrow.parquet as pq
@@ -144,6 +145,7 @@ class DataStore:
                 kwargs["columns"] = columns
 
             def reader(*args, **kwargs):
+                import pdb;pdb.set_trace()
                 if start_time or end_time:
                     if sys.version_info < (3, 7):
                         raise ValueError(
@@ -151,7 +153,7 @@ class DataStore:
                         )
 
                     from storey.utils import find_filters
-
+                    import pdb;pdb.set_trace()
                     dataset = pq.ParquetDataset(args[0], filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names
@@ -190,14 +192,15 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            if fs.isdir(url):
+            if fs.isdir(url) or df_module != pd:
+                # Dask requires the storage_options parameter
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
                 return reader(url, **kwargs)
             else:
                 # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
-                # support the storage_options parameter.
+                # support the storage_options parameter. 
                 return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()
@@ -220,6 +223,9 @@ def _drop_reserved_columns(df):
     for col in df.columns:
         if col.startswith("igzpart_"):
             cols_to_drop.append(col)
+    if hasattr(df, 'dask'):
+        # Dask does not support dropping columns inplace
+        df = df.drop(labels=)
     df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
 
 

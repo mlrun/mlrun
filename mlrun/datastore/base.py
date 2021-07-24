@@ -16,7 +16,6 @@ from base64 import b64encode
 from os import getenv, path, remove
 from tempfile import mktemp
 
-import dask.dataframe as dd
 import fsspec
 import pandas as pd
 import pyarrow.parquet as pq

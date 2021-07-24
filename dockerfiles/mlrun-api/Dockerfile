@@ -23,8 +23,8 @@ LABEL org="iguazio.com"
 RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
   git-core \
-  sqlite3 \
   procps \
+  sqlite3 \
   vim \
  && rm -rf /var/lib/apt/lists/*
 
@@ -33,11 +33,12 @@ RUN python -m pip install --upgrade pip~=20.2.0
 WORKDIR /mlrun
 
 COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
-
+COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 
 RUN python -m pip install \
     -r requirements.txt \
+    -r extras-requirements.txt \
     -r mlrun-api-requirements.txt
 
 ENV MLRUN_httpdb__dirpath=/mlrun/db

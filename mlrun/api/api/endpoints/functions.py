@@ -32,6 +32,7 @@ async def store_function(
     name: str,
     tag: str = "",
     versioned: bool = False,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -50,6 +51,7 @@ async def store_function(
         project,
         tag=tag,
         versioned=versioned,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {
         "hash_key": hash_key,
@@ -100,7 +102,9 @@ def list_functions(
 @router.post("/build/function")
 @router.post("/build/function/")
 async def build_function(
-    request: Request, db_session: Session = Depends(deps.get_db_session)
+    request: Request,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
     try:
@@ -116,6 +120,7 @@ async def build_function(
     fn, ready = await run_in_threadpool(
         _build_function,
         db_session,
+        auth_verifier.auth_info,
         function,
         with_mlrun,
         skip_deployed,
@@ -133,6 +138,7 @@ async def build_function(
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -148,10 +154,12 @@ async def start_function(
     background_task = await run_in_threadpool(
         mlrun.api.utils.background_tasks.Handler().create_background_task,
         db_session,
+        auth_verifier.auth_info.session,
         function.metadata.project,
         background_tasks,
         _start_function,
         function,
+        auth_verifier.auth_info,
     )
 
     return background_task
@@ -184,6 +192,7 @@ def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     fn = get_db().get_function(db_session, name, project, tag)
@@ -198,14 +207,32 @@ def build_status(
             nuclio_name,
             last_log_timestamp,
             text,
+            status,
         ) = get_nuclio_deploy_status(
-            name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
+            name,
+            project,
+            tag,
+            last_log_timestamp=last_log_timestamp,
+            verbose=verbose,
+            auth_info=auth_verifier.auth_info,
         )
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
-        if state == "error":
+        if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
+
+        internal_invocation_urls = status.get("internalInvocationUrls", [])
+        external_invocation_urls = status.get("externalInvocationUrls", [])
+
+        # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+        # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+        # and hence, for BC it would be filled with the external invocation url first item
+        # or completely empty.
+        address = external_invocation_urls[0] if external_invocation_urls else ""
+
         update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
         update_in(fn, "status.state", state)
         update_in(fn, "status.address", address)
 
@@ -214,7 +241,15 @@ def build_status(
             # Versioned means the version will be saved in the DB forever, we don't want to spam
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
-        get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
+        get_db().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+            leader_session=auth_verifier.auth_info.session,
+        )
         return Response(
             content=text,
             media_type="text/plain",
@@ -222,6 +257,8 @@ def build_status(
                 "x-mlrun-function-status": state,
                 "x-mlrun-last-timestamp": str(last_log_timestamp),
                 "x-mlrun-address": address,
+                "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+                "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
                 "x-mlrun-name": nuclio_name,
             },
         )
@@ -250,9 +287,10 @@ def build_status(
 
     if state == "succeeded":
         logger.info("build completed successfully")
-        state = "ready"
+        state = mlrun.api.schemas.FunctionState.ready
     if state in ["failed", "error"]:
         logger.error(f"build {state}, watch the build pod logs: {pod}")
+        state = mlrun.api.schemas.FunctionState.error
 
     if logs and state != "pending":
         resp = get_k8s().logs(pod)
@@ -260,13 +298,21 @@ def build_status(
             out = resp.encode()[offset:]
 
     update_in(fn, "status.state", state)
-    if state == "ready":
+    if state == mlrun.api.schemas.FunctionState.ready:
         update_in(fn, "spec.image", image)
 
     versioned = False
-    if state == "ready":
+    if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
-    get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
+    get_db().store_function(
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
+        leader_session=auth_verifier.auth_info.session,
+    )
 
     return Response(
         content=out,
@@ -281,18 +327,24 @@ def build_status(
 
 
 def _build_function(
-    db_session, function, with_mlrun, skip_deployed, mlrun_version_specifier
+    db_session,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    function,
+    with_mlrun,
+    skip_deployed,
+    mlrun_version_specifier,
 ):
     fn = None
     ready = None
     try:
         fn = new_function(runtime=function)
 
-        run_db = get_run_db_instance(db_session)
+        run_db = get_run_db_instance(db_session, auth_info.session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
-            deploy_nuclio_function(fn)
+            mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
+            deploy_nuclio_function(fn, auth_info=auth_info)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
@@ -326,7 +378,7 @@ def _parse_start_function_body(db_session, data):
     return new_function(runtime=runtime)
 
 
-def _start_function(function):
+def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
     db_session = mlrun.api.db.session.create_session()
     try:
         resource = runtime_resources_map.get(function.kind)
@@ -336,8 +388,9 @@ def _start_function(function):
                 reason="runtime error: 'start' not supported by this runtime",
             )
         try:
-            run_db = get_run_db_instance(db_session)
+            run_db = get_run_db_instance(db_session, auth_info.session)
             function.set_db_connection(run_db)
+            mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function)
             function.save(versioned=False)

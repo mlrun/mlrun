@@ -11,17 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from typing import List
 
 import pandas as pd
 
+import mlrun
+
+from .artifacts import Artifact, dict_to_artifact
 from .config import config
 from .render import artifacts_to_html, runs_to_html
-from .utils import flatten, get_in
+from .utils import flatten, get_artifact_target, get_in
 
 
 class RunList(list):
     def to_rows(self):
+        """return the run list as flattened rows"""
         rows = []
         head = [
             "project",
@@ -57,6 +61,7 @@ class RunList(list):
         return [head] + rows
 
     def to_df(self, flat=False):
+        """convert the run list to a dataframe"""
         rows = self.to_rows()
         df = pd.DataFrame(rows[1:], columns=rows[0])  # .set_index('iter')
         df["start"] = pd.to_datetime(df["start"])
@@ -69,6 +74,7 @@ class RunList(list):
         return df
 
     def show(self, display=True, classes=None, short=False):
+        """show the run list as a table in Jupyter"""
         html = runs_to_html(self.to_df(), display, classes=classes, short=short)
         if not display:
             return html
@@ -80,6 +86,7 @@ class ArtifactList(list):
         self.tag = ""
 
     def to_rows(self):
+        """return the artifact list as flattened rows"""
         rows = []
         head = {
             "tree": "",
@@ -102,6 +109,7 @@ class ArtifactList(list):
         return [head.keys()] + rows
 
     def to_df(self, flat=False):
+        """convert the artifact list to a dataframe"""
         rows = self.to_rows()
         df = pd.DataFrame(rows[1:], columns=rows[0])
         df["updated"] = pd.to_datetime(df["updated"])
@@ -113,12 +121,26 @@ class ArtifactList(list):
         return df
 
     def show(self, display=True, classes=None):
+        """show the artifact list as a table in Jupyter"""
         df = self.to_df()
         if self.tag != "*":
             df.drop("tree", axis=1, inplace=True)
         html = artifacts_to_html(df, display, classes=classes)
         if not display:
             return html
+
+    def objects(self) -> List[Artifact]:
+        """return as a list of artifact objects"""
+        return [dict_to_artifact(artifact) for artifact in self]
+
+    def dataitems(self) -> List["mlrun.DataItem"]:
+        """return as a list of DataItem objects"""
+        dataitems = []
+        for item in self:
+            artifact = get_artifact_target(item)
+            if artifact:
+                dataitems.append(mlrun.get_dataitem(artifact))
+        return dataitems
 
 
 class FunctionList(list):

@@ -66,13 +66,14 @@ Table Of Content
    projects
    ci-pipeline
    load-from-marketplace
+   secrets
 
 .. toctree::
    :maxdepth: 1
    :caption: Online Pipelines & Serving:
 
    serving/index
-   model_monitoring/model-monitoring-deployment
+   model_monitoring/index
 
 .. toctree::
    :maxdepth: 1
@@ -81,6 +82,8 @@ Table Of Content
    feature-store/feature-store
    feature-store/feature-sets
    feature-store/transformations
+   feature-store/feature-vectors
+   feature-store/training-serving
    feature-store/basic-demo
    feature-store/end-to-end-demo/index
 
@@ -91,7 +94,6 @@ Table Of Content
    store/datastore
    store/artifacts
    store/models
-   store/training
 
 .. toctree::
    :maxdepth: 1

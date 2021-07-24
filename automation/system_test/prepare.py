@@ -7,6 +7,7 @@ import time
 import click
 import paramiko
 import requests
+import semver
 import yaml
 
 import mlrun.utils
@@ -26,7 +27,7 @@ class SystemTestPreparer:
 
         git_url = "https://github.com/mlrun/mlrun.git"
         provctl_releases = "https://api.github.com/repos/iguazio/provazio/releases"
-        provctl_release_search_amount = 3
+        provctl_release_search_amount = 10
         provctl_binary_format = "provctl-{release_name}-linux-amd64"
 
     def __init__(
@@ -45,6 +46,7 @@ class SystemTestPreparer:
         framesd_url: str,
         username: str,
         access_key: str,
+        iguazio_version: str,
         password: str = None,
         debug: bool = False,
     ):
@@ -63,6 +65,7 @@ class SystemTestPreparer:
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
+        self._iguazio_version = iguazio_version
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -244,6 +247,13 @@ class SystemTestPreparer:
         return stdout, stderr, exit_status
 
     def _get_provctl_version_and_url(self):
+        def extract_version_from_release(release):
+            tag = release["tag_name"]
+            version = tag
+            # remove prefix v if exists
+            version = version.replace("v", "")
+            return semver.VersionInfo.parse(version)
+
         response = requests.get(
             self.Constants.provctl_releases,
             headers={"Authorization": f"token {self._github_access_token}"},
@@ -256,6 +266,9 @@ class SystemTestPreparer:
         latest_provazio_releases = stable_provazio_releases[
             : self.Constants.provctl_release_search_amount
         ]
+        # This should protect us from taking a backport release (assuming there are never
+        # {provctl_release_search_amount} backport releases in a row)
+        latest_provazio_releases.sort(key=extract_version_from_release, reverse=True)
         for provazio_release in latest_provazio_releases:
             for asset in provazio_release["assets"]:
                 if asset["name"] == self.Constants.provctl_binary_format.format(
@@ -351,6 +364,7 @@ class SystemTestPreparer:
                 "create-patch",
                 "appservice",
                 override_image_arg,
+                f"--target-iguazio-version={str(self._iguazio_version)}",
                 "mlrun",
                 self._mlrun_version,
                 mlrun_archive,
@@ -370,8 +384,6 @@ class SystemTestPreparer:
                 "appservice",
                 "mlrun",
                 mlrun_archive,
-                # TODO: remove when 0.6.0 is out
-                "--skip-chart-patching",
             ],
         )
 
@@ -416,6 +428,7 @@ def main():
 @click.argument("framesd-url", type=str, required=True)
 @click.argument("username", type=str, required=True)
 @click.argument("access-key", type=str, required=True)
+@click.argument("iguazio-version", type=str, default=None, required=True)
 @click.argument("password", type=str, default=None, required=False)
 @click.option(
     "--debug",
@@ -438,6 +451,7 @@ def run(
     framesd_url: str,
     username: str,
     access_key: str,
+    iguazio_version: str,
     password: str,
     debug: bool,
 ):
@@ -456,6 +470,7 @@ def run(
         framesd_url,
         username,
         access_key,
+        iguazio_version,
         password,
         debug,
     )

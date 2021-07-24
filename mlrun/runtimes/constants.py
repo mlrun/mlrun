@@ -195,3 +195,9 @@ class MPIJobV1CleanPodPolicies:
     @staticmethod
     def default():
         return MPIJobV1CleanPodPolicies.all
+
+
+class NuclioIngressAddTemplatedIngressModes:
+    always = "always"
+    never = "never"
+    on_cluster_ip = "onClusterIP"

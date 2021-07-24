@@ -15,7 +15,7 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
+# curl -d@/path/to/artifact http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -24,6 +24,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -42,6 +43,7 @@ async def store_artifact(
         iter=iter,
         tag=tag,
         project=project,
+        leader_session=auth_verifier.auth_info.session,
     )
     return {}
 

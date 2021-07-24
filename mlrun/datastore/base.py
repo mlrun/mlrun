@@ -151,7 +151,6 @@ class DataStore:
                         )
 
                     from storey.utils import find_filters
-                    import pdb;pdb.set_trace()
                     dataset = pq.ParquetDataset(args[0], filesystem=fs)
                     if dataset.partitions:
                         partitions = dataset.partitions.partition_names

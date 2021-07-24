@@ -22,6 +22,7 @@ from time import sleep
 import nuclio
 import requests
 from aiohttp.client import ClientSession
+from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -482,6 +483,14 @@ class RemoteRuntime(KubeResource):
         if state != "ready":
             logger.error("Nuclio function failed to deploy", function_state=state)
             raise RunError(f"function {self.metadata.name} deployment failed")
+
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        super().with_node_selection(node_name, node_selector, affinity)
 
     def _get_state(
         self,

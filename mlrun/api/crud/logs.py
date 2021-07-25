@@ -1,3 +1,5 @@
+import os
+import shutil
 import typing
 from http import HTTPStatus
 
@@ -6,7 +8,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
 import mlrun.utils.singleton
-from mlrun.api.api.utils import log_and_raise, log_path
+from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -34,6 +36,24 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
         mode = "ab" if append else "wb"
         with log_file.open(mode) as fp:
             fp.write(body)
+
+    def delete_logs(
+        self,
+        db_session: Session,
+        project: str,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        uids = self._list_project_logs_uids(db_session, project, auth_info)
+        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.log,
+            uids,
+            lambda uid: (project, uid),
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+        logs_path = project_logs_path(project)
+        if logs_path.exists():
+            shutil.rmtree(str(logs_path))
 
     def get_logs(
         self,
@@ -87,3 +107,11 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
     def log_file_exists(self, project: str, uid: str) -> bool:
         log_file = log_path(project, uid)
         return log_file.exists()
+
+    def _list_project_logs_uids(self, project: str) -> typing.List[str]:
+        logs_path = project_logs_path(project)
+        return [
+            file
+            for file in os.listdir(str(logs_path))
+            if os.path.isfile(os.path.join(str(logs_path), file))
+        ]

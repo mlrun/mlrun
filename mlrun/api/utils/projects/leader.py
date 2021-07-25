@@ -89,7 +89,7 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         self._projects_in_deletion.add(name)

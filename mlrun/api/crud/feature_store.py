@@ -403,11 +403,11 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.AuthorizationAction.update,
             auth_info,
         )
-        if isinstance(object_schema, mlrun.api.schemas.FeatureSet):
+        if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
             return mlrun.api.utils.singletons.db.get_db().patch_feature_set(
                 db_session, project, name, object_patch, tag, uid, patch_mode,
             )
-        elif isinstance(object_schema, mlrun.api.schemas.FeatureVector):
+        elif object_schema.__name__ == mlrun.api.schemas.FeatureVector.__name__:
             return mlrun.api.utils.singletons.db.get_db().patch_feature_vector(
                 db_session, project, name, object_patch, tag, uid, patch_mode,
             )
@@ -433,11 +433,11 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-        if isinstance(object_schema, mlrun.api.schemas.FeatureSet):
+        if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
             return mlrun.api.utils.singletons.db.get_db().get_feature_set(
                 db_session, project, name, tag, uid
             )
-        elif isinstance(object_schema, mlrun.api.schemas.FeatureVector):
+        elif object_schema.__name__ == mlrun.api.schemas.FeatureVector.__name__:
             return mlrun.api.utils.singletons.db.get_db().get_feature_vector(
                 db_session, project, name, tag, uid
             )
@@ -463,11 +463,11 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.AuthorizationAction.delete,
             auth_info,
         )
-        if isinstance(object_schema, mlrun.api.schemas.FeatureSet):
+        if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
             mlrun.api.utils.singletons.db.get_db().delete_feature_set(
                 db_session, project, name, tag, uid
             )
-        elif isinstance(object_schema, mlrun.api.schemas.FeatureVector):
+        elif object_schema.__name__ == mlrun.api.schemas.FeatureVector.__name__:
             mlrun.api.utils.singletons.db.get_db().delete_feature_vector(
                 db_session, project, name, tag, uid
             )

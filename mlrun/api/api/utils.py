@@ -32,7 +32,11 @@ def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
 
 
 def log_path(project, uid) -> Path:
-    return get_logs_dir() / project / uid
+    return project_logs_path(project) / uid
+
+
+def project_logs_path(project) -> Path:
+    return get_logs_dir() / project
 
 
 def get_obj_path(schema, path, user=""):

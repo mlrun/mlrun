@@ -125,7 +125,7 @@ class DatasetArtifact(Artifact):
 
         if df is not None:
             if hasattr(df, "dask"):
-                # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas 
+                # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas
                 if df.memory_usage(deep=True).sum().compute() // 1e9 < max_ddf_memory:
                     df = df.compute()
             self.update_preview_fields_from_df(

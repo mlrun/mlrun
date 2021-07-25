@@ -483,7 +483,7 @@ class ModelEndpoints:
         fn.spec.image = "mlrun/mlrun:automation"
         fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
 
-        function_uri = fn.save()
+        function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")
 
         task = mlrun.new_task(name="model-monitoring-batch", project=project)

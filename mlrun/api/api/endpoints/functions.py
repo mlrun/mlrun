@@ -409,21 +409,22 @@ def _build_function(
                         fn, db_session=db_session, auth_info=auth_info,
                     )
                     if fn.spec.track_models:
-                        logger.info("Tracking enabled, initializing model monitoring")
-                        _init_serving_function_stream_args(fn=fn)
-                        _create_model_monitoring_stream(project=fn.metadata.project)
                         model_monitoring_access_key = _get_function_env_var(
                             fn, "MODEL_MONITORING_ACCESS_KEY"
                         )
                         model_monitoring_access_key = get_item_name(
                             model_monitoring_access_key, "value"
                         )
-                        ModelEndpoints.deploy_monitoring_functions(
-                            project=fn.metadata.project,
-                            model_monitoring_access_key=model_monitoring_access_key,
-                            db_session=db_session,
-                            auth_info=auth_info,
-                        )
+                        if model_monitoring_access_key:
+                            logger.info("Tracking enabled, initializing model monitoring")
+                            _init_serving_function_stream_args(fn=fn)
+                            _create_model_monitoring_stream(project=fn.metadata.project)
+                            ModelEndpoints.deploy_monitoring_functions(
+                                project=fn.metadata.project,
+                                model_monitoring_access_key=model_monitoring_access_key,
+                                db_session=db_session,
+                                auth_info=auth_info,
+                            )
                 except Exception as e:
                     logger.exception(e)
 

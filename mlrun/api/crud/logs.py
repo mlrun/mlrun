@@ -39,20 +39,19 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
 
     def delete_logs(
         self,
-        db_session: Session,
         project: str,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
-        uids = self._list_project_logs_uids(project)
-        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.log,
-            uids,
-            lambda uid: (project, uid),
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
         logs_path = project_logs_path(project)
         if logs_path.exists():
+            uids = self._list_project_logs_uids(project)
+            mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+                mlrun.api.schemas.AuthorizationResourceTypes.log,
+                uids,
+                lambda uid: (project, uid),
+                mlrun.api.schemas.AuthorizationAction.delete,
+                auth_info,
+            )
             shutil.rmtree(str(logs_path))
 
     def get_logs(

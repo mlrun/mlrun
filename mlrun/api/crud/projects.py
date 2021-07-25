@@ -96,7 +96,7 @@ class Projects(
             leader_session=auth_info.session,
         )
 
-        mlrun.api.crud.Logs().delete_logs(session, name, auth_info)
+        mlrun.api.crud.Logs().delete_logs(name, auth_info)
 
         # delete db resources
         mlrun.api.utils.singletons.db.get_db().delete_project_related_resources(

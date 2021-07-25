@@ -23,6 +23,7 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         versioned: bool = False,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=auth_info.session
         )
@@ -46,6 +47,7 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         hash_key: str = "",
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> dict:
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.function,
             project,
@@ -84,6 +86,7 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.List:
+        project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         functions = mlrun.api.utils.singletons.db.get_db().list_functions(
@@ -99,27 +102,4 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
                 function["metadata"]["name"],
             ),
             auth_info,
-        )
-
-    def delete_artifacts(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
-        name: str = "",
-        tag: str = "latest",
-        labels: typing.List[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-    ):
-        artifacts = self.list_artifacts(
-            db_session, project, name, tag, labels, auth_info=auth_info
-        )
-        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.artifact,
-            artifacts,
-            lambda artifact: (artifact["project"], artifact["db_key"]),
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
-        mlrun.api.utils.singletons.db.get_db().del_artifacts(
-            db_session, name, project, tag, labels
         )

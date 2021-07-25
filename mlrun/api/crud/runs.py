@@ -26,6 +26,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=auth_info.session
         )
@@ -50,6 +51,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         data: dict,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.run,
             project,
@@ -100,6 +102,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> dict:
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.run,
             project,
@@ -128,6 +131,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         last_update_time_to=None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         runs = mlrun.api.utils.singletons.db.get_db().list_runs(
             db_session,
             name=name,
@@ -165,6 +169,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.run,
             project,
@@ -184,6 +189,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         days_ago: int = 0,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         start_time_from = datetime.datetime.now(
             datetime.timezone.utc
         ) - datetime.timedelta(days=days_ago)

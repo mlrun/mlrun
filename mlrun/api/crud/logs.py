@@ -24,6 +24,7 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
         append: bool = True,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.log,
             project,
@@ -42,6 +43,7 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
         project: str,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         logs_path = project_logs_path(project)
         if logs_path.exists():
             uids = self._list_project_logs_uids(project)
@@ -69,6 +71,7 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
             1. str of the run state (so watchers will know whether to continue polling for logs)
             2. bytes of the logs themselves
         """
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.log,
             project,

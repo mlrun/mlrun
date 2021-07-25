@@ -92,6 +92,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeatureSetsOutput:
+        project = project or mlrun.mlconf.default_project
         feature_sets = mlrun.api.utils.singletons.db.get_db().list_feature_sets(
             db_session,
             project,
@@ -146,6 +147,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeaturesOutput:
+        project = project or mlrun.mlconf.default_project
         features = mlrun.api.utils.singletons.db.get_db().list_features(
             db_session, project, name, tag, entities, labels,
         )
@@ -169,6 +171,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.EntitiesOutput:
+        project = project or mlrun.mlconf.default_project
         entities = mlrun.api.utils.singletons.db.get_db().list_entities(
             db_session, project, name, tag, labels,
         )
@@ -266,6 +269,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeatureVectorsOutput:
+        project = project or mlrun.mlconf.default_project
         feature_vectors = mlrun.api.utils.singletons.db.get_db().list_feature_vectors(
             db_session,
             project,
@@ -318,6 +322,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         versioned: bool = True,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
+        project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_creation(project, object_)
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=auth_info.session
@@ -355,6 +360,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         versioned: bool = True,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
+        project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_store(
             object_, project, name, tag, uid
         )
@@ -393,6 +399,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
+        project = project or mlrun.mlconf.default_project
         self._validate_identity_for_object_patch(
             object_schema.__class__.__name__, object_patch, project, name, tag, uid,
         )
@@ -426,6 +433,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.Union[mlrun.api.schemas.FeatureSet, mlrun.api.schemas.FeatureVector]:
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             object_schema.get_authorization_resource_type(),
             project,
@@ -456,6 +464,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             object_schema.get_authorization_resource_type(),
             project,

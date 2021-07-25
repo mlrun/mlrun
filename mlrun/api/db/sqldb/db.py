@@ -226,6 +226,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         updated = artifact.get("updated")
         if not updated:
             updated = artifact["updated"] = datetime.now(timezone.utc)
+        db_key = artifact.get("db_key")
+        if db_key and db_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Conflict between requested key and key in artifact body"
+            )
+        if not db_key:
+            artifact["db_key"] = key
         if iter:
             key = f"{iter}-{key}"
         art = self._get_artifact(session, uid, project, key)

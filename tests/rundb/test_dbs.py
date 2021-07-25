@@ -70,9 +70,9 @@ def test_save_get_function(db: RunDBInterface):
     assert func == db_func, "wrong func"
 
 
-def new_func(labels, **kw):
+def new_func(name, labels, **kw):
     obj = {
-        "metadata": {"labels": labels},
+        "metadata": {"labels": labels, "name": name},
     }
     obj.update(kw)
     return obj
@@ -80,32 +80,16 @@ def new_func(labels, **kw):
 
 def test_list_functions(db: RunDBInterface):
     name = "fn"
-    fn1 = new_func({"l1": "v1", "l2": "v2"}, x=1)
+    fn1 = new_func(name, {"l1": "v1", "l2": "v2"}, x=1)
     db.store_function(fn1, name)
-    fn2 = new_func({"l2": "v2", "l3": "v3"}, x=2)
+    fn2 = new_func(name, {"l2": "v2", "l3": "v3"}, x=2)
     db.store_function(fn2, name, tag="t1")
-    fn3 = new_func({"l3": "v3"}, x=3)
+    fn3 = new_func(name, {"l3": "v3"}, x=3)
     db.store_function(fn3, name, tag="t2")
 
     funcs = db.list_functions(name, labels={"l2": "v2"})
     assert 2 == len(funcs), "num of funcs"
     assert {1, 2} == {fn["x"] for fn in funcs}, "xs"
-
-
-def test_log(db: RunDBInterface):
-    uid = "m33"
-    data1, data2 = b"ab", b"cd"
-    db.store_log(uid, body=data1)
-    _, log = db.get_log(uid)
-    assert data1 == log, "get log 1"
-
-    db.store_log(uid, body=data2, append=True)
-    _, log = db.get_log(uid)
-    assert data1 + data2 == log, "get log 2"
-
-    db.store_log(uid, body=data1, append=False)
-    _, log = db.get_log(uid)
-    assert data1 == log, "get log append=False"
 
 
 def test_runs(db: RunDBInterface):

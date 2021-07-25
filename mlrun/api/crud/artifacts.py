@@ -24,6 +24,7 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
             db_session, project, leader_session=auth_info.session
         )
@@ -47,6 +48,7 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> dict:
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.artifact,
             project,
@@ -73,6 +75,7 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         best_iteration: bool = False,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.List:
+        project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         artifacts = mlrun.api.utils.singletons.db.get_db().list_artifacts(
@@ -106,6 +109,7 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.artifact,
             project,
@@ -126,6 +130,7 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        project = project or mlrun.mlconf.default_project
         artifacts = self.list_artifacts(
             db_session, project, name, tag, labels, auth_info=auth_info
         )

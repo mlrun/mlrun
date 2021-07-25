@@ -100,7 +100,6 @@ class AzureBlobStore(DataStore):
         else:
             path = f"{self.endpoint}{key}"
             files = self._filesystem.ls(path, detail=True)
-<<<<<<< HEAD
             if len(files) == 0 and files[0]["kind"] == "file":
                 size = files[0]["size"]
                 modified = files[0]["last_modified"]
@@ -108,10 +107,6 @@ class AzureBlobStore(DataStore):
                 raise FileNotFoundError("Operation expects a file not a direcdtory!")
             else:
                 raise ValueError("Operation expects to receive a single file!")
-=======
-            size = files[0]['size']
-            modified = files[0]['last_modified']
->>>>>>> parent of 31a85cc... Linting
         return FileStats(size, time.mktime(modified.timetuple()))
             
 
@@ -125,11 +120,6 @@ class AzureBlobStore(DataStore):
             return [blob.name[key_length:] for blob in blob_list]
         else:
             path = f"{self.endpoint}{key}"
-<<<<<<< HEAD
             files = self._filesystem.ls(path)
             return files
-=======
-            files = self._filesystem.ls(path, detail=True)
-            return [f for f in files if f['type'] == 'directory']
-            
->>>>>>> parent of 31a85cc... Linting
+

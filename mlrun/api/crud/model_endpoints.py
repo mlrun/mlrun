@@ -474,10 +474,15 @@ def _check_secret_exists(project_name: str, secret: str):
 def _add_secret(fn, project_name: str, secret: str):
     secret_name = get_k8s_helper().get_project_secret_name(project=project_name)
     if _check_secret_exists(project_name, secret):
+        logger.info(
+            "Project secret added to function", project=project_name, secret_name=secret
+        )
         fn.set_env_from_secret(name=secret, secret_name=secret_name)
     else:
         logger.info(
-            "Project secret not found", project=project_name, secret_name=secret
+            "Project secret not added to function (project secret not found)",
+            project=project_name,
+            secret_name=secret,
         )
 
 

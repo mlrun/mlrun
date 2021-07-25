@@ -477,7 +477,7 @@ def _add_secret(fn, project_name: str, secret: str):
         logger.info(
             "Project secret added to function", project=project_name, secret_name=secret
         )
-        fn.set_env_from_secret(name=secret, secret_name=secret_name)
+        fn.set_env_from_secret(name=secret, secret=secret_name)
     else:
         logger.info(
             "Project secret not added to function (project secret not found)",

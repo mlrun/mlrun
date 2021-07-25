@@ -76,8 +76,8 @@ async def submit_pipeline(
 # curl http://localhost:8080/pipelines/:id
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
-# TODO: remove when 0.6.5 is no longer relevant
 def get_pipeline(run_id, namespace: str = Query(config.namespace)):
+
     client = kfclient(namespace=namespace)
     try:
         run = client.get_run(run_id)

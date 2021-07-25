@@ -1400,7 +1400,6 @@ class MlrunProject(ModelObj):
 
         if notifiers:
             notifiers.push(text, runs)
-
         return status, had_errors, text
 
     def clear_context(self):

@@ -388,7 +388,6 @@ def mlrun_op(
             "mlpipeline-metrics": "/mlpipeline-metrics.json",
         },
     )
-
     # if rundb:
     #     cop.container.add_env_variable(k8s_client.V1EnvVar(
     #         name='MLRUN_DBPATH', value=rundb))

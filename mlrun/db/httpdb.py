@@ -1186,9 +1186,11 @@ class HTTPRunDB(RunDBInterface):
         except OSError as err:
             logger.error(f"error cannot get pipeline: {err}")
             raise OSError(f"error: cannot get pipeline, {err}")
+
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
             raise ValueError(f"bad get pipeline response, {resp.text}")
+
         return resp.json()
 
     @staticmethod

@@ -588,6 +588,13 @@ def add_default_env(k8s_client, cop):
             )
         )
 
+    if "V3IO_ACCESS_KEY" in os.environ:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="V3IO_ACCESS_KEY", value=os.environ["V3IO_ACCESS_KEY"]
+            )
+        )
+
 
 def get_default_reg():
     if config.httpdb.builder.docker_registry:

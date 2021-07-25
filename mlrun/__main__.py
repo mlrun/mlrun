@@ -15,7 +15,6 @@
 # limitations under the License.
 import json
 import pathlib
-import socket
 import traceback
 from ast import literal_eval
 from base64 import b64decode, b64encode
@@ -203,7 +202,6 @@ def run(
 
     if workflow:
         runobj.metadata.labels["workflow"] = workflow
-        runobj.metadata.labels["mlrun/runner-pod"] = socket.gethostname()
 
     if db:
         mlconf.dbpath = db

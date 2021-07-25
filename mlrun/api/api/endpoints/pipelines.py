@@ -77,29 +77,18 @@ async def submit_pipeline(
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
 # TODO: remove when 0.6.5 is no longer relevant
-def get_pipeline_legacy(
-    run_id: str,
-    namespace: str = Query(config.namespace),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    return mlrun.api.crud.Pipelines().get_pipeline(
-        db_session, run_id, namespace=namespace
-    )
+def get_pipeline(run_id, namespace: str = Query(config.namespace)):
+    client = kfclient(namespace=namespace)
+    try:
+        run = client.get_run(run_id)
+        if run:
+            run = run.to_dict()
+    except Exception as exc:
+        log_and_raise(
+            HTTPStatus.INTERNAL_SERVER_ERROR.value, reason=f"get kfp error: {exc}"
+        )
 
-
-@router.get("/projects/{project}/pipelines/{run_id}")
-def get_pipeline(
-    run_id: str,
-    project: str,
-    namespace: str = Query(config.namespace),
-    format_: mlrun.api.schemas.PipelinesFormat = Query(
-        mlrun.api.schemas.PipelinesFormat.summary, alias="format"
-    ),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    return mlrun.api.crud.Pipelines().get_pipeline(
-        db_session, run_id, project, namespace, format_
-    )
+    return run
 
 
 def _submit_pipeline(request, data, namespace, experiment_name, run_name):

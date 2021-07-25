@@ -31,7 +31,6 @@ from nuclio import build_file
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.helpers
-from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
 from .config import config as mlconf
 from .datastore import store_manager
@@ -972,9 +971,7 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
-            resp = format_summary_from_kfp_run(resp)
 
-    show_kfp_run(resp)
     status = resp["run"]["status"] if resp else "unknown"
     if expected_statuses:
         if status not in expected_statuses:
@@ -990,20 +987,11 @@ def wait_for_pipeline_completion(
     return resp
 
 
-def get_pipeline(
-    run_id,
-    namespace=None,
-    format_: Union[
-        str, mlrun.api.schemas.PipelinesFormat
-    ] = mlrun.api.schemas.PipelinesFormat.summary,
-):
+def get_pipeline(run_id, namespace=None):
     """Get Pipeline status
 
     :param run_id:     id of pipelines run
     :param namespace:  k8s namespace if not default
-    :param format_:    Format of the results. Possible values are:
-            - ``summary`` (default value) - Return summary of the object data.
-            - ``full`` (default value) - Return full pipeline object.
 
     :return: kfp run dict
     """
@@ -1017,17 +1005,14 @@ def get_pipeline(
                 ", please set the dbpath url"
             )
 
-        resp = mldb.get_pipeline(run_id, namespace=namespace, format_=format_)
+        resp = mldb.get_pipeline(run_id, namespace=namespace)
 
     else:
         client = Client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
-            if not format_:
-                resp = format_summary_from_kfp_run(resp)
 
-    show_kfp_run(resp)
     return resp
 
 

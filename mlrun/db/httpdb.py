@@ -1175,35 +1175,20 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.api.schemas.PipelinesOutput(**response.json())
 
-    def get_pipeline(
-        self,
-        run_id: str,
-        namespace: str = None,
-        timeout: int = 10,
-        format_: Union[
-            str, mlrun.api.schemas.PipelinesFormat
-        ] = mlrun.api.schemas.PipelinesFormat.summary,
-    ):
+    def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
         """ Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
-        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
-            format_ = format_.value
         try:
-            params = {}
+            query = ""
             if namespace:
-                params["namespace"] = namespace
-            params["format"] = format_
-            resp = self.api_call(
-                "GET", f"projects/*/pipelines/{run_id}", params=params, timeout=timeout
-            )
+                query = f"namespace={namespace}"
+            resp = self.api_call("GET", f"pipelines/{run_id}?{query}", timeout=timeout)
         except OSError as err:
             logger.error(f"error cannot get pipeline: {err}")
             raise OSError(f"error: cannot get pipeline, {err}")
-
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
             raise ValueError(f"bad get pipeline response, {resp.text}")
-
         return resp.json()
 
     @staticmethod
@@ -1715,7 +1700,7 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(state, mlrun.api.schemas.ProjectState):
             state = state.value
-        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
+        if isinstance(format_, mlrun.api.schemas.ProjectsFormat):
             format_ = format_.value
         params = {
             "owner": owner,

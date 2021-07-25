@@ -70,9 +70,9 @@ def test_save_get_function(db: RunDBInterface):
     assert func == db_func, "wrong func"
 
 
-def new_func(name, labels, **kw):
+def new_func(labels, **kw):
     obj = {
-        "metadata": {"labels": labels, "name": name},
+        "metadata": {"labels": labels},
     }
     obj.update(kw)
     return obj
@@ -80,11 +80,11 @@ def new_func(name, labels, **kw):
 
 def test_list_functions(db: RunDBInterface):
     name = "fn"
-    fn1 = new_func(name, {"l1": "v1", "l2": "v2"}, x=1)
+    fn1 = new_func({"l1": "v1", "l2": "v2"}, x=1)
     db.store_function(fn1, name)
-    fn2 = new_func(name, {"l2": "v2", "l3": "v3"}, x=2)
+    fn2 = new_func({"l2": "v2", "l3": "v3"}, x=2)
     db.store_function(fn2, name, tag="t1")
-    fn3 = new_func(name, {"l3": "v3"}, x=3)
+    fn3 = new_func({"l3": "v3"}, x=3)
     db.store_function(fn3, name, tag="t2")
 
     funcs = db.list_functions(name, labels={"l2": "v2"})

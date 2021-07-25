@@ -448,6 +448,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
         updated = datetime.now(timezone.utc)
         update_in(function, "metadata.updated", updated)
+        body_name = function.get("metadata", {}).get("name")
+        if body_name and body_name != name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Conflict between requested name and name in function body"
+            )
+        if not body_name:
+            function.setdefault("metadata", {})["name"] = name
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
             fn = Function(name=name, project=project, uid=uid,)

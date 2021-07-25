@@ -1,7 +1,9 @@
+import deepdiff
 import pandas as pd
 
 import mlrun.feature_store as fs
 from mlrun.data_types import InferOptions
+from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store.api import infer_from_static_df
 from tests.conftest import tests_root_directory
 
@@ -52,8 +54,12 @@ def test_infer_from_df():
     preview = featureset.status.preview
     # by default preview should be 20 lines + 1 for headers
     assert len(preview) == 21, "unexpected num of preview lines"
-    assert len(preview[0]) == df.shape[1], "unexpected num of header columns"
-    assert len(preview[1]) == df.shape[1], "unexpected num of value columns"
+    assert len(preview[0]) == df.shape[1] + len(
+        df.index.names
+    ), "unexpected num of header columns"
+    assert len(preview[1]) == df.shape[1] + len(
+        df.index.names
+    ), "unexpected num of value columns"
 
     features = sorted(featureset.spec.features.keys())
     stats = sorted(featureset.status.stats.keys())
@@ -69,3 +75,27 @@ def test_infer_from_df():
         "max",
         "hist",
     ], "wrong stats result"
+
+
+def test_backwards_compatibility_step_vs_state():
+    quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
+    agg_step = quotes_set.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
+    agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
+    quotes_set.set_targets(
+        targets=[ParquetTarget("parquet1", after_state="somemap1")],
+        with_defaults=False,
+    )
+
+    feature_set_dict = quotes_set.to_dict()
+    # Make sure we're backwards compatible
+    feature_set_dict["spec"]["graph"]["states"] = feature_set_dict["spec"]["graph"].pop(
+        "steps"
+    )
+    feature_set_dict["spec"]["targets"][0]["after_state"] = feature_set_dict["spec"][
+        "targets"
+    ][0].pop("after_step")
+
+    from_dict_feature_set = fs.FeatureSet.from_dict(feature_set_dict)
+    assert (
+        deepdiff.DeepDiff(from_dict_feature_set.to_dict(), quotes_set.to_dict()) == {}
+    )

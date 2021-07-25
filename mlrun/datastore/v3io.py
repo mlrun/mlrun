@@ -137,3 +137,31 @@ class V3ioStore(DataStore):
 
         # todo: full = key, size, last_modified
         return [obj.key[subpath_length:] for obj in response.output.contents]
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        """ Recursive rm file/folder
+        Workaround for v3io-fs not supporting recursive directory removal """
+
+        fs = self.get_filesystem()
+        if isinstance(path, str):
+            path = [path]
+        maxdepth = maxdepth if not maxdepth else maxdepth - 1
+        to_rm = set()
+        path = [fs._strip_protocol(p) for p in path]
+        for p in path:
+            if recursive:
+                find_out = fs.find(p, maxdepth=maxdepth, withdirs=True, detail=True)
+                rec = set(
+                    sorted(
+                        [
+                            f["name"] + ("/" if f["type"] == "directory" else "")
+                            for f in find_out.values()
+                        ]
+                    )
+                )
+                to_rm |= rec
+            if p not in to_rm and (recursive is False or fs.exists(p)):
+                p = p + ("/" if fs.isdir(p) else "")
+                to_rm.add(p)
+        for p in reversed(list(sorted(to_rm))):
+            fs.rm_file(p)

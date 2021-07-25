@@ -114,6 +114,7 @@ def run_local(
     params: dict = None,
     inputs: dict = None,
     artifact_path: str = "",
+    mode: str = None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -162,7 +163,7 @@ def run_local(
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
-    fn = new_function(meta.name, command=command, args=args)
+    fn = new_function(meta.name, command=command, args=args, mode=mode)
     meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
@@ -470,16 +471,25 @@ def new_function(
     args: list = None,
     runtime=None,
     mode=None,
+    handler: str = None,
+    source: str = None,
+    requirements: Union[str, List[str]] = None,
     kfp=None,
 ):
     """Create a new ML function from base properties
 
     example::
 
-           # define a container based function
-           f = new_function(command='job://training.py -v', image='myrepo/image:latest')
+           # define a container based function (the `training.py` must exist in the container workdir)
+           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job')
+           f.run(params={"x": 5})
 
-           # define a handler function (execute a local function handler)
+           # define a container based function which reads its source from a git archive
+           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job',
+                            source='git://github.com/mlrun/something.git')
+           f.run(params={"x": 5})
+
+           # define a local handler function (execute a local function handler)
            f = new_function().run(task, handler=myfunction)
 
     :param name:     function name
@@ -492,7 +502,17 @@ def new_function(
     :param args:     command line arguments (override the ones in command)
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
+    :param mode:     runtime mode, "args" mode will push params into command template, example:
+                      command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
+                     "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
+                      `{}` for parameters like in the "args" mode
+    :param handler:  The default function handler to call for the job or nuclio function, in batch functions
+                     (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
+                     the entire file will be executed (as main).
+                     for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
+    :param source:   valid path to git, zip, or tar file, e.g. `git://github.com/mlrun/something.git`,
+                     `http://some/url/file.zip`
+    :param requirements: list of python packages or pip requirements file path, defaults to None
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
@@ -541,6 +561,18 @@ def new_function(
     runner.kfp = kfp
     if mode:
         runner.spec.mode = mode
+    if source:
+        if not hasattr(runner, "with_source_archive"):
+            raise ValueError(
+                f"source archive option is not supported for {kind} runtime"
+            )
+        runner.with_source_archive(source)
+    if requirements:
+        runner.with_requirements(requirements)
+    if handler:
+        runner.spec.default_handler = handler
+        if kind.startswith("nuclio"):
+            runner.spec.function_handler = handler
     return runner
 
 
@@ -550,9 +582,6 @@ def _process_runtime(command, runtime, kind):
     if runtime and isinstance(runtime, dict):
         kind = kind or runtime.get("kind", "")
         command = command or get_in(runtime, "spec.command", "")
-        runtime_args = get_in(runtime, "spec.args", [])
-        if runtime_args and command:
-            command = f"{command} {' '.join(runtime_args)}"
     if "://" in command and command.startswith("http"):
         kind = kind or RuntimeKinds.remote
     if not runtime:
@@ -560,22 +589,11 @@ def _process_runtime(command, runtime, kind):
     update_in(runtime, "spec.command", command)
     runtime["kind"] = kind
     if kind != RuntimeKinds.remote:
-        parse_command(runtime, command)
+        if command:
+            update_in(runtime, "spec.command", command)
     else:
         update_in(runtime, "spec.function_kind", "mlrun")
     return kind, runtime
-
-
-def parse_command(runtime, url):
-    idx = url.find("#")
-    if idx > -1:
-        update_in(runtime, "spec.image", url[:idx])
-        url = url[idx + 1 :]
-
-    if url:
-        arg_list = url.split()
-        update_in(runtime, "spec.command", arg_list[0])
-        update_in(runtime, "spec.args", arg_list[1:])
 
 
 def code_to_function(
@@ -636,7 +654,10 @@ def code_to_function(
     :param project:      project used to namespace the function, defaults to "default"
     :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
-    :param handler:      The entrypoint for nuclio (in the form of module:function), defaults to "main:handler"
+    :param handler:      The default function handler to call for the job or nuclio function, in batch functions
+                         (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
+                         the entire file will be executed (as main).
+                         for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
     :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
     :param image:        base docker image to use for building the function container, defaults to None
     :param code_output:  specify "." to generate python module from the current jupyter notebook
@@ -672,18 +693,7 @@ def code_to_function(
         fn = mlrun.code_to_function('nuclio-mover', kind='nuclio',
                                     filename='mover.py', image='python:3.7',
                                     description = "this function moves files from one system to another",
-                                    labels = {'author': 'me'})
-
-    example::
-        import mlrun
-        from pathlib import Path
-
-        # create file
-        Path('proc.py').touch()
-
-        # creates distributed dask job from a python module called proc.py
-        fn = mlrun.code_to_function('batch_preprocessing', kind='dask', filename='proc.py'
-                                    description = "this function efficiently processes larger than memory tabular data",
+                                    requirements = ["pandas"],
                                     labels = {'author': 'me'})
 
     """
@@ -758,8 +768,6 @@ def code_to_function(
         if embed_code:
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
-            if with_doc:
-                update_function_entry_points(r, code)
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -1021,7 +1029,7 @@ def list_pipelines(
     """List pipelines
 
     :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
-    :param page_token: A page token to request the next page of results. The token is acquried from the nextPageToken
+    :param page_token: A page token to request the next page of results. The token is acquired from the nextPageToken
                        field of the response from the previous call or can be omitted when fetching the first page.
     :param page_size:  The number of pipelines to be listed per page. If there are more pipelines than this number, the
                        response message will contain a nextPageToken field you can use to fetch the next page.
@@ -1030,7 +1038,7 @@ def list_pipelines(
     :param filter_:    A url-encoded, JSON-serialized Filter protocol buffer, see:
                        [filter.proto](https://github.com/kubeflow/pipelines/ blob/master/backend/api/filter.proto).
     :param namespace:  Kubernetes namespace if other than default
-    :param project:    Can be used to retrieve only specific project pipeliens. "*" for all projects. Note that
+    :param project:    Can be used to retrieve only specific project pipelines. "*" for all projects. Note that
                        filtering by project can't be used together with pagination, sorting, or custom filter.
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """

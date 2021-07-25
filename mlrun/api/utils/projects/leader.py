@@ -41,77 +41,86 @@ class Member(
 
     def create_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_and_validate_before_creation(project)
-        self._run_on_all_followers(True, "create_project", session, project)
-        return self.get_project(session, project.metadata.name), False
+        self._run_on_all_followers(True, "create_project", db_session, project)
+        return self.get_project(db_session, project.metadata.name), False
 
     def store_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project(project)
-        self.validate_project_name(name)
+        mlrun.projects.ProjectMetadata.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers(True, "store_project", session, name, project)
-        return self.get_project(session, name), False
+        self._run_on_all_followers(True, "store_project", db_session, name, project)
+        return self.get_project(db_session, name), False
 
     def patch_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
-            True, "patch_project", session, name, project, patch_mode
+            True, "patch_project", db_session, name, project, patch_mode
         )
-        return self.get_project(session, name), False
+        return self.get_project(db_session, name), False
 
     def delete_project(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> bool:
         self._projects_in_deletion.add(name)
         try:
             self._run_on_all_followers(
-                False, "delete_project", session, name, deletion_strategy
+                False, "delete_project", db_session, name, deletion_strategy
             )
         finally:
             self._projects_in_deletion.remove(name)
         return False
 
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
-        return self._leader_follower.get_project(session, name)
+        return self._leader_follower.get_project(db_session, name)
 
     def list_projects(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
-            session, owner, format_, labels, state
+            db_session, owner, format_, labels, state
         )
 
     def _start_periodic_sync(self):
@@ -133,13 +142,13 @@ class Member(
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     def _sync_projects(self):
-        session = mlrun.api.db.session.create_session()
+        db_session = mlrun.api.db.session.create_session()
         try:
             # re-generating all of the maps every time since _ensure_follower_projects_synced might cause changes
             leader_projects: mlrun.api.schemas.ProjectsOutput
             follower_projects_map: typing.Dict[str, mlrun.api.schemas.ProjectsOutput]
             leader_projects, follower_projects_map = self._run_on_all_followers(
-                True, "list_projects", session
+                True, "list_projects", db_session
             )
             leader_project_names = {
                 project.metadata.name for project in leader_projects.projects
@@ -172,7 +181,7 @@ class Member(
                 if project in self._projects_in_deletion:
                     continue
                 self._ensure_project_synced(
-                    session,
+                    db_session,
                     leader_project_names,
                     project_follower_names_map[project],
                     project,
@@ -180,11 +189,11 @@ class Member(
                     leader_projects_map,
                 )
         finally:
-            mlrun.api.db.session.close_session(session)
+            mlrun.api.db.session.close_session(db_session)
 
     def _ensure_project_synced(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         leader_project_names: typing.Set[str],
         follower_names: typing.Set[str],
         project_name: str,
@@ -211,7 +220,7 @@ class Member(
                 project_follower_name = list(follower_names)[0]
                 project = followers_projects_map[project_follower_name][project_name]
                 self._enrich_and_validate_before_creation(project)
-                self._leader_follower.create_project(session, project)
+                self._leader_follower.create_project(db_session, project)
             except Exception as exc:
                 logger.warning(
                     "Failed creating missing project in leader",
@@ -236,7 +245,9 @@ class Member(
                 # if it was created prior to 0.6.0, and the version was upgraded
                 # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
                 # as well)
-                if not self.validate_project_name(project_name, raise_on_failure=False):
+                if not mlrun.projects.ProjectMetadata.validate_project_name(
+                    project_name, raise_on_failure=False
+                ):
                     return
                 for missing_follower in missing_followers:
                     logger.debug(
@@ -249,7 +260,7 @@ class Member(
                     try:
                         self._enrich_and_validate_before_creation(project)
                         self._followers[missing_follower].create_project(
-                            session, project,
+                            db_session, project,
                         )
                     except Exception as exc:
                         logger.warning(
@@ -313,7 +324,7 @@ class Member(
 
     def _enrich_and_validate_before_creation(self, project: mlrun.api.schemas.Project):
         self._enrich_project(project)
-        self.validate_project_name(project.metadata.name)
+        mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
 
     @staticmethod
     def _enrich_project(project: mlrun.api.schemas.Project):

@@ -21,11 +21,14 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.errors
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
+from mlrun.utils.helpers import verify_field_regex
+from mlrun.utils.regex import sparkjob_name
 
 from ..execution import MLClientCtx
 from ..model import RunObject
@@ -213,7 +216,23 @@ class SparkRuntime(KubejobRuntime):
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
+    def _validate(self, runobj: RunObject):
+        # validating length limit for sparkjob's function name
+        verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+
+        # validating existence of required fields
+        if "requests" not in self.spec.executor_resources:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain executor requests"
+            )
+        if "requests" not in self.spec.driver_resources:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain driver requests"
+            )
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        self._validate(runobj)
+
         if runobj.metadata.iteration:
             self.store_run(runobj)
         job = deepcopy(_sparkjob_template)
@@ -549,6 +568,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         uid: str,
         crd_object,
         run: Dict = None,
+        leader_session: Optional[str] = None,
     ):
         app_state = (
             crd_object.get("status", {}).get("applicationState", {}).get("state")
@@ -565,7 +585,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         if db_ui_url == ui_url:
             return
         run.setdefault("status", {})["ui_url"] = ui_url
-        db.store_run(db_session, run, uid, project)
+        db.store_run(db_session, run, uid, project, leader_session=leader_session)
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:

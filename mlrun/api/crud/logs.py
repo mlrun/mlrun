@@ -43,7 +43,7 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
         project: str,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
-        uids = self._list_project_logs_uids(db_session, project, auth_info)
+        uids = self._list_project_logs_uids(project)
         mlrun.api.utils.clients.opa.Client().query_resources_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.log,
             uids,

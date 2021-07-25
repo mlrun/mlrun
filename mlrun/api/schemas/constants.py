@@ -10,6 +10,8 @@ class Format(str, Enum):
     name_only = "name_only"
     metadata_only = "metadata_only"
     summary = "summary"
+    # internal - allowed only in follower mode, only for the leader for upgrade purposes
+    leader = "leader"
 
 
 class PatchMode(str, Enum):

@@ -50,7 +50,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 raise_on_forbidden=False,
             )
             if allowed:
-                filtered_resources.append(project_name)
+                filtered_resources.append(resource)
         return filtered_resources
 
     def query_resources_permissions(

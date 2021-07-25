@@ -601,7 +601,7 @@ def _init_model_monitoring_endpoint_records(
                 db_session=db_session,
                 access_key=os.environ.get("V3IO_ACCESS_KEY"),
                 model_endpoint=model_endpoint,
-                auth_info=auth_info.session,
+                auth_info=auth_info,
             )
         except Exception as e:
             logger.error("Failed to create endpoint record", exc=e)

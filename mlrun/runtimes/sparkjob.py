@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import typing
+import re
 from copy import deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -161,6 +162,19 @@ class SparkRuntime(KubejobRuntime):
     apiVersion = group + "/" + version
     kind = "spark"
     plural = "sparkapplications"
+    default_image = ".spark-job-default-image"
+
+    @classmethod
+    def deploy_default_image(cls):
+        from mlrun.run import new_function
+
+        sj = new_function(
+            kind=cls.kind, name="spark-default-image-deploy-temp"
+        )
+        sj.spec.build.image = cls.default_image
+        sj.with_spark_service(spark_service="dummy-spark")
+        sj.deploy()
+        get_run_db().delete_function(name=sj.metadata.name)
 
     @property
     def _default_image(self):
@@ -180,6 +194,17 @@ class SparkRuntime(KubejobRuntime):
             )
         return None
 
+    @property
+    def _resolve_default_base_image(self):
+        if (
+                config.spark_app_image
+                and config.spark_app_image_tag
+        ):
+            app_image = re.sub("spark-app", "shell", config.spark_app_image)
+            # this is temporary until we get the image name from external config
+            return app_image + ":" + config.spark_app_image_tag
+        return None
+
     def deploy(
         self,
         watch=True,
@@ -192,7 +217,7 @@ class SparkRuntime(KubejobRuntime):
         # connect will populate the config from the server config
         get_run_db()
         if not self.spec.build.base_image:
-            self.spec.build.base_image = self._default_image
+            self.spec.build.base_image = self._resolve_default_base_image
         return super().deploy(
             watch=watch,
             with_mlrun=with_mlrun,

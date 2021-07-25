@@ -6,11 +6,11 @@ from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.deps
+import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -32,7 +32,11 @@ def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
 
 
 def log_path(project, uid) -> Path:
-    return get_logs_dir() / project / uid
+    return project_logs_path(project) / uid
+
+
+def project_logs_path(project) -> Path:
+    return get_logs_dir() / project
 
 
 def get_obj_path(schema, path, user=""):
@@ -59,19 +63,19 @@ def get_obj_path(schema, path, user=""):
     return path
 
 
-def get_secrets(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
+def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
     return {
-        "V3IO_ACCESS_KEY": access_key,
+        "V3IO_ACCESS_KEY": auth_info.data_session,
     }
 
 
 def get_run_db_instance(
-    db_session: Session, leader_session: typing.Optional[str] = None
+    db_session: Session,
+    auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
 ):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session, leader_session)
+        run_db = SQLRunDB(db.dsn, db_session, auth_info)
     else:
         run_db = db.db
     run_db.connect()
@@ -158,7 +162,7 @@ def _submit_run(
     project = None
     try:
         fn, task = _parse_submit_run_body(db_session, auth_info, data)
-        run_db = get_run_db_instance(db_session, auth_info.session)
+        run_db = get_run_db_instance(db_session, auth_info)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
@@ -186,6 +190,13 @@ def _submit_run(
                 "name": task["metadata"]["name"],
             }
         else:
+            mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+                mlrun.api.schemas.AuthorizationResourceTypes.run,
+                task["metadata"]["project"],
+                "",
+                mlrun.api.schemas.AuthorizationAction.create,
+                auth_info,
+            )
             run = fn.run(task, watch=False)
             run_uid = run.metadata.uid
             project = run.metadata.project

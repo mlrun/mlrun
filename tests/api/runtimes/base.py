@@ -209,6 +209,11 @@ class TestRuntimeBase:
             side_effect=_generate_pod
         )
 
+        # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
+        get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
+            return_value=client.V1PodList(items=[])
+        )
+
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
         secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
@@ -236,6 +241,7 @@ class TestRuntimeBase:
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
         get_k8s().v1api.create_namespaced_pod.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
 
         runtime.run(
             name=self.name,

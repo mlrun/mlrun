@@ -66,13 +66,14 @@ Table Of Content
    projects
    ci-pipeline
    load-from-marketplace
+   secrets
 
 .. toctree::
    :maxdepth: 1
    :caption: Online Pipelines & Serving:
 
    serving/index
-   model_monitoring/model-monitoring-deployment
+   model_monitoring/index
 
 .. toctree::
    :maxdepth: 1

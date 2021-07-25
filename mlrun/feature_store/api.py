@@ -284,7 +284,7 @@ def ingest(
                 )
             if hasattr(target, "is_single_file") and target.is_single_file():
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Overwriting isn't supported in single files. Please use folder path."
+                    "overwrite=False isn't supported in single files. Please use folder path."
                 )
 
     if spark_context and featureset.spec.engine != "spark":
@@ -324,6 +324,11 @@ def ingest(
     df = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df,
     )
+    if not InferOptions.get_common_options(
+        infer_stats, InferOptions.Index
+    ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
+        infer_stats += InferOptions.Index
+
     infer_from_static_df(df, featureset, options=infer_stats)
     _post_ingestion(mlrun_context, featureset, spark_context)
 

@@ -95,7 +95,7 @@ class Client(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Creating project in Iguazio", project=project)
-        body = self._generate_request_body(project)
+        body = self._transform_mlrun_project_to_iguazio_project(project)
         return self._create_project_in_iguazio(session, body, wait_for_completion)
 
     def store_project(
@@ -106,7 +106,7 @@ class Client(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Storing project in Iguazio", name=name, project=project)
-        body = self._generate_request_body(project)
+        body = self._transform_mlrun_project_to_iguazio_project(project)
         try:
             self._get_project_from_iguazio(session, name)
         except requests.HTTPError as exc:
@@ -128,7 +128,7 @@ class Client(
             name=name,
             deletion_strategy=deletion_strategy,
         )
-        body = self._generate_request_body(
+        body = self._transform_mlrun_project_to_iguazio_project(
             mlrun.api.schemas.Project(
                 metadata=mlrun.api.schemas.ProjectMetadata(name=name)
             )
@@ -177,6 +177,13 @@ class Client(
 
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
+
+    def format_as_leader_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.IguazioProject:
+        return mlrun.api.schemas.IguazioProject(
+            data=self._transform_mlrun_project_to_iguazio_project(project)["data"]
+        )
 
     def _find_latest_updated_at(
         self, response_body: dict
@@ -290,7 +297,9 @@ class Client(
         return response
 
     @staticmethod
-    def _generate_request_body(project: mlrun.api.schemas.Project) -> dict:
+    def _transform_mlrun_project_to_iguazio_project(
+        project: mlrun.api.schemas.Project,
+    ) -> dict:
         body = {
             "data": {
                 "type": "project",

@@ -24,7 +24,7 @@ import kfp
 import requests
 import semver
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util.retry import Retry
 
 import mlrun
 import mlrun.projects
@@ -54,7 +54,14 @@ def bool2str(val):
 
 
 http_adapter = HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    max_retries=Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        # we want to retry but not to raise since we do want that last response (to parse details on the
+        # error from response body) we'll handle raising ourselves
+        raise_on_status=False,
+    ),
 )
 
 
@@ -168,27 +175,30 @@ class HTTPRunDB(RunDBInterface):
             self.session.mount("https://", http_adapter)
 
         try:
-            resp = self.session.request(
+            response = self.session.request(
                 method, url, timeout=timeout, verify=False, **kw
             )
-        except requests.RequestException as err:
-            error = error or f"{method} {url}, error: {err}"
-            raise RunDBError(error) from err
+        except requests.RequestException as exc:
+            error = f"{str(exc)}: {error}" if error else str(exc)
+            raise mlrun.errors.MLRunRuntimeError(error) from exc
 
-        if not resp.ok:
-            if resp.content:
+        if not response.ok:
+            if response.content:
                 try:
-                    data = resp.json()
-                    reason = data.get("detail", {}).get("reason", "")
+                    data = response.json()
+                    error_details = data.get("detail", {})
+                    if not error_details:
+                        logger.warning("Failed parsing error response body", data=data)
                 except Exception:
-                    reason = ""
-            if reason:
-                error = error or f"{method} {url}, error: {reason}"
-                mlrun.errors.raise_for_status(resp, error)
+                    error_details = ""
+                if error_details:
+                    error_details = f"details: {error_details}"
+                    error = f"{error} {error_details}" if error else error_details
+                    mlrun.errors.raise_for_status(response, error)
 
-            mlrun.errors.raise_for_status(resp)
+            mlrun.errors.raise_for_status(response, error)
 
-        return resp
+        return response
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
@@ -993,15 +1003,17 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, kind, selector):
+    def remote_status(self, project, name, kind, selector):
         """ Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
+        :param project: The project of the function
+        :param name: The name of the function
         :param kind: The kind of the function, currently ``dask`` is supported.
         :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:
-            req = {"kind": kind, "selector": selector}
+            req = {"kind": kind, "selector": selector, "project": project, "name": name}
             resp = self.api_call("POST", "status/function", json=req)
         except OSError as err:
             logger.error(f"error starting function: {err}")
@@ -1122,8 +1134,8 @@ class HTTPRunDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.api.schemas.Format
-        ] = mlrun.api.schemas.Format.metadata_only,
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
         """ Retrieve a list of KFP pipelines. This function can be invoked to get all pipelines from all projects,
@@ -1148,7 +1160,7 @@ class HTTPRunDB(RunDBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination, sorting, or custom filter"
             )
-        if isinstance(format_, mlrun.api.schemas.Format):
+        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
             format_ = format_.value
         params = {
             "namespace": namespace,
@@ -1672,7 +1684,9 @@ class HTTPRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.full,
+        format_: Union[
+            str, mlrun.api.schemas.ProjectsFormat
+        ] = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: Union[str, mlrun.api.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -1690,7 +1704,7 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(state, mlrun.api.schemas.ProjectState):
             state = state.value
-        if isinstance(format_, mlrun.api.schemas.Format):
+        if isinstance(format_, mlrun.api.schemas.ProjectsFormat):
             format_ = format_.value
         params = {
             "owner": owner,
@@ -1701,9 +1715,9 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
-        if format_ == mlrun.api.schemas.Format.name_only:
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             return response.json()["projects"]
-        elif format_ == mlrun.api.schemas.Format.full:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
             return [
                 mlrun.projects.MlrunProject.from_dict(project_dict)
                 for project_dict in response.json()["projects"]
@@ -1837,7 +1851,9 @@ class HTTPRunDB(RunDBInterface):
 
     def _wait_for_project_to_be_deleted(self, project_name: str):
         def _verify_project_deleted():
-            projects = self.list_projects(format_=mlrun.api.schemas.Format.name_only)
+            projects = self.list_projects(
+                format_=mlrun.api.schemas.ProjectsFormat.name_only
+            )
             if project_name in projects:
                 raise Exception("Project still exists")
 

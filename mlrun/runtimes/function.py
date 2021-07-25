@@ -22,7 +22,6 @@ from time import sleep
 import nuclio
 import requests
 from aiohttp.client import ClientSession
-from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -30,6 +29,7 @@ import mlrun.errors
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
 
+from ..api.schemas import AuthInfo
 from ..config import config as mlconf
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
@@ -71,6 +71,9 @@ class NuclioSpec(KubeResourceSpec):
         service_account=None,
         readiness_timeout=None,
         default_handler=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
 
         super().__init__(
@@ -89,6 +92,9 @@ class NuclioSpec(KubeResourceSpec):
             entry_points=entry_points,
             description=description,
             default_handler=default_handler,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
 
         self.base_spec = base_spec or ""
@@ -386,7 +392,12 @@ class RemoteRuntime(KubeResource):
         pass
 
     def deploy(
-        self, dashboard="", project="", tag="", verbose=False,
+        self,
+        dashboard="",
+        project="",
+        tag="",
+        verbose=False,
+        auth_info: AuthInfo = None,
     ):
         # todo: verify that the function name is normalized
 
@@ -397,8 +408,6 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-        state = ""
-        last_log_timestamp = 1
 
         save_record = False
         if not dashboard:
@@ -406,24 +415,7 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
             self.status = data["data"].get("status")
-            # ready = data.get("ready", False)
-
-            text = ""
-            while state not in ["ready", "error", "unhealthy"]:
-                sleep(1)
-                try:
-                    text, last_log_timestamp = db.get_builder_status(
-                        self, last_log_timestamp=last_log_timestamp, verbose=verbose
-                    )
-                except RunDBError:
-                    raise ValueError("function or deploy process not found")
-                state = self.status.state
-                if text:
-                    print(text)
-
-            if state != "ready":
-                logger.error("Nuclio function failed to deploy")
-                raise RunError(f"cannot deploy {text}")
+            self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
             #       now, functions can be not exposed (using service type ClusterIP) and hence
@@ -443,7 +435,7 @@ class RemoteRuntime(KubeResource):
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
-                self, dashboard=dashboard, watch=True
+                self, dashboard=dashboard, watch=True, auth_info=auth_info,
             )
             self.status.internal_invocation_urls = internal_invocation_urls
             self.status.external_invocation_urls = external_invocation_urls
@@ -471,13 +463,25 @@ class RemoteRuntime(KubeResource):
 
         return self.spec.command
 
-    def with_node_selection(
-        self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-    ):
-        raise NotImplementedError("Node selection is not supported for nuclio runtime")
+    def _wait_for_function_deployment(self, db, verbose=False):
+        text = ""
+        state = ""
+        last_log_timestamp = 1
+        while state not in ["ready", "error", "unhealthy"]:
+            sleep(1)
+            try:
+                text, last_log_timestamp = db.get_builder_status(
+                    self, last_log_timestamp=last_log_timestamp, verbose=verbose
+                )
+            except RunDBError:
+                raise ValueError("function or deploy process not found")
+            state = self.status.state
+            if text:
+                print(text)
+
+        if state != "ready":
+            logger.error("Nuclio function failed to deploy", function_state=state)
+            raise RunError(f"function {self.metadata.name} deployment failed")
 
     def _get_state(
         self,
@@ -486,6 +490,7 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         raise_on_exception=True,
         resolve_address=True,
+        auth_info: AuthInfo = None,
     ) -> typing.Tuple[str, str, typing.Optional[float]]:
         if dashboard:
             (
@@ -503,6 +508,7 @@ class RemoteRuntime(KubeResource):
                 last_log_timestamp=last_log_timestamp,
                 verbose=verbose,
                 resolve_address=resolve_address,
+                auth_info=auth_info,
             )
             self.status.internal_invocation_urls = function_status.get(
                 "internalInvocationUrls", []
@@ -623,12 +629,13 @@ class RemoteRuntime(KubeResource):
         headers=None,
         dashboard="",
         force_external_address=False,
+        auth_info: AuthInfo = None,
     ):
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
             if not self.status.address:
-                state, _, _ = self._get_state(dashboard)
+                state, _, _ = self._get_state(dashboard, auth_info=auth_info)
                 if state != "ready" or not self.status.address:
                     raise ValueError(
                         "no function address or not ready, first run .deploy()"
@@ -817,7 +824,9 @@ def get_fullname(name, project, tag):
     return name
 
 
-def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
+def deploy_nuclio_function(
+    function: RemoteRuntime, dashboard="", watch=False, auth_info: AuthInfo = None
+):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(function)
 
@@ -838,6 +847,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         create_new=True,
         watch=watch,
         return_address_mode=nuclio.deploy.ReturnAddressModes.all,
+        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
     )
 
 
@@ -889,6 +899,12 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
+    if function.spec.node_selector:
+        spec.set_config("spec.nodeSelector", function.spec.node_selector)
+    if function.spec.node_name:
+        spec.set_config("spec.nodeName", function.spec.node_name)
+    if function.spec.affinity:
+        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)
@@ -992,16 +1008,6 @@ def enrich_function_with_ingress(config, mode, service_type):
         enrich()
 
 
-def resolve_function_internal_invocation_url(function_name, namespace=""):
-    # hard-coding the internal invocation url
-    # template: nuclio-<function_name>.(<namespace>.)?svc.cluster.local:8080
-
-    # both might be empty
-    templated_namespace = namespace if namespace else mlconf.namespace
-    templated_namespace += "." if templated_namespace else ""
-    return f"nuclio-{function_name}.{templated_namespace}svc.cluster.local:8080"
-
-
 def get_nuclio_deploy_status(
     name,
     project,
@@ -1010,6 +1016,7 @@ def get_nuclio_deploy_status(
     last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
+    auth_info: AuthInfo = None,
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
@@ -1021,6 +1028,7 @@ def get_nuclio_deploy_status(
         verbose,
         resolve_address,
         return_function_status=True,
+        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
     )
 
     text = "\n".join(outputs) if outputs else ""

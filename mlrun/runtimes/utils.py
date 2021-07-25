@@ -14,6 +14,7 @@
 import hashlib
 import json
 import os
+import typing
 from copy import deepcopy
 from io import StringIO
 from sys import stderr
@@ -364,6 +365,18 @@ def get_func_selector(project, name=None, tag=None):
         s.append(f"{mlrun_key}function={name}")
         s.append(f"{mlrun_key}tag={tag or 'latest'}")
     return s
+
+
+def parse_function_selector(selector: typing.List[str]) -> typing.Tuple[str, str, str]:
+    project, name, tag = None, None, None
+    for criteria in selector:
+        if f"{mlrun_key}project=" in criteria:
+            project = criteria[f"{mlrun_key}project=":]
+        if f"{mlrun_key}function=" in criteria:
+            name = criteria[f"{mlrun_key}function=":]
+        if f"{mlrun_key}tag=" in criteria:
+            tag = criteria[f"{mlrun_key}tag=":]
+    return project, name, tag
 
 
 class k8s_resource:

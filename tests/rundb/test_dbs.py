@@ -60,14 +60,12 @@ def db(request):
 
 
 def test_save_get_function(db: RunDBInterface):
-    func, name, proj, tag = {"x": 1, "y": 2}, "f1", "p2", "t3u"
+    func, name, proj, tag = {"data": {"x": 1, "y": 2}}, "f1", "p2", "t3u"
     db.store_function(func, name, proj, tag)
     db_func = db.get_function(name, proj, tag)
 
     # db methods enriches metadata
-    del db_func["metadata"]
-    del func["metadata"]
-    assert func == db_func, "wrong func"
+    assert func["data"] == db_func["data"]
 
 
 def new_func(labels, **kw):

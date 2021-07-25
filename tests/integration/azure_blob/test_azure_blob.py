@@ -19,15 +19,53 @@ with open(test_filename, "r") as f:
 blob_dir = "test_mlrun_azure_blob"
 blob_file = f"file_{random.randint(0, 1000)}.txt"
 
+AUTH_VARS = [
+    "AZURE_STORAGE_CONNECTION_STRING",
+    "AZURE_STORAGE_ACCOUNT_NAME",
+    "AZURE_STORAGE_ACCOUNT_KEY",
+    "AZURE_STORAGE_SAS_TOKEN",
+    "AZURE_STORAGE_CLIENT_ID",
+    "AZURE_STORAGE_CLIENT_SECRET",
+    "AZURE_STORAGE_TENANT_ID",
+]
+
+AUTH_METHODS = [
+    "conn_str",
+    "sas_token",
+    "account_key",
+    "spn",
+]
+
 
 def azure_connection_configured():
-    return config["env"].get("AZURE_STORAGE_CONNECTION_STRING") is not None
+    for var in AUTH_VARS:
+        assert config["env"].get(var) is not None
+    return True
 
 
-def prepare_env():
-    os.environ["AZURE_STORAGE_CONNECTION_STRING"] = config["env"].get(
-        "AZURE_STORAGE_CONNECTION_STRING"
-    )
+def prepare_env(auth_method):
+    for v in AUTH_VARS:
+        try:
+            os.environ.pop(v)
+        except KeyError:
+            pass
+    if auth_method == "conn_str":
+        os.environ["AZURE_STORAGE_CONNECTION_STRING"] = config["env"].get(
+            "AZURE_STORAGE_CONNECTION_STRING"
+        )
+    else:
+        os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = config["env"].get("AZURE_STORAGE_ACCOUNT_NAME")
+
+        if auth_method == 'sas_token':
+            os.environ["AZURE_STORAGE_SAS_TOKEN"] = config["env"].get("AZURE_STORAGE_SAS_TOKEN")
+        elif auth_method == 'account_key':
+            os.environ["AZURE_STORAGE_ACCOUNT_KEY"] = config["env"].get("AZURE_STORAGE_ACCOUNT_KEY")
+        elif auth_method == 'spn':
+            os.environ["AZURE_STORAGE_CLIENT_ID"] = config["env"].get("AZURE_STORAGE_CLIENT_ID")
+            os.environ["AZURE_STORAGE_CLIENT_SECRET"] = config['env'].get('AZURE_STORAGE_CLIENT_SECRET')
+            os.environ["AZURE_STORAGE_TENANT_ID"] = config['env'].get('AZURE_STORAGE_TENANT_ID')
+        else:
+            raise ValueError("Auth method not known")
 
 
 @pytest.mark.skipif(
@@ -36,24 +74,26 @@ def prepare_env():
     "to run it",
 )
 def test_azure_blob():
-    prepare_env()
+    for auth_method in AUTH_METHODS:
 
-    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    blob_url = blob_path + "/" + blob_dir + "/" + blob_file
+        prepare_env(auth_method)
 
-    print(f"\nBlob URL: {blob_url}")
+        blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+        blob_url = blob_path + "/" + blob_dir + "/" + blob_file
 
-    data_item = mlrun.run.get_dataitem(blob_url)
-    data_item.put(test_string)
+        print(f"\nBlob URL: {blob_url}")
 
-    response = data_item.get()
-    assert response.decode() == test_string, "Result differs from original test"
+        data_item = mlrun.run.get_dataitem(blob_url)
+        data_item.put(test_string)
 
-    response = data_item.get(offset=20)
-    assert response.decode() == test_string[20:], "Partial result not as expected"
+        response = data_item.get()
+        assert response.decode() == test_string, "Result differs from original test"
 
-    stat = data_item.stat()
-    assert stat.size == len(test_string), "Stat size different than expected"
+        response = data_item.get(offset=20)
+        assert response.decode() == test_string[20:], "Partial result not as expected"
+
+        stat = data_item.stat()
+        assert stat.size == len(test_string), "Stat size different than expected"
 
 
 @pytest.mark.skipif(
@@ -62,20 +102,21 @@ def test_azure_blob():
     "to run it",
 )
 def test_list_dir():
-    prepare_env()
-    blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
-    print(f"\nBlob URL: {blob_url}")
+    for auth_method in AUTH_METHODS:
+        prepare_env(auth_method)
+        blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
+        blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
+        print(f"\nBlob URL: {blob_url}")
 
-    mlrun.run.get_dataitem(blob_url).put(test_string)
+        mlrun.run.get_dataitem(blob_url).put(test_string)
 
-    # Check dir list for container
-    dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
-    assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
+        # Check dir list for container
+        dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
+        assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
-    # Check dir list for folder in container
-    dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir).listdir()
-    assert blob_file in dir_list, "File not in folder dir-list"
+        # Check dir list for folder in container
+        dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir).listdir()
+        assert blob_file in dir_list, "File not in folder dir-list"
 
 
 @pytest.mark.skipif(
@@ -85,14 +126,15 @@ def test_list_dir():
 )
 def test_blob_upload():
     # Check upload functionality
-    prepare_env()
+    for auth_method in AUTH_METHODS:
+        prepare_env(auth_method)
 
-    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    blob_url = blob_path + "/" + blob_dir + "/" + blob_file
-    print(f"\nBlob URL: {blob_url}")
+        blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+        blob_url = blob_path + "/" + blob_dir + "/" + blob_file
+        print(f"\nBlob URL: {blob_url}")
 
-    upload_data_item = mlrun.run.get_dataitem(blob_url)
-    upload_data_item.upload(test_filename)
+        upload_data_item = mlrun.run.get_dataitem(blob_url)
+        upload_data_item.upload(test_filename)
 
-    response = upload_data_item.get()
-    assert response.decode() == test_string, "Result differs from original test"
+        response = upload_data_item.get()
+        assert response.decode() == test_string, "Result differs from original test"

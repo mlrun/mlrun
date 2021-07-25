@@ -108,8 +108,13 @@ class AzureBlobStore(DataStore):
         else:
             path = f"{self.endpoint}{key}"
             files = self._filesystem.ls(path, detail=True)
-            size = files[0]["size"]
-            modified = files[0]["last_modified"]
+            if len(files) == 0 and files[0]['kind'] == 'file':
+                size = files[0]["size"]
+                modified = files[0]["last_modified"]
+            elif len(files) == 0 and files[0]['kind'] == 'directory':
+                raise FileNotFoundError(f"Operation expects a file not a direcdtory!")
+            else:
+                raise Valueerror("Operation expects to receive a single file!")
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):

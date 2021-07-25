@@ -1715,7 +1715,7 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(state, mlrun.api.schemas.ProjectState):
             state = state.value
-        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
+        if isinstance(format_, mlrun.api.schemas.ProjectsFormat):
             format_ = format_.value
         params = {
             "owner": owner,

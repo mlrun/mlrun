@@ -303,10 +303,6 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df.write.mode("overwrite").save(**options)
-        elif hasattr(df, "dask"):
-            storage_options = self._get_store().get_storage_options()
-            df = df.repartition(partition_size="100MB")
-            df.to_parquet(self._target_path, storage_options=storage_options)
         else:
             target_path = self._target_path
             fs = self._get_store().get_filesystem(False)
@@ -421,7 +417,6 @@ class ParquetTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
-    support_dask = True
 
     def __init__(
         self,

@@ -190,8 +190,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            if fs.isdir(url) or df_module != pd:
-                # Dask requires the storage_options parameter
+            if fs.isdir(url):
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -221,7 +220,7 @@ def _drop_reserved_columns(df):
     for col in df.columns:
         if col.startswith("igzpart_"):
             cols_to_drop.append(col)
-    df = df.drop(labels=cols_to_drop, axis=1, errors="ignore")
+    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
 
 
 class DataItem:

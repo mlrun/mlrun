@@ -29,8 +29,6 @@ from .base import Artifact
 default_preview_rows_length = 20
 max_preview_columns = 100
 max_csv = 10000
-max_ddf_memory = 1
-ddf_sample_pct = 0.2
 
 
 class TableArtifact(Artifact):
@@ -124,10 +122,6 @@ class DatasetArtifact(Artifact):
         self.column_metadata = column_metadata or {}
 
         if df is not None:
-            if hasattr(df, "dask"):
-                # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas
-                if df.memory_usage(deep=True).sum().compute() // 1e9 < max_ddf_memory:
-                    df = df.compute()
             self.update_preview_fields_from_df(
                 self, df, stats, preview, ignore_preview_limits
             )
@@ -149,13 +143,8 @@ class DatasetArtifact(Artifact):
         artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False
     ):
         preview_rows_length = preview_rows_length or default_preview_rows_length
-        if hasattr(df, "dask"):
-            artifact.length = df.shape[0].compute()
-            preview_df = df.sample(frac=ddf_sample_pct).compute()
-        else:
-            artifact.length = df.shape[0]
-            preview_df = df
-
+        artifact.length = df.shape[0]
+        preview_df = df
         if artifact.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
         preview_df = preview_df.reset_index()
@@ -173,8 +162,6 @@ class DatasetArtifact(Artifact):
 
 
 def get_df_stats(df):
-    if hasattr(df, "dask"):
-        df = df.sample(frac=ddf_sample_pct).compute()
     d = {}
     for col, values in df.describe(include="all").items():
         stats_dict = {}

@@ -32,9 +32,6 @@ class AzureBlobStore(DataStore):
         con_string = self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
         if con_string:
             self.bsc = BlobServiceClient.from_connection_string(con_string)
-        else:
-            self.bsc = None
-            self.get_filesystem()
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
@@ -58,71 +55,36 @@ class AzureBlobStore(DataStore):
             connection_string=self._get_secret_or_env(
                 "AZURE_STORAGE_CONNECTION_STRING"
             ),
-            tenant_id=self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
-            client_id=self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
-            client_secret=self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET"),
-            sas_token=self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
         )
 
     def upload(self, key, src_path):
-        if self.bsc:
-            # Need to strip leading / from key
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
-            with open(src_path, "rb") as data:
-                blob_client.upload_blob(data, overwrite=True)
-        else:
-            remote_path = f"{self.endpoint}{key}"
-            self._filesystem.put_file(src_path, remote_path)
+        # Need to strip leading / from key
+        blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
+        with open(src_path, "rb") as data:
+            blob_client.upload_blob(data, overwrite=True)
 
     def get(self, key, size=None, offset=0):
-        if self.bsc:
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
-            size = size if size else None
-            return blob_client.download_blob(offset, size).readall()
-        else:
-            blob = self._filesystem.cat_file(key, start=0)
-            return blob
+        blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
+        size = size if size else None
+        return blob_client.download_blob(offset, size).readall()
 
     def put(self, key, data, append=False):
-        if self.bsc:
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
-            # Note that append=True is not supported. If the blob already exists, this call will fail
-            blob_client.upload_blob(data, overwrite=True)
-        else:
-            path = f"{self.endpoint}{key}"
-            with self._filesystem.open(path, "wb") as f:
-                f.write(data)
+        blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
+        # Note that append=True is not supported. If the blob already exists, this call will fail
+        blob_client.upload_blob(data, overwrite=True)
 
     def stat(self, key):
-        if self.bsc:
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
-            props = blob_client.get_blob_properties()
-            size = props.size
-            modified = props.last_modified
-        else:
-            path = f"{self.endpoint}{key}"
-            files = self._filesystem.ls(path, detail=True)
-            size = files[0]["size"]
-            modified = files[0]["last_modified"]
+        blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
+        props = blob_client.get_blob_properties()
+        size = props.size
+        modified = props.last_modified
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):
         if key and not key.endswith("/"):
             key = key[1:] + "/"
-        if self.bsc:
-            key_length = len(key)
-            container_client = self.bsc.get_container_client(self.endpoint)
-            blob_list = container_client.list_blobs(name_starts_with=key)
-            return [blob.name[key_length:] for blob in blob_list]
-        else:
-            path = f"{self.endpoint}{key}"
-            files = self._filesystem.ls(path, detail=True)
-            return [f for f in files if f["type"] == "directory"]
+
+        key_length = len(key)
+        container_client = self.bsc.get_container_client(self.endpoint)
+        blob_list = container_client.list_blobs(name_starts_with=key)
+        return [blob.name[key_length:] for blob in blob_list]

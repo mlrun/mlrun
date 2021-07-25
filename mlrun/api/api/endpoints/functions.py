@@ -37,6 +37,7 @@ from mlrun.runtimes.function import (
     get_nuclio_deploy_status,
     resolve_function_internal_invocation_url,
 )
+from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 
@@ -376,8 +377,15 @@ def _build_function(
                         logger.info("Tracking enabled, initializing model monitoring")
                         _init_serving_function_stream_args(fn=fn)
                         _create_model_monitoring_stream(project=fn.metadata.project)
+                        model_monitoring_access_key = _get_function_env_var(
+                            fn, "MODEL_MONITORING_ACCESS_KEY"
+                        )
+                        model_monitoring_access_key = get_item_name(
+                            model_monitoring_access_key, "value"
+                        )
                         ModelEndpoints.deploy_monitoring_functions(
                             project=fn.metadata.project,
+                            model_monitoring_access_key=model_monitoring_access_key,
                             db_session=db_session,
                             auth_info=auth_info,
                         )
@@ -564,3 +572,10 @@ def _init_serving_function_stream_args(fn: ServingRuntime):
         }
 
     fn.save(versioned=True)
+
+
+def _get_function_env_var(fn: ServingRuntime, var_name: str):
+    for env_var in fn.spec.env:
+        if get_item_name(env_var) == var_name:
+            return env_var
+    return None

@@ -361,30 +361,25 @@ class ModelEndpoints:
 
     @staticmethod
     def deploy_monitoring_functions(
-        project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo
+        project: str,
+        model_monitoring_access_key: str,
+        db_session,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
-        if not _check_secret_exists(project, "MODEL_MONITORING_ACCESS_KEY"):
-            error = """
-                Missing 'MODEL_MONITORING_ACCESS_KEY' project secret, if you wish to enable model tracking supply the project with an 
-                authorized api key by using:
-                
-                from mlrun import get_run_db
-                db = get_run_db()
-                db.create_project_secrets(
-                    <PROJECT_NAME>,
-                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-                    secrets={"MODEL_MONITORING_ACCESS_KEY": <API_KEY>}
-                )
-                """
-            raise MLRunBadRequestError(textwrap.dedent(error))
-
-        ModelEndpoints.deploy_model_monitoring_stream_processing(project)
+        ModelEndpoints.deploy_model_monitoring_stream_processing(
+            project=project, model_monitoring_access_key=model_monitoring_access_key
+        )
         ModelEndpoints.deploy_model_monitoring_batch_processing(
-            project=project, db_session=db_session, auth_info=auth_info,
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
         )
 
     @staticmethod
-    def deploy_model_monitoring_stream_processing(project: str):
+    def deploy_model_monitoring_stream_processing(
+        project: str, model_monitoring_access_key: str
+    ):
         try:
             logger.info(
                 f"Checking deployment status for model-monitoring-stream [{project}]"
@@ -417,7 +412,8 @@ class ModelEndpoints:
         )
         # TODO remove custom image
         fn.spec.image = "mlrun/mlrun:automation"
-        _add_secret(fn, project, "MODEL_MONITORING_ACCESS_KEY")
+
+        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
         fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
 
         fn.apply(mlrun.mount_v3io())
@@ -425,7 +421,10 @@ class ModelEndpoints:
 
     @staticmethod
     def deploy_model_monitoring_batch_processing(
-        project: str, db_session, auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        model_monitoring_access_key: str,
+        db_session,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # Test if mlrun-job already deployed
         function_list = get_db().list_functions(
@@ -450,7 +449,7 @@ class ModelEndpoints:
 
         # TODO remove custom image
         fn.spec.image = "mlrun/mlrun:automation"
-        _add_secret(fn, project, "MODEL_MONITORING_ACCESS_KEY")
+        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
 
         function_uri = fn.save()
         function_uri = function_uri.replace("db://", "")
@@ -464,26 +463,6 @@ class ModelEndpoints:
         }
 
         _submit_run(db_session=db_session, auth_info=auth_info, data=data)
-
-
-def _check_secret_exists(project_name: str, secret: str):
-    existing_secret_keys = get_k8s_helper().get_project_secret_keys(project_name) or {}
-    return secret in existing_secret_keys
-
-
-def _add_secret(fn, project_name: str, secret: str):
-    secret_name = get_k8s_helper().get_project_secret_name(project=project_name)
-    if _check_secret_exists(project_name, secret):
-        logger.info(
-            "Project secret added to function", project=project_name, secret_name=secret
-        )
-        fn.set_env_from_secret(name=secret, secret=secret_name)
-    else:
-        logger.info(
-            "Project secret not added to function (project secret not found)",
-            project=project_name,
-            secret_name=secret,
-        )
 
 
 def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool = True):

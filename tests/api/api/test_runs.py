@@ -25,7 +25,7 @@ def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
     }
     uid = "some-uid"
     project = "some-project"
-    get_db().store_run(db, run_with_nan_float, uid, project)
+    mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
     resp = client.get(f"/api/run/{project}/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
@@ -58,7 +58,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         (run_aborted, run_aborted_uid),
         (run_dask, run_dask_uid),
     ]:
-        get_db().store_run(db, run, run_uid, project)
+        mlrun.api.crud.Runs().store_run(db, run, run_uid, project=project)
 
     mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
     abort_body = {"status.state": mlrun.runtimes.constants.RunStates.aborted}

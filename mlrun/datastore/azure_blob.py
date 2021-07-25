@@ -82,7 +82,7 @@ class AzureBlobStore(DataStore):
             size = size if size else None
             return blob_client.download_blob(offset, size).readall()
         else:
-            blob = self._filesystem.cat_file(key, start=0)
+            blob = self._filesystem.cat_file(key, start=offset)
             return blob
 
     def put(self, key, data, append=False):
@@ -108,10 +108,10 @@ class AzureBlobStore(DataStore):
         else:
             path = f"{self.endpoint}{key}"
             files = self._filesystem.ls(path, detail=True)
-            if len(files) == 0 and files[0]['kind'] == 'file':
+            if len(files) == 0 and files[0]["kind"] == "file":
                 size = files[0]["size"]
                 modified = files[0]["last_modified"]
-            elif len(files) == 0 and files[0]['kind'] == 'directory':
+            elif len(files) == 0 and files[0]["kind"] == "directory":
                 raise FileNotFoundError("Operation expects a file not a direcdtory!")
             else:
                 raise ValueError("Operation expects to receive a single file!")

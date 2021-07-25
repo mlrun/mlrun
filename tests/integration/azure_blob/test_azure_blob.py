@@ -54,16 +54,28 @@ def prepare_env(auth_method):
             "AZURE_STORAGE_CONNECTION_STRING"
         )
     else:
-        os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = config["env"].get("AZURE_STORAGE_ACCOUNT_NAME")
+        os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = config["env"].get(
+            "AZURE_STORAGE_ACCOUNT_NAME"
+        )
 
-        if auth_method == 'sas_token':
-            os.environ["AZURE_STORAGE_SAS_TOKEN"] = config["env"].get("AZURE_STORAGE_SAS_TOKEN")
-        elif auth_method == 'account_key':
-            os.environ["AZURE_STORAGE_ACCOUNT_KEY"] = config["env"].get("AZURE_STORAGE_ACCOUNT_KEY")
-        elif auth_method == 'spn':
-            os.environ["AZURE_STORAGE_CLIENT_ID"] = config["env"].get("AZURE_STORAGE_CLIENT_ID")
-            os.environ["AZURE_STORAGE_CLIENT_SECRET"] = config['env'].get('AZURE_STORAGE_CLIENT_SECRET')
-            os.environ["AZURE_STORAGE_TENANT_ID"] = config['env'].get('AZURE_STORAGE_TENANT_ID')
+        if auth_method == "sas_token":
+            os.environ["AZURE_STORAGE_SAS_TOKEN"] = config["env"].get(
+                "AZURE_STORAGE_SAS_TOKEN"
+            )
+        elif auth_method == "account_key":
+            os.environ["AZURE_STORAGE_ACCOUNT_KEY"] = config["env"].get(
+                "AZURE_STORAGE_ACCOUNT_KEY"
+            )
+        elif auth_method == "spn":
+            os.environ["AZURE_STORAGE_CLIENT_ID"] = config["env"].get(
+                "AZURE_STORAGE_CLIENT_ID"
+            )
+            os.environ["AZURE_STORAGE_CLIENT_SECRET"] = config["env"].get(
+                "AZURE_STORAGE_CLIENT_SECRET"
+            )
+            os.environ["AZURE_STORAGE_TENANT_ID"] = config["env"].get(
+                "AZURE_STORAGE_TENANT_ID"
+            )
         else:
             raise ValueError("Auth method not known")
 
@@ -115,7 +127,9 @@ def test_list_dir():
         assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
         # Check dir list for folder in container
-        dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir).listdir()
+        dir_list = mlrun.run.get_dataitem(
+            blob_container_path + "/" + blob_dir
+        ).listdir()
         assert blob_file in dir_list, "File not in folder dir-list"
 
 

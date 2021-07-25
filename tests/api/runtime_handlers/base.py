@@ -45,7 +45,9 @@ class TestRuntimeHandlerBase:
             },
             "metadata": {"project": self.project, "uid": self.run_uid},
         }
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
 
     @pytest.fixture(autouse=True)
     def setup_method_fixture(self, db: Session, client: fastapi.testclient.TestClient):

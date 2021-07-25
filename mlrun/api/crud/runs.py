@@ -22,7 +22,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         db_session: sqlalchemy.orm.Session,
         data: dict,
         uid: str,
-        iter: int,
+        iter: int = 0,
         project: str = mlrun.mlconf.default_project,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):

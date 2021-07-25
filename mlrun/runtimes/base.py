@@ -1751,7 +1751,7 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run.setdefault("status", {})["last_update"] = now_date().isoformat()
-        db.store_run(db_session, run, uid, project, leader_session=leader_session)
+        db.store_run(db_session, run, uid, project)
 
         return True, run_state
 

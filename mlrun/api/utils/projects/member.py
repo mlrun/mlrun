@@ -27,7 +27,7 @@ class Member(abc.ABC):
     ):
         project_names = self.list_projects(
             db_session,
-            format_=mlrun.api.schemas.Format.name_only,
+            format_=mlrun.api.schemas.ProjectsFormat.name_only,
             leader_session=leader_session,
         )
         if name in project_names.projects:
@@ -107,7 +107,7 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,

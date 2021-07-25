@@ -12,12 +12,12 @@ import mlrun.api.schemas
 from mlrun.api.api import deps
 from mlrun.api.crud.model_endpoints import EVENTS, ModelEndpoints, get_access_key
 from mlrun.api.schemas import (
-    Format,
     GrafanaColumn,
     GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaTable,
     GrafanaTimeSeriesTarget,
+    ProjectsFormat,
 )
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.errors import MLRunBadRequestError
@@ -100,7 +100,7 @@ def grafana_list_projects(
     db_session: Session, auth_info: mlrun.api.schemas.AuthInfo
 ) -> List[str]:
     projects_output = get_project_member().list_projects(
-        db_session, format_=Format.name_only, leader_session=auth_info.session
+        db_session, format_=ProjectsFormat.name_only, leader_session=auth_info.session
     )
     return projects_output.projects
 

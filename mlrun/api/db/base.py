@@ -214,7 +214,7 @@ class DBInterface(ABC):
         self,
         session,
         owner: str = None,
-        format_: schemas.Format = schemas.Format.full,
+        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:

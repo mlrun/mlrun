@@ -207,7 +207,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
 
     # list projects with summary format
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.summary}
+        "/api/projects", params={"format": mlrun.api.schemas.ProjectsFormat.summary}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     for index, project_summary in enumerate(projects_output.projects):
@@ -339,7 +339,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
 
     # list - full
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.full}
+        "/api/projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -678,7 +678,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.api.schemas.Format.name_only
+    params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
     response = client.get("/api/projects", params=params,)
     assert expected_names == response.json()["projects"]

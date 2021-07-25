@@ -96,10 +96,12 @@ async def grafana_proxy_model_endpoints_search(
     return result
 
 
-def grafana_list_projects(db_session: Session) -> List[str]:
-    db = get_db()
-
-    projects_output = db.list_projects(session=db_session, format_=Format.name_only)
+def grafana_list_projects(
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo
+) -> List[str]:
+    projects_output = get_project_member().list_projects(
+        db_session, format_=Format.name_only, leader_session=auth_info.session
+    )
     return projects_output.projects
 
 

@@ -12,7 +12,6 @@ from .background_task import (
 from .constants import (
     DeletionStrategy,
     FeatureStorePartitionByField,
-    Format,
     HeaderNames,
     OrderType,
     PatchMode,
@@ -58,12 +57,13 @@ from .model_endpoints import (
     ModelEndpointStatus,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
-from .pipeline import PipelinesOutput, PipelinesPagination
+from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectsFormat,
     ProjectsOutput,
     ProjectSpec,
     ProjectState,

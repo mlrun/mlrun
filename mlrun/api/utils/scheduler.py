@@ -484,8 +484,8 @@ class Scheduler:
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # import here to avoid circular imports
-        from mlrun.api.api.utils import submit_run
         import mlrun.api.crud
+        from mlrun.api.api.utils import submit_run
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop

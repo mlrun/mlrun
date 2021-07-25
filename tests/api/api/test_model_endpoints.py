@@ -12,6 +12,7 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
+import mlrun.api.schemas
 from mlrun.api.crud.model_endpoints import (
     ENDPOINTS,
     EVENTS,
@@ -328,11 +329,11 @@ def test_build_kv_cursor_filter_expression():
 
 
 def test_get_access_key():
-    key = get_access_key({"X-V3io-Session-Key": "asd"})
+    key = get_access_key(mlrun.api.schemas.AuthInfo(data_session="asd"))
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        get_access_key({"some_other_header": "asd"})
+        get_access_key(mlrun.api.schemas.AuthInfo())
 
 
 def test_get_endpoint_features_function():

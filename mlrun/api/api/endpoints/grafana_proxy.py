@@ -28,12 +28,14 @@ router = APIRouter()
 
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
-def grafana_proxy_model_endpoints_check_connection(request: Request):
+def grafana_proxy_model_endpoints_check_connection(
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+):
     """
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
     """
-    get_access_key(request.headers)
+    get_access_key(auth_verifier.auth_info)
     return Response(status_code=HTTPStatus.OK.value)
 
 
@@ -42,7 +44,7 @@ def grafana_proxy_model_endpoints_check_connection(request: Request):
     response_model=List[Union[GrafanaTable, GrafanaTimeSeriesTarget]],
 )
 async def grafana_proxy_model_endpoints_query(
-    request: Request,
+    request: Request, auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier)
 ) -> List[Union[GrafanaTable, GrafanaTimeSeriesTarget]]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
@@ -51,7 +53,7 @@ async def grafana_proxy_model_endpoints_query(
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
-    access_key = get_access_key(request.headers)
+    access_key = get_access_key(auth_verifier.auth_info)
     body = await request.json()
     query_parameters = _parse_query_parameters(body)
     _validate_query_parameters(query_parameters, SUPPORTED_QUERY_FUNCTIONS)
@@ -67,7 +69,9 @@ async def grafana_proxy_model_endpoints_query(
 
 @router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
 async def grafana_proxy_model_endpoints_search(
-    request: Request, db_session: Session = Depends(deps.get_db_session),
+    request: Request,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ) -> List[str]:
     """
     Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
@@ -76,7 +80,7 @@ async def grafana_proxy_model_endpoints_search(
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
-    get_access_key(request.headers)
+    get_access_key(auth_verifier.auth_info)
     body = await request.json()
     query_parameters = _parse_search_parameters(body)
 

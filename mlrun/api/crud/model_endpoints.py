@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
@@ -510,10 +510,8 @@ def build_kv_cursor_filter_expression(
     return " AND ".join(filter_expression)
 
 
-def get_access_key(request_headers: Mapping):
-    access_key = request_headers.get("X-V3io-Session-Key")
+def get_access_key(auth_info: mlrun.api.schemas.AuthInfo):
+    access_key = auth_info.data_session
     if not access_key:
-        raise MLRunBadRequestError(
-            "Request header missing 'X-V3io-Session-Key' parameter."
-        )
+        raise MLRunBadRequestError("Data session is missing")
     return access_key

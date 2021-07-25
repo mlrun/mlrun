@@ -29,7 +29,7 @@ def create_or_patch(
     """
     Either create or updates the kv record of a given ModelEndpoint object
     """
-    access_key = get_access_key(request.headers)
+    access_key = get_access_key(auth_verifier.auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
@@ -53,12 +53,16 @@ def create_or_patch(
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 def delete_endpoint_record(
-    request: Request, project: str, endpoint_id: str
+    project: str,
+    endpoint_id: str,
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
 ) -> Response:
     """
     Clears endpoint record from KV by endpoint_id
     """
-    access_key = get_access_key(request.headers)
+    access_key = get_access_key(auth_verifier.auth_info)
     ModelEndpoints.delete_endpoint_record(
         access_key=access_key, project=project, endpoint_id=endpoint_id,
     )
@@ -67,7 +71,6 @@ def delete_endpoint_record(
 
 @router.get("/projects/{project}/model-endpoints", response_model=ModelEndpointList)
 def list_endpoints(
-    request: Request,
     project: str,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
@@ -75,6 +78,9 @@ def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
 ) -> ModelEndpointList:
     """
      Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
@@ -90,7 +96,7 @@ def list_endpoints(
      Or by using a "," (comma) separator:
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
      """
-    access_key = get_access_key(request.headers)
+    access_key = get_access_key(auth_verifier.auth_info)
     endpoints = ModelEndpoints.list_endpoints(
         access_key=access_key,
         project=project,
@@ -108,15 +114,17 @@ def list_endpoints(
     "/projects/{project}/model-endpoints/{endpoint_id}", response_model=ModelEndpoint
 )
 def get_endpoint(
-    request: Request,
     project: str,
     endpoint_id: str,
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
 ) -> ModelEndpoint:
-    access_key = get_access_key(request.headers)
+    access_key = get_access_key(auth_verifier.auth_info)
     endpoint = ModelEndpoints.get_endpoint(
         access_key=access_key,
         project=project,

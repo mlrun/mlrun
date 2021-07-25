@@ -95,9 +95,7 @@ def delete_project_secrets(
 def list_secret_keys(
     project: str,
     provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
-    token: str = fastapi.Header(
-        None, alias=schemas.fastapi.HeaderNames.secret_store_token
-    ),
+    token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
     auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
         mlrun.api.api.deps.AuthVerifier
     ),
@@ -144,9 +142,7 @@ def list_secrets(
     project: str,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
     provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
-    token: str = fastapi.Header(
-        None, alias=schemas.fastapi.HeaderNames.secret_store_token
-    ),
+    token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
     auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
         mlrun.api.api.deps.AuthVerifier
     ),

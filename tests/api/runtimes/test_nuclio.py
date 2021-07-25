@@ -337,6 +337,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
+        mlconf.nuclio_version = "1.6.10"
         function = self._generate_runtime("nuclio")
 
         node_name = "some-node-name"

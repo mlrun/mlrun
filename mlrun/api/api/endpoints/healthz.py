@@ -23,6 +23,7 @@ def health():
         "kfp_image": config.kfp_image,
         "dask_kfp_image": config.dask_kfp_image,
         "api_url": config.httpdb.api_url,
+        "nuclio_version": _resolve_nuclio_version(),
         # These have a default value, therefore we want to send them only if their value is not the default one
         # (otherwise clients don't know when to use server value and when to use client value)
         "ui_projects_prefix": _get_config_value_if_not_default("ui.projects_prefix"),
@@ -31,7 +32,6 @@ def health():
         "default_function_node_selector": _get_config_value_if_not_default(
             "default_function_node_selector"
         ),
-        "nuclio_version": _get_config_value_if_not_default("nuclio_version"),
     }
 
 
@@ -57,7 +57,7 @@ cached_nuclio_version = None
 # if not specified, get it from nuclio api client
 # since this is a heavy operation (sending requests to API), and it's unlikely that the version
 # will change in any context - cache it
-def resolve_nuclio_version():
+def _resolve_nuclio_version():
     global cached_nuclio_version
     if not cached_nuclio_version:
 

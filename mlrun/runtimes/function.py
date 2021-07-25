@@ -491,7 +491,13 @@ class RemoteRuntime(KubeResource):
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
+        if not mlrun.mlconf.nuclio_version:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Missing nuclio version for node selection "
+                "compatibility verification"
+            )
         try:
+            # TODO: handle labels like stable, unstable, latest
             parsed_nuclio_version = semver.VersionInfo.parse(
                 mlrun.mlconf.nuclio_version
             )
@@ -502,7 +508,6 @@ class RemoteRuntime(KubeResource):
             )
             raise exc
 
-        # TODO: handle labels like stable, unstable, latest
         message = (
             f"Node selection is supported since nuclio 1.5.20 or 1.6.10, currently using nuclio "
             f"{mlrun.mlconf.nuclio_version}, please upgrade."

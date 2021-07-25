@@ -183,9 +183,7 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
 
     expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
 
-    schedule = get_db().get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
-    )
+    schedule = get_db().get_schedule(db, project, schedule_name)
     assert schedule.last_run_uri == expected_last_run_uri
 
 

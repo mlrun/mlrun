@@ -260,7 +260,7 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
-        db_session, format_=mlrun.api.schemas.Format.name_only
+        db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
     )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 

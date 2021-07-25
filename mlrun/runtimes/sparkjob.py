@@ -121,6 +121,7 @@ class SparkJobSpec(KubeResourceSpec):
         spark_conf=None,
         hadoop_conf=None,
         node_selector=None,
+        use_default_image=False,
     ):
 
         super().__init__(
@@ -154,6 +155,7 @@ class SparkJobSpec(KubeResourceSpec):
         self.restart_policy = restart_policy or {}
         self.deps = deps
         self.main_class = main_class
+        self.use_default_image = use_default_image
 
 
 class SparkRuntime(KubejobRuntime):
@@ -162,47 +164,44 @@ class SparkRuntime(KubejobRuntime):
     apiVersion = group + "/" + version
     kind = "spark"
     plural = "sparkapplications"
-    default_image = ".spark-job-default-image"
+    default_mlrun_image = ".spark-job-default-image"
+    gpu_suffix = "-cuda"
 
     @classmethod
-    def deploy_default_image(cls):
+    def _default_mlrun_image_name(cls, with_gpu=False):
+        suffix = cls.gpu_suffix if with_gpu else ""
+        return cls.default_mlrun_image + suffix
+
+    @classmethod
+    def deploy_default_image(cls, with_gpu=False):
         from mlrun.run import new_function
 
         sj = new_function(
             kind=cls.kind, name="spark-default-image-deploy-temp"
         )
-        sj.spec.build.image = cls.default_image
+        sj.spec.build.image = cls._default_mlrun_image_name(with_gpu)
         sj.with_spark_service(spark_service="dummy-spark")
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
-    @property
-    def _default_image(self):
+    def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
             resources=self.spec.driver_resources["requests"]
         )
         _, executor_gpu = self._get_gpu_type_and_quantity(
             resources=self.spec.executor_resources["requests"]
         )
-        gpu_bound = bool(driver_gpu or executor_gpu)
+        return bool(driver_gpu or executor_gpu)
+
+    @property
+    def _default_image(self):
         if config.spark_app_image_tag and config.spark_app_image:
             return (
                 config.spark_app_image
-                + ("-cuda" if gpu_bound else "")
+                + ("-cuda" if self._is_using_gpu() else "")
                 + ":"
                 + config.spark_app_image_tag
             )
-        return None
-
-    @property
-    def _resolve_default_base_image(self):
-        if (
-                config.spark_app_image
-                and config.spark_app_image_tag
-        ):
-            app_image = re.sub("spark-app", "shell", config.spark_app_image)
-            # this is temporary until we get the image name from external config
-            return app_image + ":" + config.spark_app_image_tag
         return None
 
     def deploy(
@@ -217,7 +216,7 @@ class SparkRuntime(KubejobRuntime):
         # connect will populate the config from the server config
         get_run_db()
         if not self.spec.build.base_image:
-            self.spec.build.base_image = self._resolve_default_base_image
+            self.spec.build.base_image = self._default_image
         return super().deploy(
             watch=watch,
             with_mlrun=with_mlrun,
@@ -283,8 +282,12 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
-        if (not self.spec.image) and self._default_image:
-            self.spec.image = self._default_image
+        if not self.spec.image:
+            if self.spec.use_default_image:
+                self.spec.image = self._default_mlrun_image_name(self._is_using_gpu())
+            elif self._default_image:
+                self.spec.image = self._default_image
+
         update_in(job, "spec.image", self.full_image_path())
 
         update_in(job, "spec.volumes", self.spec.volumes)

@@ -624,7 +624,6 @@ def test_data_migration_fix_datasets_large_previews(
         artifact_with_valid_preview_key,
         artifact_with_valid_preview.to_dict(),
         artifact_with_valid_preview_uid,
-        ensure_project=False,
     )
 
     artifact_with_invalid_preview_key = "artifact-with-invalid-preview-key"
@@ -643,7 +642,6 @@ def test_data_migration_fix_datasets_large_previews(
         artifact_with_invalid_preview_key,
         artifact_with_invalid_preview.to_dict(),
         artifact_with_invalid_preview_uid,
-        ensure_project=False,
     )
 
     # perform the migration

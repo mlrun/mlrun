@@ -110,8 +110,8 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
             feature_sets.feature_sets,
             lambda feature_set: (
-                feature_sets.metadata.project,
-                feature_sets.metadata.name,
+                feature_set.metadata.project,
+                feature_set.metadata.name,
             ),
             auth_info,
         )

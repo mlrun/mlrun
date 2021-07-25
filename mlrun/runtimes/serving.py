@@ -18,7 +18,8 @@ from typing import List, Union
 import nuclio
 
 import mlrun
-
+from .function import NuclioSpec, RemoteRuntime
+from .function_reference import FunctionReference
 from ..model import ObjectList
 from ..secrets import SecretsStore
 from ..serving.server import GraphServer, create_graph_server
@@ -31,8 +32,6 @@ from ..serving.states import (
     new_remote_endpoint,
 )
 from ..utils import get_caller_globals, logger
-from .function import NuclioSpec, RemoteRuntime
-from .function_reference import FunctionReference
 
 serving_subkind = "serving_v2"
 
@@ -231,6 +230,7 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
+        model_monitoring_access_key: str = None,
     ):
         """set tracking stream parameters:
 
@@ -239,17 +239,29 @@ class ServingRuntime(RemoteRuntime):
         :param batch:        micro batch size (send micro batches of N records at a time)
         :param sample:       sample size (send only one of N records)
         :param stream_args:  stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param model_monitoring_access_key: access key with write permissions under project's paths
+                             (i.e. v3io:///projects/{project_name}). When provided, model monitoring functions will be
+                             automatically deployed.
         """
+        if model_monitoring_access_key and stream_path:
+            raise ValueError("Model monitoring does not support custom stream paths")
+
         self.spec.track_models = True
+
         if stream_path:
-            logger.warn("Passing stream_path to set_tracking is no longer supported, ignoring stream_path")
-            # self.spec.parameters["log_stream"] = stream_path
+            logger.warn(
+                "Passing stream_path to set_tracking is no longer supported, ignoring stream_path"
+            )
+            self.spec.parameters["log_stream"] = stream_path
         if batch:
             self.spec.parameters["log_stream_batch"] = batch
         if sample:
             self.spec.parameters["log_stream_sample"] = sample
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
+
+        if model_monitoring_access_key:
+            self.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
 
     def add_model(
         self,

@@ -220,13 +220,6 @@ class DataStore:
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
-def _drop_reserved_columns(df):
-    cols_to_drop = []
-    for col in df.columns:
-        if col.startswith("igzpart_"):
-            cols_to_drop.append(col)
-    df = df.drop(labels=cols_to_drop, axis=1, errors="ignore")
-
 
 class DataItem:
     """Data input/output class abstracting access to various local/remote data sources

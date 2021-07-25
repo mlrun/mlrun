@@ -10,7 +10,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
 import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
@@ -486,6 +485,7 @@ class Scheduler:
     ):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run
+        import mlrun.api.crud
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop

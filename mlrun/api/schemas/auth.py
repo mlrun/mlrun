@@ -37,6 +37,7 @@ class AuthorizationResourceTypes(str, enum.Enum):
     schedule = "schedule"
     secret = "secret"
     run = "run"
+    model_endpoint = "model-endpoint"
 
 
 class AuthInfo(pydantic.BaseModel):

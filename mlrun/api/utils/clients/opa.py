@@ -164,6 +164,8 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             # runtime resource doesn't have a get (one) object endpoint, it doesn't have an identifier
             mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources/"
             "",
+            mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{res"
+            "ource_name}",
         }[resource_type].format(project_name=project_name, resource_name=resource_name)
 
     def _is_request_from_leader(

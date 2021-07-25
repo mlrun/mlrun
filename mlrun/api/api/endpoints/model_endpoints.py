@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
@@ -17,7 +17,6 @@ router = APIRouter()
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 def create_or_patch(
-    request: Request,
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
@@ -62,10 +61,7 @@ def delete_endpoint_record(
     """
     Clears endpoint record from KV by endpoint_id
     """
-    access_key = get_access_key(auth_verifier.auth_info)
-    ModelEndpoints.delete_endpoint_record(
-        access_key=access_key, project=project, endpoint_id=endpoint_id,
-    )
+    ModelEndpoints.delete_endpoint_record(auth_verifier.auth_info, project, endpoint_id)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -96,9 +92,8 @@ def list_endpoints(
      Or by using a "," (comma) separator:
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
      """
-    access_key = get_access_key(auth_verifier.auth_info)
     endpoints = ModelEndpoints.list_endpoints(
-        access_key=access_key,
+        auth_info=auth_verifier.auth_info,
         project=project,
         model=model,
         function=function,
@@ -124,9 +119,8 @@ def get_endpoint(
         mlrun.api.api.deps.AuthVerifier
     ),
 ) -> ModelEndpoint:
-    access_key = get_access_key(auth_verifier.auth_info)
     endpoint = ModelEndpoints.get_endpoint(
-        access_key=access_key,
+        auth_info=auth_verifier.auth_info,
         project=project,
         endpoint_id=endpoint_id,
         metrics=metrics,

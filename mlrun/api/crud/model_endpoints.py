@@ -474,7 +474,7 @@ class ModelEndpoints:
             "hub://model_monitoring_batch:experimental"
         )
 
-        fn.set_db_connection(get_run_db_instance(db_session, auth_info.session))
+        fn.set_db_connection(get_run_db_instance(db_session, auth_info))
 
         fn.metadata.project = project
         fn.apply(mlrun.mount_v3io())

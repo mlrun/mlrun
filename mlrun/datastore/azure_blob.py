@@ -122,5 +122,5 @@ class AzureBlobStore(DataStore):
             return [blob.name[key_length:] for blob in blob_list]
         else:
             path = f"{self.endpoint}{key}"
-            files = self._filesystem.ls(path, detail=True)
-            return [f for f in files if f["type"] == "directory"]
+            files = self._filesystem.ls(path)
+            return files

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from mlrun.api.utils.clients import nuclio
 from mlrun.config import config, default_config
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
@@ -30,6 +31,7 @@ def health():
         "default_function_node_selector": _get_config_value_if_not_default(
             "default_function_node_selector"
         ),
+        "nuclio_version": _get_config_value_if_not_default("nuclio_version"),
     }
 
 
@@ -46,3 +48,25 @@ def _get_config_value_if_not_default(config_key):
         return None
     else:
         return current_config_value
+
+
+cached_nuclio_version = None
+
+
+# if nuclio version specified on mlrun config set it likewise,
+# if not specified, get it from nuclio api client
+# since this is a heavy operation (sending requests to API), and it's unlikely that the version
+# will change in any context - cache it
+def resolve_nuclio_version():
+    global cached_nuclio_version
+    if not cached_nuclio_version:
+
+        # config override everything
+        nuclio_version = config.nuclio_version
+        if not nuclio_version:
+            nuclio_client = nuclio.Client()
+            nuclio_version = nuclio_client.get_dashboard_version()
+
+        cached_nuclio_version = nuclio_version
+
+    return cached_nuclio_version

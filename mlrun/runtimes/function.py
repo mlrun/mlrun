@@ -492,23 +492,35 @@ class RemoteRuntime(KubeResource):
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
         try:
-            parsed_nuclio_version = semver.VersionInfo.parse(mlrun.mlconf.nuclio_version)
+            parsed_nuclio_version = semver.VersionInfo.parse(
+                mlrun.mlconf.nuclio_version
+            )
         except ValueError as exc:
             logger.error(
                 "Unable to parse nuclio version",
                 nuclio_version=mlrun.mlconf.nuclio_version,
             )
             raise exc
-        message = f"Node selection is supported since nuclio 1.5.20 or 1.6.10, currently using nuclio " \
-                  f"{mlrun.mlconf.nuclio_version}, please upgrade."
+
+        # TODO: handle labels like stable, unstable, latest
+        message = (
+            f"Node selection is supported since nuclio 1.5.20 or 1.6.10, currently using nuclio "
+            f"{mlrun.mlconf.nuclio_version}, please upgrade."
+        )
         if parsed_nuclio_version.major < 1:
             raise mlrun.errors.MLRunMissingDependencyError(message)
 
         if parsed_nuclio_version.major == 1:
             if (
                 parsed_nuclio_version.minor < 5
-                or (parsed_nuclio_version.minor == 5 and parsed_nuclio_version.patch < 20)
-                or (parsed_nuclio_version.minor == 6 and parsed_nuclio_version.patch < 10)
+                or (
+                    parsed_nuclio_version.minor == 5
+                    and parsed_nuclio_version.patch < 20
+                )
+                or (
+                    parsed_nuclio_version.minor == 6
+                    and parsed_nuclio_version.patch < 10
+                )
             ):
                 raise mlrun.errors.MLRunMissingDependencyError(message)
 

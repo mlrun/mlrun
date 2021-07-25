@@ -270,6 +270,9 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
             )
+            config.nuclio_version = (
+                server_cfg.get("nuclio_version") or config.nuclio_version
+            )
         except Exception:
             pass
         return self

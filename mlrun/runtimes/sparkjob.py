@@ -180,7 +180,6 @@ class SparkRuntime(KubejobRuntime):
             kind=cls.kind, name="spark-default-image-deploy-temp"
         )
         sj.spec.build.image = cls._default_mlrun_image_name(with_gpu)
-        sj.with_spark_service(spark_service="dummy-spark")
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 

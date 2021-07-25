@@ -222,7 +222,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         tag_artifact=True,
     ):
         project = project or config.default_project
-        artifact = artifact.copy()
+        artifact = deepcopy(artifact)
         updated = artifact.get("updated")
         if not updated:
             updated = artifact["updated"] = datetime.now(timezone.utc)
@@ -428,6 +428,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             versioned=versioned,
             function=function,
         )
+        function = deepcopy(function)
         project = project or config.default_project
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)

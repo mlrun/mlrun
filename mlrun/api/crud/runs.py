@@ -1,12 +1,15 @@
-import typing
+import datetime
 
 import sqlalchemy.orm
 
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.errors
+import mlrun.lists
 import mlrun.runtimes
 import mlrun.runtimes.constants
 import mlrun.utils.singleton
@@ -14,15 +17,46 @@ from mlrun.utils import logger
 
 
 class Runs(metaclass=mlrun.utils.singleton.Singleton,):
+    def store_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        data: dict,
+        uid: str,
+        iter: int,
+        project: str = mlrun.mlconf.default_project,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+            db_session, project, leader_session=auth_info.session
+        )
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            project,
+            uid,
+            mlrun.api.schemas.AuthorizationAction.store,
+            auth_info,
+        )
+        logger.info("Storing run", data=data)
+        mlrun.api.utils.singletons.db.get_db().store_run(
+            db_session, data, uid, project, iter=iter,
+        )
+
     def update_run(
         self,
-        session: sqlalchemy.orm.Session,
+        db_session: sqlalchemy.orm.Session,
         project: str,
         uid: str,
         iter: int,
         data: dict,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            project,
+            uid,
+            mlrun.api.schemas.AuthorizationAction.update,
+            auth_info,
+        )
         logger.debug("Updating run", project=project, uid=uid, iter=iter, data=data)
         # TODO: do some desired state for run, it doesn't make sense that API user changes the status in order to
         #  trigger abortion
@@ -31,7 +65,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             and data.get("status.state") == mlrun.runtimes.constants.RunStates.aborted
         ):
             current_run = mlrun.api.utils.singletons.db.get_db().read_run(
-                session, uid, project, iter
+                db_session, uid, project, iter
             )
             if (
                 current_run.get("status", {}).get("state")
@@ -49,11 +83,129 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
             #  "knowledge" on the label selector
             mlrun.api.crud.Runtimes().delete_runtimes(
-                session,
+                db_session,
                 label_selector=f"mlrun/project={project},mlrun/uid={uid}",
                 force=True,
-                leader_session=leader_session,
+                leader_session=auth_info.session,
             )
         mlrun.api.utils.singletons.db.get_db().update_run(
-            session, data, uid, project, iter
+            db_session, data, uid, project, iter
+        )
+
+    def get_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        uid: str,
+        iter: int,
+        project: str = mlrun.mlconf.default_project,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ) -> dict:
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            project,
+            uid,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+        return mlrun.api.utils.singletons.db.get_db().read_run(
+            db_session, uid, project, iter
+        )
+
+    def list_runs(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name=None,
+        uid=None,
+        project: str = mlrun.mlconf.default_project,
+        labels=None,
+        state=None,
+        sort=True,
+        last=0,
+        iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        runs = mlrun.api.utils.singletons.db.get_db().list_runs(
+            db_session,
+            name=name,
+            uid=uid,
+            project=project,
+            labels=labels,
+            state=state,
+            sort=sort,
+            last=last,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+        )
+        filtered_runs = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            runs,
+            lambda run: (
+                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("uid"),
+            ),
+            auth_info,
+        )
+        runs = mlrun.lists.RunList()
+        for filtered_run in filtered_runs:
+            runs.append(filtered_run)
+        return runs
+
+    def delete_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        uid: str,
+        iter: int,
+        project: str = mlrun.mlconf.default_project,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            project,
+            uid,
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+        mlrun.api.utils.singletons.db.get_db().del_run(db_session, uid, project, iter)
+
+    def delete_runs(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name=None,
+        project: str = mlrun.mlconf.default_project,
+        labels=None,
+        state=None,
+        days_ago: int = 0,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        start_time_from = datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(days=days_ago)
+        runs = self.list_runs(
+            db_session,
+            name,
+            project=project,
+            labels=labels,
+            state=state,
+            start_time_from=start_time_from,
+            auth_info=auth_info,
+        )
+        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            runs,
+            lambda run: (
+                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("uid"),
+            ),
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+        mlrun.api.utils.singletons.db.get_db().del_runs(
+            db_session, name, project, labels, state, days_ago
         )

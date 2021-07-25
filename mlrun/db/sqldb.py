@@ -70,27 +70,44 @@ class SQLDB(RunDBInterface):
         )
 
     def store_run(self, struct, uid, project="", iter=0):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.store_run,
+            mlrun.api.crud.Runs().store_run,
             self.session,
             struct,
             uid,
-            project,
             iter,
-            self.leader_session,
+            project,
+            self.auth_info,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.update_run, self.session, updates, uid, project, iter
+            mlrun.api.crud.Runs().update_run,
+            self.session,
+            project,
+            uid,
+            iter,
+            updates,
+            self.auth_info,
         )
 
     def abort_run(self, uid, project="", iter=0):
         raise NotImplementedError()
 
     def read_run(self, uid, project=None, iter=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.read_run, self.session, uid, project, iter
+            mlrun.api.crud.Runs().get_run,
+            self.session,
+            uid,
+            iter,
+            project,
+            self.auth_info,
         )
 
     def list_runs(
@@ -104,8 +121,10 @@ class SQLDB(RunDBInterface):
         last=0,
         iter=None,
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.list_runs,
+            mlrun.api.crud.Runs().list_runs,
             self.session,
             name,
             uid,
@@ -115,16 +134,33 @@ class SQLDB(RunDBInterface):
             sort,
             last,
             iter,
+            auth_info=self.auth_info,
         )
 
     def del_run(self, uid, project=None, iter=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.del_run, self.session, uid, project, iter
+            mlrun.api.crud.Runs().delete_run,
+            self.session,
+            uid,
+            iter,
+            project,
+            self.auth_info,
         )
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.del_runs, self.session, name, project, labels, state, days_ago
+            mlrun.api.crud.Runs().delete_runs,
+            self.session,
+            name,
+            project,
+            labels,
+            state,
+            days_ago,
+            self.auth_info,
         )
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):

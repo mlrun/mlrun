@@ -10,6 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
@@ -502,11 +503,12 @@ class Scheduler:
 
         db_session = create_session()
 
-        active_runs = get_db().list_runs(
+        active_runs = mlrun.api.crud.Runs().list_runs(
             db_session,
             state=RunStates.non_terminal_states(),
             project=project_name,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
+            auth_info=auth_info,
         )
         if len(active_runs) >= schedule_concurrency_limit:
             logger.warn(

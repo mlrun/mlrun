@@ -92,20 +92,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         return self._query(session, Log, project=project).all()
 
     def store_run(
-        self,
-        session,
-        run_data,
-        uid,
-        project="",
-        iter=0,
-        leader_session: Optional[str] = None,
+        self, session, run_data, uid, project="", iter=0,
     ):
-        project = project or config.default_project
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
-        )
-        get_project_member().ensure_project(
-            session, project, leader_session=leader_session
         )
         run = self._get_run(session, uid, project, iter)
         if not run:

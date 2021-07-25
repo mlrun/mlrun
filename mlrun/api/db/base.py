@@ -40,13 +40,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_run(
-        self,
-        session,
-        struct,
-        uid,
-        project="",
-        iter=0,
-        leader_session: Optional[str] = None,
+        self, session, struct, uid, project="", iter=0,
     ):
         pass
 

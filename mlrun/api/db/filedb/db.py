@@ -24,13 +24,7 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(self.db.get_log, uid, project, offset, size)
 
     def store_run(
-        self,
-        session,
-        struct,
-        uid,
-        project="",
-        iter=0,
-        leader_session: Optional[str] = None,
+        self, session, struct, uid, project="", iter=0,
     ):
         return self._transform_run_db_error(
             self.db.store_run, struct, uid, project, iter

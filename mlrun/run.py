@@ -927,7 +927,8 @@ def wait_for_pipeline_completion(
     if expected_statuses is None:
         expected_statuses = [RunStatuses.succeeded]
     namespace = namespace or mlconf.namespace
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
+    # remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
+    remote = True
     logger.debug(
         f"Waiting for run completion."
         f" run_id: {run_id},"
@@ -950,6 +951,7 @@ def wait_for_pipeline_completion(
                 logger.debug(".")
                 raise RuntimeError("pipeline run has not completed yet")
 
+            show_kfp_run(resp, clear_output=True)
             return resp
 
         if mldb.kind != "http":
@@ -973,8 +975,8 @@ def wait_for_pipeline_completion(
         if resp:
             resp = resp.to_dict()
             resp = format_summary_from_kfp_run(resp)
+        show_kfp_run(resp)
 
-    show_kfp_run(resp)
     status = resp["run"]["status"] if resp else "unknown"
     if expected_statuses:
         if status not in expected_statuses:

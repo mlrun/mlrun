@@ -701,8 +701,8 @@ def format_summary_from_kfp_run(run, project=None, session=None):
     return short_run
 
 
-def show_kfp_run(run):
-    phase_to_color = {"failed": "red", "succeeded": "green"}
+def show_kfp_run(run, clear_output=False):
+    phase_to_color = {"failed": "red", "succeeded": "green", "skipped": "white"}
     runtype_to_shape = {"run": "ellipse", "build": "box", "deploy": "invhouse"}
     if not run or "graph" not in run:
         return
@@ -718,13 +718,20 @@ def show_kfp_run(run):
             dag.attr(compound="true")
 
             for key, node in graph.items():
-                if node["type"] != "DAG":
+                if node["type"] != "DAG" or node["parent"]:
+                    shape = "ellipse"
+                    if node.get("run_type"):
+                        shape = runtype_to_shape.get(node["run_type"], None)
+                    elif node["phase"] == "Skipped" or (
+                        node["type"] == "DAG" and node["name"].startswith("condition-")
+                    ):
+                        shape = "diamond"
                     dag.node(
                         key,
                         label=node["name"],
                         fillcolor=phase_to_color.get(node["phase"].lower(), None),
                         style="filled",
-                        shape=runtype_to_shape.get(node["run_type"], None),
+                        shape=shape,
                         tooltip=node.get("error", None),
                     )
                     for child in node.get("children") or []:
@@ -732,6 +739,8 @@ def show_kfp_run(run):
 
             import IPython
 
+            if clear_output:
+                IPython.display.clear_output(wait=True)
             IPython.display.display(dag)
         except Exception as exc:
             logger.warning(f"failed to plot graph, {exc}")

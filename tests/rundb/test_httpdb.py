@@ -255,12 +255,14 @@ def test_artifacts(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, key, body = "p9", "u19", "k802", "tomato"
-    artifact = Artifact(key, body)
+    artifact = Artifact(key, body, target_path="a.txt")
 
     db.store_artifact(key, artifact, uid, project=prj)
     db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 2, "bad number of artifacts"
+    assert artifacts.objects()[0].key == key, "not a valid artifact object"
+    assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
 
     artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
     assert len(artifacts) == 1, "bad number of artifacts"

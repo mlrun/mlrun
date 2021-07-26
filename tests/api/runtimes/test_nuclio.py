@@ -1,25 +1,28 @@
 import base64
+import json
 import os
 import unittest.mock
 
 import deepdiff
 import nuclio
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun import code_to_function
+from mlrun import code_to_function, mlconf
 from mlrun.platforms.iguazio import split_path
-from mlrun.runtimes.function import deploy_nuclio_function
+from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
+from mlrun.runtimes.function import (
+    compile_function_config,
+    deploy_nuclio_function,
+    enrich_function_with_ingress,
+    resolve_function_ingresses,
+)
+from mlrun.runtimes.pod import KubeResourceSpec
 from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestNuclioRuntime(TestRuntimeBase):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
 
     def custom_setup(self):
@@ -193,6 +196,103 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
         self._assert_pod_env(env_config, expected_env)
 
+    def _assert_node_selections(
+        self,
+        kube_resource_spec: KubeResourceSpec,
+        expected_node_name=None,
+        expected_node_selector=None,
+        expected_affinity=None,
+    ):
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        if expected_node_name:
+            assert deploy_spec["nodeName"] == expected_node_name
+
+        if expected_node_selector:
+            assert (
+                deepdiff.DeepDiff(
+                    deploy_spec["nodeSelector"],
+                    expected_node_selector,
+                    ignore_order=True,
+                )
+                == {}
+            )
+        if expected_affinity:
+
+            # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
+            assert (
+                deepdiff.DeepDiff(
+                    kube_resource_spec._transform_affinity_to_k8s_class_instance(
+                        deploy_spec["affinity"]
+                    ),
+                    expected_affinity,
+                    ignore_order=True,
+                )
+                == {}
+            )
+
+    def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
+        """
+        Expect no ingress template to be created, thought its mode is "always",
+        since the function already have a pre-configured ingress
+        """
+        function = self._generate_runtime("nuclio")
+
+        # both ingress and node port
+        ingress_host = "something.com"
+        function.with_http(host=ingress_host, paths=["/"], port=30030)
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "NodePort"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.always, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert len(ingresses) > 0, "Expected one ingress to be created"
+        for ingress in ingresses:
+            assert "hostTemplate" not in ingress, "No host template should be added"
+            assert ingress["host"] == ingress_host
+
+    def test_enrich_with_ingress_always(self, db: Session, client: TestClient):
+        """
+        Expect ingress template to be created as the configuration templated ingress mode is "always"
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "NodePort"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.always, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses[0]["hostTemplate"] != ""
+
+    def test_enrich_with_ingress_on_cluster_ip(self, db: Session, client: TestClient):
+        """
+        Expect ingress template to be created as the configuration templated ingress mode is "onClusterIP" while the
+        function service type is ClusterIP
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "ClusterIP"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.on_cluster_ip, service_type,
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses[0]["hostTemplate"] != ""
+
+    def test_enrich_with_ingress_never(self, db: Session, client: TestClient):
+        """
+        Expect no ingress to be created automatically as the configuration templated ingress mode is "never"
+        """
+        function = self._generate_runtime("nuclio")
+        function_name, project_name, config = compile_function_config(function)
+        service_type = "DoesNotMatter"
+        enrich_function_with_ingress(
+            config, NuclioIngressAddTemplatedIngressModes.never, service_type
+        )
+        ingresses = resolve_function_ingresses(config["spec"])
+        assert ingresses == []
+
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime("nuclio")
 
@@ -235,6 +335,64 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()
         self._assert_nuclio_v3io_mount(local_path, remote_path)
+
+    def test_deploy_with_node_selection(self, db: Session, client: TestClient):
+        function = self._generate_runtime("nuclio")
+
+        node_name = "some-node-name"
+        function.with_node_selection(node_name=node_name)
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config()
+        self._assert_node_selections(function.spec, expected_node_name=node_name)
+
+        function = self._generate_runtime("nuclio")
+
+        node_selector = {
+            "label-1": "val1",
+            "label-2": "val2",
+        }
+        mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        function.with_node_selection(node_selector=node_selector)
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=2)
+        self._assert_node_selections(
+            function.spec, expected_node_selector=node_selector
+        )
+
+        function = self._generate_runtime("nuclio")
+
+        node_selector = {
+            "label-3": "val3",
+            "label-4": "val4",
+        }
+        function.with_node_selection(node_selector=node_selector)
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=3)
+        self._assert_node_selections(
+            function.spec, expected_node_selector=node_selector
+        )
+
+        function = self._generate_runtime("nuclio")
+        affinity = self._generate_affinity()
+
+        function.with_node_selection(affinity=affinity)
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=4)
+        self._assert_node_selections(function.spec, expected_affinity=affinity)
+
+        function = self._generate_runtime("nuclio")
+        function.with_node_selection(node_name, node_selector, affinity)
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=5)
+        self._assert_node_selections(
+            function.spec,
+            expected_node_name=node_name,
+            expected_node_selector=node_selector,
+            expected_affinity=affinity,
+        )
 
     def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime("nuclio")

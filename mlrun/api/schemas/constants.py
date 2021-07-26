@@ -5,20 +5,6 @@ import mergedeep
 import mlrun.errors
 
 
-class Format(str, Enum):
-    full = "full"
-    name_only = "name_only"
-    metadata_only = "metadata_only"
-    summary = "summary"
-
-
-class ProjectsRole(str, Enum):
-    iguazio = "iguazio"
-    mlrun = "mlrun"
-    nuclio = "nuclio"
-    nop = "nop"
-
-
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
@@ -39,6 +25,7 @@ class DeletionStrategy(str, Enum):
     restricted = "restricted"
     cascade = "cascade"
     cascading = "cascading"
+    check = "check"
 
     @staticmethod
     def default():
@@ -59,6 +46,8 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            return "check"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"
@@ -69,6 +58,10 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            raise NotImplementedError(
+                "Iguazio does not support the check deletion strategy"
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"

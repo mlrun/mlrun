@@ -90,7 +90,8 @@ default_config = {
     "v3io_api": "http://v3io-webapi:8081",
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
-    # url template for default model tracking stream
+    # default node selector to be applied to all functions - json string base64 encoded format
+    "default_function_node_selector": "e30=",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -113,7 +114,32 @@ default_config = {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
             },
         },
-        "authorization": {"mode": "none"},  # one of none, opa
+        "nuclio": {
+            # One of ClusterIP | NodePort
+            "default_service_type": "NodePort",
+            # The following modes apply when user did not configure an ingress
+            #
+            #   name        |  description
+            #  ---------------------------------------------------------------------
+            #   never       |  never enrich with an ingress
+            #   always      |  always enrich with an ingress, regardless the service type
+            #   onClusterIP |  enrich with an ingress only when `mlrun.config.httpdb.nuclio.default_service_type`
+            #                  is set to ClusterIP
+            #  ---------------------------------------------------------------------
+            # Note: adding a mode requires special handling on
+            # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
+            # - mlrun.runtimes.function.enrich_function_with_ingress
+            "add_templated_ingress_host_mode": "never",
+        },
+        "authorization": {
+            "mode": "none",  # one of none, opa
+            "opa": {
+                "address": "",
+                "request_timeout": 10,
+                "permission_query_path": "",
+                "log_level": 0,
+            },
+        },
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
@@ -133,6 +159,11 @@ default_config = {
             "counters_cache_ttl": "10 seconds",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
+            # the initial implementation was cache and was working great, now it's not needed because we get (read/list)
+            # from leader because of some auth restriction, we will probably go back to it at some point since it's
+            # better performance wise, so made it a mode
+            # one of: cache, none
+            "follower_projects_store_mode": "none",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -255,6 +286,19 @@ class Config:
             build_args = json.loads(build_args_json)
 
         return build_args
+
+    @staticmethod
+    def get_default_function_node_selector():
+        default_function_node_selector = {}
+        if config.default_function_node_selector:
+            default_function_node_selector_json_string = base64.b64decode(
+                config.default_function_node_selector
+            ).decode()
+            default_function_node_selector = json.loads(
+                default_function_node_selector_json_string
+            )
+
+        return default_function_node_selector
 
     def to_dict(self):
         return copy.copy(self._cfg)

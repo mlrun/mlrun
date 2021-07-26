@@ -944,6 +944,11 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+        # We currently don't support removing runtime resources in non k8s env
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
+            return {}
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(project, label_selector)
@@ -968,6 +973,11 @@ class BaseRuntimeHandler(ABC):
         grace_period: int = config.runtime_resources_deletion_grace_period,
         leader_session: Optional[str] = None,
     ):
+        # We currently don't support removing runtime resources in non k8s env
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
+            return
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector("*", label_selector)
@@ -1663,14 +1673,14 @@ class BaseRuntimeHandler(ABC):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        log_file_exists = crud.Logs.log_file_exists(project, uid)
+        log_file_exists = crud.Logs().log_file_exists(project, uid)
         if not log_file_exists:
-            _, logs_from_k8s = crud.Logs.get_logs(
+            _, logs_from_k8s = crud.Logs().get_logs(
                 db_session, project, uid, source=LogSources.K8S
             )
             if logs_from_k8s:
                 logger.info("Storing run logs", project=project, uid=uid)
-                crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
+                crud.Logs().store_log(logs_from_k8s, project, uid, append=False)
 
     @staticmethod
     def _ensure_run_state(
@@ -1741,7 +1751,7 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run.setdefault("status", {})["last_update"] = now_date().isoformat()
-        db.store_run(db_session, run, uid, project, leader_session=leader_session)
+        db.store_run(db_session, run, uid, project)
 
         return True, run_state
 

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import typing
-import re
 from copy import deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -22,16 +21,25 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.errors
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
+from mlrun.utils.regex import sparkjob_name
 
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import get_in, logger, update_in
+from ..utils import (
+    get_in,
+    logger,
+    update_in,
+    verify_and_update_in,
+    verify_field_regex,
+    verify_list_and_update_in,
+)
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
@@ -233,11 +241,29 @@ class SparkRuntime(KubejobRuntime):
             if resource_type not in ["cpu", "memory"]
         ]
         if len(gpu_type) > 1:
-            raise ValueError("Sparkjob supports only a single gpu type")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob supports only a single gpu type"
+            )
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
+    def _validate(self, runobj: RunObject):
+        # validating length limit for sparkjob's function name
+        verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+
+        # validating existence of required fields
+        if "requests" not in self.spec.executor_resources:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain executor requests"
+            )
+        if "requests" not in self.spec.driver_resources:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain driver requests"
+            )
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        self._validate(runobj)
+
         if runobj.metadata.iteration:
             self.store_run(runobj)
         job = deepcopy(_sparkjob_template)
@@ -254,32 +280,40 @@ class SparkRuntime(KubejobRuntime):
             update_in(job, "spec.sparkVersion", self.spec.spark_version)
 
         if self.spec.restart_policy:
-            update_in(job, "spec.restartPolicy.type", self.spec.restart_policy["type"])
-            update_in(
+            verify_and_update_in(
+                job, "spec.restartPolicy.type", self.spec.restart_policy["type"], str
+            )
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onFailureRetries",
                 self.spec.restart_policy["retries"],
+                int,
             )
-            update_in(
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onFailureRetryInterval",
                 self.spec.restart_policy["retry_interval"],
+                int,
             )
-            update_in(
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onSubmissionFailureRetries",
                 self.spec.restart_policy["submission_retries"],
+                int,
             )
-            update_in(
+            verify_and_update_in(
                 job,
                 "spec.restartPolicy.onSubmissionFailureRetryInterval",
                 self.spec.restart_policy["submission_retry_interval"],
+                int,
             )
 
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
-        update_in(job, "spec.executor.instances", self.spec.replicas or 1)
+        verify_and_update_in(
+            job, "spec.executor.instances", self.spec.replicas or 1, int,
+        )
         update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
 
         if not self.spec.image:
@@ -313,62 +347,75 @@ class SparkRuntime(KubejobRuntime):
 
         if "limits" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["limits"]:
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.executor.coreLimit",
                     self.spec.executor_resources["limits"]["cpu"],
+                    str,
                 )
         if "requests" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["requests"]:
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.executor.cores",
                     self.spec.executor_resources["requests"]["cpu"],
+                    int,
                 )
             if "memory" in self.spec.executor_resources["requests"]:
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.executor.memory",
                     self.spec.executor_resources["requests"]["memory"],
+                    str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
                 resources=self.spec.executor_resources["requests"]
             )
             if gpu_type:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
-                update_in(job, "spec.executor.gpu.quantity", gpu_quantity)
+                if gpu_quantity:
+                    verify_and_update_in(
+                        job, "spec.executor.gpu.quantity", gpu_quantity, int,
+                    )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.driver.coreLimit",
                     self.spec.driver_resources["limits"]["cpu"],
+                    str,
                 )
         if "requests" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["requests"]:
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.driver.cores",
                     self.spec.driver_resources["requests"]["cpu"],
+                    int,
                 )
             if "memory" in self.spec.driver_resources["requests"]:
-                update_in(
+                verify_and_update_in(
                     job,
                     "spec.driver.memory",
                     self.spec.driver_resources["requests"]["memory"],
+                    str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
                 resources=self.spec.driver_resources["requests"]
             )
             if gpu_type:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
-                update_in(job, "spec.driver.gpu.quantity", gpu_quantity)
+                if gpu_quantity:
+                    verify_and_update_in(
+                        job, "spec.driver.gpu.quantity", gpu_quantity, int,
+                    )
 
         if self.spec.command:
             if "://" not in self.spec.command:
                 self.spec.command = "local://" + self.spec.command
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        update_in(job, "spec.arguments", self.spec.args or [])
+
+        verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
         self._submit_job(job, meta.namespace)
 
         return None
@@ -594,7 +641,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         if db_ui_url == ui_url:
             return
         run.setdefault("status", {})["ui_url"] = ui_url
-        db.store_run(db_session, run, uid, project, leader_session=leader_session)
+        db.store_run(db_session, run, uid, project)
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:

@@ -58,10 +58,17 @@ def list_schedules(
     labels: str = None,
     kind: schemas.ScheduleKinds = None,
     include_last_run: bool = False,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().list_schedules(
-        db_session, project, name, kind, labels, include_last_run=include_last_run
+        db_session,
+        auth_verifier.auth_info,
+        project,
+        name,
+        kind,
+        labels,
+        include_last_run=include_last_run,
     )
 
 
@@ -72,10 +79,15 @@ def get_schedule(
     project: str,
     name: str,
     include_last_run: bool = False,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().get_schedule(
-        db_session, project, name, include_last_run=include_last_run
+        db_session,
+        auth_verifier.auth_info,
+        project,
+        name,
+        include_last_run=include_last_run,
     )
 
 
@@ -95,7 +107,10 @@ async def invoke_schedule(
     "/projects/{project}/schedules/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 def delete_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    get_scheduler().delete_schedule(db_session, project, name)
+    get_scheduler().delete_schedule(db_session, auth_verifier.auth_info, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

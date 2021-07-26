@@ -7,6 +7,9 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 import deepdiff
+import fastapi.testclient
+import pytest
+import sqlalchemy.orm
 from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
@@ -54,6 +57,21 @@ class TestRuntimeBase:
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        # We want this mock for every test, ideally we would have simply put it in the setup_method
+        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
+        # in order to be able to mock k8s stuff
+        get_k8s().v1api = unittest.mock.Mock()
+        get_k8s().crdapi = unittest.mock.Mock()
+        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
+        # enable inheriting classes to do the same
+        self.custom_setup_after_fixtures()
+
     def teardown_method(self, method):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
@@ -76,6 +94,9 @@ class TestRuntimeBase:
         pass
 
     def custom_setup(self):
+        pass
+
+    def custom_setup_after_fixtures(self):
         pass
 
     def custom_teardown(self):
@@ -188,6 +209,11 @@ class TestRuntimeBase:
             side_effect=_generate_pod
         )
 
+        # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
+        get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
+            return_value=client.V1PodList(items=[])
+        )
+
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
         secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
@@ -215,6 +241,7 @@ class TestRuntimeBase:
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
         get_k8s().v1api.create_namespaced_pod.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
 
         runtime.run(
             name=self.name,

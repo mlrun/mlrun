@@ -23,8 +23,8 @@ LABEL org="iguazio.com"
 RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
   git-core \
-  sqlite3 \
   procps \
+  sqlite3 \
   vim \
  && rm -rf /var/lib/apt/lists/*
 

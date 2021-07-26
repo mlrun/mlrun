@@ -108,7 +108,7 @@ class AzureBlobStore(DataStore):
         else:
             path = f"{self.endpoint}{key}"
             files = self._filesystem.ls(path, detail=True)
-            if len(files) == 0 and files[0]["kind"] == "file":
+            if len(files) == 1 and files[0]["kind"] == "file":
                 size = files[0]["size"]
                 modified = files[0]["last_modified"]
             elif len(files) == 0 and files[0]["kind"] == "directory":

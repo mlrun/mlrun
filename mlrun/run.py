@@ -912,7 +912,11 @@ def run_pipeline(
 
 
 def wait_for_pipeline_completion(
-    run_id, timeout=60 * 60, expected_statuses: List[str] = None, namespace=None
+    run_id,
+    timeout=60 * 60,
+    expected_statuses: List[str] = None,
+    namespace=None,
+    remote=True,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -921,14 +925,16 @@ def wait_for_pipeline_completion(
     :param expected_statuses:  list of expected statuses, one of [ Succeeded | Failed | Skipped | Error ], by default
                                [ Succeeded ]
     :param namespace:  k8s namespace if not default
+    :param remote:     read kfp data from mlrun service (default=True)
 
     :return: kfp run dict
     """
     if expected_statuses is None:
         expected_statuses = [RunStatuses.succeeded]
     namespace = namespace or mlconf.namespace
-    # remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-    remote = True
+    remote = (
+        remote or not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
+    )
     logger.debug(
         f"Waiting for run completion."
         f" run_id: {run_id},"
@@ -1026,7 +1032,7 @@ def get_pipeline(
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
-            if not format_:
+            if not format_ or format_ == mlrun.api.schemas.PipelinesFormat.summary:
                 resp = format_summary_from_kfp_run(resp)
 
     show_kfp_run(resp)

@@ -19,6 +19,26 @@ class AuthorizationAction(str, enum.Enum):
     update = "update"
     delete = "delete"
 
+    # note that in the OPA manifest only the above actions exist, store is "an MLRun verb" an we internally map it to 2
+    # query permissions requests - create and update
+    store = "store"
+
+
+class AuthorizationResourceTypes(str, enum.Enum):
+    log = "log"
+    runtime_resource = "runtime-resource"
+    function = "function"
+    artifact = "artifact"
+    feature_set = "feature-set"
+    feature_vector = "feature-vector"
+    feature = "feature"
+    entity = "entity"
+    background_task = "background-task"
+    schedule = "schedule"
+    secret = "secret"
+    run = "run"
+    model_endpoint = "model-endpoint"
+
 
 class AuthInfo(pydantic.BaseModel):
     # Basic + Iguazio auth

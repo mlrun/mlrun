@@ -269,7 +269,7 @@ def test_list_project_format_summary(
         return_value=[project_summary]
     )
     project_summaries = projects_follower.list_projects(
-        None, format_=mlrun.api.schemas.Format.summary
+        None, format_=mlrun.api.schemas.ProjectsFormat.summary
     )
     assert len(project_summaries.projects) == 1
     assert (
@@ -293,7 +293,7 @@ def test_list_project_leader_format(
     )
     projects = projects_follower.list_projects(
         None,
-        format_=mlrun.api.schemas.Format.leader,
+        format_=mlrun.api.schemas.ProjectsFormat.leader,
         projects_role=mlrun.api.schemas.ProjectsRole.nop,
     )
     assert (
@@ -317,7 +317,7 @@ def _assert_list_projects(
 
     # assert again - with name only format
     projects = projects_follower.list_projects(
-        None, format_=mlrun.api.schemas.Format.name_only, **kwargs
+        None, format_=mlrun.api.schemas.ProjectsFormat.name_only, **kwargs
     )
     assert len(projects.projects) == len(expected_projects)
     assert (

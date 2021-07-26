@@ -45,7 +45,9 @@ class TestRuntimeHandlerBase:
             },
             "metadata": {"project": self.project, "uid": self.run_uid},
         }
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
 
     @pytest.fixture(autouse=True)
     def setup_method_fixture(self, db: Session, client: fastapi.testclient.TestClient):
@@ -418,7 +420,7 @@ class TestRuntimeHandlerBase:
             get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
                 name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
             )
-        _, log = crud.Logs.get_logs(db, project, uid, source=LogSources.PERSISTENCY)
+        _, log = crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
         assert log == expected_log.encode()
 
     @staticmethod

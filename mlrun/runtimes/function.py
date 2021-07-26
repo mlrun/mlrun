@@ -22,7 +22,6 @@ from time import sleep
 import nuclio
 import requests
 from aiohttp.client import ClientSession
-from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -72,6 +71,9 @@ class NuclioSpec(KubeResourceSpec):
         service_account=None,
         readiness_timeout=None,
         default_handler=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
     ):
 
         super().__init__(
@@ -90,6 +92,9 @@ class NuclioSpec(KubeResourceSpec):
             entry_points=entry_points,
             description=description,
             default_handler=default_handler,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
 
         self.base_spec = base_spec or ""
@@ -477,14 +482,6 @@ class RemoteRuntime(KubeResource):
         if state != "ready":
             logger.error("Nuclio function failed to deploy", function_state=state)
             raise RunError(f"function {self.metadata.name} deployment failed")
-
-    def with_node_selection(
-        self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-    ):
-        raise NotImplementedError("Node selection is not supported for nuclio runtime")
 
     def _get_state(
         self,
@@ -902,6 +899,12 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
+    if function.spec.node_selector:
+        spec.set_config("spec.nodeSelector", function.spec.node_selector)
+    if function.spec.node_name:
+        spec.set_config("spec.nodeName", function.spec.node_name)
+    if function.spec.affinity:
+        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

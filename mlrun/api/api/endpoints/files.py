@@ -1,24 +1,27 @@
 import mimetypes
 from http import HTTPStatus
 
-from fastapi import APIRouter, Query, Request, Response
+import fastapi
 
+import mlrun.api.api.deps
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
 from mlrun.utils import logger
 
-router = APIRouter()
+router = fastapi.APIRouter()
 
 
 # curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @router.get("/files")
 def get_files(
-    request: Request,
     schema: str = "",
-    objpath: str = Query("", alias="path"),
+    objpath: str = fastapi.Query("", alias="path"),
     user: str = "",
     size: int = 0,
     offset: int = 0,
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
 ):
     _, filename = objpath.split(objpath)
 
@@ -32,7 +35,7 @@ def get_files(
 
     logger.debug("Got get files request", path=objpath)
 
-    secrets = get_secrets(request)
+    secrets = get_secrets(auth_verifier.auth_info)
     body = None
     try:
         stores = store_manager.set(secrets)
@@ -53,14 +56,21 @@ def get_files(
     ctype, _ = mimetypes.guess_type(objpath)
     if not ctype:
         ctype = "application/octet-stream"
-    return Response(
+    return fastapi.Response(
         content=body, media_type=ctype, headers={"x-suggested-filename": filename}
     )
 
 
 # curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
 @router.get("/filestat")
-def get_filestat(request: Request, schema: str = "", path: str = "", user: str = ""):
+def get_filestat(
+    schema: str = "",
+    path: str = "",
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
+    user: str = "",
+):
     _, filename = path.split(path)
 
     path = get_obj_path(schema, path, user=user)
@@ -71,7 +81,7 @@ def get_filestat(request: Request, schema: str = "", path: str = "", user: str =
 
     logger.debug("Got get filestat request", path=path)
 
-    secrets = get_secrets(request)
+    secrets = get_secrets(auth_verifier.auth_info)
     stat = None
     try:
         stores = store_manager.set(secrets)

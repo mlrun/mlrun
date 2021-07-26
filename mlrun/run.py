@@ -1034,7 +1034,7 @@ def get_pipeline(
             resp = resp.to_dict()
             if (
                 not format_
-                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value()
+                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
             ):
                 resp = format_summary_from_kfp_run(resp)
 

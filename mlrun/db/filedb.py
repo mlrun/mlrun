@@ -438,11 +438,11 @@ class FileRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        if owner or format_ == mlrun.api.schemas.Format.full or labels or state:
+        if owner or format_ == mlrun.api.schemas.ProjectsFormat.full or labels or state:
             raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
@@ -636,8 +636,8 @@ class FileRunDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.api.schemas.Format
-        ] = mlrun.api.schemas.Format.metadata_only,
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
         raise NotImplementedError()

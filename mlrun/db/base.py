@@ -159,7 +159,7 @@ class RunDBInterface(ABC):
     def list_projects(
         self,
         owner: str = None,
-        format_: schemas.Format = schemas.Format.full,
+        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
@@ -313,7 +313,9 @@ class RunDBInterface(ABC):
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
-        format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
+        format_: Union[
+            str, schemas.PipelinesFormat
+        ] = schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> schemas.PipelinesOutput:
         pass

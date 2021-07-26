@@ -19,22 +19,23 @@ with open(test_filename, "r") as f:
 blob_dir = "test_mlrun_azure_blob"
 blob_file = f"file_{random.randint(0, 1000)}.txt"
 
-AUTH_VARS = [
-    "AZURE_STORAGE_CONNECTION_STRING",
-    "AZURE_STORAGE_ACCOUNT_NAME",
-    "AZURE_STORAGE_ACCOUNT_KEY",
-    "AZURE_STORAGE_SAS_TOKEN",
-    "AZURE_STORAGE_CLIENT_ID",
-    "AZURE_STORAGE_CLIENT_SECRET",
-    "AZURE_STORAGE_TENANT_ID",
-]
-
-AUTH_METHODS = [
-    "conn_str",
-    "sas_token",
-    "account_key",
-    "spn",
-]
+AUTH_METHODS_AND_REQUIRED_PARAMS = {
+    "conn_str": [
+        "AZURE_STORAGE_CONNECTION_STRING"
+    ],
+    "sas_token": [
+        "AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_SAS_TOKEN"
+    ],
+    "account_key": [
+        "AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT_KEY"
+    ],
+    "spn": [
+        "AZURE_STORAGE_ACCOUNT_NAME",
+        "AZURE_STORAGE_CLIENT_ID",
+        "AZURE_STORAGE_CLIENT_SECRET",
+        "AZURE_STORAGE_TENANT_ID",
+    ]
+}
 
 
 def azure_connection_configured():

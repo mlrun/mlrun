@@ -659,10 +659,10 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     return dag, project
 
 
-def format_summary_from_kfp_run(run, project=None, session=None):
+def format_summary_from_kfp_run(kfp_run, project=None, session=None):
     override_project = project if project and project != "*" else None
-    dag, project = generate_kfp_dag_and_resolve_project(run, override_project)
-    run_id = get_in(run, "run.id")
+    dag, project = generate_kfp_dag_and_resolve_project(kfp_run, override_project)
+    run_id = get_in(kfp_run, "run.id")
 
     # enrich DAG with mlrun run info
     if session:
@@ -684,7 +684,7 @@ def format_summary_from_kfp_run(run, project=None, session=None):
     short_run = {"graph": dag}
     short_run["run"] = {
         k: str(v)
-        for k, v in run["run"].items()
+        for k, v in kfp_run["run"].items()
         if k
         in [
             "id",

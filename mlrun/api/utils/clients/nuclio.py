@@ -118,7 +118,7 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
@@ -139,9 +139,9 @@ class Client(
         projects = []
         for nuclio_project in response_body.values():
             projects.append(self._transform_nuclio_project_to_schema(nuclio_project))
-        if format_ == mlrun.api.schemas.Format.full:
+        if format_ == mlrun.api.schemas.ProjectsFormat.full:
             return mlrun.api.schemas.ProjectsOutput(projects=projects)
-        elif format_ == mlrun.api.schemas.Format.name_only:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             return mlrun.api.schemas.ProjectsOutput(
                 projects=[project.metadata.name for project in projects]
             )

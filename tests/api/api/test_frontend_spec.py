@@ -48,12 +48,14 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_not_called()
 
     # no grafana (None returned) so no url
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.api.utils.clients.iguazio.Client().verify_request_session = unittest.mock.Mock(
+        return_value=(None, "some-session", None, [], ["data"])
+    )
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
         return_value=None
     )
-    response = client.get(
-        "/api/frontend-spec", cookies={"session": "some-session-cookie"}
-    )
+    response = client.get("/api/frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
@@ -65,9 +67,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         return_value=grafana_url
     )
 
-    response = client.get(
-        "/api/frontend-spec", cookies={"session": "some-session-cookie"}
-    )
+    response = client.get("/api/frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (

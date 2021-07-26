@@ -1673,14 +1673,14 @@ class BaseRuntimeHandler(ABC):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        log_file_exists = crud.Logs.log_file_exists(project, uid)
+        log_file_exists = crud.Logs().log_file_exists(project, uid)
         if not log_file_exists:
-            _, logs_from_k8s = crud.Logs.get_logs(
+            _, logs_from_k8s = crud.Logs().get_logs(
                 db_session, project, uid, source=LogSources.K8S
             )
             if logs_from_k8s:
                 logger.info("Storing run logs", project=project, uid=uid)
-                crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
+                crud.Logs().store_log(logs_from_k8s, project, uid, append=False)
 
     @staticmethod
     def _ensure_run_state(
@@ -1751,7 +1751,7 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run.setdefault("status", {})["last_update"] = now_date().isoformat()
-        db.store_run(db_session, run, uid, project, leader_session=leader_session)
+        db.store_run(db_session, run, uid, project)
 
         return True, run_state
 

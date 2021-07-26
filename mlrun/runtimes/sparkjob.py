@@ -585,7 +585,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         if db_ui_url == ui_url:
             return
         run.setdefault("status", {})["ui_url"] = ui_url
-        db.store_run(db_session, run, uid, project, leader_session=leader_session)
+        db.store_run(db_session, run, uid, project)
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:

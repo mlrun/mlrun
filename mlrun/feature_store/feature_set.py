@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from storey import EmitPolicy
 
 import mlrun
+import mlrun.api.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -278,12 +279,16 @@ class FeatureSet(ModelObj):
             uri += ":" + self._metadata.tag
         return uri
 
-    def _override_run_db(self, session, leader_session: Optional[str] = None):
+    def _override_run_db(
+        self,
+        session,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
         from ..api.api.utils import get_run_db_instance
 
-        self._run_db = get_run_db_instance(session, leader_session)
+        self._run_db = get_run_db_instance(session, auth_info)
 
     def _get_run_db(self):
         if self._run_db:

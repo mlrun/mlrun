@@ -7,6 +7,7 @@ import yaml
 
 import mlrun
 
+
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-azure-blob.yml"
 with config_file_path.open() as fp:
@@ -96,3 +97,32 @@ def test_blob_upload():
 
     response = upload_data_item.get()
     assert response.decode() == test_string, "Result differs from original test"
+
+@pytest.mark.skipif(
+    not azure_connection_configured(),
+    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
+    "to run it",
+)
+def test_log_dask_to_azure():
+    prepare_env()
+
+    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+
+    df = pd.DataFrame(
+        {
+            "col1": [1, 2, 3, 4],
+            "col2": [2, 4, 6, 8],
+            "index_key": [1, 1, 2, 2],
+            "partition_key": [1, 1, 2, 2],
+        }
+    )
+
+    ddf = dd.from_pandas(df, npartitions=1)
+    
+    context = mlrun.get_or_create_ctx('test')
+    context.log_dataset(key='test_data',
+                        df = ddf,
+                        artifact_path=f"az://{blob_path}/",
+                        format="parquet",
+                        stats=True,
+                       )

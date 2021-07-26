@@ -421,13 +421,13 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def create_marketplace_source(
-        self, source: Union[dict, schemas.OrderedMarketplaceSource]
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
     ):
         pass
 
     @abstractmethod
     def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.OrderedMarketplaceSource]
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
     ):
         pass
 

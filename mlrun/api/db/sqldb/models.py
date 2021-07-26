@@ -362,7 +362,7 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
-        order = Column(Integer)
+        index = Column(Integer)
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
 

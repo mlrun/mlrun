@@ -14,11 +14,11 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
-# Using double underscore, as it's less likely someone will use it in a real secret name
-secret_name_separator = "__"
+# Using a complex separator, as it's less likely someone will use it in a real secret name
+secret_name_separator = "-__-"
 
 
-class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
+class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
         self._internal_project_name = config.marketplace.k8s_secrets_project_name
         self._catalogs = {}
@@ -29,6 +29,10 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         if not k8s_helper.is_running_inside_kubernetes_cluster():
             return None
         return k8s_helper
+
+    @staticmethod
+    def _generate_credentials_secret_key(source, key=""):
+        return source + secret_name_separator + key
 
     def add_source(self, source: MarketplaceSource):
         source_name = source.metadata.name
@@ -41,11 +45,13 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         if not self._get_k8s():
             return
 
-        secret_prefix = source_name + secret_name_separator
         source_credentials = self._get_source_credentials(source_name)
         if not source_credentials:
             return
-        secrets_to_delete = [secret_prefix + key for key in source_credentials]
+        secrets_to_delete = [
+            self._generate_credentials_secret_key(source_name, key)
+            for key in source_credentials
+        ]
         self._get_k8s().delete_project_secrets(
             self._internal_project_name, secrets_to_delete
         )
@@ -55,10 +61,10 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "MLRun is not configured with k8s, marketplace source credentials cannot be stored securely"
             )
-        secret_prefix = source_name + secret_name_separator
 
         adjusted_credentials = {
-            secret_prefix + key: value for key, value in credentials.items()
+            self._generate_credentials_secret_key(source_name, key): value
+            for key, value in credentials.items()
         }
         self._get_k8s().store_project_secrets(
             self._internal_project_name, adjusted_credentials
@@ -68,7 +74,7 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
         if not self._get_k8s():
             return {}
 
-        secret_prefix = source_name + secret_name_separator
+        secret_prefix = self._generate_credentials_secret_key(source_name)
         secrets = self._get_k8s().get_project_secret_values(self._internal_project_name)
         source_secrets = {}
         for key, value in secrets.items():
@@ -93,10 +99,10 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
                 function_dict = channel_dict[function_name]
                 for version_tag in function_dict:
                     version_dict = function_dict[version_tag]
-                    metadata_dict = version_dict.copy()
-                    spec_dict = metadata_dict.pop("spec", None)
+                    function_details_dict = version_dict.copy()
+                    spec_dict = function_details_dict.pop("spec", None)
                     metadata = MarketplaceItemMetadata(
-                        channel=channel_name, tag=version_tag, **metadata_dict
+                        channel=channel_name, tag=version_tag, **function_details_dict
                     )
                     item_uri = source.get_full_uri(metadata.get_relative_path())
                     spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
@@ -117,7 +123,7 @@ class MarketplaceItemsManager(metaclass=mlrun.utils.singleton.Singleton):
     ) -> MarketplaceCatalog:
         source_name = source.metadata.name
         if not self._catalogs.get(source_name) or force_refresh:
-            url = source.get_full_uri(config.marketplace.catalog_filename)
+            url = source.get_catalog_uri()
             credentials = self._get_source_credentials(source_name)
             catalog_data = mlrun.run.get_object(url=url, secrets=credentials)
             catalog_dict = json.loads(catalog_data)

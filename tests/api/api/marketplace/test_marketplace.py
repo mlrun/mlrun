@@ -9,16 +9,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
-from mlrun.api.crud.function_marketplace import MarketplaceItemsManager
+from mlrun.api.crud.marketplace import Marketplace
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 
 
-def _generate_source_dict(order, name, credentials=None):
+def _generate_source_dict(index, name, credentials=None):
     path = str(pathlib.Path(__file__).absolute().parent)
 
     return {
-        "order": order,
+        "index": index,
         "source": {
             "kind": "MarketplaceSource",
             "metadata": {"name": name, "description": "A test", "labels": None},
@@ -77,11 +77,11 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
     # Default source is not in the expected data
     assert len(json_response) == len(expected_order) + 1
     for source in json_response:
-        if source["order"] > 0:
+        if source["index"] > 0:
             assert (
                 deepdiff.DeepDiff(
                     source["source"],
-                    expected_order[source["order"]]["source"],
+                    expected_order[source["index"]]["source"],
                     exclude_paths=exclude_paths,
                 )
                 == {}
@@ -97,7 +97,7 @@ def test_marketplace_source_apis(db: Session, client: TestClient) -> None:
     json_response = response.json()
     assert (
         len(json_response) == 1
-        and json_response[0]["order"] == -1
+        and json_response[0]["index"] == -1
         and json_response[0]["source"]["metadata"]["name"]
         == config.marketplace.default_source.name
     )
@@ -136,7 +136,7 @@ def test_marketplace_source_apis(db: Session, client: TestClient) -> None:
     _assert_sources_in_correct_order(client, expected_response)
 
     # Change order for existing source (3->1)
-    source_3["order"] = 1
+    source_3["index"] = 1
     response = client.put("/api/marketplace/sources/source_3", json=source_3)
     assert response.status_code == HTTPStatus.OK.value
     expected_response = {
@@ -162,7 +162,7 @@ def test_marketplace_source_apis(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # Try to store an object with invalid order
-    source_2["order"] = 42
+    source_2["index"] = 42
     response = client.post("/api/marketplace/sources", json=source_2)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
@@ -193,7 +193,8 @@ def test_marketplace_credentials_removed_from_db(
         == {}
     )
     expected_credentials = {
-        f"source_1__{key}": value for key, value in credentials.items()
+        f"source_1{mlrun.api.crud.marketplace.secret_name_separator}{key}": value
+        for key, value in credentials.items()
     }
     assert deepdiff.DeepDiff(k8s_mock._mock_secrets, expected_credentials) == {}
 
@@ -202,14 +203,15 @@ def test_marketplace_source_manager() -> None:
     k8s_mock = K8sMock()
     _mock_k8s_secrets(k8s_mock)
 
-    manager = MarketplaceItemsManager()
+    manager = Marketplace()
 
+    separator = mlrun.api.crud.marketplace.secret_name_separator
     credentials = {"secret1": "value1", "secret2": "value2"}
     expected_credentials = {}
     for i in range(3):
         source_dict = _generate_source_dict(i, f"source_{i}", credentials)
         expected_credentials.update(
-            {f"source_{i}__{key}": value for key, value in credentials.items()}
+            {f"source_{i}{separator}{key}": value for key, value in credentials.items()}
         )
         source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
         manager.add_source(source_object)
@@ -218,7 +220,7 @@ def test_marketplace_source_manager() -> None:
 
     manager.remove_source("source_1")
     for key in credentials:
-        expected_credentials.pop(f"source_1__{key}")
+        expected_credentials.pop(f"source_1{separator}{key}")
     assert deepdiff.DeepDiff(k8s_mock._mock_secrets, expected_credentials) == {}
 
     # Test catalog retrieval, with various filters
@@ -259,7 +261,7 @@ def test_marketplace_default_source() -> None:
     k8s_mock = K8sMock()
     _mock_k8s_secrets(k8s_mock)
 
-    manager = MarketplaceItemsManager()
+    manager = Marketplace()
 
     source_object = mlrun.api.schemas.MarketplaceSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)

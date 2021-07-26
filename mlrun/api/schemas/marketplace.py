@@ -45,6 +45,9 @@ class MarketplaceSource(BaseModel):
             base=self.spec.path, channel=self.spec.channel, relative_path=relative_path
         )
 
+    def get_catalog_uri(self):
+        return self.get_full_uri(config.marketplace.catalog_filename)
+
     @classmethod
     def generate_default_source(cls):
         if not config.marketplace.default_source.create:
@@ -67,11 +70,11 @@ class MarketplaceSource(BaseModel):
         )
 
 
-last_source_order = -1
+last_source_index = -1
 
 
-class OrderedMarketplaceSource(BaseModel):
-    order: int = last_source_order  # Default last. Otherwise must be > 0
+class IndexedMarketplaceSource(BaseModel):
+    index: int = last_source_index  # Default last. Otherwise must be > 0
     source: MarketplaceSource
 
 

@@ -724,12 +724,12 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_marketplace_source(
-        self, source: Union[dict, schemas.OrderedMarketplaceSource]
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
     ):
         raise NotImplementedError()
 
     def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.OrderedMarketplaceSource]
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
     ):
         raise NotImplementedError()
 

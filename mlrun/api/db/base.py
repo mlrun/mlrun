@@ -402,22 +402,22 @@ class DBInterface(ABC):
         return []
 
     def create_marketplace_source(
-        self, session, ordered_source: schemas.OrderedMarketplaceSource
+        self, session, ordered_source: schemas.IndexedMarketplaceSource
     ):
         pass
 
     def store_marketplace_source(
-        self, session, name, ordered_source: schemas.OrderedMarketplaceSource
+        self, session, name, ordered_source: schemas.IndexedMarketplaceSource
     ):
         pass
 
     def list_marketplace_sources(
         self, session
-    ) -> List[schemas.OrderedMarketplaceSource]:
+    ) -> List[schemas.IndexedMarketplaceSource]:
         pass
 
     def delete_marketplace_source(self, session, name):
         pass
 
-    def get_marketplace_source(self, session, name) -> schemas.OrderedMarketplaceSource:
+    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
         pass

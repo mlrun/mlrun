@@ -2443,7 +2443,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self, session, moved_object, move_to=None, move_from=None
     ):
         # If move_to is None - delete object. If move_from is None - insert a new object
-        moved_object.order = move_to
+        moved_object.index = move_to
 
         if move_from == move_to:
             # It's just modifying the same object - update and exit.
@@ -2465,13 +2465,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 start, end = move_to, move_from - 1
 
         query = session.query(MarketplaceSource).filter(
-            MarketplaceSource.order >= start
+            MarketplaceSource.index >= start
         )
         if end:
-            query = query.filter(MarketplaceSource.order <= end)
+            query = query.filter(MarketplaceSource.index <= end)
 
         for source_record in query:
-            source_record.order = source_record.order + modifier
+            source_record.index = source_record.index + modifier
             session.merge(source_record)
 
         if move_to:
@@ -2483,16 +2483,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     @staticmethod
     def _transform_marketplace_source_record_to_schema(
         marketplace_source_record: MarketplaceSource,
-    ) -> schemas.OrderedMarketplaceSource:
+    ) -> schemas.IndexedMarketplaceSource:
         source_full_dict = marketplace_source_record.full_object
         marketplace_source = schemas.MarketplaceSource(**source_full_dict)
-        return schemas.OrderedMarketplaceSource(
-            order=marketplace_source_record.order, source=marketplace_source
+        return schemas.IndexedMarketplaceSource(
+            index=marketplace_source_record.index, source=marketplace_source
         )
 
     @staticmethod
     def _transform_marketplace_source_schema_to_record(
-        marketplace_source_schema: schemas.OrderedMarketplaceSource,
+        marketplace_source_schema: schemas.IndexedMarketplaceSource,
         current_object: MarketplaceSource = None,
     ):
         now = datetime.now(timezone.utc)
@@ -2509,7 +2509,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         marketplace_source_record = MarketplaceSource(
             id=current_object.id if current_object else None,
             name=marketplace_source_schema.source.metadata.name,
-            order=marketplace_source_schema.order,
+            index=marketplace_source_schema.index,
             created=created_timestamp,
             updated=updated_timestamp,
         )
@@ -2524,11 +2524,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
     @staticmethod
     def _validate_and_adjust_marketplace_order(session, order):
-        max_order = session.query(func.max(MarketplaceSource.order)).scalar()
+        max_order = session.query(func.max(MarketplaceSource.index)).scalar()
         if not max_order or max_order < 0:
             max_order = 0
 
-        if order == schemas.marketplace.last_source_order:
+        if order == schemas.marketplace.last_source_index:
             order = max_order + 1
 
         if order > max_order + 1:
@@ -2538,15 +2538,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         if order < 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Order of inserted source must be greater than 0 or "
-                + f"{schemas.marketplace.last_source_order} (for last). order = {order}"
+                + f"{schemas.marketplace.last_source_index} (for last). order = {order}"
             )
         return order
 
     def create_marketplace_source(
-        self, session, ordered_source: schemas.OrderedMarketplaceSource
+        self, session, ordered_source: schemas.IndexedMarketplaceSource
     ):
         order = self._validate_and_adjust_marketplace_order(
-            session, ordered_source.order
+            session, ordered_source.index
         )
         name = ordered_source.source.metadata.name
         source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
@@ -2563,19 +2563,19 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         )
 
     def store_marketplace_source(
-        self, session, name, ordered_source: schemas.OrderedMarketplaceSource,
+        self, session, name, ordered_source: schemas.IndexedMarketplaceSource,
     ):
         if name != ordered_source.source.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Conflict between resource name and metadata.name in the stored object"
             )
         order = self._validate_and_adjust_marketplace_order(
-            session, ordered_source.order
+            session, ordered_source.index
         )
 
         source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
-        current_order = source_record.order if source_record else None
-        if current_order == schemas.marketplace.last_source_order:
+        current_order = source_record.index if source_record else None
+        if current_order == schemas.marketplace.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Attempting to modify the global marketplace source."
             )
@@ -2589,15 +2589,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
     def list_marketplace_sources(
         self, session
-    ) -> List[schemas.OrderedMarketplaceSource]:
+    ) -> List[schemas.IndexedMarketplaceSource]:
         results = []
         query = self._query(session, MarketplaceSource).order_by(
-            MarketplaceSource.order.desc()
+            MarketplaceSource.index.desc()
         )
         for record in query:
             ordered_source = self._transform_marketplace_source_record_to_schema(record)
             # Need this to make the list return such that the default source is last in the response.
-            if ordered_source.order != -1:
+            if ordered_source.index != schemas.last_source_index:
                 results.insert(0, ordered_source)
             else:
                 results.append(ordered_source)
@@ -2608,8 +2608,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         if not source_record:
             return
 
-        current_order = source_record.order
-        if current_order == schemas.marketplace.last_source_order:
+        current_order = source_record.index
+        if current_order == schemas.marketplace.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Attempting to delete the global marketplace source."
             )
@@ -2618,7 +2618,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             session, source_record, move_to=None, move_from=current_order
         )
 
-    def get_marketplace_source(self, session, name) -> schemas.OrderedMarketplaceSource:
+    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
         source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
         if not source_record:
             raise mlrun.errors.MLRunNotFoundError(

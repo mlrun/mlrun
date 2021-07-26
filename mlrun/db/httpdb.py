@@ -2224,7 +2224,7 @@ class HTTPRunDB(RunDBInterface):
         return schemas.ModelEndpoint(**response.json())
 
     def create_marketplace_source(
-        self, source: Union[dict, schemas.OrderedMarketplaceSource]
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
     ):
         """
         Add a new marketplace source.
@@ -2273,13 +2273,13 @@ class HTTPRunDB(RunDBInterface):
         :returns: The source object as inserted into the database, with credentials stripped.
         """
         path = "marketplace/sources"
-        if isinstance(source, schemas.OrderedMarketplaceSource):
+        if isinstance(source, schemas.IndexedMarketplaceSource):
             source = source.dict()
         response = self.api_call(method="POST", path=path, json=source)
-        return schemas.OrderedMarketplaceSource(**response.json())
+        return schemas.IndexedMarketplaceSource(**response.json())
 
     def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.OrderedMarketplaceSource]
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
     ):
         """
         Create or replace a marketplace source.
@@ -2293,11 +2293,11 @@ class HTTPRunDB(RunDBInterface):
         :returns: The source object as stored in the DB.
         """
         path = f"marketplace/sources/{source_name}"
-        if isinstance(source, schemas.OrderedMarketplaceSource):
+        if isinstance(source, schemas.IndexedMarketplaceSource):
             source = source.dict()
 
         response = self.api_call(method="PUT", path=path, json=source)
-        return schemas.OrderedMarketplaceSource(**response.json())
+        return schemas.IndexedMarketplaceSource(**response.json())
 
     def list_marketplace_sources(self):
         """
@@ -2307,7 +2307,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="GET", path=path).json()
         results = []
         for item in response:
-            results.append(schemas.OrderedMarketplaceSource(**item))
+            results.append(schemas.IndexedMarketplaceSource(**item))
         return results
 
     def get_marketplace_source(self, source_name: str):
@@ -2318,7 +2318,7 @@ class HTTPRunDB(RunDBInterface):
         """
         path = f"marketplace/sources/{source_name}"
         response = self.api_call(method="GET", path=path)
-        return schemas.OrderedMarketplaceSource(**response.json())
+        return schemas.IndexedMarketplaceSource(**response.json())
 
     def delete_marketplace_source(self, source_name: str):
         """

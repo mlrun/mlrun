@@ -243,15 +243,18 @@ def _add_default_marketplace_source_if_needed(
         hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
         # hub_source will be None if the configuration has marketplace.default_source.create=False
         if hub_source:
+            logger.info("Adding default marketplace source")
             # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
             hub_record = db._transform_marketplace_source_schema_to_record(
-                mlrun.api.schemas.OrderedMarketplaceSource(
-                    order=mlrun.api.schemas.marketplace.last_source_order,
+                mlrun.api.schemas.IndexedMarketplaceSource(
+                    index=mlrun.api.schemas.marketplace.last_source_index,
                     source=hub_source,
                 )
             )
             db_session.add(hub_record)
             db_session.commit()
+        else:
+            logger.info("Not adding default marketplace source, per configuration")
     return
 
 

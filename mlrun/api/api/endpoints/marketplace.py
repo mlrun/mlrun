@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun
-from mlrun.api.crud.function_marketplace import MarketplaceItemsManager
+from mlrun.api.crud.marketplace import Marketplace
 from mlrun.api.schemas.marketplace import (
+    IndexedMarketplaceSource,
     MarketplaceCatalog,
     MarketplaceItem,
-    OrderedMarketplaceSource,
 )
 from mlrun.api.utils.singletons.db import get_db
 
@@ -20,20 +20,20 @@ router = APIRouter()
 @router.post(
     path="/marketplace/sources",
     status_code=HTTPStatus.CREATED.value,
-    response_model=OrderedMarketplaceSource,
+    response_model=IndexedMarketplaceSource,
 )
-def add_source(
-    source: OrderedMarketplaceSource,
+def create_source(
+    source: IndexedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     get_db().create_marketplace_source(db_session, source)
     # Handle credentials if they exist
-    MarketplaceItemsManager().add_source(source.source)
+    Marketplace().add_source(source.source)
     return get_db().get_marketplace_source(db_session, source.source.metadata.name)
 
 
 @router.get(
-    path="/marketplace/sources", response_model=List[OrderedMarketplaceSource],
+    path="/marketplace/sources", response_model=List[IndexedMarketplaceSource],
 )
 def list_sources(db_session: Session = Depends(mlrun.api.api.deps.get_db_session),):
     return get_db().list_marketplace_sources(db_session)
@@ -46,11 +46,11 @@ def delete_source(
     source_name: str, db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     get_db().delete_marketplace_source(db_session, source_name)
-    MarketplaceItemsManager().remove_source(source_name)
+    Marketplace().remove_source(source_name)
 
 
 @router.get(
-    path="/marketplace/sources/{source_name}", response_model=OrderedMarketplaceSource,
+    path="/marketplace/sources/{source_name}", response_model=IndexedMarketplaceSource,
 )
 def get_source(
     source_name: str, db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
@@ -59,16 +59,16 @@ def get_source(
 
 
 @router.put(
-    path="/marketplace/sources/{source_name}", response_model=OrderedMarketplaceSource
+    path="/marketplace/sources/{source_name}", response_model=IndexedMarketplaceSource
 )
 def store_source(
     source_name: str,
-    source: OrderedMarketplaceSource,
+    source: IndexedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     get_db().store_marketplace_source(db_session, source_name, source)
     # Handle credentials if they exist
-    MarketplaceItemsManager().add_source(source.source)
+    Marketplace().add_source(source.source)
 
     return get_db().get_marketplace_source(db_session, source_name)
 
@@ -85,7 +85,7 @@ def get_catalog(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
-    return MarketplaceItemsManager().get_source_catalog(
+    return Marketplace().get_source_catalog(
         ordered_source.source, channel, version, tag, force_refresh
     )
 
@@ -104,7 +104,7 @@ def get_item(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
-    return MarketplaceItemsManager().get_item(
+    return Marketplace().get_item(
         ordered_source.source, item_name, channel, version, tag, force_refresh
     )
 
@@ -116,7 +116,7 @@ def get_object(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
-    object_data = MarketplaceItemsManager().get_item_object_using_source_credentials(
+    object_data = Marketplace().get_item_object_using_source_credentials(
         ordered_source.source, url
     )
 

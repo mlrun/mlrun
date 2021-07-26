@@ -46,10 +46,7 @@ def azure_connection_configured():
 
 def prepare_env(auth_method):
     for v in AUTH_VARS:
-        try:
-            os.environ.pop(v)
-        except KeyError:
-            pass
+        os.environ.pop(v, None)
     if auth_method == "conn_str":
         os.environ["AZURE_STORAGE_CONNECTION_STRING"] = config["env"].get(
             "AZURE_STORAGE_CONNECTION_STRING"

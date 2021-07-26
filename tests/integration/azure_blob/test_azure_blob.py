@@ -39,43 +39,18 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
 
 
 def azure_connection_configured():
-    for var in AUTH_VARS:
-        assert config["env"].get(var) is not None
-    return True
+    return config["env"].get("AZURE_STORAGE_CONNECTION_STRING") is not None
 
 
 def prepare_env(auth_method):
-    for v in AUTH_VARS:
-        os.environ.pop(v, None)
-    if auth_method == "conn_str":
-        os.environ["AZURE_STORAGE_CONNECTION_STRING"] = config["env"].get(
-            "AZURE_STORAGE_CONNECTION_STRING"
-        )
-    else:
-        os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = config["env"].get(
-            "AZURE_STORAGE_ACCOUNT_NAME"
-        )
-
-        if auth_method == "sas_token":
-            os.environ["AZURE_STORAGE_SAS_TOKEN"] = config["env"].get(
-                "AZURE_STORAGE_SAS_TOKEN"
-            )
-        elif auth_method == "account_key":
-            os.environ["AZURE_STORAGE_ACCOUNT_KEY"] = config["env"].get(
-                "AZURE_STORAGE_ACCOUNT_KEY"
-            )
-        elif auth_method == "spn":
-            os.environ["AZURE_STORAGE_CLIENT_ID"] = config["env"].get(
-                "AZURE_STORAGE_CLIENT_ID"
-            )
-            os.environ["AZURE_STORAGE_CLIENT_SECRET"] = config["env"].get(
-                "AZURE_STORAGE_CLIENT_SECRET"
-            )
-            os.environ["AZURE_STORAGE_TENANT_ID"] = config["env"].get(
-                "AZURE_STORAGE_TENANT_ID"
-            )
-        else:
-            raise ValueError("Auth method not known")
+    # Remove any previously existing env_vars needed for authentication
+    for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
+        for env_var in in env_vars:
+            os.environ.pop(env_var, None)
+    # Then set the env_var needed to test a specific authentication method
+    env_vars = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
+    for env_var in env_vars:
+        os.environ[env_var] = config["env"].get(env_var)
 
 
 @pytest.mark.skipif(
@@ -84,7 +59,7 @@ def prepare_env(auth_method):
     "to run it",
 )
 def test_azure_blob():
-    for auth_method in AUTH_METHODS:
+    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS.keys():
 
         prepare_env(auth_method)
 
@@ -112,7 +87,7 @@ def test_azure_blob():
     "to run it",
 )
 def test_list_dir():
-    for auth_method in AUTH_METHODS:
+    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS.keys():
         prepare_env(auth_method)
         blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
         blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
@@ -138,7 +113,7 @@ def test_list_dir():
 )
 def test_blob_upload():
     # Check upload functionality
-    for auth_method in AUTH_METHODS:
+    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS.keys():
         prepare_env(auth_method)
 
         blob_path = "az://" + config["env"].get("AZURE_CONTAINER")

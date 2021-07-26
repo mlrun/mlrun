@@ -56,7 +56,7 @@ cached_nuclio_version = None
 # if nuclio version specified on mlrun config set it likewise,
 # if not specified, get it from nuclio api client
 # since this is a heavy operation (sending requests to API), and it's unlikely that the version
-# will change in any context - cache it
+# will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
 def _resolve_nuclio_version():
     global cached_nuclio_version
     if not cached_nuclio_version:

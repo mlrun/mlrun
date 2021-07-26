@@ -2,6 +2,9 @@ import os
 import random
 from pathlib import Path
 
+import dask.dataframe as dd
+import numpy as np
+import pandas as pd
 import pytest
 import yaml
 
@@ -126,6 +129,7 @@ def test_blob_upload(auth_method):
     response = upload_data_item.get()
     assert response.decode() == test_string, "Result differs from original test"
 
+
 @pytest.mark.skipif(
     not azure_connection_configured(),
     reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
@@ -136,21 +140,19 @@ def test_log_dask_to_azure():
 
     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
 
-    df = pd.DataFrame(
-        {
-            "col1": [1, 2, 3, 4],
-            "col2": [2, 4, 6, 8],
-            "index_key": [1, 1, 2, 2],
-            "partition_key": [1, 1, 2, 2],
-        }
-    )
+    A = np.random.randint(0, 100, size=(10000, 4))
+    df = pd.DataFrame(data=A, columns=list("ABCD"))
+    ddf = dd.from_pandas(df, npartitions=4)
 
-    ddf = dd.from_pandas(df, npartitions=1)
-    
-    context = mlrun.get_or_create_ctx('test')
-    context.log_dataset(key='test_data',
-                        df = ddf,
-                        artifact_path=f"az://{blob_path}/",
-                        format="parquet",
-                        stats=True,
-                       )
+    context = mlrun.get_or_create_ctx("test")
+    context.log_dataset(
+        key="test_data",
+        df=ddf,
+        artifact_path=f"az://{blob_path}/",
+        format="parquet",
+        stats=True,
+    )
+    dataitem = ctx.get_dataitem(f"{ctx.artifact_path}test_data.parquet")
+    ddf2 = dataitem.as_df(df_module=dd)
+    df2 = ddf2.compute()
+    pd.testing.assert_frame_equal(df, df2)

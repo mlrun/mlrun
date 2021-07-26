@@ -10,7 +10,6 @@ import yaml
 
 import mlrun
 
-
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-azure-blob.yml"
 with config_file_path.open() as fp:

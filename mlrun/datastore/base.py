@@ -16,6 +16,8 @@ from base64 import b64encode
 from os import getenv, path, remove
 from tempfile import mktemp
 
+
+import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
@@ -193,7 +195,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            if (self.supports_isdir() and fs.isdir(url)) or df_module != pd:
+            if (self.supports_isdir() and fs.isdir(url)) or df_module == dd:
                 # Dask requires the storage_options parameter
                 storage_options = self.get_storage_options()
                 if storage_options:

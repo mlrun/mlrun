@@ -1032,7 +1032,10 @@ def get_pipeline(
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
-            if not format_ or format_ == mlrun.api.schemas.PipelinesFormat.summary:
+            if (
+                not format_
+                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value()
+            ):
                 resp = format_summary_from_kfp_run(resp)
 
     show_kfp_run(resp)

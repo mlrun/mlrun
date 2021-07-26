@@ -111,8 +111,8 @@ class AzureBlobStore(DataStore):
             if len(files) == 1 and files[0]["kind"] == "file":
                 size = files[0]["size"]
                 modified = files[0]["last_modified"]
-            elif len(files) == 0 and files[0]["kind"] == "directory":
-                raise FileNotFoundError("Operation expects a file not a direcdtory!")
+            elif len(files) == 1 and files[0]["kind"] == "directory":
+                raise FileNotFoundError("Operation expects a file not a directory!")
             else:
                 raise ValueError("Operation expects to receive a single file!")
         return FileStats(size, time.mktime(modified.timetuple()))

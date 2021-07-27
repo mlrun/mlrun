@@ -950,6 +950,7 @@ def wait_for_pipeline_completion(
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
             status = resp["run"]["status"]
+            show_kfp_run(resp, clear_output=True)
             if status not in RunStatuses.stable_statuses():
 
                 # TODO: think of nicer liveness indication and make it re-usable
@@ -957,7 +958,6 @@ def wait_for_pipeline_completion(
                 logger.debug(".")
                 raise RuntimeError("pipeline run has not completed yet")
 
-            show_kfp_run(resp, clear_output=True)
             return resp
 
         if mldb.kind != "http":

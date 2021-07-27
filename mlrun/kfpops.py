@@ -703,7 +703,7 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
 
 def show_kfp_run(run, clear_output=False):
     phase_to_color = {"failed": "red", "succeeded": "green", "skipped": "white"}
-    runtype_to_shape = {"run": "ellipse", "build": "box", "deploy": "invhouse"}
+    runtype_to_shape = {"run": "ellipse", "build": "box", "deploy": "box3d"}
     if not run or "graph" not in run:
         return
     if is_ipython:

@@ -21,6 +21,7 @@ from time import sleep
 
 import nuclio
 import requests
+import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
@@ -40,11 +41,55 @@ from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
-from .nuclio import min_versions as nuclio_min_versions
 from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
 
+
 default_max_replicas = 4
+
+
+def validate_version_compatibility(*min_nuclio_versions):
+    """
+    Validation is best effort - if we can't parse we assume compatible.
+    :param min_nuclio_versions: valid version(s), assuming no 2 versions has equal major and minor
+    """
+    parsed_min_versions = [semver.VersionInfo.parse(min_nuclio_version) for min_nuclio_version in min_nuclio_versions]
+    try:
+        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
+    except ValueError:
+        logger.warning(
+            "Unable to parse nuclio version, assuming compatibility",
+            nuclio_version=mlconf.nuclio_version,
+        )
+        return True
+    compatible = False
+    for parsed_min_version in parsed_min_versions:
+        if (
+            parsed_current_version.major == parsed_min_version.major and
+            parsed_current_version.minor == parsed_min_version.minor and
+            parsed_current_version.patch < parsed_min_version.patch
+        ):
+            return False
+        if parsed_current_version >= parsed_min_version:
+            compatible = True
+    return compatible
+
+
+def min_versions(*versions):
+    def decorator(function):
+
+        def wrapper(*args, **kwargs):
+            if validate_version_compatibility(*versions):
+                return function(*args, **kwargs)
+
+            message = (
+                f"{function.__name__} is supported since nuclio {' or '.join(versions)}, currently using "
+                f"nuclio {mlconf.nuclio_version}, please upgrade."
+            )
+            raise mlrun.errors.MLRunMissingDependencyError(message)
+
+        return wrapper
+    return decorator
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -485,7 +530,7 @@ class RemoteRuntime(KubeResource):
             logger.error("Nuclio function failed to deploy", function_state=state)
             raise RunError(f"function {self.metadata.name} deployment failed")
 
-    @nuclio_min_versions("1.5.20", "1.6.10")
+    @min_versions("1.5.20", "1.6.10")
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,

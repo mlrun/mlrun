@@ -1,5 +1,4 @@
 import json
-import textwrap
 from typing import Any, Dict, List, Optional
 
 from nuclio.utils import DeployError
@@ -27,7 +26,6 @@ from mlrun.errors import (
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
 )
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import KubejobRuntime, RemoteRuntime
 from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
 from mlrun.utils.helpers import logger

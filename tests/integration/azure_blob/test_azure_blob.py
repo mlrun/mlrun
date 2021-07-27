@@ -62,82 +62,69 @@ def azure_connection_configured():
     )
 
 
-@pytest.mark.skipif(
-    not azure_connection_configured(),
-    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
-    "to run it",
+pytestmark = pytest.mark.parametrize(
+    "auth_method",
+    [
+        pytest.param(
+            key,
+            marks=pytest.mark.skipif(
+                not prepare_env(key), reason=f"Auth method {key} not configured."
+            ),
+        )
+        for key in AUTH_METHODS_AND_REQUIRED_PARAMS
+    ],
 )
-def test_azure_blob():
-    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
-        if not prepare_env(auth_method):
-            continue
-
-        blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-        blob_url = blob_path + "/" + blob_dir + "/" + blob_file
-
-        print(f"\nBlob URL: {blob_url}")
-
-        data_item = mlrun.run.get_dataitem(blob_url)
-        data_item.put(test_string)
-
-        # Validate append is properly blocked (currently not supported for Azure blobs)
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            data_item.put("just checking!", append=True)
-
-        response = data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
-
-        response = data_item.get(offset=20)
-        assert response.decode() == test_string[20:], "Partial result not as expected"
-
-        stat = data_item.stat()
-        assert stat.size == len(test_string), "Stat size different than expected"
 
 
-@pytest.mark.skipif(
-    not azure_connection_configured(),
-    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
-    "to run it",
-)
-def test_list_dir():
-    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
-        if not prepare_env(auth_method):
-            continue
+def test_azure_blob(auth_method):
+    prepare_env(auth_method)
+    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+    blob_url = blob_path + "/" + blob_dir + "/" + blob_file
 
-        blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
-        blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
-        print(f"\nBlob URL: {blob_url}")
+    print(f"\nBlob URL: {blob_url}")
 
-        mlrun.run.get_dataitem(blob_url).put(test_string)
+    data_item = mlrun.run.get_dataitem(blob_url)
+    data_item.put(test_string)
 
-        # Check dir list for container
-        dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
-        assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
+    # Validate append is properly blocked (currently not supported for Azure blobs)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        data_item.put("just checking!", append=True)
 
-        # Check dir list for folder in container
-        dir_list = mlrun.run.get_dataitem(
-            blob_container_path + "/" + blob_dir
-        ).listdir()
-        assert blob_file in dir_list, "File not in folder dir-list"
+    response = data_item.get()
+    assert response.decode() == test_string, "Result differs from original test"
+
+    response = data_item.get(offset=20)
+    assert response.decode() == test_string[20:], "Partial result not as expected"
+
+    stat = data_item.stat()
+    assert stat.size == len(test_string), "Stat size different than expected"
 
 
-@pytest.mark.skipif(
-    not azure_connection_configured(),
-    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
-    "to run it",
-)
-def test_blob_upload():
-    # Check upload functionality
-    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
-        if not prepare_env(auth_method):
-            continue
+def test_list_dir(auth_method):
+    prepare_env(auth_method)
+    blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
+    blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
+    print(f"\nBlob URL: {blob_url}")
 
-        blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-        blob_url = blob_path + "/" + blob_dir + "/" + blob_file
-        print(f"\nBlob URL: {blob_url}")
+    mlrun.run.get_dataitem(blob_url).put(test_string)
 
-        upload_data_item = mlrun.run.get_dataitem(blob_url)
-        upload_data_item.upload(test_filename)
+    # Check dir list for container
+    dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
+    assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
-        response = upload_data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
+    # Check dir list for folder in container
+    dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir).listdir()
+    assert blob_file in dir_list, "File not in folder dir-list"
+
+
+def test_blob_upload(auth_method):
+    prepare_env(auth_method)
+    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+    blob_url = blob_path + "/" + blob_dir + "/" + blob_file
+    print(f"\nBlob URL: {blob_url}")
+
+    upload_data_item = mlrun.run.get_dataitem(blob_url)
+    upload_data_item.upload(test_filename)
+
+    response = upload_data_item.get()
+    assert response.decode() == test_string, "Result differs from original test"

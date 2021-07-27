@@ -56,12 +56,6 @@ def prepare_env(auth_method):
     return True
 
 
-def azure_connection_configured():
-    return any(
-        prepare_env(auth_method) for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS
-    )
-
-
 pytestmark = pytest.mark.parametrize(
     "auth_method",
     [

@@ -6,6 +6,8 @@ import pytest
 import yaml
 
 import mlrun
+import mlrun.errors
+from mlrun.utils import logger
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-azure-blob.yml"
@@ -32,30 +34,32 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
 }
 
 
-def azure_connection_configured():
-    return config["env"].get("AZURE_STORAGE_CONNECTION_STRING") is not None
-
-
 def prepare_env(auth_method):
-    # Remove any previously existing env_vars needed for authentication
+    if not config["env"].get("AZURE_CONTAINER"):
+        return False
+
     for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
         for env_var in env_vars:
             os.environ.pop(env_var, None)
-    # Then set the env_var needed to test a specific authentication method
-    env_vars = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
-    for env_var in env_vars:
-        os.environ[env_var] = config["env"].get(env_var)
+
+    test_params = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
+    if not test_params:
+        return False
+
+    for env_var in test_params:
+        env_value = config["env"].get(env_var)
+        if not env_value:
+            return False
+        os.environ[env_var] = env_value
+
+    logger.info(f"Testing auth method {auth_method}")
+    return True
 
 
-@pytest.mark.skipif(
-    not azure_connection_configured(),
-    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
-    "to run it",
-)
 def test_azure_blob():
-    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS.keys():
-
-        prepare_env(auth_method)
+    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
+        if not prepare_env(auth_method):
+            continue
 
         blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
         blob_url = blob_path + "/" + blob_dir + "/" + blob_file
@@ -64,6 +68,10 @@ def test_azure_blob():
 
         data_item = mlrun.run.get_dataitem(blob_url)
         data_item.put(test_string)
+
+        # Validate append is properly blocked (currently not supported for Azure blobs)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            data_item.put("just checking!", append=True)
 
         response = data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
@@ -75,14 +83,11 @@ def test_azure_blob():
         assert stat.size == len(test_string), "Stat size different than expected"
 
 
-@pytest.mark.skipif(
-    not azure_connection_configured(),
-    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
-    "to run it",
-)
 def test_list_dir():
-    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS.keys():
-        prepare_env(auth_method)
+    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
+        if not prepare_env(auth_method):
+            continue
+
         blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
         blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
         print(f"\nBlob URL: {blob_url}")
@@ -100,15 +105,11 @@ def test_list_dir():
         assert blob_file in dir_list, "File not in folder dir-list"
 
 
-@pytest.mark.skipif(
-    not azure_connection_configured(),
-    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
-    "to run it",
-)
 def test_blob_upload():
     # Check upload functionality
-    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS.keys():
-        prepare_env(auth_method)
+    for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
+        if not prepare_env(auth_method):
+            continue
 
         blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
         blob_url = blob_path + "/" + blob_dir + "/" + blob_file

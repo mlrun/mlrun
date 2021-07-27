@@ -159,7 +159,7 @@ def run_local(
     if runtime:
         handler = handler or get_in(runtime, "spec.default_handler", "")
         meta = BaseMetadata.from_dict(runtime["metadata"])
-        meta.name = name or meta.name
+        meta.name = meta.name or name
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 

@@ -730,13 +730,16 @@ class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
         self._html = ""
+        self._with_print = False
         self._secrets = secrets or {}
         self.with_ipython = with_ipython
         if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
+        self.print(skip_ipython=True)
 
     def push_start_message(self, project, commit_id=None, id=None):
         message = f"Pipeline started in project {project}"
+        html = None
         if id:
             message += f" id={id}"
         commit_id = (
@@ -755,13 +758,21 @@ class RunNotifications:
             message = message + f", check progress in {url}"
         self.push(message, html=html)
 
-    def push_run_results(self, runs):
+    def push_run_results(self, runs, push_all=False):
+        """push a structured table with run results to notification targets
+
+        :param runs:  list if run objects (RunObject)
+        :param push_all: push all notifications (including already notified runs)
+        """
         had_errors = 0
         runs_list = []
         for r in runs:
-            if r.status.state == "error":
-                had_errors += 1
-            runs_list.append(r.to_dict())
+            notified = getattr(r, "_notified", False)
+            if not notified or push_all:
+                if r.status.state == "error":
+                    had_errors += 1
+                runs_list.append(r.to_dict())
+                r._notified = True
 
         text = "pipeline run finished"
         if had_errors:
@@ -796,7 +807,7 @@ class RunNotifications:
         self._html = html
         return html
 
-    def print(self):
+    def print(self, skip_ipython=None):
         def _print(message, runs, html=None):
             if not runs:
                 print(message)
@@ -824,7 +835,11 @@ class RunNotifications:
                 + tabulate(table, headers=["status", "name", "uid", "results"])
             )
 
-        self._hooks.append(_print)
+        if not self._with_print and not (
+            skip_ipython and self.with_ipython and is_ipython
+        ):
+            self._hooks.append(_print)
+            self._with_print = True
         return self
 
     def slack(self, webhook=""):

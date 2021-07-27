@@ -39,7 +39,7 @@ from ..config import config
 from ..datastore import store_manager
 from ..db import get_run_db
 from ..features import Feature
-from ..model import ModelObj
+from ..model import EntrypointParam, ModelObj
 from ..run import (
     code_to_function,
     get_object,
@@ -52,6 +52,7 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from .pipelines import FunctionsDict
 
 
 class ProjectError(Exception):
@@ -94,10 +95,17 @@ def load_project(
 ):
     """Load an MLRun project from git or tar or dir
 
+    example::
+
+        # load project and run the 'main' workflow
+        project = load_project("./", git://github.com/mlrun/demo-xgb-project.git)
+        project.run("main", arguments={'data': data_url})
+
     :param context:      project local directory path
-    :param url:          git or tar.gz sources archive path e.g.:
+    :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
-                         db://<project-name>
+                         http://mysite/archived-project.zip
+                         <project-name>
     :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
@@ -111,24 +119,11 @@ def load_project(
     secrets = secrets or {}
     repo = None
     project = None
-    if url:
-        if url.endswith(".yaml"):
-            project = _load_project_file(url, name, secrets)
-        elif url.startswith("git://"):
-            url, repo = clone_git(url, context, secrets, clone)
-        elif url.endswith(".tar.gz"):
-            clone_tgz(url, context, secrets)
-        elif url.endswith(".zip"):
-            clone_zip(url, context, secrets)
-        elif url.startswith("db://"):
-            if user_project:
-                user = environ.get("V3IO_USERNAME") or getpass.getuser()
-                url = f"{url}-{user}"
-            project = _load_project_from_db(url, secrets)
-        else:
-            raise ValueError(f"unsupported code archive {url}")
+    if not context:
+        raise ValueError("valid context (local dir path) must be provided")
 
-    else:
+    def init_repo():
+        nonlocal repo, url
         if not path.isdir(context):
             raise ValueError(f"context {context} is not an existing dir path")
         try:
@@ -138,13 +133,32 @@ def load_project(
             if init_git:
                 repo = Repo.init(context)
 
+    if url:
+        if url.endswith(".yaml"):
+            project = _load_project_file(url, name, secrets)
+            init_repo()
+        elif url.startswith("git://"):
+            url, repo = clone_git(url, context, secrets, clone)
+        elif url.endswith(".tar.gz"):
+            clone_tgz(url, context, secrets)
+        elif url.endswith(".zip"):
+            clone_zip(url, context, secrets)
+        else:
+            if user_project:
+                user = environ.get("V3IO_USERNAME") or getpass.getuser()
+                url = f"{url}-{user}"
+            project = _load_project_from_db(url, secrets)
+
+    else:
+        init_repo()
+
     if not project:
         project = _load_project_dir(context, name, subpath)
-    project.spec.source = url
+    project.spec.source = url or project.spec.source
     project.spec.repo = repo
     if repo:
         project.spec.branch = repo.active_branch.name
-    project.spec.origin_url = url
+    project.spec.origin_url = url or project.spec.origin_url
     project.register_artifacts()
     return project
 
@@ -270,6 +284,7 @@ class ProjectSpec(ModelObj):
         subpath=None,
         origin_url=None,
         goals=None,
+        load_source_on_run=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
     ):
         self.repo = None
@@ -279,6 +294,7 @@ class ProjectSpec(ModelObj):
         self._mountdir = None
         self._source = None
         self.source = source or ""
+        self.load_source_on_run = load_source_on_run
         self.subpath = subpath or ""
         self.origin_url = origin_url or ""
         self.goals = goals
@@ -430,6 +446,9 @@ class ProjectSpec(ModelObj):
         self._artifacts = artifacts_dict
 
     def set_artifact(self, key, artifact):
+        if hasattr(artifact, "base_dict"):
+            artifact = artifact.base_dict()
+        artifact["key"] = key
         self._artifacts[key] = artifact
 
     def remove_artifact(self, key):
@@ -511,6 +530,7 @@ class MlrunProject(ModelObj):
         self._initialized = False
         self._secrets = SecretsStore()
         self._artifact_manager = None
+        self._notifiers = RunNotifications(with_slack=True)
 
     @property
     def metadata(self) -> ProjectMetadata:
@@ -535,6 +555,10 @@ class MlrunProject(ModelObj):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", ProjectStatus)
+
+    @property
+    def notifiers(self):
+        return self._notifiers
 
     @property
     def name(self) -> str:
@@ -601,6 +625,31 @@ class MlrunProject(ModelObj):
             PendingDeprecationWarning,
         )
         self.spec.source = source
+
+    def set_source(self, source, pull_at_runtime=False):
+        """set the project source code path(can be git/tar/zip archive)
+
+        :param source:     valid path to git, zip, or tar file, e.g.
+                           git://github.com/mlrun/something.git
+                           http://some/url/file.zip
+        :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        """
+        self.spec.load_source_on_run = pull_at_runtime
+        self.spec.source = source
+
+    def get_artifact_uri(self, key, category="artifact"):
+        """return the project artifact uri (store://..) from the artifact key
+
+        :param key:  artifact key/name
+        :param category:  artifact category (artifact, model, feature-vector, ..)
+        """
+        return f"store://{category}s/{self.metadata.name}/{key}"
+
+    def get_store_resource(self, uri):
+        """get store resource object by uri"""
+        return mlrun.datastore.get_store_resource(
+            uri, secrets=self._secrets, project=self.metadata.name
+        )
 
     @property
     def context(self) -> str:
@@ -734,8 +783,22 @@ class MlrunProject(ModelObj):
         )
         self.spec.workflows = workflows
 
-    def set_workflow(self, name, workflow_path: str, embed=False, **args):
-        """add or update a workflow, specify a name and the code path"""
+    def set_workflow(
+        self,
+        name,
+        workflow_path: str,
+        embed=False,
+        args_schema: typing.List[EntrypointParam] = None,
+        **args,
+    ):
+        """add or update a workflow, specify a name and the code path
+
+        :param name:          name of the workflow
+        :param workflow_path: url/path for the workflow file
+        :param embed:         add the workflow code into the project.yaml
+        :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
+        :param args:          argument values (key=value, ..)
+        """
         if not workflow_path:
             raise ValueError("valid workflow_path must be specified")
         if embed:
@@ -748,6 +811,12 @@ class MlrunProject(ModelObj):
             workflow = {"name": name, "path": workflow_path}
         if args:
             workflow["args"] = args
+        if args_schema:
+            args_schema = [
+                schema.to_dict() if hasattr(schema, "to_dict") else schema
+                for schema in args_schema
+            ]
+            workflow["args_schema"] = args_schema
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -836,7 +905,7 @@ class MlrunProject(ModelObj):
             labels=labels,
             target_path=target_path,
         )
-        self.spec.set_artifact(item.key, item.base_dict())
+        self.spec.set_artifact(item.key, item)
         return item
 
     def log_dataset(
@@ -1024,7 +1093,9 @@ class MlrunProject(ModelObj):
         self.__dict__.update(project.__dict__)
         return project
 
-    def set_function(self, func, name="", kind="", image=None, with_repo=None):
+    def set_function(
+        self, func, name="", kind="", image=None, handler=None, with_repo=None
+    ):
         """update or add a function object to the project
 
         function can be provided as an object (func) or a .py/.ipynb/.yaml url
@@ -1049,6 +1120,7 @@ class MlrunProject(ModelObj):
                           default: job
         :param image:     docker image to be used, can also be specified in
                           the function object/yaml
+        :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
 
         :returns: project object
@@ -1062,6 +1134,7 @@ class MlrunProject(ModelObj):
                 "name": name,
                 "kind": kind,
                 "image": image,
+                "handler": handler,
                 "with_repo": with_repo,
             }
             func = {k: v for k, v in function_dict.items() if v}
@@ -1069,11 +1142,14 @@ class MlrunProject(ModelObj):
             func["name"] = name
         elif hasattr(func, "to_dict"):
             name, function_object = _init_function_from_obj(func, self, name=name)
+            if handler:
+                raise ValueError(
+                    "default handler cannot be set for existing function object"
+                )
             if image:
                 function_object.spec.image = image
             if with_repo:
                 function_object.spec.build.source = "./"
-
             if not name:
                 raise ValueError("function name must be specified")
         else:
@@ -1168,7 +1244,7 @@ class MlrunProject(ModelObj):
     def sync_functions(self, names: list = None, always=True, save=False):
         """reload function objects from specs and files"""
         if self._initialized and not always:
-            return
+            return self.spec._function_objects
 
         funcs = {}
         if not names:
@@ -1191,6 +1267,7 @@ class MlrunProject(ModelObj):
 
         self.spec._function_objects = funcs
         self._initialized = True
+        return self.spec._function_objects
 
     def with_secrets(self, kind, source, prefix=""):
         """register a secrets source (file, env or dict)
@@ -1339,7 +1416,7 @@ class MlrunProject(ModelObj):
         if code:
             remove(workflow_path)
         if watch:
-            self.get_run_status(run, notifiers=RunNotifications(with_slack=True))
+            self.get_run_status(run)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -1352,7 +1429,7 @@ class MlrunProject(ModelObj):
                        '{{workflow.uid}}' will be replaced by workflow id
         :param ttl:    pipeline ttl in secs (after that the pods will be removed)
         """
-        if not name or name not in self.workflows:
+        if not name or name not in self.spec.workflows:
             raise ValueError(f"workflow {name} not found")
 
         workflow_path, code, _ = self.spec._get_wf_cfg(name)
@@ -1398,8 +1475,8 @@ class MlrunProject(ModelObj):
         if status:
             text += f", status={status}"
 
-        if notifiers:
-            notifiers.push(text, runs)
+        notifiers = notifiers or self._notifiers
+        notifiers.push(text, runs)
         return status, had_errors, text
 
     def clear_context(self):
@@ -1686,6 +1763,7 @@ def _init_function_from_dict(f, project):
     url = f.get("url", "")
     kind = f.get("kind", "")
     image = f.get("image", None)
+    handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
 
     if with_repo and not project.spec.source:
@@ -1709,7 +1787,9 @@ def _init_function_from_dict(f, project):
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
-        func = code_to_function(name, filename=url, image=image, kind=kind)
+        func = code_to_function(
+            name, filename=url, image=image, kind=kind, handler=handler
+        )
     elif url.endswith(".py"):
         if not image:
             raise ValueError(
@@ -1718,8 +1798,12 @@ def _init_function_from_dict(f, project):
             )
         if in_context and with_repo:
             func = new_function(name, command=url, image=image, kind=kind or "job")
+            if handler:
+                func.spec.default_handler = handler
         else:
-            func = code_to_function(name, filename=url, image=image, kind=kind or "job")
+            func = code_to_function(
+                name, filename=url, image=image, kind=kind or "job", handler=handler
+            )
     else:
         raise ValueError(f"unsupported function url {url} or no spec")
 
@@ -1811,20 +1895,8 @@ def _init_function_from_obj_legacy(func, project, name=None):
     return name or func.metadata.name, func
 
 
-def _create_pipeline(project, pipeline, funcs, secrets=None):
-    functions = {}
-    for name, func in funcs.items():
-        f = func.copy()
-        src = f.spec.build.source
-        if project.spec.source and src and src in [".", "./"]:
-            if project.spec.mountdir:
-                f.spec.workdir = project.spec.mountdir
-                f.spec.build.source = ""
-            else:
-                f.spec.build.source = project.spec.source
-
-        functions[name] = f
-
+def _create_pipeline(project, pipeline, funcs, secrets=None, handler=None):
+    functions = FunctionsDict(project, funcs)
     spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:
         raise ImportError(f"cannot import workflow {pipeline}")
@@ -1841,11 +1913,14 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
     for f in functions.values():
         f.metadata.project = project.metadata.name
 
-    if not hasattr(mod, "kfpipeline"):
-        raise ValueError("pipeline function (kfpipeline) not found")
+    if not handler and hasattr(mod, "kfpipeline"):
+        handler = "kfpipeline"
+    if not handler and hasattr(mod, "pipeline"):
+        handler = "pipeline"
+    if not handler or not hasattr(mod, handler):
+        raise ValueError(f"pipeline function ({handler or 'kfpipeline'}) not found")
 
-    kfpipeline = getattr(mod, "kfpipeline")
-    return kfpipeline
+    return getattr(mod, handler)
 
 
 def _run_pipeline(

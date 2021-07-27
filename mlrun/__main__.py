@@ -813,7 +813,7 @@ def project(
             or environ.get("GITHUB_EVENT_PATH")
             or environ.get("CI_MERGE_REQUEST_IID")
         )
-        n = RunNotifications(with_slack=True, secrets=proj._secrets).print()
+        n = RunNotifications(with_slack=True, secrets=proj._secrets)
         if gitops:
             n.git_comment(git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN"))
         if not had_error:

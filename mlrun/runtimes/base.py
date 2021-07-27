@@ -694,6 +694,7 @@ class BaseRuntime(ModelObj):
 
     def full_image_path(self, image=None):
         image = image or self.spec.image or ""
+
         image = enrich_image_url(image)
         if not image.startswith("."):
             return image

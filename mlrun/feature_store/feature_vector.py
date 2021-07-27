@@ -338,6 +338,12 @@ class OnlineVectorService:
         """get feature vector given the provided entity inputs"""
         results = []
         futures = []
+        if isinstance(entity_rows, dict):
+            entity_rows = [entity_rows]
+        if not isinstance(entity_rows, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{entity_rows} is of type {type(entity_rows)}. It should be list of Dictionaries"
+            )
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
         for future in futures:

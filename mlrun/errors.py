@@ -57,7 +57,7 @@ def raise_for_status(response: requests.Response, message: str = None):
         response.raise_for_status()
     except requests.HTTPError as exc:
         error_message = str(exc)
-        if error_message:
+        if message:
             error_message = f"{str(exc)}: {message}"
         try:
             raise STATUS_ERRORS[response.status_code](

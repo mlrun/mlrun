@@ -23,18 +23,18 @@ router = APIRouter()
 )
 def list_pipelines(
     project: str,
-    namespace: str = None,
+    namespace: str = config.namespace,
     sort_by: str = "",
     page_token: str = "",
     filter_: str = Query("", alias="filter"),
-    format_: mlrun.api.schemas.Format = Query(
-        mlrun.api.schemas.Format.metadata_only, alias="format"
+    format_: mlrun.api.schemas.PipelinesFormat = Query(
+        mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     page_size: int = Query(None, gt=0, le=200),
 ):
     total_size, next_page_token, runs = None, None, None
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-        total_size, next_page_token, runs = mlrun.api.crud.list_pipelines(
+        total_size, next_page_token, runs = mlrun.api.crud.Pipelines().list_pipelines(
             project, namespace, sort_by, page_token, filter_, format_, page_size,
         )
     return mlrun.api.schemas.PipelinesOutput(

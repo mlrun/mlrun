@@ -137,6 +137,24 @@ class CSVSource(BaseSourceDriver):
 
 
 class ParquetSource(BaseSourceDriver):
+    """
+       Reads Parquet file/dir as input source for a flow.
+
+       :parameter name: name of the source
+       :parameter path: path to Parquet file or directory
+       :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+       :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
+            'filter_column' >= start_filter. Default is None
+       :parameter end_filter: datetime. If not None, the results will be filtered by partitions
+            'filter_column' < end_filter. Default is None
+       :parameter filter_column: Optional. if not None, the results will be filtered by this column and
+            start_filter & end_filter
+       :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+            cause the job to run every 30 minutes
+       :parameter attributes: additional parameters to pass to storey.
+    """
+
     kind = "parquet"
     support_storey = True
     support_spark = True
@@ -212,6 +230,14 @@ class CustomSource(BaseSourceDriver):
 
 
 class DataFrameSource:
+    """
+       Reads data frame as input source for a flow.
+
+       :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
+       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+       :parameter context: MLRun context. Defaults to None
+    """
+
     support_storey = True
 
     def __init__(self, df, key_field=None, time_field=None, context=None):

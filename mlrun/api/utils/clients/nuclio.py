@@ -151,12 +151,9 @@ class Client(
             )
 
     def get_dashboard_version(self) -> str:
-        response = self._get_version_from_nuclio()
+        response = self._send_request_to_api("GET", "versions")
         response_body = response.json()
         return response_body["dashboard"]["label"]
-
-    def _get_version_from_nuclio(self):
-        return self._send_request_to_api("GET", "versions")
 
     def _get_project_from_nuclio(self, name):
         return self._send_request_to_api("GET", f"projects/{name}")

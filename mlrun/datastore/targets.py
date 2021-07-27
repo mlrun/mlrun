@@ -786,11 +786,18 @@ class NoSqlTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
-        return {
+        spark_options = {
             "path": store_path_to_spark(self._target_path),
             "format": "io.iguaz.v3io.spark.sql.kv",
-            "key": key_column,
         }
+        if isinstance(key_column, list) and len(key_column) >= 1:
+            if len(key_column) == 1:
+                spark_options["key"] = key_column[0]
+            else:
+                spark_options["sorting-key"] = key_column[1]
+        else:
+            spark_options["key"] = key_column
+        return spark_options
 
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()

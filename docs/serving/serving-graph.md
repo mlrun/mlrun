@@ -28,16 +28,24 @@ to production with minimal work.
 
 ### In this document
 
-* [**Examples**](#examples)
-    * [**Simple model serving router**](#simple-model-serving-router)
-    * [**Advanced data processing and serving ensemble**](#advanced-data-processing-and-serving-ensemble)
-    * [**NLP processing pipeline with real-time streaming**](#nlp-processing-pipeline-with-real-time-streaming)
-* [**The Graph State Machine**](#the-graph-state-machine)
-    * [**Graph overview and usage**](#graph-overview-and-usage) 
-    * [**Graph context and Event objects**](#graph-context-and-event-objects)
-    * [**Error handling and catchers**](#error-handling-and-catchers) 
-    * [**Implement your own task class or function**](#implement-your-own-task-class-or-function)
-    * [**Building distributed graphs**](#building-distributed-graphs)
+- [MLRun Serving Graphs](#mlrun-serving-graphs)
+  - [Overview](#overview)
+    - [Accelerate performance and time to production](#accelerate-performance-and-time-to-production)
+    - [In this document](#in-this-document)
+  - [Examples](#examples)
+    - [Simple model serving router](#simple-model-serving-router)
+      - [**Writing your own serving class**](#writing-your-own-serving-class)
+      - [**Minimal sklearn serving function example:**](#minimal-sklearn-serving-function-example)
+    - [Advanced data processing and serving ensemble](#advanced-data-processing-and-serving-ensemble)
+    - [NLP processing pipeline with real-time streaming](#nlp-processing-pipeline-with-real-time-streaming)
+  - [The Graph State Machine](#the-graph-state-machine)
+    - [Graph overview and usage](#graph-overview-and-usage)
+    - [Graph context and Event objects](#graph-context-and-event-objects)
+      - [The Event object](#the-event-object)
+      - [The Context object](#the-context-object)
+    - [Error handling and catchers](#error-handling-and-catchers)
+    - [Implement your own task class or function](#implement-your-own-task-class-or-function)
+    - [Building distributed graphs](#building-distributed-graphs)
 
 
 ## Examples
@@ -186,6 +194,10 @@ server.wait_for_completion()
 and finally, you can deploy the graph as a real-time Nuclio serverless function with one command:
 
     function.deploy()
+
+```{note}
+If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI may not display the logs in the output.
+```
 
 ### NLP processing pipeline with real-time streaming 
 

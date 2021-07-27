@@ -56,6 +56,17 @@ def prepare_env(auth_method):
     return True
 
 
+def azure_connection_configured():
+    return any(
+        prepare_env(auth_method) for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS
+    )
+
+
+@pytest.mark.skipif(
+    not azure_connection_configured(),
+    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
+    "to run it",
+)
 def test_azure_blob():
     for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
         if not prepare_env(auth_method):
@@ -83,6 +94,11 @@ def test_azure_blob():
         assert stat.size == len(test_string), "Stat size different than expected"
 
 
+@pytest.mark.skipif(
+    not azure_connection_configured(),
+    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
+    "to run it",
+)
 def test_list_dir():
     for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
         if not prepare_env(auth_method):
@@ -105,6 +121,11 @@ def test_list_dir():
         assert blob_file in dir_list, "File not in folder dir-list"
 
 
+@pytest.mark.skipif(
+    not azure_connection_configured(),
+    reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
+    "to run it",
+)
 def test_blob_upload():
     # Check upload functionality
     for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS:

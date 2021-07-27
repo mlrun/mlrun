@@ -184,9 +184,7 @@ class SparkRuntime(KubejobRuntime):
     def deploy_default_image(cls, with_gpu=False):
         from mlrun.run import new_function
 
-        sj = new_function(
-            kind=cls.kind, name="spark-default-image-deploy-temp"
-        )
+        sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._default_mlrun_image_name(with_gpu)
         sj.with_executor_requests(cpu=1, mem="512m")
         sj.with_driver_requests(cpu=1, mem="512m")
@@ -551,7 +549,7 @@ class SparkRuntime(KubejobRuntime):
         submission_retry_interval=20,
     ):
         """set restart policy
-           restart_type=OnFailure/Never/Always"""
+        restart_type=OnFailure/Never/Always"""
         update_in(self.spec.restart_policy, "type", restart_type)
         update_in(self.spec.restart_policy, "retries", retries)
         update_in(self.spec.restart_policy, "retry_interval", retry_interval)

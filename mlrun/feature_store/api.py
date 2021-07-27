@@ -241,10 +241,6 @@ def ingest(
     if run_config:
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
-#        if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
-            # this flow does not happen when runnign locally!!!!!! ???? do i still need it???
-#            source.start_time = featureset.status.targets[0].last_written
-#            source.end_time = datetime.now()
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options
         )

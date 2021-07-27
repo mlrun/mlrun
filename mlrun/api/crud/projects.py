@@ -49,7 +49,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
         # In follower mode the store of the projects objects themselves is just a dict in the follower member class
         # therefore two methods here (existence check + deletion) need to happen on the store itself (and not the db
         # like the rest of the actions) so enabling to overriding this store with this arg..
@@ -66,7 +66,7 @@ class Projects(
             or deletion_strategy == mlrun.api.schemas.DeletionStrategy.check
         ):
             if not projects_store.is_project_exists(
-                session, name, leader_session=leader_session
+                session, name, leader_session=auth_info.session
             ):
                 return
             mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
@@ -75,7 +75,7 @@ class Projects(
             if deletion_strategy == mlrun.api.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name, leader_session)
+            self.delete_project_resources(session, name, auth_info)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -86,15 +86,17 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # delete runtime resources
         mlrun.api.crud.Runtimes().delete_runtimes(
             session,
             label_selector=f"mlrun/project={name}",
             force=True,
-            leader_session=leader_session,
+            leader_session=auth_info.session,
         )
+
+        mlrun.api.crud.Logs().delete_logs(name, auth_info)
 
         # delete db resources
         mlrun.api.utils.singletons.db.get_db().delete_project_related_resources(

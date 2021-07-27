@@ -177,7 +177,7 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
@@ -188,12 +188,12 @@ class Member(
                 db_session,
                 name,
                 deletion_strategy,
-                leader_session,
+                auth_info,
                 self._projects_store_for_deletion,
             )
         else:
             return self._leader_client.delete_project(
-                leader_session, name, deletion_strategy, wait_for_completion,
+                auth_info.session, name, deletion_strategy, wait_for_completion,
             )
         return False
 

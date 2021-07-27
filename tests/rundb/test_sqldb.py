@@ -47,7 +47,7 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p2")
 
     tags = db.list_artifact_tags(db_session, "p1")
-    assert {"t1", "t2"} == set(tags), "bad tags"
+    assert [("p1", "k1", "t1"), ("p1", "k1", "t2")] == tags
 
 
 def test_list_artifact_date(db: SQLDB, db_session: Session):
@@ -76,18 +76,6 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
 
     arts = db.list_artifacts(db_session, project=prj, since=t2, until=t2, tag="*")
     assert 1 == len(arts), "since/until t2"
-
-
-def test_list_projects(db: SQLDB, db_session: Session):
-    for idx in range(10):
-        run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
-        db.store_run(db_session, run, "u7", project=f"prj{idx % 3}", iter=idx)
-
-    projects_output = db.list_projects(db_session)
-
-    assert {"prj0", "prj1", "prj2"} == {
-        project.metadata.name for project in projects_output.projects
-    }
 
 
 def test_run_iter0(db: SQLDB, db_session: Session):

@@ -30,13 +30,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_log(
-        self,
-        session,
-        uid,
-        project="",
-        body=None,
-        append=False,
-        leader_session: Optional[str] = None,
+        self, session, uid, project="", body=None, append=False,
     ):
         pass
 
@@ -46,13 +40,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_run(
-        self,
-        session,
-        struct,
-        uid,
-        project="",
-        iter=0,
-        leader_session: Optional[str] = None,
+        self, session, struct, uid, project="", iter=0,
     ):
         pass
 
@@ -93,15 +81,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_artifact(
-        self,
-        session,
-        key,
-        artifact,
-        uid,
-        iter=None,
-        tag="",
-        project="",
-        leader_session: Optional[str] = None,
+        self, session, key, artifact, uid, iter=None, tag="", project="",
     ):
         pass
 
@@ -145,15 +125,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_function(
-        self,
-        session,
-        function,
-        name,
-        project="",
-        tag="",
-        versioned=False,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, function, name, project="", tag="", versioned=False,
+    ) -> str:
         pass
 
     @abstractmethod
@@ -282,13 +255,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_set(
-        self,
-        session,
-        project,
-        feature_set: schemas.FeatureSet,
-        versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+    ) -> str:
         pass
 
     @abstractmethod
@@ -302,8 +270,7 @@ class DBInterface(ABC):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod
@@ -359,12 +326,11 @@ class DBInterface(ABC):
         session,
         project,
         name,
-        feature_set_update: dict,
+        feature_set_patch: dict,
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod
@@ -373,13 +339,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_vector(
-        self,
-        session,
-        project,
-        feature_vector: schemas.FeatureVector,
-        versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+    ) -> str:
         pass
 
     @abstractmethod
@@ -415,8 +376,7 @@ class DBInterface(ABC):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod
@@ -429,8 +389,7 @@ class DBInterface(ABC):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod

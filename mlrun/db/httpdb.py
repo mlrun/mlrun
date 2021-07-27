@@ -1003,15 +1003,17 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, kind, selector):
+    def remote_status(self, project, name, kind, selector):
         """ Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
+        :param project: The project of the function
+        :param name: The name of the function
         :param kind: The kind of the function, currently ``dask`` is supported.
         :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:
-            req = {"kind": kind, "selector": selector}
+            req = {"kind": kind, "selector": selector, "project": project, "name": name}
             resp = self.api_call("POST", "status/function", json=req)
         except OSError as err:
             logger.error(f"error starting function: {err}")

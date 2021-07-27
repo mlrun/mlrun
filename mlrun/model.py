@@ -1113,7 +1113,7 @@ class DataTarget(DataTargetBase):
         "status",
         "updated",
         "size",
-        "last_written"
+        "last_written",
     ]
 
     def __init__(

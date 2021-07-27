@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import warnings
 from typing import TYPE_CHECKING, List, Optional
-import datetime
 
 import pandas as pd
-from ..utils import logger
 
 # Storey is not compatible with Python 3.6. We have to import this module in httpdb.
 # So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
@@ -215,7 +214,9 @@ class FeatureSetStatus(ModelObj):
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
-    def update_last_written_for_target(self, target_path: str, last_written: datetime.datetime):
+    def update_last_written_for_target(
+        self, target_path: str, last_written: datetime.datetime
+    ):
         for target in self._targets:
             if target.path == target_path:
                 target.last_written = last_written

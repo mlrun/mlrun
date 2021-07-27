@@ -21,6 +21,7 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.sources import BaseSourceDriver
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
@@ -174,7 +175,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    overwrite=True,
+    overwrite=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -212,7 +213,9 @@ def ingest(
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
-                          (default: True. deletes the targets that are about to be ingested)
+                          (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
+                                    False for scheduled ingest - does not delete the target)
+
     """
     if featureset:
         if isinstance(featureset, str):
@@ -238,13 +241,15 @@ def ingest(
             "feature set and source must be specified"
         )
 
+    if overwrite is None:
+        if isinstance(source, BaseSourceDriver) and source.schedule:
+            overwrite = False
+        else:
+            overwrite = True
+
     if run_config:
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
-        if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
-            # this flow does not happen when runnign locally!!!!!! ???? do i still need it???
-            source.start_time = featureset.status.targets[0].last_written #for now the first. later min
-            source.end_time = datetime.now()
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options
         )
@@ -267,9 +272,19 @@ def ingest(
                 "data source was not specified"
             )
 
-        if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
-            # last_written is a string.
-            source.start_time = datetime.fromisoformat(featureset.status.targets[0].last_written) #for now the first. later min
+        if (
+            source.schedule
+            and featureset.status.targets
+            and featureset.status.targets[0].last_written
+        ):
+            min_time = datetime.fromisoformat(featureset.status.targets[0].last_written)
+            for target in featureset.status.targets:
+                if target.last_written:
+                    cur_last_written = datetime.fromisoformat(target.last_written)
+                    if cur_last_written < min_time:
+                        min_time = cur_last_written
+
+            source.start_time = min_time
             source.end_time = datetime.now()
 
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")

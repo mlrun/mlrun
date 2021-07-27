@@ -44,7 +44,6 @@ from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
 
-
 default_max_replicas = 4
 
 
@@ -53,7 +52,10 @@ def validate_version_compatibility(*min_nuclio_versions):
     Validation is best effort - if we can't parse we assume compatible.
     :param min_nuclio_versions: valid version(s), assuming no 2 versions has equal major and minor
     """
-    parsed_min_versions = [semver.VersionInfo.parse(min_nuclio_version) for min_nuclio_version in min_nuclio_versions]
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_nuclio_version)
+        for min_nuclio_version in min_nuclio_versions
+    ]
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
     except ValueError:
@@ -65,9 +67,9 @@ def validate_version_compatibility(*min_nuclio_versions):
     compatible = False
     for parsed_min_version in parsed_min_versions:
         if (
-            parsed_current_version.major == parsed_min_version.major and
-            parsed_current_version.minor == parsed_min_version.minor and
-            parsed_current_version.patch < parsed_min_version.patch
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
         ):
             return False
         if parsed_current_version >= parsed_min_version:
@@ -77,7 +79,6 @@ def validate_version_compatibility(*min_nuclio_versions):
 
 def min_versions(*versions):
     def decorator(function):
-
         def wrapper(*args, **kwargs):
             if validate_version_compatibility(*versions):
                 return function(*args, **kwargs)
@@ -89,6 +90,7 @@ def min_versions(*versions):
             raise mlrun.errors.MLRunMissingDependencyError(message)
 
         return wrapper
+
     return decorator
 
 

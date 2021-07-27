@@ -397,7 +397,9 @@ class ModelEndpoints:
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
         ModelEndpoints.deploy_model_monitoring_stream_processing(
-            project=project, model_monitoring_access_key=model_monitoring_access_key
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            auto_info=auth_info,
         )
         ModelEndpoints.deploy_model_monitoring_batch_processing(
             project=project,
@@ -408,7 +410,9 @@ class ModelEndpoints:
 
     @staticmethod
     def deploy_model_monitoring_stream_processing(
-        project: str, model_monitoring_access_key: str
+        project: str,
+        model_monitoring_access_key: str,
+        auto_info: mlrun.api.schemas.AuthInfo,
     ):
         try:
             logger.info(
@@ -447,7 +451,7 @@ class ModelEndpoints:
         fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
 
         fn.apply(mlrun.mount_v3io())
-        deploy_nuclio_function(fn)
+        deploy_nuclio_function(fn, auth_info=auto_info)
 
     @staticmethod
     def deploy_model_monitoring_batch_processing(

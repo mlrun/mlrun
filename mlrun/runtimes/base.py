@@ -694,9 +694,6 @@ class BaseRuntime(ModelObj):
 
     def full_image_path(self, image=None):
         image = image or self.spec.image or ""
-
-        # remove temp logger
-        logger.info(f"inner SparkJob created with spec.image = {self.spec.image}")
         image = enrich_image_url(image)
         if not image.startswith("."):
             return image

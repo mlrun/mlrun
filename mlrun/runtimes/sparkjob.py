@@ -323,6 +323,8 @@ class SparkRuntime(KubejobRuntime):
             elif self._default_image:
                 self.spec.image = self._default_image
 
+        logger.info(f"SparkJob created with spec.image = {self.spec.image}")
+
         update_in(job, "spec.image", self.full_image_path())
 
         update_in(job, "spec.volumes", self.spec.volumes)

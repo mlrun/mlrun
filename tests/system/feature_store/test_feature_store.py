@@ -3,7 +3,7 @@ import random
 import string
 from time import sleep
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import fsspec
 import pandas as pd
@@ -777,14 +777,7 @@ class TestFeatureStore(TestMLRunSystem):
     )
 
     def test_443(self):
-        from datetime import timedelta
-        # from mlrun.api import schemas
-
         now = datetime.now() + timedelta(minutes=2)
-        #        cron_trigger = schemas.ScheduleCronTrigger(
-        #            second='*/1', start_time=now, end_time=now_plus
-        #        )
-
         data = pd.DataFrame(
             {
                 "time": [pd.Timestamp("2021-01-10 10:00:00"), pd.Timestamp("2021-01-10 11:00:00")],

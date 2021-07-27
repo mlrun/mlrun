@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, List, Optional
 import datetime
 
 import pandas as pd
-from ..utils import logger
 
 # Storey is not compatible with Python 3.6. We have to import this module in httpdb.
 # So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be

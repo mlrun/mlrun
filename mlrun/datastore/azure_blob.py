@@ -90,7 +90,7 @@ class AzureBlobStore(DataStore):
     def put(self, key, data, append=False):
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Append mode not supported for Azure blob datastore"
+                "Append mode not supported for Azure blob datastore"
             )
 
         if self.bsc:

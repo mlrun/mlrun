@@ -47,14 +47,14 @@ from .utils import get_item_name, log_std
 default_max_replicas = 4
 
 
-def validate_version_compatibility(*min_nuclio_versions):
+def validate_nuclio_version_compatibility(*min_versions):
     """
     Validation is best effort - if we can't parse we assume compatible.
-    :param min_nuclio_versions: valid version(s), assuming no 2 versions has equal major and minor
+    This method mainly used via decorator 'min_nuclio_versions'.
+    :param min_versions: valid version(s), assuming no 2 versions has equal major and minor
     """
     parsed_min_versions = [
-        semver.VersionInfo.parse(min_nuclio_version)
-        for min_nuclio_version in min_nuclio_versions
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
     ]
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
@@ -77,10 +77,10 @@ def validate_version_compatibility(*min_nuclio_versions):
     return compatible
 
 
-def min_versions(*versions):
+def min_nuclio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):
-            if validate_version_compatibility(*versions):
+            if validate_nuclio_version_compatibility(*versions):
                 return function(*args, **kwargs)
 
             message = (
@@ -532,7 +532,7 @@ class RemoteRuntime(KubeResource):
             logger.error("Nuclio function failed to deploy", function_state=state)
             raise RunError(f"function {self.metadata.name} deployment failed")
 
-    @min_versions("1.5.20", "1.6.10")
+    @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,

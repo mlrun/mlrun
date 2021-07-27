@@ -49,9 +49,9 @@ default_max_replicas = 4
 
 def validate_nuclio_version_compatibility(*min_versions):
     """
-    Validation is best effort - if we can't parse we assume compatible.
+    Validation is best effort - if we can't parse version we assume compatible.
     This method mainly used via decorator 'min_nuclio_versions'.
-    :param min_versions: valid version(s), assuming no 2 versions has equal major and minor
+    :param min_versions: valid version(s), assuming no 2 versions has equal major and minor.
     """
     parsed_min_versions = [
         semver.VersionInfo.parse(min_version) for min_version in min_versions

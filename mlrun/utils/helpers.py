@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import hashlib
 import inspect
 import json
@@ -97,7 +98,6 @@ except ImportError:
     pass
 
 if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
-
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -131,8 +131,27 @@ def verify_field_regex(field_name, field_value, patterns):
                 pattern=pattern,
             )
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field {field_name} is malformed. Does not match required pattern: {pattern}"
+                f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
             )
+
+
+# Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
+def verify_field_of_type(field_name: str, field_value, expected_type: type):
+    if not isinstance(field_value, expected_type):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"(got: {type(field_value).__name__} with value: {field_value})."
+        )
+
+
+# Verifying that a field input is of type list and all elements inside are of the expected element type.
+# If not the method raises a detailed MLRunInvalidArgumentError
+def verify_field_list_of_type(
+    field_name: str, field_value, expected_element_type: type
+):
+    verify_field_of_type(field_name, field_value, list)
+    for element in field_value:
+        verify_field_of_type(field_name, element, expected_element_type)
 
 
 def now_date():
@@ -189,6 +208,20 @@ def get_in(obj, keys, default=None):
     return obj
 
 
+def verify_and_update_in(
+    obj, key, value, expected_type: type, append=False, replace=True
+):
+    verify_field_of_type(key, value, expected_type)
+    update_in(obj, key, value, append, replace)
+
+
+def verify_list_and_update_in(
+    obj, key, value, expected_element_type: type, append=False, replace=True
+):
+    verify_field_list_of_type(key, value, expected_element_type)
+    update_in(obj, key, value, append, replace)
+
+
 def update_in(obj, key, value, append=False, replace=True):
     parts = key.split(".") if isinstance(key, str) else key
     for part in parts[:-1]:
@@ -241,7 +274,6 @@ def match_labels(labels, conditions):
 def match_times(time_from, time_to, obj, key):
     obj_time = get_in(obj, key)
     if not obj_time:
-
         # if obj doesn't have the required time, return false if either time_from or time_to were given
         return not time_from and not time_to
     obj_time = parser.isoparse(obj_time)
@@ -322,6 +354,10 @@ def date_representer(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:timestamp", value)
 
 
+def enum_representer(dumper, data):
+    return dumper.represent_str(str(data.value))
+
+
 yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
@@ -329,6 +365,7 @@ yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.ndarray, numpy_representer_seq, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.datetime64, date_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
+yaml.add_multi_representer(enum.Enum, enum_representer, Dumper=yaml.SafeDumper)
 
 
 def dict_to_yaml(struct):
@@ -524,6 +561,9 @@ def enrich_image_url(image_url: str) -> str:
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
+    if is_mlrun_image and tag and ":" not in image_url:
+        image_url = f"{image_url}:{tag}"
+
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided
     # example: "^mlrun/*" means enrich only if the image repository is mlrun and registry is not specified (in which
@@ -533,11 +573,9 @@ def enrich_image_url(image_url: str) -> str:
         for pattern_to_enrich in config.images_to_enrich_registry.split(","):
             if re.match(pattern_to_enrich, image_url):
                 enrich_registry = True
-    if enrich_registry:
+    if registry and enrich_registry:
+        registry = registry if registry.endswith("/") else f"{registry}/"
         image_url = f"{registry}{image_url}"
-
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
 
     return image_url
 
@@ -611,6 +649,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["metadata"][uid_property_name] = ""
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
+    object_created_timestamp = object_dict["metadata"].pop("created", None)
     data = json.dumps(object_dict, sort_keys=True).encode()
     h = hashlib.sha1()
     h.update(data)
@@ -618,6 +657,8 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
+    if object_created_timestamp:
+        object_dict["metadata"]["created"] = object_created_timestamp
     return uid
 
 

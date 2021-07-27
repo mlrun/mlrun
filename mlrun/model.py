@@ -639,6 +639,10 @@ class RunTemplate(ModelObj):
 
             task.with_secrets('vault', ['secret1', 'secret2'...])
 
+            # If using with k8s secrets, the k8s secret is managed by MLRun, through the project-secrets
+            # mechanism. The secrets will be attached to the running pod as environment variables.
+            task.with_secrets('kubernetes', ['secret1', 'secret2'])
+
             # If using an empty secrets list [] then all accessible secrets will be available.
             task.with_secrets('vault', [])
 
@@ -688,6 +692,7 @@ class RunObject(RunTemplate):
         super().__init__(spec, metadata)
         self._status = None
         self.status = status
+        self.outputs_wait_for_completion = True
 
     @classmethod
     def from_template(cls, template: RunTemplate):
@@ -703,9 +708,11 @@ class RunObject(RunTemplate):
 
     def output(self, key):
         """return the value of a specific result or artifact by key"""
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
-        artifact = self.artifact(key)
+        artifact = self._artifact(key)
         if artifact:
             return get_artifact_target(artifact, self.metadata.project)
         return None
@@ -722,6 +729,8 @@ class RunObject(RunTemplate):
     def outputs(self):
         """return a dict of outputs, result values and artifact uris"""
         outputs = {}
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion()
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
@@ -729,8 +738,19 @@ class RunObject(RunTemplate):
                 outputs[a["key"]] = get_artifact_target(a, self.metadata.project)
         return outputs
 
-    def artifact(self, key):
-        """return artifact metadata by key"""
+    def artifact(self, key) -> "mlrun.DataItem":
+        """return artifact DataItem by key"""
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion()
+        artifact = self._artifact(key)
+        if artifact:
+            uri = get_artifact_target(artifact, self.metadata.project)
+            if uri:
+                return mlrun.get_dataitem(uri)
+        return None
+
+    def _artifact(self, key):
+        """return artifact DataItem by key"""
         if self.status.artifacts:
             for a in self.status.artifacts:
                 if a["key"] == key:
@@ -743,6 +763,8 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
+        if self.status.state in mlrun.runtimes.constants.RunStates.terminal_states():
+            return self.status.state
         self.refresh()
         return self.status.state or "unknown"
 
@@ -783,7 +805,7 @@ class RunObject(RunTemplate):
             print(f"final state: {state}")
         return state
 
-    def wait_for_completion(self, sleep=3, timeout=0):
+    def wait_for_completion(self, sleep=3, timeout=0, raise_on_failure=True):
         """wait for async run to complete"""
         total_time = 0
         while True:
@@ -796,6 +818,11 @@ class RunObject(RunTemplate):
                 raise mlrun.errors.MLRunTimeoutError(
                     "Run did not reach terminal state on time"
                 )
+        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+            self.logs(watch=False)
+            raise mlrun.errors.MLRunRuntimeError(
+                f"task {self.metadata.name} did not complete (state={state})"
+            )
         return state
 
     @staticmethod
@@ -906,7 +933,7 @@ def new_task(
 
     :param name:            task name
     :param project:         task project
-    :param handler:         code entry-point/hanfler name
+    :param handler:         code entry-point/handler name
     :param params:          input parameters (dict)
     :param hyper_params:    dictionary of hyper parameters and list values, each
                             hyper param holds a list of values, the run will be
@@ -1007,6 +1034,8 @@ class DataTargetBase(ModelObj):
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
+        "max_events",
+        "flush_after_seconds",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1027,6 +1056,8 @@ class DataTargetBase(ModelObj):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
         after_state=None,
     ):
         if after_state:
@@ -1046,6 +1077,8 @@ class DataTargetBase(ModelObj):
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
         self.time_partitioning_granularity = time_partitioning_granularity
+        self.max_events = max_events
+        self.flush_after_seconds = flush_after_seconds
 
 
 class FeatureSetProducer(ModelObj):

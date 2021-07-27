@@ -22,7 +22,11 @@ import mlrun
 from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import CSVTarget, ParquetTarget, get_offline_target
-from ..feature_store.common import get_feature_set_by_uri, parse_feature_string
+from ..feature_store.common import (
+    get_feature_set_by_uri,
+    parse_feature_string,
+    parse_project_name_from_feature_string,
+)
 from ..features import Feature
 from ..model import DataSource, DataTarget, ModelObj, ObjectList, VersionedObjMetadata
 from ..runtimes.function_reference import FunctionReference
@@ -143,18 +147,33 @@ class FeatureVectorStatus(ModelObj):
 
 
 class FeatureVector(ModelObj):
-    """Feature vector, specify selected features, their metadata and material views"""
+    """Feature vector, specify selected features, their metadata and material views
+    :param name: List of names of targets to delete (default: delete all ingested targets)
+    :param features: list of feature to collect to this vector. format <project>/<feature_set>.<feature_name or *>
+    :param label_feature: feature name to be used as label data
+    :param description: vector description
+    :param with_indexes: whether to keep the entity and timestamp columns in the response """
 
     kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, features=None, label_feature=None, description=None):
+    def __init__(
+        self,
+        name=None,
+        features=None,
+        label_feature=None,
+        description=None,
+        with_indexes=None,
+    ):
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
 
         self.spec = FeatureVectorSpec(
-            description=description, features=features, label_feature=label_feature
+            description=description,
+            features=features,
+            label_feature=label_feature,
+            with_indexes=with_indexes,
         )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
@@ -266,10 +285,12 @@ class FeatureVector(ModelObj):
             feature_set_fields[featureset_name].append((name, alias))
 
         for feature in features:
+            project_name, feature = parse_project_name_from_feature_string(feature)
             feature_set, feature_name, alias = parse_feature_string(feature)
             if feature_set not in feature_set_objects.keys():
                 feature_set_objects[feature_set] = get_feature_set_by_uri(
-                    feature_set, self.metadata.project
+                    feature_set,
+                    project_name if project_name is not None else self.metadata.project,
                 )
             feature_set_object = feature_set_objects[feature_set]
 
@@ -317,6 +338,12 @@ class OnlineVectorService:
         """get feature vector given the provided entity inputs"""
         results = []
         futures = []
+        if isinstance(entity_rows, dict):
+            entity_rows = [entity_rows]
+        if not isinstance(entity_rows, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{entity_rows} is of type {type(entity_rows)}. It should be list of Dictionaries"
+            )
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
         for future in futures:

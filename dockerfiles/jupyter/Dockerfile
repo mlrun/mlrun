@@ -13,21 +13,24 @@ RUN python -m pip install --upgrade pip~=20.2.0
 WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
+COPY --chown=$NB_UID:$NB_GID ./examples/mlrun_basics.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
 
 ARG MLRUN_CACHE_DATE=initial
 RUN git clone --branch hackathon https://github.com/mlrun/demos.git $HOME/demos
-RUN git clone https://github.com/mlrun/functions.git $HOME/functions
+RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/requirements.txt /tmp/requirements/jupyter-requirements.txt
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/mlrun-api/requirements.txt /tmp/requirements/mlrun-api-requirements.txt
+COPY --chown=$NB_UID:$NB_GID ./extras-requirements.txt /tmp/requirements/extras-requirement.txt
 COPY --chown=$NB_UID:$NB_GID ./requirements.txt /tmp/requirements/requirement.txt
 RUN python -m pip install \
     -r /tmp/requirements/jupyter-requirements.txt \
     -r /tmp/requirements/mlrun-api-requirements.txt \
+    -r /tmp/requirements/extras-requirement.txt \
     -r /tmp/requirements/requirement.txt
 
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun

@@ -5,8 +5,10 @@ import json
 import typing
 
 import deepdiff
+import fastapi
 import pytest
 import requests_mock as requests_mock_package
+import starlette.datastructures
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
@@ -29,6 +31,61 @@ async def iguazio_client(api_url: str,) -> mlrun.api.utils.clients.iguazio.Clien
     client._wait_for_job_completion_retry_interval = 0
     client._wait_for_project_terminal_state_retry_interval = 0
     return client
+
+
+def test_verify_request_session_success(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    mock_request_headers = starlette.datastructures.Headers(
+        {"cookie": "session=some-session-cookie"}
+    )
+    mock_request = fastapi.Request({"type": "http"})
+    mock_request._headers = mock_request_headers
+
+    mock_response_headers = {
+        "X-Remote-User": "some-user",
+        "X-V3io-Session-Key": "some-access-key",
+        "x-user-id": "some-uid",
+        "x-user-group-ids": "some-gid,some-gid2,some-gid3",
+        "x-v3io-session-planes": "control,data",
+    }
+
+    def _verify_session_mock(request, context):
+        for header_key, header_value in mock_request_headers.items():
+            assert request.headers[header_key] == header_value
+        context.headers = mock_response_headers
+        return {}
+
+    requests_mock.post(
+        f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
+        json=_verify_session_mock,
+    )
+    (username, access_key, uid, gids, planes) = iguazio_client.verify_request_session(
+        mock_request
+    )
+    assert username == mock_response_headers["X-Remote-User"]
+    assert access_key == mock_response_headers["X-V3io-Session-Key"]
+    assert uid == mock_response_headers["x-user-id"]
+    assert gids == mock_response_headers["x-user-group-ids"].split(",")
+    assert planes == mock_response_headers["x-v3io-session-planes"].split(",")
+
+
+def test_verify_request_session_failure(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    mock_request = fastapi.Request({"type": "http"})
+    mock_request._headers = starlette.datastructures.Headers()
+
+    requests_mock.post(
+        f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
+        status_code=http.HTTPStatus.UNAUTHORIZED.value,
+    )
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+        iguazio_client.verify_request_session(mock_request)
 
 
 def test_get_grafana_service_url_success(
@@ -453,6 +510,25 @@ def test_delete_project_without_wait(
         session, project_name, wait_for_completion=False
     )
     assert is_running_in_background is True
+
+
+def test_format_as_leader_project(
+    api_url: str, iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+):
+    project = _generate_project()
+    iguazio_project = iguazio_client.format_as_leader_project(project)
+    assert (
+        deepdiff.DeepDiff(
+            _build_project_response(iguazio_client, project),
+            iguazio_project.data,
+            ignore_order=True,
+            exclude_paths=[
+                "root['attributes']['updated_at']",
+                "root['attributes']['operational_status']",
+            ],
+        )
+        == {}
+    )
 
 
 def _create_project_and_assert(

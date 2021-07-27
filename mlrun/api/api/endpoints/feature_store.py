@@ -1,15 +1,16 @@
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
+import mlrun.api.utils.clients.opa
 import mlrun.feature_store
 from mlrun import v3io_cred
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import get_secrets, log_and_raise, parse_reference
-from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.api.utils import log_and_raise, parse_reference
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
@@ -23,18 +24,20 @@ def create_feature_set(
     project: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_set_uid = get_db().create_feature_set(
-        db_session, project, feature_set, versioned
+    feature_set_uid = mlrun.api.crud.FeatureStore().create_feature_set(
+        db_session, project, feature_set, versioned, auth_verifier.auth_info,
     )
 
-    return get_db().get_feature_set(
+    return mlrun.api.crud.FeatureStore().get_feature_set(
         db_session,
         project,
         feature_set.metadata.name,
-        tag=feature_set.metadata.tag or "latest",
-        uid=feature_set_uid,
+        feature_set.metadata.tag or "latest",
+        feature_set_uid,
+        auth_verifier.auth_info,
     )
 
 
@@ -48,14 +51,28 @@ def store_feature_set(
     reference: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    uid = get_db().store_feature_set(
-        db_session, project, name, feature_set, tag, uid, versioned
+    uid = mlrun.api.crud.FeatureStore().store_feature_set(
+        db_session,
+        project,
+        name,
+        feature_set,
+        tag,
+        uid,
+        versioned,
+        auth_verifier.auth_info,
     )
-
-    return get_db().get_feature_set(db_session, project, name, tag=tag, uid=uid)
+    return mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session,
+        project,
+        feature_set.metadata.name,
+        tag,
+        uid,
+        auth_verifier.auth_info,
+    )
 
 
 @router.patch("/projects/{project}/feature-sets/{name}/references/{reference}")
@@ -67,11 +84,19 @@ def patch_feature_set(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    get_db().patch_feature_set(
-        db_session, project, name, feature_set_update, tag, uid, patch_mode
+    mlrun.api.crud.FeatureStore().patch_feature_set(
+        db_session,
+        project,
+        name,
+        feature_set_update,
+        tag,
+        uid,
+        patch_mode,
+        auth_verifier.auth_info,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -84,10 +109,13 @@ def get_feature_set(
     project: str,
     name: str,
     reference: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    feature_set = get_db().get_feature_set(db_session, project, name, tag, uid)
+    feature_set = mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session, project, name, tag, uid, auth_verifier.auth_info,
+    )
     return feature_set
 
 
@@ -97,12 +125,15 @@ def delete_feature_set(
     project: str,
     name: str,
     reference: str = None,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag = uid = None
     if reference:
         tag, uid = parse_reference(reference)
-    get_db().delete_feature_set(db_session, project, name, tag, uid)
+    mlrun.api.crud.FeatureStore().delete_feature_set(
+        db_session, project, name, tag, uid, auth_verifier.auth_info
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -123,9 +154,10 @@ def list_feature_sets(
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
     sort: schemas.SortField = Query(None, alias="partition-sort-by"),
     order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_sets = get_db().list_feature_sets(
+    feature_sets = mlrun.api.crud.FeatureStore().list_feature_sets(
         db_session,
         project,
         name,
@@ -138,6 +170,7 @@ def list_feature_sets(
         rows_per_partition,
         sort,
         order,
+        auth_verifier.auth_info,
     )
 
     return feature_sets
@@ -174,7 +207,6 @@ def _has_v3io_path(data_source, data_targets, feature_set):
     status_code=HTTPStatus.ACCEPTED.value,
 )
 def ingest_feature_set(
-    request: Request,
     project: str,
     name: str,
     reference: str,
@@ -182,14 +214,24 @@ def ingest_feature_set(
         schemas.FeatureSetIngestInput
     ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.update,
+        auth_verifier.auth_info,
+    )
     tag, uid = parse_reference(reference)
-    feature_set_record = get_db().get_feature_set(db_session, project, name, tag, uid)
+    feature_set_record = mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session, project, name, tag, uid, auth_verifier.auth_info
+    )
 
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
     # Need to override the default rundb since we're in the server.
-    feature_set._override_run_db(db_session)
+    feature_set._override_run_db(db_session, auth_verifier.auth_info)
 
     data_source = data_targets = None
     if ingest_parameters.source:
@@ -206,8 +248,7 @@ def ingest_feature_set(
     # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are
     # user-context parameters, we cannot use the api context.
     if _has_v3io_path(data_source, data_targets, feature_set):
-        secrets = get_secrets(request)
-        access_key = secrets.get("V3IO_ACCESS_KEY", None)
+        access_key = auth_verifier.auth_info.data_session
 
         if not access_key or not username:
             log_and_raise(
@@ -240,9 +281,12 @@ def list_features(
     tag: str = None,
     entities: List[str] = Query(None, alias="entity"),
     labels: List[str] = Query(None, alias="label"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    features = get_db().list_features(db_session, project, name, tag, entities, labels)
+    features = mlrun.api.crud.FeatureStore().list_features(
+        db_session, project, name, tag, entities, labels, auth_verifier.auth_info
+    )
     return features
 
 
@@ -252,9 +296,12 @@ def list_entities(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query(None, alias="label"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    features = get_db().list_entities(db_session, project, name, tag, labels)
+    features = mlrun.api.crud.FeatureStore().list_entities(
+        db_session, project, name, tag, labels, auth_verifier.auth_info
+    )
     return features
 
 
@@ -265,18 +312,20 @@ def create_feature_vector(
     project: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_vector_uid = get_db().create_feature_vector(
-        db_session, project, feature_vector, versioned
+    feature_vector_uid = mlrun.api.crud.FeatureStore().create_feature_vector(
+        db_session, project, feature_vector, versioned, auth_verifier.auth_info
     )
 
-    return get_db().get_feature_vector(
+    return mlrun.api.crud.FeatureStore().get_feature_vector(
         db_session,
         project,
         feature_vector.metadata.name,
-        tag=feature_vector.metadata.tag or "latest",
-        uid=feature_vector_uid,
+        feature_vector.metadata.tag or "latest",
+        feature_vector_uid,
+        auth_verifier.auth_info,
     )
 
 
@@ -288,10 +337,13 @@ def get_feature_vector(
     project: str,
     name: str,
     reference: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    return get_db().get_feature_vector(db_session, project, name, tag, uid)
+    return mlrun.api.crud.FeatureStore().get_feature_vector(
+        db_session, project, name, tag, uid, auth_verifier.auth_info
+    )
 
 
 @router.get(
@@ -309,9 +361,10 @@ def list_feature_vectors(
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
     sort: schemas.SortField = Query(None, alias="partition-sort-by"),
     order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_vectors = get_db().list_feature_vectors(
+    feature_vectors = mlrun.api.crud.FeatureStore().list_feature_vectors(
         db_session,
         project,
         name,
@@ -322,6 +375,7 @@ def list_feature_vectors(
         rows_per_partition,
         sort,
         order,
+        auth_verifier.auth_info,
     )
 
     return feature_vectors
@@ -337,14 +391,24 @@ def store_feature_vector(
     reference: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    uid = get_db().store_feature_vector(
-        db_session, project, name, feature_vector, tag, uid, versioned
+    uid = mlrun.api.crud.FeatureStore().store_feature_vector(
+        db_session,
+        project,
+        name,
+        feature_vector,
+        tag,
+        uid,
+        versioned,
+        auth_verifier.auth_info,
     )
 
-    return get_db().get_feature_vector(db_session, project, name, uid=uid, tag=tag)
+    return mlrun.api.crud.FeatureStore().get_feature_vector(
+        db_session, project, name, tag, uid, auth_verifier.auth_info,
+    )
 
 
 @router.patch("/projects/{project}/feature-vectors/{name}/references/{reference}")
@@ -356,11 +420,19 @@ def patch_feature_vector(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    get_db().patch_feature_vector(
-        db_session, project, name, feature_vector_update, tag, uid, patch_mode
+    mlrun.api.crud.FeatureStore().patch_feature_vector(
+        db_session,
+        project,
+        name,
+        feature_vector_update,
+        tag,
+        uid,
+        patch_mode,
+        auth_verifier.auth_info,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -371,10 +443,13 @@ def delete_feature_vector(
     project: str,
     name: str,
     reference: str = None,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag = uid = None
     if reference:
         tag, uid = parse_reference(reference)
-    get_db().delete_feature_vector(db_session, project, name, tag, uid)
+    mlrun.api.crud.FeatureStore().delete_feature_vector(
+        db_session, project, name, tag, uid, auth_verifier.auth_info
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

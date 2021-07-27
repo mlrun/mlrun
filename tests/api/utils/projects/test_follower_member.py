@@ -22,6 +22,7 @@ async def projects_follower() -> typing.Generator[
     logger.info("Creating projects follower")
     mlrun.config.config.httpdb.projects.leader = "nop"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
+    mlrun.config.config.httpdb.projects.follower_projects_store_mode = "cache"
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     projects_follower = mlrun.api.utils.singletons.project_member.get_project_member()
     yield projects_follower
@@ -142,6 +143,9 @@ def test_delete_project(
         None, project,
     )
     _assert_project_in_follower(projects_follower, project)
+    mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources = unittest.mock.Mock(
+        return_value=None
+    )
     projects_follower.delete_project(
         None, project.metadata.name,
     )
@@ -265,7 +269,7 @@ def test_list_project_format_summary(
         return_value=[project_summary]
     )
     project_summaries = projects_follower.list_projects(
-        None, format_=mlrun.api.schemas.Format.summary
+        None, format_=mlrun.api.schemas.ProjectsFormat.summary
     )
     assert len(project_summaries.projects) == 1
     assert (
@@ -274,6 +278,26 @@ def test_list_project_format_summary(
             project_summary.dict(),
             ignore_order=True,
         )
+        == {}
+    )
+
+
+def test_list_project_leader_format(
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+):
+    project = _generate_project(name="name-1")
+    mlrun.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
+        return_value=mlrun.api.schemas.ProjectsOutput(projects=[project])
+    )
+    projects = projects_follower.list_projects(
+        None,
+        format_=mlrun.api.schemas.ProjectsFormat.leader,
+        projects_role=mlrun.api.schemas.ProjectsRole.nop,
+    )
+    assert (
+        deepdiff.DeepDiff(projects.projects[0].data, project.dict(), ignore_order=True,)
         == {}
     )
 
@@ -293,7 +317,7 @@ def _assert_list_projects(
 
     # assert again - with name only format
     projects = projects_follower.list_projects(
-        None, format_=mlrun.api.schemas.Format.name_only, **kwargs
+        None, format_=mlrun.api.schemas.ProjectsFormat.name_only, **kwargs
     )
     assert len(projects.projects) == len(expected_projects)
     assert (

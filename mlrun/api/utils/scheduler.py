@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import json
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -9,6 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
@@ -21,14 +23,17 @@ from mlrun.utils import logger
 
 class Scheduler:
     def __init__(self):
-        self._scheduler = AsyncIOScheduler()
+        scheduler_config = json.loads(config.httpdb.scheduling.scheduler_config)
+        self._scheduler = AsyncIOScheduler(gconfig=scheduler_config, prefix=None)
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
         # we don't allow to schedule a job to run more then one time per X
         # NOTE this cannot be less then one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
 
-    async def start(self, db_session: Session):
+    async def start(
+        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
+    ):
         logger.info("Starting scheduler")
         self._scheduler.start()
         # the scheduler shutdown and start operation are not fully async compatible yet -
@@ -37,7 +42,7 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            self._reload_schedules(db_session)
+            self._reload_schedules(db_session, auth_info)
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=exc)
 
@@ -51,6 +56,7 @@ class Scheduler:
     def create_schedule(
         self,
         db_session: Session,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
         kind: schemas.ScheduleKinds,
@@ -59,6 +65,16 @@ class Scheduler:
         labels: Dict = None,
         concurrency_limit: int = config.httpdb.scheduling.default_concurrency_limit,
     ):
+        get_project_member().ensure_project(
+            db_session, project, leader_session=auth_info.session
+        )
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            project,
+            name,
+            mlrun.api.schemas.AuthorizationAction.create,
+            auth_info,
+        )
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
 
@@ -74,7 +90,6 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        get_project_member().ensure_project(db_session, project)
         get_db().create_schedule(
             db_session,
             project,
@@ -86,12 +101,19 @@ class Scheduler:
             labels,
         )
         self._create_schedule_in_scheduler(
-            project, name, kind, scheduled_object, cron_trigger, concurrency_limit,
+            project,
+            name,
+            kind,
+            scheduled_object,
+            cron_trigger,
+            concurrency_limit,
+            auth_info,
         )
 
     def update_schedule(
         self,
         db_session: Session,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
         scheduled_object: Union[Dict, Callable] = None,
@@ -99,6 +121,13 @@ class Scheduler:
         labels: Dict = None,
         concurrency_limit: int = None,
     ):
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            project,
+            name,
+            mlrun.api.schemas.AuthorizationAction.update,
+            auth_info,
+        )
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
 
@@ -122,6 +151,7 @@ class Scheduler:
             cron_trigger,
             labels,
             concurrency_limit,
+            auth_info.session,
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
         updated_schedule = self._transform_and_enrich_db_schedule(
@@ -135,11 +165,13 @@ class Scheduler:
             updated_schedule.scheduled_object,
             updated_schedule.cron_trigger,
             updated_schedule.concurrency_limit,
+            auth_info,
         )
 
     def list_schedules(
         self,
         db_session: Session,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str = None,
         name: str = None,
         kind: str = None,
@@ -150,6 +182,12 @@ class Scheduler:
             "Getting schedules", project=project, name=name, labels=labels, kind=kind
         )
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
+        db_schedules = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            db_schedules,
+            lambda db_schedule: (db_schedule.project, db_schedule.name,),
+            auth_info,
+        )
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_and_enrich_db_schedule(
@@ -161,17 +199,38 @@ class Scheduler:
     def get_schedule(
         self,
         db_session: Session,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
         include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            project,
+            name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
+        )
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         return self._transform_and_enrich_db_schedule(
             db_session, db_schedule, include_last_run
         )
 
-    def delete_schedule(self, db_session: Session, project: str, name: str):
+    def delete_schedule(
+        self,
+        db_session: Session,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        name: str,
+    ):
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            project,
+            name,
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
         logger.debug("Deleting schedule", project=project, name=name)
         job_id = self._resolve_job_id(project, name)
         # don't fail on delete if job doesn't exist
@@ -180,7 +239,20 @@ class Scheduler:
             self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
-    async def invoke_schedule(self, db_session: Session, project: str, name: str):
+    async def invoke_schedule(
+        self,
+        db_session: Session,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        name: str,
+    ):
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            project,
+            name,
+            mlrun.api.schemas.AuthorizationAction.update,
+            auth_info,
+        )
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = await fastapi.concurrency.run_in_threadpool(
             get_db().get_schedule, db_session, project, name
@@ -191,6 +263,7 @@ class Scheduler:
             project,
             name,
             db_schedule.concurrency_limit,
+            auth_info,
         )
         return await function(*args, **kwargs)
 
@@ -253,11 +326,12 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
-            kind, scheduled_object, project, name, concurrency_limit,
+            kind, scheduled_object, project, name, concurrency_limit, auth_info
         )
 
         # we use max_instances as well as our logic in the run wrapper for concurrent jobs
@@ -282,11 +356,12 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
-            kind, scheduled_object, project, name, concurrency_limit,
+            kind, scheduled_object, project, name, concurrency_limit, auth_info
         )
         trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
             cron_trigger
@@ -302,7 +377,9 @@ class Scheduler:
             next_run_time=next_run_time,
         )
 
-    def _reload_schedules(self, db_session: Session):
+    def _reload_schedules(
+        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
+    ):
         logger.info("Reloading schedules")
         db_schedules = get_db().list_schedules(db_session)
         for db_schedule in db_schedules:
@@ -315,6 +392,7 @@ class Scheduler:
                     db_schedule.scheduled_object,
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
+                    auth_info,
                 )
             except Exception as exc:
                 logger.warn(
@@ -364,6 +442,7 @@ class Scheduler:
         project_name: str,
         schedule_name: str,
         schedule_concurrency_limit: int,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -378,6 +457,7 @@ class Scheduler:
                     project_name,
                     schedule_name,
                     schedule_concurrency_limit,
+                    auth_info,
                 ],
                 {},
             )
@@ -397,9 +477,14 @@ class Scheduler:
 
     @staticmethod
     async def submit_run_wrapper(
-        scheduled_object, project_name, schedule_name, schedule_concurrency_limit
+        scheduled_object,
+        project_name,
+        schedule_name,
+        schedule_concurrency_limit,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # import here to avoid circular imports
+        import mlrun.api.crud
         from mlrun.api.api.utils import submit_run
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
@@ -418,11 +503,12 @@ class Scheduler:
 
         db_session = create_session()
 
-        active_runs = get_db().list_runs(
+        active_runs = mlrun.api.crud.Runs().list_runs(
             db_session,
             state=RunStates.non_terminal_states(),
             project=project_name,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
+            auth_info=auth_info,
         )
         if len(active_runs) >= schedule_concurrency_limit:
             logger.warn(
@@ -434,14 +520,18 @@ class Scheduler:
             )
             return
 
-        response = await submit_run(db_session, scheduled_object)
+        response = await submit_run(db_session, auth_info, scheduled_object)
 
         run_metadata = response["data"]["metadata"]
         run_uri = RunObject.create_uri(
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
         get_db().update_schedule(
-            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
+            db_session,
+            run_metadata["project"],
+            schedule_name,
+            last_run_uri=run_uri,
+            leader_session=auth_info.session,
         )
 
         close_session(db_session)

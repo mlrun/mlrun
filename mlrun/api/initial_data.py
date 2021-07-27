@@ -46,7 +46,7 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 
 
 def _fix_datasets_large_previews(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session,
 ):
     # get all artifacts
     artifacts = db._find_artifacts(db_session, None, "*")
@@ -117,7 +117,6 @@ def _fix_datasets_large_previews(
                         artifact.uid,
                         project=artifact.project,
                         tag_artifact=False,
-                        ensure_project=False,
                     )
         except Exception as exc:
             logger.warning(

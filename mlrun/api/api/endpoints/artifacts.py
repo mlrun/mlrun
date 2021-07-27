@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
+import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
@@ -15,7 +17,7 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
+# curl -d@/path/to/artifact http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -24,6 +26,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -34,14 +37,15 @@ async def store_artifact(
 
     logger.debug("Storing artifact", data=data)
     await run_in_threadpool(
-        get_db().store_artifact,
+        mlrun.api.crud.Artifacts().store_artifact,
         db_session,
         key,
         data,
         uid,
-        iter=iter,
-        tag=tag,
-        project=project,
+        tag,
+        iter,
+        project,
+        auth_verifier.auth_info,
     )
     return {}
 
@@ -49,9 +53,23 @@ async def store_artifact(
 # curl http://localhost:8080/artifact/p1/tags
 @router.get("/projects/{project}/artifact-tags")
 def list_artifact_tags(
-    project: str, db_session: Session = Depends(deps.get_db_session)
+    project: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    tags = get_db().list_artifact_tags(db_session, project)
+    tag_tuples = get_db().list_artifact_tags(db_session, project)
+    artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
+    allowed_artifact_keys = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        list(artifact_key_to_tag.keys()),
+        lambda artifact_key: (project, artifact_key,),
+        auth_verifier.auth_info,
+    )
+    tags = [
+        tag_tuple[2]
+        for tag_tuple in tag_tuples
+        if tag_tuple[1] in allowed_artifact_keys
+    ]
     return {
         "project": project,
         "tags": tags,
@@ -60,14 +78,17 @@ def list_artifact_tags(
 
 # curl http://localhost:8080/projects/my-proj/artifact/key?tag=latest
 @router.get("/projects/{project}/artifact/{key:path}")
-def read_artifact(
+def get_artifact(
     project: str,
     key: str,
     tag: str = "latest",
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = get_db().read_artifact(db_session, key, tag=tag, iter=iter, project=project)
+    data = mlrun.api.crud.Artifacts().get_artifact(
+        db_session, key, tag, iter, project, auth_verifier.auth_info
+    )
     return {
         "data": data,
     }
@@ -75,14 +96,17 @@ def read_artifact(
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
 @router.delete("/artifact/{project}/{uid}")
-def del_artifact(
+def delete_artifact(
     project: str,
     uid: str,
     key: str,
     tag: str = "",
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().del_artifact(db_session, key, tag, project)
+    mlrun.api.crud.Artifacts().delete_artifact(
+        db_session, key, tag, project, auth_verifier.auth_info
+    )
     return {}
 
 
@@ -97,18 +121,20 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    artifacts = get_db().list_artifacts(
+    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
         db_session,
-        name,
         project,
+        name,
         tag,
         labels,
         kind=kind,
         category=category,
         iter=iter,
         best_iteration=best_iteration,
+        auth_info=auth_verifier.auth_info,
     )
     return {
         "artifacts": artifacts,
@@ -117,12 +143,15 @@ def list_artifacts(
 
 # curl -X DELETE http://localhost:8080/artifacts?project=p1?label=l1
 @router.delete("/artifacts")
-def del_artifacts(
+def delete_artifacts(
     project: str = "",
     name: str = "",
     tag: str = "",
     labels: List[str] = Query([], alias="label"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().del_artifacts(db_session, name, project, tag, labels)
+    mlrun.api.crud.Artifacts().delete_artifacts(
+        db_session, project, name, tag, labels, auth_verifier.auth_info
+    )
     return {}

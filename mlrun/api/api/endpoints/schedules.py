@@ -14,10 +14,12 @@ router = APIRouter()
 def create_schedule(
     project: str,
     schedule: schemas.ScheduleInput,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().create_schedule(
         db_session,
+        auth_verifier.auth_info,
         project,
         schedule.name,
         schedule.kind,
@@ -34,10 +36,12 @@ def update_schedule(
     project: str,
     name: str,
     schedule: schemas.ScheduleUpdate,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().update_schedule(
         db_session,
+        auth_verifier.auth_info,
         project,
         name,
         schedule.scheduled_object,
@@ -54,10 +58,17 @@ def list_schedules(
     labels: str = None,
     kind: schemas.ScheduleKinds = None,
     include_last_run: bool = False,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().list_schedules(
-        db_session, project, name, kind, labels, include_last_run=include_last_run
+        db_session,
+        auth_verifier.auth_info,
+        project,
+        name,
+        kind,
+        labels,
+        include_last_run=include_last_run,
     )
 
 
@@ -68,25 +79,38 @@ def get_schedule(
     project: str,
     name: str,
     include_last_run: bool = False,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().get_schedule(
-        db_session, project, name, include_last_run=include_last_run
+        db_session,
+        auth_verifier.auth_info,
+        project,
+        name,
+        include_last_run=include_last_run,
     )
 
 
 @router.post("/projects/{project}/schedules/{name}/invoke")
 async def invoke_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    return await get_scheduler().invoke_schedule(db_session, project, name)
+    return await get_scheduler().invoke_schedule(
+        db_session, auth_verifier.auth_info, project, name
+    )
 
 
 @router.delete(
     "/projects/{project}/schedules/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 def delete_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    get_scheduler().delete_schedule(db_session, project, name)
+    get_scheduler().delete_schedule(db_session, auth_verifier.auth_info, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

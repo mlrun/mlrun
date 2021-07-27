@@ -258,7 +258,7 @@ class DaskCluster(KubejobRuntime):
         s = get_func_selector(meta.project, meta.name, meta.tag)
         if self._is_remote_api():
             db = self._get_db()
-            return db.remote_status(self.kind, s)
+            return db.remote_status(meta.project, meta.name, self.kind, s)
 
         status = get_obj_status(s)
         print(status)
@@ -565,7 +565,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # It means that monitoring runtime resources state doesn't say anything about the run state.
     # Therefore dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
-        self, db: DBInterface, db_session: Session,
+        self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
     ):
         return
 

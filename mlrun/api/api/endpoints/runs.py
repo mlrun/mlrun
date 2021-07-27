@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.utils import logger
 from mlrun.utils.helpers import datetime_from_iso
 
@@ -22,6 +21,7 @@ async def store_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -32,7 +32,13 @@ async def store_run(
 
     logger.info("Storing run", data=data)
     await run_in_threadpool(
-        get_db().store_run, db_session, data, uid, project, iter=iter
+        mlrun.api.crud.Runs().store_run,
+        db_session,
+        data,
+        uid,
+        iter,
+        project,
+        auth_verifier.auth_info,
     )
     return {}
 
@@ -44,6 +50,7 @@ async def update_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -53,20 +60,29 @@ async def update_run(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     await run_in_threadpool(
-        mlrun.api.crud.Runs().update_run, db_session, project, uid, iter, data,
+        mlrun.api.crud.Runs().update_run,
+        db_session,
+        project,
+        uid,
+        iter,
+        data,
+        auth_verifier.auth_info,
     )
     return {}
 
 
 # curl http://localhost:8080/run/p1/3
 @router.get("/run/{project}/{uid}")
-def read_run(
+def get_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = get_db().read_run(db_session, uid, project, iter=iter)
+    data = mlrun.api.crud.Runs().get_run(
+        db_session, uid, iter, project, auth_verifier.auth_info
+    )
     return {
         "data": data,
     }
@@ -74,13 +90,16 @@ def read_run(
 
 # curl -X DELETE http://localhost:8080/run/p1/3
 @router.delete("/run/{project}/{uid}")
-def del_run(
+def delete_run(
     project: str,
     uid: str,
     iter: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().del_run(db_session, uid, project, iter=iter)
+    mlrun.api.crud.Runs().delete_run(
+        db_session, uid, iter, project, auth_verifier.auth_info
+    )
     return {}
 
 
@@ -99,9 +118,10 @@ def list_runs(
     start_time_to: str = None,
     last_update_time_from: str = None,
     last_update_time_to: str = None,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    runs = get_db().list_runs(
+    runs = mlrun.api.crud.Runs().list_runs(
         db_session,
         name=name,
         uid=uid,
@@ -115,6 +135,7 @@ def list_runs(
         start_time_to=datetime_from_iso(start_time_to),
         last_update_time_from=datetime_from_iso(last_update_time_from),
         last_update_time_to=datetime_from_iso(last_update_time_to),
+        auth_info=auth_verifier.auth_info,
     )
     return {
         "runs": runs,
@@ -123,13 +144,16 @@ def list_runs(
 
 # curl -X DELETE http://localhost:8080/runs?project=p1&name=x&days_ago=3
 @router.delete("/runs")
-def del_runs(
+def delete_runs(
     project: str = None,
     name: str = None,
     labels: List[str] = Query([], alias="label"),
     state: str = None,
     days_ago: int = 0,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().del_runs(db_session, name, project, labels, state, days_ago)
+    mlrun.api.crud.Runs().delete_runs(
+        db_session, name, project, labels, state, days_ago, auth_verifier.auth_info
+    )
     return {}

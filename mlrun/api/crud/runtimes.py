@@ -6,6 +6,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.config
@@ -22,7 +23,15 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         group_by: typing.Optional[
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
         ] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.Union[typing.Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
+            project,
+            "",
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
+        )
         runtimes = [] if group_by is None else {}
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
@@ -35,7 +44,12 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
                 mergedeep.merge(runtimes, resources)
         return runtimes
 
-    def get_runtime(self, kind: str, label_selector: str = None):
+    def get_runtime(
+        self,
+        kind: str,
+        label_selector: str = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             mlrun.api.api.utils.log_and_raise(
                 http.HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
@@ -53,6 +67,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
+        leader_session: typing.Optional[str] = None,
     ):
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
@@ -62,6 +77,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
                 label_selector,
                 force,
                 grace_period,
+                leader_session,
             )
 
     def delete_runtime(
@@ -71,6 +87,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
+        leader_session: typing.Optional[str] = None,
     ):
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             mlrun.api.api.utils.log_and_raise(
@@ -83,6 +100,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             label_selector,
             force,
             grace_period,
+            leader_session,
         )
 
     def delete_runtime_object(
@@ -93,6 +111,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
+        leader_session: typing.Optional[str] = None,
     ):
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             mlrun.api.api.utils.log_and_raise(
@@ -106,4 +125,5 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             label_selector,
             force,
             grace_period,
+            leader_session,
         )

@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from mlrun.api import schemas
 
@@ -29,7 +29,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_log(self, session, uid, project="", body=None, append=False):
+    def store_log(
+        self, session, uid, project="", body=None, append=False,
+    ):
         pass
 
     @abstractmethod
@@ -37,7 +39,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_run(self, session, struct, uid, project="", iter=0):
+    def store_run(
+        self, session, struct, uid, project="", iter=0,
+    ):
         pass
 
     @abstractmethod
@@ -77,7 +81,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project=""
+        self, session, key, artifact, uid, iter=None, tag="", project="",
     ):
         pass
 
@@ -121,8 +125,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False
-    ):
+        self, session, function, name, project="", tag="", versioned=False,
+    ) -> str:
         pass
 
     @abstractmethod
@@ -162,6 +166,7 @@ class DBInterface(ABC):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        leader_session: Optional[str] = None,
     ):
         pass
 
@@ -191,11 +196,25 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_project_related_resources(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def verify_project_has_no_related_resources(self, session, name: str):
+        pass
+
+    @abstractmethod
+    # adding **kwargs to leave room for other projects store implementations see mlrun.api.crud.projects.delete_project
+    # for explanations
+    def is_project_exists(self, session, name: str, **kwargs):
+        pass
+
+    @abstractmethod
     def list_projects(
         self,
         session,
         owner: str = None,
-        format_: schemas.Format = schemas.Format.full,
+        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
@@ -236,8 +255,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True
-    ):
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+    ) -> str:
         pass
 
     @abstractmethod
@@ -251,7 +270,7 @@ class DBInterface(ABC):
         uid=None,
         versioned=True,
         always_overwrite=False,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod
@@ -307,11 +326,11 @@ class DBInterface(ABC):
         session,
         project,
         name,
-        feature_set_update: dict,
+        feature_set_patch: dict,
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod
@@ -320,8 +339,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
-    ):
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+    ) -> str:
         pass
 
     @abstractmethod
@@ -357,7 +376,7 @@ class DBInterface(ABC):
         uid=None,
         versioned=True,
         always_overwrite=False,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod
@@ -370,7 +389,7 @@ class DBInterface(ABC):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-    ):
+    ) -> str:
         pass
 
     @abstractmethod

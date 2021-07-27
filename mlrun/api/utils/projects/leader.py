@@ -44,7 +44,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_and_validate_before_creation(project)
@@ -57,11 +57,11 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project(project)
-        self.validate_project_name(name)
+        mlrun.projects.ProjectMetadata.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", db_session, name, project)
         return self.get_project(db_session, name), False
@@ -73,7 +73,7 @@ class Member(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         self._enrich_project_patch(project)
@@ -89,7 +89,7 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        iguazio_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         self._projects_in_deletion.add(name)
@@ -102,7 +102,10 @@ class Member(
         return False
 
     def get_project(
-        self, db_session: sqlalchemy.orm.Session, name: str
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
         return self._leader_follower.get_project(db_session, name)
 
@@ -110,9 +113,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
             db_session, owner, format_, labels, state
@@ -240,7 +245,9 @@ class Member(
                 # if it was created prior to 0.6.0, and the version was upgraded
                 # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
                 # as well)
-                if not self.validate_project_name(project_name, raise_on_failure=False):
+                if not mlrun.projects.ProjectMetadata.validate_project_name(
+                    project_name, raise_on_failure=False
+                ):
                     return
                 for missing_follower in missing_followers:
                     logger.debug(
@@ -317,7 +324,7 @@ class Member(
 
     def _enrich_and_validate_before_creation(self, project: mlrun.api.schemas.Project):
         self._enrich_project(project)
-        self.validate_project_name(project.metadata.name)
+        mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
 
     @staticmethod
     def _enrich_project(project: mlrun.api.schemas.Project):

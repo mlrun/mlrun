@@ -5,6 +5,7 @@ import json
 import typing
 import urllib.parse
 
+import fastapi
 import requests.adapters
 import urllib3
 
@@ -57,6 +58,36 @@ class Client(
                             return url_kind_to_url[kind]
         return None
 
+    def verify_request_session(
+        self, request: fastapi.Request
+    ) -> typing.Tuple[
+        str, str, typing.Optional[str], typing.List[str], typing.List[str]
+    ]:
+        """
+        Proxy the request to one of the session verification endpoints (which will verify the session of the request)
+        """
+        response = self._send_request_to_api(
+            "POST",
+            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            headers={
+                "authorization": request.headers.get("authorization"),
+                "cookie": request.headers.get("cookie"),
+            },
+        )
+        gids = response.headers.get("x-user-group-ids")
+        if gids:
+            gids = gids.split(",")
+        planes = response.headers.get("x-v3io-session-planes")
+        if planes:
+            planes = planes.split(",")
+        return (
+            response.headers["x-remote-user"],
+            response.headers["x-v3io-session-key"],
+            response.headers.get("x-user-id"),
+            gids or [],
+            planes or [],
+        )
+
     def create_project(
         self,
         session: str,
@@ -64,7 +95,7 @@ class Client(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Creating project in Iguazio", project=project)
-        body = self._generate_request_body(project)
+        body = self._transform_mlrun_project_to_iguazio_project(project)
         return self._create_project_in_iguazio(session, body, wait_for_completion)
 
     def store_project(
@@ -75,7 +106,7 @@ class Client(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         logger.debug("Storing project in Iguazio", name=name, project=project)
-        body = self._generate_request_body(project)
+        body = self._transform_mlrun_project_to_iguazio_project(project)
         try:
             self._get_project_from_iguazio(session, name)
         except requests.HTTPError as exc:
@@ -97,7 +128,7 @@ class Client(
             name=name,
             deletion_strategy=deletion_strategy,
         )
-        body = self._generate_request_body(
+        body = self._transform_mlrun_project_to_iguazio_project(
             mlrun.api.schemas.Project(
                 metadata=mlrun.api.schemas.ProjectMetadata(name=name)
             )
@@ -146,6 +177,13 @@ class Client(
 
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
+
+    def format_as_leader_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.IguazioProject:
+        return mlrun.api.schemas.IguazioProject(
+            data=self._transform_mlrun_project_to_iguazio_project(project)["data"]
+        )
 
     def _find_latest_updated_at(
         self, response_body: dict
@@ -259,7 +297,9 @@ class Client(
         return response
 
     @staticmethod
-    def _generate_request_body(project: mlrun.api.schemas.Project) -> dict:
+    def _transform_mlrun_project_to_iguazio_project(
+        project: mlrun.api.schemas.Project,
+    ) -> dict:
         body = {
             "data": {
                 "type": "project",

@@ -6,10 +6,11 @@ from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -25,11 +26,17 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
-    raise HTTPException(status_code=status, detail=kw)
+    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
+    #  version can be changed to details=kw
+    raise HTTPException(status_code=status, detail={"reason": kw})
 
 
 def log_path(project, uid) -> Path:
-    return get_logs_dir() / project / uid
+    return project_logs_path(project) / uid
+
+
+def project_logs_path(project) -> Path:
+    return get_logs_dir() / project
 
 
 def get_obj_path(schema, path, user=""):
@@ -56,24 +63,28 @@ def get_obj_path(schema, path, user=""):
     return path
 
 
-def get_secrets(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
+def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
     return {
-        "V3IO_ACCESS_KEY": access_key,
+        "V3IO_ACCESS_KEY": auth_info.data_session,
     }
 
 
-def get_run_db_instance(db_session: Session):
+def get_run_db_instance(
+    db_session: Session,
+    auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session)
+        run_db = SQLRunDB(db.dsn, db_session, auth_info)
     else:
         run_db = db.db
     run_db.connect()
     return run_db
 
 
-def _parse_submit_run_body(db_session: Session, data):
+def _parse_submit_run_body(
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -113,15 +124,33 @@ def _parse_submit_run_body(db_session: Session, data):
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
+    # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+    # be able to communicate with the api
+    ensure_function_has_auth_set(function, auth_info)
+
     return function, task
 
 
-async def submit_run(db_session: Session, data):
-    _, _, _, response = await run_in_threadpool(_submit_run, db_session, data)
+async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data):
+    _, _, _, response = await run_in_threadpool(
+        _submit_run, db_session, auth_info, data
+    )
     return response
 
 
-def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
+def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
+    if auth_info and auth_info.session:
+        auth_env_vars = {
+            "V3IO_ACCESS_KEY": auth_info.session,
+        }
+        for key, value in auth_env_vars.items():
+            if not function.is_env_exists(key):
+                function.set_env(key, value)
+
+
+def _submit_run(
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
         1. str of the project of the run
@@ -132,8 +161,8 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
     run_uid = None
     project = None
     try:
-        fn, task = _parse_submit_run_body(db_session, data)
-        run_db = get_run_db_instance(db_session)
+        fn, task = _parse_submit_run_body(db_session, auth_info, data)
+        run_db = get_run_db_instance(db_session, auth_info)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
@@ -145,6 +174,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
             schedule_labels = task["metadata"].get("labels")
             get_scheduler().create_schedule(
                 db_session,
+                auth_info,
                 task["metadata"]["project"],
                 task["metadata"]["name"],
                 schemas.ScheduleKinds.job,
@@ -160,6 +190,13 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
                 "name": task["metadata"]["name"],
             }
         else:
+            mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+                mlrun.api.schemas.AuthorizationResourceTypes.run,
+                task["metadata"]["project"],
+                "",
+                mlrun.api.schemas.AuthorizationAction.create,
+                auth_info,
+            )
             run = fn.run(task, watch=False)
             run_uid = run.metadata.uid
             project = run.metadata.project

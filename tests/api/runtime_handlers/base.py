@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import deepdiff
+import fastapi.testclient
 import pytest
 from kubernetes import client
 from sqlalchemy.orm import Session
@@ -44,7 +45,22 @@ class TestRuntimeHandlerBase:
             },
             "metadata": {"project": self.project, "uid": self.run_uid},
         }
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(self, db: Session, client: fastapi.testclient.TestClient):
+        # We want this mock for every test, ideally we would have simply put it in the setup_method
+        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
+        # in order to be able to mock k8s stuff
+        get_k8s().v1api = unittest.mock.Mock()
+        get_k8s().crdapi = unittest.mock.Mock()
+        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
+        # enable inheriting classes to do the same
+        self.custom_setup_after_fixtures()
 
     def teardown_method(self, method):
         self._logger.info(
@@ -58,6 +74,9 @@ class TestRuntimeHandlerBase:
         )
 
     def custom_setup(self):
+        pass
+
+    def custom_setup_after_fixtures(self):
         pass
 
     def custom_teardown(self):
@@ -401,7 +420,7 @@ class TestRuntimeHandlerBase:
             get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
                 name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
             )
-        _, log = crud.Logs.get_logs(db, project, uid, source=LogSources.PERSISTENCY)
+        _, log = crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
         assert log == expected_log.encode()
 
     @staticmethod

@@ -106,6 +106,7 @@ class ServingSpec(NuclioSpec):
         error_stream=None,
         track_models=None,
         secret_sources=None,
+        default_content_type=None,
     ):
 
         super().__init__(
@@ -145,6 +146,7 @@ class ServingSpec(NuclioSpec):
         self.error_stream = error_stream
         self.track_models = track_models
         self.secret_sources = secret_sources or []
+        self.default_content_type = default_content_type
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -289,7 +291,7 @@ class ServingRuntime(RemoteRuntime):
         class_name = class_name or self.spec.default_class
         if class_name and not isinstance(class_name, str):
             raise ValueError(
-                "class name must be a string (name ot module.submodule.name)"
+                "class name must be a string (name of module.submodule.name)"
             )
         if model_path and not class_name:
             raise ValueError("model_path must be provided with class_name")
@@ -400,7 +402,7 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
-    def add_vault_config_to_spec(self):
+    def add_secrets_config_to_spec(self):
         if self.spec.secret_sources:
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
             if self._secrets.has_vault_source():
@@ -409,12 +411,17 @@ class ServingRuntime(RemoteRuntime):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
+            k8s_secrets = self._secrets.get_k8s_secrets()
+            if k8s_secrets:
+                self._add_project_k8s_secrets_to_spec(
+                    k8s_secrets, project=self.metadata.project
+                )
 
     def deploy(self, dashboard="", project="", tag="", verbose=False):
         """deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
-        :param project:   optional, overide function specified project name
+        :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
         """
@@ -458,6 +465,7 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
+            "default_content_type": self.spec.default_content_type,
         }
 
         if self.spec.secret_sources:
@@ -487,9 +495,14 @@ class ServingRuntime(RemoteRuntime):
             track_models=self.spec.track_models,
             function_uri=self._function_uri(),
             secret_sources=self.spec.secret_sources,
+            default_content_type=self.spec.default_content_type,
             **kwargs,
         )
-        server.init(
-            None, namespace or get_caller_globals(), logger=logger, is_mock=True
+        server.init_states(
+            context=None,
+            namespace=namespace or get_caller_globals(),
+            logger=logger,
+            is_mock=True,
         )
+        server.init_object(namespace or get_caller_globals())
         return server

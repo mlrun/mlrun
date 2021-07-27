@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
+from .auth import AuthorizationResourceTypes
 from .object import (
     LabelRecord,
     ObjectKind,
@@ -40,6 +41,10 @@ class FeatureSet(BaseModel):
     metadata: ObjectMetadata
     spec: FeatureSetSpec
     status: ObjectStatus
+
+    @staticmethod
+    def get_authorization_resource_type():
+        return AuthorizationResourceTypes.feature_set
 
 
 class EntityRecord(BaseModel):
@@ -105,6 +110,10 @@ class FeatureVector(BaseModel):
     metadata: ObjectMetadata
     spec: ObjectSpec
     status: ObjectStatus
+
+    @staticmethod
+    def get_authorization_resource_type():
+        return AuthorizationResourceTypes.feature_vector
 
 
 class FeatureVectorRecord(ObjectRecord):

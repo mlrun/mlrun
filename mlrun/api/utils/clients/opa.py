@@ -200,12 +200,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
     ) -> dict:
-        member_ids = []
-        if auth_info.user_id:
-            member_ids.append(auth_info.user_id)
-        if auth_info.user_group_ids:
-            member_ids.extend(auth_info.user_group_ids)
         body = {
-            "input": {"resource": resource, "action": action, "ids": member_ids},
+            "input": {"resource": resource, "action": action, "ids": auth_info.get_member_ids()},
         }
         return body

@@ -58,3 +58,11 @@ class AuthInfo(pydantic.BaseModel):
         if self.session != "":
             return NuclioAuthInfo(password=self.session, mode=NuclioAuthKinds.iguazio)
         return None
+
+    def get_member_ids(self) -> typing.List[str]:
+        member_ids = []
+        if self.user_id:
+            member_ids.append(self.user_id)
+        if self.user_group_ids:
+            member_ids.extend(self.user_group_ids)
+        return member_ids

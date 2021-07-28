@@ -21,6 +21,7 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.sources import BaseSourceDriver
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
@@ -240,6 +241,12 @@ def ingest(
             "feature set and source must be specified"
         )
 
+    if overwrite is None:
+        if isinstance(source, BaseSourceDriver) and source.schedule:
+            overwrite = False
+        else:
+            overwrite = True
+
     if run_config:
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
@@ -250,12 +257,6 @@ def ingest(
         return run_ingestion_job(
             name, featureset, run_config, source.schedule, spark_context
         )
-
-    if overwrite is None:
-        if source.schedule:
-            overwrite = False
-        else:
-            overwrite = True
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context

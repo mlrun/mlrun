@@ -252,7 +252,7 @@ class HTTPRunDB(RunDBInterface):
             )
             config.httpdb.api_url = config.httpdb.api_url or server_cfg.get("api_url")
             config.nuclio_version = (
-                server_cfg.get("nuclio_version") or config.nuclio_version
+                config.nuclio_version or server_cfg.get("nuclio_version")
             )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first

@@ -64,7 +64,6 @@ def validate_nuclio_version_compatibility(*min_versions):
         )
         return True
 
-    # sort in descending order to get highest version 1st
     parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
         if (

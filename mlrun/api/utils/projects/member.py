@@ -23,12 +23,12 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         wait_for_completion: bool = True,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> bool:
         project_names = self.list_projects(
             db_session,
             format_=mlrun.api.schemas.ProjectsFormat.name_only,
-            leader_session=leader_session,
+            leader_session=auth_info.session,
         )
         if name in project_names.projects:
             return False
@@ -41,7 +41,7 @@ class Member(abc.ABC):
         self.create_project(
             db_session,
             project,
-            leader_session=leader_session,
+            leader_session=auth_info.session,
             wait_for_completion=wait_for_completion,
         )
         return True

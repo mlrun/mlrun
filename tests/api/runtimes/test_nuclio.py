@@ -400,10 +400,14 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_validate_nuclio_version_compatibility(self):
+        # nuclio version we have
         mlconf.nuclio_version = "1.6.10"
+
+        # validate_nuclio_version_compatibility receives the min nuclio version required
         assert not validate_nuclio_version_compatibility("1.6.11")
         assert not validate_nuclio_version_compatibility("1.5.9", "1.6.11")
         assert not validate_nuclio_version_compatibility("1.6.11", "1.5.9")
+        assert not validate_nuclio_version_compatibility("2.0.0")
         assert validate_nuclio_version_compatibility("1.6.9")
         assert validate_nuclio_version_compatibility("1.5.9")
 
@@ -432,7 +436,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             def fail():
                 pytest.fail("Should not enter this function")
 
-            with pytest.raises(mlrun.errors.MLRunMissingDependencyError):
+            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
                 fail()
 
     def test_min_nuclio_versions_decorator_success(self):

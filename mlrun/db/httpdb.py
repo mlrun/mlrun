@@ -251,6 +251,9 @@ class HTTPRunDB(RunDBInterface):
                 or server_cfg.get("docker_registry")
             )
             config.httpdb.api_url = config.httpdb.api_url or server_cfg.get("api_url")
+            config.nuclio_version = (
+                server_cfg.get("nuclio_version") or config.nuclio_version
+            )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -269,9 +272,6 @@ class HTTPRunDB(RunDBInterface):
             config.default_function_node_selector = (
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
-            )
-            config.nuclio_version = (
-                server_cfg.get("nuclio_version") or config.nuclio_version
             )
         except Exception:
             pass

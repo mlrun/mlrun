@@ -49,9 +49,7 @@ default_max_replicas = 4
 
 def validate_nuclio_version_compatibility(*min_versions):
     """
-    Validation is best effort - if we can't parse version we assume compatible.
-    This method mainly used via decorator 'min_nuclio_versions'.
-    :param min_versions: valid version(s), assuming no 2 versions has equal major and minor.
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     """
     parsed_min_versions = [
         semver.VersionInfo.parse(min_version) for min_version in min_versions
@@ -62,6 +60,7 @@ def validate_nuclio_version_compatibility(*min_versions):
         logger.warning(
             "Unable to parse nuclio version, assuming compatibility",
             nuclio_version=mlconf.nuclio_version,
+            min_versions=min_versions,
         )
         return True
     compatible = False
@@ -71,6 +70,9 @@ def validate_nuclio_version_compatibility(*min_versions):
             and parsed_current_version.minor == parsed_min_version.minor
             and parsed_current_version.patch < parsed_min_version.patch
         ):
+            # Version gets precedence when we have nuclio x.y.z1 and one of the min versions required is x.y.z2
+            # and z1 < z2 immediately return False as it makes other versions requirements irrelevant even if
+            # 'compatible' is True
             return False
         if parsed_current_version >= parsed_min_version:
             compatible = True
@@ -87,7 +89,7 @@ def min_nuclio_versions(*versions):
                 f"{function.__name__} is supported since nuclio {' or '.join(versions)}, currently using "
                 f"nuclio {mlconf.nuclio_version}, please upgrade."
             )
-            raise mlrun.errors.MLRunMissingDependencyError(message)
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
         return wrapper
 

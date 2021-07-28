@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any, Dict, List, Optional
 
 from nuclio.utils import DeployError
@@ -479,11 +480,15 @@ class ModelEndpoints:
         fn.set_db_connection(get_run_db_instance(db_session, auth_info))
 
         fn.metadata.project = project
+
         fn.apply(mlrun.mount_v3io())
 
         # TODO remove custom image
         fn.spec.image = "mlrun/mlrun:automation"
         fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
+
+        # Needs to be a member of the project and have access to project data path
+        fn.set_env("MLRUN_AUTH_V3IO_ACCESS_KEY", model_monitoring_access_key)
 
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")

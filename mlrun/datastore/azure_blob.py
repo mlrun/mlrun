@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 import time
+from pathlib import Path
 
 import fsspec
 from azure.storage.blob import BlobServiceClient

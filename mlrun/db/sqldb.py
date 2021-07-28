@@ -705,7 +705,9 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_model_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+    def delete_model_endpoint_record(
+        self, project: str, endpoint_id: str, access_key=None
+    ):
         raise NotImplementedError()
 
     def list_model_endpoints(

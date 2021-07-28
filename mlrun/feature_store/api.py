@@ -264,7 +264,12 @@ def ingest(
             )
 
         if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
-            source.start_time = datetime.fromisoformat(featureset.status.targets[0].last_written) #for now the first. later min
+            min_time = datetime.fromisoformat(featureset.status.targets[0].last_written)
+            for target in featureset.status.targets:
+                if target.last_written and target.last_written < min_time:
+                    min_time = target.last_written
+
+            source.start_time = min_time
             source.end_time = datetime.now()
 
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")

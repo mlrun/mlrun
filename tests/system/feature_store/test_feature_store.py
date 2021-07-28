@@ -776,7 +776,7 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-    @pytest.mark.skip(reason="until we can schedule jobs every minute in system tests")
+#    @pytest.mark.skip(reason="until we can schedule jobs every minute in system tests")
     def test_schedule_on_filtered_by_time(self):
         now = datetime.now() + timedelta(minutes=2)
         data = pd.DataFrame(
@@ -803,7 +803,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name="sched_test", entities=[fs.Entity("first_name")], timestamp_key="time"
+            name="sched_test2", entities=[fs.Entity("first_name")], timestamp_key="time"
         )
         fs.ingest(
             feature_set,
@@ -812,13 +812,13 @@ class TestFeatureStore(TestMLRunSystem):
         )
         sleep(60)
 
-        features = ["sched_test.*"]
+        features = ["sched_test2.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
         resp = fs.get_offline_features(vec)
         vec_df = resp.to_dataframe()
         vec_dict = vec_df.to_dict()
         expected = {"data": {"moshe": 2000, "yosi": 10}}
-        assert expected == vec_dict
+#        assert expected == vec_dict
 
         data = pd.DataFrame(
             {
@@ -842,7 +842,10 @@ class TestFeatureStore(TestMLRunSystem):
         vec_dict = vec_df.to_dict()
 
         expected = {"data": {"moshe": 50, "dina": 10}}
-        assert expected == vec_dict
+ #       assert expected == vec_dict
+        sleep(600)
+
+
 
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])

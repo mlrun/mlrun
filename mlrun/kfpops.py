@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import getpass
 import json
 import os
@@ -38,6 +39,12 @@ KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 project_annotation = "mlrun/project"
 run_annotation = "mlrun/pipeline-step-type"
 function_annotation = "mlrun/function-uri"
+
+
+class PipelineRunType:
+    run = "run"
+    build = "build"
+    deploy = "deploy"
 
 
 def is_num(v):
@@ -401,7 +408,7 @@ def mlrun_op(
         },
     )
 
-    add_annotations(cop, "run", function, func_url, project)
+    add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
@@ -472,7 +479,7 @@ def deploy_op(
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
 
-    add_annotations(cop, "deploy", function, func_url)
+    add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
     return cop
 
@@ -546,7 +553,7 @@ def build_op(
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
 
-    add_annotations(cop, "build", function, func_url)
+    add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -622,7 +629,7 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
 def generate_kfp_dag_and_resolve_project(run, project=None):
     workflow = run["pipeline_runtime"].get("workflow_manifest", None)
     if not workflow:
-        return None
+        return None, project
     workflow = json.loads(workflow)
 
     templates = {}
@@ -642,7 +649,6 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
 
     nodes = workflow["status"].get("nodes", {})
     dag = {}
-    # name_map = {k: v["displayName"] for k, v in nodes.items()}
     for node in nodes.values():
         name = node["displayName"]
         record = {
@@ -702,8 +708,16 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
 
 
 def show_kfp_run(run, clear_output=False):
-    phase_to_color = {"failed": "red", "succeeded": "green", "skipped": "white"}
-    runtype_to_shape = {"run": "ellipse", "build": "box", "deploy": "box3d"}
+    phase_to_color = {
+        mlrun.run.RunStatuses.failed: "red",
+        mlrun.run.RunStatuses.succeeded: "green",
+        mlrun.run.RunStatuses.skipped: "white",
+    }
+    runtype_to_shape = {
+        PipelineRunType.run: "ellipse",
+        PipelineRunType.build: "box",
+        PipelineRunType.deploy: "box3d",
+    }
     if not run or "graph" not in run:
         return
     if is_ipython:
@@ -729,7 +743,7 @@ def show_kfp_run(run, clear_output=False):
                     dag.node(
                         key,
                         label=node["name"],
-                        fillcolor=phase_to_color.get(node["phase"].lower(), None),
+                        fillcolor=phase_to_color.get(node["phase"], None),
                         style="filled",
                         shape=shape,
                         tooltip=node.get("error", None),

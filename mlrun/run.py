@@ -932,9 +932,6 @@ def wait_for_pipeline_completion(
     if expected_statuses is None:
         expected_statuses = [RunStatuses.succeeded]
     namespace = namespace or mlconf.namespace
-    remote = (
-        remote or not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-    )
     logger.debug(
         f"Waiting for run completion."
         f" run_id: {run_id},"
@@ -1011,7 +1008,7 @@ def get_pipeline(
     :param namespace:  k8s namespace if not default
     :param format_:    Format of the results. Possible values are:
             - ``summary`` (default value) - Return summary of the object data.
-            - ``full`` (default value) - Return full pipeline object.
+            - ``full`` - Return full pipeline object.
 
     :return: kfp run dict
     """

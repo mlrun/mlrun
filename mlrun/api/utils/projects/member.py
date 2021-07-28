@@ -24,14 +24,14 @@ class Member(abc.ABC):
         name: str,
         wait_for_completion: bool = True,
         leader_session: typing.Optional[str] = None,
-    ):
+    ) -> bool:
         project_names = self.list_projects(
             db_session,
             format_=mlrun.api.schemas.ProjectsFormat.name_only,
             leader_session=leader_session,
         )
         if name in project_names.projects:
-            return
+            return False
         logger.info(
             "Ensure project called, but project does not exist. Creating", name=name
         )
@@ -44,6 +44,7 @@ class Member(abc.ABC):
             leader_session=leader_session,
             wait_for_completion=wait_for_completion,
         )
+        return True
 
     @abc.abstractmethod
     def create_project(

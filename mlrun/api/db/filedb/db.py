@@ -348,7 +348,6 @@ class FileDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 

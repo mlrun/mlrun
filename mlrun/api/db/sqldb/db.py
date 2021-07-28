@@ -639,11 +639,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        leader_session: Optional[str] = None,
     ):
-        get_project_member().ensure_project(
-            session, project, leader_session=leader_session
-        )
         schedule = self._get_schedule_record(session, project, name)
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.

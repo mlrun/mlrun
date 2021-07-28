@@ -151,7 +151,6 @@ class Scheduler:
             cron_trigger,
             labels,
             concurrency_limit,
-            auth_info.session,
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
         updated_schedule = self._transform_and_enrich_db_schedule(
@@ -531,7 +530,6 @@ class Scheduler:
             run_metadata["project"],
             schedule_name,
             last_run_uri=run_uri,
-            leader_session=auth_info.session,
         )
 
         close_session(db_session)

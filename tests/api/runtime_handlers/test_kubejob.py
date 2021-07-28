@@ -3,6 +3,7 @@ from datetime import timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
@@ -214,7 +215,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = self._mock_read_namespaced_pod_log()
         self.run["status"]["state"] = RunStates.completed
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_pods_calls - 1
         )
@@ -237,7 +240,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
         self.run["status"]["last_update"] = now_date().isoformat()
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
 
         # Mocking pod that is still in non-terminal state
         self._mock_list_namespaced_pods([[self.running_pod]])
@@ -255,7 +260,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.run["status"]["last_update"] = (
             now_date() - timedelta(seconds=float(2 * debounce_period))
         ).isoformat()
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
 
         # Mocking pod that is still in non-terminal state
         self._mock_list_namespaced_pods([[self.running_pod]])

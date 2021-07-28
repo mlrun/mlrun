@@ -258,7 +258,7 @@ class DaskCluster(KubejobRuntime):
         s = get_func_selector(meta.project, meta.name, meta.tag)
         if self._is_remote_api():
             db = self._get_db()
-            return db.remote_status(self.kind, s)
+            return db.remote_status(meta.project, meta.name, self.kind, s)
 
         status = get_obj_status(s)
         print(status)

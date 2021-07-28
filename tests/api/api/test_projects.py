@@ -1,5 +1,6 @@
 import copy
 import datetime
+import os
 import typing
 from http import HTTPStatus
 from uuid import uuid4
@@ -10,10 +11,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
+import mlrun.api.utils.singletons.logs_dir
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
@@ -52,10 +55,20 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
     project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, project_to_keep)
     _create_resources_of_all_kinds(db, project_to_remove)
-    project_to_keep_table_name_records_count_map_before_project_removal = _assert_resources_in_project(
-        db, project_to_keep
-    )
+    (
+        project_to_keep_table_name_records_count_map_before_project_removal,
+        project_to_keep_object_records_count_map_before_project_removal,
+    ) = _assert_resources_in_project(db, project_to_keep)
     _assert_resources_in_project(db, project_to_remove)
+
+    # deletion strategy - check - should fail because there are resources
+    response = client.delete(
+        f"/api/projects/{project_to_remove}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
     # deletion strategy - restricted - should fail because there are resources
     response = client.delete(
@@ -75,10 +88,19 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    project_to_keep_table_name_records_count_map_after_project_removal = _assert_resources_in_project(
-        db, project_to_keep
-    )
+    (
+        project_to_keep_table_name_records_count_map_after_project_removal,
+        project_to_keep_object_records_count_map_after_project_removal,
+    ) = _assert_resources_in_project(db, project_to_keep)
     _assert_resources_in_project(db, project_to_remove, assert_no_resources=True)
+    assert (
+        deepdiff.DeepDiff(
+            project_to_keep_object_records_count_map_before_project_removal,
+            project_to_keep_object_records_count_map_after_project_removal,
+            ignore_order=True,
+        )
+        == {}
+    )
     assert (
         deepdiff.DeepDiff(
             project_to_keep_table_name_records_count_map_before_project_removal,
@@ -87,6 +109,15 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
         )
         == {}
     )
+
+    # deletion strategy - check - should succeed cause no project
+    response = client.delete(
+        f"/api/projects/{project_to_remove}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # deletion strategy - restricted - should succeed cause no project
     response = client.delete(
@@ -176,7 +207,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
 
     # list projects with summary format
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.summary}
+        "/api/projects", params={"format": mlrun.api.schemas.ProjectsFormat.summary}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     for index, project_summary in enumerate(projects_output.projects):
@@ -193,6 +224,51 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
             )
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
+
+
+def test_delete_project_deletion_strategy_check(
+    db: Session, client: TestClient
+) -> None:
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.api.schemas.ProjectSpec(),
+    )
+
+    # create
+    response = client.post("/api/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # deletion strategy - check - should succeed because there are no resources
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    # ensure project not deleted
+    response = client.get(f"/api/projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project, response)
+
+    # add function to project 1
+    function_name = "function-name"
+    function = {"metadata": {"name": function_name}}
+    response = client.post(
+        f"/api/func/{project.metadata.name}/{function_name}", json=function
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    # deletion strategy - check - should fail because there are resources
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
 def test_projects_crud(db: Session, client: TestClient) -> None:
@@ -263,7 +339,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
 
     # list - full
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.full}
+        "/api/projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -414,7 +490,7 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
     log = b"some random log"
     log_uids = ["some_uid", "some_uid2", "some_uid3"]
     for log_uid in log_uids:
-        db.store_log(db_session, log_uid, project, log)
+        mlrun.api.crud.Logs().store_log(log, project, log_uid)
 
     # Create several schedule
     schedule = {
@@ -467,6 +543,34 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
 
 def _assert_resources_in_project(
     db_session: Session, project: str, assert_no_resources: bool = False,
+) -> typing.Tuple[typing.Dict, typing.Dict]:
+    object_type_records_count_map = {
+        "Logs": _assert_logs_in_project(project, assert_no_resources)
+    }
+    return (
+        _assert_db_resources_in_project(db_session, project, assert_no_resources),
+        object_type_records_count_map,
+    )
+
+
+def _assert_logs_in_project(project: str, assert_no_resources: bool = False,) -> int:
+    logs_path = mlrun.api.api.utils.project_logs_path(project)
+    number_of_log_files = 0
+    if logs_path.exists():
+        number_of_log_files = len(
+            [
+                file
+                for file in os.listdir(str(logs_path))
+                if os.path.isfile(os.path.join(str(logs_path), file))
+            ]
+        )
+    if assert_no_resources:
+        assert number_of_log_files == 0
+    return number_of_log_files
+
+
+def _assert_db_resources_in_project(
+    db_session: Session, project: str, assert_no_resources: bool = False,
 ) -> typing.Dict:
     table_name_records_count_map = {}
     for cls in _classes:
@@ -477,11 +581,13 @@ def _assert_resources_in_project(
             # Label doesn't have project attribute
             # Project (obviously) doesn't have project attribute
             # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
+            # Logs are saved as files, the DB table is not really in use
             if (
                 cls.__name__ != "Label"
                 and cls.__name__ != "Project"
                 and cls.__name__ != "Feature"
                 and cls.__name__ != "Entity"
+                and cls.__name__ != "Log"
             ):
                 number_of_cls_records = (
                     db_session.query(cls).filter_by(project=project).count()
@@ -572,7 +678,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.api.schemas.Format.name_only
+    params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
     response = client.get("/api/projects", params=params,)
     assert expected_names == response.json()["projects"]

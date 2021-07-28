@@ -251,6 +251,9 @@ class HTTPRunDB(RunDBInterface):
                 or server_cfg.get("docker_registry")
             )
             config.httpdb.api_url = config.httpdb.api_url or server_cfg.get("api_url")
+            config.nuclio_version = config.nuclio_version or server_cfg.get(
+                "nuclio_version"
+            )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -1177,14 +1180,27 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.api.schemas.PipelinesOutput(**response.json())
 
-    def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 10,
+        format_: Union[
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.summary,
+    ):
         """ Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
+        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
+            format_ = format_.value
         try:
-            query = ""
+            params = {}
             if namespace:
-                query = f"namespace={namespace}"
-            resp = self.api_call("GET", f"pipelines/{run_id}?{query}", timeout=timeout)
+                params["namespace"] = namespace
+            params["format"] = format_
+            resp = self.api_call(
+                "GET", f"projects/*/pipelines/{run_id}", params=params, timeout=timeout
+            )
         except OSError as err:
             logger.error(f"error cannot get pipeline: {err}")
             raise OSError(f"error: cannot get pipeline, {err}")

@@ -374,7 +374,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -384,13 +384,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_endpoint_record(
+    def delete_model_endpoint_record(
         self, project: str, endpoint_id: str, access_key: Optional[str] = None
     ):
         pass
 
     @abstractmethod
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -404,7 +404,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,

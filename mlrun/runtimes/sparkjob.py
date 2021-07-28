@@ -186,8 +186,13 @@ class SparkRuntime(KubejobRuntime):
 
         sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._default_mlrun_image_name(with_gpu)
-        sj.with_executor_requests(cpu=1, mem="512m")
-        sj.with_driver_requests(cpu=1, mem="512m")
+        logger.info("Creating default image: " + sj.spec.build.image)
+        if with_gpu:
+            sj.with_executor_requests(cpu=1, mem="512m", gpus=1)
+            sj.with_driver_requests(cpu=1, mem="512m", gpus=1)
+        else:
+            sj.with_executor_requests(cpu=1, mem="512m")
+            sj.with_driver_requests(cpu=1, mem="512m")
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 

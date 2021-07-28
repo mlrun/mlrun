@@ -63,7 +63,7 @@ def _resolve_nuclio_version():
 
         # config override everything
         nuclio_version = config.nuclio_version
-        if not nuclio_version:
+        if not nuclio_version and config.nuclio_dashboard_url:
             nuclio_client = nuclio.Client()
             nuclio_version = nuclio_client.get_dashboard_version()
 

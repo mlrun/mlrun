@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 import time
 
 import fsspec
@@ -71,7 +72,8 @@ class AzureBlobStore(DataStore):
             with open(src_path, "rb") as data:
                 blob_client.upload_blob(data, overwrite=True)
         else:
-            remote_path = f"{self.endpoint}{key}"
+            key = key.strip("/")
+            remote_path = Path(self.endpoint, key).as_posix()
             self._filesystem.put_file(src_path, remote_path)
 
     def get(self, key, size=None, offset=0):
@@ -82,7 +84,9 @@ class AzureBlobStore(DataStore):
             size = size if size else None
             return blob_client.download_blob(offset, size).readall()
         else:
-            blob = self._filesystem.cat_file(key, start=offset)
+            key = key.strip("/")
+            path = Path(self.endpoint, key).as_posix()
+            blob = self._filesystem.cat_file(path, start=offset)
             return blob
 
     def put(self, key, data, append=False):
@@ -93,8 +97,15 @@ class AzureBlobStore(DataStore):
             # Note that append=True is not supported. If the blob already exists, this call will fail
             blob_client.upload_blob(data, overwrite=True)
         else:
-            path = f"{self.endpoint}{key}"
-            with self._filesystem.open(path, "wb") as f:
+            key = key.strip("/")
+            path = Path(self.endpoint, key).as_posix()
+            if isinstance(data, bytes):
+                mode = "wb"
+            elif isinstance(data, str):
+                mode = "w"
+            else:
+                raise TypeError("Data type unknown.  Unable to put in Azure!")
+            with self._filesystem.open(path, mode) as f:
                 f.write(data)
 
     def stat(self, key):
@@ -118,14 +129,15 @@ class AzureBlobStore(DataStore):
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):
-        if key and not key.endswith("/"):
-            key = key[1:] + "/"
         if self.bsc:
+            if key and not key.endswith("/"):
+                key = key[1:] + "/"
             key_length = len(key)
             container_client = self.bsc.get_container_client(self.endpoint)
             blob_list = container_client.list_blobs(name_starts_with=key)
             return [blob.name[key_length:] for blob in blob_list]
         else:
-            path = f"{self.endpoint}{key}"
+            key = key.strip("/")
+            path = Path(self.endpoint, key).as_posix()
             files = self._filesystem.ls(path)
             return files

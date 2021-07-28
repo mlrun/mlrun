@@ -246,6 +246,7 @@ def ingest(
             overwrite = False
         else:
             overwrite = True
+    from time import sleep
 
     if run_config:
         # remote job execution
@@ -253,6 +254,11 @@ def ingest(
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options
         )
+        print("going to sleep2")
+
+        sleep(90)
+
+        print("waking up2")
         name = f"{featureset.metadata.name}_ingest"
         return run_ingestion_job(
             name, featureset, run_config, source.schedule, spark_context
@@ -272,7 +278,6 @@ def ingest(
                 "data source was not specified"
             )
 
-        from time import sleep
         print("going to sleep")
 
         sleep(90)

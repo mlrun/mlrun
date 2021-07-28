@@ -117,7 +117,8 @@ class AzureBlobStore(DataStore):
             size = props.size
             modified = props.last_modified
         else:
-            path = f"{self.endpoint}{key}"
+            key = key.strip("/")
+            path = Path(self.endpoint, key).as_posix()
             files = self._filesystem.ls(path, detail=True)
             if len(files) == 1 and files[0]["kind"] == "file":
                 size = files[0]["size"]

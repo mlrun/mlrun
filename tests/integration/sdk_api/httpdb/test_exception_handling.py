@@ -65,7 +65,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             match=r"500 Server Error: Internal Server Error for url: http:\/\/(.*)\/api\/projects\/some-project\/model-"
             r"endpoints\?start=now-1h&end=now: details: {'reason': \"gaierror\((.*)\)\"}",
         ):
-            mlrun.get_run_db().list_endpoints(
+            mlrun.get_run_db().list_model_endpoints(
                 "some-project", access_key="some-access-key"
             )
 

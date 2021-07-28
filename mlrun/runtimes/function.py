@@ -63,20 +63,20 @@ def validate_nuclio_version_compatibility(*min_versions):
             min_versions=min_versions,
         )
         return True
-    compatible = False
+
+    # sort in descending order to get highest version 1st
+    parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
         if (
             parsed_current_version.major == parsed_min_version.major
             and parsed_current_version.minor == parsed_min_version.minor
             and parsed_current_version.patch < parsed_min_version.patch
         ):
-            # Version gets precedence when we have nuclio x.y.z1 and one of the min versions required is x.y.z2
-            # and z1 < z2 immediately return False as it makes other versions requirements irrelevant even if
-            # 'compatible' is True
             return False
+
         if parsed_current_version >= parsed_min_version:
-            compatible = True
-    return compatible
+            return True
+    return False
 
 
 def min_nuclio_versions(*versions):

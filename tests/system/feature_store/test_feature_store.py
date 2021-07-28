@@ -1,9 +1,9 @@
 import os
 import random
 import string
-from time import sleep
 import uuid
 from datetime import datetime, timedelta, timezone
+from time import sleep
 
 import fsspec
 import pandas as pd
@@ -777,12 +777,16 @@ class TestFeatureStore(TestMLRunSystem):
     )
 
     @pytest.mark.skip(reason="until we can schedule jobs every minute in system tests")
-    def test_443(self):
+    def test_schedule_on_filtered_by_time(self):
         now = datetime.now() + timedelta(minutes=2)
         data = pd.DataFrame(
             {
-                "time": [pd.Timestamp("2021-01-10 10:00:00"), pd.Timestamp("2021-01-10 11:00:00")],
-                "first_name": ["moshe", "yosi"], "data": [2000, 10],
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
             }
         )
         # writing down a remote source
@@ -792,36 +796,43 @@ class TestFeatureStore(TestMLRunSystem):
 
         path = data_set.status.targets[0].path
 
-        cron_trigger = '*/1 * * * *'
+        cron_trigger = "*/1 * * * *"
 
         source = ParquetSource(
-            "myparquet",
-            path=path,
-            time_field="time",
-            schedule=cron_trigger,
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
         )
 
-        feature_set = fs.FeatureSet(name="fs_443", entities=[fs.Entity("first_name")], timestamp_key='time')
-        fs.ingest(feature_set, source, run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()))
+        feature_set = fs.FeatureSet(
+            name="sched_test", entities=[fs.Entity("first_name")], timestamp_key="time"
+        )
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+        )
         sleep(60)
 
-        features = ["fs_443.*"]
-        vec = fs.FeatureVector("fs_443-vec", features)
+        features = ["sched_test.*"]
+        vec = fs.FeatureVector("sched_test-vec", features)
         resp = fs.get_offline_features(vec)
         vec_df = resp.to_dataframe()
         vec_dict = vec_df.to_dict()
-        expected = {'data': {'moshe': 2000, 'yosi': 10}}
+        expected = {"data": {"moshe": 2000, "yosi": 10}}
         assert expected == vec_dict
 
         data = pd.DataFrame(
             {
-                "time": [pd.Timestamp("2021-01-10 12:00:00"), pd.Timestamp("2021-01-10 13:00:00"), now + pd.Timedelta(minutes=10)],
+                "time": [
+                    pd.Timestamp("2021-01-10 12:00:00"),
+                    pd.Timestamp("2021-01-10 13:00:00"),
+                    now + pd.Timedelta(minutes=10),
+                ],
                 "first_name": ["moshe", "dina", "katya"],
                 "data": [50, 10, 25],
             }
         )
         # writing down a remote source
-        target2 = ParquetTarget() #pass a path here?
+        target2 = ParquetTarget()
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
@@ -830,10 +841,8 @@ class TestFeatureStore(TestMLRunSystem):
         vec_df = resp.to_dataframe()
         vec_dict = vec_df.to_dict()
 
-        expected = {'data': {'moshe': 50, 'dina': 10}}
+        expected = {"data": {"moshe": 50, "dina": 10}}
         assert expected == vec_dict
-#        sleep(120)
-
 
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])

@@ -174,7 +174,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    overwrite=True,
+    overwrite=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -212,7 +212,9 @@ def ingest(
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
-                          (default: True. deletes the targets that are about to be ingested)
+                          (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
+                                    False for scheduled ingest - does not delete the target)
+
     """
     if featureset:
         if isinstance(featureset, str):
@@ -249,6 +251,12 @@ def ingest(
             name, featureset, run_config, source.schedule, spark_context
         )
 
+    if overwrite is None:
+        if source.schedule:
+            overwrite = False
+        else:
+            overwrite = True
+
     if mlrun_context:
         # extract ingestion parameters from mlrun context
         if featureset or source is not None:
@@ -262,6 +270,10 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
             )
+
+        from time import sleep
+
+        sleep(90)
 
         if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
             min_time = datetime.fromisoformat(featureset.status.targets[0].last_written)

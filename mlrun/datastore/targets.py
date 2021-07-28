@@ -416,7 +416,13 @@ class BaseStoreTarget(DataTargetBase):
         return target
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None, featureset_status=None,
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         raise NotImplementedError()
 
@@ -554,7 +560,12 @@ class ParquetTarget(BaseStoreTarget):
             df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -611,9 +622,13 @@ class ParquetTarget(BaseStoreTarget):
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
         if self.attributes:
-            self.attributes["update_last_written"] = featureset_status.update_last_written_for_target
+            self.attributes[
+                "update_last_written"
+            ] = featureset_status.update_last_written_for_target
         else:
-            self.attributes = {"update_last_written": featureset_status.update_last_written_for_target}
+            self.attributes = {
+                "update_last_written": featureset_status.update_last_written_for_target
+            }
 
         graph.add_step(
             name=self.name or "ParquetTarget",

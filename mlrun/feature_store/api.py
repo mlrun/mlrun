@@ -273,8 +273,11 @@ def ingest(
             )
 
         from time import sleep
+        print("going to sleep")
 
         sleep(90)
+
+        print("waking up")
 
         if source.schedule and featureset.status.targets and featureset.status.targets[0].last_written:
             min_time = datetime.fromisoformat(featureset.status.targets[0].last_written)

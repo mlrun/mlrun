@@ -9,7 +9,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import pytest
 from pandas.util.testing import assert_frame_equal
-from storey import EmitAfterMaxEvent, MapClass
+from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
@@ -622,8 +622,6 @@ class TestFeatureStore(TestMLRunSystem):
             column="bid",
             operations=["sum", "max"],
             windows="1h",
-            period="10m",
-            emit_policy=EmitAfterMaxEvent(1),
         )
         fs.preview(
             data_set,

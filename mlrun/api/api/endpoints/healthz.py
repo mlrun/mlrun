@@ -71,7 +71,7 @@ def _resolve_nuclio_version(auth_info: AuthInfo):
                 nuclio_client = nuclio.Client()
                 nuclio_version = nuclio_client.get_dashboard_version(auth_info)
             except Exception:
-                logger.warning("Could not resolve nuclio version")
+                logger.warning("Failed to resolve nuclio version")
 
         cached_nuclio_version = nuclio_version
 

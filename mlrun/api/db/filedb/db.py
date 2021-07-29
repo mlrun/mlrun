@@ -367,6 +367,9 @@ class FileDB(DBInterface):
     def delete_schedule(self, session, project: str, name: str):
         raise NotImplementedError()
 
+    def delete_schedules(self, session, project: str):
+        raise NotImplementedError()
+
     @staticmethod
     def _transform_run_db_error(func, *args, **kwargs):
         try:

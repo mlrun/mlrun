@@ -39,6 +39,29 @@ class AuthorizationResourceTypes(str, enum.Enum):
     run = "run"
     model_endpoint = "model-endpoint"
 
+    def to_resource_string(self, project_name: str, resource_name: str,):
+        return {
+            AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
+            AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
+            AuthorizationResourceTypes.background_task: "/projects/{project_name}/background-tasks/{resource_name}",
+            AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_name}",
+            AuthorizationResourceTypes.feature_vector: "/projects/{project_name}/feature-vectors/{resource_name}",
+            AuthorizationResourceTypes.feature: "/projects/{project_name}/features/{resource_name}",
+            AuthorizationResourceTypes.entity: "/projects/{project_name}/entities/{resource_name}",
+            AuthorizationResourceTypes.log: "/projects/{project_name}/runs/{resource_name}/logs",
+            AuthorizationResourceTypes.schedule: "/projects/{project_name}/schedules/{resource_name}",
+            AuthorizationResourceTypes.secret: "/projects/{project_name}/secrets/{resource_name}",
+            AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
+            # runtime resource doesn't have a get (one) object endpoint, it doesn't have an identifier
+            AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources/",
+            AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
+        }[self].format(project_name=project_name, resource_name=resource_name)
+
+
+class AuthorizationVerificationInput(pydantic.BaseModel):
+    resource: str
+    action: AuthorizationAction
+
 
 class AuthInfo(pydantic.BaseModel):
     # Basic + Iguazio auth

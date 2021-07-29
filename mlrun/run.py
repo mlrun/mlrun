@@ -241,15 +241,23 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
         command = get_in(runtime, "spec.command", "")
         code = get_in(runtime, "spec.build.functionSourceCode")
+        origin_filename = get_in(runtime, "spec.build.origin_filename")
         kind = get_in(runtime, "kind", "")
         if kind in RuntimeKinds.nuclio_runtimes():
             code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
         if code:
-            fpath = mktemp(".py")
-            code = b64decode(code).decode("utf-8")
-            command = fpath
-            with open(fpath, "w") as fp:
-                fp.write(code)
+            if (
+                origin_filename
+                and origin_filename.endswith(".py")
+                and path.isfile(origin_filename)
+            ):
+                command = origin_filename
+            else:
+                fpath = mktemp(".py")
+                code = b64decode(code).decode("utf-8")
+                command = fpath
+                with open(fpath, "w") as fp:
+                    fp.write(code)
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):

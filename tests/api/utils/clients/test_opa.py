@@ -106,6 +106,27 @@ def test_query_permissions_failure(
         opa_client.query_permissions(resource, action, auth_info)
 
 
+def test_query_permissions_use_cache(
+    api_url: str,
+    permission_query_path: str,
+    opa_client: mlrun.api.utils.clients.opa.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    auth_info = mlrun.api.schemas.AuthInfo(user_id="user-id")
+    project_name = "project-name"
+    opa_client.add_allowed_project_for_owner(project_name, auth_info)
+    mocker = requests_mock.post(f"{api_url}{permission_query_path}", json={})
+    assert (
+        opa_client.query_permissions(
+            f"/projects/{project_name}/resource",
+            mlrun.api.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+        is True
+    )
+    assert mocker.call_count == 0
+
+
 def test_allowed_project_owners_cache(
     api_url: str,
     permission_query_path: str,

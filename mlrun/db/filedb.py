@@ -722,7 +722,10 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def verify_authorization(self, authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput):
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+    ):
         raise NotImplementedError()
 
 

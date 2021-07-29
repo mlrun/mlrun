@@ -39,7 +39,9 @@ class AuthorizationResourceTypes(str, enum.Enum):
     run = "run"
     model_endpoint = "model-endpoint"
 
-    def to_resource_string(self, project_name: str, resource_name: str,):
+    def to_resource_string(
+        self, project_name: str, resource_name: str,
+    ):
         return {
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",

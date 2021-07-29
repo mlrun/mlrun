@@ -2239,16 +2239,21 @@ class HTTPRunDB(RunDBInterface):
         )
         return schemas.ModelEndpoint(**response.json())
 
-    def verify_authorization(self, authorization_verification_input: schemas.AuthorizationVerificationInput):
+    def verify_authorization(
+        self, authorization_verification_input: schemas.AuthorizationVerificationInput
+    ):
         """ Verifies authorization for the provided action on the provided resource.
 
         :param authorization_verification_input: Instance of
             :py:class:`~mlrun.api.schemas.AuthorizationVerificationInput` that includes all the needed parameters for
             the auth verification
         """
-        error_message = f"Authorization check failed"
+        error_message = "Authorization check failed"
         self.api_call(
-            "POST", "authorization/verifications", error_message, body=dict_to_json(authorization_verification_input),
+            "POST",
+            "authorization/verifications",
+            error_message,
+            body=dict_to_json(authorization_verification_input),
         )
 
 

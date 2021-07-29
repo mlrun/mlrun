@@ -251,6 +251,7 @@ def run(
         code = get_in(runtime, "spec.build.functionSourceCode", code)
     if from_env and code:
         code = b64decode(code).decode("utf-8")
+        origin_name = pathlib.Path(get_in(runtime, "spec.build.origin_filename", "")).name
         if kfp:
             print(f"code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
@@ -261,10 +262,10 @@ def run(
             exit(1)
         if mode == "pass":
             if "{codefile}" in url:
-                url_file = "codefile"
+                url_file = origin_name or "codefile"
                 url = url.replace("{codefile}", url_file)
-            elif suffix == ".sh":
-                url_file = "codefile.sh"
+            elif suffix == ".sh" or origin_name.endswith('.sh'):
+                url_file = origin_name or "codefile.sh"
                 url = f"bash {url_file} {url_args}".strip()
             else:
                 print(
@@ -273,7 +274,7 @@ def run(
                 )
                 exit(1)
         else:
-            url_file = "main.py"
+            url_file = origin_name or "main.py"
             url = f"{url_file} {url_args}".strip()
         with open(url_file, "w") as fp:
             fp.write(code)

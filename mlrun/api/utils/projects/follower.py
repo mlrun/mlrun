@@ -7,6 +7,7 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
+import mlrun.api.utils.clients.opa
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.nop_leader
@@ -16,7 +17,6 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
-import mlrun.api.utils.clients.opa
 from mlrun.utils import logger
 
 
@@ -118,17 +118,18 @@ class Member(
         self._stop_periodic_sync()
 
     def ensure_project(
-            self,
-            db_session: sqlalchemy.orm.Session,
-            name: str,
-            wait_for_completion: bool = True,
-            auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        wait_for_completion: bool = True,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> bool:
-        is_project_created = super().ensure_project(db_session, name, wait_for_completion, auth_info)
+        is_project_created = super().ensure_project(
+            db_session, name, wait_for_completion, auth_info
+        )
         if is_project_created:
             mlrun.api.utils.clients.opa.Client().add_allowed_project_for_owner(
-                name,
-                auth_info,
+                name, auth_info,
             )
         return is_project_created
 

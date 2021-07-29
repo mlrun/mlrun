@@ -65,9 +65,7 @@ class Scheduler:
         labels: Dict = None,
         concurrency_limit: int = config.httpdb.scheduling.default_concurrency_limit,
     ):
-        get_project_member().ensure_project(
-            db_session, project, auth_info=auth_info
-        )
+        get_project_member().ensure_project(db_session, project, auth_info=auth_info)
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.schedule,
             project,
@@ -526,10 +524,7 @@ class Scheduler:
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
         get_db().update_schedule(
-            db_session,
-            run_metadata["project"],
-            schedule_name,
-            last_run_uri=run_uri,
+            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
         )
 
         close_session(db_session)

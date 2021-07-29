@@ -31,10 +31,10 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
         self._log_level = int(mlrun.mlconf.httpdb.authorization.opa.log_level)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
-        self._allowed_project_owners_cache_ttl_seconds = humanfriendly.parse_timespan(mlrun.mlconf.httpdb.projects.leader.project_owners_cache_ttl)
+        self._allowed_project_owners_cache_ttl_seconds = humanfriendly.parse_timespan(mlrun.mlconf.httpdb.projects.project_owners_cache_ttl)
 
-        # owner id -> [(allowed project, ttl)]
-        self._allowed_project_owners_cache: typing.Dict[str, typing.List[typing.Tuple[str, datetime]]] = {}
+        # owner id -> allowed project -> ttl
+        self._allowed_project_owners_cache: typing.Dict[str, typing.Dict[str, datetime]] = {}
 
     def filter_resources_by_permissions(
         self,
@@ -130,7 +130,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             or mlrun.mlconf.httpdb.authorization.mode == "none"
         ):
             return True
-        if self._check_allowed_projects_cache(resource, auth_info):
+        if self._check_allowed_project_owners_cache(resource, auth_info):
             return True
         body = self._generate_permission_request_body(resource, action, auth_info)
         if self._log_level > 5:
@@ -148,14 +148,14 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             )
         return allowed
 
-    def _check_allowed_projects_cache(self, resource: str, auth_info: mlrun.api.schemas.AuthInfo):
+    def _check_allowed_project_owners_cache(self, resource: str, auth_info: mlrun.api.schemas.AuthInfo):
         # Cache shouldn't be big, simply clean it on get instead of scheduling it
         self._clean_expired_records_from_cache()
         if auth_info.user_id not in self._allowed_project_owners_cache:
             return False
-        allowed_projects = [project_name for project_name, _ in self._allowed_project_owners_cache[auth_info.user_id]]
+        allowed_projects = list(self._allowed_project_owners_cache[auth_info.user_id].keys())
         for allowed_project in allowed_projects:
-            if f"/projects/{allowed_project}" in resource:
+            if f"/projects/{allowed_project}/" in resource:
                 return True
         return False
 
@@ -164,26 +164,26 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         user_ids_to_remove = []
         for user_id in self._allowed_project_owners_cache.keys():
             allowed_projects = self._allowed_project_owners_cache[user_id]
-            updated_allowed_projects = []
-            for allowed_project_name, ttl in allowed_projects:
+            updated_allowed_projects = {}
+            for allowed_project_name, ttl in allowed_projects.items():
                 if now > ttl:
                     continue
-                updated_allowed_projects.append((allowed_project_name, ttl))
+                updated_allowed_projects[allowed_project_name] = ttl
             self._allowed_project_owners_cache[user_id] = updated_allowed_projects
             if not updated_allowed_projects:
                 user_ids_to_remove.append(user_id)
         for user_id in user_ids_to_remove:
             del self._allowed_project_owners_cache[user_id]
 
-    def add_allowed_project(self, project_name: str, auth_info: mlrun.api.schemas.AuthInfo):
+    def add_allowed_project_for_owner(self, project_name: str, auth_info: mlrun.api.schemas.AuthInfo):
         if not auth_info.user_id or not project_name or not self._allowed_project_owners_cache_ttl_seconds:
             # Simply won't be cached, no need to explode
             return
-        allowed_projects = []
+        allowed_projects = {}
         if auth_info.user_id in self._allowed_project_owners_cache:
-                allowed_projects = self._allowed_project_owners_cache[auth_info.user_id][0]
+                allowed_projects = self._allowed_project_owners_cache[auth_info.user_id]
         ttl = datetime.datetime.now() + datetime.timedelta(seconds=self._allowed_project_owners_cache_ttl_seconds)
-        allowed_projects.append((project_name, ttl))
+        allowed_projects[project_name] = ttl
         self._allowed_project_owners_cache[auth_info.user_id] = allowed_projects
 
     def _generate_resource_string(

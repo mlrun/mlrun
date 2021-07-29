@@ -126,7 +126,7 @@ class Member(
     ) -> bool:
         is_project_created = super().ensure_project(db_session, name, wait_for_completion, auth_info)
         if is_project_created:
-            mlrun.api.utils.clients.opa.Client().add_allowed_project(
+            mlrun.api.utils.clients.opa.Client().add_allowed_project_for_owner(
                 name,
                 auth_info,
             )

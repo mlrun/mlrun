@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from mlrun.api.utils.clients import nuclio
 from mlrun.config import config, default_config
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
+from mlrun.utils import logger
 
 router = APIRouter()
 
@@ -64,8 +65,11 @@ def _resolve_nuclio_version():
         # config override everything
         nuclio_version = config.nuclio_version
         if not nuclio_version and config.nuclio_dashboard_url:
-            nuclio_client = nuclio.Client()
-            nuclio_version = nuclio_client.get_dashboard_version()
+            try:
+                nuclio_client = nuclio.Client()
+                nuclio_version = nuclio_client.get_dashboard_version()
+            except Exception:
+                logger.warning("Failed to resolve nuclio version")
 
         cached_nuclio_version = nuclio_version
 

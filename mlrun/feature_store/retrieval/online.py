@@ -70,6 +70,10 @@ def init_feature_vector_graph(vector):
     index_columns = []
     for featureset in feature_set_objects.values():
         driver = get_online_target(featureset)
+        if not driver:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"resource {featureset.uri} does not have an online data target"
+            )
         cache.cache_table(featureset.uri, driver.get_table_object())
         for key in featureset.spec.entities.keys():
             if not vector.spec.with_indexes and key not in index_columns:

@@ -622,6 +622,7 @@ class TestFeatureStore(TestMLRunSystem):
             column="bid",
             operations=["sum", "max"],
             windows="1h",
+            period="10m",
         )
         fs.preview(
             data_set,

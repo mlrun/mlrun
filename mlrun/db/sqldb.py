@@ -732,3 +732,9 @@ class SQLDB(RunDBInterface):
         access_key=None,
     ):
         raise NotImplementedError()
+
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+    ):
+        raise NotImplementedError()

@@ -722,6 +722,12 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+    ):
+        raise NotImplementedError()
+
 
 def make_time_pred(since, until):
     if not (since or until):

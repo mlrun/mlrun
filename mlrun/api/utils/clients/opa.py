@@ -101,7 +101,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         if not resource_name:
             resource_name = "*"
         return self.query_permissions(
-            self._generate_resource_string(project_name, resource_type, resource_name),
+            resource_type.to_resource_string(project_name, resource_name),
             action,
             auth_info,
             raise_on_forbidden,
@@ -201,34 +201,6 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
         allowed_projects[project_name] = ttl
         self._allowed_project_owners_cache[auth_info.user_id] = allowed_projects
-
-    def _generate_resource_string(
-        self,
-        project_name: str,
-        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
-        resource_name: str,
-    ):
-        return {
-            mlrun.api.schemas.AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.background_task: "/projects/{project_name}/background-tasks/{r"
-            "esource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_"
-            "name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.feature_vector: "/projects/{project_name}/feature-vectors/{res"
-            "ource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.feature: "/projects/{project_name}/features/{resource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.entity: "/projects/{project_name}/entities/{resource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.log: "/projects/{project_name}/runs/{resource_name}/logs",
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule: "/projects/{project_name}/schedules/{resource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.secret: "/projects/{project_name}/secrets/{resource_name}",
-            mlrun.api.schemas.AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
-            # runtime resource doesn't have a get (one) object endpoint, it doesn't have an identifier
-            mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources/"
-            "",
-            mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{res"
-            "ource_name}",
-        }[resource_type].format(project_name=project_name, resource_name=resource_name)
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

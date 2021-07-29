@@ -415,3 +415,9 @@ class RunDBInterface(ABC):
         access_key: Optional[str] = None,
     ):
         pass
+
+    @abstractmethod
+    def verify_authorization(
+        self, authorization_verification_input: schemas.AuthorizationVerificationInput
+    ):
+        pass

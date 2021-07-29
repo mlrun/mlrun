@@ -803,7 +803,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name="sched_test9", entities=[fs.Entity("first_name")], timestamp_key="time"
+            name="sched_test11", entities=[fs.Entity("first_name")], timestamp_key="time"
         )
         fs.ingest(
             feature_set,
@@ -813,7 +813,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         sleep(60)
 
-        features = ["sched_test9.*"]
+        features = ["sched_test11.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
         resp = fs.get_offline_features(vec)
         vec_df = resp.to_dataframe()

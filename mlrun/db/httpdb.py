@@ -2088,7 +2088,7 @@ class HTTPRunDB(RunDBInterface):
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -2118,7 +2118,7 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Session-Key": access_key},
         )
 
-    def delete_endpoint_record(
+    def delete_model_endpoint_record(
         self, project: str, endpoint_id: str, access_key: Optional[str] = None,
     ):
         """
@@ -2140,7 +2140,7 @@ class HTTPRunDB(RunDBInterface):
             method="DELETE", path=path, headers={"X-V3io-Session-Key": access_key},
         )
 
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -2196,7 +2196,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return schemas.ModelEndpointList(**response.json())
 
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,

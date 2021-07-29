@@ -165,6 +165,7 @@ default_config = {
             # better performance wise, so made it a mode
             # one of: cache, none
             "follower_projects_store_mode": "none",
+            "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

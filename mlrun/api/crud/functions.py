@@ -25,7 +25,7 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> str:
         project = project or mlrun.mlconf.default_project
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, leader_session=auth_info.session
+            db_session, project, auth_info=auth_info
         )
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.function,

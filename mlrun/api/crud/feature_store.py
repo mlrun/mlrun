@@ -325,7 +325,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_creation(project, object_)
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, leader_session=auth_info.session
+            db_session, project, auth_info=auth_info
         )
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             object_.get_authorization_resource_type(),
@@ -365,7 +365,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             object_, project, name, tag, uid
         )
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, leader_session=auth_info.session
+            db_session, project, auth_info=auth_info
         )
         mlrun.api.utils.clients.opa.Client().query_resource_permissions(
             object_.get_authorization_resource_type(),

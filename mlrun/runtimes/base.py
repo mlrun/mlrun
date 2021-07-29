@@ -1062,6 +1062,7 @@ class BaseRuntimeHandler(ABC):
                     runtime_resource_name=runtime_resource["metadata"]["name"],
                     namespace=namespace,
                     exc=str(exc),
+                    traceback=traceback.format_exc(),
                 )
 
     def _enrich_list_resources_response(

@@ -537,7 +537,7 @@ async def test_delete_schedules(db: Session, scheduler: Scheduler):
     number_of_schedules = 5
     for index in range(number_of_schedules):
         schedule_name = f"schedule-name-{index}"
-        _create_do_nothing_schedule(db, project, schedule_name)
+        _create_do_nothing_schedule(db, scheduler, project, schedule_name)
 
     schedules = scheduler.list_schedules(db, mlrun.api.schemas.AuthInfo())
     assert len(schedules.schedules) == number_of_schedules

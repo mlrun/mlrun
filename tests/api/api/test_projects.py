@@ -17,9 +17,9 @@ import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
+import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
-import mlrun.api.utils.singletons.scheduler
 import mlrun.errors
 from mlrun.api.db.sqldb.models import (
     Artifact,
@@ -509,7 +509,7 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
             mlrun.api.schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
-            labels
+            labels,
         )
 
     feature_set = mlrun.api.schemas.FeatureSet(
@@ -547,7 +547,7 @@ def _assert_resources_in_project(
 ) -> typing.Tuple[typing.Dict, typing.Dict]:
     object_type_records_count_map = {
         "Logs": _assert_logs_in_project(project, assert_no_resources),
-        "Schedules": _assert_schedules_in_project(project, assert_no_resources)
+        "Schedules": _assert_schedules_in_project(project, assert_no_resources),
     }
     return (
         _assert_db_resources_in_project(db_session, project, assert_no_resources),
@@ -555,8 +555,14 @@ def _assert_resources_in_project(
     )
 
 
-def _assert_schedules_in_project(project: str, assert_no_resources: bool = False,) -> int:
-    number_of_schedules = len(mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(project))
+def _assert_schedules_in_project(
+    project: str, assert_no_resources: bool = False,
+) -> int:
+    number_of_schedules = len(
+        mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
+            project
+        )
+    )
     if assert_no_resources:
         assert number_of_schedules == 0
     else:

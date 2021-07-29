@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Generator
 
 import pytest
-import sqlalchemy.orm
 from dateutil.tz import tzlocal
 from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
@@ -495,8 +494,14 @@ async def test_list_schedules_from_scheduler(db: Session, scheduler: Scheduler):
     for index in range(project_2_number_of_schedules):
         schedule_name = f"schedule-name-{index}"
         _create_do_nothing_schedule(db, scheduler, project_2, schedule_name)
-    assert len(scheduler._list_schedules_from_scheduler(project_1)) == project_1_number_of_schedules
-    assert len(scheduler._list_schedules_from_scheduler(project_2)) == project_2_number_of_schedules
+    assert (
+        len(scheduler._list_schedules_from_scheduler(project_1))
+        == project_1_number_of_schedules
+    )
+    assert (
+        len(scheduler._list_schedules_from_scheduler(project_2))
+        == project_2_number_of_schedules
+    )
 
 
 @pytest.mark.asyncio
@@ -810,7 +815,9 @@ def _assert_schedule(
     assert DeepDiff(schedule.labels, labels, ignore_order=True) == {}
 
 
-def _create_do_nothing_schedule(db: Session, scheduler: Scheduler, project:str, name:str):
+def _create_do_nothing_schedule(
+    db: Session, scheduler: Scheduler, project: str, name: str
+):
     cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     scheduler.create_schedule(
         db,

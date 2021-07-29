@@ -233,16 +233,9 @@ class Scheduler:
         get_db().delete_schedule(db_session, project, name)
 
     def delete_schedules(
-            self,
-            db_session: Session,
-            auth_info: mlrun.api.schemas.AuthInfo,
-            project: str,
+        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, project: str,
     ):
-        schedules = self.list_schedules(
-            db_session,
-            auth_info,
-            project,
-        )
+        schedules = self.list_schedules(db_session, auth_info, project,)
         mlrun.api.utils.clients.opa.Client().query_resources_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.schedule,
             schedules.schedules,

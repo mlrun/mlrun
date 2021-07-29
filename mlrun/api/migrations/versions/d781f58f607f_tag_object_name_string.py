@@ -10,43 +10,25 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd781f58f607f'
-down_revision = 'e1dd5983c06b'
+revision = "d781f58f607f"
+down_revision = "e1dd5983c06b"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
     with op.batch_alter_table("feature_sets_tags") as batch_op:
-        batch_op.alter_column(
-            column_name='obj_name',
-            type_=sa.String()
-        )
+        batch_op.alter_column(column_name="obj_name", type_=sa.String())
     with op.batch_alter_table("feature_vectors_tags") as batch_op:
-        batch_op.alter_column(
-            column_name='obj_name',
-            type_=sa.String()
-        )
+        batch_op.alter_column(column_name="obj_name", type_=sa.String())
     with op.batch_alter_table("functions_tags") as batch_op:
-        batch_op.alter_column(
-            column_name='obj_name',
-            type_=sa.String()
-        )
+        batch_op.alter_column(column_name="obj_name", type_=sa.String())
 
 
 def downgrade():
     with op.batch_alter_table("functions_tags") as batch_op:
-        batch_op.alter_column(
-            column_name='obj_name',
-            type_=sa.Integer()
-        )
+        batch_op.alter_column(column_name="obj_name", type_=sa.Integer())
     with op.batch_alter_table("feature_vectors_tags") as batch_op:
-        batch_op.alter_column(
-            column_name='obj_name',
-            type_=sa.Integer()
-        )
+        batch_op.alter_column(column_name="obj_name", type_=sa.Integer())
     with op.batch_alter_table("feature_sets_tags") as batch_op:
-        batch_op.alter_column(
-            column_name='obj_name',
-            type_=sa.Integer()
-        )
+        batch_op.alter_column(column_name="obj_name", type_=sa.Integer())

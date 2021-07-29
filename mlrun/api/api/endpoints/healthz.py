@@ -68,8 +68,8 @@ def _resolve_nuclio_version():
             try:
                 nuclio_client = nuclio.Client()
                 nuclio_version = nuclio_client.get_dashboard_version()
-            except Exception:
-                logger.warning("Failed to resolve nuclio version")
+            except Exception as exc:
+                logger.warning("Failed to resolve nuclio version", exc=str(exc))
 
         cached_nuclio_version = nuclio_version
 

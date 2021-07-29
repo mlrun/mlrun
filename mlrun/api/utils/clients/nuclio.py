@@ -1,6 +1,7 @@
 import copy
 import http
 import typing
+import urllib.parse
 
 import requests.adapters
 import sqlalchemy.orm
@@ -150,8 +151,8 @@ class Client(
                 f"Provided format is not supported. format={format_}"
             )
 
-    def get_dashboard_version(self) -> str:
-        response = self._send_request_to_api("GET", "versions")
+    def get_dashboard_version(self, auth_info: mlrun.api.schemas.AuthInfo) -> str:
+        response = self._send_request_to_api("GET", "versions", auth_info)
         response_body = response.json()
         return response_body["dashboard"]["label"]
 
@@ -164,8 +165,28 @@ class Client(
     def _put_project_to_nuclio(self, body):
         self._send_request_to_api("PUT", "projects", json=body)
 
-    def _send_request_to_api(self, method, path, **kwargs):
+    def _send_request_to_api(
+        self, method, path, auth_info: mlrun.api.schemas.AuthInfo = None, **kwargs
+    ):
         url = f"{self._api_url}/api/{path}"
+        if auth_info and auth_info.session:
+            session_cookie = auth_info.session
+            if (
+                session_cookie
+                and not session_cookie.startswith('j:{"sid"')
+                and not session_cookie.startswith(urllib.parse.quote_plus('j:{"sid"'))
+            ):
+                session_cookie = f'j:{{"sid": "{session_cookie}"}}'
+            if session_cookie:
+                cookies = kwargs.get("cookies", {})
+                # in case some dev using this function for some reason setting cookies manually through kwargs + have a
+                # cookie with "session" key there + filling the session cookie - explode
+                if "session" in cookies and cookies["session"] != session_cookie:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Session cookie already set"
+                    )
+                cookies["session"] = session_cookie
+                kwargs["cookies"] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
         response = self._session.request(method, url, verify=False, **kwargs)

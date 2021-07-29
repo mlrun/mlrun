@@ -19,6 +19,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.api.utils.singletons.scheduler
 import mlrun.errors
 from mlrun.api.db.sqldb.models import (
     Artifact,
@@ -500,15 +501,15 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
     schedule_cron_trigger = mlrun.api.schemas.ScheduleCronTrigger(year=1999)
     schedule_names = ["schedule_name_1", "schedule_name_2", "schedule_name_3"]
     for schedule_name in schedule_names:
-        db.create_schedule(
+        mlrun.api.utils.singletons.scheduler.get_scheduler().create_schedule(
             db_session,
+            mlrun.api.schemas.AuthInfo(),
             project,
             schedule_name,
             mlrun.api.schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
-            mlrun.config.config.httpdb.scheduling.default_concurrency_limit,
-            labels,
+            labels
         )
 
     feature_set = mlrun.api.schemas.FeatureSet(
@@ -545,12 +546,22 @@ def _assert_resources_in_project(
     db_session: Session, project: str, assert_no_resources: bool = False,
 ) -> typing.Tuple[typing.Dict, typing.Dict]:
     object_type_records_count_map = {
-        "Logs": _assert_logs_in_project(project, assert_no_resources)
+        "Logs": _assert_logs_in_project(project, assert_no_resources),
+        "Schedules": _assert_schedules_in_project(project, assert_no_resources)
     }
     return (
         _assert_db_resources_in_project(db_session, project, assert_no_resources),
         object_type_records_count_map,
     )
+
+
+def _assert_schedules_in_project(project: str, assert_no_resources: bool = False,) -> int:
+    number_of_schedules = len(mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(project))
+    if assert_no_resources:
+        assert number_of_schedules == 0
+    else:
+        assert number_of_schedules > 0
+    return number_of_schedules
 
 
 def _assert_logs_in_project(project: str, assert_no_resources: bool = False,) -> int:
@@ -566,6 +577,8 @@ def _assert_logs_in_project(project: str, assert_no_resources: bool = False,) ->
         )
     if assert_no_resources:
         assert number_of_log_files == 0
+    else:
+        assert number_of_log_files > 0
     return number_of_log_files
 
 

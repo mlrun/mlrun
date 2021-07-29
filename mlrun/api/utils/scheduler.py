@@ -492,6 +492,10 @@ class Scheduler:
         logger.warn(message, scheduled_object_kind=scheduled_kind)
         raise NotImplementedError(message)
 
+    def _list_schedules_from_scheduler(self, project: str):
+        jobs = self._scheduler.get_jobs()
+        return [job for job in jobs if self._resolve_job_id(project, "") in job.id]
+
     def _resolve_job_id(self, project, name) -> str:
         """
         :return: returns the identifier that will be used inside the APScheduler

@@ -5,6 +5,7 @@ import mlrun
 import mlrun.frameworks.keras.callbacks
 from mlrun.frameworks.keras.mlrun_interface import KerasMLRunInterface
 from mlrun.frameworks.keras.model_handler import KerasModelHandler
+from mlrun.frameworks.keras.model_server import KerasModelServer
 
 
 def apply_mlrun(

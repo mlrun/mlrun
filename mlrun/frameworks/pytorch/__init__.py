@@ -18,6 +18,8 @@ from mlrun.frameworks.pytorch.callbacks_handler import CallbacksHandler
 from mlrun.frameworks.pytorch.mlrun_interface import PyTorchMLRunInterface
 from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 
+# from mlrun.frameworks.pytorch.model_server import PyTorchModelServer
+
 
 def train(
     model: Module,

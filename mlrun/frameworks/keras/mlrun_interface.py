@@ -225,8 +225,8 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         # Validate the optimizer input:
         if isinstance(optimizer, str):
             raise ValueError(
-                "When using horovod, the compile mehotd is expecting an initialized optimizer "
-                "instance and not a string."
+                "When using horovod, the compile method is expecting an initialized optimizer instance and not a "
+                "string."
             )
 
         # Setup the device to run on GPU if available:

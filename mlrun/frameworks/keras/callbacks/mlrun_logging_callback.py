@@ -94,7 +94,13 @@ class MLRunLoggingCallback(LoggingCallback):
         :param logs: Currently the output of the last call to `on_epoch_end()` is passed to this argument for this
                      method but that may change in the future.
         """
-        self._logger.log_run(model_handler=KerasModelHandler(model=self.model))
+        self._logger.log_run(
+            model_handler=KerasModelHandler(
+                model_name=self.model.name, model=self.model
+            )
+        )
+        # TODO: Add the option the configure the saving of the model in the initialization of this callback, currently
+        #       using the default settings.
 
     def on_epoch_end(self, epoch: int, logs: dict = None):
         """

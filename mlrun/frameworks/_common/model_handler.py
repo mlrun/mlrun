@@ -1,11 +1,10 @@
 import importlib.util
-import os
 import sys
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, TypeVar, Union
 
 import mlrun
-from mlrun.artifacts import Artifact
+from mlrun.artifacts import Artifact, ModelArtifact
 
 # Define a generic model type for the handler to have:
 Model = TypeVar("Model")
@@ -18,20 +17,46 @@ class ModelHandler(ABC):
 
     def __init__(
         self,
+        model_name,
+        model_path: str = None,
         model: Model = None,
-        model_name: str = "model",
         context: mlrun.MLClientCtx = None,
     ):
         """
-        Initialize the handler. The model can be set here so it won't require loading.
+        Initialize the handler. The model can be set here so it won't require loading. Note you must provide at least
+        one of 'model' and 'model_path'.
 
+        :param model_name: The model name for saving and logging the model.
+        :param model_path: Path to the directory with the model files. Can be passed as a model object path in the
+                           following format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
         :param model:      Model to handle or None in case a loading parameters were supplied.
-        :param model_name: The model name for saving and logging the model. Defaulted to 'model'.
-        :param context:    MLRun context to work with for automatic loading and saving to the project directory.
+        :param context:    MLRun context to work with for logging the model.
+
+        :raise ValueError: In case both model and model path were not given.
         """
-        self._model = model
+        # Validate input:
+        if model_path is None and model is None:
+            raise ValueError(
+                "At least one of 'model' or 'model_path' must be provided to the model handler."
+            )
+
+        # Store parameters:
         self._model_name = model_name
+        self._model_path = model_path
+        self._model = model
         self._context = context
+
+        # Local path to the model file (should be initialized before 'load' is called):
+        self._model_file = None  # type: str
+
+        # If the model path is of a model object, this will be the ModelArtifact object. Otherwise it will remain None.
+        # (should be initialized before 'load' is called):
+        self._model_artifact = None  # type: ModelArtifact
+
+        # If the model path is of a model object, this will be the extra data as DataItems ready to be downloaded.
+        # Else, the model path is of a directory and the extra data will be the files in this directory. (should be
+        # initialized before 'load' is called):
+        self._extra_data = None  # type: Union[Dict[str, Artifact], Dict[str, str]]
 
     @property
     def model(self) -> Model:
@@ -41,6 +66,15 @@ class ModelHandler(ABC):
         :return: The handled model.
         """
         return self._model
+
+    @property
+    def model_name(self) -> str:
+        """
+        Get the handled model's name.
+
+        :return: The handled model's name.
+        """
+        return self._model_name
 
     def set_context(self, context: mlrun.MLClientCtx):
         """
@@ -52,13 +86,13 @@ class ModelHandler(ABC):
 
     @abstractmethod
     def save(
-        self, output_path: str = None, update_paths: bool = True, *args, **kwargs
+        self, output_path: str = None, *args, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
 
         :param output_path:  The full path to the directory to save the handled model at. If not given, the context
-                             stored will be used to save the model in the defaulted location.
+                             stored will be used to save the model in the defaulted artifacts location.
         :param update_paths: Whether or not to update the model and weights paths to the newly saved model. Defaulted to
                              True.
 
@@ -79,31 +113,10 @@ class ModelHandler(ABC):
         return None
 
     @abstractmethod
-    def load(self, uid: str = None, epoch: int = None, *args, **kwargs):
+    def load(self, *args, **kwargs):
         """
-        Load the specified model in this handler. If a context was provided during initialization, the defaulted version
-        of the model in the project will be loaded. To specify the model's version, its uid can be supplied along side
-        an epoch for loading a callback of this run.
-
-        :param uid:   To load a specific version of the model by the run uid that generated the model.
-        :param epoch: To load a checkpoint of a given training (training's uid), add the checkpoint's epoch number.
-
-        :raise ValueError: If a context was not provided during the handler initialization yet a uid was provided or if
-                           an epoch was provided but a uid was not.
+        Load the specified model in this handler. To access the model, call the 'model' property.
         """
-        # Validate input:
-        # # Epoch [V], UID [X]:
-        if epoch is not None and uid is None:
-            raise ValueError(
-                "To load a model from a checkpoint of an epoch, the training run uid must be given."
-            )
-        # # Epoch [?], UID [V], Context [X]:
-        if uid is not None and self._context is None:
-            raise ValueError(
-                "To load a specific version (by uid) of a model a context must be provided during the "
-                "handler initialization."
-            )
-
         # If a model instance is already loaded, delete it from memory:
         if self._model:
             del self._model
@@ -135,34 +148,6 @@ class ModelHandler(ABC):
             raise ValueError(
                 "Cannot log model if a context was not provided during initialization."
             )
-
-    def _get_model_directory(
-        self, uid: Union[str, None], epoch: Union[int, None]
-    ) -> str:
-        """
-        Get the model directory from the database specified in the context. By default with None in both 'uid' and
-        'epoch', the latest model directory will be returned. If 'uid' is given then the directory that was produced
-        with the function related to the uid will be returned. If an epoch number is given in addition to the uid, a
-        checkpoint of the run in the given epoch will be returned.
-
-        :param uid:   Function uid to look for.
-        :param epoch: An epoch that produced a checkpoint to look for.
-
-        :return: The model's directory path.
-        """
-        # TODO: Implement using tags in db
-        pass
-
-    @staticmethod
-    def _get_model_name_from_file(path: str):
-        """
-        Get the model's name from its file (without the file's type).
-
-        :param path: The path to the model's file.
-
-        :return: The model file's name.
-        """
-        return os.path.basename(path).split(".")[0]
 
     @staticmethod
     def _import_module(classes_names: List[str], py_file_path: str) -> Dict[str, Any]:

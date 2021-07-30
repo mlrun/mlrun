@@ -101,7 +101,7 @@ class MLRunLoggingCallback(LoggingCallback):
         )
 
         # Store the custom objects:
-        self._custom_objects = custom_objects
+        self._custom_objects = custom_objects  # TODO: Update to map and directory and align the rest of the file.
 
     def on_run_end(self):
         """
@@ -110,8 +110,10 @@ class MLRunLoggingCallback(LoggingCallback):
         model = self._objects[self._ObjectKeys.MODEL]
         self._logger.log_run(
             model_handler=PyTorchModelHandler(
+                model_name=type(model).__name__,
                 model_class=type(model),
-                custom_objects=self._custom_objects,
+                custom_objects_map={},
+                custom_objects_directory="",
                 model=model,
             )
         )

@@ -159,7 +159,7 @@ class RunDBInterface(ABC):
     def list_projects(
         self,
         owner: str = None,
-        format_: schemas.Format = schemas.Format.full,
+        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
@@ -313,7 +313,9 @@ class RunDBInterface(ABC):
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
-        format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
+        format_: Union[
+            str, schemas.PipelinesFormat
+        ] = schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> schemas.PipelinesOutput:
         pass
@@ -372,7 +374,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -382,13 +384,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_endpoint_record(
+    def delete_model_endpoint_record(
         self, project: str, endpoint_id: str, access_key: Optional[str] = None
     ):
         pass
 
     @abstractmethod
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -402,7 +404,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -411,5 +413,11 @@ class RunDBInterface(ABC):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def verify_authorization(
+        self, authorization_verification_input: schemas.AuthorizationVerificationInput
     ):
         pass

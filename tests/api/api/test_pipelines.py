@@ -58,7 +58,7 @@ def test_list_pipelines_names_only(
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
         "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.Format.name_only},
+        params={"format": mlrun.api.schemas.PipelinesFormat.name_only},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(runs), next_page_token=None
@@ -73,13 +73,13 @@ def test_list_pipelines_metadata_only(
 ) -> None:
     runs = _generate_run_mocks()
     expected_runs = [run.to_dict() for run in runs]
-    expected_runs = mlrun.api.crud.pipelines._format_runs(
-        expected_runs, mlrun.api.schemas.Format.metadata_only
+    expected_runs = mlrun.api.crud.pipelines.Pipelines()._format_runs(
+        expected_runs, mlrun.api.schemas.PipelinesFormat.metadata_only
     )
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
         "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.Format.metadata_only},
+        params={"format": mlrun.api.schemas.PipelinesFormat.metadata_only},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(runs), next_page_token=None
@@ -96,7 +96,8 @@ def test_list_pipelines_full(
     expected_runs = [run.to_dict() for run in runs]
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
-        "/api/projects/*/pipelines", params={"format": mlrun.api.schemas.Format.full}
+        "/api/projects/*/pipelines",
+        params={"format": mlrun.api.schemas.PipelinesFormat.full},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(runs), next_page_token=None
@@ -113,12 +114,12 @@ def test_list_pipelines_specific_project(
     runs = _generate_run_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
-    mlrun.api.crud.pipelines._resolve_pipeline_project = unittest.mock.Mock(
+    mlrun.api.crud.pipelines.Pipelines()._resolve_pipeline_project = unittest.mock.Mock(
         return_value=project
     )
     response = client.get(
         f"/api/projects/{project}/pipelines",
-        params={"format": mlrun.api.schemas.Format.name_only},
+        params={"format": mlrun.api.schemas.PipelinesFormat.name_only},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None

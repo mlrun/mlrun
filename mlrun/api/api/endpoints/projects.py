@@ -147,7 +147,9 @@ def delete_project(
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects", response_model=schemas.ProjectsOutput)
 def list_projects(
-    format_: schemas.Format = fastapi.Query(schemas.Format.full, alias="format"),
+    format_: schemas.ProjectsFormat = fastapi.Query(
+        schemas.ProjectsFormat.full, alias="format"
+    ),
     owner: str = None,
     labels: typing.List[str] = fastapi.Query(None, alias="label"),
     state: schemas.ProjectState = None,
@@ -155,5 +157,11 @@ def list_projects(
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     return get_project_member().list_projects(
-        db_session, owner, format_, labels, state, auth_verifier.auth_info.session
+        db_session,
+        owner,
+        format_,
+        labels,
+        state,
+        auth_verifier.auth_info.projects_role,
+        auth_verifier.auth_info.session,
     )

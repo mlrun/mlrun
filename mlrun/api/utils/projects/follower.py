@@ -7,6 +7,7 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
+import mlrun.api.utils.clients.opa
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.nop_leader
@@ -56,7 +57,7 @@ class Member(
             ):
                 projects_output = self.project_member.list_projects(
                     session,
-                    format_=mlrun.api.schemas.Format.name_only,
+                    format_=mlrun.api.schemas.ProjectsFormat.name_only,
                     leader_session=leader_session,
                 )
                 return name in projects_output.projects
@@ -115,6 +116,22 @@ class Member(
     def shutdown(self):
         logger.info("Shutting down projects leader")
         self._stop_periodic_sync()
+
+    def ensure_project(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        wait_for_completion: bool = True,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ) -> bool:
+        is_project_created = super().ensure_project(
+            db_session, name, wait_for_completion, auth_info
+        )
+        if is_project_created:
+            mlrun.api.utils.clients.opa.Client().add_allowed_project_for_owner(
+                name, auth_info,
+            )
+        return is_project_created
 
     def create_project(
         self,
@@ -177,7 +194,7 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
@@ -188,12 +205,12 @@ class Member(
                 db_session,
                 name,
                 deletion_strategy,
-                leader_session,
+                auth_info,
                 self._projects_store_for_deletion,
             )
         else:
             return self._leader_client.delete_project(
-                leader_session, name, deletion_strategy, wait_for_completion,
+                auth_info.session, name, deletion_strategy, wait_for_completion,
             )
         return False
 
@@ -214,12 +231,34 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        # needed only for external usage when requesting leader format
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         projects = []
+        if format_ == mlrun.api.schemas.ProjectsFormat.leader:
+            if not self._is_request_from_leader(projects_role):
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Leader format is allowed only to the leader"
+                )
+            # importing here to avoid circular import (db using project member using mlrun follower using db)
+            from mlrun.api.utils.singletons.db import get_db
+
+            # Basically in follower mode our projects source of truth is the leader and the data in the DB is not
+            # relevant or maintained. The leader format purpose is a specific upgrade scenario where we're moving from
+            # leader mode (in which the projects are maintained in the DB) to follower mode in which the leader needs
+            # to be aware of the already existing projects so we're allowing only to the leader, to read from the DB,
+            # and return it in the leader's format
+            projects = get_db().list_projects(db_session, owner, format_, labels, state)
+            leader_projects = [
+                self._leader_client.format_as_leader_project(project)
+                for project in projects.projects
+            ]
+            return mlrun.api.schemas.ProjectsOutput(projects=leader_projects)
+
         if self.projects_store_mode == self.ProjectsStoreMode.cache:
             projects = list(self._projects.values())
         elif self.projects_store_mode == self.ProjectsStoreMode.none:
@@ -243,11 +282,11 @@ class Member(
             )
         project_names = list(map(lambda project: project.metadata.name, projects))
         # format output
-        if format_ == mlrun.api.schemas.Format.name_only:
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             projects = project_names
-        elif format_ == mlrun.api.schemas.Format.full:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
             pass
-        elif format_ == mlrun.api.schemas.Format.summary:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.summary:
             # importing here to avoid circular import (db using project member using mlrun follower using db)
             from mlrun.api.utils.singletons.db import get_db
 

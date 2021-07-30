@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import getpass
 import json
 import os
@@ -20,12 +21,30 @@ from copy import deepcopy
 import mlrun
 
 from .config import config
-from .db import get_or_set_dburl
+from .db import get_or_set_dburl, get_run_db
 from .model import HyperParamOptions
-from .utils import dict_to_yaml, gen_md_table, get_artifact_target, logger, run_keys
+from .utils import (
+    dict_to_yaml,
+    gen_md_table,
+    get_artifact_target,
+    get_in,
+    is_ipython,
+    logger,
+    run_keys,
+)
 
 KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
+
+project_annotation = "mlrun/project"
+run_annotation = "mlrun/pipeline-step-type"
+function_annotation = "mlrun/function-uri"
+
+
+class PipelineRunType:
+    run = "run"
+    build = "build"
+    deploy = "deploy"
 
 
 def is_num(v):
@@ -388,9 +407,8 @@ def mlrun_op(
             "mlpipeline-metrics": "/mlpipeline-metrics.json",
         },
     )
-    # if rundb:
-    #     cop.container.add_env_variable(k8s_client.V1EnvVar(
-    #         name='MLRUN_DBPATH', value=rundb))
+
+    add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
@@ -461,6 +479,7 @@ def deploy_op(
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
 
+    add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
     return cop
 
@@ -534,6 +553,7 @@ def build_op(
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
 
+    add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -588,6 +608,13 @@ def add_default_env(k8s_client, cop):
             )
         )
 
+    if "V3IO_ACCESS_KEY" in os.environ:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="V3IO_ACCESS_KEY", value=os.environ["V3IO_ACCESS_KEY"]
+            )
+        )
+
 
 def get_default_reg():
     if config.httpdb.builder.docker_registry:
@@ -596,3 +623,145 @@ def get_default_reg():
     if namespace_domain is not None:
         return f"docker-registry.{namespace_domain}:80"
     return ""
+
+
+def add_annotations(cop, kind, function, func_url=None, project=None):
+    if func_url and func_url.startswith("db://"):
+        func_url = func_url[len("db://") :]
+    cop.add_pod_annotation(run_annotation, kind)
+    cop.add_pod_annotation(project_annotation, project or function.metadata.project)
+    cop.add_pod_annotation(function_annotation, func_url or function.uri)
+
+
+def generate_kfp_dag_and_resolve_project(run, project=None):
+    workflow = run["pipeline_runtime"].get("workflow_manifest", None)
+    if not workflow:
+        return None, project
+    workflow = json.loads(workflow)
+
+    templates = {}
+    for template in workflow["spec"]["templates"]:
+        project = project or get_in(
+            template, ["metadata", "annotations", project_annotation], ""
+        )
+        name = template["name"]
+        templates[name] = {
+            "run_type": get_in(
+                template, ["metadata", "annotations", run_annotation], ""
+            ),
+            "function": get_in(
+                template, ["metadata", "annotations", function_annotation], ""
+            ),
+        }
+
+    nodes = workflow["status"].get("nodes", {})
+    dag = {}
+    for node in nodes.values():
+        name = node["displayName"]
+        record = {
+            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
+        }
+        record["parent"] = node.get("boundaryID", "")
+        record["name"] = name
+        record["children"] = node.get("children", [])
+        if name in templates:
+            record["function"] = templates[name].get("function")
+            record["run_type"] = templates[name].get("run_type")
+        dag[node["id"]] = record
+
+    return dag, project
+
+
+def format_summary_from_kfp_run(kfp_run, project=None, session=None):
+    override_project = project if project and project != "*" else None
+    dag, project = generate_kfp_dag_and_resolve_project(kfp_run, override_project)
+    run_id = get_in(kfp_run, "run.id")
+
+    # enrich DAG with mlrun run info
+    if session:
+        runs = mlrun.api.utils.singletons.db.get_db().list_runs(
+            session, project=project, labels=f"workflow={run_id}"
+        )
+    else:
+        runs = get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
+
+    for run in runs:
+        step = get_in(run, ["metadata", "labels", "mlrun/runner-pod"])
+        if step and step in dag:
+            dag[step]["run_uid"] = get_in(run, "metadata.uid")
+            dag[step]["kind"] = get_in(run, "metadata.labels.kind")
+            error = get_in(run, "status.error")
+            if error:
+                dag[step]["error"] = error
+
+    short_run = {"graph": dag}
+    short_run["run"] = {
+        k: str(v)
+        for k, v in kfp_run["run"].items()
+        if k
+        in [
+            "id",
+            "name",
+            "status",
+            "error",
+            "created_at",
+            "scheduled_at",
+            "finished_at",
+            "description",
+        ]
+    }
+    short_run["run"]["project"] = project
+    return short_run
+
+
+def show_kfp_run(run, clear_output=False):
+    phase_to_color = {
+        mlrun.run.RunStatuses.failed: "red",
+        mlrun.run.RunStatuses.succeeded: "green",
+        mlrun.run.RunStatuses.skipped: "white",
+    }
+    runtype_to_shape = {
+        PipelineRunType.run: "ellipse",
+        PipelineRunType.build: "box",
+        PipelineRunType.deploy: "box3d",
+    }
+    if not run or "graph" not in run:
+        return
+    if is_ipython:
+        try:
+            from graphviz import Digraph
+        except ImportError:
+            return
+
+        try:
+            graph = run["graph"]
+            dag = Digraph("kfp", format="svg")
+            dag.attr(compound="true")
+
+            for key, node in graph.items():
+                if node["type"] != "DAG" or node["parent"]:
+                    shape = "ellipse"
+                    if node.get("run_type"):
+                        shape = runtype_to_shape.get(node["run_type"], None)
+                    elif node["phase"] == "Skipped" or (
+                        node["type"] == "DAG" and node["name"].startswith("condition-")
+                    ):
+                        shape = "diamond"
+                    dag.node(
+                        key,
+                        label=node["name"],
+                        fillcolor=phase_to_color.get(node["phase"], None),
+                        style="filled",
+                        shape=shape,
+                        tooltip=node.get("error", None),
+                    )
+                    for child in node.get("children") or []:
+                        dag.edge(key, child)
+
+            import IPython
+
+            if clear_output:
+                IPython.display.clear_output(wait=True)
+            IPython.display.display(dag)
+        except Exception as exc:
+            logger.warning(f"failed to plot graph, {exc}")

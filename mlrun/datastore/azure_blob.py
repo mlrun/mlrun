@@ -63,6 +63,11 @@ class AzureBlobStore(DataStore):
             sas_token=self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
         )
 
+    def _convert_key_to_remote_path(self, key):
+        key = key.strip("/")
+        path = Path(self.endpoint, key).as_posix()
+        return path
+
     def upload(self, key, src_path):
         if self.bsc:
             # Need to strip leading / from key
@@ -72,8 +77,7 @@ class AzureBlobStore(DataStore):
             with open(src_path, "rb") as data:
                 blob_client.upload_blob(data, overwrite=True)
         else:
-            key = key.strip("/")
-            remote_path = Path(self.endpoint, key).as_posix()
+            remote_path = self._convert_key_to_remote_path(key)
             self._filesystem.put_file(src_path, remote_path)
 
     def get(self, key, size=None, offset=0):
@@ -84,9 +88,8 @@ class AzureBlobStore(DataStore):
             size = size if size else None
             return blob_client.download_blob(offset, size).readall()
         else:
-            key = key.strip("/")
-            path = Path(self.endpoint, key).as_posix()
-            blob = self._filesystem.cat_file(path, start=offset)
+            remote_path = self._convert_key_to_remote_path(key)
+            blob = self._filesystem.cat_file(remote_path, start=offset)
             return blob
 
     def put(self, key, data, append=False):
@@ -97,15 +100,14 @@ class AzureBlobStore(DataStore):
             # Note that append=True is not supported. If the blob already exists, this call will fail
             blob_client.upload_blob(data, overwrite=True)
         else:
-            key = key.strip("/")
-            path = Path(self.endpoint, key).as_posix()
+            remote_path = self._convert_key_to_remote_path(key)
             if isinstance(data, bytes):
                 mode = "wb"
             elif isinstance(data, str):
                 mode = "w"
             else:
                 raise TypeError("Data type unknown.  Unable to put in Azure!")
-            with self._filesystem.open(path, mode) as f:
+            with self._filesystem.open(remote_path, mode) as f:
                 f.write(data)
 
     def stat(self, key):
@@ -117,9 +119,8 @@ class AzureBlobStore(DataStore):
             size = props.size
             modified = props.last_modified
         else:
-            key = key.strip("/")
-            path = Path(self.endpoint, key).as_posix()
-            files = self._filesystem.ls(path, detail=True)
+            remote_path = self._convert_key_to_remote_path(key)
+            files = self._filesystem.ls(remote_path, detail=True)
             if len(files) == 1 and files[0]["kind"] == "file":
                 size = files[0]["size"]
                 modified = files[0]["last_modified"]
@@ -138,7 +139,6 @@ class AzureBlobStore(DataStore):
             blob_list = container_client.list_blobs(name_starts_with=key)
             return [blob.name[key_length:] for blob in blob_list]
         else:
-            key = key.strip("/")
-            path = Path(self.endpoint, key).as_posix()
-            files = self._filesystem.ls(path)
+            remote_path = self._convert_key_to_remote_path(key)
+            files = self._filesystem.ls(remote_path)
             return files

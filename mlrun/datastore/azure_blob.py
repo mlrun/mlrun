@@ -71,22 +71,23 @@ class AzureBlobStore(DataStore):
     def upload(self, key, src_path):
         if self.bsc:
             # Need to strip leading / from key
-            blob_client = self.bsc.get_blob_client(
+            with self.bsc.get_blob_client(
                 container=self.endpoint, blob=key[1:]
-            )
-            with open(src_path, "rb") as data:
-                blob_client.upload_blob(data, overwrite=True)
+            ) as blob_client:
+                with open(src_path, "rb") as data:
+                    blob_client.upload_blob(data, overwrite=True)
         else:
             remote_path = self._convert_key_to_remote_path(key)
             self._filesystem.put_file(src_path, remote_path)
 
     def get(self, key, size=None, offset=0):
         if self.bsc:
-            blob_client = self.bsc.get_blob_client(
+            with self.bsc.get_blob_client(
                 container=self.endpoint, blob=key[1:]
-            )
-            size = size if size else None
-            return blob_client.download_blob(offset, size).readall()
+            ) as blob_client:
+                size = size if size else None
+                blob = blob_client.download_blob(offset, size).readall()
+                return blob
         else:
             remote_path = self._convert_key_to_remote_path(key)
             blob = self._filesystem.cat_file(remote_path, start=offset)
@@ -94,11 +95,11 @@ class AzureBlobStore(DataStore):
 
     def put(self, key, data, append=False):
         if self.bsc:
-            blob_client = self.bsc.get_blob_client(
+            with self.bsc.get_blob_client(
                 container=self.endpoint, blob=key[1:]
-            )
-            # Note that append=True is not supported. If the blob already exists, this call will fail
-            blob_client.upload_blob(data, overwrite=True)
+            ) as blob_client:
+                # Note that append=True is not supported. If the blob already exists, this call will fail
+                blob_client.upload_blob(data, overwrite=True)
         else:
             remote_path = self._convert_key_to_remote_path(key)
             if isinstance(data, bytes):
@@ -112,10 +113,10 @@ class AzureBlobStore(DataStore):
 
     def stat(self, key):
         if self.bsc:
-            blob_client = self.bsc.get_blob_client(
+            with self.bsc.get_blob_client(
                 container=self.endpoint, blob=key[1:]
-            )
-            props = blob_client.get_blob_properties()
+            ) as blob_client:
+                props = blob_client.get_blob_properties()
             size = props.size
             modified = props.last_modified
         else:
@@ -135,8 +136,8 @@ class AzureBlobStore(DataStore):
             if key and not key.endswith("/"):
                 key = key[1:] + "/"
             key_length = len(key)
-            container_client = self.bsc.get_container_client(self.endpoint)
-            blob_list = container_client.list_blobs(name_starts_with=key)
+            with self.bsc.get_container_client(self.endpoint) as container_client:
+                blob_list = container_client.list_blobs(name_starts_with=key)
             return [blob.name[key_length:] for blob in blob_list]
         else:
             remote_path = self._convert_key_to_remote_path(key)

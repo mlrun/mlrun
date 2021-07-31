@@ -27,12 +27,12 @@ from .base import DataStore, FileStats
 class AzureBlobStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
+        self.bsc = None
 
         con_string = self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
         if con_string:
             self.bsc = BlobServiceClient.from_connection_string(con_string)
         else:
-            self.bsc = None
             self.get_filesystem()
 
     def get_filesystem(self, silent=True):

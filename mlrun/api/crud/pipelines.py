@@ -190,7 +190,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
     def _resolve_pipeline_project(self, pipeline):
         workflow_manifest = json.loads(
-            pipeline.get("pipeline_spec", {}).get("workflow_manifest", "{}")
+            pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
         )
         templates = workflow_manifest.get("spec", {}).get("templates", [])
         for template in templates:

@@ -405,9 +405,9 @@ def _build_function(
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
                 try:
-                    _init_model_monitoring_endpoint_records(
-                        fn, db_session=db_session, auth_info=auth_info,
-                    )
+                    # _init_model_monitoring_endpoint_records(
+                    #     fn, db_session=db_session, auth_info=auth_info,
+                    # )
                     if fn.spec.track_models:
                         model_monitoring_access_key = _get_function_env_var(
                             fn, "MODEL_MONITORING_ACCESS_KEY"

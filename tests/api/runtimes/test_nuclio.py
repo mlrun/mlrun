@@ -5,9 +5,11 @@ import unittest.mock
 
 import deepdiff
 import nuclio
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.errors
 from mlrun import code_to_function, mlconf
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
@@ -15,7 +17,9 @@ from mlrun.runtimes.function import (
     compile_function_config,
     deploy_nuclio_function,
     enrich_function_with_ingress,
+    min_nuclio_versions,
     resolve_function_ingresses,
+    validate_nuclio_version_compatibility,
 )
 from mlrun.runtimes.pod import KubeResourceSpec
 from tests.api.runtimes.base import TestRuntimeBase
@@ -337,6 +341,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
+        mlconf.nuclio_version = "1.6.10"
         function = self._generate_runtime("nuclio")
 
         node_name = "some-node-name"
@@ -393,6 +398,62 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_node_selector=node_selector,
             expected_affinity=affinity,
         )
+
+    def test_validate_nuclio_version_compatibility(self):
+        # nuclio version we have
+        mlconf.nuclio_version = "1.6.10"
+
+        # validate_nuclio_version_compatibility receives the min nuclio version required
+        assert not validate_nuclio_version_compatibility("1.6.11")
+        assert not validate_nuclio_version_compatibility("1.5.9", "1.6.11")
+        assert not validate_nuclio_version_compatibility("1.6.11", "1.5.9")
+        assert not validate_nuclio_version_compatibility("2.0.0")
+        assert validate_nuclio_version_compatibility("1.6.9")
+        assert validate_nuclio_version_compatibility("1.5.9")
+
+        mlconf.nuclio_version = "2.0.0"
+        assert validate_nuclio_version_compatibility("1.6.11")
+        assert validate_nuclio_version_compatibility("1.5.9", "1.6.11")
+
+        # best effort - assumes compatibility
+        mlconf.nuclio_version = ""
+        assert validate_nuclio_version_compatibility("1.6.11")
+        assert validate_nuclio_version_compatibility("1.5.9", "1.6.11")
+
+        with pytest.raises(ValueError):
+            validate_nuclio_version_compatibility("")
+
+    def test_min_nuclio_versions_decorator_failure(self):
+        mlconf.nuclio_version = "1.6.10"
+
+        for case in [
+            ["1.6.11"],
+            ["2.6.11"],
+            ["1.5.9", "1.6.11"],
+        ]:
+
+            @min_nuclio_versions(*case)
+            def fail():
+                pytest.fail("Should not enter this function")
+
+            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+                fail()
+
+    def test_min_nuclio_versions_decorator_success(self):
+        for nuclio_version in ["1.6.10", "2.2.1", "", "Gibberish"]:
+            mlconf.nuclio_version = nuclio_version
+
+            for case in [
+                ["1.6.9"],
+                ["1.5.9", "1.6.9"],
+                ["1.0.0", "0.9.81", "1.4.1"],
+            ]:
+
+                @min_nuclio_versions(*case)
+                def success():
+                    pass
+
+                success()
 
     def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime("nuclio")

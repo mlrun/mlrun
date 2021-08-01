@@ -14,10 +14,21 @@
 import threading
 import time
 import traceback
-from typing import Dict
+from os import path
+from typing import Dict, Optional
 
 import mlrun
-from mlrun.utils import now_date
+from mlrun.api.schemas import (
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
+)
+from mlrun.artifacts import ModelArtifact
+from mlrun.config import config
+from mlrun.datastore import _DummyStream
+from mlrun.serving import GraphServer, RouterStep
+from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 
 class V2ModelServer:
@@ -103,6 +114,12 @@ class V2ModelServer:
             else:
                 self._load_and_update_state()
 
+        if not hasattr(self.context, "server"):
+            logger.warn("GraphServer not initialized for V2ModelServer instance")
+            return
+
+        _init_endpoint_record(self.context.server, self)
+
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
         if key in self._params:
@@ -121,7 +138,6 @@ class V2ModelServer:
     to all the model metadata attributes.
 
     get_model is usually used in the model .load() method to init the model
-
     Examples
     --------
     ::
@@ -360,3 +376,48 @@ class _ModelLogPusher:
                 if getattr(self.model, "metrics", None):
                     data["metrics"] = self.model.metrics
                 self.output_stream.push([data])
+
+
+def _init_endpoint_record(graph_server: GraphServer, model: V2ModelServer):
+    # if model_logger is None or isinstance(model_logger.output_stream, _DummyStream):
+    #     return
+
+    if hasattr(graph_server.context, "root"):
+        root = graph_server.context.root
+        if type(root) == RouterStep:
+            logger.info("RouterStep detected, we should initialize router endpoint record")
+
+    try:
+        project, uri, tag, hash_key = parse_versioned_object_uri(
+            graph_server.function_uri
+        )
+
+        if model.version:
+            versioned_model_name = f"{model.name}:{model.version}"
+        else:
+            versioned_model_name = f"{model.name}:latest"
+
+        model_endpoint = ModelEndpoint(
+            metadata=ModelEndpointMetadata(project=project, labels=model.labels),
+            spec=ModelEndpointSpec(
+                function_uri=graph_server.function_uri,
+                model=versioned_model_name,
+                model_class=model.__class__.__name__,
+                model_uri=model.model_path,
+                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project, kind="stream"
+                ),
+                active=True,
+            ),
+            status=ModelEndpointStatus(),
+        )
+
+        db = mlrun.get_run_db()
+
+        db.create_or_patch_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
+    except Exception as e:
+        logger.error("Failed to create endpoint record", exc=e)

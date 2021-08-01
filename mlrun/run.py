@@ -161,12 +161,10 @@ def run_local(
     if runtime:
         handler = handler or get_in(runtime, "spec.default_handler", "")
         meta = BaseMetadata.from_dict(runtime["metadata"])
-        meta.name = name or meta.name
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
     fn = new_function(meta.name, command=command, args=args, mode=mode)
-    meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)

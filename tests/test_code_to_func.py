@@ -20,15 +20,18 @@ from tests.conftest import examples_path, results
 
 
 def test_job_nb():
-    fn = code_to_function(filename=f"{examples_path}/mlrun_jobs.ipynb", kind="job")
+    filename = f"{examples_path}/mlrun_jobs.ipynb"
+    fn = code_to_function(filename=filename, kind="job")
     assert fn.kind == "job", "kind not set, test failed"
     assert fn.spec.build.functionSourceCode, "code not embedded"
+    assert fn.spec.build.origin_filename == filename, "did not record filename"
 
 
 def test_nuclio_nb():
+    filename = f"{examples_path}/xgb_serving.ipynb"
     fn = new_model_server(
         "iris-srv",
-        filename=f"{examples_path}/xgb_serving.ipynb",
+        filename=filename,
         models={"iris_v1": "xyz"},
         model_class="XGBoostModel",
     )
@@ -37,11 +40,11 @@ def test_nuclio_nb():
 
 
 def test_nuclio_nb_serving():
-    fn = code_to_function(
-        filename="https://raw.githubusercontent.com/mlrun/mlrun/master/examples/xgb_serving.ipynb"
-    )
+    filename = "https://raw.githubusercontent.com/mlrun/mlrun/master/examples/xgb_serving.ipynb"
+    fn = code_to_function(filename=filename)
     assert fn.kind == "remote", "kind not set, test failed"
     assert fn.spec.function_kind == "serving", "code not embedded"
+    assert fn.spec.build.origin_filename == filename, "did not record filename"
 
 
 def test_job_file():

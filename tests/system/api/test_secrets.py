@@ -130,6 +130,18 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         with pytest.raises(mlrun.errors.MLRunBadRequestError):
             self._run_db.list_project_secrets(self.project_name, provider="kubernetes")
 
+        # Negative test - try to create_secret with invalid key
+        with pytest.raises(mlrun.errors.MLRunBadRequestError):
+            self._run_db.create_project_secrets(
+                self.project_name, "kubernetes", {"invalid/key": "value"}
+            )
+
+        # Negative test - try to create_secret with forbidden (internal) key
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            self._run_db.create_project_secrets(
+                self.project_name, "kubernetes", {"mlrun.key": "value"}
+            )
+
     def test_k8s_project_secrets_with_runtime(self):
         secrets = {"secret1": "JustMySecret", "secret2": "!@#$$%^^&&"}
 

@@ -101,6 +101,8 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         runs: typing.List[dict],
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
+        for run in runs:
+            run['project'] = self._resolve_pipeline_project(run)
         if format_ == mlrun.api.schemas.PipelinesFormat.full:
             return runs
         elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
@@ -114,6 +116,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                         in [
                             "id",
                             "name",
+                            "project",
                             "status",
                             "error",
                             "created_at",

@@ -8,6 +8,7 @@ import mlrun
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 
 router = fastapi.APIRouter()
 
@@ -19,9 +20,15 @@ def list_runtimes(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    return mlrun.api.crud.Runtimes().list_runtimes(
-        "*", label_selector, auth_info=auth_verifier.auth_info
+    project = "*"
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
+        project,
+        "",
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
     )
+    return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector)
 
 
 # TODO: move everything to use this endpoint instead of list_runtimes and deprecate it
@@ -36,9 +43,14 @@ def list_runtime_resources(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    return mlrun.api.crud.Runtimes().list_runtimes(
-        project, label_selector, group_by, auth_verifier.auth_info
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
+        project,
+        "",
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
     )
+    return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector, group_by)
 
 
 @router.get("/runtimes/{kind}")

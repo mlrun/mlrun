@@ -23,15 +23,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         group_by: typing.Optional[
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
         ] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.Union[typing.Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
-            project,
-            "",
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
         runtimes = [] if group_by is None else {}
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = mlrun.runtimes.get_runtime_handler(kind)

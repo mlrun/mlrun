@@ -189,6 +189,10 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_schedules(self, session, project: str):
+        pass
+
+    @abstractmethod
     def generate_projects_summaries(
         self, session, projects: List[str]
     ) -> List[schemas.ProjectSummary]:

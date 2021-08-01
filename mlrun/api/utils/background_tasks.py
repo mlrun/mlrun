@@ -24,8 +24,6 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
 
     def create_background_task(
         self,
-        db_session: sqlalchemy.orm.Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         background_tasks: fastapi.BackgroundTasks,
         function,
@@ -36,29 +34,17 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         # sanity
         if name in self._background_tasks:
             raise RuntimeError("Background task name already exists")
-        self._save_background_task(db_session, project, name, auth_info)
+        self._save_background_task(project, name)
         background_tasks.add_task(
             self.background_task_wrapper, project, name, function, *args, **kwargs
         )
-        return self.get_background_task(project, name, auth_info)
+        return self.get_background_task(project, name)
 
     def _save_background_task(
         self,
-        db_session: sqlalchemy.orm.Session,
         project: str,
         name: str,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
-        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, auth_info=auth_info,
-        )
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.background_task,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.create,
-            auth_info,
-        )
         metadata = mlrun.api.schemas.BackgroundTaskMetadata(
             name=name, project=project, created=datetime.datetime.utcnow()
         )
@@ -76,15 +62,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         project: str,
         name: str,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.BackgroundTask:
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.background_task,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
         if (
             project in self._background_tasks
             and name in self._background_tasks[project]

@@ -146,7 +146,7 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
     assert DeepDiff(response_uids, db_uids, ignore_order=True,) == {}
 
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name, include_last_run=True
+        db, project, schedule_name, include_last_run=True
     )
     assert schedule.last_run is not None
     assert schedule.last_run["metadata"]["uid"] == response_uids[-1]
@@ -320,12 +320,12 @@ async def test_get_schedule_datetime_fields_timezone(db: Session, scheduler: Sch
         cron_trigger,
     )
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, project, schedule_name
     )
     assert schedule.creation_time.tzinfo is not None
     assert schedule.next_run_time.tzinfo is not None
 
-    schedules = scheduler.list_schedules(db, mlrun.api.schemas.AuthInfo(), project)
+    schedules = scheduler.list_schedules(db, project)
     assert len(schedules.schedules) == 1
     assert schedules.schedules[0].creation_time.tzinfo is not None
     assert schedules.schedules[0].next_run_time.tzinfo is not None
@@ -351,7 +351,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         labels_1,
     )
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, project, schedule_name
     )
 
     # no next run time cause we put year=1999
@@ -383,7 +383,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         labels_2,
     )
     schedule_2 = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name_2
+        db, project, schedule_name_2
     )
     year_datetime = datetime(year=year, month=1, day=1, tzinfo=timezone.utc)
     _assert_schedule(
@@ -396,7 +396,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         labels_2,
     )
 
-    schedules = scheduler.list_schedules(db, mlrun.api.schemas.AuthInfo())
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 2
     _assert_schedule(
         schedules.schedules[0],
@@ -418,7 +418,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
     )
 
     schedules = scheduler.list_schedules(
-        db, mlrun.api.schemas.AuthInfo(), labels="label3=value3"
+        db, labels="label3=value3"
     )
     assert len(schedules.schedules) == 1
     _assert_schedule(
@@ -437,7 +437,7 @@ async def test_get_schedule_failure_not_found(db: Session, scheduler: Scheduler)
     schedule_name = "schedule-name"
     project = config.default_project
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
-        scheduler.get_schedule(db, mlrun.api.schemas.AuthInfo(), project, schedule_name)
+        scheduler.get_schedule(db, project, schedule_name)
     assert "Schedule not found" in str(excinfo.value)
 
 
@@ -474,7 +474,7 @@ async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
             expected_schedule_names.append(name)
 
     schedules = scheduler.list_schedules(
-        db, mlrun.api.schemas.AuthInfo(), project, "~mlrun"
+        db, project, "~mlrun"
     )
     assert len(schedules.schedules) == len(expected_schedule_names)
     for schedule in schedules.schedules:
@@ -519,16 +519,16 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
         cron_trigger,
     )
 
-    schedules = scheduler.list_schedules(db, mlrun.api.schemas.AuthInfo())
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 1
 
-    scheduler.delete_schedule(db, mlrun.api.schemas.AuthInfo(), project, schedule_name)
+    scheduler.delete_schedule(db, project, schedule_name)
 
-    schedules = scheduler.list_schedules(db, mlrun.api.schemas.AuthInfo())
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 0
 
     # verify another delete pass successfully
-    scheduler.delete_schedule(db, mlrun.api.schemas.AuthInfo(), project, schedule_name)
+    scheduler.delete_schedule(db, project, schedule_name)
 
 
 @pytest.mark.asyncio
@@ -539,16 +539,16 @@ async def test_delete_schedules(db: Session, scheduler: Scheduler):
         schedule_name = f"schedule-name-{index}"
         _create_do_nothing_schedule(db, scheduler, project, schedule_name)
 
-    schedules = scheduler.list_schedules(db, mlrun.api.schemas.AuthInfo())
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == number_of_schedules
 
-    scheduler.delete_schedules(db, mlrun.api.schemas.AuthInfo(), project)
+    scheduler.delete_schedules(db, project)
 
-    schedules = scheduler.list_schedules(db, mlrun.api.schemas.AuthInfo())
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 0
 
     # verify another delete pass successfully
-    scheduler.delete_schedules(db, mlrun.api.schemas.AuthInfo(), project)
+    scheduler.delete_schedules(db, project)
 
 
 @pytest.mark.asyncio
@@ -613,7 +613,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     )
 
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, project, schedule_name
     )
 
     _assert_schedule(
@@ -631,7 +631,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         db, mlrun.api.schemas.AuthInfo(), project, schedule_name, labels=labels_2,
     )
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, project, schedule_name
     )
 
     _assert_schedule(
@@ -649,7 +649,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         db, mlrun.api.schemas.AuthInfo(), project, schedule_name,
     )
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, project, schedule_name
     )
 
     _assert_schedule(
@@ -667,7 +667,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         db, mlrun.api.schemas.AuthInfo(), project, schedule_name, labels={},
     )
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, project, schedule_name
     )
 
     _assert_schedule(
@@ -696,7 +696,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         cron_trigger=cron_trigger,
     )
     schedule = scheduler.get_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, project, schedule_name
     )
 
     next_run_time = datetime(

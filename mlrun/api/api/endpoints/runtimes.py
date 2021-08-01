@@ -1,3 +1,4 @@
+import mlrun.api.utils.clients.opa
 import http
 import typing
 
@@ -19,8 +20,16 @@ def list_runtimes(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
+    project = "*"
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
+        project,
+        "",
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     return mlrun.api.crud.Runtimes().list_runtimes(
-        "*", label_selector, auth_info=auth_verifier.auth_info
+        project, label_selector
     )
 
 
@@ -36,8 +45,15 @@ def list_runtime_resources(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
+        project,
+        "",
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     return mlrun.api.crud.Runtimes().list_runtimes(
-        project, label_selector, group_by, auth_verifier.auth_info
+        project, label_selector, group_by
     )
 
 

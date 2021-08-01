@@ -22,15 +22,12 @@ def create_background_task(
     project: str,
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
 ):
     function = bump_counter
     if failed_task:
         function = failing_function
     return mlrun.api.utils.background_tasks.Handler().create_background_task(
-        db_session, mlrun.api.schemas.AuthInfo(), project, background_tasks, function
+        project, background_tasks, function
     )
 
 

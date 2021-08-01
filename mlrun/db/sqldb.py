@@ -53,7 +53,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Logs().store_log, body, project, uid, append, self.auth_info,
+            mlrun.api.crud.Logs().store_log, body, project, uid, append,
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
@@ -66,7 +66,6 @@ class SQLDB(RunDBInterface):
             uid,
             size,
             offset,
-            auth_info=self.auth_info,
         )
 
     def store_run(self, struct, uid, project="", iter=0):
@@ -79,7 +78,6 @@ class SQLDB(RunDBInterface):
             uid,
             iter,
             project,
-            self.auth_info,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
@@ -107,7 +105,6 @@ class SQLDB(RunDBInterface):
             uid,
             iter,
             project,
-            self.auth_info,
         )
 
     def list_runs(
@@ -134,7 +131,6 @@ class SQLDB(RunDBInterface):
             sort,
             last,
             iter,
-            auth_info=self.auth_info,
         )
 
     def del_run(self, uid, project=None, iter=None):
@@ -146,7 +142,6 @@ class SQLDB(RunDBInterface):
             uid,
             iter,
             project,
-            self.auth_info,
         )
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -160,7 +155,6 @@ class SQLDB(RunDBInterface):
             labels,
             state,
             days_ago,
-            self.auth_info,
         )
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
@@ -175,7 +169,6 @@ class SQLDB(RunDBInterface):
             iter,
             tag,
             project,
-            self.auth_info,
         )
 
     def read_artifact(self, key, tag="", iter=None, project=""):
@@ -188,7 +181,6 @@ class SQLDB(RunDBInterface):
             tag,
             iter,
             project,
-            self.auth_info,
         )
 
     def list_artifacts(
@@ -215,7 +207,6 @@ class SQLDB(RunDBInterface):
             until,
             iter=iter,
             best_iteration=best_iteration,
-            auth_info=self.auth_info,
         )
 
     def del_artifact(self, key, tag="", project=""):
@@ -227,7 +218,6 @@ class SQLDB(RunDBInterface):
             key,
             tag,
             project,
-            self.auth_info,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -240,7 +230,6 @@ class SQLDB(RunDBInterface):
             name,
             tag,
             labels,
-            self.auth_info,
         )
 
     def store_function(self, function, name, project="", tag="", versioned=False):
@@ -254,7 +243,6 @@ class SQLDB(RunDBInterface):
             project,
             tag,
             versioned,
-            self.auth_info,
         )
 
     def get_function(self, name, project="", tag="", hash_key=""):
@@ -267,7 +255,6 @@ class SQLDB(RunDBInterface):
             project,
             tag,
             hash_key,
-            self.auth_info,
         )
 
     def delete_function(self, name: str, project: str = ""):
@@ -278,7 +265,6 @@ class SQLDB(RunDBInterface):
             self.session,
             project,
             name,
-            self.auth_info,
         )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
@@ -291,7 +277,6 @@ class SQLDB(RunDBInterface):
             name,
             tag,
             labels,
-            self.auth_info,
         )
 
     def list_artifact_tags(self, project=None):
@@ -376,7 +361,6 @@ class SQLDB(RunDBInterface):
             project,
             feature_set,
             versioned,
-            self.auth_info,
         )
 
     def get_feature_set(
@@ -391,7 +375,6 @@ class SQLDB(RunDBInterface):
             name,
             tag,
             uid,
-            self.auth_info,
         )
         return feature_set.dict()
 
@@ -413,7 +396,6 @@ class SQLDB(RunDBInterface):
             tag,
             entities,
             labels,
-            self.auth_info,
         )
 
     def list_entities(
@@ -428,7 +410,6 @@ class SQLDB(RunDBInterface):
             name,
             tag,
             labels,
-            self.auth_info,
         )
 
     def list_feature_sets(
@@ -461,7 +442,6 @@ class SQLDB(RunDBInterface):
             rows_per_partition,
             partition_sort_by,
             partition_order,
-            self.auth_info,
         )
 
     def store_feature_set(
@@ -489,7 +469,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
-            self.auth_info,
         )
 
     def patch_feature_set(
@@ -506,7 +485,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
-            self.auth_info,
         )
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):
@@ -519,7 +497,6 @@ class SQLDB(RunDBInterface):
             name,
             tag,
             uid,
-            self.auth_info,
         )
 
     def create_feature_vector(self, feature_vector, project="", versioned=True):
@@ -531,7 +508,6 @@ class SQLDB(RunDBInterface):
             project,
             feature_vector,
             versioned,
-            self.auth_info,
         )
 
     def get_feature_vector(
@@ -546,7 +522,6 @@ class SQLDB(RunDBInterface):
             name,
             tag,
             uid,
-            self.auth_info,
         )
 
     def list_feature_vectors(
@@ -575,7 +550,6 @@ class SQLDB(RunDBInterface):
             rows_per_partition,
             partition_sort_by,
             partition_order,
-            self.auth_info,
         )
 
     def store_feature_vector(
@@ -592,7 +566,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
-            self.auth_info,
         )
 
     def patch_feature_vector(
@@ -615,7 +588,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
-            self.auth_info,
         )
 
     def delete_feature_vector(self, name, project="", tag=None, uid=None):
@@ -628,7 +600,6 @@ class SQLDB(RunDBInterface):
             name,
             tag,
             uid,
-            self.auth_info,
         )
 
     def list_pipelines(

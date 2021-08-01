@@ -22,16 +22,8 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
         project: str,
         uid: str,
         append: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.log,
-            project,
-            uid,
-            mlrun.api.schemas.AuthorizationAction.store,
-            auth_info,
-        )
         log_file = log_path(project, uid)
         log_file.parent.mkdir(parents=True, exist_ok=True)
         mode = "ab" if append else "wb"
@@ -41,19 +33,10 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
     def delete_logs(
         self,
         project: str,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
         logs_path = project_logs_path(project)
         if logs_path.exists():
-            uids = self._list_project_logs_uids(project)
-            mlrun.api.utils.clients.opa.Client().query_resources_permissions(
-                mlrun.api.schemas.AuthorizationResourceTypes.log,
-                uids,
-                lambda uid: (project, uid),
-                mlrun.api.schemas.AuthorizationAction.delete,
-                auth_info,
-            )
             shutil.rmtree(str(logs_path))
 
     def get_logs(
@@ -64,7 +47,6 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.Tuple[str, bytes]:
         """
         :return: Tuple with:
@@ -72,13 +54,6 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
             2. bytes of the logs themselves
         """
         project = project or mlrun.mlconf.default_project
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.log,
-            project,
-            uid,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
         out = b""
         log_file = log_path(project, uid)
         data = get_db().read_run(db_session, uid, project)

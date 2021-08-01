@@ -29,6 +29,17 @@ async def store_artifact(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_verifier.auth_info
+    )
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        project,
+        key,
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_verifier.auth_info,
+    )
+
     data = None
     try:
         data = await request.json()
@@ -45,7 +56,6 @@ async def store_artifact(
         tag,
         iter,
         project,
-        auth_verifier.auth_info,
     )
     return {}
 
@@ -86,8 +96,15 @@ def get_artifact(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        project,
+        key,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     data = mlrun.api.crud.Artifacts().get_artifact(
-        db_session, key, tag, iter, project, auth_verifier.auth_info
+        db_session, key, tag, iter, project
     )
     return {
         "data": data,
@@ -104,8 +121,15 @@ def delete_artifact(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        project,
+        key,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
     mlrun.api.crud.Artifacts().delete_artifact(
-        db_session, key, tag, project, auth_verifier.auth_info
+        db_session, key, tag, project
     )
     return {}
 
@@ -134,7 +158,15 @@ def list_artifacts(
         category=category,
         iter=iter,
         best_iteration=best_iteration,
-        auth_info=auth_verifier.auth_info,
+    )
+    artifacts = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        artifacts,
+        lambda artifact: (
+            artifact.get("project", mlrun.mlconf.default_project),
+            artifact["db_key"],
+        ),
+        auth_verifier.auth_info,
     )
     return {
         "artifacts": artifacts,
@@ -144,14 +176,24 @@ def list_artifacts(
 # curl -X DELETE http://localhost:8080/artifacts?project=p1?label=l1
 @router.delete("/artifacts")
 def delete_artifacts(
-    project: str = "",
+    project: str = mlrun.mlconf.default_project,
     name: str = "",
     tag: str = "",
     labels: List[str] = Query([], alias="label"),
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
+        db_session, project, name, tag, labels
+    )
+    mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        artifacts,
+        lambda artifact: (artifact["project"], artifact["db_key"]),
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
     mlrun.api.crud.Artifacts().delete_artifacts(
-        db_session, project, name, tag, labels, auth_verifier.auth_info
+        db_session, project, name, tag, labels
     )
     return {}

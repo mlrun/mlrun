@@ -190,13 +190,6 @@ def _submit_run(
                 "name": task["metadata"]["name"],
             }
         else:
-            mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-                mlrun.api.schemas.AuthorizationResourceTypes.run,
-                task["metadata"]["project"],
-                "",
-                mlrun.api.schemas.AuthorizationAction.create,
-                auth_info,
-            )
             run = fn.run(task, watch=False)
             run_uid = run.metadata.uid
             project = run.metadata.project

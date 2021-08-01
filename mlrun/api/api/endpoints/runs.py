@@ -1,3 +1,7 @@
+import datetime
+import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.clients.opa
+import mlrun.api.schemas
 from http import HTTPStatus
 from typing import List
 
@@ -24,6 +28,16 @@ async def store_run(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_verifier.auth_info
+    )
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_verifier.auth_info,
+    )
     data = None
     try:
         data = await request.json()
@@ -38,7 +52,6 @@ async def store_run(
         uid,
         iter,
         project,
-        auth_verifier.auth_info,
     )
     return {}
 
@@ -53,6 +66,13 @@ async def update_run(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.update,
+        auth_verifier.auth_info,
+    )
     data = None
     try:
         data = await request.json()
@@ -80,8 +100,15 @@ def get_run(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     data = mlrun.api.crud.Runs().get_run(
-        db_session, uid, iter, project, auth_verifier.auth_info
+        db_session, uid, iter, project
     )
     return {
         "data": data,
@@ -97,8 +124,15 @@ def delete_run(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
     mlrun.api.crud.Runs().delete_run(
-        db_session, uid, iter, project, auth_verifier.auth_info
+        db_session, uid, iter, project,
     )
     return {}
 
@@ -135,10 +169,18 @@ def list_runs(
         start_time_to=datetime_from_iso(start_time_to),
         last_update_time_from=datetime_from_iso(last_update_time_from),
         last_update_time_to=datetime_from_iso(last_update_time_to),
-        auth_info=auth_verifier.auth_info,
+    )
+    filtered_runs = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        runs,
+        lambda run: (
+            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+            run.get("metadata", {}).get("uid"),
+        ),
+        auth_verifier.auth_info,
     )
     return {
-        "runs": runs,
+        "runs": filtered_runs,
     }
 
 
@@ -153,7 +195,28 @@ def delete_runs(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    start_time_from = datetime.datetime.now(
+        datetime.timezone.utc
+    ) - datetime.timedelta(days=days_ago)
+    runs = mlrun.api.crud.Runs().list_runs(
+        db_session,
+        name,
+        project=project,
+        labels=labels,
+        state=state,
+        start_time_from=start_time_from,
+    )
+    mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        runs,
+        lambda run: (
+            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+            run.get("metadata", {}).get("uid"),
+        ),
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
     mlrun.api.crud.Runs().delete_runs(
-        db_session, name, project, labels, state, days_ago, auth_verifier.auth_info
+        db_session, name, project, labels, state, days_ago,
     )
     return {}

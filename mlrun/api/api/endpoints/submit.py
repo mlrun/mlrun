@@ -1,4 +1,7 @@
 from http import HTTPStatus
+import fastapi.concurrency
+import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -28,6 +31,25 @@ async def submit_job(
     except ValueError:
         mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
+
+    if data.get("schedule"):
+        await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            data["task"]["metadata"]["project"],
+            data["task"]["metadata"]["name"],
+            mlrun.api.schemas.AuthorizationAction.create,
+            auth_verifier.auth_info,
+        )
+    else:
+        await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            data["task"]["metadata"]["project"],
+            "",
+            mlrun.api.schemas.AuthorizationAction.create,
+            auth_verifier.auth_info,
         )
 
     # enrich job task with the username from the request header

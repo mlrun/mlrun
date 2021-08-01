@@ -21,19 +21,8 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         versioned: bool = False,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         project = project or mlrun.mlconf.default_project
-        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, auth_info=auth_info
-        )
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.function,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.store,
-            auth_info,
-        )
         return mlrun.api.utils.singletons.db.get_db().store_function(
             db_session, function, name, project, tag, versioned,
         )
@@ -45,16 +34,8 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         hash_key: str = "",
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.function,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
         return mlrun.api.utils.singletons.db.get_db().get_function(
             db_session, name, project, tag, hash_key
         )
@@ -64,15 +45,7 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         db_session: sqlalchemy.orm.Session,
         project: str,
         name: str,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.function,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
         return mlrun.api.utils.singletons.db.get_db().delete_function(
             db_session, project, name
         )
@@ -84,22 +57,10 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         name: str = "",
         tag: str = "",
         labels: typing.List[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
-        functions = mlrun.api.utils.singletons.db.get_db().list_functions(
+        return mlrun.api.utils.singletons.db.get_db().list_functions(
             db_session, name, project, tag, labels,
-        )
-        return mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.function,
-            functions,
-            lambda function: (
-                function.get("metadata", {}).get(
-                    "project", mlrun.mlconf.default_project
-                ),
-                function["metadata"]["name"],
-            ),
-            auth_info,
         )

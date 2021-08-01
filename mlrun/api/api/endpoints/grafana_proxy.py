@@ -1,4 +1,5 @@
 import json
+import mlrun.api.utils.clients.opa
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, Union
 
@@ -136,6 +137,13 @@ def grafana_list_endpoints(
         start=start,
         end=end,
     )
+    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        endpoint_list.endpoints,
+        lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
+        auth_info,
+    )
+    endpoint_list.endpoints = allowed_endpoints
 
     columns = [
         GrafanaColumn(text="endpoint_id", type="string"),
@@ -191,6 +199,13 @@ def grafana_individual_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
 
     endpoint = ModelEndpoints.get_endpoint(
         auth_info=auth_info,
@@ -246,7 +261,13 @@ def grafana_overall_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
     endpoint = ModelEndpoints.get_endpoint(
         auth_info=auth_info,
         project=project,
@@ -287,6 +308,14 @@ def grafana_incoming_features(
     project = query_parameters.get("project")
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
+
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
 
     endpoint = ModelEndpoints.get_endpoint(
         auth_info=auth_info, project=project, endpoint_id=endpoint_id

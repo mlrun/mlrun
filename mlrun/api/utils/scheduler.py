@@ -65,14 +65,6 @@ class Scheduler:
         labels: Dict = None,
         concurrency_limit: int = config.httpdb.scheduling.default_concurrency_limit,
     ):
-        get_project_member().ensure_project(db_session, project, auth_info=auth_info)
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.create,
-            auth_info,
-        )
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
 
@@ -119,13 +111,6 @@ class Scheduler:
         labels: Dict = None,
         concurrency_limit: int = None,
     ):
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.update,
-            auth_info,
-        )
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
 
@@ -168,7 +153,6 @@ class Scheduler:
     def list_schedules(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
         project: str = None,
         name: str = None,
         kind: str = None,
@@ -179,12 +163,6 @@ class Scheduler:
             "Getting schedules", project=project, name=name, labels=labels, kind=kind
         )
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
-        db_schedules = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
-            db_schedules,
-            lambda db_schedule: (db_schedule.project, db_schedule.name,),
-            auth_info,
-        )
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_and_enrich_db_schedule(
@@ -196,18 +174,10 @@ class Scheduler:
     def get_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
         include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         return self._transform_and_enrich_db_schedule(
@@ -217,32 +187,17 @@ class Scheduler:
     def delete_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         name: str,
     ):
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
         logger.debug("Deleting schedule", project=project, name=name)
         self._remove_schedule_from_scheduler(project, name)
         get_db().delete_schedule(db_session, project, name)
 
     def delete_schedules(
-        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, project: str,
+        self, db_session: Session, project: str,
     ):
-        schedules = self.list_schedules(db_session, auth_info, project,)
-        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
-            schedules.schedules,
-            lambda schedule: (schedule.project, schedule.name),
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
+        schedules = self.list_schedules(db_session, project,)
         logger.debug("Deleting schedules", project=project)
         for schedule in schedules.schedules:
             self._remove_schedule_from_scheduler(schedule.project, schedule.name)
@@ -262,13 +217,6 @@ class Scheduler:
         project: str,
         name: str,
     ):
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.update,
-            auth_info,
-        )
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = await fastapi.concurrency.run_in_threadpool(
             get_db().get_schedule, db_session, project, name
@@ -528,7 +476,6 @@ class Scheduler:
             state=RunStates.non_terminal_states(),
             project=project_name,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
-            auth_info=auth_info,
         )
         if len(active_runs) >= schedule_concurrency_limit:
             logger.warn(

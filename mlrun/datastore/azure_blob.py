@@ -78,7 +78,7 @@ class AzureBlobStore(DataStore):
                     blob_client.upload_blob(data, overwrite=True)
         else:
             remote_path = self._convert_key_to_remote_path(key)
-            self._filesystem.put_file(src_path, remote_path)
+            self._filesystem.put_file(src_path, remote_path, overwrite=True)
 
     def get(self, key, size=None, offset=0):
         if self.bsc:
@@ -122,10 +122,10 @@ class AzureBlobStore(DataStore):
         else:
             remote_path = self._convert_key_to_remote_path(key)
             files = self._filesystem.ls(remote_path, detail=True)
-            if len(files) == 1 and files[0]["kind"] == "file":
+            if len(files) == 1 and files[0]["type"] == "file":
                 size = files[0]["size"]
                 modified = files[0]["last_modified"]
-            elif len(files) == 1 and files[0]["kind"] == "directory":
+            elif len(files) == 1 and files[0]["type"] == "directory":
                 raise FileNotFoundError("Operation expects a file not a directory!")
             else:
                 raise ValueError("Operation expects to receive a single file!")
@@ -141,5 +141,10 @@ class AzureBlobStore(DataStore):
             return [blob.name[key_length:] for blob in blob_list]
         else:
             remote_path = self._convert_key_to_remote_path(key)
-            files = self._filesystem.ls(remote_path)
+            if self._filesystem.isfile(remote_path):
+                return key
+            remote_path = f"{remote_path}/**"
+            files = self._filesystem.glob(remote_path)
+            key_length = len(key)
+            files = [f.split("/", 1)[1][key_length:] for f in files if len(f.split("/"))>1]
             return files

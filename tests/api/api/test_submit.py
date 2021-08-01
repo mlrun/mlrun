@@ -9,7 +9,7 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
         "cat-and-dog-servers/aggregate@b145b6d958a7b4d84f12821a06459e31ea422308"
     )
     body = {
-        "task": {"spec": {"function": function_reference}},
+        "task": {"metadata": {"name": "task-name", "project": "project-name"}, "spec": {"function": function_reference}},
     }
     resp = client.post("/api/submit_job", json=body)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value

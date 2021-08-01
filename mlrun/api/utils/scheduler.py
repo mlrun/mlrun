@@ -34,10 +34,12 @@ class Scheduler:
         self._secrets_provider = schemas.SecretProviderName(
             config.httpdb.scheduling.secrets_provider
         )
+        if self._secrets_provider != schemas.SecretProviderName.kubernetes:
+            raise NotImplementedError(
+                f"Provided secrets provided is not supported by scheduler. provider={self._secrets_provider.value}"
+            )
 
-    async def start(
-        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
-    ):
+    async def start(self, db_session: Session):
         logger.info("Starting scheduler")
         self._scheduler.start()
         # the scheduler shutdown and start operation are not fully async compatible yet -
@@ -46,7 +48,7 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            self._reload_schedules(db_session, auth_info)
+            self._reload_schedules(db_session)
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=exc)
 
@@ -84,7 +86,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._store_secrets_if_needed(auth_info, project, name)
+        self._store_secrets(auth_info, project, name)
         get_db().create_schedule(
             db_session,
             project,
@@ -131,7 +133,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._store_secrets_if_needed(auth_info, project, name)
+        self._store_secrets(auth_info, project, name)
         get_db().update_schedule(
             db_session,
             project,
@@ -234,7 +236,7 @@ class Scheduler:
         )
         return await function(*args, **kwargs)
 
-    def _store_secrets_if_needed(
+    def _store_secrets(
         self, auth_info: mlrun.api.schemas.AuthInfo, project: str, name: str,
     ):
         if mlrun.mlconf.httpdb.authorization.mode == "opa":
@@ -362,14 +364,19 @@ class Scheduler:
             next_run_time=next_run_time,
         )
 
-    def _reload_schedules(
-        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
-    ):
+    def _reload_schedules(self, db_session: Session):
         logger.info("Reloading schedules")
         db_schedules = get_db().list_schedules(db_session)
         for db_schedule in db_schedules:
             # don't let one failure fail the rest
             try:
+                session = mlrun.api.crud.Secrets()._get_kubernetes_secret_value(
+                    db_schedule.project,
+                    mlrun.api.crud.Secrets().generate_schedule_secret_key(
+                        db_schedule.name
+                    ),
+                    raise_on_not_found=False,
+                )
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
                     db_schedule.name,
@@ -377,7 +384,7 @@ class Scheduler:
                     db_schedule.scheduled_object,
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
-                    auth_info,
+                    mlrun.api.schemas.AuthInfo(session=session),
                 )
             except Exception as exc:
                 logger.warn(

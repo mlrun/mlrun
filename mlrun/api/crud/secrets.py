@@ -121,6 +121,19 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 f"Provider requested is not supported. provider = {provider}"
             )
 
+    def _get_kubernetes_secret_value(
+        self, project: str, key: str, raise_on_not_found: bool = True
+    ) -> typing.Optional[str]:
+        data = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(project)
+        if key not in data:
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Key not found in secret. key={key}"
+                )
+            else:
+                return None
+        return data[key]
+
     def list_secrets(
         self,
         project: str,

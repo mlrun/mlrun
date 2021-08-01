@@ -9,8 +9,8 @@ import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.project_member
-from mlrun.api.api import deps
 import mlrun.utils.helpers
+from mlrun.api.api import deps
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -35,12 +35,20 @@ async def submit_job(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
 
-    await fastapi.concurrency.run_in_threadpool(mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session, data["task"]["metadata"]["project"], auth_info=auth_verifier.auth_info
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        data["task"]["metadata"]["project"],
+        auth_info=auth_verifier.auth_info,
     )
     function_dict, function_url, task = mlrun.api.api.utils.parse_submit_run_body(data)
     if function_url and "://" not in function_url:
-        function_project, function_name, _, _ = mlrun.utils.helpers.parse_versioned_object_uri(function_url)
+        (
+            function_project,
+            function_name,
+            _,
+            _,
+        ) = mlrun.utils.helpers.parse_versioned_object_uri(function_url)
         await fastapi.concurrency.run_in_threadpool(
             mlrun.api.utils.clients.opa.Client().query_resource_permissions,
             mlrun.api.schemas.AuthorizationResourceTypes.function,

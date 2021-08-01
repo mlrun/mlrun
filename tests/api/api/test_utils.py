@@ -9,7 +9,9 @@ import mlrun.api.schemas
 from mlrun.api.api.utils import _generate_function_and_task_from_submit_run_body
 
 
-def test_generate_function_and_task_from_submit_run_body_body_override_values(db: Session, client: TestClient):
+def test_generate_function_and_task_from_submit_run_body_body_override_values(
+    db: Session, client: TestClient
+):
     task_name = "task_name"
     task_project = "task-project"
     project, function_name, function_tag, original_function = _mock_original_function(
@@ -190,7 +192,9 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(db
     )
 
 
-def test_generate_function_and_task_from_submit_run_body_keep_resources(db: Session, client: TestClient):
+def test_generate_function_and_task_from_submit_run_body_keep_resources(
+    db: Session, client: TestClient
+):
     task_name = "task_name"
     task_project = "task-project"
     project, function_name, function_tag, original_function = _mock_original_function(

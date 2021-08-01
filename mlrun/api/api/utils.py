@@ -82,9 +82,7 @@ def get_run_db_instance(
     return run_db
 
 
-def parse_submit_run_body(
-    data
-):
+def parse_submit_run_body(data):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -99,7 +97,7 @@ def parse_submit_run_body(
 
 
 def _generate_function_and_task_from_submit_run_body(
-        db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
 ):
     function_dict, function_url, task = parse_submit_run_body(data)
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
@@ -167,7 +165,9 @@ def _submit_run(
     run_uid = None
     project = None
     try:
-        fn, task = _generate_function_and_task_from_submit_run_body(db_session, auth_info, data)
+        fn, task = _generate_function_and_task_from_submit_run_body(
+            db_session, auth_info, data
+        )
         run_db = get_run_db_instance(db_session, auth_info)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)

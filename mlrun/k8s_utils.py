@@ -384,7 +384,7 @@ class K8sHelper:
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
     def get_project_secret_keys(self, project, namespace=""):
-        return list(self.get_project_secret(project, namespace).keys())
+        return list(self.get_project_secret_data(project, namespace).keys())
 
     def get_project_secret_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)

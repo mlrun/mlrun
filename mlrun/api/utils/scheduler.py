@@ -10,8 +10,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
-import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
@@ -239,6 +237,9 @@ class Scheduler:
     def _store_secrets(
         self, auth_info: mlrun.api.schemas.AuthInfo, project: str, name: str,
     ):
+        # import here to avoid circular imports
+        import mlrun.api.crud
+
         if mlrun.mlconf.httpdb.authorization.mode == "opa":
             # sanity
             if not auth_info.session:
@@ -370,6 +371,9 @@ class Scheduler:
         for db_schedule in db_schedules:
             # don't let one failure fail the rest
             try:
+                # import here to avoid circular imports
+                import mlrun.api.crud
+
                 session = mlrun.api.crud.Secrets()._get_kubernetes_secret_value(
                     db_schedule.project,
                     mlrun.api.crud.Secrets().generate_schedule_secret_key(

@@ -38,9 +38,9 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
             # Init is idempotent and will do nothing if infra is already in place
             mlrun.utils.vault.init_project_vault_configuration(project)
 
-        # If no secrets were passed, no need to touch the actual secrets.
-        if secrets.secrets:
-            mlrun.utils.vault.store_vault_project_secrets(project, secrets.secrets)
+            # If no secrets were passed, no need to touch the actual secrets.
+            if secrets.secrets:
+                mlrun.utils.vault.store_vault_project_secrets(project, secrets.secrets)
         elif secrets.provider == mlrun.api.schemas.SecretProviderName.kubernetes:
             if mlrun.api.utils.singletons.k8s.get_k8s():
                 mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets(

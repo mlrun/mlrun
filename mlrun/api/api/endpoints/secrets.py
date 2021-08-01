@@ -28,7 +28,7 @@ def store_project_secrets(
         mlrun.api.schemas.AuthorizationAction.create,
         auth_verifier.auth_info,
     )
-    mlrun.api.crud.secrets.Secrets().store_secrets(project, secrets)
+    mlrun.api.crud.Secrets().store_secrets(project, secrets)
 
     return fastapi.Response(status_code=HTTPStatus.CREATED.value)
 
@@ -49,7 +49,7 @@ def delete_project_secrets(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_verifier.auth_info,
     )
-    mlrun.api.crud.secrets.Secrets().delete_secrets(project, provider, secrets)
+    mlrun.api.crud.Secrets().delete_secrets(project, provider, secrets)
 
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -70,7 +70,7 @@ def list_secret_keys(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    return mlrun.api.crud.secrets.Secrets().list_secret_keys(project, provider, token)
+    return mlrun.api.crud.Secrets().list_secret_keys(project, provider, token)
 
 
 @router.get("/projects/{project}/secrets", response_model=schemas.SecretsData)
@@ -90,9 +90,7 @@ def list_secrets(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    return mlrun.api.crud.secrets.Secrets().list_secrets(
-        project, provider, secrets, token
-    )
+    return mlrun.api.crud.Secrets().list_secrets(project, provider, secrets, token)
 
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)

@@ -25,7 +25,6 @@ from mlrun.api.schemas import (
 )
 from mlrun.artifacts import ModelArtifact
 from mlrun.config import config
-from mlrun.serving import RouterStep
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 
@@ -382,7 +381,7 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
 
     if hasattr(graph_server.context, "root"):
         root = graph_server.context.root
-        if type(root) == RouterStep:
+        if str(type(root)) == "RouterStep":
             logger.info(
                 "RouterStep detected, we should initialize router endpoint record"
             )

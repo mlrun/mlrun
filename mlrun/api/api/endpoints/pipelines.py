@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
@@ -33,14 +34,28 @@ def list_pipelines(
         mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     page_size: int = Query(None, gt=0, le=200),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
 ):
-    total_size, next_page_token, runs = None, None, None
+    total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        # we need to resolve the project from the returned run for the opa enforcement (project query param might be
+        # "*", so we can't really get back only the names here
+        computed_format = mlrun.api.schemas.PipelinesFormat.metadata_only if format_ == mlrun.api.schemas.PipelinesFormat.name_only else format_
         total_size, next_page_token, runs = mlrun.api.crud.Pipelines().list_pipelines(
-            project, namespace, sort_by, page_token, filter_, format_, page_size,
+            project, namespace, sort_by, page_token, filter_, computed_format, page_size,
         )
+    allowed_runs = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+        runs,
+        lambda run: (run["project"], run["id"],),
+        auth_verifier.auth_info,
+    )
+    if format_ == mlrun.api.schemas.PipelinesFormat.name_only:
+        allowed_runs = [run['name'] for run in allowed_runs]
     return mlrun.api.schemas.PipelinesOutput(
-        runs=runs or [],
+        runs=allowed_runs,
         total_size=total_size or 0,
         next_page_token=next_page_token or None,
     )

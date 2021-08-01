@@ -229,12 +229,31 @@ class Scheduler:
             auth_info,
         )
         logger.debug("Deleting schedule", project=project, name=name)
+        self._remove_schedule_from_scheduler(project, name)
+        get_db().delete_schedule(db_session, project, name)
+
+    def delete_schedules(
+        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, project: str,
+    ):
+        schedules = self.list_schedules(db_session, auth_info, project,)
+        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            schedules.schedules,
+            lambda schedule: (schedule.project, schedule.name),
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+        logger.debug("Deleting schedules", project=project)
+        for schedule in schedules.schedules:
+            self._remove_schedule_from_scheduler(schedule.project, schedule.name)
+        get_db().delete_schedules(db_session, project)
+
+    def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)
         # don't fail on delete if job doesn't exist
         job = self._scheduler.get_job(job_id)
         if job:
             self._scheduler.remove_job(job_id)
-        get_db().delete_schedule(db_session, project, name)
 
     async def invoke_schedule(
         self,
@@ -465,6 +484,10 @@ class Scheduler:
         message = "Scheduled object kind missing implementation"
         logger.warn(message, scheduled_object_kind=scheduled_kind)
         raise NotImplementedError(message)
+
+    def _list_schedules_from_scheduler(self, project: str):
+        jobs = self._scheduler.get_jobs()
+        return [job for job in jobs if self._resolve_job_id(project, "") in job.id]
 
     def _resolve_job_id(self, project, name) -> str:
         """

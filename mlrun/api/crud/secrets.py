@@ -3,12 +3,34 @@ import typing
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 import mlrun.errors
+import mlrun.utils.helpers
+import mlrun.utils.regex
 import mlrun.utils.singleton
 import mlrun.utils.vault
 
 
 class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
-    def store_secrets(self, project: str, secrets: mlrun.api.schemas.SecretsData):
+    internal_secrets_key_prefix = "mlrun."
+
+    def store_secrets(
+        self,
+        project: str,
+        secrets: mlrun.api.schemas.SecretsData,
+        allow_internal_secrets: bool = False,
+    ):
+        if secrets.secrets:
+            for secret_key in secrets.secrets.keys():
+                mlrun.utils.helpers.verify_field_regex(
+                    "secret.key", secret_key, mlrun.utils.regex.secret_key
+                )
+                if (
+                    secret_key.startswith(self.internal_secrets_key_prefix)
+                    and not allow_internal_secrets
+                ):
+                    raise mlrun.errors.MLRunAccessDeniedError(
+                        f"Not allowed to create/update internal secrets (key starts with "
+                        f"{self.internal_secrets_key_prefix})"
+                    )
         if secrets.provider == mlrun.api.schemas.SecretProviderName.vault:
             # Init is idempotent and will do nothing if infra is already in place
             mlrun.utils.vault.init_project_vault_configuration(project)

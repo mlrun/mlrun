@@ -21,14 +21,16 @@ async def store_log(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    body = await request.body()
-    await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.crud.Logs().store_log,
-        body,
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,
-        append,
+        mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
+    )
+    body = await request.body()
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.crud.Logs().store_log, body, project, uid, append,
     )
     return {}
 
@@ -47,8 +49,15 @@ def get_log(
         mlrun.api.api.deps.get_db_session
     ),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.log,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     run_state, log = mlrun.api.crud.Logs().get_logs(
-        db_session, project, uid, size, offset, auth_info=auth_verifier.auth_info
+        db_session, project, uid, size, offset
     )
     headers = {
         "x-mlrun-run-state": run_state,

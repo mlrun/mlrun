@@ -176,7 +176,7 @@ class SparkRuntime(KubejobRuntime):
     gpu_suffix = "-cuda"
 
     @classmethod
-    def _default_mlrun_image_name(cls, with_gpu=False):
+    def _get_default_deployed_mlrun_image_name(cls, with_gpu=False):
         suffix = cls.gpu_suffix if with_gpu else ""
         return cls.default_mlrun_image + suffix
 
@@ -185,13 +185,11 @@ class SparkRuntime(KubejobRuntime):
         from mlrun.run import new_function
 
         sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
-        sj.spec.build.image = cls._default_mlrun_image_name(with_gpu)
-        if with_gpu:
-            sj.with_executor_requests(cpu=1, mem="512m", gpus=1)
-            sj.with_driver_requests(cpu=1, mem="512m", gpus=1)
-        else:
-            sj.with_executor_requests(cpu=1, mem="512m")
-            sj.with_driver_requests(cpu=1, mem="512m")
+        sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
+
+        sj.with_executor_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
+        sj.with_driver_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
+
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
@@ -209,7 +207,7 @@ class SparkRuntime(KubejobRuntime):
         if config.spark_app_image_tag and config.spark_app_image:
             return (
                 config.spark_app_image
-                + ("-cuda" if self._is_using_gpu() else "")
+                + (self.gpu_suffix if self._is_using_gpu() else "")
                 + ":"
                 + config.spark_app_image_tag
             )
@@ -321,7 +319,9 @@ class SparkRuntime(KubejobRuntime):
 
         if not self.spec.image:
             if self.spec.use_default_image:
-                self.spec.image = self._default_mlrun_image_name(self._is_using_gpu())
+                self.spec.image = self._get_default_deployed_mlrun_image_name(
+                    self._is_using_gpu()
+                )
             elif self._default_image:
                 self.spec.image = self._default_image
 

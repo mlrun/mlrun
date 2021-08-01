@@ -28,10 +28,14 @@ async def store_run(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-        db_session, project, auth_info=auth_verifier.auth_info
+    await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_verifier.auth_info,
     )
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -61,7 +65,8 @@ async def update_run(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         uid,

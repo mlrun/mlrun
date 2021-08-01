@@ -21,7 +21,8 @@ async def store_log(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,

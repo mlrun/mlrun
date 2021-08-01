@@ -12,6 +12,9 @@ import mlrun.utils.vault
 class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
     internal_secrets_key_prefix = "mlrun."
 
+    def generate_schedule_secret_key(self, schedule_name: str):
+        return f"{self.internal_secrets_key_prefix}schedules.{schedule_name}"
+
     def store_secrets(
         self,
         project: str,

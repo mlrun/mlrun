@@ -10,7 +10,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.utils.clients.opa
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
@@ -29,6 +31,9 @@ class Scheduler:
         # we don't allow to schedule a job to run more then one time per X
         # NOTE this cannot be less then one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
+        self._secrets_provider = schemas.SecretProviderName(
+            config.httpdb.scheduling.secrets_provider
+        )
 
     async def start(
         self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
@@ -79,6 +84,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
+        self._store_secrets_if_needed(auth_info, project, name)
         get_db().create_schedule(
             db_session,
             project,
@@ -125,6 +131,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
+        self._store_secrets_if_needed(auth_info, project, name)
         get_db().update_schedule(
             db_session,
             project,
@@ -226,6 +233,24 @@ class Scheduler:
             auth_info,
         )
         return await function(*args, **kwargs)
+
+    def _store_secrets_if_needed(
+        self, auth_info: mlrun.api.schemas.AuthInfo, project: str, name: str,
+    ):
+        if mlrun.mlconf.httpdb.authorization.mode == "opa":
+            # sanity
+            if not auth_info.session:
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Session is required to create schedules in OPA authorization mode"
+                )
+            secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+            mlrun.api.crud.Secrets().store_secrets(
+                project,
+                schemas.SecretsData(
+                    provider=self._secrets_provider,
+                    secrets={secret_key: auth_info.session},
+                ),
+            )
 
     def _validate_cron_trigger(
         self,

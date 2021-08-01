@@ -151,6 +151,7 @@ default_config = {
             # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
             # it to None. the default for coalesce it True just adding it here to be explicit
             "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
+            "secrets_provider": "kubernetes",
         },
         "projects": {
             "leader": "mlrun",

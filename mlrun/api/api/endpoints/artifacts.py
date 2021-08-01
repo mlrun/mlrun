@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.clients.opa
+import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.utils.singletons.db import get_db
-import mlrun.api.utils.singletons.project_member
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -30,10 +30,14 @@ async def store_artifact(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await run_in_threadpool(mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session, project, auth_info=auth_verifier.auth_info
+    await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_verifier.auth_info,
     )
-    await run_in_threadpool(mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,

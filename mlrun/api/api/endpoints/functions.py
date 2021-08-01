@@ -37,10 +37,14 @@ async def store_function(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await run_in_threadpool(mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session, project, auth_info=auth_verifier.auth_info
+    await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_verifier.auth_info,
     )
-    await run_in_threadpool(mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -156,7 +160,8 @@ async def build_function(
 
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
-    await run_in_threadpool(mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
         function.get("metadata", {}).get("name"),

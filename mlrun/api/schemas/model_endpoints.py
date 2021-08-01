@@ -152,11 +152,3 @@ class GrafanaTimeSeriesTarget(BaseModel):
 
     def add_data_point(self, data_point: GrafanaDataPoint):
         self.datapoints.append((data_point.value, data_point.timestamp))
-
-
-class ModelMonitoringStreamCredentials(BaseModel):
-    access_key: str
-    stream_path: str
-
-    class Config:
-        extra = Extra.allow

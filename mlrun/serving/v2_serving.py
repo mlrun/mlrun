@@ -415,21 +415,10 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
 
         db = mlrun.get_run_db()
 
-        credentials = db.get_model_monitoring_stream_credentials(
-            project=project, endpoint_id=model_endpoint.metadata.uid
-        )
-
-        logger.info(
-            "Model endpoints stream credentials",
-            access_key=credentials.access_key,
-            stream_path=credentials.stream_path,
-        )
-
         db.create_or_patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
-            model_endpoint=model_endpoint,
-            access_key=credentials.access_key,
+            model_endpoint=model_endpoint
         )
     except Exception as e:
         logger.error("Failed to create endpoint record", exc=e)

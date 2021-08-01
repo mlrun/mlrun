@@ -8,8 +8,6 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.deps
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
-from mlrun.api.schemas.model_endpoints import ModelMonitoringStreamCredentials
-from mlrun.config import config
 from mlrun.errors import MLRunConflictError
 
 router = APIRouter()
@@ -43,7 +41,7 @@ def create_or_patch(
         )
     ModelEndpoints.create_or_patch(
         db_session=db_session,
-        access_key=access_key,
+        access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
         auth_info=auth_verifier.auth_info,
     )
@@ -132,18 +130,3 @@ def get_endpoint(
         feature_analysis=feature_analysis,
     )
     return endpoint
-
-
-@router.get(
-    "/projects/{project}/model-endpoints/{endpoint_id}/stream-credentials",
-    response_model=ModelMonitoringStreamCredentials,
-)
-def get_model_monitoring_stream_credentials(
-    project: str, endpoint_id: str,
-):
-    return ModelMonitoringStreamCredentials(
-        access_key=os.environ.get("V3IO_ACCESS_KEY"),
-        stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind="stream"
-        ),
-    )

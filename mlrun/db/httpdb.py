@@ -2238,22 +2238,6 @@ class HTTPRunDB(RunDBInterface):
         )
         return schemas.ModelEndpoint(**response.json())
 
-    def get_model_monitoring_stream_credentials(
-        self, project: str, endpoint_id: str, access_key: Optional[str] = None
-    ):
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
-
-        path = f"projects/{project}/model-endpoints/{endpoint_id}/stream-credentials"
-        response = self.api_call(
-            method="GET", path=path, headers={"X-V3io-Session-Key": access_key},
-        )
-        return schemas.ModelMonitoringStreamCredentials(**response.json())
-
     def verify_authorization(
         self, authorization_verification_input: schemas.AuthorizationVerificationInput
     ):

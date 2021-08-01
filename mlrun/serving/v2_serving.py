@@ -113,7 +113,7 @@ class V2ModelServer:
 
         if not hasattr(self.context, "server"):
             logger.warn("GraphServer not initialized for V2ModelServer instance")
-            logger(str(dir(self.context)))
+            logger.warn(str(dir(self.context)))
             return
 
         _init_endpoint_record(self.context.server, self)

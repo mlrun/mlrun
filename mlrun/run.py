@@ -14,6 +14,7 @@
 
 import importlib.util as imputil
 import json
+import pathlib
 import socket
 import time
 import uuid
@@ -170,10 +171,9 @@ def run_local(
     if workdir:
         fn.spec.workdir = str(workdir)
     if runtime:
-        # copy the code to the local function (for the UI and code logging)
-        fn.spec.build.functionSourceCode = get_in(
-            runtime, "spec.build.functionSourceCode", None
-        )
+        # copy the code/base-spec to the local function (for the UI and code logging)
+        fn.spec.description = get_in(runtime, "spec.description")
+        fn.spec.build = get_in(runtime, "spec.build", {})
     return fn.run(
         task,
         name=name,
@@ -258,7 +258,10 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
             ):
                 command = origin_filename
             else:
-                fpath = mktemp(".py")
+                suffix = ".py"
+                if origin_filename:
+                    suffix = f"-{pathlib.Path(origin_filename).stem}.py"
+                fpath = mktemp(suffix)
                 code = b64decode(code).decode("utf-8")
                 command = fpath
                 with open(fpath, "w") as fp:

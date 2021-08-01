@@ -21,8 +21,16 @@ BLOB_FILE = f"file_{random.randint(0, 1000)}.txt"
 
 AUTH_METHODS_AND_REQUIRED_PARAMS = {
     "conn_str": ["AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_CONTAINER"],
-    "sas_token": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_SAS_TOKEN", "AZURE_SAS_CONTAINER"],
-    "account_key": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT_KEY", "AZURE_KEY_CONTAINER"],
+    "sas_token": [
+        "AZURE_STORAGE_ACCOUNT_NAME",
+        "AZURE_STORAGE_SAS_TOKEN",
+        "AZURE_SAS_CONTAINER",
+    ],
+    "account_key": [
+        "AZURE_STORAGE_ACCOUNT_NAME",
+        "AZURE_STORAGE_ACCOUNT_KEY",
+        "AZURE_KEY_CONTAINER",
+    ],
     "spn": [
         "AZURE_STORAGE_ACCOUNT_NAME",
         "AZURE_STORAGE_CLIENT_ID",
@@ -35,6 +43,7 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
 
 def azure_connection_configured():
     return config["env"].get("AZURE_STORAGE_CONNECTION_STRING") is not None
+
 
 @pytest.fixture
 def auth_method(request):
@@ -55,7 +64,7 @@ def auth_method(request):
     data_item = mlrun.run.get_dataitem(blob_url)
     data_item.put(test_string)
     yield data_item, request.param
-    print('teardown')
+    print("teardown")
 
 
 @pytest.mark.skipif(
@@ -63,7 +72,11 @@ def auth_method(request):
     reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
     "to run it",
 )
-@pytest.mark.parametrize("auth_method", ["conn_str", "account_key", "sas_token", "spn"], indirect=["auth_method"])
+@pytest.mark.parametrize(
+    "auth_method",
+    ["conn_str", "account_key", "sas_token", "spn"],
+    indirect=["auth_method"],
+)
 def test_azure_blob(auth_method):
     data_item, auth = auth_method[0], auth_method[1]
     print(auth)
@@ -82,26 +95,25 @@ def test_azure_blob(auth_method):
     reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
     "to run it",
 )
-@pytest.mark.parametrize("auth_method", 
-                         ["conn_str", "account_key",  "sas_token", "spn"],
-                         indirect=["auth_method"]
-                         )
+@pytest.mark.parametrize(
+    "auth_method",
+    ["conn_str", "account_key", "sas_token", "spn"],
+    indirect=["auth_method"],
+)
 def test_list_dir(auth_method):
     _, auth = auth_method[0], auth_method[1]
     env_vars = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth)
     for env_var in env_vars:
         if "CONTAINER" in env_var:
             blob_container_path = "az://" + config["env"].get(env_var)
-    
+
     dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
-    
+
     # # Check dir list for container
     assert BLOB_DIR + "/" + BLOB_FILE in dir_list, "File not in container dir-list"
 
     # Check dir list for folder in container
-    dir_list = mlrun.run.get_dataitem(
-        blob_container_path + "/" + BLOB_DIR
-    ).listdir()
+    dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + BLOB_DIR).listdir()
     assert BLOB_FILE in dir_list, "File not in folder dir-list"
 
 
@@ -110,10 +122,11 @@ def test_list_dir(auth_method):
     reason="This is an integration test, add the needed environment variables in test-azure-blob.yml "
     "to run it",
 )
-@pytest.mark.parametrize("auth_method", 
-                         ["conn_str", "account_key",  "sas_token", "spn"],
-                         indirect=["auth_method"]
-                         )
+@pytest.mark.parametrize(
+    "auth_method",
+    ["conn_str", "account_key", "sas_token", "spn"],
+    indirect=["auth_method"],
+)
 def test_blob_upload(auth_method):
     _, auth = auth_method[0], auth_method[1]
     env_vars = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth)
@@ -123,7 +136,7 @@ def test_blob_upload(auth_method):
 
     blob_url = blob_path + "/" + BLOB_DIR + "/" + BLOB_FILE
     print(f"\nBlob URL: {blob_url}")
-    
+
     upload_data_item = mlrun.run.get_dataitem(blob_url)
     upload_data_item.upload(test_filename)
 

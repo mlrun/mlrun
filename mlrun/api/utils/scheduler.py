@@ -37,6 +37,10 @@ class Scheduler:
                 f"Provided secrets provided is not supported by scheduler. provider={self._secrets_provider.value}"
             )
 
+        self._store_schedule_credentials_in_secrets = (
+            mlrun.mlconf.httpdb.authorization.mode == "opa"
+        )
+
     async def start(self, db_session: Session):
         logger.info("Starting scheduler")
         self._scheduler.start()
@@ -240,7 +244,7 @@ class Scheduler:
         # import here to avoid circular imports
         import mlrun.api.crud
 
-        if mlrun.mlconf.httpdb.authorization.mode == "opa":
+        if self._store_schedule_credentials_in_secrets:
             # sanity
             if not auth_info.session:
                 raise mlrun.errors.MLRunAccessDeniedError(
@@ -253,6 +257,7 @@ class Scheduler:
                     provider=self._secrets_provider,
                     secrets={secret_key: auth_info.session},
                 ),
+                allow_internal_secrets=True,
             )
 
     def _validate_cron_trigger(
@@ -374,13 +379,15 @@ class Scheduler:
                 # import here to avoid circular imports
                 import mlrun.api.crud
 
-                session = mlrun.api.crud.Secrets()._get_kubernetes_secret_value(
-                    db_schedule.project,
-                    mlrun.api.crud.Secrets().generate_schedule_secret_key(
-                        db_schedule.name
-                    ),
-                    raise_on_not_found=False,
-                )
+                session = None
+                if self._store_schedule_credentials_in_secrets:
+                    session = mlrun.api.crud.Secrets()._get_kubernetes_secret_value(
+                        db_schedule.project,
+                        mlrun.api.crud.Secrets().generate_schedule_secret_key(
+                            db_schedule.name
+                        ),
+                        raise_on_not_found=False,
+                    )
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
                     db_schedule.name,

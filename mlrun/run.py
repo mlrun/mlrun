@@ -169,6 +169,11 @@ def run_local(
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
+    if runtime:
+        # copy the code to the local function (for the UI and code logging)
+        fn.spec.build.functionSourceCode = get_in(
+            runtime, "spec.build.functionSourceCode", None
+        )
     return fn.run(
         task,
         name=name,

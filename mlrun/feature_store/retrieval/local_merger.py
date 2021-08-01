@@ -61,7 +61,8 @@ class LocalFeatureMerger:
                 df = feature_set.to_dataframe(
                     columns=column_names,
                     df_module=df_module,
-                    time_column=entity_timestamp_column)
+                    time_column=entity_timestamp_column,
+                )
             else:
                 df = feature_set.to_dataframe(
                     columns=column_names,

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import warnings
-from typing import TYPE_CHECKING, List, Optional
+from typing import List
 
 import pandas as pd
 

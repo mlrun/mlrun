@@ -1,13 +1,13 @@
 from http import HTTPStatus
-import fastapi.concurrency
-import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
 from typing import Optional
 
+import fastapi.concurrency
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
+import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 from mlrun.api.api import deps
 from mlrun.utils import logger
 

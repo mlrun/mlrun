@@ -11,8 +11,8 @@ import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
-import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.clients.opa
+import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -109,9 +109,7 @@ def delete_function(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_verifier.auth_info,
     )
-    mlrun.api.crud.Functions().delete_function(
-        db_session, project, name
-    )
+    mlrun.api.crud.Functions().delete_function(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -132,9 +130,7 @@ def list_functions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         functions,
         lambda function: (
-            function.get("metadata", {}).get(
-                "project", mlrun.mlconf.default_project
-            ),
+            function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
             function["metadata"]["name"],
         ),
         auth_verifier.auth_info,
@@ -162,8 +158,8 @@ async def build_function(
     function = data.get("function")
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
-        function.get('metadata', {}).get('project', mlrun.mlconf.default_project),
-        function.get('metadata', {}).get('name'),
+        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+        function.get("metadata", {}).get("name"),
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
@@ -203,9 +199,7 @@ async def start_function(
 
     logger.info("Got request to start function", body=data)
 
-    function = await run_in_threadpool(
-        _parse_start_function_body, db_session, data
-    )
+    function = await run_in_threadpool(_parse_start_function_body, db_session, data)
     await run_in_threadpool(
         mlrun.api.utils.clients.opa.Client().query_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
@@ -268,9 +262,7 @@ def build_status(
         mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
     )
-    fn = mlrun.api.crud.Functions().get_function(
-        db_session, name, project, tag
-    )
+    fn = mlrun.api.crud.Functions().get_function(db_session, name, project, tag)
     if not fn:
         log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
 
@@ -317,12 +309,7 @@ def build_status(
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
         mlrun.api.crud.Functions().store_function(
-            db_session,
-            fn,
-            name,
-            project,
-            tag,
-            versioned=versioned,
+            db_session, fn, name, project, tag, versioned=versioned,
         )
         return Response(
             content=text,
@@ -379,12 +366,7 @@ def build_status(
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
     mlrun.api.crud.Functions().store_function(
-        db_session,
-        fn,
-        name,
-        project,
-        tag,
-        versioned=versioned,
+        db_session, fn, name, project, tag, versioned=versioned,
     )
 
     return Response(

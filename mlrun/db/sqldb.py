@@ -60,24 +60,14 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Logs().get_logs,
-            self.session,
-            project,
-            uid,
-            size,
-            offset,
+            mlrun.api.crud.Logs().get_logs, self.session, project, uid, size, offset,
         )
 
     def store_run(self, struct, uid, project="", iter=0):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().store_run,
-            self.session,
-            struct,
-            uid,
-            iter,
-            project,
+            mlrun.api.crud.Runs().store_run, self.session, struct, uid, iter, project,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
@@ -100,11 +90,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().get_run,
-            self.session,
-            uid,
-            iter,
-            project,
+            mlrun.api.crud.Runs().get_run, self.session, uid, iter, project,
         )
 
     def list_runs(
@@ -137,11 +123,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().delete_run,
-            self.session,
-            uid,
-            iter,
-            project,
+            mlrun.api.crud.Runs().delete_run, self.session, uid, iter, project,
         )
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -213,11 +195,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Artifacts().delete_artifact,
-            self.session,
-            key,
-            tag,
-            project,
+            mlrun.api.crud.Artifacts().delete_artifact, self.session, key, tag, project,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -261,10 +239,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Functions().delete_function,
-            self.session,
-            project,
-            name,
+            mlrun.api.crud.Functions().delete_function, self.session, project, name,
         )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):

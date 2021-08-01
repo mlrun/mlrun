@@ -1,5 +1,4 @@
 import json
-import mlrun.api.utils.clients.opa
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, Union
 
@@ -10,6 +9,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 from mlrun.api.api import deps
 from mlrun.api.crud.model_endpoints import EVENTS, ModelEndpoints, get_access_key
 from mlrun.api.schemas import (

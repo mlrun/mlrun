@@ -6,7 +6,6 @@ import uuid
 
 import fastapi
 import fastapi.concurrency
-import sqlalchemy.orm
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
@@ -41,9 +40,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         return self.get_background_task(project, name)
 
     def _save_background_task(
-        self,
-        project: str,
-        name: str,
+        self, project: str, name: str,
     ):
         metadata = mlrun.api.schemas.BackgroundTaskMetadata(
             name=name, project=project, created=datetime.datetime.utcnow()
@@ -59,9 +56,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         )
 
     def get_background_task(
-        self,
-        project: str,
-        name: str,
+        self, project: str, name: str,
     ) -> mlrun.api.schemas.BackgroundTask:
         if (
             project in self._background_tasks

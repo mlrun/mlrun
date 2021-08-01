@@ -20,9 +20,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         feature_set: mlrun.api.schemas.FeatureSet,
         versioned: bool = True,
     ) -> str:
-        return self._create_object(
-            db_session, project, feature_set, versioned,
-        )
+        return self._create_object(db_session, project, feature_set, versioned,)
 
     def store_feature_set(
         self,
@@ -111,12 +109,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
     ):
         self._delete_object(
-            db_session,
-            mlrun.api.schemas.FeatureSet,
-            project,
-            name,
-            tag,
-            uid,
+            db_session, mlrun.api.schemas.FeatureSet, project, name, tag, uid,
         )
 
     def list_features(
@@ -153,9 +146,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         feature_vector: mlrun.api.schemas.FeatureVector,
         versioned: bool = True,
     ) -> str:
-        return self._create_object(
-            db_session, project, feature_vector, versioned
-        )
+        return self._create_object(db_session, project, feature_vector, versioned)
 
     def store_feature_vector(
         self,
@@ -201,12 +192,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.FeatureVector:
         return self._get_object(
-            db_session,
-            mlrun.api.schemas.FeatureVector,
-            project,
-            name,
-            tag,
-            uid,
+            db_session, mlrun.api.schemas.FeatureVector, project, name, tag, uid,
         )
 
     def list_feature_vectors(
@@ -245,12 +231,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
     ):
         self._delete_object(
-            db_session,
-            mlrun.api.schemas.FeatureVector,
-            project,
-            name,
-            tag,
-            uid,
+            db_session, mlrun.api.schemas.FeatureVector, project, name, tag, uid,
         )
 
     def _create_object(

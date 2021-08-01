@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.clients.opa
+import mlrun.api.utils.singletons.project_member
 import mlrun.feature_store
 from mlrun import v3io_cred
 from mlrun.api import schemas
@@ -15,7 +16,6 @@ from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
 from mlrun.model import DataSource, DataTargetBase
-import mlrun.api.utils.singletons.project_member
 
 router = APIRouter()
 
@@ -76,20 +76,10 @@ def store_feature_set(
     )
     tag, uid = parse_reference(reference)
     uid = mlrun.api.crud.FeatureStore().store_feature_set(
-        db_session,
-        project,
-        name,
-        feature_set,
-        tag,
-        uid,
-        versioned,
+        db_session, project, name, feature_set, tag, uid, versioned,
     )
     return mlrun.api.crud.FeatureStore().get_feature_set(
-        db_session,
-        project,
-        feature_set.metadata.name,
-        tag,
-        uid,
+        db_session, project, feature_set.metadata.name, tag, uid,
     )
 
 
@@ -114,13 +104,7 @@ def patch_feature_set(
     )
     tag, uid = parse_reference(reference)
     mlrun.api.crud.FeatureStore().patch_feature_set(
-        db_session,
-        project,
-        name,
-        feature_set_update,
-        tag,
-        uid,
-        patch_mode,
+        db_session, project, name, feature_set_update, tag, uid, patch_mode,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -212,10 +196,7 @@ def list_feature_sets(
     feature_sets = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         feature_sets.feature_sets,
-        lambda feature_set: (
-            feature_set.metadata.project,
-            feature_set.metadata.name,
-        ),
+        lambda feature_set: (feature_set.metadata.project, feature_set.metadata.name,),
         auth_verifier.auth_info,
     )
     return mlrun.api.schemas.FeatureSetsOutput(feature_sets=feature_sets)
@@ -515,13 +496,7 @@ def store_feature_vector(
     )
     tag, uid = parse_reference(reference)
     uid = mlrun.api.crud.FeatureStore().store_feature_vector(
-        db_session,
-        project,
-        name,
-        feature_vector,
-        tag,
-        uid,
-        versioned,
+        db_session, project, name, feature_vector, tag, uid, versioned,
     )
 
     return mlrun.api.crud.FeatureStore().get_feature_vector(
@@ -550,13 +525,7 @@ def patch_feature_vector(
     )
     tag, uid = parse_reference(reference)
     mlrun.api.crud.FeatureStore().patch_feature_vector(
-        db_session,
-        project,
-        name,
-        feature_vector_update,
-        tag,
-        uid,
-        patch_mode,
+        db_session, project, name, feature_vector_update, tag, uid, patch_mode,
     )
     return Response(status_code=HTTPStatus.OK.value)
 

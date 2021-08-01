@@ -1,14 +1,14 @@
 from http import HTTPStatus
-import fastapi.concurrency
 
+import fastapi.concurrency
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
+import mlrun.api.utils.clients.opa
+import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.utils.singletons.scheduler import get_scheduler
-import mlrun.api.utils.singletons.project_member
-import mlrun.api.utils.clients.opa
 
 router = APIRouter()
 
@@ -20,7 +20,9 @@ def create_schedule(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(db_session, project, auth_info=auth_verifier.auth_info)
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_verifier.auth_info
+    )
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
         project,
@@ -80,12 +82,7 @@ def list_schedules(
     db_session: Session = Depends(deps.get_db_session),
 ):
     schedules = get_scheduler().list_schedules(
-        db_session,
-        project,
-        name,
-        kind,
-        labels,
-        include_last_run=include_last_run,
+        db_session, project, name, kind, labels, include_last_run=include_last_run,
     )
     filtered_schedules = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
@@ -115,10 +112,7 @@ def get_schedule(
         auth_verifier.auth_info,
     )
     return get_scheduler().get_schedule(
-        db_session,
-        project,
-        name,
-        include_last_run=include_last_run,
+        db_session, project, name, include_last_run=include_last_run,
     )
 
 
@@ -162,13 +156,11 @@ def delete_schedule(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.delete(
-    "/projects/{project}/schedules", status_code=HTTPStatus.NO_CONTENT.value
-)
+@router.delete("/projects/{project}/schedules", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_schedules(
-        project: str,
-        auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     schedules = get_scheduler().list_schedules(db_session, project,)
     mlrun.api.utils.clients.opa.Client().query_resources_permissions(

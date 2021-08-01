@@ -14,7 +14,6 @@ import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.model import RunObject
 from mlrun.runtimes.constants import RunStates
@@ -185,10 +184,7 @@ class Scheduler:
         )
 
     def delete_schedule(
-        self,
-        db_session: Session,
-        project: str,
-        name: str,
+        self, db_session: Session, project: str, name: str,
     ):
         logger.debug("Deleting schedule", project=project, name=name)
         self._remove_schedule_from_scheduler(project, name)

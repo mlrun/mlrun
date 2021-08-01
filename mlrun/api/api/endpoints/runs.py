@@ -1,7 +1,4 @@
 import datetime
-import mlrun.api.utils.singletons.project_member
-import mlrun.api.utils.clients.opa
-import mlrun.api.schemas
 from http import HTTPStatus
 from typing import List
 
@@ -10,6 +7,9 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
+import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.utils import logger
@@ -46,12 +46,7 @@ async def store_run(
 
     logger.info("Storing run", data=data)
     await run_in_threadpool(
-        mlrun.api.crud.Runs().store_run,
-        db_session,
-        data,
-        uid,
-        iter,
-        project,
+        mlrun.api.crud.Runs().store_run, db_session, data, uid, iter, project,
     )
     return {}
 
@@ -107,9 +102,7 @@ def get_run(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    data = mlrun.api.crud.Runs().get_run(
-        db_session, uid, iter, project
-    )
+    data = mlrun.api.crud.Runs().get_run(db_session, uid, iter, project)
     return {
         "data": data,
     }
@@ -195,9 +188,9 @@ def delete_runs(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    start_time_from = datetime.datetime.now(
-        datetime.timezone.utc
-    ) - datetime.timedelta(days=days_ago)
+    start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+        days=days_ago
+    )
     runs = mlrun.api.crud.Runs().list_runs(
         db_session,
         name,

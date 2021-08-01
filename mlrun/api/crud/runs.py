@@ -1,5 +1,3 @@
-import datetime
-
 import sqlalchemy.orm
 
 import mlrun.api.schemas

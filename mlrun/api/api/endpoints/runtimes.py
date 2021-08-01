@@ -1,4 +1,3 @@
-import mlrun.api.utils.clients.opa
 import http
 import typing
 
@@ -9,6 +8,7 @@ import mlrun
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 
 router = fastapi.APIRouter()
 
@@ -28,9 +28,7 @@ def list_runtimes(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    return mlrun.api.crud.Runtimes().list_runtimes(
-        project, label_selector
-    )
+    return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector)
 
 
 # TODO: move everything to use this endpoint instead of list_runtimes and deprecate it
@@ -52,9 +50,7 @@ def list_runtime_resources(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    return mlrun.api.crud.Runtimes().list_runtimes(
-        project, label_selector, group_by
-    )
+    return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector, group_by)
 
 
 @router.get("/runtimes/{kind}")

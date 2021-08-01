@@ -17,11 +17,7 @@ from mlrun.runtimes.constants import PodPhases
 
 class Logs(metaclass=mlrun.utils.singleton.Singleton,):
     def store_log(
-        self,
-        body: bytes,
-        project: str,
-        uid: str,
-        append: bool = True,
+        self, body: bytes, project: str, uid: str, append: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
         log_file = log_path(project, uid)
@@ -31,8 +27,7 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
             fp.write(body)
 
     def delete_logs(
-        self,
-        project: str,
+        self, project: str,
     ):
         project = project or mlrun.mlconf.default_project
         logs_path = project_logs_path(project)

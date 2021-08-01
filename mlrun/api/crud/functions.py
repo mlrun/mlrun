@@ -41,10 +41,7 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         )
 
     def delete_function(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        project: str,
-        name: str,
+        self, db_session: sqlalchemy.orm.Session, project: str, name: str,
     ):
         return mlrun.api.utils.singletons.db.get_db().delete_function(
             db_session, project, name

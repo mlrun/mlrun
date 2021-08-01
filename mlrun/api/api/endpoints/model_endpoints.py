@@ -1,11 +1,11 @@
 from http import HTTPStatus
 from typing import List, Optional
-import mlrun.api.utils.clients.opa
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
+import mlrun.api.utils.clients.opa
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError

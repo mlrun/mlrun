@@ -103,9 +103,7 @@ def get_artifact(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    data = mlrun.api.crud.Artifacts().get_artifact(
-        db_session, key, tag, iter, project
-    )
+    data = mlrun.api.crud.Artifacts().get_artifact(db_session, key, tag, iter, project)
     return {
         "data": data,
     }
@@ -128,9 +126,7 @@ def delete_artifact(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_verifier.auth_info,
     )
-    mlrun.api.crud.Artifacts().delete_artifact(
-        db_session, key, tag, project
-    )
+    mlrun.api.crud.Artifacts().delete_artifact(db_session, key, tag, project)
     return {}
 
 
@@ -193,7 +189,5 @@ def delete_artifacts(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_verifier.auth_info,
     )
-    mlrun.api.crud.Artifacts().delete_artifacts(
-        db_session, project, name, tag, labels
-    )
+    mlrun.api.crud.Artifacts().delete_artifacts(db_session, project, name, tag, labels)
     return {}

@@ -21,9 +21,15 @@ from io import BytesIO
 from numpy.core.fromnumeric import mean
 
 import mlrun
-from mlrun.utils import now_date
-
+from mlrun.utils import now_date, logger, parse_versioned_object_uri
 from .v2_serving import _ModelLogPusher
+from ..api.schemas import (
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
+)
+from ..config import config
 
 
 class BaseModelRouter:
@@ -308,6 +314,14 @@ class VotingEnsemble(BaseModelRouter):
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = False
+
+    def post_init(self, mode="sync"):
+        if not hasattr(self.context, "server"):
+            logger.warn("GraphServer not initialized for VotingEnsemble instance")
+            logger.warn(str(dir(self.context)))
+            return
+
+        _init_endpoint_record(self.context.server, self)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -641,3 +655,41 @@ class VotingEnsemble(BaseModelRouter):
             if not isinstance(request["inputs"], list):
                 raise Exception('Expected "inputs" to be a list')
         return request
+
+
+def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
+    logger.info("Initializing endpoint records")
+
+    try:
+        project, uri, tag, hash_key = parse_versioned_object_uri(
+            graph_server.function_uri
+        )
+
+        if voting_ensemble.version:
+            versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
+        else:
+            versioned_model_name = f"{voting_ensemble.name}:latest"
+
+        model_endpoint = ModelEndpoint(
+            metadata=ModelEndpointMetadata(project=project),
+            spec=ModelEndpointSpec(
+                function_uri=graph_server.function_uri,
+                model=versioned_model_name,
+                model_class=voting_ensemble.__class__.__name__,
+                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project, kind="stream"
+                ),
+                active=True,
+            ),
+            status=ModelEndpointStatus(),
+        )
+
+        db = mlrun.get_run_db()
+
+        db.create_or_patch_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
+    except Exception as e:
+        logger.error("Failed to create endpoint record", exc=e)

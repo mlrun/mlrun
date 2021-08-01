@@ -378,19 +378,6 @@ class _ModelLogPusher:
 
 def _init_endpoint_record(graph_server, model: V2ModelServer):
     logger.info("Initializing endpoint records")
-    # if model_logger is None or isinstance(model_logger.output_stream, _DummyStream):
-    #     return
-
-    if hasattr(graph_server.context, "root"):
-        root = graph_server.context.root
-        logger.info(f"Graph root type {type(root)}")
-    else:
-        logger.info("No root in context")
-        # if str(type(root)) == "RouterStep":
-        #     logger.info(
-        #         "RouterStep detected, we should initialize router endpoint record"
-        #     )
-
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
@@ -421,7 +408,7 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
         db.create_or_patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
-            model_endpoint=model_endpoint
+            model_endpoint=model_endpoint,
         )
     except Exception as e:
         logger.error("Failed to create endpoint record", exc=e)

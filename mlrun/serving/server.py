@@ -378,6 +378,10 @@ class GraphContext:
         self.get_table = None
         self.is_mock = False
 
+    @property
+    def server(self):
+        return self._server
+
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:
             self.logger.error(

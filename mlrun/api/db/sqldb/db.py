@@ -715,7 +715,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def _delete_schedules(self, session: Session, project: str):
+    def delete_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
         for schedule in self.list_schedules(session, project=project):
             self.delete_schedule(session, project, schedule.name)
@@ -1117,7 +1117,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)
-        self._delete_schedules(session, name)
+        self.delete_schedules(session, name)
         self._delete_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)

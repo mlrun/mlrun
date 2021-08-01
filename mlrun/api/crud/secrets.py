@@ -18,22 +18,33 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.utils.vault.store_vault_project_secrets(project, secrets.secrets)
         elif secrets.provider == mlrun.api.schemas.SecretProviderName.kubernetes:
             if mlrun.api.utils.singletons.k8s.get_k8s():
-                mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets(project, secrets.secrets)
+                mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets(
+                    project, secrets.secrets
+                )
             else:
-                raise mlrun.errors.MLRunInternalServerError("K8s provider cannot be initialized")
+                raise mlrun.errors.MLRunInternalServerError(
+                    "K8s provider cannot be initialized"
+                )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Provider requested is not supported. provider = {secrets.provider}"
             )
 
-    def delete_secrets(self, project: str, provider: mlrun.api.schemas.SecretProviderName, secrets: typing.Optional[typing.List[str]] = None):
+    def delete_secrets(
+        self,
+        project: str,
+        provider: mlrun.api.schemas.SecretProviderName,
+        secrets: typing.Optional[typing.List[str]] = None,
+    ):
         if provider == mlrun.api.schemas.SecretProviderName.vault:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Delete secret is not implemented for provider {provider}"
             )
         elif provider == mlrun.api.schemas.SecretProviderName.kubernetes:
             if mlrun.api.utils.singletons.k8s.get_k8s():
-                mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(project, secrets)
+                mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(
+                    project, secrets
+                )
             else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"
@@ -43,7 +54,12 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 f"Provider requested is not supported. provider = {provider}"
             )
 
-    def list_secret_keys(self, project: str, provider: mlrun.api.schemas.SecretProviderName, token: typing.Optional[str] = None) -> mlrun.api.schemas.SecretKeysData:
+    def list_secret_keys(
+        self,
+        project: str,
+        provider: mlrun.api.schemas.SecretProviderName,
+        token: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.SecretKeysData:
         if provider == mlrun.api.schemas.SecretProviderName.vault:
             if not token:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -62,8 +78,15 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 )
 
             if mlrun.api.utils.singletons.k8s.get_k8s():
-                secret_keys = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(project) or []
-                return mlrun.api.schemas.SecretKeysData(provider=provider, secret_keys=secret_keys)
+                secret_keys = (
+                    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(
+                        project
+                    )
+                    or []
+                )
+                return mlrun.api.schemas.SecretKeysData(
+                    provider=provider, secret_keys=secret_keys
+                )
             else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"
@@ -73,7 +96,13 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 f"Provider requested is not supported. provider = {provider}"
             )
 
-    def list_secrets(self, project: str, provider: mlrun.api.schemas.SecretProviderName, secrets: typing.Optional[typing.List[str]] = None, token: typing.Optional[str] = None) -> mlrun.api.schemas.SecretsData:
+    def list_secrets(
+        self,
+        project: str,
+        provider: mlrun.api.schemas.SecretProviderName,
+        secrets: typing.Optional[typing.List[str]] = None,
+        token: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.SecretsData:
         if provider == mlrun.api.schemas.SecretProviderName.vault:
             if not token:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -82,9 +111,10 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
 
             vault = mlrun.utils.vault.VaultStore(token)
             secret_values = vault.get_secrets(secrets, project=project)
-            return mlrun.api.schemas.SecretsData(provider=provider, secrets=secret_values)
+            return mlrun.api.schemas.SecretsData(
+                provider=provider, secrets=secret_values
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Provider requested is not supported. provider = {provider}"
             )
-

@@ -8,9 +8,7 @@ import mlrun.api.crud
 import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
-from mlrun.utils.vault import (
-    add_vault_user_secrets,
-)
+from mlrun.utils.vault import add_vault_user_secrets
 
 router = fastapi.APIRouter()
 
@@ -92,7 +90,9 @@ def list_secrets(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    return mlrun.api.crud.secrets.Secrets().list_secrets(project, provider, secrets, token)
+    return mlrun.api.crud.secrets.Secrets().list_secrets(
+        project, provider, secrets, token
+    )
 
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)

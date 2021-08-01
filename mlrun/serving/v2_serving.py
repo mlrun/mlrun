@@ -377,6 +377,7 @@ class _ModelLogPusher:
 
 
 def _init_endpoint_record(graph_server, model: V2ModelServer):
+    logger.info("Initializing endpoint records")
     # if model_logger is None or isinstance(model_logger.output_stream, _DummyStream):
     #     return
 

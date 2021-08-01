@@ -1,4 +1,5 @@
 import json
+import mlrun.kfpops
 
 import mlrun.api.crud.pipelines
 import mlrun.errors
@@ -227,6 +228,10 @@ def test_resolve_pipeline_project():
         {
             "expected_project": mlrun.mlconf.default_project,
             "template": {"dag": {"asdasd": "asdasd"}},
+        },
+        {
+            "expected_project": "project-from-annotation",
+            "template": {"metadata": {"annotations": {mlrun.kfpops.project_annotation: "project-from-annotation"}}},
         },
     ]
     for case in cases:

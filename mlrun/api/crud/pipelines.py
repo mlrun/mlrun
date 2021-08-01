@@ -191,6 +191,9 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         )
         templates = workflow_manifest.get("spec", {}).get("templates", [])
         for template in templates:
+            project_from_annotation = template.get("metadata", {}).get("annotations", {}).get(mlrun.kfpops.project_annotation)
+            if project_from_annotation:
+                return project_from_annotation
             command = template.get("container", {}).get("command", [])
             action = None
             for index, argument in enumerate(command):

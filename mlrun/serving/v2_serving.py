@@ -383,10 +383,13 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
 
     if hasattr(graph_server.context, "root"):
         root = graph_server.context.root
-        if str(type(root)) == "RouterStep":
-            logger.info(
-                "RouterStep detected, we should initialize router endpoint record"
-            )
+        logger.info(f"Graph root type {type(root)}")
+    else:
+        logger.info("No root in context")
+        # if str(type(root)) == "RouterStep":
+        #     logger.info(
+        #         "RouterStep detected, we should initialize router endpoint record"
+        #     )
 
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(

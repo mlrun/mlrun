@@ -94,6 +94,9 @@ def test_list_pipelines_full(
 ) -> None:
     runs = _generate_run_mocks()
     expected_runs = [run.to_dict() for run in runs]
+    expected_runs = mlrun.api.crud.pipelines.Pipelines()._format_runs(
+        expected_runs, mlrun.api.schemas.PipelinesFormat.full
+    )
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
         "/api/projects/*/pipelines",

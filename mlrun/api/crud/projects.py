@@ -97,10 +97,10 @@ class Projects(
             leader_session=auth_info.session,
         )
 
-        mlrun.api.crud.Logs().delete_logs(name, auth_info)
+        mlrun.api.crud.Logs().delete_logs(name)
 
         mlrun.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
-            session, auth_info, name
+            session, name
         )
 
         # delete db resources

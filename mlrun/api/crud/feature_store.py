@@ -19,11 +19,8 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         project: str,
         feature_set: mlrun.api.schemas.FeatureSet,
         versioned: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
-        return self._create_object(
-            db_session, project, feature_set, versioned, auth_info
-        )
+        return self._create_object(db_session, project, feature_set, versioned,)
 
     def store_feature_set(
         self,
@@ -34,10 +31,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         versioned: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         return self._store_object(
-            db_session, project, name, feature_set, tag, uid, versioned, auth_info,
+            db_session, project, name, feature_set, tag, uid, versioned,
         )
 
     def patch_feature_set(
@@ -49,7 +45,6 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         return self._patch_object(
             db_session,
@@ -60,7 +55,6 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             tag,
             uid,
             patch_mode,
-            auth_info,
         )
 
     def get_feature_set(
@@ -70,10 +64,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeatureSet:
         return self._get_object(
-            db_session, mlrun.api.schemas.FeatureSet, project, name, tag, uid, auth_info
+            db_session, mlrun.api.schemas.FeatureSet, project, name, tag, uid
         )
 
     def list_feature_sets(
@@ -90,10 +83,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         rows_per_partition: int = 1,
         partition_sort: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeatureSetsOutput:
         project = project or mlrun.mlconf.default_project
-        feature_sets = mlrun.api.utils.singletons.db.get_db().list_feature_sets(
+        return mlrun.api.utils.singletons.db.get_db().list_feature_sets(
             db_session,
             project,
             name,
@@ -107,16 +99,6 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             partition_sort,
             partition_order,
         )
-        feature_sets = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
-            feature_sets.feature_sets,
-            lambda feature_set: (
-                feature_set.metadata.project,
-                feature_set.metadata.name,
-            ),
-            auth_info,
-        )
-        return mlrun.api.schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
     def delete_feature_set(
         self,
@@ -125,16 +107,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         self._delete_object(
-            db_session,
-            mlrun.api.schemas.FeatureSet,
-            project,
-            name,
-            tag,
-            uid,
-            auth_info,
+            db_session, mlrun.api.schemas.FeatureSet, project, name, tag, uid,
         )
 
     def list_features(
@@ -145,22 +120,11 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         tag: typing.Optional[str] = None,
         entities: typing.List[str] = None,
         labels: typing.List[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeaturesOutput:
         project = project or mlrun.mlconf.default_project
-        features = mlrun.api.utils.singletons.db.get_db().list_features(
+        return mlrun.api.utils.singletons.db.get_db().list_features(
             db_session, project, name, tag, entities, labels,
         )
-        features = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.feature,
-            features.features,
-            lambda feature_list_output: (
-                feature_list_output.feature.name,
-                feature_list_output.feature_set_digest.metadata.project,
-            ),
-            auth_info,
-        )
-        return mlrun.api.schemas.FeaturesOutput(features=features)
 
     def list_entities(
         self,
@@ -169,22 +133,11 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         tag: typing.Optional[str] = None,
         labels: typing.List[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.EntitiesOutput:
         project = project or mlrun.mlconf.default_project
-        entities = mlrun.api.utils.singletons.db.get_db().list_entities(
+        return mlrun.api.utils.singletons.db.get_db().list_entities(
             db_session, project, name, tag, labels,
         )
-        entities = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.entity,
-            entities.entities,
-            lambda entity_list_output: (
-                entity_list_output.entity.name,
-                entity_list_output.feature_set_digest.metadata.project,
-            ),
-            auth_info,
-        )
-        return mlrun.api.schemas.EntitiesOutput(entities=entities)
 
     def create_feature_vector(
         self,
@@ -192,11 +145,8 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         project: str,
         feature_vector: mlrun.api.schemas.FeatureVector,
         versioned: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
-        return self._create_object(
-            db_session, project, feature_vector, versioned, auth_info
-        )
+        return self._create_object(db_session, project, feature_vector, versioned)
 
     def store_feature_vector(
         self,
@@ -207,10 +157,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         versioned: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         return self._store_object(
-            db_session, project, name, feature_vector, tag, uid, versioned, auth_info,
+            db_session, project, name, feature_vector, tag, uid, versioned,
         )
 
     def patch_feature_vector(
@@ -222,7 +171,6 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         return self._patch_object(
             db_session,
@@ -233,7 +181,6 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             tag,
             uid,
             patch_mode,
-            auth_info,
         )
 
     def get_feature_vector(
@@ -243,16 +190,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeatureVector:
         return self._get_object(
-            db_session,
-            mlrun.api.schemas.FeatureVector,
-            project,
-            name,
-            tag,
-            uid,
-            auth_info,
+            db_session, mlrun.api.schemas.FeatureVector, project, name, tag, uid,
         )
 
     def list_feature_vectors(
@@ -267,10 +207,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         rows_per_partition: int = 1,
         partition_sort: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.FeatureVectorsOutput:
         project = project or mlrun.mlconf.default_project
-        feature_vectors = mlrun.api.utils.singletons.db.get_db().list_feature_vectors(
+        return mlrun.api.utils.singletons.db.get_db().list_feature_vectors(
             db_session,
             project,
             name,
@@ -282,16 +221,6 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             partition_sort,
             partition_order,
         )
-        feature_vectors = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
-            feature_vectors.feature_vectors,
-            lambda feature_vector: (
-                feature_vector.metadata.project,
-                feature_vector.metadata.name,
-            ),
-            auth_info,
-        )
-        return mlrun.api.schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
 
     def delete_feature_vector(
         self,
@@ -300,16 +229,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         self._delete_object(
-            db_session,
-            mlrun.api.schemas.FeatureVector,
-            project,
-            name,
-            tag,
-            uid,
-            auth_info,
+            db_session, mlrun.api.schemas.FeatureVector, project, name, tag, uid,
         )
 
     def _create_object(
@@ -320,20 +242,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.FeatureSet, mlrun.api.schemas.FeatureVector
         ],
         versioned: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_creation(project, object_)
-        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, auth_info=auth_info
-        )
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            object_.get_authorization_resource_type(),
-            project,
-            object_.metadata.name,
-            mlrun.api.schemas.AuthorizationAction.create,
-            auth_info,
-        )
         if isinstance(object_, mlrun.api.schemas.FeatureSet):
             return mlrun.api.utils.singletons.db.get_db().create_feature_set(
                 db_session, project, object_, versioned
@@ -358,21 +269,10 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         versioned: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_store(
             object_, project, name, tag, uid
-        )
-        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
-            db_session, project, auth_info=auth_info
-        )
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            object_.get_authorization_resource_type(),
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.store,
-            auth_info,
         )
         if isinstance(object_, mlrun.api.schemas.FeatureSet):
             return mlrun.api.utils.singletons.db.get_db().store_feature_set(
@@ -397,18 +297,10 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> str:
         project = project or mlrun.mlconf.default_project
         self._validate_identity_for_object_patch(
             object_schema.__class__.__name__, object_patch, project, name, tag, uid,
-        )
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            object_schema.get_authorization_resource_type(),
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.update,
-            auth_info,
         )
         if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
             return mlrun.api.utils.singletons.db.get_db().patch_feature_set(
@@ -431,16 +323,8 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> typing.Union[mlrun.api.schemas.FeatureSet, mlrun.api.schemas.FeatureVector]:
         project = project or mlrun.mlconf.default_project
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            object_schema.get_authorization_resource_type(),
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
         if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
             return mlrun.api.utils.singletons.db.get_db().get_feature_set(
                 db_session, project, name, tag, uid
@@ -462,16 +346,8 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         name: str,
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            object_schema.get_authorization_resource_type(),
-            project,
-            name,
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
         if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
             mlrun.api.utils.singletons.db.get_db().delete_feature_set(
                 db_session, project, name, tag, uid

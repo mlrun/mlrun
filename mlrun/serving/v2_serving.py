@@ -14,8 +14,7 @@
 import threading
 import time
 import traceback
-from os import path
-from typing import Dict, Optional
+from typing import Dict
 
 import mlrun
 from mlrun.api.schemas import (
@@ -26,8 +25,7 @@ from mlrun.api.schemas import (
 )
 from mlrun.artifacts import ModelArtifact
 from mlrun.config import config
-from mlrun.datastore import _DummyStream
-from mlrun.serving import GraphServer, RouterStep
+from mlrun.serving import RouterStep
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 
@@ -378,14 +376,16 @@ class _ModelLogPusher:
                 self.output_stream.push([data])
 
 
-def _init_endpoint_record(graph_server: GraphServer, model: V2ModelServer):
+def _init_endpoint_record(graph_server, model: V2ModelServer):
     # if model_logger is None or isinstance(model_logger.output_stream, _DummyStream):
     #     return
 
     if hasattr(graph_server.context, "root"):
         root = graph_server.context.root
         if type(root) == RouterStep:
-            logger.info("RouterStep detected, we should initialize router endpoint record")
+            logger.info(
+                "RouterStep detected, we should initialize router endpoint record"
+            )
 
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(

@@ -102,7 +102,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
         for run in runs:
-            run['project'] = self._resolve_pipeline_project(run)
+            run["project"] = self._resolve_pipeline_project(run)
         if format_ == mlrun.api.schemas.PipelinesFormat.full:
             return runs
         elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
@@ -194,7 +194,11 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         )
         templates = workflow_manifest.get("spec", {}).get("templates", [])
         for template in templates:
-            project_from_annotation = template.get("metadata", {}).get("annotations", {}).get(mlrun.kfpops.project_annotation)
+            project_from_annotation = (
+                template.get("metadata", {})
+                .get("annotations", {})
+                .get(mlrun.kfpops.project_annotation)
+            )
             if project_from_annotation:
                 return project_from_annotation
             command = template.get("container", {}).get("command", [])

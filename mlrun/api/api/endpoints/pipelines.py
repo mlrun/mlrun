@@ -42,9 +42,19 @@ def list_pipelines(
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
         # "*", so we can't really get back only the names here
-        computed_format = mlrun.api.schemas.PipelinesFormat.metadata_only if format_ == mlrun.api.schemas.PipelinesFormat.name_only else format_
+        computed_format = (
+            mlrun.api.schemas.PipelinesFormat.metadata_only
+            if format_ == mlrun.api.schemas.PipelinesFormat.name_only
+            else format_
+        )
         total_size, next_page_token, runs = mlrun.api.crud.Pipelines().list_pipelines(
-            project, namespace, sort_by, page_token, filter_, computed_format, page_size,
+            project,
+            namespace,
+            sort_by,
+            page_token,
+            filter_,
+            computed_format,
+            page_size,
         )
     allowed_runs = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
@@ -53,7 +63,7 @@ def list_pipelines(
         auth_verifier.auth_info,
     )
     if format_ == mlrun.api.schemas.PipelinesFormat.name_only:
-        allowed_runs = [run['name'] for run in allowed_runs]
+        allowed_runs = [run["name"] for run in allowed_runs]
     return mlrun.api.schemas.PipelinesOutput(
         runs=allowed_runs,
         total_size=total_size or 0,

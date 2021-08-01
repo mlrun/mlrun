@@ -57,13 +57,19 @@ class LocalFeatureMerger:
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            df = feature_set.to_dataframe(
-                columns=column_names,
-                df_module=df_module,
-                start_time=start_time,
-                end_time=end_time,
-                time_column=entity_timestamp_column,
-            )
+            if entity_timestamp_column not in dict(columns):
+                df = feature_set.to_dataframe(
+                    columns=column_names,
+                    df_module=df_module,
+                    time_column=entity_timestamp_column)
+            else:
+                df = feature_set.to_dataframe(
+                    columns=column_names,
+                    df_module=df_module,
+                    start_time=start_time,
+                    end_time=end_time,
+                    time_column=entity_timestamp_column,
+                )
             # rename columns with aliases
             df.rename(
                 columns={name: alias for name, alias in columns if alias}, inplace=True

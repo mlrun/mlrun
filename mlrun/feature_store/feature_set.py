@@ -16,10 +16,6 @@ from typing import List
 
 import pandas as pd
 
-# Storey is not compatible with Python 3.6. We have to import this module in httpdb.
-# So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
-# executed in runtime
-
 import mlrun
 import mlrun.api.schemas
 
@@ -45,6 +41,12 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..utils import StorePrefix
+
+# Storey is not compatible with Python 3.6. We have to import this module in httpdb.
+# So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
+# executed in runtime
+
+
 
 aggregates_step = "Aggregates"
 

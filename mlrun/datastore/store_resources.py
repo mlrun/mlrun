@@ -92,7 +92,7 @@ class ResourceCache:
                 target = get_online_target(resource)
                 if not target:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"resource {uri} does not have an online data source"
+                        f"resource {uri} does not have an online data target"
                     )
                 self._tabels[uri] = target.get_table_object()
                 return self._tabels[uri]

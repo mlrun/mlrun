@@ -120,7 +120,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             )
 
         logger.debug("Writing pipeline to temp file", content_type=content_type)
-        logger.debug(data)
+        print(str(data))
 
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

@@ -324,7 +324,7 @@ class StreamSource(OnlineSource):
         group="serving",
         seek_to="earliest",
         shards=1,
-        **kwargs,
+        **kwargs
     ):
         super().__init__(path=path, **kwargs)
         self.group = group

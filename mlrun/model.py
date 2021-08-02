@@ -74,13 +74,19 @@ class ModelObj:
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
+        print("fields " + str(fields))
+        print("deprecated_fields " + str(deprecated_fields))
         if struct:
             for key, val in struct.items():
+                print("key " + str(key) + " val " + str(val))
                 if key in fields and key not in deprecated_fields:
+                    print("setattr1  ")
                     setattr(new_obj, key, val)
             for deprecated_field, new_field in deprecated_fields.items():
                 field_value = struct.get(new_field) or struct.get(deprecated_field)
+                print("struct.get(new_field) " + str(struct.get(new_field)) + " struct.get(deprecated_field) " + str(struct.get(deprecated_field)))
                 if field_value:
+                    print("setattr2  ")
                     setattr(new_obj, new_field, field_value)
 
         return new_obj

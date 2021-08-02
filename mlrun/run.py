@@ -862,6 +862,7 @@ def run_pipeline(
     """
 
     artifact_path = artifact_path or mlconf.artifact_path
+    project = project or mlconf.default_project
     artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
         artifact_path, project or mlconf.default_project
     )
@@ -881,6 +882,7 @@ def run_pipeline(
                 ", please set the dbpath url"
             )
         id = mldb.submit_pipeline(
+            project,
             pipeline,
             arguments,
             experiment=experiment,

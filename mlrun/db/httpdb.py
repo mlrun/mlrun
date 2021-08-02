@@ -1059,6 +1059,7 @@ class HTTPRunDB(RunDBInterface):
 
     def submit_pipeline(
         self,
+        project,
         pipeline,
         arguments=None,
         experiment=None,
@@ -1070,6 +1071,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """ Submit a KFP pipeline for execution.
 
+        :param project: The project of the pipeline
         :param pipeline: Pipeline function or path to .yaml/.zip pipeline file.
         :param arguments: A dictionary of arguments to pass to the pipeline.
         :param experiment: A name to assign for the specific experiment.
@@ -1098,7 +1100,7 @@ class HTTPRunDB(RunDBInterface):
         if arguments:
             if not isinstance(arguments, dict):
                 raise ValueError("arguments must be dict type")
-            headers["pipeline-arguments"] = str(arguments)
+            headers[schemas.HeaderNames.pipeline_arguments] = str(arguments)
 
         if not path.isfile(pipe_file):
             raise OSError(f"file {pipe_file} doesnt exist")
@@ -1111,7 +1113,7 @@ class HTTPRunDB(RunDBInterface):
             params = {"namespace": namespace, "experiment": experiment, "run": run}
             resp = self.api_call(
                 "POST",
-                "submit_pipeline",
+                f"projects/{project}/pipelines",
                 params=params,
                 timeout=20,
                 body=data,

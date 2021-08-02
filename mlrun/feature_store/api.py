@@ -247,6 +247,8 @@ def ingest(
         else:
             overwrite = True
 
+    print("ooooverwrite is " + str(overwrite))
+
     if run_config:
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
@@ -277,6 +279,7 @@ def ingest(
             and featureset.status.targets
             and featureset.status.targets[0].last_written
         ):
+            print("wwwwe are here and setting min time")
             min_time = datetime.fromisoformat(featureset.status.targets[0].last_written)
             for target in featureset.status.targets:
                 if target.last_written:

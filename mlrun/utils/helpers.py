@@ -854,7 +854,7 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs or []:
                 meta = r["metadata"]
-                url = get_ui_url(meta.get('project'), meta.get('uid'))
+                url = get_ui_url(meta.get("project"), meta.get("uid"))
                 if url:
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:

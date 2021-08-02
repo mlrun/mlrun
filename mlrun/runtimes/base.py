@@ -58,10 +58,11 @@ from ..utils import (
     enrich_image_url,
     get_in,
     get_parsed_docker_registry,
+    get_ui_url,
     is_ipython,
     logger,
     now_date,
-    update_in, get_ui_url,
+    update_in,
 )
 from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points

@@ -855,7 +855,6 @@ def run_pipeline(
     :param artifact_path:  target location/url for mlrun artifacts
     :param ops:        additional operators (.apply() to all pipeline functions)
     :param ttl:        pipeline ttl in secs (after that the pods will be removed)
-    :param ttl:        pipeline ttl in secs (after that the pods will be removed)
     :param remote:     read kfp data from mlrun service (default=True)
 
     :returns: kubeflow pipeline id

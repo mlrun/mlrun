@@ -118,7 +118,7 @@ def test_list_pipelines_specific_project(
     runs = _generate_run_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
-    mlrun.api.crud.pipelines.Pipelines().resolve_pipeline_project = unittest.mock.Mock(
+    mlrun.api.crud.pipelines.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
     response = client.get(

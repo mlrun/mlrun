@@ -66,8 +66,6 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         parameters and methods.
 
         :param model: The model to wrap.
-
-        :return: The wrapped model.
         """
         super(KerasMLRunInterface, cls).add_interface(model=model)
 
@@ -186,6 +184,10 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 )
             )
 
+    # TODO: Add device to use method, something like use_cuda: Union[bool, List[int]] where if True it wil use all the
+    #       GPUs it finds and if given as a list it will use only the gpus in the list. If False CPU will be used.
+
+    # TODO: Add horovod callbacks configurations. If not set (None), use the defaults.
     def use_horovod(self):
         """
         Setup the model or wrapped model to run with horovod.
@@ -230,7 +232,10 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
             )
 
         # Setup the device to run on GPU if available:
-        if tf.config.experimental.list_physical_devices("GPU"):
+        if (
+            tf.config.experimental.list_physical_devices("GPU")
+            and os.environ.get("CUDA_VISIBLE_DEVICES", "None") != "-1"
+        ):
             # Pin each GPU to a single process:
             gpus = tf.config.experimental.list_physical_devices("GPU")
             for gpu in gpus:
@@ -239,9 +244,15 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 tf.config.experimental.set_visible_devices(
                     gpus[self._hvd.local_rank()], "GPU"
                 )
+                print(
+                    "Horovod worker #{} is using GPU #{}".format(
+                        self._hvd.rank(), self._hvd.local_rank()
+                    )
+                )
         else:
             # No GPUs were found, or 'use_cuda' was false:
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            print("Horovod worker #{} is using CPU".format(self._hvd.rank()))
 
         # Adjust learning rate based on the number of GPUs:
         optimizer.lr = optimizer.lr * self._hvd.size()
@@ -250,7 +261,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         optimizer = self._hvd.DistributedOptimizer(optimizer)
 
         # Compile the model with `experimental_run_tf_function=False` to ensure Tensorflow uses the distributed
-        # optimizer to compute gradients:
+        # optimizer to compute the gradients:
         experimental_run_tf_function = False
 
         return optimizer, experimental_run_tf_function

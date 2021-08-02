@@ -46,6 +46,15 @@ from .feature_store import (
 )
 from .frontend_spec import FeatureFlags, FrontendSpec, ProjectMembershipFeatureFlag
 from .function import FunctionState
+from .marketplace import (
+    IndexedMarketplaceSource,
+    MarketplaceCatalog,
+    MarketplaceItem,
+    MarketplaceObjectMetadata,
+    MarketplaceSource,
+    MarketplaceSourceSpec,
+    last_source_index,
+)
 from .model_endpoints import (
     Features,
     FeatureValues,

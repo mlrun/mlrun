@@ -27,6 +27,7 @@ from mlrun.api.db.sqldb.session import create_session
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
+from ..api import schemas
 from ..api.schemas import ModelEndpoint
 from .base import RunDBError, RunDBInterface
 
@@ -678,6 +679,46 @@ class SQLDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def list_marketplace_sources(self):
+        raise NotImplementedError()
+
+    def get_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def delete_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
     ):
         raise NotImplementedError()
 

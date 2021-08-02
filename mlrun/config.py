@@ -228,6 +228,18 @@ default_config = {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
+    "marketplace": {
+        "k8s_secrets_project_name": "-marketplace-secrets",
+        "catalog_filename": "catalog.json",
+        "default_source": {
+            # Set to false to avoid creating a global source (for example in a dark site)
+            "create": True,
+            "name": "mlrun_global_hub",
+            "description": "MLRun global function hub",
+            "url": "https://raw.githubusercontent.com/mlrun/marketplace",
+            "channel": "master",
+        },
+    },
 }
 
 

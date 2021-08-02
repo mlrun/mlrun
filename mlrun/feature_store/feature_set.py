@@ -12,15 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import warnings
-from typing import TYPE_CHECKING, List, Optional
+from typing import List
 
 import pandas as pd
-
-# Storey is not compatible with Python 3.6. We have to import this module in httpdb.
-# So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
-# executed in runtime
-if TYPE_CHECKING:
-    from storey import EmitPolicy
 
 import mlrun
 import mlrun.api.schemas
@@ -422,7 +416,6 @@ class FeatureSet(ModelObj):
         step_name=None,
         after=None,
         before=None,
-        emit_policy: Optional["EmitPolicy"] = None,
         state_name=None,
     ):
         """add feature aggregation rule
@@ -458,8 +451,6 @@ class FeatureSet(ModelObj):
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
-        :param emit_policy:optional. Define emit policy of the aggregations. For example EmitAfterMaxEvent (will emit
-                            the Nth event). The default behavior is emitting every event
         """
         if state_name:
             warnings.warn(
@@ -503,12 +494,8 @@ class FeatureSet(ModelObj):
             aggregations = step.class_args.get("aggregates", [])
             aggregations.append(aggregation)
             step.class_args["aggregates"] = aggregations
-            if emit_policy:
-                step.class_args["emit_policy"] = emit_policy
         else:
             class_args = {}
-            if emit_policy:
-                class_args["emit_policy"] = emit_policy
             step = graph.add_step(
                 name=step_name,
                 after=after or previous_step,

@@ -34,7 +34,7 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
 }
 
 
-def prepare_env(auth_method):
+def verify_auth_parameters_and_configure_env(auth_method):
     if not config["env"].get("AZURE_CONTAINER"):
         return False
 
@@ -56,22 +56,24 @@ def prepare_env(auth_method):
     return True
 
 
+# Apply parametrization to all tests in this file. Skip test if auth method is not configured.
 pytestmark = pytest.mark.parametrize(
     "auth_method",
     [
         pytest.param(
-            key,
+            auth_method,
             marks=pytest.mark.skipif(
-                not prepare_env(key), reason=f"Auth method {key} not configured."
+                not verify_auth_parameters_and_configure_env(auth_method),
+                reason=f"Auth method {auth_method} not configured.",
             ),
         )
-        for key in AUTH_METHODS_AND_REQUIRED_PARAMS
+        for auth_method in AUTH_METHODS_AND_REQUIRED_PARAMS
     ],
 )
 
 
 def test_azure_blob(auth_method):
-    prepare_env(auth_method)
+    verify_auth_parameters_and_configure_env(auth_method)
     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
     blob_url = blob_path + "/" + blob_dir + "/" + blob_file
 
@@ -95,7 +97,7 @@ def test_azure_blob(auth_method):
 
 
 def test_list_dir(auth_method):
-    prepare_env(auth_method)
+    verify_auth_parameters_and_configure_env(auth_method)
     blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
     blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
     print(f"\nBlob URL: {blob_url}")
@@ -112,7 +114,7 @@ def test_list_dir(auth_method):
 
 
 def test_blob_upload(auth_method):
-    prepare_env(auth_method)
+    verify_auth_parameters_and_configure_env(auth_method)
     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
     blob_url = blob_path + "/" + blob_dir + "/" + blob_file
     print(f"\nBlob URL: {blob_url}")

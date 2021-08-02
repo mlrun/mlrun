@@ -6,6 +6,7 @@ import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.scheduler
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
@@ -96,7 +97,11 @@ class Projects(
             leader_session=auth_info.session,
         )
 
-        mlrun.api.crud.Logs().delete_logs(name, auth_info)
+        mlrun.api.crud.Logs().delete_logs(name)
+
+        mlrun.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
+            session, name
+        )
 
         # delete db resources
         mlrun.api.utils.singletons.db.get_db().delete_project_related_resources(

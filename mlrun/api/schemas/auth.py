@@ -38,6 +38,7 @@ class AuthorizationResourceTypes(str, enum.Enum):
     secret = "secret"
     run = "run"
     model_endpoint = "model-endpoint"
+    pipeline = "pipeline"
 
     def to_resource_string(
         self, project_name: str, resource_name: str,
@@ -57,6 +58,7 @@ class AuthorizationResourceTypes(str, enum.Enum):
             # runtime resource doesn't have a get (one) object endpoint, it doesn't have an identifier
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources/",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
+            AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

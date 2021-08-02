@@ -3,7 +3,7 @@ import re
 import typing
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import humanfriendly
 import mergedeep
@@ -39,7 +39,6 @@ from mlrun.api.db.sqldb.models import (
     _labeled,
     _tagged,
 )
-from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
@@ -639,11 +638,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        leader_session: Optional[str] = None,
     ):
-        get_project_member().ensure_project(
-            session, project, leader_session=leader_session
-        )
         schedule = self._get_schedule_record(session, project, name)
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
@@ -720,7 +715,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def _delete_schedules(self, session: Session, project: str):
+    def delete_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
         for schedule in self.list_schedules(session, project=project):
             self.delete_schedule(session, project, schedule.name)
@@ -1122,7 +1117,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)
-        self._delete_schedules(session, name)
+        self.delete_schedules(session, name)
         self._delete_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)

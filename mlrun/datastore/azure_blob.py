@@ -18,6 +18,8 @@ from pathlib import Path
 import fsspec
 from azure.storage.blob import BlobServiceClient
 
+import mlrun.errors
+
 from .base import DataStore, FileStats
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
@@ -94,6 +96,10 @@ class AzureBlobStore(DataStore):
             return blob
 
     def put(self, key, data, append=False):
+        if append:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Append mode not supported for Azure blob datastore"
+            )
         if self.bsc:
             with self.bsc.get_blob_client(
                 container=self.endpoint, blob=key[1:]

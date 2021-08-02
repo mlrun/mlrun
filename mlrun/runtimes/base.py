@@ -502,7 +502,7 @@ class BaseRuntime(ModelObj):
                 ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
             IPython.display.display(
                 IPython.display.HTML(
-                    "to track results use .show() or .logs() run methods" + ui_url
+                    f"<b> > to track results use .show() or .logs() run methods {ui_url}</b>"
                 )
             )
         else:

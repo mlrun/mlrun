@@ -3,6 +3,7 @@ import typing
 from datetime import datetime
 from http import HTTPStatus
 
+import yaml
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
+from mlrun.utils import logger
 
 router = APIRouter()
 
@@ -83,12 +85,7 @@ async def submit_pipeline_legacy(
     ),
 ):
     response = await _create_pipeline(
-        auth_verifier.auth_info,
-        request,
-        namespace,
-        experiment_name,
-        run_name,
-        allow_without_project=True,
+        auth_verifier.auth_info, request, namespace, experiment_name, run_name,
     )
     return response
 
@@ -117,10 +114,8 @@ async def _create_pipeline(
     experiment_name: str,
     run_name: str,
     project: typing.Optional[str] = None,
-    allow_without_project: bool = False,
 ):
-    if not project and not allow_without_project:
-        raise mlrun.errors.MLRunInvalidArgumentError("Project must be provided")
+    # If we have the project (new clients from 0.7.0 uses the new endpoint in which it's mandatory) - check auth now
     if project:
         await run_in_threadpool(
             mlrun.api.utils.clients.opa.Client().query_resource_permissions,
@@ -137,6 +132,24 @@ async def _create_pipeline(
     data = await request.body()
     if not data:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="Request body is empty")
+    content_type = request.headers.get("content-type", "")
+
+    # otherwise, best effort - try to parse it from the body - if successful - perform auth check - otherwise explode
+    project = _try_resolve_project_from_body(content_type, data)
+    if not project:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Pipelines can not be created without a project - you are probably running with old client - try upgrade to"
+            " the server version"
+        )
+    else:
+        await run_in_threadpool(
+            mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+            mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            "",
+            mlrun.api.schemas.AuthorizationAction.create,
+            auth_info,
+        )
 
     arguments = {}
     # TODO: stop reading "pipeline-arguments" header when 0.6.6 is no longer relevant
@@ -146,7 +159,6 @@ async def _create_pipeline(
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
 
-    content_type = request.headers.get("content-type", "")
     run = await run_in_threadpool(
         mlrun.api.crud.Pipelines().create_pipeline,
         experiment_name,
@@ -161,6 +173,21 @@ async def _create_pipeline(
         "id": run.id,
         "name": run.name,
     }
+
+
+def _try_resolve_project_from_body(
+    content_type: str, data: bytes
+) -> typing.Optional[str]:
+    if "/yaml" not in content_type:
+        logger.warning(
+            "Could not resolve project from body, unsupported content type",
+            content_type=content_type,
+        )
+        return None
+    workflow_manifest = yaml.load(data, Loader=yaml.FullLoader)
+    return mlrun.api.crud.Pipelines().resolve_project_from_workflow_manifest(
+        workflow_manifest
+    )
 
 
 # curl http://localhost:8080/pipelines/:id

@@ -45,7 +45,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                 page_token = response.next_page_token
             project_runs = []
             for run_dict in run_dicts:
-                run_project = self.resolve_pipeline_project(run_dict)
+                run_project = self.resolve_project_from_pipeline(run_dict)
                 if run_project == project:
                     project_runs.append(run_dict)
             runs = project_runs
@@ -157,7 +157,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
         for run in runs:
-            run["project"] = self.resolve_pipeline_project(run)
+            run["project"] = self.resolve_project_from_pipeline(run)
         if format_ == mlrun.api.schemas.PipelinesFormat.full:
             return runs
         elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
@@ -243,10 +243,13 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
         return None
 
-    def resolve_pipeline_project(self, pipeline):
+    def resolve_project_from_pipeline(self, pipeline):
         workflow_manifest = json.loads(
             pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
         )
+        return self.resolve_project_from_workflow_manifest(workflow_manifest)
+
+    def resolve_project_from_workflow_manifest(self, workflow_manifest):
         templates = workflow_manifest.get("spec", {}).get("templates", [])
         for template in templates:
             project_from_annotation = (

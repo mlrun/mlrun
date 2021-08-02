@@ -20,6 +20,7 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.sources import StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
@@ -477,6 +478,10 @@ def deploy_ingestion_service(
         "mlrun.feature_store.ingestion.featureset_initializer"
     )
     function.verbose = function.verbose or verbose
+    if isinstance(source, StreamSource):
+        function.add_v3io_stream_trigger(
+            source.path, source.name, source.group, source.seek_to, source.shards
+        )
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
     return function.deploy()

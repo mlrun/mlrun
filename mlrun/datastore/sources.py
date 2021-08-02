@@ -312,11 +312,22 @@ class HttpSource(OnlineSource):
     kind = "http"
 
 
+class StreamSource(OnlineSource):
+    kind = "stream"
+
+    def __init__(self, path, name=kind, group="serving", seek_to="earliest", shards=1):
+        super().__init__(name, path)
+        self.group = group
+        self.seek_to = seek_to
+        self.shards = shards
+
+
 # map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
     "": BaseSourceDriver,
     "csv": CSVSource,
     "parquet": ParquetSource,
     "http": HttpSource,
+    "stream": StreamSource,
     "custom": CustomSource,
 }

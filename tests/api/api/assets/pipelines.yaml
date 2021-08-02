@@ -40,9 +40,8 @@ spec:
           - {name: prep-data-cleaned_data, path: /tmp/cleaned_data}
           - {name: prep-data-run_id, path: /tmp/run_id}
       metadata:
-        annotations: {mlrun/pipeline-step-type: run, mlrun/project: getting-started-tutorial-iguazio,
-                      mlrun/function-uri: getting-started-tutorial-iguazio/prep-data@96acae017100175c98d8d68ca3eeb50a2488c15e}
-   arguments:
+        annotations: {}
+  arguments:
     parameters:
       - {name: source_url, value: 'https://s3.wasabisys.com/bla/iris_dataset.csv'}
   serviceAccountName: mlrun-runner

@@ -245,7 +245,7 @@ def test_resolve_pipeline_project():
         pipeline = {
             "pipeline_spec": {"workflow_manifest": json.dumps(workflow_manifest)}
         }
-        project = mlrun.api.crud.pipelines.Pipelines().resolve_pipeline_project(
+        project = mlrun.api.crud.pipelines.Pipelines().resolve_project_from_pipeline(
             pipeline
         )
         assert project == case["expected_project"]

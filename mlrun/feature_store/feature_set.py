@@ -46,8 +46,6 @@ from ..utils import StorePrefix
 # So in order to make the code here runnable in Python 3.6 we're adding this condition which means the import won't be
 # executed in runtime
 
-
-
 aggregates_step = "Aggregates"
 
 

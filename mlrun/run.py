@@ -154,6 +154,7 @@ def run_local(
         if len(sp) > 1:
             args = args or []
             args = sp[1:] + args
+        name = name or pathlib.Path(command).stem
 
     meta = BaseMetadata(name, project=project, tag=tag)
     command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)

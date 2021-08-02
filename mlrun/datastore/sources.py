@@ -313,10 +313,10 @@ class HttpSource(OnlineSource):
 
 
 class StreamSource(OnlineSource):
-    kind = "stream"
+    kind = "v3ioStream"
 
-    def __init__(self, path, name=kind, group="serving", seek_to="earliest", shards=1, **kwargs):
-        super().__init__(name, path, **kwargs)
+    def __init__(self, path, group="serving", seek_to="earliest", shards=1, **kwargs):
+        super().__init__(path, **kwargs)
         self.group = group
         self.seek_to = seek_to
         self.shards = shards
@@ -328,6 +328,6 @@ source_kind_to_driver = {
     "csv": CSVSource,
     "parquet": ParquetSource,
     "http": HttpSource,
-    "stream": StreamSource,
+    "v3ioStream": StreamSource,
     "custom": CustomSource,
 }

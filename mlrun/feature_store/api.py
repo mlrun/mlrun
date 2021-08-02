@@ -266,21 +266,20 @@ def ingest(
                 "data source was not specified"
             )
 
-        if (
-            source.schedule
-            and featureset.status.targets
-            and featureset.status.targets[0].last_written
-        ):
-            print("wwwwe are here and setting min time")
-            min_time = datetime.fromisoformat(featureset.status.targets[0].last_written)
-            for target in featureset.status.targets:
-                if target.last_written:
-                    cur_last_written = datetime.fromisoformat(target.last_written)
-                    if cur_last_written < min_time:
-                        min_time = cur_last_written
+        if source.schedule:
+            featureset.reload(update_spec=False)
+            if featureset.status.targets and featureset.status.targets[0].last_written:
+                print("wwwwe are here and setting min time")
 
-            source.start_time = min_time
-            source.end_time = datetime.now()
+                min_time = datetime.fromisoformat(featureset.status.targets[0].last_written)
+                for target in featureset.status.targets:
+                    if target.last_written:
+                        cur_last_written = datetime.fromisoformat(target.last_written)
+                        if cur_last_written < min_time:
+                            min_time = cur_last_written
+
+                source.start_time = min_time
+                source.end_time = datetime.now()
 
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
         return_df = False

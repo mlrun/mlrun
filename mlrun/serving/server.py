@@ -271,7 +271,7 @@ def v2_serving_init(context, namespace=None):
     if config.log_level.lower() == "debug":
         server.verbose = True
     if hasattr(context, "trigger"):
-        server.http_trigger = getattr(context.trigger, "kind", "") == "http"
+        server.http_trigger = getattr(context.trigger, "kind", "http") == "http"
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     server.init_states(context, namespace or get_caller_globals())
     serving_handler = server.init_object(namespace or get_caller_globals())

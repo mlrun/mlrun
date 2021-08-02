@@ -28,6 +28,7 @@ from mlrun.api.schemas import (
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
+from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, runtime_resources_map
 from mlrun.runtimes import ServingRuntime
@@ -424,18 +425,14 @@ def _build_function(
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
                 try:
-                    # _init_model_monitoring_endpoint_records(
-                    #     fn, db_session=db_session, auth_info=auth_info,
-                    # )
                     if fn.spec.track_models:
-                        model_monitoring_access_key = _get_function_env_var(
-                            fn, "MODEL_MONITORING_ACCESS_KEY"
-                        )
-                        model_monitoring_access_key = get_item_name(
-                            model_monitoring_access_key, "value"
+                        model_monitoring_access_key = _get_project_secret(
+                            fn.metadata.project, "MODEL_MONITORING_ACCESS_KEY"
                         )
                         if model_monitoring_access_key:
-                            logger.info("Tracking enabled, initializing model monitoring")
+                            logger.info(
+                                "Tracking enabled, initializing model monitoring"
+                            )
                             _init_serving_function_stream_args(fn=fn)
                             _create_model_monitoring_stream(project=fn.metadata.project)
                             ModelEndpoints.deploy_monitoring_functions(
@@ -649,3 +646,25 @@ def _get_function_env_var(fn: ServingRuntime, var_name: str):
         if get_item_name(env_var) == var_name:
             return env_var
     return None
+
+
+def _get_project_secret(project_name: str, secret_key: str):
+    existing_secret_keys = (
+        get_k8s_helper().get_project_secret_keys(project=project_name) or {}
+    )
+    if secret_key in existing_secret_keys:
+        secret_value = get_k8s_helper().v1api.read_namespaced_secret(
+            name=secret_key, namespace=""
+        )
+        logger.info("Secret value", secret_value=secret_value)
+        secret_value = secret_value.data[secret_key]
+        logger.info(
+            "Grabbing project secret", project=project_name, secret_key=secret_key
+        )
+        return secret_value
+    else:
+        logger.info(
+            "Failed to grab project secret",
+            project=project_name,
+            secret_key=secret_key,
+        )

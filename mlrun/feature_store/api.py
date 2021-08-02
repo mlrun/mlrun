@@ -241,17 +241,6 @@ def ingest(
             "feature set and source must be specified"
         )
 
-    if overwrite is None:
-        print("jjjjjjjjj1")
-        print("iss instance" + str(isinstance(source, BaseSourceDriver)))
-        print("sssource " + str(source.schedule))
-        if isinstance(source, BaseSourceDriver) and source.schedule:
-            overwrite = False
-        else:
-            overwrite = True
-
-    print("ooooverwrite is " + str(overwrite))
-
     if run_config:
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
@@ -299,6 +288,19 @@ def ingest(
     namespace = namespace or get_caller_globals()
 
     purge_targets = targets or featureset.spec.targets or get_default_targets()
+
+    if overwrite is None:
+        print("jjjjjjjjj1")
+        print("iss instance" + str(isinstance(source, BaseSourceDriver)))
+        if isinstance(source, BaseSourceDriver) and source.schedule:
+            print("source schecule is " + str(source.schedule))
+            overwrite = False
+        else:
+            print("source schecule noit ")
+            overwrite = True
+
+    print("ooooverwrite is " + str(overwrite))
+
     if overwrite:
         validate_target_list(targets=purge_targets)
         purge_target_names = [

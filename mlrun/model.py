@@ -71,11 +71,13 @@ class ModelObj:
         struct = {} if struct is None else struct
         deprecated_fields = deprecated_fields or {}
         fields = fields or cls._dict_fields
-        if not fields:
-            fields = list(inspect.signature(cls.__init__).parameters.keys())
-        new_obj = cls()
         print("fields " + str(fields))
         print("deprecated_fields " + str(deprecated_fields))
+        if not fields:
+            fields = list(inspect.signature(cls.__init__).parameters.keys())
+            print("fields " + str(fields))
+        new_obj = cls()
+
         if struct:
             for key, val in struct.items():
                 print("key " + str(key) + " val " + str(val))

@@ -496,14 +496,15 @@ class BaseRuntime(ModelObj):
         project = runspec.metadata.project
         if is_ipython and config.ipython_widget:
             results_tbl.show()
-            print("to track results use .show() or .logs() run methods")
+            print()
             ui_url = get_ui_url(project, uid)
             if ui_url:
-                IPython.display.display(
-                    IPython.display.HTML(
-                        f' <a href="{ui_url}" target="_blank">click here</a> to open in UI'
-                    )
+                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
+            IPython.display.display(
+                IPython.display.HTML(
+                    "to track results use .show() or .logs() run methods" + ui_url
                 )
+            )
         else:
             ui_url = get_ui_url(project, uid)
             ui_url = f" or click {ui_url}" if ui_url else ""

@@ -2,6 +2,7 @@ import ast
 import http
 import json
 import tempfile
+import traceback
 import typing
 
 import kfp
@@ -133,18 +134,19 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             arguments=arguments,
         )
 
-        run = None
         try:
             kfp_client = kfp.Client(namespace=namespace)
             experiment = kfp_client.create_experiment(name=experiment_name)
             run = kfp_client.run_pipeline(
-                experiment.id, run_name, pipeline_file, params=arguments
+                experiment.id, run_name, pipeline_file.name, params=arguments
             )
         except Exception as exc:
-            mlrun.api.api.utils.log_and_raise(
-                http.HTTPStatus.BAD_REQUEST.value,
-                reason=f"Failed creating pipeline: {exc}",
+            logger.warning(
+                "Failed creating pipeline",
+                traceback=traceback.format_exc(),
+                exc=str(exc),
             )
+            raise mlrun.errors.MLRunBadRequestError(f"Failed creating pipeline: {exc}")
         finally:
             pipeline_file.close()
 

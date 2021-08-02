@@ -60,7 +60,7 @@ class LocalFeatureMerger:
             # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
             # column is from a specific feature set (can't be entity timestamp)
             if (
-                entity_timestamp_column in dict(columns)
+                entity_timestamp_column in column_names
                 or feature_set.spec.timestamp_key == entity_timestamp_column
             ):
                 df = feature_set.to_dataframe(

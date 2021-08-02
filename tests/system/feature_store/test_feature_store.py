@@ -776,7 +776,6 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-#    @pytest.mark.skip(reason="until we can schedule jobs every minute in system tests")
     def test_schedule_on_filtered_by_time(self):
         now = datetime.now() + timedelta(minutes=2)
         data = pd.DataFrame(
@@ -803,23 +802,25 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name="sched_test11", entities=[fs.Entity("first_name")], timestamp_key="time"
+            name="sched_test17",
+            entities=[fs.Entity("first_name")],
+            timestamp_key="time",
         )
         fs.ingest(
             feature_set,
             source,
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
-            overwrite=True,
         )
         sleep(60)
 
-        features = ["sched_test11.*"]
+        features = ["sched_test17.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
-        resp = fs.get_offline_features(vec)
-        vec_df = resp.to_dataframe()
-        vec_dict = vec_df.to_dict()
-        expected = {"data": {"moshe": 2000, "yosi": 10}}
-        assert expected == vec_dict
+
+        svc = fs.get_online_feature_service(vec)
+
+        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 2000
 
         data = pd.DataFrame(
             {
@@ -838,12 +839,19 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(data_set, data, targets=[target2])
 
         sleep(60)
-        resp = fs.get_offline_features(vec)
-        vec_df = resp.to_dataframe()
-        vec_dict = vec_df.to_dict()
+        resp = svc.get(
+            [
+                {"first_name": "yosi"},
+                {"first_name": "moshe"},
+                {"first_name": "katya"},
+                {"first_name": "dina"},
+            ]
+        )
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 50
+        assert resp[2] is None
+        assert resp[3]["data"] == 10
 
-        expected = {"data": {"moshe": 50, "dina": 10}}
-        assert expected == vec_dict
         sleep(120)
 
     def test_split_graph(self):

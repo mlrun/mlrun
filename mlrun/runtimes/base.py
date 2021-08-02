@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
+import IPython
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
@@ -495,11 +496,14 @@ class BaseRuntime(ModelObj):
         project = runspec.metadata.project
         if is_ipython and config.ipython_widget:
             results_tbl.show()
+            print("to track results use .show() or .logs() run methods")
             ui_url = get_ui_url(project, uid)
             if ui_url:
-                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
-
-            print(f"to track results use .show() or .logs() run methods{ui_url}")
+                IPython.display.display(
+                    IPython.display.HTML(
+                        f' <a href="{ui_url}" target="_blank">click here</a> to open in UI'
+                    )
+                )
         else:
             ui_url = get_ui_url(project, uid)
             ui_url = f" or click {ui_url}" if ui_url else ""

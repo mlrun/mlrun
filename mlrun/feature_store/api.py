@@ -242,6 +242,9 @@ def ingest(
         )
 
     if overwrite is None:
+        print("jjjjjjjjj1")
+        print("iss instance" + str(isinstance(source, BaseSourceDriver)))
+        print("sssource " + str(source.schedule))
         if isinstance(source, BaseSourceDriver) and source.schedule:
             overwrite = False
         else:

@@ -603,7 +603,6 @@ class FeatureSet(ModelObj):
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):
-        print("rrrreloading")
         """reload/sync the feature vector status and spec from the DB"""
         feature_set = self._get_run_db().get_feature_set(
             self.metadata.name, self.metadata.project, self.metadata.tag

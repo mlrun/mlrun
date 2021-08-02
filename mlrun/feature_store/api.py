@@ -290,16 +290,10 @@ def ingest(
     purge_targets = targets or featureset.spec.targets or get_default_targets()
 
     if overwrite is None:
-        print("jjjjjjjjj1")
-        print("iss instance" + str(isinstance(source, BaseSourceDriver)))
         if isinstance(source, BaseSourceDriver) and source.schedule:
-            print("source schecule is " + str(source.schedule))
             overwrite = False
         else:
-            print("source schecule noit ")
             overwrite = True
-
-    print("ooooverwrite is " + str(overwrite))
 
     if overwrite:
         validate_target_list(targets=purge_targets)

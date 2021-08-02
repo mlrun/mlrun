@@ -39,10 +39,10 @@ class K8sMock:
         for key in secrets:
             self._mock_secrets.pop(key, None)
 
-    def get_project_secrets(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace=""):
         return list(self._mock_secrets.keys())
 
-    def get_project_secret_values(self, project, secret_keys=None, namespace=""):
+    def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         return self._mock_secrets
 
 
@@ -52,11 +52,11 @@ def _mock_k8s_secrets(mock_object):
     get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
         return_value=True
     )
-    get_k8s().get_project_secrets = unittest.mock.Mock(
-        side_effect=mock_object.get_project_secrets
+    get_k8s().get_project_secret_keys = unittest.mock.Mock(
+        side_effect=mock_object.get_project_secret_keys
     )
-    get_k8s().get_project_secret_values = unittest.mock.Mock(
-        side_effect=mock_object.get_project_secret_values
+    get_k8s().get_project_secret_data = unittest.mock.Mock(
+        side_effect=mock_object.get_project_secret_data
     )
     get_k8s().store_project_secrets = unittest.mock.Mock(
         side_effect=mock_object.store_project_secrets

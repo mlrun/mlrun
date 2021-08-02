@@ -277,6 +277,9 @@ class OnlineSource(BaseSourceDriver):
         "time_field",
         "online",
         "workers",
+        "group",
+        "seek_to",
+        "shards",
     ]
     kind = ""
 
@@ -315,7 +318,14 @@ class HttpSource(OnlineSource):
 class StreamSource(OnlineSource):
     kind = "v3ioStream"
 
-    def __init__(self, path, group="serving", seek_to="earliest", shards=1, **kwargs):
+    def __init__(
+        self,
+        path: str,
+        group="serving",
+        seek_to="earliest",
+        shards=1,
+        **kwargs,
+    ):
         super().__init__(path=path, **kwargs)
         self.group = group
         self.seek_to = seek_to

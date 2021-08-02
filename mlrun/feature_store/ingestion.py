@@ -114,6 +114,7 @@ def context_to_ingestion_params(context):
     infer_options = context.get_param("infer_options", InferOptions.Null)
 
     source = context.get_param("source")
+    print("DINA!!! " + str(source))
     if source:
         source = get_source_from_dict(source)
     elif featureset.spec.source.to_dict():

@@ -130,6 +130,7 @@ def main():
     "--auto-mount", is_flag=True, help="add volume mount to job using auto mount option"
 )
 @click.option("--workdir", default="", help="run working directory")
+@click.option("--origin-file", default="", help="for internal use")
 @click.option("--label", multiple=True, help="run labels (key=val)")
 @click.option("--watch", "-w", is_flag=True, help="watch/tail run log")
 @click.option("--verbose", is_flag=True, help="verbose log")
@@ -172,6 +173,7 @@ def run(
     local,
     auto_mount,
     workdir,
+    origin_file,
     label,
     watch,
     verbose,
@@ -251,7 +253,9 @@ def run(
         code = get_in(runtime, "spec.build.functionSourceCode", code)
     if from_env and code:
         code = b64decode(code).decode("utf-8")
-        origin_file = pathlib.Path(get_in(runtime, "spec.build.origin_filename", ""))
+        origin_file = pathlib.Path(
+            get_in(runtime, "spec.build.origin_filename", origin_file)
+        )
         if kfp:
             print(f"code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"

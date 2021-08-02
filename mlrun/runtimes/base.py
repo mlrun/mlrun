@@ -566,6 +566,8 @@ class BaseRuntime(ModelObj):
                 args += ["--handler", runobj.spec.handler]
             if self.spec.mode:
                 args += ["--mode", self.spec.mode]
+            if self.spec.build.origin_filename:
+                args += ["--origin-file", self.spec.build.origin_filename]
 
             if load_archive:
                 if code:

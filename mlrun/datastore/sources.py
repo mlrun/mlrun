@@ -315,8 +315,8 @@ class HttpSource(OnlineSource):
 class StreamSource(OnlineSource):
     kind = "stream"
 
-    def __init__(self, path, name=kind, group="serving", seek_to="earliest", shards=1):
-        super().__init__(name, path)
+    def __init__(self, path, name=kind, group="serving", seek_to="earliest", shards=1, **kwargs):
+        super().__init__(name, path, **kwargs)
         self.group = group
         self.seek_to = seek_to
         self.shards = shards

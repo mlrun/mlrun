@@ -2261,7 +2261,7 @@ class HTTPRunDB(RunDBInterface):
             import mlrun.api.schemas
 
             # Add a private source as the last one (will be #1 in the list)
-            private_source = mlrun.api.schemas.OrderedMarketplaceSource(
+            private_source = mlrun.api.schemas.IndexedMarketplaceSource(
                 order=-1,
                 source=mlrun.api.schemas.MarketplaceSource(
                     metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="priv", description="a private source"),
@@ -2271,7 +2271,7 @@ class HTTPRunDB(RunDBInterface):
             db.create_marketplace_source(private_source)
 
             # Add another source as 1st in the list - will push previous one to be #2
-            another_source = mlrun.api.schemas.OrderedMarketplaceSource(
+            another_source = mlrun.api.schemas.IndexedMarketplaceSource(
                 order=1,
                 source=mlrun.api.schemas.MarketplaceSource(
                     metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="priv-2", description="another source"),
@@ -2285,7 +2285,7 @@ class HTTPRunDB(RunDBInterface):
             db.create_marketplace_source(another_source)
 
         :param source: The source and its order, of type
-            :py:class:`~mlrun.api.schemas.marketplace.OrderedMarketplaceSource`, or in dictionary form.
+            :py:class:`~mlrun.api.schemas.marketplace.IndexedMarketplaceSource`, or in dictionary form.
         :returns: The source object as inserted into the database, with credentials stripped.
         """
         path = "marketplace/sources"
@@ -2358,12 +2358,12 @@ class HTTPRunDB(RunDBInterface):
     ):
         """
         Retrieve the item catalog for a specified marketplace source.
-        The list of items can be filtered according to various metadata filters.
+        The list of items can be filtered according to various filters, using item's metadata to filter.
 
         :param source_name: Name of the source.
         :param channel: Filter items according to their channel. For example ``development``.
-        :param version: Filter according to version.
-        :param tag: Filter based on tag.
+        :param version: Filter items according to their version.
+        :param tag: Filter items based on tag.
         :param force_refresh: Make the server fetch the catalog from the actual marketplace source, rather than rely
             on cached information which may exist from previous get requests. For example, if the source was re-built,
             this will make the server get the updated information. Default is ``False``.

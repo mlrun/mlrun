@@ -2540,6 +2540,12 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def create_marketplace_source(
         self, session, ordered_source: schemas.IndexedMarketplaceSource
     ):
+        logger.debug(
+            "Creating marketplace source in DB",
+            index=ordered_source.index,
+            name=ordered_source.source.metadata.name,
+        )
+
         order = self._validate_and_adjust_marketplace_order(
             session, ordered_source.index
         )
@@ -2560,6 +2566,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     def store_marketplace_source(
         self, session, name, ordered_source: schemas.IndexedMarketplaceSource,
     ):
+        logger.debug(
+            "Storing marketplace source in DB", index=ordered_source.index, name=name
+        )
+
         if name != ordered_source.source.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Conflict between resource name and metadata.name in the stored object"
@@ -2599,6 +2609,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         return results
 
     def delete_marketplace_source(self, session, name):
+        logger.debug("Deleting marketplace source from DB", name=name)
+
         source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
         if not source_record:
             return

@@ -150,6 +150,11 @@ class Client(
                 f"Provided format is not supported. format={format_}"
             )
 
+    def get_dashboard_version(self) -> str:
+        response = self._send_request_to_api("GET", "versions")
+        response_body = response.json()
+        return response_body["dashboard"]["label"]
+
     def _get_project_from_nuclio(self, name):
         return self._send_request_to_api("GET", f"projects/{name}")
 

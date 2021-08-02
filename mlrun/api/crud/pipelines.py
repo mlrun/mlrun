@@ -119,9 +119,8 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                 reason=f"unsupported pipeline type {content_type}",
             )
 
-        logger.debug(
-            "Writing pipeline to temp file", content_type=content_type, data=data
-        )
+        logger.debug("Writing pipeline to temp file", content_type=content_type)
+        logger.debug(data)
 
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

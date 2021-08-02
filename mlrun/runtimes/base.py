@@ -505,13 +505,13 @@ class BaseRuntime(ModelObj):
                     f"<b> > to track results use .show() or .logs() run methods {ui_url}</b>"
                 )
             )
-        else:
+        elif not self.is_child:
             ui_url = get_ui_url(project, uid)
-            ui_url = f" or click {ui_url}" if ui_url else ""
+            ui_url = f"\nor click {ui_url} for UI" if ui_url else ""
             proj = f"-p {project}" if project else ""
             print(
-                f"to track results use the following CLI commands{ui_url}:\n"
-                f" mlrun get run {uid} {proj}\n mlrun logs {uid} {proj}"
+                f"to track results use the CLI:\n"
+                f"info: mlrun get run {uid} {proj}\nlogs: mlrun logs {uid} {proj}{ui_url}"
             )
 
         if result:

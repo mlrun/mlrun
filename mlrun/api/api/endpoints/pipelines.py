@@ -82,7 +82,7 @@ async def submit_pipeline_legacy(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    response = await _submit_pipeline(
+    response = await _create_pipeline(
         auth_verifier.auth_info,
         request,
         namespace,
@@ -104,13 +104,13 @@ async def create_pipeline(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    response = await _submit_pipeline(
+    response = await _create_pipeline(
         auth_verifier.auth_info, request, namespace, experiment_name, run_name, project
     )
     return response
 
 
-async def _submit_pipeline(
+async def _create_pipeline(
     auth_info: mlrun.api.schemas.AuthInfo,
     request: Request,
     namespace: str,
@@ -170,11 +170,25 @@ async def _submit_pipeline(
 def get_pipeline_legacy(
     run_id: str,
     namespace: str = Query(config.namespace),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return mlrun.api.crud.Pipelines().get_pipeline(
-        db_session, run_id, namespace=namespace
+    run = mlrun.api.crud.Pipelines().get_pipeline(
+        db_session,
+        run_id,
+        namespace=namespace,
+        format_=mlrun.api.schemas.PipelinesFormat.summary,
     )
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+        run["run"]["project"],
+        run["run"]["id"],
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
+    return run
 
 
 @router.get("/projects/{project}/pipelines/{run_id}")
@@ -185,8 +199,18 @@ def get_pipeline(
     format_: mlrun.api.schemas.PipelinesFormat = Query(
         mlrun.api.schemas.PipelinesFormat.summary, alias="format"
     ),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+        project,
+        run_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     return mlrun.api.crud.Pipelines().get_pipeline(
         db_session, run_id, project, namespace, format_
     )

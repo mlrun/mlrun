@@ -61,7 +61,7 @@ from ..utils import (
     is_ipython,
     logger,
     now_date,
-    update_in,
+    update_in, get_ui_url,
 )
 from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
@@ -489,18 +489,23 @@ class BaseRuntime(ModelObj):
         else:
             logger.info("no returned result (job may still be in progress)")
             results_tbl.append(runspec.to_dict())
+
+        uid = runspec.metadata.uid
+        project = runspec.metadata.project
         if is_ipython and config.ipython_widget:
             results_tbl.show()
+            ui_url = get_ui_url(project, uid)
+            if ui_url:
+                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
 
-            uid = runspec.metadata.uid
-            proj = (
-                f"--project {runspec.metadata.project}"
-                if runspec.metadata.project
-                else ""
-            )
+            print(f"to track results use .show() or .logs() run methods{ui_url}")
+        else:
+            ui_url = get_ui_url(project, uid)
+            ui_url = f" or click {ui_url}" if ui_url else ""
+            proj = f"-p {project}" if project else ""
             print(
-                "to track results use .show() or .logs() or in CLI: \n"
-                f"!mlrun get run {uid} {proj} , !mlrun logs {uid} {proj}"
+                f"to track results use the following CLI commands{ui_url}:\n"
+                f" mlrun get run {uid} {proj}\n mlrun logs {uid} {proj}"
             )
 
         if result:

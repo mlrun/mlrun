@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import traceback
@@ -656,11 +657,7 @@ def _get_project_secret(project_name: str, secret_key: str):
         secret_value = get_k8s_helper().v1api.read_namespaced_secret(
             name=secret_key, namespace=""
         )
-        logger.info("Secret value", secret_value=secret_value)
-        secret_value = secret_value.data[secret_key]
-        logger.info(
-            "Grabbing project secret", project=project_name, secret_key=secret_key
-        )
+        secret_value = base64.b64decode(secret_value.data[secret_key]).decode("utf-8")
         return secret_value
     else:
         logger.info(

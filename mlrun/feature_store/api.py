@@ -24,6 +24,7 @@ from ..datastore.sources import StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
+    get_default_prefix_for_target,
     get_default_targets,
     get_target_driver,
     validate_target_list,
@@ -450,6 +451,13 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
+    if isinstance(source, StreamSource) and not source.path:
+        source.path = get_default_prefix_for_target(source.kind).format(
+            project=featureset.metadata.project,
+            kind=source.kind,
+            name=featureset.metadata.name,
+        )
+        print("DINA new stream name " + str(source.pathgit ))
     source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters
     )

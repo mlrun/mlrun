@@ -86,7 +86,12 @@ class ModelObj:
                     setattr(new_obj, key, val)
             for deprecated_field, new_field in deprecated_fields.items():
                 field_value = struct.get(new_field) or struct.get(deprecated_field)
-                print("struct.get(new_field) " + str(struct.get(new_field)) + " struct.get(deprecated_field) " + str(struct.get(deprecated_field)))
+                print(
+                    "struct.get(new_field) "
+                    + str(struct.get(new_field))
+                    + " struct.get(deprecated_field) "
+                    + str(struct.get(deprecated_field))
+                )
                 if field_value:
                     print("setattr2  ")
                     setattr(new_obj, new_field, field_value)

@@ -657,10 +657,10 @@ def _get_project_secret(project_name: str, secret_key: str):
         get_k8s_helper().get_project_secret_keys(project=project_name) or {}
     )
     if secret_key in existing_secret_keys:
-        secret_value = get_k8s_helper().v1api.read_namespaced_secret(
-            name=secret_key, namespace=config.namespace
+        secret_values = get_k8s_helper().get_project_secret_values(
+            project=project_name, namespace=config.namespace
         )
-        secret_value = base64.b64decode(secret_value.data[secret_key]).decode("utf-8")
+        secret_value = secret_values[secret_key]
         return secret_value
     else:
         logger.info(

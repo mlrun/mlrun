@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -348,7 +348,6 @@ class FileDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        leader_session: Optional[str] = None,
     ):
         raise NotImplementedError()
 

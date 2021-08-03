@@ -685,7 +685,7 @@ class FileRunDB(RunDBInterface):
     def list_artifact_tags(self, project=None):
         raise NotImplementedError()
 
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -694,10 +694,12 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+    def delete_model_endpoint_record(
+        self, project: str, endpoint_id: str, access_key=None
+    ):
         raise NotImplementedError()
 
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -710,7 +712,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -719,6 +721,12 @@ class FileRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
     ):
         raise NotImplementedError()
 

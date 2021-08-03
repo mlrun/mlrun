@@ -79,6 +79,10 @@ class AuthVerifier:
             if projects_role_header
             else None
         )
+        # In Iguazio 3.0 we're running with auth mode none cause auth is done by the ingress, in that auth mode sessions
+        # needed for data operations were passed through this header, keep reading it to be backwards compatible
+        if not self.auth_info.data_session and "X-V3io-Session-Key" in request.headers:
+            self.auth_info.data_session = request.headers["X-V3io-Session-Key"]
 
     @staticmethod
     def _basic_auth_required():

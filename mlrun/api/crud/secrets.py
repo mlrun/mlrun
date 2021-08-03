@@ -121,25 +121,13 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 f"Provider requested is not supported. provider = {provider}"
             )
 
-    def _get_kubernetes_secret_value(
-        self, project: str, key: str, raise_on_not_found: bool = True
-    ) -> typing.Optional[str]:
-        data = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(project)
-        if key not in data:
-            if raise_on_not_found:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Key not found in secret. key={key}"
-                )
-            else:
-                return None
-        return data[key]
-
     def list_secrets(
         self,
         project: str,
         provider: mlrun.api.schemas.SecretProviderName,
         secrets: typing.Optional[typing.List[str]] = None,
         token: typing.Optional[str] = None,
+        allow_secrets_from_k8s: bool = False
     ) -> mlrun.api.schemas.SecretsData:
         if provider == mlrun.api.schemas.SecretProviderName.vault:
             if not token:
@@ -151,6 +139,15 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
             secret_values = vault.get_secrets(secrets, project=project)
             return mlrun.api.schemas.SecretsData(
                 provider=provider, secrets=secret_values
+            )
+        elif provider == mlrun.api.schemas.SecretProviderName.kubernetes:
+            if not allow_secrets_from_k8s:
+                raise mlrun.errors.MLRunAccessDeniedError("Not allowed to list secrets data from kubernetes provider")
+            secrets_data = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(
+                project, secrets
+            )
+            return mlrun.api.schemas.SecretsData(
+                provider=provider, secrets=secrets_data
             )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

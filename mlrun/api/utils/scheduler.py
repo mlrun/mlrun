@@ -381,12 +381,13 @@ class Scheduler:
 
                 session = None
                 if self._store_schedule_credentials_in_secrets:
-                    session = mlrun.api.crud.Secrets()._get_kubernetes_secret_value(
+                    session = mlrun.api.crud.Secrets().list_secrets(
                         db_schedule.project,
+                        mlrun.api.schemas.SecretProviderName.kubernetes,
                         mlrun.api.crud.Secrets().generate_schedule_secret_key(
                             db_schedule.name
                         ),
-                        raise_on_not_found=False,
+                        allow_secrets_from_k8s=True,
                     )
                 self._create_schedule_in_scheduler(
                     db_schedule.project,

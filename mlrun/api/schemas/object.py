@@ -60,3 +60,6 @@ class ObjectKind(str, Enum):
     background_task = "BackgroundTask"
     feature_vector = "FeatureVector"
     model_endpoint = "model-endpoint"
+    marketplace_source = "MarketplaceSource"
+    marketplace_item = "MarketplaceItem"
+    marketplace_catalog = "MarketplaceCatalog"

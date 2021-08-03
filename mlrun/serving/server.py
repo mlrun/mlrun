@@ -102,6 +102,7 @@ class GraphServer(ModelObj):
         self._db_conn = None
         self.resource_cache = None
         self.default_content_type = default_content_type
+        self.http_trigger = True
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -269,6 +270,8 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if config.log_level.lower() == "debug":
         server.verbose = True
+    if hasattr(context, "trigger"):
+        server.http_trigger = getattr(context.trigger, "kind", "http") == "http"
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     server.init_states(context, namespace or get_caller_globals())
     serving_handler = server.init_object(namespace or get_caller_globals())
@@ -282,6 +285,8 @@ def v2_serving_init(context, namespace=None):
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
+    if not context.server.http_trigger:
+        event.path = "/"  # fix the issue that non http returns "Unsupported"
     return context.server.run(event, context, get_body)
 
 

@@ -1,5 +1,4 @@
 import base64
-import json
 import os
 import traceback
 from distutils.util import strtobool
@@ -651,20 +650,10 @@ def _get_function_env_var(fn: ServingRuntime, var_name: str):
 
 def _get_project_secret(project_name: str, secret_key: str):
     logger.info(
-        "Setting project secret", project_name=project_name, namespace=config.namespace
+        "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-    existing_secret_keys = (
-        get_k8s_helper().get_project_secret_keys(project=project_name) or {}
+    secret_values = get_k8s_helper().get_project_secret_values(
+        project=project_name, namespace=config.namespace
     )
-    if secret_key in existing_secret_keys:
-        secret_values = get_k8s_helper().get_project_secret_values(
-            project=project_name, namespace=config.namespace
-        )
-        secret_value = secret_values[secret_key]
-        return secret_value
-    else:
-        logger.info(
-            "Failed to grab project secret",
-            project=project_name,
-            secret_key=secret_key,
-        )
+    secret_value = secret_values[secret_key]
+    return secret_value

@@ -3,7 +3,7 @@ import re
 import typing
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import humanfriendly
 import mergedeep
@@ -32,6 +32,7 @@ from mlrun.api.db.sqldb.models import (
     FeatureVector,
     Function,
     Log,
+    MarketplaceSource,
     Project,
     Run,
     Schedule,
@@ -39,7 +40,6 @@ from mlrun.api.db.sqldb.models import (
     _labeled,
     _tagged,
 )
-from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
@@ -69,7 +69,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
-        return
+        pass
 
     def store_log(
         self, session, uid, project="", body=b"", append=False,
@@ -639,11 +639,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        leader_session: Optional[str] = None,
     ):
-        get_project_member().ensure_project(
-            session, project, leader_session=leader_session
-        )
         schedule = self._get_schedule_record(session, project, name)
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
@@ -720,7 +716,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def _delete_schedules(self, session: Session, project: str):
+    def delete_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
         for schedule in self.list_schedules(session, project=project):
             self.delete_schedule(session, project, schedule.name)
@@ -1122,7 +1118,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)
-        self._delete_schedules(session, name)
+        self.delete_schedules(session, name)
         self._delete_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
@@ -2437,3 +2433,203 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             return project
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)
+
+    def _move_and_reorder_table_items(
+        self, session, moved_object, move_to=None, move_from=None
+    ):
+        # If move_to is None - delete object. If move_from is None - insert a new object
+        moved_object.index = move_to
+
+        if move_from == move_to:
+            # It's just modifying the same object - update and exit.
+            session.merge(moved_object)
+            session.commit()
+            return
+
+        modifier = 1
+        if move_from is None:
+            start, end = move_to, None
+        elif move_to is None:
+            start, end = move_from + 1, None
+            modifier = -1
+        else:
+            if move_from < move_to:
+                start, end = move_from + 1, move_to
+                modifier = -1
+            else:
+                start, end = move_to, move_from - 1
+
+        query = session.query(MarketplaceSource).filter(
+            MarketplaceSource.index >= start
+        )
+        if end:
+            query = query.filter(MarketplaceSource.index <= end)
+
+        for source_record in query:
+            source_record.index = source_record.index + modifier
+            session.merge(source_record)
+
+        if move_to:
+            session.merge(moved_object)
+        else:
+            session.delete(moved_object)
+        session.commit()
+
+    @staticmethod
+    def _transform_marketplace_source_record_to_schema(
+        marketplace_source_record: MarketplaceSource,
+    ) -> schemas.IndexedMarketplaceSource:
+        source_full_dict = marketplace_source_record.full_object
+        marketplace_source = schemas.MarketplaceSource(**source_full_dict)
+        return schemas.IndexedMarketplaceSource(
+            index=marketplace_source_record.index, source=marketplace_source
+        )
+
+    @staticmethod
+    def _transform_marketplace_source_schema_to_record(
+        marketplace_source_schema: schemas.IndexedMarketplaceSource,
+        current_object: MarketplaceSource = None,
+    ):
+        now = datetime.now(timezone.utc)
+        if current_object:
+            if current_object.name != marketplace_source_schema.source.metadata.name:
+                raise mlrun.errors.MLRunInternalServerError(
+                    "Attempt to update object while replacing its name"
+                )
+            created_timestamp = current_object.created
+        else:
+            created_timestamp = marketplace_source_schema.source.metadata.created or now
+        updated_timestamp = marketplace_source_schema.source.metadata.updated or now
+
+        marketplace_source_record = MarketplaceSource(
+            id=current_object.id if current_object else None,
+            name=marketplace_source_schema.source.metadata.name,
+            index=marketplace_source_schema.index,
+            created=created_timestamp,
+            updated=updated_timestamp,
+        )
+        full_object = marketplace_source_schema.source.dict()
+        full_object["metadata"]["created"] = str(created_timestamp)
+        full_object["metadata"]["updated"] = str(updated_timestamp)
+        # Make sure we don't keep any credentials in the DB. These are handled in the marketplace crud object.
+        full_object["spec"].pop("credentials", None)
+
+        marketplace_source_record.full_object = full_object
+        return marketplace_source_record
+
+    @staticmethod
+    def _validate_and_adjust_marketplace_order(session, order):
+        max_order = session.query(func.max(MarketplaceSource.index)).scalar()
+        if not max_order or max_order < 0:
+            max_order = 0
+
+        if order == schemas.marketplace.last_source_index:
+            order = max_order + 1
+
+        if order > max_order + 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Order must not exceed the current maximal order + 1. max_order = {max_order}, order = {order}"
+            )
+        if order < 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Order of inserted source must be greater than 0 or "
+                + f"{schemas.marketplace.last_source_index} (for last). order = {order}"
+            )
+        return order
+
+    def create_marketplace_source(
+        self, session, ordered_source: schemas.IndexedMarketplaceSource
+    ):
+        logger.debug(
+            "Creating marketplace source in DB",
+            index=ordered_source.index,
+            name=ordered_source.source.metadata.name,
+        )
+
+        order = self._validate_and_adjust_marketplace_order(
+            session, ordered_source.index
+        )
+        name = ordered_source.source.metadata.name
+        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        if source_record:
+            raise mlrun.errors.MLRunConflictError(
+                f"Marketplace source name already exists. name = {name}"
+            )
+        source_record = self._transform_marketplace_source_schema_to_record(
+            ordered_source
+        )
+
+        self._move_and_reorder_table_items(
+            session, source_record, move_to=order, move_from=None
+        )
+
+    def store_marketplace_source(
+        self, session, name, ordered_source: schemas.IndexedMarketplaceSource,
+    ):
+        logger.debug(
+            "Storing marketplace source in DB", index=ordered_source.index, name=name
+        )
+
+        if name != ordered_source.source.metadata.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Conflict between resource name and metadata.name in the stored object"
+            )
+        order = self._validate_and_adjust_marketplace_order(
+            session, ordered_source.index
+        )
+
+        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        current_order = source_record.index if source_record else None
+        if current_order == schemas.marketplace.last_source_index:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Attempting to modify the global marketplace source."
+            )
+        source_record = self._transform_marketplace_source_schema_to_record(
+            ordered_source, source_record
+        )
+
+        self._move_and_reorder_table_items(
+            session, source_record, move_to=order, move_from=current_order
+        )
+
+    def list_marketplace_sources(
+        self, session
+    ) -> List[schemas.IndexedMarketplaceSource]:
+        results = []
+        query = self._query(session, MarketplaceSource).order_by(
+            MarketplaceSource.index.desc()
+        )
+        for record in query:
+            ordered_source = self._transform_marketplace_source_record_to_schema(record)
+            # Need this to make the list return such that the default source is last in the response.
+            if ordered_source.index != schemas.last_source_index:
+                results.insert(0, ordered_source)
+            else:
+                results.append(ordered_source)
+        return results
+
+    def delete_marketplace_source(self, session, name):
+        logger.debug("Deleting marketplace source from DB", name=name)
+
+        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        if not source_record:
+            return
+
+        current_order = source_record.index
+        if current_order == schemas.marketplace.last_source_index:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Attempting to delete the global marketplace source."
+            )
+
+        self._move_and_reorder_table_items(
+            session, source_record, move_to=None, move_from=current_order
+        )
+
+    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        if not source_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Marketplace source not found. name = {name}"
+            )
+
+        return self._transform_marketplace_source_record_to_schema(source_record)

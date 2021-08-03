@@ -44,6 +44,7 @@ default_config = {
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
+    "nuclio_version": "",
     "default_nuclio_runtime": "python:3.7",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
@@ -164,6 +165,7 @@ default_config = {
             # better performance wise, so made it a mode
             # one of: cache, none
             "follower_projects_store_mode": "none",
+            "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -225,6 +227,18 @@ default_config = {
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
+    },
+    "marketplace": {
+        "k8s_secrets_project_name": "-marketplace-secrets",
+        "catalog_filename": "catalog.json",
+        "default_source": {
+            # Set to false to avoid creating a global source (for example in a dark site)
+            "create": True,
+            "name": "mlrun_global_hub",
+            "description": "MLRun global function hub",
+            "url": "https://raw.githubusercontent.com/mlrun/marketplace",
+            "channel": "master",
+        },
     },
 }
 

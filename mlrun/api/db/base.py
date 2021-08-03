@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from mlrun.api import schemas
 
@@ -166,7 +166,6 @@ class DBInterface(ABC):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        leader_session: Optional[str] = None,
     ):
         pass
 
@@ -187,6 +186,10 @@ class DBInterface(ABC):
 
     @abstractmethod
     def delete_schedule(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def delete_schedules(self, session, project: str):
         pass
 
     @abstractmethod
@@ -400,3 +403,24 @@ class DBInterface(ABC):
 
     def list_artifact_tags(self, session, project):
         return []
+
+    def create_marketplace_source(
+        self, session, ordered_source: schemas.IndexedMarketplaceSource
+    ):
+        pass
+
+    def store_marketplace_source(
+        self, session, name, ordered_source: schemas.IndexedMarketplaceSource
+    ):
+        pass
+
+    def list_marketplace_sources(
+        self, session
+    ) -> List[schemas.IndexedMarketplaceSource]:
+        pass
+
+    def delete_marketplace_source(self, session, name):
+        pass
+
+    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+        pass

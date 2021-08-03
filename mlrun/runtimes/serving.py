@@ -243,15 +243,9 @@ class ServingRuntime(RemoteRuntime):
                              (i.e. v3io:///projects/{project_name}). When provided, model monitoring functions will be
                              automatically deployed.
         """
-        if model_monitoring_access_key and stream_path:
-            raise ValueError("Model monitoring does not support custom stream paths")
-
         self.spec.track_models = True
 
         if stream_path:
-            logger.warn(
-                "Passing stream_path to set_tracking is no longer supported, ignoring stream_path"
-            )
             self.spec.parameters["log_stream"] = stream_path
         if batch:
             self.spec.parameters["log_stream_batch"] = batch
@@ -259,9 +253,6 @@ class ServingRuntime(RemoteRuntime):
             self.spec.parameters["log_stream_sample"] = sample
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
-
-        if model_monitoring_access_key:
-            self.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
 
     def add_model(
         self,

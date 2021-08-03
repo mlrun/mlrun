@@ -1007,8 +1007,8 @@ class DataSource(ModelObj):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        start_time: Optional[Union[str, datetime]] = None,
-        end_time: Optional[Union[str, datetime]] = None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
     ):
 
         self.name = name

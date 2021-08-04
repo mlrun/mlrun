@@ -65,9 +65,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         if not allow_internal_secrets:
             if secrets:
                 for secret_key in secrets:
-                    if (
-                        self._is_internal_secret_key(secret_key)
-                    ):
+                    if self._is_internal_secret_key(secret_key):
                         raise mlrun.errors.MLRunAccessDeniedError(
                             f"Not allowed to delete internal secrets (key starts with "
                             f"{self.internal_secrets_key_prefix})"
@@ -75,8 +73,14 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
             else:
                 # When secrets are not provided the default behavior will be to delete them all, but if internal secrets
                 # are not allowed, we don't want to delete them, so we list the keys and filter them out
-                secrets_keys_data = self.list_secret_keys(project, provider, allow_internal_secrets=True)
-                secrets = [key for key in secrets_keys_data.secret_keys if not self._is_internal_secret_key(key)]
+                secrets_keys_data = self.list_secret_keys(
+                    project, provider, allow_internal_secrets=True
+                )
+                secrets = [
+                    key
+                    for key in secrets_keys_data.secret_keys
+                    if not self._is_internal_secret_key(key)
+                ]
                 if not secrets:
                     # nothing to remove - return
                     return

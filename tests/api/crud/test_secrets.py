@@ -124,12 +124,12 @@ def test_secrets_crud_internal_secrets(
         project, provider, allow_secrets_from_k8s=True, allow_internal_secrets=True,
     )
     assert (
-            deepdiff.DeepDiff(
-                secrets_data.secrets,
-                {internal_secret_key: internal_secret_value},
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            secrets_data.secrets,
+            {internal_secret_key: internal_secret_value},
+            ignore_order=True,
+        )
+        == {}
     )
 
     # delete internal secret without allow - fail
@@ -146,14 +146,7 @@ def test_secrets_crud_internal_secrets(
     secrets_data = mlrun.api.crud.Secrets().list_secrets(
         project, provider, allow_secrets_from_k8s=True
     )
-    assert (
-            deepdiff.DeepDiff(
-                secrets_data.secrets,
-                {},
-                ignore_order=True,
-            )
-            == {}
-    )
+    assert deepdiff.DeepDiff(secrets_data.secrets, {}, ignore_order=True,) == {}
 
     # store internal secret again to verify deletion with empty list with allow - pass
     mlrun.api.crud.Secrets().store_secrets(
@@ -171,11 +164,4 @@ def test_secrets_crud_internal_secrets(
     secrets_data = mlrun.api.crud.Secrets().list_secrets(
         project, provider, allow_secrets_from_k8s=True
     )
-    assert (
-            deepdiff.DeepDiff(
-                secrets_data.secrets,
-                {},
-                ignore_order=True,
-            )
-            == {}
-    )
+    assert deepdiff.DeepDiff(secrets_data.secrets, {}, ignore_order=True,) == {}

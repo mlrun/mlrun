@@ -123,12 +123,11 @@ def test_patch_project(
     _assert_project_in_follower(projects_follower, project)
 
     patched_description = "new description"
-    # project exists - store will update
     patched_project, _ = projects_follower.patch_project(
         None, project.metadata.name, {"spec": {"description": patched_description}}
     )
     expected_patched_project = _generate_project(description=patched_description)
-    expected_patched_project.status.state = mlrun.api.schemas.ProjectState.online.value
+    expected_patched_project.status.state = mlrun.api.schemas.ProjectState.online
     _assert_projects_equal(expected_patched_project, patched_project)
     _assert_project_in_follower(projects_follower, expected_patched_project)
 

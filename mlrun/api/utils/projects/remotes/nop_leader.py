@@ -38,7 +38,9 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
 
     @staticmethod
     def _update_state(project: mlrun.api.schemas.Project):
-        project.status.state = project.spec.desired_state
+        project.status.state = mlrun.api.schemas.ProjectState(
+            project.spec.desired_state
+        )
 
     def delete_project(
         self,

@@ -1,5 +1,5 @@
-import fastapi.testclient
 import deepdiff
+import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
@@ -32,13 +32,17 @@ def test_store_secrets_verifications(
 
 
 def test_secrets_crud_internal_secrets(
-        db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
     regular_secret_key = "key"
     regular_secret_value = "value"
-    internal_secret_key = f"{mlrun.api.crud.Secrets().internal_secrets_key_prefix}internal-key"
+    internal_secret_key = (
+        f"{mlrun.api.crud.Secrets().internal_secrets_key_prefix}internal-key"
+    )
     internal_secret_value = "internal-value"
 
     # store regular secret - pass
@@ -72,36 +76,52 @@ def test_secrets_crud_internal_secrets(
     assert secret_keys_data.secret_keys == [regular_secret_key]
 
     # list keys with allow - regular and internal
-    secret_keys_data = mlrun.api.crud.Secrets().list_secret_keys(project, provider, allow_internal_secrets=True)
+    secret_keys_data = mlrun.api.crud.Secrets().list_secret_keys(
+        project, provider, allow_internal_secrets=True
+    )
     assert secret_keys_data.secret_keys == [regular_secret_key, internal_secret_key]
 
     # list data without allow - regular only
-    secrets_data = mlrun.api.crud.Secrets().list_secrets(project, provider, allow_secrets_from_k8s=True)
-    assert deepdiff.DeepDiff(secrets_data.secrets, {regular_secret_key:regular_secret_value}, ignore_order=True,) == {}
+    secrets_data = mlrun.api.crud.Secrets().list_secrets(
+        project, provider, allow_secrets_from_k8s=True
+    )
+    assert (
+        deepdiff.DeepDiff(
+            secrets_data.secrets,
+            {regular_secret_key: regular_secret_value},
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # list data with allow - regular and internal
-    secrets_data = mlrun.api.crud.Secrets().list_secrets(project, provider, allow_secrets_from_k8s=True, allow_internal_secrets=True)
-    assert deepdiff.DeepDiff(secrets_data.secrets, {regular_secret_key:regular_secret_value, internal_secret_key:internal_secret_value}, ignore_order=True,) == {}
+    secrets_data = mlrun.api.crud.Secrets().list_secrets(
+        project, provider, allow_secrets_from_k8s=True, allow_internal_secrets=True
+    )
+    assert (
+        deepdiff.DeepDiff(
+            secrets_data.secrets,
+            {
+                regular_secret_key: regular_secret_value,
+                internal_secret_key: internal_secret_value,
+            },
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # delete regular secret - pass
     mlrun.api.crud.Secrets().delete_secrets(
-        project,
-        provider,
-        [regular_secret_key],
+        project, provider, [regular_secret_key],
     )
 
     # delete internal secret - fail
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         mlrun.api.crud.Secrets().delete_secrets(
-            project,
-            provider,
-            [internal_secret_key],
+            project, provider, [internal_secret_key],
         )
 
     # delete internal secret with allow - pass
     mlrun.api.crud.Secrets().delete_secrets(
-        project,
-        provider,
-        [internal_secret_key],
-        allow_internal_secrets=True
+        project, provider, [internal_secret_key], allow_internal_secrets=True
     )

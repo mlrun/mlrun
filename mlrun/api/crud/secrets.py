@@ -65,8 +65,8 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         if secrets:
             for secret_key in secrets:
                 if (
-                        self._is_internal_secret_key(secret_key)
-                        and not allow_internal_secrets
+                    self._is_internal_secret_key(secret_key)
+                    and not allow_internal_secrets
                 ):
                     raise mlrun.errors.MLRunAccessDeniedError(
                         f"Not allowed to delete internal secrets (key starts with "
@@ -128,7 +128,9 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 f"Provider requested is not supported. provider = {provider}"
             )
         if not allow_internal_secrets:
-            secret_keys = list(filter(lambda key: not self._is_internal_secret_key(key), secret_keys))
+            secret_keys = list(
+                filter(lambda key: not self._is_internal_secret_key(key), secret_keys)
+            )
 
         return mlrun.api.schemas.SecretKeysData(
             provider=provider, secret_keys=secret_keys
@@ -153,7 +155,9 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
             secrets_data = vault.get_secrets(secrets, project=project)
         elif provider == mlrun.api.schemas.SecretProviderName.kubernetes:
             if not allow_secrets_from_k8s:
-                raise mlrun.errors.MLRunAccessDeniedError("Not allowed to list secrets data from kubernetes provider")
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Not allowed to list secrets data from kubernetes provider"
+                )
             secrets_data = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(
                 project, secrets
             )
@@ -163,10 +167,12 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 f"Provider requested is not supported. provider = {provider}"
             )
         if not allow_internal_secrets:
-            secrets_data = {key: value for key, value in secrets_data.items() if not self._is_internal_secret_key(key)}
-        return mlrun.api.schemas.SecretsData(
-            provider=provider, secrets=secrets_data
-        )
+            secrets_data = {
+                key: value
+                for key, value in secrets_data.items()
+                if not self._is_internal_secret_key(key)
+            }
+        return mlrun.api.schemas.SecretsData(provider=provider, secrets=secrets_data)
 
     def _is_internal_secret_key(self, key: str):
         return key.startswith(self.internal_secrets_key_prefix)

@@ -1,11 +1,11 @@
 import unittest.mock
-import mlrun.api.utils.singletons.k8s
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.utils.singletons.k8s
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
@@ -73,12 +73,16 @@ class K8sSecretsMock:
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         secrets_data = self._mock_secrets.get(project, {})
-        return {key:value for key,value in secrets_data.items() if (secret_keys and key in secret_keys) or not secret_keys}
-            
-            
+        return {
+            key: value
+            for key, value in secrets_data.items()
+            if (secret_keys and key in secret_keys) or not secret_keys
+        }
+
+
 @pytest.fixture()
 def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
-    logger.info(f"Creating k8s secrets mock")
+    logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
     config.namespace = "default-tenant"
 
@@ -97,5 +101,5 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
     mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets = unittest.mock.Mock(
         side_effect=k8s_secrets_mock.delete_project_secrets
     )
-    
+
     return k8s_secrets_mock

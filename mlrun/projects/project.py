@@ -52,11 +52,23 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import FunctionsDict
+from .pipelines import FunctionsDict, enrich_function_object, get_db_function
 
 
 class ProjectError(Exception):
     pass
+
+
+def init_repo(context, url, init_git):
+    if not path.isdir(context):
+        raise ValueError(f"context {context} is not an existing dir path")
+    try:
+        repo = Repo(context)
+        url = get_repo_url(repo)
+    except Exception:
+        if init_git:
+            repo = Repo.init(context)
+    return repo, url
 
 
 def new_project(name, context=None, init_git=False, user_project=False):
@@ -122,21 +134,10 @@ def load_project(
     if not context:
         raise ValueError("valid context (local dir path) must be provided")
 
-    def init_repo():
-        nonlocal repo, url
-        if not path.isdir(context):
-            raise ValueError(f"context {context} is not an existing dir path")
-        try:
-            repo = Repo(context)
-            url = get_repo_url(repo)
-        except Exception:
-            if init_git:
-                repo = Repo.init(context)
-
+    from_db = False
     if url:
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
-            init_repo()
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
@@ -144,23 +145,82 @@ def load_project(
         elif url.endswith(".zip"):
             clone_zip(url, context, secrets)
         else:
-            if user_project:
-                user = environ.get("V3IO_USERNAME") or getpass.getuser()
-                url = f"{url}-{user}"
-            project = _load_project_from_db(url, secrets)
+            project = _load_project_from_db(url, secrets, user_project)
+            from_db = True
 
-    else:
-        init_repo()
+    if not repo:
+        repo, url = init_repo(context, url, init_git)
 
     if not project:
         project = _load_project_dir(context, name, subpath)
-    project.spec.source = url or project.spec.source
+    if not from_db or (url and url.startswith("git://")):
+        project.spec.source = url or project.spec.source
+        project.spec.origin_url = url or project.spec.origin_url
     project.spec.repo = repo
     if repo:
         project.spec.branch = repo.active_branch.name
-    project.spec.origin_url = url or project.spec.origin_url
     project.register_artifacts()
     return project
+
+
+def get_or_create_project(
+    context,
+    name=None,
+    url=None,
+    secrets=None,
+    init_git=False,
+    subpath="",
+    clone=False,
+    user_project=False,
+):
+    """Load a project from MLRun DB, or create/import if doesnt exist
+
+    example::
+
+        # load project and run the 'main' workflow
+        project = load_project("./", git://github.com/mlrun/demo-xgb-project.git)
+        project.run("main", arguments={'data': data_url})
+
+    :param context:      project local directory path
+    :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
+                         git://github.com/mlrun/demo-xgb-project.git
+                         http://mysite/archived-project.zip
+    :param name:         project name
+    :param secrets:      key:secret dict or SecretsStore used to download sources
+    :param init_git:     if True, will git init the context dir
+    :param subpath:      project subpath (within the archive)
+    :param clone:        if True, always clone (delete any existing content)
+    :param user_project: add the current user name to the project name (for db:// prefixes)
+
+    :returns: project object
+    """
+
+    try:
+        return load_project(
+            context,
+            name,
+            name,
+            secrets=secrets,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+            user_project=user_project,
+        )
+
+    except mlrun.errors.MLRunNotFoundError:
+        if url:
+            return load_project(
+                context,
+                url,
+                name,
+                secrets=secrets,
+                init_git=init_git,
+                subpath=subpath,
+                clone=clone,
+                user_project=user_project,
+            )
+
+        return new_project(name, context, init_git=init_git, user_project=user_project)
 
 
 def _load_project_dir(context, name="", subpath=""):
@@ -187,7 +247,10 @@ def _load_project_dir(context, name="", subpath=""):
     return project
 
 
-def _load_project_from_db(url, secrets):
+def _load_project_from_db(url, secrets, user_project=False):
+    if user_project:
+        user = environ.get("V3IO_USERNAME") or getpass.getuser()
+        url = f"{url}-{user}"
     db = get_run_db(secrets=secrets)
     project_name = url.replace("db://", "")
     return db.get_project(project_name)
@@ -1172,11 +1235,13 @@ class MlrunProject(ModelObj):
 
         :returns: function object
         """
-        if key not in self.spec._function_definitions:
-            raise KeyError(f"function {key} not found")
-        if sync or not self._initialized or key not in self.spec._function_objects:
-            self.sync_functions()
-        return self.spec._function_objects[key]
+        if key in self.spec._function_definitions:
+            if sync or not self._initialized or key not in self.spec._function_objects:
+                self.sync_functions()
+            function = self.spec._function_objects[key]
+        else:
+            function = get_db_function(self, key)
+        return enrich_function_object(self, function)
 
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir

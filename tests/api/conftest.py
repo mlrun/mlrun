@@ -1,3 +1,5 @@
+import unittest.mock
+import mlrun.api.utils.singletons.k8s
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
@@ -53,3 +55,47 @@ def client() -> Generator:
 
         with TestClient(app) as c:
             yield c
+
+
+class K8sSecretsMock:
+    def __init__(self):
+        self._mock_secrets = {}
+
+    def store_project_secrets(self, project, secrets, namespace=""):
+        self._mock_secrets.setdefault(project, {}).update(secrets)
+
+    def delete_project_secrets(self, project, secrets, namespace=""):
+        for key in secrets:
+            self._mock_secrets.get(project, {}).pop(key, None)
+
+    def get_project_secret_keys(self, project, namespace=""):
+        return list(self._mock_secrets.get(project, {}).keys())
+
+    def get_project_secret_data(self, project, secret_keys=None, namespace=""):
+        secrets_data = self._mock_secrets.get(project, {})
+        return {key:value for key,value in secrets_data.items() if (secret_keys and key in secret_keys) or not secret_keys}
+            
+            
+@pytest.fixture()
+def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
+    logger.info(f"Creating k8s secrets mock")
+    k8s_secrets_mock = K8sSecretsMock()
+    config.namespace = "default-tenant"
+
+    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys = unittest.mock.Mock(
+        side_effect=k8s_secrets_mock.get_project_secret_keys
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data = unittest.mock.Mock(
+        side_effect=k8s_secrets_mock.get_project_secret_data
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets = unittest.mock.Mock(
+        side_effect=k8s_secrets_mock.store_project_secrets
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets = unittest.mock.Mock(
+        side_effect=k8s_secrets_mock.delete_project_secrets
+    )
+    
+    return k8s_secrets_mock

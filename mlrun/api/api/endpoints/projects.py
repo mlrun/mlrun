@@ -136,7 +136,7 @@ def delete_project(
         name,
         deletion_strategy,
         auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info.session,
+        auth_verifier.auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:

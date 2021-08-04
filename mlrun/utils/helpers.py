@@ -862,7 +862,7 @@ class RunNotifications:
                 if config.resolve_ui_url():
                     url = (
                         f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/"
-                        f"{meta.get('project')}/jobs/{meta.get('uid')}/info"
+                        f"{meta.get('project')}/jobs/monitor/{meta.get('uid')}/overview"
                     )
 
                     line = f'<{url}|*{meta.get("name")}*>'

@@ -31,6 +31,7 @@ from nuclio import build_file
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
 from .config import config as mlconf
 from .datastore import store_manager
@@ -841,6 +842,7 @@ def run_pipeline(
     ops=None,
     url=None,
     ttl=None,
+    remote: bool = True,
 ):
     """remote KubeFlow pipeline execution
 
@@ -855,13 +857,13 @@ def run_pipeline(
     :param artifact_path:  target location/url for mlrun artifacts
     :param ops:        additional operators (.apply() to all pipeline functions)
     :param ttl:        pipeline ttl in secs (after that the pods will be removed)
+    :param remote:     read kfp data from mlrun service (default=True)
 
     :returns: kubeflow pipeline id
     """
 
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-
     artifact_path = artifact_path or mlconf.artifact_path
+    project = project or mlconf.default_project
     artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
         artifact_path, project or mlconf.default_project
     )
@@ -881,6 +883,7 @@ def run_pipeline(
                 ", please set the dbpath url"
             )
         id = mldb.submit_pipeline(
+            project,
             pipeline,
             arguments,
             experiment=experiment,
@@ -913,7 +916,11 @@ def run_pipeline(
 
 
 def wait_for_pipeline_completion(
-    run_id, timeout=60 * 60, expected_statuses: List[str] = None, namespace=None
+    run_id,
+    timeout=60 * 60,
+    expected_statuses: List[str] = None,
+    namespace=None,
+    remote=True,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -922,13 +929,13 @@ def wait_for_pipeline_completion(
     :param expected_statuses:  list of expected statuses, one of [ Succeeded | Failed | Skipped | Error ], by default
                                [ Succeeded ]
     :param namespace:  k8s namespace if not default
+    :param remote:     read kfp data from mlrun service (default=True)
 
     :return: kfp run dict
     """
     if expected_statuses is None:
         expected_statuses = [RunStatuses.succeeded]
     namespace = namespace or mlconf.namespace
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     logger.debug(
         f"Waiting for run completion."
         f" run_id: {run_id},"
@@ -944,6 +951,7 @@ def wait_for_pipeline_completion(
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
             status = resp["run"]["status"]
+            show_kfp_run(resp, clear_output=True)
             if status not in RunStatuses.stable_statuses():
 
                 # TODO: think of nicer liveness indication and make it re-usable
@@ -973,6 +981,8 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
+            resp = format_summary_from_kfp_run(resp)
+        show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
     if expected_statuses:
@@ -989,11 +999,20 @@ def wait_for_pipeline_completion(
     return resp
 
 
-def get_pipeline(run_id, namespace=None):
+def get_pipeline(
+    run_id,
+    namespace=None,
+    format_: Union[
+        str, mlrun.api.schemas.PipelinesFormat
+    ] = mlrun.api.schemas.PipelinesFormat.summary,
+):
     """Get Pipeline status
 
     :param run_id:     id of pipelines run
     :param namespace:  k8s namespace if not default
+    :param format_:    Format of the results. Possible values are:
+            - ``summary`` (default value) - Return summary of the object data.
+            - ``full`` - Return full pipeline object.
 
     :return: kfp run dict
     """
@@ -1007,14 +1026,20 @@ def get_pipeline(run_id, namespace=None):
                 ", please set the dbpath url"
             )
 
-        resp = mldb.get_pipeline(run_id, namespace=namespace)
+        resp = mldb.get_pipeline(run_id, namespace=namespace, format_=format_)
 
     else:
         client = Client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
+            if (
+                not format_
+                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
+            ):
+                resp = format_summary_from_kfp_run(resp)
 
+    show_kfp_run(resp)
     return resp
 
 

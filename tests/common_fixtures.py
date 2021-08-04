@@ -43,6 +43,7 @@ def config_test_base():
     mlrun.db._run_db = None
     mlrun.db._last_db_url = None
     mlrun.datastore.store_manager._db = None
+    mlrun.datastore.store_manager._stores = {}
 
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}

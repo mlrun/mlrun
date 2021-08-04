@@ -17,6 +17,8 @@ import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
+import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
@@ -34,7 +36,28 @@ from mlrun.api.db.sqldb.models import (
 )
 
 
-def test_create_project_failure_already_exists(db: Session, client: TestClient) -> None:
+@pytest.fixture(params=["leader", "follower"])
+def project_member_mode(request, db: Session) -> str:
+    if request.param == "follower":
+        mlrun.config.config.httpdb.projects.leader = "nop"
+        mlrun.config.config.httpdb.projects.follower_projects_store_mode = "cache"
+        mlrun.api.utils.singletons.project_member.initialize_project_member()
+        mlrun.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
+            db
+        )
+    elif request.param == "leader":
+        mlrun.config.config.httpdb.projects.leader = "mlrun"
+        mlrun.api.utils.singletons.project_member.initialize_project_member()
+    else:
+        raise NotImplementedError(
+            f"Provided project member mode is not supported. mode={request.param}"
+        )
+    yield request.param
+
+
+def test_create_project_failure_already_exists(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
@@ -50,7 +73,9 @@ def test_create_project_failure_already_exists(db: Session, client: TestClient) 
     assert response.status_code == HTTPStatus.CONFLICT.value
 
 
-def test_delete_project_with_resources(db: Session, client: TestClient):
+def test_delete_project_with_resources(
+    db: Session, client: TestClient, project_member_mode: str
+):
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, project_to_keep)
@@ -58,8 +83,8 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
     (
         project_to_keep_table_name_records_count_map_before_project_removal,
         project_to_keep_object_records_count_map_before_project_removal,
-    ) = _assert_resources_in_project(db, project_to_keep)
-    _assert_resources_in_project(db, project_to_remove)
+    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
+    _assert_resources_in_project(db, project_member_mode, project_to_remove)
 
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
@@ -91,8 +116,10 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
         project_to_keep_object_records_count_map_after_project_removal,
-    ) = _assert_resources_in_project(db, project_to_keep)
-    _assert_resources_in_project(db, project_to_remove, assert_no_resources=True)
+    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
+    _assert_resources_in_project(
+        db, project_member_mode, project_to_remove, assert_no_resources=True
+    )
     assert (
         deepdiff.DeepDiff(
             project_to_keep_object_records_count_map_before_project_removal,
@@ -129,7 +156,9 @@ def test_delete_project_with_resources(db: Session, client: TestClient):
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
 
-def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
+def test_list_projects_summary_format(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
     # create empty project
     empty_project_name = "empty-project"
     empty_project = mlrun.api.schemas.Project(
@@ -227,7 +256,7 @@ def test_list_projects_summary_format(db: Session, client: TestClient) -> None:
 
 
 def test_delete_project_deletion_strategy_check(
-    db: Session, client: TestClient
+    db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
@@ -271,7 +300,9 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
-def test_projects_crud(db: Session, client: TestClient) -> None:
+def test_projects_crud(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
@@ -427,7 +458,9 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
         ),
         spec=mlrun.api.schemas.ProjectSpec(description="some desc"),
     )
-    db.store_project(db_session, project, project_schema)
+    mlrun.api.utils.singletons.project_member.get_project_member().store_project(
+        db_session, project, project_schema
+    )
 
     # Create several functions with several tags
     labels = {
@@ -500,14 +533,14 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
     schedule_cron_trigger = mlrun.api.schemas.ScheduleCronTrigger(year=1999)
     schedule_names = ["schedule_name_1", "schedule_name_2", "schedule_name_3"]
     for schedule_name in schedule_names:
-        db.create_schedule(
+        mlrun.api.utils.singletons.scheduler.get_scheduler().create_schedule(
             db_session,
+            mlrun.api.schemas.AuthInfo(),
             project,
             schedule_name,
             mlrun.api.schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
-            mlrun.config.config.httpdb.scheduling.default_concurrency_limit,
             labels,
         )
 
@@ -542,15 +575,36 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
 
 
 def _assert_resources_in_project(
-    db_session: Session, project: str, assert_no_resources: bool = False,
+    db_session: Session,
+    project_member_mode: str,
+    project: str,
+    assert_no_resources: bool = False,
 ) -> typing.Tuple[typing.Dict, typing.Dict]:
     object_type_records_count_map = {
-        "Logs": _assert_logs_in_project(project, assert_no_resources)
+        "Logs": _assert_logs_in_project(project, assert_no_resources),
+        "Schedules": _assert_schedules_in_project(project, assert_no_resources),
     }
     return (
-        _assert_db_resources_in_project(db_session, project, assert_no_resources),
+        _assert_db_resources_in_project(
+            db_session, project_member_mode, project, assert_no_resources
+        ),
         object_type_records_count_map,
     )
+
+
+def _assert_schedules_in_project(
+    project: str, assert_no_resources: bool = False,
+) -> int:
+    number_of_schedules = len(
+        mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
+            project
+        )
+    )
+    if assert_no_resources:
+        assert number_of_schedules == 0
+    else:
+        assert number_of_schedules > 0
+    return number_of_schedules
 
 
 def _assert_logs_in_project(project: str, assert_no_resources: bool = False,) -> int:
@@ -566,111 +620,129 @@ def _assert_logs_in_project(project: str, assert_no_resources: bool = False,) ->
         )
     if assert_no_resources:
         assert number_of_log_files == 0
+    else:
+        assert number_of_log_files > 0
     return number_of_log_files
 
 
 def _assert_db_resources_in_project(
-    db_session: Session, project: str, assert_no_resources: bool = False,
+    db_session: Session,
+    project_member_mode: str,
+    project: str,
+    assert_no_resources: bool = False,
 ) -> typing.Dict:
     table_name_records_count_map = {}
     for cls in _classes:
         # User support is not really implemented or in use
         # Run tags support is not really implemented or in use
-        if cls.__name__ != "User" and cls.__tablename__ != "runs_tags":
-            number_of_cls_records = 0
-            # Label doesn't have project attribute
-            # Project (obviously) doesn't have project attribute
-            # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
-            # Logs are saved as files, the DB table is not really in use
-            if (
-                cls.__name__ != "Label"
-                and cls.__name__ != "Project"
-                and cls.__name__ != "Feature"
-                and cls.__name__ != "Entity"
-                and cls.__name__ != "Log"
-            ):
+        # Marketplace sources is not a project-level table, and hence is not relevant here.
+        # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
+        # Logs are saved as files, the DB table is not really in use
+        # in follower mode the DB project tables are irrelevant
+        if (
+            cls.__name__ == "User"
+            or cls.__tablename__ == "runs_tags"
+            or cls.__tablename__ == "marketplace_sources"
+            or cls.__name__ == "Feature"
+            or cls.__name__ == "Entity"
+            or cls.__name__ == "Log"
+            or (
+                cls.__tablename__ == "projects_labels"
+                and project_member_mode == "follower"
+            )
+            or (cls.__tablename__ == "projects" and project_member_mode == "follower")
+        ):
+            continue
+        number_of_cls_records = 0
+        # Label doesn't have project attribute
+        # Project (obviously) doesn't have project attribute
+        if cls.__name__ != "Label" and cls.__name__ != "Project":
+            number_of_cls_records = (
+                db_session.query(cls).filter_by(project=project).count()
+            )
+        elif cls.__name__ == "Label":
+            if cls.__tablename__ == "functions_labels":
                 number_of_cls_records = (
-                    db_session.query(cls).filter_by(project=project).count()
+                    db_session.query(Function)
+                    .join(cls)
+                    .filter(Function.project == project)
+                    .count()
                 )
-            elif cls.__name__ == "Label":
-                if cls.__tablename__ == "functions_labels":
-                    number_of_cls_records = (
-                        db_session.query(Function)
-                        .join(cls)
-                        .filter(Function.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "runs_labels":
-                    number_of_cls_records = (
-                        db_session.query(Run)
-                        .join(cls)
-                        .filter(Run.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "artifacts_labels":
-                    number_of_cls_records = (
-                        db_session.query(Artifact)
-                        .join(cls)
-                        .filter(Artifact.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "feature_sets_labels":
-                    number_of_cls_records = (
-                        db_session.query(FeatureSet)
-                        .join(cls)
-                        .filter(FeatureSet.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "features_labels":
-                    number_of_cls_records = (
-                        db_session.query(FeatureSet)
-                        .join(Feature)
-                        .join(cls)
-                        .filter(FeatureSet.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "entities_labels":
-                    number_of_cls_records = (
-                        db_session.query(FeatureSet)
-                        .join(Entity)
-                        .join(cls)
-                        .filter(FeatureSet.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "schedules_v2_labels":
-                    number_of_cls_records = (
-                        db_session.query(Schedule)
-                        .join(cls)
-                        .filter(Schedule.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "feature_vectors_labels":
-                    number_of_cls_records = (
-                        db_session.query(FeatureVector)
-                        .join(cls)
-                        .filter(FeatureVector.project == project)
-                        .count()
-                    )
-                if cls.__tablename__ == "projects_labels":
-                    number_of_cls_records = (
-                        db_session.query(Project)
-                        .join(cls)
-                        .filter(Project.name == project)
-                        .count()
-                    )
-            else:
+            if cls.__tablename__ == "runs_labels":
                 number_of_cls_records = (
-                    db_session.query(Project).filter(Project.name == project).count()
+                    db_session.query(Run)
+                    .join(cls)
+                    .filter(Run.project == project)
+                    .count()
                 )
-            if assert_no_resources:
-                assert (
-                    number_of_cls_records == 0
-                ), f"Table {cls.__tablename__} records were found"
-            else:
-                assert (
-                    number_of_cls_records > 0
-                ), f"Table {cls.__tablename__} records were not found"
-            table_name_records_count_map[cls.__tablename__] = number_of_cls_records
+            if cls.__tablename__ == "artifacts_labels":
+                number_of_cls_records = (
+                    db_session.query(Artifact)
+                    .join(cls)
+                    .filter(Artifact.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "feature_sets_labels":
+                number_of_cls_records = (
+                    db_session.query(FeatureSet)
+                    .join(cls)
+                    .filter(FeatureSet.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "features_labels":
+                number_of_cls_records = (
+                    db_session.query(FeatureSet)
+                    .join(Feature)
+                    .join(cls)
+                    .filter(FeatureSet.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "entities_labels":
+                number_of_cls_records = (
+                    db_session.query(FeatureSet)
+                    .join(Entity)
+                    .join(cls)
+                    .filter(FeatureSet.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "schedules_v2_labels":
+                number_of_cls_records = (
+                    db_session.query(Schedule)
+                    .join(cls)
+                    .filter(Schedule.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "feature_vectors_labels":
+                number_of_cls_records = (
+                    db_session.query(FeatureVector)
+                    .join(cls)
+                    .filter(FeatureVector.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "projects_labels":
+                number_of_cls_records = (
+                    db_session.query(Project)
+                    .join(cls)
+                    .filter(Project.name == project)
+                    .count()
+                )
+        elif cls.__name__ == "Project":
+            number_of_cls_records = (
+                db_session.query(Project).filter(Project.name == project).count()
+            )
+        else:
+            raise NotImplementedError(
+                "You excluded an object from the regular handling but forgot to add special handling"
+            )
+        if assert_no_resources:
+            assert (
+                number_of_cls_records == 0
+            ), f"Table {cls.__tablename__} records were found"
+        else:
+            assert (
+                number_of_cls_records > 0
+            ), f"Table {cls.__tablename__} records were not found"
+        table_name_records_count_map[cls.__tablename__] = number_of_cls_records
     return table_name_records_count_map
 
 

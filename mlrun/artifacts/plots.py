@@ -103,7 +103,7 @@ class ChartArtifact(Artifact):
         self.header = header or []
         self.title = title
         self.rows = []
-        if data is not None:
+        if data:
             if header:
                 self.rows = data
             else:

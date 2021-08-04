@@ -600,13 +600,8 @@ async def test_rescheduling_secrets_storing(
 
     jobs = scheduler._list_schedules_from_scheduler(project)
     assert jobs[0].args[4].session == session
-    assert (
-        DeepDiff(
-            k8s_secrets_mock.project_secrets_map[project],
-            {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session},
-            ignore_order=True,
-        )
-        == {}
+    k8s_secrets_mock.assert_project_secrets(
+        project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
     )
 
     await scheduler.stop()

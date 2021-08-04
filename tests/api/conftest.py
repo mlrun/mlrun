@@ -46,7 +46,7 @@ def db() -> Generator:
 
 
 @pytest.fixture()
-def client() -> Generator:
+def client(db) -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
         mlconf.runs_monitoring_interval = 0

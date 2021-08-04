@@ -67,8 +67,11 @@ class K8sSecretsMock:
         self.project_secrets_map.setdefault(project, {}).update(secrets)
 
     def delete_project_secrets(self, project, secrets, namespace=""):
-        for key in secrets:
-            self.project_secrets_map.get(project, {}).pop(key, None)
+        if not secrets:
+            self.project_secrets_map.pop(project, None)
+        else:
+            for key in secrets:
+                self.project_secrets_map.get(project, {}).pop(key, None)
 
     def get_project_secret_keys(self, project, namespace=""):
         return list(self.project_secrets_map.get(project, {}).keys())

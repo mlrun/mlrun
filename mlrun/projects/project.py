@@ -60,6 +60,7 @@ class ProjectError(Exception):
 
 
 def init_repo(context, url, init_git):
+    repo = None
     if not path.isdir(context):
         raise ValueError(f"context {context} is not an existing dir path")
     try:
@@ -71,13 +72,17 @@ def init_repo(context, url, init_git):
     return repo, url
 
 
-def new_project(name, context=None, init_git=False, user_project=False):
+def new_project(
+    name, context=None, init_git=False, user_project=False, remote=None, template=None
+):
     """Create a new MLRun project
 
     :param name:         project name
     :param context:      project local directory path
     :param init_git:     if True, will git init the context dir
     :param user_project: add the current user name to the provided project name (making it unique per user)
+    :param remote:       remote Git url
+    :param template:     path to project YAML file that will be used as template
 
     :returns: project object
     """
@@ -85,13 +90,22 @@ def new_project(name, context=None, init_git=False, user_project=False):
         user = environ.get("V3IO_USERNAME") or getpass.getuser()
         name = f"{name}-{user}"
 
-    project = MlrunProject(name=name)
+    if template:
+        project = _load_project_file(template)
+        project.metadata.name = name
+    else:
+        project = MlrunProject(name=name)
     project.spec.context = context
 
-    if init_git:
-        repo = Repo.init(context)
-        project.spec.repo = repo
+    repo, url = init_repo(context, remote, init_git)
+    project.spec.repo = repo
+    if remote and url != remote:
+        project.create_remote(remote)
+    elif url:
+        project.spec._source = url
+        project.spec.origin_url = url
 
+    mlrun.set_environment(project=name, user_project=user_project)
     return project
 
 
@@ -139,7 +153,11 @@ def load_project(
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
         elif url.startswith("git://"):
-            url, repo = clone_git(url, context, secrets, clone)
+            remote, repo = clone_git(url, context, secrets, clone)
+            if not remote:
+                # if no remote for the repo set the url as remote
+                project.create_remote(url)
+            url = remote
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets)
         elif url.endswith(".zip"):
@@ -160,6 +178,7 @@ def load_project(
     if repo:
         project.spec.branch = repo.active_branch.name
     project.register_artifacts()
+    mlrun.set_environment(project=name, user_project=user_project)
     return project
 
 
@@ -172,6 +191,7 @@ def get_or_create_project(
     subpath="",
     clone=False,
     user_project=False,
+    template=None,
 ):
     """Load a project from MLRun DB, or create/import if doesnt exist
 
@@ -191,6 +211,7 @@ def get_or_create_project(
     :param subpath:      project subpath (within the archive)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
+    :param template:     path to project YAML file that will be used as template (for new projects)
 
     :returns: project object
     """
@@ -220,7 +241,13 @@ def get_or_create_project(
                 user_project=user_project,
             )
 
-        return new_project(name, context, init_git=init_git, user_project=user_project)
+        return new_project(
+            name,
+            context,
+            init_git=init_git,
+            user_project=user_project,
+            template=template,
+        )
 
 
 def _load_project_dir(context, name="", subpath=""):

@@ -157,12 +157,8 @@ def test_marketplace_credentials_removed_from_db(
         f"source_1{mlrun.api.crud.marketplace.secret_name_separator}{key}": value
         for key, value in credentials.items()
     }
-    assert (
-        deepdiff.DeepDiff(
-            k8s_secrets_mock._mock_secrets[config.marketplace.k8s_secrets_project_name],
-            expected_credentials,
-        )
-        == {}
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
     )
 
 
@@ -182,23 +178,15 @@ def test_marketplace_source_manager(
         source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
         manager.add_source(source_object)
 
-    assert (
-        deepdiff.DeepDiff(
-            k8s_secrets_mock._mock_secrets[config.marketplace.k8s_secrets_project_name],
-            expected_credentials,
-        )
-        == {}
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
     )
 
     manager.remove_source("source_1")
     for key in credentials:
         expected_credentials.pop(f"source_1{separator}{key}")
-    assert (
-        deepdiff.DeepDiff(
-            k8s_secrets_mock._mock_secrets[config.marketplace.k8s_secrets_project_name],
-            expected_credentials,
-        )
-        == {}
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
     )
 
     # Test catalog retrieval, with various filters

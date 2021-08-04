@@ -2,6 +2,7 @@ import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
+import deepdiff
 import pytest
 from fastapi.testclient import TestClient
 
@@ -59,25 +60,34 @@ def client(db) -> Generator:
 
 class K8sSecretsMock:
     def __init__(self):
-        self._mock_secrets = {}
+        # project -> secret_key -> secret_value
+        self.project_secrets_map = {}
 
     def store_project_secrets(self, project, secrets, namespace=""):
-        self._mock_secrets.setdefault(project, {}).update(secrets)
+        self.project_secrets_map.setdefault(project, {}).update(secrets)
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         for key in secrets:
-            self._mock_secrets.get(project, {}).pop(key, None)
+            self.project_secrets_map.get(project, {}).pop(key, None)
 
     def get_project_secret_keys(self, project, namespace=""):
-        return list(self._mock_secrets.get(project, {}).keys())
+        return list(self.project_secrets_map.get(project, {}).keys())
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
-        secrets_data = self._mock_secrets.get(project, {})
+        secrets_data = self.project_secrets_map.get(project, {})
         return {
             key: value
             for key, value in secrets_data.items()
             if (secret_keys and key in secret_keys) or not secret_keys
         }
+
+    def assert_project_secrets(self, project: str, secrets: dict):
+        assert (
+            deepdiff.DeepDiff(
+                self.project_secrets_map[project], secrets, ignore_order=True,
+            )
+            == {}
+        )
 
 
 @pytest.fixture()

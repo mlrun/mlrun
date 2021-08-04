@@ -88,7 +88,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._store_secrets(auth_info, project, name)
+        self._store_schedule_secrets(auth_info, project, name)
         get_db().create_schedule(
             db_session,
             project,
@@ -135,7 +135,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._store_secrets(auth_info, project, name)
+        self._store_schedule_secrets(auth_info, project, name)
         get_db().update_schedule(
             db_session,
             project,
@@ -198,7 +198,7 @@ class Scheduler:
         self, db_session: Session, project: str, name: str,
     ):
         logger.debug("Deleting schedule", project=project, name=name)
-        self._remove_schedule_from_scheduler(project, name)
+        self._remove_schedule_scheduler_resources(project, name)
         get_db().delete_schedule(db_session, project, name)
 
     def delete_schedules(
@@ -207,8 +207,12 @@ class Scheduler:
         schedules = self.list_schedules(db_session, project,)
         logger.debug("Deleting schedules", project=project)
         for schedule in schedules.schedules:
-            self._remove_schedule_from_scheduler(schedule.project, schedule.name)
+            self._remove_schedule_scheduler_resources(schedule.project, schedule.name)
         get_db().delete_schedules(db_session, project)
+
+    def _remove_schedule_scheduler_resources(self, project, name):
+        self._remove_schedule_from_scheduler(project, name)
+        self._remove_schedule_secrets(project, name)
 
     def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)
@@ -238,7 +242,7 @@ class Scheduler:
         )
         return await function(*args, **kwargs)
 
-    def _store_secrets(
+    def _store_schedule_secrets(
         self, auth_info: mlrun.api.schemas.AuthInfo, project: str, name: str,
     ):
         # import here to avoid circular imports
@@ -257,6 +261,22 @@ class Scheduler:
                     provider=self._secrets_provider,
                     secrets={secret_key: auth_info.session},
                 ),
+                allow_internal_secrets=True,
+            )
+
+    def _remove_schedule_secrets(
+        self, project: str, name: str,
+    ):
+        # import here to avoid circular imports
+        import mlrun.api.crud
+
+        if self._store_schedule_credentials_in_secrets:
+            # sanity
+            secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+            mlrun.api.crud.Secrets().delete_secrets(
+                project,
+                self._secrets_provider,
+                [secret_key],
                 allow_internal_secrets=True,
             )
 
@@ -381,14 +401,17 @@ class Scheduler:
 
                 session = None
                 if self._store_schedule_credentials_in_secrets:
-                    session = mlrun.api.crud.Secrets().list_secrets(
+                    schedule_secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(
+                        db_schedule.name
+                    )
+                    secrets_data = mlrun.api.crud.Secrets().list_secrets(
                         db_schedule.project,
                         mlrun.api.schemas.SecretProviderName.kubernetes,
-                        mlrun.api.crud.Secrets().generate_schedule_secret_key(
-                            db_schedule.name
-                        ),
+                        [schedule_secret_key],
                         allow_secrets_from_k8s=True,
+                        allow_internal_secrets=True,
                     )
+                    session = secrets_data.secrets[schedule_secret_key]
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
                     db_schedule.name,

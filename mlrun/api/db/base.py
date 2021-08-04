@@ -189,6 +189,10 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_schedules(self, session, project: str):
+        pass
+
+    @abstractmethod
     def generate_projects_summaries(
         self, session, projects: List[str]
     ) -> List[schemas.ProjectSummary]:
@@ -399,3 +403,24 @@ class DBInterface(ABC):
 
     def list_artifact_tags(self, session, project):
         return []
+
+    def create_marketplace_source(
+        self, session, ordered_source: schemas.IndexedMarketplaceSource
+    ):
+        pass
+
+    def store_marketplace_source(
+        self, session, name, ordered_source: schemas.IndexedMarketplaceSource
+    ):
+        pass
+
+    def list_marketplace_sources(
+        self, session
+    ) -> List[schemas.IndexedMarketplaceSource]:
+        pass
+
+    def delete_marketplace_source(self, session, name):
+        pass
+
+    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+        pass

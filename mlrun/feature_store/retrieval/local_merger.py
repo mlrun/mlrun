@@ -44,7 +44,7 @@ class LocalFeatureMerger:
             if drop_indexes and key and key not in index_columns:
                 index_columns.append(key)
 
-        if entity_timestamp_column:
+        if entity_timestamp_column and drop_indexes:
             index_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
         self.vector.save()

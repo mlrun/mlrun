@@ -840,6 +840,7 @@ def run_pipeline(
     ops=None,
     url=None,
     ttl=None,
+    remote: bool = True,
 ):
     """remote KubeFlow pipeline execution
 
@@ -854,13 +855,13 @@ def run_pipeline(
     :param artifact_path:  target location/url for mlrun artifacts
     :param ops:        additional operators (.apply() to all pipeline functions)
     :param ttl:        pipeline ttl in secs (after that the pods will be removed)
+    :param remote:     read kfp data from mlrun service (default=True)
 
     :returns: kubeflow pipeline id
     """
 
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-
     artifact_path = artifact_path or mlconf.artifact_path
+    project = project or mlconf.default_project
     artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
         artifact_path, project or mlconf.default_project
     )
@@ -880,6 +881,7 @@ def run_pipeline(
                 ", please set the dbpath url"
             )
         id = mldb.submit_pipeline(
+            project,
             pipeline,
             arguments,
             experiment=experiment,

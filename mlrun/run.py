@@ -160,7 +160,7 @@ def run_local(
     if runtime:
         handler = handler or get_in(runtime, "spec.default_handler", "")
         meta = BaseMetadata.from_dict(runtime["metadata"])
-        meta.name = meta.name or name
+        meta.name = name or meta.name
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
@@ -777,7 +777,6 @@ def code_to_function(
             raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
-        r.spec.build.origin_filename = filename
         if requirements:
             r.with_requirements(requirements)
         update_meta(r)
@@ -801,7 +800,6 @@ def code_to_function(
     r.spec.image = image or get_in(spec, "spec.image", "")
     build = r.spec.build
     build.code_origin = code_origin
-    build.origin_filename = filename
     build.base_image = get_in(spec, "spec.build.baseImage")
     build.commands = get_in(spec, "spec.build.commands")
     build.extra = get_in(spec, "spec.build.extra")

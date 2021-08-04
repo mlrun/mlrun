@@ -20,8 +20,8 @@ def upgrade():
     op.create_table(
         "projects_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(255), nullable=True),
-        sa.Column("value", sa.String(255), nullable=True),
+        sa.Column("name", sa.String(255, collation='utf8_bin'), nullable=True),
+        sa.Column("value", sa.String(255, collation='utf8_bin'), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["projects.id"],),
         sa.PrimaryKeyConstraint("id"),

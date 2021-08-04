@@ -20,7 +20,7 @@ def upgrade():
     op.create_table(
         "marketplace_sources",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(), nullable=True),
+        sa.Column("name", sa.String(255, collation='utf8_bin'), nullable=True),
         sa.Column("index", sa.Integer(), nullable=True),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),

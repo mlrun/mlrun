@@ -132,21 +132,35 @@ class BokehArtifact(Artifact):
     Bokeh artifact is an artifact for saving Bokeh generated figures. They will be stored in html format.
     """
 
-    from bokeh.plotting import Figure
-
     kind = "bokeh"
 
     def __init__(
-        self, figure: Figure, key: str = None, target_path: str = None,
+        self, figure, key: str = None, target_path: str = None,
     ):
         """
         Initialize a Bokeh artifact with the given figure.
 
-        :param figure:      Bokeh figure to save as an artifact.
+        :param figure:      Bokeh figure ('bokeh.plotting.Figure' object) to save as an artifact.
         :param key:         Key for the artifact to be stored in the database.
         :param target_path: Path to save the artifact.
         """
         super().__init__(key=key, target_path=target_path, viewer="bokeh")
+
+        # Validate input:
+        try:
+            from bokeh.plotting import Figure
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Using 'BokehArtifact' requires bokeh>=2.3.2 "
+                "but bokeh is not found: {}".format(e)
+            )
+        if not isinstance(figure, Figure):
+            raise ValueError(
+                "BokehArtifact requires the figure parameter to be a "
+                "'bokeh.plotting.Figure' but received '{}'".format(type(figure))
+            )
+
+        # Continue initializing the bokeh artifact:
         self._figure = figure
         self.format = "html"
 

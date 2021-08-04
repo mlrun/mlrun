@@ -29,13 +29,7 @@ class Scheduler:
         # we don't allow to schedule a job to run more then one time per X
         # NOTE this cannot be less then one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
-        self._secrets_provider = schemas.SecretProviderName(
-            config.httpdb.scheduling.secrets_provider
-        )
-        if self._secrets_provider != schemas.SecretProviderName.kubernetes:
-            raise NotImplementedError(
-                f"Provided secrets provided is not supported by scheduler. provider={self._secrets_provider.value}"
-            )
+        self._secrets_provider = schemas.SecretProviderName.kubernetes
 
         self._store_schedule_credentials_in_secrets = (
             mlrun.mlconf.httpdb.authorization.mode == "opa"

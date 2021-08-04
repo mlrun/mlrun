@@ -406,7 +406,7 @@ class Scheduler:
                     )
                     secrets_data = mlrun.api.crud.Secrets().list_secrets(
                         db_schedule.project,
-                        mlrun.api.schemas.SecretProviderName.kubernetes,
+                        self._secrets_provider,
                         [schedule_secret_key],
                         allow_secrets_from_k8s=True,
                         allow_internal_secrets=True,

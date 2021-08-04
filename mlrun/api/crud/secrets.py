@@ -27,7 +27,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                     "secret.key", secret_key, mlrun.utils.regex.secret_key
                 )
                 if (
-                    secret_key.startswith(self.internal_secrets_key_prefix)
+                    self._is_internal_secret_key(secret_key)
                     and not allow_internal_secrets
                 ):
                     raise mlrun.errors.MLRunAccessDeniedError(
@@ -60,7 +60,18 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         project: str,
         provider: mlrun.api.schemas.SecretProviderName,
         secrets: typing.Optional[typing.List[str]] = None,
+        allow_internal_secrets: bool = False,
     ):
+        if secrets:
+            for secret_key in secrets:
+                if (
+                        self._is_internal_secret_key(secret_key)
+                        and not allow_internal_secrets
+                ):
+                    raise mlrun.errors.MLRunAccessDeniedError(
+                        f"Not allowed to delete internal secrets (key starts with "
+                        f"{self.internal_secrets_key_prefix})"
+                    )
         if provider == mlrun.api.schemas.SecretProviderName.vault:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Delete secret is not implemented for provider {provider}"
@@ -84,6 +95,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         project: str,
         provider: mlrun.api.schemas.SecretProviderName,
         token: typing.Optional[str] = None,
+        allow_internal_secrets: bool = False,
     ) -> mlrun.api.schemas.SecretKeysData:
         if provider == mlrun.api.schemas.SecretProviderName.vault:
             if not token:
@@ -93,9 +105,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
 
             vault = mlrun.utils.vault.VaultStore(token)
             secret_values = vault.get_secrets(None, project=project)
-            return mlrun.api.schemas.SecretKeysData(
-                provider=provider, secret_keys=list(secret_values.keys())
-            )
+            secret_keys = list(secret_values.keys())
         elif provider == mlrun.api.schemas.SecretProviderName.kubernetes:
             if token:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -109,9 +119,6 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                     )
                     or []
                 )
-                return mlrun.api.schemas.SecretKeysData(
-                    provider=provider, secret_keys=secret_keys
-                )
             else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"
@@ -120,6 +127,12 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Provider requested is not supported. provider = {provider}"
             )
+        if not allow_internal_secrets:
+            secret_keys = list(filter(lambda key: not self._is_internal_secret_key(key), secret_keys))
+
+        return mlrun.api.schemas.SecretKeysData(
+            provider=provider, secret_keys=secret_keys
+        )
 
     def list_secrets(
         self,
@@ -127,7 +140,8 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         provider: mlrun.api.schemas.SecretProviderName,
         secrets: typing.Optional[typing.List[str]] = None,
         token: typing.Optional[str] = None,
-        allow_secrets_from_k8s: bool = False
+        allow_secrets_from_k8s: bool = False,
+        allow_internal_secrets: bool = False,
     ) -> mlrun.api.schemas.SecretsData:
         if provider == mlrun.api.schemas.SecretProviderName.vault:
             if not token:
@@ -136,20 +150,23 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 )
 
             vault = mlrun.utils.vault.VaultStore(token)
-            secret_values = vault.get_secrets(secrets, project=project)
-            return mlrun.api.schemas.SecretsData(
-                provider=provider, secrets=secret_values
-            )
+            secrets_data = vault.get_secrets(secrets, project=project)
         elif provider == mlrun.api.schemas.SecretProviderName.kubernetes:
             if not allow_secrets_from_k8s:
                 raise mlrun.errors.MLRunAccessDeniedError("Not allowed to list secrets data from kubernetes provider")
             secrets_data = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(
                 project, secrets
             )
-            return mlrun.api.schemas.SecretsData(
-                provider=provider, secrets=secrets_data
-            )
+
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Provider requested is not supported. provider = {provider}"
             )
+        if not allow_internal_secrets:
+            secrets_data = {key: value for key, value in secrets_data.items() if not self._is_internal_secret_key(key)}
+        return mlrun.api.schemas.SecretsData(
+            provider=provider, secrets=secrets_data
+        )
+
+    def _is_internal_secret_key(self, key: str):
+        return key.startswith(self.internal_secrets_key_prefix)

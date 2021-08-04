@@ -529,7 +529,7 @@ class VotingEnsemble(BaseModelRouter):
                 response = copy.copy(event)
                 response_body = {
                     "id": event.id,
-                    "model_name": votes,
+                    "model_name": self.name,
                     "outputs": votes,
                 }
                 if self.version:

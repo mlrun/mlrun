@@ -116,7 +116,7 @@ def make_tag_v2(table):
         project = Column(String)
         name = Column(String)
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
-        obj_name = Column(Integer, ForeignKey(f"{table}.name"))
+        obj_name = Column(String, ForeignKey(f"{table}.name"))
 
     return Tag
 

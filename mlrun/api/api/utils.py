@@ -6,11 +6,11 @@ from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.deps
+import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -26,11 +26,17 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
-    raise HTTPException(status_code=status, detail=kw)
+    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
+    #  version can be changed to details=kw
+    raise HTTPException(status_code=status, detail={"reason": kw})
 
 
 def log_path(project, uid) -> Path:
-    return get_logs_dir() / project / uid
+    return project_logs_path(project) / uid
+
+
+def project_logs_path(project) -> Path:
+    return get_logs_dir() / project
 
 
 def get_obj_path(schema, path, user=""):
@@ -57,28 +63,26 @@ def get_obj_path(schema, path, user=""):
     return path
 
 
-def get_secrets(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
+def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
     return {
-        "V3IO_ACCESS_KEY": access_key,
+        "V3IO_ACCESS_KEY": auth_info.data_session,
     }
 
 
 def get_run_db_instance(
-    db_session: Session, leader_session: typing.Optional[str] = None
+    db_session: Session,
+    auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
 ):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session, leader_session)
+        run_db = SQLRunDB(db.dsn, db_session, auth_info)
     else:
         run_db = db.db
     run_db.connect()
     return run_db
 
 
-def _parse_submit_run_body(
-    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
-):
+def parse_submit_run_body(data):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -89,7 +93,13 @@ def _parse_submit_run_body(
             HTTPStatus.BAD_REQUEST.value,
             reason="bad JSON, need to include function/url and task objects",
         )
+    return function_dict, function_url, task
 
+
+def _generate_function_and_task_from_submit_run_body(
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+):
+    function_dict, function_url, task = parse_submit_run_body(data)
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
     # remote/container runtime)
 
@@ -155,8 +165,10 @@ def _submit_run(
     run_uid = None
     project = None
     try:
-        fn, task = _parse_submit_run_body(db_session, auth_info, data)
-        run_db = get_run_db_instance(db_session, auth_info.session)
+        fn, task = _generate_function_and_task_from_submit_run_body(
+            db_session, auth_info, data
+        )
+        run_db = get_run_db_instance(db_session, auth_info)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"

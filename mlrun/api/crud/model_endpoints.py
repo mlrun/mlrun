@@ -1,10 +1,11 @@
 import json
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
 
 import mlrun.api.api.utils
+import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
 from mlrun.api.schemas import (
     Features,
@@ -36,7 +37,7 @@ class ModelEndpoints:
         db_session: Session,
         access_key: str,
         model_endpoint: ModelEndpoint,
-        leader_session: Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         """
         Creates or patch a KV record with the given model_endpoint record
@@ -44,6 +45,7 @@ class ModelEndpoints:
         :param access_key: V3IO access key for managing user permissions
         :param model_endpoint: An object representing a model endpoint
         """
+
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
             logger.info(
                 "Getting feature metadata",
@@ -58,7 +60,7 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            run_db = mlrun.api.api.utils.get_run_db_instance(db_session, leader_session)
+            run_db = mlrun.api.api.utils.get_run_db_instance(db_session, auth_info)
             model_obj: ModelArtifact = (
                 mlrun.datastore.store_resources.get_store_resource(
                     model_endpoint.spec.model_uri, db=run_db
@@ -127,15 +129,17 @@ class ModelEndpoints:
         return model_endpoint
 
     @staticmethod
-    def delete_endpoint_record(access_key: str, project: str, endpoint_id: str):
+    def delete_endpoint_record(
+        auth_info: mlrun.api.schemas.AuthInfo, project: str, endpoint_id: str
+    ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
-        :param access_key: V3IO access key for managing user permissions
+        :param auth_info: The required auth information for doing the deletion
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
         """
-
+        access_key = get_access_key(auth_info)
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
 
@@ -155,7 +159,7 @@ class ModelEndpoints:
 
     @staticmethod
     def list_endpoints(
-        access_key: str,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
@@ -208,7 +212,7 @@ class ModelEndpoints:
         cursor = client.kv.new_cursor(
             container=container,
             table_path=path,
-            access_key=access_key,
+            access_key=auth_info.data_session,
             filter_expression=build_kv_cursor_filter_expression(
                 project, function, model, labels
             ),
@@ -222,7 +226,7 @@ class ModelEndpoints:
                 break
             endpoint_id = item["endpoint_id"]
             endpoint = ModelEndpoints.get_endpoint(
-                access_key=access_key,
+                auth_info=auth_info,
                 project=project,
                 endpoint_id=endpoint_id,
                 metrics=metrics,
@@ -234,7 +238,7 @@ class ModelEndpoints:
 
     @staticmethod
     def get_endpoint(
-        access_key: str,
+        auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
         metrics: Optional[List[str]] = None,
@@ -245,7 +249,7 @@ class ModelEndpoints:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
 
-        :param access_key: V3IO access key for managing user permissions
+        :param auth_info: The required auth information for doing the deletion
         :param project: The name of the project
         :param endpoint_id: The id of the model endpoint
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
@@ -254,7 +258,7 @@ class ModelEndpoints:
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
         the output of the resulting object
         """
-
+        access_key = get_access_key(auth_info)
         logger.info(
             "Getting model endpoint record from kv", endpoint_id=endpoint_id,
         )
@@ -510,10 +514,8 @@ def build_kv_cursor_filter_expression(
     return " AND ".join(filter_expression)
 
 
-def get_access_key(request_headers: Mapping):
-    access_key = request_headers.get("X-V3io-Session-Key")
+def get_access_key(auth_info: mlrun.api.schemas.AuthInfo):
+    access_key = auth_info.data_session
     if not access_key:
-        raise MLRunBadRequestError(
-            "Request header missing 'X-V3io-Session-Key' parameter."
-        )
+        raise MLRunBadRequestError("Data session is missing")
     return access_key

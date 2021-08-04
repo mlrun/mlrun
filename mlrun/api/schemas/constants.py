@@ -5,13 +5,6 @@ import mergedeep
 import mlrun.errors
 
 
-class Format(str, Enum):
-    full = "full"
-    name_only = "name_only"
-    metadata_only = "metadata_only"
-    summary = "summary"
-
-
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
@@ -32,6 +25,7 @@ class DeletionStrategy(str, Enum):
     restricted = "restricted"
     cascade = "cascade"
     cascading = "cascading"
+    check = "check"
 
     @staticmethod
     def default():
@@ -52,6 +46,8 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            return "check"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"
@@ -62,6 +58,10 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            raise NotImplementedError(
+                "Iguazio does not support the check deletion strategy"
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"
@@ -76,6 +76,7 @@ class HeaderNames:
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
+    pipeline_arguments = f"{headers_prefix}pipeline-arguments"
 
 
 class FeatureStorePartitionByField(str, Enum):

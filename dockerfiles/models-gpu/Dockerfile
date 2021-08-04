@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=10.1
+ARG CUDA_VER=11.0
 
-FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
+
+# need to be redeclared since used in the from
+ARG CUDA_VER
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -30,10 +33,35 @@ RUN apt-get update && \
         build-essential \
         cmake \
         curl \
-        git \
-        wget \
-        graphviz && \
+        git-core \
+        graphviz \
+        wget && \
     rm -rf /var/lib/apt/lists/*
+
+RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
+    /bin/bash ~/installconda.sh -b -p /opt/conda && \
+    rm ~/installconda.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc
+
+RUN conda config --add channels conda-forge && \
+    conda update -n base -c defaults conda && \
+    conda install -n base \
+        python=3.7 \
+        pip~=20.2.0 \
+    && conda clean -aqy
+
+RUN conda install -n base cmake cython \
+    && conda clean -aqy
+
+RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VER} \
+    && conda clean -aqy
+
+RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
+    && conda clean -aqy
+
+RUN python -m pip install 'tensorflow~=2.2.0'
 
 ARG OMPI=4.1.0
 
@@ -52,35 +80,9 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
-    /bin/bash ~/installconda.sh -b -p /opt/conda && \
-    rm ~/installconda.sh && \
-    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc
-
-RUN conda config --add channels conda-forge && \
-    conda config --add channels anaconda && \
-    conda update -n base conda && \
-    conda install -n base \
-        cmake \
-        cudatoolkit=10.1 \
-        cython \
-        tensorflow-gpu=2.2.0 \
-    && conda clean -aqy
-
-RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7 \
-    && conda clean -aqy
-
-RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1 \
-    && conda clean -aqy
-
-RUN python -m pip install --upgrade pip~=20.2.0
-
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)
-RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
+RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
         python -m pip install 'horovod~=0.20.0' && \
     ldconfig

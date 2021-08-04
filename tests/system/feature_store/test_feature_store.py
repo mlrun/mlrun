@@ -9,7 +9,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import pytest
 from pandas.util.testing import assert_frame_equal
-from storey import EmitAfterMaxEvent, MapClass
+from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
@@ -147,6 +147,18 @@ class TestFeatureStore(TestMLRunSystem):
         svc = fs.get_online_feature_service(vector)
         # check non existing column
         resp = svc.get([{"bb": "AAPL"}])
+
+        # check that passing a dict (without list) works
+        resp = svc.get({"ticker": "GOOG"})
+        assert (
+            resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
+        ), "unexpected online result"
+
+        try:
+            resp = svc.get("GOOG")
+            assert False
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass
 
         resp = svc.get([{"ticker": "a"}])
         assert resp[0] is None
@@ -611,7 +623,6 @@ class TestFeatureStore(TestMLRunSystem):
             operations=["sum", "max"],
             windows="1h",
             period="10m",
-            emit_policy=EmitAfterMaxEvent(1),
         )
         fs.preview(
             data_set,
@@ -673,13 +684,28 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         features = ["fs1.*"]
         vector = fs.FeatureVector("vector", features)
+        vector.spec.with_indexes = True
+
         resp = fs.get_offline_features(
             vector,
             entity_timestamp_column="time_stamp",
             start_time=datetime(2021, 6, 9, 9, 30),
             end_time=datetime(2021, 6, 9, 10, 30),
         )
-        assert len(resp.to_dataframe()) == 2
+
+        expected = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-06-09 09:30:06.008"),
+                    pd.Timestamp("2021-06-09 10:29:07.009"),
+                ],
+                "data": [10, 20],
+                "string": ["ab", "cd"],
+            }
+        )
+        expected.set_index(keys="string", inplace=True)
+
+        assert expected.equals(resp.to_dataframe())
 
     def test_unaggregated_columns(self):
         test_base_time = datetime(2020, 12, 1, 17, 33, 15)

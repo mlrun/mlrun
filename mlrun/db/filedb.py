@@ -24,6 +24,7 @@ from dateutil.parser import parse as parse_time
 import mlrun.api.schemas
 import mlrun.errors
 
+from ..api import schemas
 from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..datastore import store_manager
@@ -437,11 +438,11 @@ class FileRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        if owner or format_ == mlrun.api.schemas.Format.full or labels or state:
+        if owner or format_ == mlrun.api.schemas.ProjectsFormat.full or labels or state:
             raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
@@ -635,8 +636,8 @@ class FileRunDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.api.schemas.Format
-        ] = mlrun.api.schemas.Format.metadata_only,
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
         raise NotImplementedError()
@@ -685,7 +686,7 @@ class FileRunDB(RunDBInterface):
     def list_artifact_tags(self, project=None):
         raise NotImplementedError()
 
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -694,10 +695,12 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+    def delete_model_endpoint_record(
+        self, project: str, endpoint_id: str, access_key=None
+    ):
         raise NotImplementedError()
 
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -710,7 +713,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -719,6 +722,52 @@ class FileRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def list_marketplace_sources(self):
+        raise NotImplementedError()
+
+    def get_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def delete_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
     ):
         raise NotImplementedError()
 

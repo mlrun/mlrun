@@ -6,6 +6,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.config
@@ -35,7 +36,12 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
                 mergedeep.merge(runtimes, resources)
         return runtimes
 
-    def get_runtime(self, kind: str, label_selector: str = None):
+    def get_runtime(
+        self,
+        kind: str,
+        label_selector: str = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             mlrun.api.api.utils.log_and_raise(
                 http.HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"

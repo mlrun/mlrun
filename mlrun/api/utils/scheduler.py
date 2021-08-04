@@ -10,11 +10,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.deps
+import mlrun.api.utils.clients.opa
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.model import RunObject
 from mlrun.runtimes.constants import RunStates
@@ -80,9 +79,6 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        get_project_member().ensure_project(
-            db_session, project, leader_session=auth_info.session
-        )
         get_db().create_schedule(
             db_session,
             project,
@@ -137,7 +133,6 @@ class Scheduler:
             cron_trigger,
             labels,
             concurrency_limit,
-            auth_info.session,
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
         updated_schedule = self._transform_and_enrich_db_schedule(
@@ -188,14 +183,28 @@ class Scheduler:
             db_session, db_schedule, include_last_run
         )
 
-    def delete_schedule(self, db_session: Session, project: str, name: str):
+    def delete_schedule(
+        self, db_session: Session, project: str, name: str,
+    ):
         logger.debug("Deleting schedule", project=project, name=name)
+        self._remove_schedule_from_scheduler(project, name)
+        get_db().delete_schedule(db_session, project, name)
+
+    def delete_schedules(
+        self, db_session: Session, project: str,
+    ):
+        schedules = self.list_schedules(db_session, project,)
+        logger.debug("Deleting schedules", project=project)
+        for schedule in schedules.schedules:
+            self._remove_schedule_from_scheduler(schedule.project, schedule.name)
+        get_db().delete_schedules(db_session, project)
+
+    def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)
         # don't fail on delete if job doesn't exist
         job = self._scheduler.get_job(job_id)
         if job:
             self._scheduler.remove_job(job_id)
-        get_db().delete_schedule(db_session, project, name)
 
     async def invoke_schedule(
         self,
@@ -420,6 +429,10 @@ class Scheduler:
         logger.warn(message, scheduled_object_kind=scheduled_kind)
         raise NotImplementedError(message)
 
+    def _list_schedules_from_scheduler(self, project: str):
+        jobs = self._scheduler.get_jobs()
+        return [job for job in jobs if self._resolve_job_id(project, "") in job.id]
+
     def _resolve_job_id(self, project, name) -> str:
         """
         :return: returns the identifier that will be used inside the APScheduler
@@ -435,6 +448,7 @@ class Scheduler:
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # import here to avoid circular imports
+        import mlrun.api.crud
         from mlrun.api.api.utils import submit_run
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
@@ -453,7 +467,7 @@ class Scheduler:
 
         db_session = create_session()
 
-        active_runs = get_db().list_runs(
+        active_runs = mlrun.api.crud.Runs().list_runs(
             db_session,
             state=RunStates.non_terminal_states(),
             project=project_name,
@@ -476,11 +490,7 @@ class Scheduler:
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
         get_db().update_schedule(
-            db_session,
-            run_metadata["project"],
-            schedule_name,
-            last_run_uri=run_uri,
-            leader_session=auth_info.session,
+            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
         )
 
         close_session(db_session)

@@ -471,6 +471,28 @@ async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
+async def test_list_schedules_from_scheduler(db: Session, scheduler: Scheduler):
+    project_1 = "project-1"
+    project_1_number_of_schedules = 5
+    for index in range(project_1_number_of_schedules):
+        schedule_name = f"schedule-name-{index}"
+        _create_do_nothing_schedule(db, scheduler, project_1, schedule_name)
+    project_2 = "project-2"
+    project_2_number_of_schedules = 2
+    for index in range(project_2_number_of_schedules):
+        schedule_name = f"schedule-name-{index}"
+        _create_do_nothing_schedule(db, scheduler, project_2, schedule_name)
+    assert (
+        len(scheduler._list_schedules_from_scheduler(project_1))
+        == project_1_number_of_schedules
+    )
+    assert (
+        len(scheduler._list_schedules_from_scheduler(project_2))
+        == project_2_number_of_schedules
+    )
+
+
+@pytest.mark.asyncio
 async def test_delete_schedule(db: Session, scheduler: Scheduler):
     cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
@@ -495,6 +517,26 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
 
     # verify another delete pass successfully
     scheduler.delete_schedule(db, project, schedule_name)
+
+
+@pytest.mark.asyncio
+async def test_delete_schedules(db: Session, scheduler: Scheduler):
+    project = config.default_project
+    number_of_schedules = 5
+    for index in range(number_of_schedules):
+        schedule_name = f"schedule-name-{index}"
+        _create_do_nothing_schedule(db, scheduler, project, schedule_name)
+
+    schedules = scheduler.list_schedules(db)
+    assert len(schedules.schedules) == number_of_schedules
+
+    scheduler.delete_schedules(db, project)
+
+    schedules = scheduler.list_schedules(db)
+    assert len(schedules.schedules) == 0
+
+    # verify another delete pass successfully
+    scheduler.delete_schedules(db, project)
 
 
 @pytest.mark.asyncio
@@ -749,6 +791,21 @@ def _assert_schedule(
     assert schedule.cron_trigger == cron_trigger
     assert schedule.creation_time is not None
     assert DeepDiff(schedule.labels, labels, ignore_order=True) == {}
+
+
+def _create_do_nothing_schedule(
+    db: Session, scheduler: Scheduler, project: str, name: str
+):
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
 
 
 def _create_mlrun_function_and_matching_scheduled_object(

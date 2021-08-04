@@ -12,6 +12,7 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
+import mlrun.api.schemas
 from mlrun.api.crud.model_endpoints import (
     ENDPOINTS,
     EVENTS,
@@ -53,11 +54,11 @@ def _is_env_params_dont_exist() -> bool:
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_clear_endpoint(db: Session, client: TestClient):
-    access_key = _get_access_key()
+    auth_info = _get_auth_info()
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(access_key, endpoint)
+    write_endpoint_to_kv(auth_info.data_session, endpoint)
     kv_record = ModelEndpoints.get_endpoint(
-        access_key=access_key,
+        auth_info=auth_info,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
     )
@@ -65,14 +66,14 @@ def test_clear_endpoint(db: Session, client: TestClient):
     assert kv_record
     response = client.delete(
         url=f"/api/projects/{kv_record.metadata.project}/model-endpoints/{endpoint.metadata.uid}",
-        headers={"X-V3io-Session-Key": access_key},
+        headers={"X-V3io-Session-Key": auth_info.data_session},
     )
 
     assert response.status_code == 204
 
     with pytest.raises(MLRunNotFoundError):
         ModelEndpoints.get_endpoint(
-            access_key=access_key,
+            auth_info=auth_info,
             project=endpoint.metadata.project,
             endpoint_id=endpoint.metadata.uid,
         )
@@ -82,12 +83,12 @@ def test_clear_endpoint(db: Session, client: TestClient):
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_store_endpoint_update_existing(db: Session, client: TestClient):
-    access_key = _get_access_key()
+    auth_info = _get_auth_info()
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
+    write_endpoint_to_kv(access_key=auth_info.data_session, endpoint=endpoint)
 
     kv_record_before_update = ModelEndpoints.get_endpoint(
-        access_key=access_key,
+        auth_info=auth_info,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
     )
@@ -99,14 +100,14 @@ def test_store_endpoint_update_existing(db: Session, client: TestClient):
 
     response = client.put(
         url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.metadata.uid}",
-        headers={"X-V3io-Session-Key": access_key},
+        headers={"X-V3io-Session-Key": auth_info.data_session},
         json=endpoint_dict,
     )
 
     assert response.status_code == 204
 
     kv_record_after_update = ModelEndpoints.get_endpoint(
-        access_key=access_key,
+        auth_info=auth_info,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
     )
@@ -121,11 +122,11 @@ def test_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("testing") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        write_endpoint_to_kv(_get_access_key(), endpoint)
+        write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
 
     response = client.get(
         url=f"/api/projects/{TEST_PROJECT}/model-endpoints",
-        headers={"X-V3io-Session-Key": _get_access_key()},
+        headers={"X-V3io-Session-Key": _get_auth_info().data_session},
     )
 
     endpoints_out = [ModelEndpoint(**e) for e in response.json()["endpoints"]]
@@ -141,7 +142,8 @@ def test_list_endpoints(db: Session, client: TestClient):
     _is_env_params_dont_exist(), reason=_build_skip_message(),
 )
 def test_list_endpoints_filter(db: Session, client: TestClient):
-    access_key = _get_access_key()
+    auth_info = _get_auth_info()
+    access_key = auth_info.data_session
     for i in range(5):
         endpoint_details = _mock_random_endpoint()
 
@@ -154,7 +156,7 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
         if i < 4:
             endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-        write_endpoint_to_kv(_get_access_key(), endpoint_details)
+        write_endpoint_to_kv(_get_auth_info().data_session, endpoint_details)
 
     filter_model = client.get(
         f"/api/projects/{TEST_PROJECT}/model-endpoints/?model=filterme",
@@ -191,14 +193,16 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
-        token=_get_access_key(), container=container, address=config.v3io_framesd,
+        token=_get_auth_info().data_session,
+        container=container,
+        address=config.v3io_framesd,
     )
 
     start = datetime.utcnow()
 
     for i in range(5):
         endpoint = _mock_random_endpoint()
-        write_endpoint_to_kv(_get_access_key(), endpoint)
+        write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
         frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
 
         total = 0
@@ -225,7 +229,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
         response = client.get(
             url=f"/api/projects/{TEST_PROJECT}/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",  # noqa
-            headers={"X-V3io-Session-Key": _get_access_key()},
+            headers={"X-V3io-Session-Key": _get_auth_info().data_session},
         )
 
         endpoint = ModelEndpoint(**response.json())
@@ -253,13 +257,15 @@ def test_get_endpoint_metric_function():
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
-        token=_get_access_key(), container=container, address=config.v3io_framesd,
+        token=_get_auth_info().data_session,
+        container=container,
+        address=config.v3io_framesd,
     )
 
     start = datetime.utcnow()
 
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(_get_access_key(), endpoint)
+    write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
 
     frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
 
@@ -282,7 +288,7 @@ def test_get_endpoint_metric_function():
     )
 
     endpoint_metrics = get_endpoint_metrics(
-        access_key=_get_access_key(),
+        access_key=_get_auth_info().data_session,
         project=TEST_PROJECT,
         endpoint_id=endpoint.metadata.uid,
         metrics=["predictions_per_second_count_1s"],
@@ -328,11 +334,11 @@ def test_build_kv_cursor_filter_expression():
 
 
 def test_get_access_key():
-    key = get_access_key({"X-V3io-Session-Key": "asd"})
+    key = get_access_key(mlrun.api.schemas.AuthInfo(data_session="asd"))
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        get_access_key({"some_other_header": "asd"})
+        get_access_key(mlrun.api.schemas.AuthInfo())
 
 
 def test_get_endpoint_features_function():
@@ -512,17 +518,17 @@ def test_get_endpoint_features_function():
 )
 def test_deserialize_endpoint_from_kv():
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(_get_access_key(), endpoint)
+    write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
     endpoint_from_kv = ModelEndpoints.get_endpoint(
-        access_key=_get_access_key(),
+        auth_info=_get_auth_info(),
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
     )
     assert endpoint.metadata.uid == endpoint_from_kv.metadata.uid
 
 
-def _get_access_key() -> Optional[str]:
-    return os.environ.get("V3IO_ACCESS_KEY")
+def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
+    return mlrun.api.schemas.AuthInfo(data_session=os.environ.get("V3IO_ACCESS_KEY"))
 
 
 @pytest.fixture(autouse=True)
@@ -531,7 +537,9 @@ def cleanup_endpoints(db: Session, client: TestClient):
     if _is_env_params_dont_exist():
         return
 
-    v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
+    v3io = get_v3io_client(
+        endpoint=config.v3io_api, access_key=_get_auth_info().data_session
+    )
 
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=ENDPOINTS
@@ -539,7 +547,9 @@ def cleanup_endpoints(db: Session, client: TestClient):
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
-        token=_get_access_key(), container=container, address=config.v3io_framesd,
+        token=_get_auth_info().data_session,
+        container=container,
+        address=config.v3io_framesd,
     )
     try:
         all_records = v3io.kv.new_cursor(

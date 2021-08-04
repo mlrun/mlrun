@@ -7,22 +7,20 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Respons
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
+import mlrun.api.utils.clients.opa
+import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, runtime_resources_map
-from mlrun.runtimes.function import (
-    deploy_nuclio_function,
-    get_nuclio_deploy_status,
-    resolve_function_internal_invocation_url,
-)
+from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 
 router = APIRouter()
@@ -39,23 +37,35 @@ async def store_function(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_verifier.auth_info,
+    )
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_verifier.auth_info,
+    )
     data = None
     try:
         data = await request.json()
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug(data)
-    logger.info("store function: project=%s, name=%s, tag=%s", project, name, tag)
+    logger.debug("Storing function", project=project, name=name, tag=tag, data=data)
     hash_key = await run_in_threadpool(
-        get_db().store_function,
+        mlrun.api.crud.Functions().store_function,
         db_session,
         data,
         name,
         project,
         tag=tag,
         versioned=versioned,
-        leader_session=auth_verifier.auth_info.session,
     )
     return {
         "hash_key": hash_key,
@@ -69,9 +79,19 @@ def get_function(
     name: str,
     tag: str = "",
     hash_key="",
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    func = get_db().get_function(db_session, name, project, tag, hash_key)
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
+    func = mlrun.api.crud.Functions().get_function(
+        db_session, name, project, tag, hash_key
+    )
     return {
         "func": func,
     }
@@ -81,9 +101,19 @@ def get_function(
     "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 def delete_function(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().delete_function(db_session, project, name)
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
+    mlrun.api.crud.Functions().delete_function(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -94,11 +124,23 @@ def list_functions(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
+    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    funcs = get_db().list_functions(db_session, name, project, tag, labels)
+    functions = mlrun.api.crud.Functions().list_functions(
+        db_session, project, name, tag, labels
+    )
+    functions = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        functions,
+        lambda function: (
+            function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+            function["metadata"]["name"],
+        ),
+        auth_verifier.auth_info,
+    )
     return {
-        "funcs": list(funcs),
+        "funcs": functions,
     }
 
 
@@ -118,6 +160,14 @@ async def build_function(
 
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+        function.get("metadata", {}).get("name"),
+        mlrun.api.schemas.AuthorizationAction.update,
+        auth_verifier.auth_info,
+    )
     with_mlrun = strtobool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
@@ -145,6 +195,7 @@ async def start_function(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    # TODO: ensure project here !!! for background task
     data = None
     try:
         data = await request.json()
@@ -154,11 +205,17 @@ async def start_function(
     logger.info("Got request to start function", body=data)
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
+    await run_in_threadpool(
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        function.metadata.project,
+        function.metadata.name,
+        mlrun.api.schemas.AuthorizationAction.update,
+        auth_verifier.auth_info,
+    )
 
     background_task = await run_in_threadpool(
         mlrun.api.utils.background_tasks.Handler().create_background_task,
-        db_session,
-        auth_verifier.auth_info.session,
         function.metadata.project,
         background_tasks,
         _start_function,
@@ -172,14 +229,16 @@ async def start_function(
 # curl -d@/path/to/job.json http://localhost:8080/status/function
 @router.post("/status/function")
 @router.post("/status/function/")
-async def function_status(request: Request):
+async def function_status(
+    request: Request, auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+):
     data = None
     try:
         data = await request.json()
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    resp = await run_in_threadpool(_get_function_status, data)
+    resp = await run_in_threadpool(_get_function_status, data, auth_verifier.auth_info)
     return {
         "data": resp,
     }
@@ -199,7 +258,16 @@ def build_status(
     auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    fn = get_db().get_function(db_session, name, project, tag)
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        project or mlrun.mlconf.default_project,
+        name,
+        # store since with the current mechanism we update the status (and store the function) in the DB when a client
+        # query for the status
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_verifier.auth_info,
+    )
+    fn = mlrun.api.crud.Functions().get_function(db_session, name, project, tag)
     if not fn:
         log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
 
@@ -213,22 +281,20 @@ def build_status(
             text,
             status,
         ) = get_nuclio_deploy_status(
-            name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
+            name,
+            project,
+            tag,
+            last_log_timestamp=last_log_timestamp,
+            verbose=verbose,
+            auth_info=auth_verifier.auth_info,
         )
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
         if state in ["error", "unhealthy"]:
             logger.error(f"Nuclio deploy error, {text}", name=name)
 
-        # internal / external invocation urls were added on nuclio 1.6.x
-        # and hence, it might be empty
-        # to backward compatible with older nuclio versions, we use hard-coded default values
-        internal_invocation_urls = status.get(
-            "internalInvocationUrls", [resolve_function_internal_invocation_url(name)]
-        )
-        external_invocation_urls = status.get(
-            "externalInvocationUrls", [address] if address else []
-        )
+        internal_invocation_urls = status.get("internalInvocationUrls", [])
+        external_invocation_urls = status.get("externalInvocationUrls", [])
 
         # on earlier versions of mlrun, address used to represent the nodePort external invocation url
         # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
@@ -247,14 +313,8 @@ def build_status(
             # Versioned means the version will be saved in the DB forever, we don't want to spam
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
-        get_db().store_function(
-            db_session,
-            fn,
-            name,
-            project,
-            tag,
-            versioned=versioned,
-            leader_session=auth_verifier.auth_info.session,
+        mlrun.api.crud.Functions().store_function(
+            db_session, fn, name, project, tag, versioned=versioned,
         )
         return Response(
             content=text,
@@ -310,14 +370,8 @@ def build_status(
     versioned = False
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
-    get_db().store_function(
-        db_session,
-        fn,
-        name,
-        project,
-        tag,
-        versioned=versioned,
-        leader_session=auth_verifier.auth_info.session,
+    mlrun.api.crud.Functions().store_function(
+        db_session, fn, name, project, tag, versioned=versioned,
     )
 
     return Response(
@@ -344,13 +398,16 @@ def _build_function(
     ready = None
     try:
         fn = new_function(runtime=function)
-
-        run_db = get_run_db_instance(db_session, auth_info.session)
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+    try:
+        run_db = get_run_db_instance(db_session, auth_info)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
-            deploy_nuclio_function(fn)
+            deploy_nuclio_function(fn, auth_info=auth_info)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
@@ -374,7 +431,9 @@ def _parse_start_function_body(db_session, data):
         )
 
     project, name, tag, hash_key = parse_versioned_object_uri(url)
-    runtime = get_db().get_function(db_session, name, project, tag, hash_key)
+    runtime = mlrun.api.crud.Functions().get_function(
+        db_session, name, project, tag, hash_key
+    )
     if not runtime:
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
@@ -394,7 +453,7 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
                 reason="runtime error: 'start' not supported by this runtime",
             )
         try:
-            run_db = get_run_db_instance(db_session, auth_info.session)
+            run_db = get_run_db_instance(db_session, auth_info)
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
@@ -408,7 +467,7 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
         mlrun.api.db.session.close_session(db_session)
 
 
-def _get_function_status(data):
+def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     logger.info(f"function_status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
@@ -417,6 +476,19 @@ def _get_function_status(data):
             HTTPStatus.BAD_REQUEST.value,
             reason="runtime error: selector or runtime kind not specified",
         )
+    project, name = data.get("project"), data.get("name")
+    # Only after 0.6.6 the client start sending the project and name, as long as 0.6.6 is a valid version we'll need
+    # to try and resolve them from the selector. TODO: remove this when 0.6.6 is not relevant anymore
+    if not project or not name:
+        project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
+
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
 
     resource = runtime_resources_map.get(kind)
     if "status" not in resource:

@@ -92,7 +92,8 @@ class AzureBlobStore(DataStore):
                 return blob
         else:
             remote_path = self._convert_key_to_remote_path(key)
-            blob = self._filesystem.cat_file(remote_path, start=offset)
+            end = offset + size if size else None
+            blob = self._filesystem.cat_file(remote_path, start=offset, end=end)
             return blob
 
     def put(self, key, data, append=False):

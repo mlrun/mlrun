@@ -508,10 +508,10 @@ class BaseRuntime(ModelObj):
         elif not self.is_child:
             ui_url = get_ui_url(project, uid)
             ui_url = f"\nor click {ui_url} for UI" if ui_url else ""
-            proj = f"-p {project}" if project else ""
+            project_flag = f"-p {project}" if project else ""
             print(
                 f"to track results use the CLI:\n"
-                f"info: mlrun get run {uid} {proj}\nlogs: mlrun logs {uid} {proj}{ui_url}"
+                f"info: mlrun get run {uid} {project_flag}\nlogs: mlrun logs {uid} {project_flag}{ui_url}"
             )
 
         if result:

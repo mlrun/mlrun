@@ -32,7 +32,13 @@ class Scheduler:
         self._secrets_provider = schemas.SecretProviderName.kubernetes
 
         self._store_schedule_credentials_in_secrets = (
-            mlrun.mlconf.httpdb.authorization.mode == "opa"
+            mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
+            == "enabled"
+            or (
+                mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
+                == "auto"
+                and mlrun.mlconf.httpdb.authorization.mode == "opa"
+            )
         )
 
     async def start(self, db_session: Session):

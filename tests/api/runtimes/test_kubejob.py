@@ -21,6 +21,8 @@ from tests.api.runtimes.base import TestRuntimeBase
 class TestKubejobRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()
+        # auto-mount is looking at this to check if we're running on Iguazio
+        mlconf.igz_version = "some_version"
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
@@ -150,7 +152,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         self._execute_run(runtime)
         self._assert_pod_creation_config()
-        self._assert_v3io_mount_configured(v3io_user, v3io_access_key)
+        self._assert_v3io_mount_or_creds_configured(v3io_user, v3io_access_key)
 
         # Mount a PVC. Create a new runtime so we don't have both v3io and the PVC mounted
         runtime = self._generate_runtime()
@@ -301,4 +303,66 @@ def my_func(context):
                 expected_commands, runtime.spec.build.commands, ignore_order=True,
             )
             == {}
+        )
+
+    @pytest.mark.parametrize("cred_only", [True, False])
+    def test_run_with_automount_v3io(self, db: Session, client: TestClient, cred_only):
+        mlconf.storage.auto_mount_type = "v3io_cred" if cred_only else "v3io_fuse"
+        mlconf.storage.auto_mount_params = {}
+        runtime = self._generate_runtime()
+        v3io_access_key = "1111-2222-3333-4444"
+        v3io_user = "test-user"
+        os.environ["V3IO_ACCESS_KEY"] = v3io_access_key
+        os.environ["V3IO_USERNAME"] = v3io_user
+
+        # By default, we expect auto-mount to use v3io_cred when running on Iguazio
+        self._execute_run(runtime)
+        self._assert_v3io_mount_or_creds_configured(
+            v3io_user, v3io_access_key, cred_only=cred_only
+        )
+
+        # Test overriding the auto-mount defaults using config
+        user_override = "another-user"
+        access_key_override = "5555-6666-7777-8888"
+        mlconf.storage.auto_mount_params = {
+            "user": user_override,
+            "access_key": access_key_override,
+        }
+
+        # Test that auto-mount does not apply after a mount was already configured
+        self._execute_run(runtime)
+        self._assert_v3io_mount_or_creds_configured(
+            v3io_user, v3io_access_key, cred_only=cred_only
+        )
+
+        # But it works on a new runtime, overriding the env defaults
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        self._assert_v3io_mount_or_creds_configured(
+            user_override, access_key_override, cred_only=cred_only
+        )
+
+    def test_run_with_automount_pvc(self, db: Session, client: TestClient):
+        mlconf.storage.auto_mount_type = "pvc"
+        pvc_params = {
+            "pvc_name": "test_pvc",
+            "volume_name": "test_volume",
+            "volume_mount_path": "/mnt/test/path",
+        }
+        mlconf.storage.auto_mount_params = pvc_params.copy()
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        self._assert_pvc_mount_configured(
+            pvc_params["pvc_name"],
+            pvc_params["volume_mount_path"],
+            pvc_params["volume_name"],
+        )
+
+        # change config, validate it doesn't matter for a runtime that was already auto-mounted
+        mlconf.storage.auto_mount_params.pvc_name = "another_test_pvc"
+        self._execute_run(runtime)
+        self._assert_pvc_mount_configured(
+            pvc_params["pvc_name"],
+            pvc_params["volume_mount_path"],
+            pvc_params["volume_name"],
         )

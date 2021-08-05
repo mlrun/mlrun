@@ -16,7 +16,7 @@ import asyncio
 import json
 import typing
 from datetime import datetime
-from os import environ, getenv
+from os import getenv
 from time import sleep
 
 import nuclio
@@ -37,7 +37,7 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
+from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -350,11 +350,10 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_v3io(self, local="", remote=""):
-        for key in ["V3IO_FRAMESD", "V3IO_USERNAME", "V3IO_ACCESS_KEY", "V3IO_API"]:
-            if key in environ:
-                self.set_env(key, environ[key])
         if local and remote:
             self.apply(mount_v3io(remote=remote, mount_path=local))
+        else:
+            self.apply(v3io_cred())
         return self
 
     def with_http(
@@ -936,6 +935,8 @@ def compile_function_config(function: RemoteRuntime):
     # Add vault configurations to function's pod spec, if vault secret source was added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     function.add_secrets_config_to_spec()
+    # Perform auto-mount to function, if needed
+    function.auto_mount_based_on_config()
 
     env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
     for key, value in function._get_runtime_env().items():

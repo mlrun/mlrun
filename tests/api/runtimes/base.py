@@ -354,7 +354,9 @@ class TestRuntimeBase:
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[0]
 
-    def _assert_v3io_mount_configured(self, v3io_user, v3io_access_key):
+    def _assert_v3io_mount_or_creds_configured(
+        self, v3io_user, v3io_access_key, cred_only=False
+    ):
         args = self._get_pod_creation_args()
         pod_spec = args.spec
         container_spec = pod_spec.containers[0]
@@ -368,6 +370,11 @@ class TestRuntimeBase:
                 "V3IO_ACCESS_KEY": v3io_access_key,
             },
         )
+
+        if cred_only:
+            assert len(pod_spec.volumes) == 0
+            assert len(container_spec.volume_mounts) == 0
+            return
 
         expected_volume = {
             "flexVolume": {

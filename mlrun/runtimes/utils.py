@@ -315,6 +315,7 @@ def apply_kfp(modify, cop, runtime):
         cop.volumes.clear()
         cop.container.volume_mounts.clear()
 
+    runtime.spec.mount_applied = True
     return runtime
 
 

@@ -165,9 +165,22 @@ class TestNuclioRuntime(TestRuntimeBase):
             diff_result.pop("dictionary_item_removed", None)
             assert diff_result == {}
 
-    def _assert_nuclio_v3io_mount(self, local_path, remote_path):
+    def _assert_nuclio_v3io_mount(self, local_path="", remote_path="", cred_only=False):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
+
+        env_config = deploy_spec["env"]
+        expected_env = {
+            "V3IO_ACCESS_KEY": self.v3io_access_key,
+            "V3IO_USERNAME": self.v3io_user,
+            "V3IO_API": None,
+            "MLRUN_NAMESPACE": self.namespace,
+        }
+        self._assert_pod_env(env_config, expected_env)
+        if cred_only:
+            assert len(deploy_spec["volumes"]) == 0
+            return
+
         container, path = split_path(remote_path)
 
         expected_volume = {
@@ -190,15 +203,6 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
             == {}
         )
-
-        env_config = deploy_spec["env"]
-        expected_env = {
-            "V3IO_ACCESS_KEY": self.v3io_access_key,
-            "V3IO_USERNAME": self.v3io_user,
-            "V3IO_API": None,
-            "MLRUN_NAMESPACE": self.namespace,
-        }
-        self._assert_pod_env(env_config, expected_env)
 
     def _assert_node_selections(
         self,
@@ -339,6 +343,23 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()
         self._assert_nuclio_v3io_mount(local_path, remote_path)
+
+    @pytest.mark.parametrize("cred_only", [True, False])
+    def test_deploy_with_automount_v3io(
+        self, db: Session, client: TestClient, cred_only
+    ):
+        function = self._generate_runtime("nuclio")
+        local_path = "/local/path"
+        remote_path = "/container/and/path"
+
+        mlconf.storage.auto_mount_type = "v3io_cred" if cred_only else "v3io_fuse"
+        mlconf.storage.auto_mount_params = (
+            {} if cred_only else {"mount_path": local_path, "remote": remote_path}
+        )
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config()
+        self._assert_nuclio_v3io_mount(local_path, remote_path, cred_only=cred_only)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
         mlconf.nuclio_version = "1.6.10"

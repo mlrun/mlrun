@@ -240,6 +240,13 @@ default_config = {
             "channel": "master",
         },
     },
+    "storage": {
+        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_cred, v3io_fuse, pvc.
+        # Default is auto - which is v3io_cred when running on Iguazio and none otherwise
+        "auto_mount_type": "auto",
+        # Extra parameters to pass to the mount call (will be passed as kwargs)
+        "auto_mount_params": {},
+    },
 }
 
 

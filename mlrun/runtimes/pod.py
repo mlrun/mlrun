@@ -15,6 +15,7 @@
 import typing
 import uuid
 from copy import deepcopy
+from enum import Enum
 
 from kfp.dsl import ContainerOp
 from kubernetes import client
@@ -58,6 +59,7 @@ class KubeResourceSpec(FunctionSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        mount_applied=False,
     ):
         super().__init__(
             command=command,
@@ -86,6 +88,7 @@ class KubeResourceSpec(FunctionSpec):
             node_selector or mlrun.mlconf.get_default_function_node_selector()
         )
         self._affinity = affinity
+        self.mount_applied = mount_applied or False
 
     @property
     def volumes(self) -> list:
@@ -173,6 +176,28 @@ class KubeResourceSpec(FunctionSpec):
         volume_mount_path = get_item_name(volume_mount, "mountPath")
         volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
         self._volume_mounts[volume_mount_key] = volume_mount
+
+
+class AutoMountType(str, Enum):
+    none = "none"
+    auto = "auto"
+    v3io_cred = "v3io_cred"
+    v3io_fuse = "v3io_fuse"
+    pvc = "pvc"
+
+    @classmethod
+    def _missing_(cls, value):
+        is_iguazio = mlconf.igz_version != ""
+        return AutoMountType.v3io_cred if is_iguazio else AutoMountType.auto
+
+    def get_modifier(self):
+        return {
+            AutoMountType.none: None,
+            AutoMountType.v3io_cred: mlrun.v3io_cred,
+            AutoMountType.v3io_fuse: mlrun.mount_v3io,
+            AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
+            AutoMountType.auto: mlrun.platforms.auto_mount,
+        }[self]
 
 
 class KubeResource(BaseRuntime):
@@ -433,6 +458,19 @@ class KubeResource(BaseRuntime):
         self.spec.env.append(
             {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
         )
+
+    def auto_mount_based_on_config(self):
+        if self.spec.mount_applied:
+            logger.info("Mount already applied - not performing auto-mount")
+            return
+
+        auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
+        modifier = auto_mount_type.get_modifier()
+        if not modifier:
+            logger.info("Auto mount disabled due to user selection")
+            return
+        mount_params = mlconf.storage.auto_mount_params.to_dict()
+        self.apply(modifier(**mount_params))
 
 
 def kube_resource_spec_to_pod_spec(

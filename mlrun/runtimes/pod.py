@@ -382,14 +382,13 @@ class KubeResource(BaseRuntime):
             return
 
         secret_name = self._get_k8s().get_project_secret_name(project_name)
-        existing_secret_keys = (
-            self._get_k8s().get_project_secret_keys(project_name) or {}
-        )
+        existing_secret_keys = self._get_k8s().get_project_secrets(project_name) or {}
 
         # If no secrets were passed, we need all existing keys
         if not secrets:
             secrets = {
-                key: self._secrets.k8s_env_variable_name_for_secret(key) for key in existing_secret_keys
+                key: self._secrets.k8s_env_variable_name_for_secret(key)
+                for key in existing_secret_keys
             }
 
         for key, env_var_name in secrets.items():

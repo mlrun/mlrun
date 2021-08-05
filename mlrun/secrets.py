@@ -102,7 +102,12 @@ class SecretsStore:
             self._hidden_sources.append({"kind": kind, "source": source})
 
     def get(self, key, default=None):
-        return self._secrets.get(key) or self._hidden_secrets.get(key) or default
+        return (
+            self._secrets.get(key)
+            or self._hidden_secrets.get(key)
+            or environ.get(self.k8s_env_variable_name_for_secret(key))
+            or default
+        )
 
     def items(self):
         res = self._secrets.copy()

@@ -82,22 +82,29 @@ def new_project(
     :param init_git:     if True, will git init the context dir
     :param user_project: add the current user name to the provided project name (making it unique per user)
     :param remote:       remote Git url
-    :param template:     path to project YAML file that will be used as template
+    :param template:     path to project YAML/zip file that will be used as template
 
     :returns: project object
     """
+    context = context or "./"
     if user_project:
         user = environ.get("V3IO_USERNAME") or getpass.getuser()
         name = f"{name}-{user}"
 
     if template:
-        project = _load_project_file(template)
+        if template.endswith(".yaml"):
+            project = _load_project_file(template)
+        elif template.endswith(".zip"):
+            clone_zip(template, context)
+            project = _load_project_dir(context, name)
+        else:
+            raise ValueError("template must be a .yaml or .zip file")
         project.metadata.name = name
     else:
         project = MlrunProject(name=name)
     project.spec.context = context
 
-    repo, url = init_repo(context, remote, init_git)
+    repo, url = init_repo(context, remote, init_git or remote)
     project.spec.repo = repo
     if remote and url != remote:
         project.create_remote(remote)

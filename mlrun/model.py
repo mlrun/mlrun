@@ -1007,7 +1007,6 @@ class DataSource(ModelObj):
         schedule: str = None,
     ):
         self.name = name
-        print("DINA path " + str(path) + " type " + str(type(path)))
         self.path = str(path)
         self.attributes = attributes
         self.schedule = schedule

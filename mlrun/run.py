@@ -375,7 +375,7 @@ def get_or_create_ctx(
     return ctx
 
 
-def import_function(url="", secrets=None, db="", project=None):
+def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
     Function can be imported from function repositories (mlrun marketplace or local db),
@@ -396,6 +396,7 @@ def import_function(url="", secrets=None, db="", project=None):
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
+    :param new_name: optional, override the imported function name
 
     :returns: function object
     """
@@ -416,6 +417,8 @@ def import_function(url="", secrets=None, db="", project=None):
     # simply default to the default project
     if project and is_hub_uri:
         function.metadata.project = project
+    if new_name:
+        function.metadata.name = new_name
     return function
 
 

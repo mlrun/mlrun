@@ -15,7 +15,7 @@ def test_sync_functions():
     mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     project = mlrun.new_project(project_name)
-    project.set_function("hub://describe")
+    project.set_function("hub://describe", "describe")
     project_function_object = project.spec._function_objects
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
@@ -23,6 +23,14 @@ def test_sync_functions():
     assert imported_project.spec._function_objects == {}
     imported_project.sync_functions()
     _assert_project_function_objects(imported_project, project_function_object)
+
+    fn = project.func("describe")
+    assert fn.metadata.name == "describe", "func did not return"
+
+    # test that functions can be fetched from the DB (w/o set_function)
+    mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+    fn = project.func("train")
+    assert fn.metadata.name == "train", "train func did not return"
 
 
 def test_create_project_from_file_with_legacy_structure():
@@ -88,7 +96,6 @@ def test_create_project_from_file_with_legacy_structure():
 
 
 def test_export_project_dir_doesnt_exist():
-    mlrun.mlconf.artifact_path = "./"
     project_name = "project-name"
     project_file_path = (
         pathlib.Path(tests.conftest.results)
@@ -96,20 +103,21 @@ def test_export_project_dir_doesnt_exist():
         / "another-new-dir"
         / "project.yaml"
     )
-    project = mlrun.projects.project.new_project(project_name)
+    project = mlrun.projects.project.new_project(project_name, artifact_path="./")
     project.export(filepath=project_file_path)
 
 
 def test_create_project_with_invalid_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        mlrun.projects.project.new_project(invalid_name, init_git=False)
+        mlrun.projects.project.new_project(
+            invalid_name, init_git=False, artifact_path="./"
+        )
 
 
 def test_get_set_params():
-    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
-    project = mlrun.new_project(project_name)
+    project = mlrun.new_project(project_name, artifact_path="./")
     param_key = "param-key"
     param_value = "param-value"
     project.params[param_key] = param_value
@@ -119,10 +127,9 @@ def test_get_set_params():
 
 
 def test_user_project():
-    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     user = os.environ.get("V3IO_USERNAME") or getpass.getuser()
-    project = mlrun.new_project(project_name, user_project=True)
+    project = mlrun.new_project(project_name, user_project=True, artifact_path="./")
     assert (
         project.metadata.name == f"{project_name}-{user}"
     ), "project name doesnt include user name"

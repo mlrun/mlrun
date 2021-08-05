@@ -73,7 +73,13 @@ def init_repo(context, url, init_git):
 
 
 def new_project(
-    name, context=None, init_git=False, user_project=False, remote=None, template=None
+    name,
+    context=None,
+    init_git=False,
+    user_project=False,
+    remote=None,
+    template=None,
+    artifact_path=None,
 ):
     """Create a new MLRun project
 
@@ -111,8 +117,10 @@ def new_project(
     elif url:
         project.spec._source = url
         project.spec.origin_url = url
-
-    mlrun.set_environment(project=name, user_project=user_project)
+    project.spec.artifact_path = artifact_path
+    mlrun.set_environment(
+        project=name, user_project=user_project, artifact_path=artifact_path
+    )
     return project
 
 
@@ -1262,7 +1270,7 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def func(self, key, sync=False):
+    def func(self, key, sync=False) -> "mlrun.runtimes.BaseRuntime":
         """get function object by name
 
         :param sync:  will reload/reinit the function

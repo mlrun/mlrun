@@ -73,12 +73,7 @@ def init_repo(context, url, init_git):
 
 
 def new_project(
-    name,
-    context=None,
-    init_git=False,
-    user_project=False,
-    remote=None,
-    template=None,
+    name, context=None, init_git=False, user_project=False, remote=None, template=None,
 ):
     """Create a new MLRun project
 

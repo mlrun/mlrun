@@ -108,9 +108,7 @@ def test_export_project_dir_doesnt_exist():
 def test_create_project_with_invalid_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        mlrun.projects.project.new_project(
-            invalid_name, init_git=False
-        )
+        mlrun.projects.project.new_project(invalid_name, init_git=False)
 
 
 def test_get_set_params():

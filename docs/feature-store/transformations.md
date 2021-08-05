@@ -202,7 +202,7 @@ the MLRun run execution details would be returned, allowing tracking of its stat
 
 Remote Iguazio spark ingestion example:
 ```python
-# nuclio: start-code
+# mlrun: start-code
 ```
 ```python
 from mlrun.feature_store.api import ingest
@@ -213,7 +213,7 @@ def my_spark_func(df, context=None):
     return df.filter("bid>55")
 ```
 ```python
-# nuclio: end-code
+# mlrun: end-code
 ```
 ```python
 from mlrun.datastore.sources import CSVSource

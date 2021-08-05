@@ -14,6 +14,7 @@
 
 import importlib.util as imputil
 import json
+import pathlib
 import socket
 import time
 import uuid
@@ -153,6 +154,7 @@ def run_local(
         if len(sp) > 1:
             args = args or []
             args = sp[1:] + args
+        name = name or pathlib.Path(command).stem
 
     meta = BaseMetadata(name, project=project, tag=tag)
     command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
@@ -160,15 +162,17 @@ def run_local(
     if runtime:
         handler = handler or get_in(runtime, "spec.default_handler", "")
         meta = BaseMetadata.from_dict(runtime["metadata"])
-        meta.name = name or meta.name
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
     fn = new_function(meta.name, command=command, args=args, mode=mode)
-    meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
+    if runtime:
+        # copy the code/base-spec to the local function (for the UI and code logging)
+        fn.spec.description = get_in(runtime, "spec.description")
+        fn.spec.build = get_in(runtime, "spec.build", {})
     return fn.run(
         task,
         name=name,
@@ -241,15 +245,26 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
         command = get_in(runtime, "spec.command", "")
         code = get_in(runtime, "spec.build.functionSourceCode")
+        origin_filename = get_in(runtime, "spec.build.origin_filename")
         kind = get_in(runtime, "kind", "")
         if kind in RuntimeKinds.nuclio_runtimes():
             code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
         if code:
-            fpath = mktemp(".py")
-            code = b64decode(code).decode("utf-8")
-            command = fpath
-            with open(fpath, "w") as fp:
-                fp.write(code)
+            if (
+                origin_filename
+                and origin_filename.endswith(".py")
+                and path.isfile(origin_filename)
+            ):
+                command = origin_filename
+            else:
+                suffix = ".py"
+                if origin_filename:
+                    suffix = f"-{pathlib.Path(origin_filename).stem}.py"
+                fpath = mktemp(suffix)
+                code = b64decode(code).decode("utf-8")
+                command = fpath
+                with open(fpath, "w") as fp:
+                    fp.write(code)
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):
@@ -780,6 +795,7 @@ def code_to_function(
             raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
+        r.spec.build.origin_filename = filename or (name + ".ipynb")
         if requirements:
             r.with_requirements(requirements)
         update_meta(r)
@@ -803,6 +819,7 @@ def code_to_function(
     r.spec.image = image or get_in(spec, "spec.image", "")
     build = r.spec.build
     build.code_origin = code_origin
+    build.origin_filename = filename or (name + ".ipynb")
     build.base_image = get_in(spec, "spec.build.baseImage")
     build.commands = get_in(spec, "spec.build.commands")
     build.extra = get_in(spec, "spec.build.extra")

@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
+import IPython
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
@@ -58,6 +59,7 @@ from ..utils import (
     enrich_image_url,
     get_in,
     get_parsed_docker_registry,
+    get_ui_url,
     is_ipython,
     logger,
     now_date,
@@ -489,18 +491,27 @@ class BaseRuntime(ModelObj):
         else:
             logger.info("no returned result (job may still be in progress)")
             results_tbl.append(runspec.to_dict())
+
+        uid = runspec.metadata.uid
+        project = runspec.metadata.project
         if is_ipython and config.ipython_widget:
             results_tbl.show()
-
-            uid = runspec.metadata.uid
-            proj = (
-                f"--project {runspec.metadata.project}"
-                if runspec.metadata.project
-                else ""
+            print()
+            ui_url = get_ui_url(project, uid)
+            if ui_url:
+                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
+            IPython.display.display(
+                IPython.display.HTML(
+                    f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
+                )
             )
+        elif not self.is_child:
+            ui_url = get_ui_url(project, uid)
+            ui_url = f"\nor click {ui_url} for UI" if ui_url else ""
+            project_flag = f"-p {project}" if project else ""
             print(
-                "to track results use .show() or .logs() or in CLI: \n"
-                f"!mlrun get run {uid} {proj} , !mlrun logs {uid} {proj}"
+                f"to track results use the CLI:\n"
+                f"info: mlrun get run {uid} {project_flag}\nlogs: mlrun logs {uid} {project_flag}{ui_url}"
             )
 
         if result:
@@ -566,6 +577,8 @@ class BaseRuntime(ModelObj):
                 args += ["--handler", runobj.spec.handler]
             if self.spec.mode:
                 args += ["--mode", self.spec.mode]
+            if self.spec.build.origin_filename:
+                args += ["--origin-file", self.spec.build.origin_filename]
 
             if load_archive:
                 if code:

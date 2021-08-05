@@ -93,7 +93,7 @@ class AlembicUtil(object):
         return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
     def _backup_revision(self, db_file_path: str, current_version: str):
-        if db_file_path == ":memory:" or db_file_path == "":
+        if db_file_path == ":memory:":
             return
 
         if "sqlite" in mlconf.httpdb.dsn:

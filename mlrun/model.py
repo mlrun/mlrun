@@ -1019,7 +1019,7 @@ class DataSource(ModelObj):
         schedule: str = None,
     ):
         self.name = name
-        self.path = str(path)
+        self.path = path
         self.attributes = attributes
         self.schedule = schedule
         self.key_field = key_field

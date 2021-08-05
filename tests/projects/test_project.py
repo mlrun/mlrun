@@ -26,6 +26,7 @@ def test_sync_functions():
 
 
 def test_create_project_from_file_with_legacy_structure():
+    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     description = "project description"
     params = {"param_key": "param value"}

@@ -79,7 +79,6 @@ def new_project(
     user_project=False,
     remote=None,
     template=None,
-    artifact_path=None,
 ):
     """Create a new MLRun project
 
@@ -93,9 +92,7 @@ def new_project(
     :returns: project object
     """
     context = context or "./"
-    if user_project:
-        user = environ.get("V3IO_USERNAME") or getpass.getuser()
-        name = f"{name}-{user}"
+    name = _user_project_name(name, user_project)
 
     if template:
         if template.endswith(".yaml"):
@@ -117,10 +114,7 @@ def new_project(
     elif url:
         project.spec._source = url
         project.spec.origin_url = url
-    project.spec.artifact_path = artifact_path
-    mlrun.set_environment(
-        project=name, user_project=user_project, artifact_path=artifact_path
-    )
+    mlrun.mlconf.default_project = project.metadata.name
     return project
 
 
@@ -160,6 +154,7 @@ def load_project(
     secrets = secrets or {}
     repo = None
     project = None
+    name = _user_project_name(name, user_project)
     if not context:
         raise ValueError("valid context (local dir path) must be provided")
 
@@ -193,7 +188,7 @@ def load_project(
     if repo:
         project.spec.branch = repo.active_branch.name
     project.register_artifacts()
-    mlrun.set_environment(project=name, user_project=user_project)
+    mlrun.mlconf.default_project = project.metadata.name
     return project
 
 
@@ -289,12 +284,18 @@ def _load_project_dir(context, name="", subpath=""):
     return project
 
 
-def _load_project_from_db(url, secrets, user_project=False):
+def _user_project_name(name, user_project):
     if user_project:
+        if not name:
+            raise ValueError("user_project must be specified together with name")
         user = environ.get("V3IO_USERNAME") or getpass.getuser()
-        url = f"{url}-{user}"
+        name = f"{name}-{user}"
+    return name
+
+
+def _load_project_from_db(url, secrets, user_project=False):
     db = get_run_db(secrets=secrets)
-    project_name = url.replace("db://", "")
+    project_name = _user_project_name(url.replace("db://", ""), user_project)
     return db.get_project(project_name)
 
 

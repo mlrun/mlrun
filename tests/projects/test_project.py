@@ -12,7 +12,6 @@ import tests.conftest
 
 
 def test_sync_functions():
-    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     project = mlrun.new_project(project_name)
     project.set_function("hub://describe", "describe")
@@ -34,7 +33,6 @@ def test_sync_functions():
 
 
 def test_create_project_from_file_with_legacy_structure():
-    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     description = "project description"
     params = {"param_key": "param value"}
@@ -103,7 +101,7 @@ def test_export_project_dir_doesnt_exist():
         / "another-new-dir"
         / "project.yaml"
     )
-    project = mlrun.projects.project.new_project(project_name, artifact_path="./")
+    project = mlrun.projects.project.new_project(project_name)
     project.export(filepath=project_file_path)
 
 
@@ -111,13 +109,13 @@ def test_create_project_with_invalid_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         mlrun.projects.project.new_project(
-            invalid_name, init_git=False, artifact_path="./"
+            invalid_name, init_git=False
         )
 
 
 def test_get_set_params():
     project_name = "project-name"
-    project = mlrun.new_project(project_name, artifact_path="./")
+    project = mlrun.new_project(project_name)
     param_key = "param-key"
     param_value = "param-value"
     project.params[param_key] = param_value
@@ -129,7 +127,7 @@ def test_get_set_params():
 def test_user_project():
     project_name = "project-name"
     user = os.environ.get("V3IO_USERNAME") or getpass.getuser()
-    project = mlrun.new_project(project_name, user_project=True, artifact_path="./")
+    project = mlrun.new_project(project_name, user_project=True)
     assert (
         project.metadata.name == f"{project_name}-{user}"
     ), "project name doesnt include user name"

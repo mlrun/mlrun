@@ -9,8 +9,8 @@ from .mysql import MySQLUtil
 
 class SQLiteMigrationUtil(object):
     def __init__(self):
-        self._converter = self._create_converter()
         self._mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
+        self._converter = self._create_converter()
         self._mysql_util = None
         if self._mysql_dsn_data:
             self._mysql_util = MySQLUtil()

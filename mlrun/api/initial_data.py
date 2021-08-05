@@ -16,6 +16,7 @@ from mlrun.config import config
 from mlrun.utils import logger
 
 from .utils.alembic import AlembicUtil
+from .utils.sqlite_migration import SQLiteMigrationUtil
 
 
 def init_data(from_scratch: bool = False) -> None:
@@ -27,6 +28,10 @@ def init_data(from_scratch: bool = False) -> None:
 
     alembic_util = AlembicUtil(alembic_config_path)
     alembic_util.init_alembic(from_scratch=from_scratch)
+
+    if not from_scratch:
+        sqlite_migration_util = SQLiteMigrationUtil()
+        sqlite_migration_util.transfer()
 
     db_session = create_session()
     try:

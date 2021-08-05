@@ -8,6 +8,8 @@ import alembic.config
 
 from mlrun import mlconf
 
+from .mysql import MySQLUtil
+
 
 class AlembicUtil(object):
     def __init__(self, alembic_config_path: pathlib.Path):
@@ -90,15 +92,30 @@ class AlembicUtil(object):
     def _parse_revision_history(output: str) -> typing.List[str]:
         return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
-    @staticmethod
-    def _backup_revision(db_file_path: str, current_version: str):
+    def _backup_revision(self, db_file_path: str, current_version: str):
         if db_file_path == ":memory:" or db_file_path == "":
             return
 
+        if "sqlite" in mlconf.httpdb.dsn:
+            self._backup_revision_sqlite(db_file_path, current_version)
+
+        elif "mysql" in mlconf.httpdb.dsn:
+            self._backup_revision_mysql(db_file_path, current_version)
+
+    @staticmethod
+    def _backup_revision_sqlite(db_file_path: str, current_version: str):
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
         backup_path = db_dir_path / f"{current_version}.db"
 
         shutil.copy2(db_file_path, backup_path)
+
+    @staticmethod
+    def _backup_revision_mysql(db_file_path: str, current_version: str):
+        db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
+        backup_path = db_dir_path / f"{current_version}.db"
+
+        mysql_util = MySQLUtil()
+        mysql_util.dump_database_to_file(backup_path)
 
     @staticmethod
     def _downgrade_to_revision(

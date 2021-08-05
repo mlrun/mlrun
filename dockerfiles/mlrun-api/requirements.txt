@@ -4,3 +4,4 @@ dask-kubernetes~=0.11.0
 kubernetes-asyncio~=11.0
 apscheduler~=3.6
 PyMySQL~=1.0.0
+sqlite3-to-mysql~=1.4

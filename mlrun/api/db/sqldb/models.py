@@ -81,8 +81,8 @@ def make_label(table):
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation='utf8_bin'))
-        value = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
+        value = Column(String(255, collation="utf8_bin"))
         parent = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Label
@@ -96,8 +96,8 @@ def make_tag(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation='utf8_bin'))
-        name = Column(String(255, collation='utf8_bin'))
+        project = Column(String(255, collation="utf8_bin"))
+        name = Column(String(255, collation="utf8_bin"))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Tag
@@ -113,10 +113,12 @@ def make_tag_v2(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation='utf8_bin'))
-        name = Column(String(255, collation='utf8_bin'))
+        project = Column(String(255, collation="utf8_bin"))
+        name = Column(String(255, collation="utf8_bin"))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
-        obj_name = Column(String(255, collation='utf8_bin'), ForeignKey(f"{table}.name"))
+        obj_name = Column(
+            String(255, collation="utf8_bin"), ForeignKey(f"{table}.name")
+        )
 
     return Tag
 
@@ -135,9 +137,9 @@ with warnings.catch_warnings():
         Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation='utf8_bin'))
-        project = Column(String(255, collation='utf8_bin'))
-        uid = Column(String(255, collation='utf8_bin'))
+        key = Column(String(255, collation="utf8_bin"))
+        project = Column(String(255, collation="utf8_bin"))
+        uid = Column(String(255, collation="utf8_bin"))
         updated = Column(TIMESTAMP)
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
@@ -153,9 +155,9 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation='utf8_bin'))
-        project = Column(String(255, collation='utf8_bin'))
-        uid = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
+        project = Column(String(255, collation="utf8_bin"))
+        uid = Column(String(255, collation="utf8_bin"))
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         updated = Column(TIMESTAMP)
@@ -165,8 +167,8 @@ with warnings.catch_warnings():
         __tablename__ = "logs"
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation='utf8_bin'))
-        project = Column(String(255, collation='utf8_bin'))
+        uid = Column(String(255, collation="utf8_bin"))
+        project = Column(String(255, collation="utf8_bin"))
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
 
@@ -180,10 +182,10 @@ with warnings.catch_warnings():
         Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation='utf8_bin'))
-        project = Column(String(255, collation='utf8_bin'))
+        uid = Column(String(255, collation="utf8_bin"))
+        project = Column(String(255, collation="utf8_bin"))
         iteration = Column(Integer)
-        state = Column(String(255, collation='utf8_bin'))
+        state = Column(String(255, collation="utf8_bin"))
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         start_time = Column(TIMESTAMP)
@@ -196,14 +198,14 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation='utf8_bin'), nullable=False)
-        name = Column(String(255, collation='utf8_bin'), nullable=False)
-        kind = Column(String(255, collation='utf8_bin'))
-        desired_state = Column(String(255, collation='utf8_bin'))
-        state = Column(String(255, collation='utf8_bin'))
+        project = Column(String(255, collation="utf8_bin"), nullable=False)
+        name = Column(String(255, collation="utf8_bin"), nullable=False)
+        kind = Column(String(255, collation="utf8_bin"))
+        desired_state = Column(String(255, collation="utf8_bin"))
+        state = Column(String(255, collation="utf8_bin"))
         creation_time = Column(TIMESTAMP)
-        cron_trigger_str = Column(String(255, collation='utf8_bin'))
-        last_run_uri = Column(String(255, collation='utf8_bin'))
+        cron_trigger_str = Column(String(255, collation="utf8_bin"))
+        last_run_uri = Column(String(255, collation="utf8_bin"))
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -238,7 +240,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_users_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
 
     class Project(Base, BaseModel):
         __tablename__ = "projects"
@@ -246,16 +248,16 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation='utf8_bin'))
-        description = Column(String(255, collation='utf8_bin'))
-        owner = Column(String(255, collation='utf8_bin'))
-        source = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
+        description = Column(String(255, collation="utf8_bin"))
+        owner = Column(String(255, collation="utf8_bin"))
+        source = Column(String(255, collation="utf8_bin"))
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
-        state = Column(String(255, collation='utf8_bin'))
+        state = Column(String(255, collation="utf8_bin"))
         users = relationship(User, secondary=project_users)
 
         Label = make_label(__tablename__)
@@ -276,8 +278,8 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
 
-        name = Column(String(255, collation='utf8_bin'))
-        value_type = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
+        value_type = Column(String(255, collation="utf8_bin"))
 
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -287,8 +289,8 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
 
-        name = Column(String(255, collation='utf8_bin'))
-        value_type = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
+        value_type = Column(String(255, collation="utf8_bin"))
 
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -300,12 +302,12 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation='utf8_bin'))
-        project = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
+        project = Column(String(255, collation="utf8_bin"))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-        state = Column(String(255, collation='utf8_bin'))
-        uid = Column(String(255, collation='utf8_bin'))
+        state = Column(String(255, collation="utf8_bin"))
+        uid = Column(String(255, collation="utf8_bin"))
 
         _full_object = Column("object", JSON)
 
@@ -333,12 +335,12 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation='utf8_bin'))
-        project = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
+        project = Column(String(255, collation="utf8_bin"))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-        state = Column(String(255, collation='utf8_bin'))
-        uid = Column(String(255, collation='utf8_bin'))
+        state = Column(String(255, collation="utf8_bin"))
+        uid = Column(String(255, collation="utf8_bin"))
 
         _full_object = Column("object", JSON)
 
@@ -361,7 +363,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_marketplace_sources_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation='utf8_bin'))
+        name = Column(String(255, collation="utf8_bin"))
         index = Column(Integer)
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))

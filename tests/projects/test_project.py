@@ -12,6 +12,7 @@ import tests.conftest
 
 
 def test_sync_functions():
+    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     project = mlrun.new_project(project_name)
     project.set_function("hub://describe")
@@ -86,6 +87,7 @@ def test_create_project_from_file_with_legacy_structure():
 
 
 def test_export_project_dir_doesnt_exist():
+    mlrun.mlconf.artifact_path = "./"
     project_name = "project-name"
     project_file_path = (
         pathlib.Path(tests.conftest.results)
@@ -93,8 +95,8 @@ def test_export_project_dir_doesnt_exist():
         / "another-new-dir"
         / "project.yaml"
     )
-    project = mlrun.projects.project.new_project(project_name, project_file_path)
-    project.export()
+    project = mlrun.projects.project.new_project(project_name)
+    project.export(filepath=project_file_path)
 
 
 def test_create_project_with_invalid_name():
@@ -104,6 +106,7 @@ def test_create_project_with_invalid_name():
 
 
 def test_get_set_params():
+    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     project = mlrun.new_project(project_name)
     param_key = "param-key"
@@ -115,6 +118,7 @@ def test_get_set_params():
 
 
 def test_user_project():
+    mlrun.mlconf.artifact_path = "./"  # new project checks for a valid artifact path
     project_name = "project-name"
     user = os.environ.get("V3IO_USERNAME") or getpass.getuser()
     project = mlrun.new_project(project_name, user_project=True)

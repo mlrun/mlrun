@@ -490,6 +490,7 @@ def deploy_ingestion_service(
     )
     function.verbose = function.verbose or verbose
     if isinstance(source, StreamSource):
+        print("adding stream trigger, source.path=" + str(source.path) + " source.name="+ str(source.name)+ " source.group "+str(source.group))
         function.add_v3io_stream_trigger(
             source.path, source.name, source.group, source.seek_to, source.shards
         )

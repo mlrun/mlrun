@@ -8,6 +8,7 @@ from v3io.dataplane import RaiseForStatus
 import mlrun.api.api.utils
 import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
+from mlrun import code_to_function
 from mlrun.api.api.utils import get_run_db_instance, _submit_run
 from mlrun.api.schemas import (
     Features,
@@ -25,6 +26,9 @@ from mlrun.errors import (
     MLRunBadRequestError,
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
+)
+from mlrun.model_monitoring.helpers import (
+    get_model_monitoring_stream_processing_function,
 )
 from mlrun.runtimes import KubejobRuntime, RemoteRuntime
 from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
@@ -401,12 +405,8 @@ class ModelEndpoints:
             pass
 
         logger.info(f"Deploying model-monitoring-stream [{project}]")
-        logger.debug("Importing model-monitoring-stream function from function hub")
 
-        # TODO remove custom function tag
-        fn: RemoteRuntime = mlrun.import_function(
-            "hub://model_monitoring_stream:experimental"
-        )
+        fn = get_model_monitoring_stream_processing_function(project)
         fn.metadata.project = project
 
         stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(

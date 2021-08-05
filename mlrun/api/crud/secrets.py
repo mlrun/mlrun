@@ -72,15 +72,10 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                         )
             else:
                 # When secrets are not provided the default behavior will be to delete them all, but if internal secrets
-                # are not allowed, we don't want to delete them, so we list the keys and filter them out
-                secrets_keys_data = self.list_secret_keys(
-                    project, provider, allow_internal_secrets=True
-                )
-                secrets = [
-                    key
-                    for key in secrets_keys_data.secret_keys
-                    if not self._is_internal_secret_key(key)
-                ]
+                # are not allowed, we don't want to delete them, so we list the non internal keys
+                secrets = self.list_secret_keys(
+                    project, provider, allow_internal_secrets=False
+                ).secret_keys
                 if not secrets:
                     # nothing to remove - return
                     return

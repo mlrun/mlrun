@@ -318,8 +318,8 @@ class HttpSource(OnlineSource):
 class StreamSource(OnlineSource):
     kind = "v3ioStream"
 
-    def __init__(self, group="serving", seek_to="earliest", shards=1, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, name="stream", group="serving", seek_to="earliest", shards=1, **kwargs):
+        super().__init__(name, **kwargs)
         self.group = group
         self.seek_to = seek_to
         self.shards = shards

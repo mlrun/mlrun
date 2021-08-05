@@ -451,16 +451,12 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    print("DINA str(source.path) " + str(source.path) + " source.path is None " + str(source.path is None) + " isinstance(source, StreamSource) " + str(isinstance(source, StreamSource)))
-    print("DINA2 " + str(isinstance(source, StreamSource) and source.path is None))
     if isinstance(source, StreamSource) and source.path is None:
-        print("DINA in")
         source.path = get_default_prefix_for_target(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,
             name=featureset.metadata.name,
         )
-        print("DINA new stream name " + str(source.path))
     source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters
     )
@@ -490,7 +486,7 @@ def deploy_ingestion_service(
     )
     function.verbose = function.verbose or verbose
     if isinstance(source, StreamSource):
-        print("adding stream trigger, source.path=" + str(source.path) + " source.name="+ str(source.name)+ " source.group "+str(source.group))
+        print("adding stream trigger, source.path=" + str(source.path) + " source.name=" + str(source.name) + " source.group "+str(source.group))
         function.add_v3io_stream_trigger(
             source.path, source.name, source.group, source.seek_to, source.shards
         )

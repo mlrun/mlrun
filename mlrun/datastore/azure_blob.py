@@ -67,9 +67,7 @@ class AzureBlobStore(DataStore):
     def upload(self, key, src_path):
         if self.bsc:
             # Need to strip leading / from key
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
+            blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
             with open(src_path, "rb") as data:
                 blob_client.upload_blob(data, overwrite=True)
         else:
@@ -78,25 +76,16 @@ class AzureBlobStore(DataStore):
 
     def get(self, key, size=None, offset=0):
         if self.bsc:
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
+            blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
             size = size if size else None
             return blob_client.download_blob(offset, size).readall()
         else:
-            blob = self._filesystem.cat_file(key, start=offset)
+            blob = self._filesystem.cat_file(key, start=0)
             return blob
 
     def put(self, key, data, append=False):
-        if append:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Append mode not supported for Azure blob datastore"
-            )
-
         if self.bsc:
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
+            blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
             # Note that append=True is not supported. If the blob already exists, this call will fail
             blob_client.upload_blob(data, overwrite=True)
         else:
@@ -106,23 +95,17 @@ class AzureBlobStore(DataStore):
 
     def stat(self, key):
         if self.bsc:
-            blob_client = self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
-            )
+            blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
             props = blob_client.get_blob_properties()
             size = props.size
             modified = props.last_modified
         else:
             path = f"{self.endpoint}{key}"
             files = self._filesystem.ls(path, detail=True)
-            if len(files) == 1 and files[0]["kind"] == "file":
-                size = files[0]["size"]
-                modified = files[0]["last_modified"]
-            elif len(files) == 1 and files[0]["kind"] == "directory":
-                raise FileNotFoundError("Operation expects a file not a directory!")
-            else:
-                raise ValueError("Operation expects to receive a single file!")
+            size = files[0]['size']
+            modified = files[0]['last_modified']
         return FileStats(size, time.mktime(modified.timetuple()))
+            
 
     def listdir(self, key):
         if key and not key.endswith("/"):
@@ -134,5 +117,6 @@ class AzureBlobStore(DataStore):
             return [blob.name[key_length:] for blob in blob_list]
         else:
             path = f"{self.endpoint}{key}"
-            files = self._filesystem.ls(path)
-            return files
+            files = self._filesystem.ls(path, detail=True)
+            return [f for f in files if f['type'] == 'directory']
+            

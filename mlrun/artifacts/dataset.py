@@ -174,7 +174,7 @@ class DatasetArtifact(Artifact):
 
 def get_df_stats(df):
     if hasattr(df, "dask"):
-        df = df.sample(ddf_sample_pct).compute()
+        df = df.sample(frac=ddf_sample_pct).compute()
     d = {}
     for col, values in df.describe(include="all").items():
         stats_dict = {}

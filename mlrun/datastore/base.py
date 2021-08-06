@@ -195,12 +195,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-<<<<<<< HEAD
             if self.supports_isdir() and fs.isdir(url):
-=======
-            if fs.isdir(url) or df_module != pd:
-                # Dask requires the storage_options parameter
->>>>>>> 0dba58c2 (Updated line 196 to assure storage_options is passed to read_parquet if not using Pandas, since Dask requires storage_options.  Also changed line #226 from inplace=True to inplace=False.  Dask does not support dropping columns inplace.  Alternatively, we could test if the df is hasattr 'dask' and only apply if inplace, but this is a more general behavior.)
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -224,21 +219,8 @@ class DataStore:
             "options": self.options,
         }
 
-<<<<<<< HEAD
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
-=======
-
-def _drop_reserved_columns(df):
-    cols_to_drop = []
-    for col in df.columns:
-        if col.startswith("igzpart_"):
-            cols_to_drop.append(col)
-    if hasattr(df, 'dask'):
-        # Dask does not support dropping columns inplace
-        df = df.drop(labels=)
-    df.drop(labels=cols_to_drop, axis=1, inplace=True, errors="ignore")
->>>>>>> 0dba58c2 (Updated line 196 to assure storage_options is passed to read_parquet if not using Pandas, since Dask requires storage_options.  Also changed line #226 from inplace=True to inplace=False.  Dask does not support dropping columns inplace.  Alternatively, we could test if the df is hasattr 'dask' and only apply if inplace, but this is a more general behavior.)
 
 
 class DataItem:

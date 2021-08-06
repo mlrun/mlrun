@@ -155,3 +155,5 @@ def test_log_dask_to_azure():
     ddf2 = dataitem.as_df(df_module=dd)
     df2 = ddf2.compute()
     pd.testing.assert_frame_equal(df, df2)
+
+

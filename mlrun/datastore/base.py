@@ -200,7 +200,7 @@ class DataStore:
                 return reader(url, **kwargs)
             else:
                 # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
-                # support the storage_options parameter. 
+                # support the storage_options parameter.
                 return reader(fs.open(url), **kwargs)
 
         tmp = mktemp()

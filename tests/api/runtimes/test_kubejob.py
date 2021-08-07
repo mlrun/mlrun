@@ -172,7 +172,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         get_k8s().get_project_secret_name = unittest.mock.Mock(
             return_value=project_secret_name
         )
-        get_k8s().get_project_secrets = unittest.mock.Mock(return_value=secret_keys)
+        get_k8s().get_project_secret_keys = unittest.mock.Mock(return_value=secret_keys)
 
         runtime = self._generate_runtime()
 

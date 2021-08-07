@@ -237,7 +237,7 @@ class VaultStore:
         return role_name
 
 
-def add_vault_project_secrets(project, items):
+def store_vault_project_secrets(project, items):
     return VaultStore().add_vault_secrets(items, project=project)
 
 

@@ -183,7 +183,6 @@ class DataStore:
                         time_column,
                     )
                     kwargs["filters"] = filters
-
                 return df_module.read_parquet(*args, **kwargs)
 
         elif url.endswith(".json") or format == "json":
@@ -194,8 +193,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            if (self.supports_isdir() and fs.isdir(url)) or df_module == dd:
-                # Dask requires the storage_options parameter
+            if self.supports_isdir() and fs.isdir(url) or df_module==dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options

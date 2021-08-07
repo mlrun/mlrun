@@ -160,6 +160,13 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             image="mlrun/mlrun",
         )
 
+        # Test running with an empty list of secrets
+        task = mlrun.new_task().with_secrets("kubernetes", [])
+        run = function.run(task, params={"secrets": list(secrets.keys())})
+        for key, value in secrets.items():
+            assert run.outputs[key] == value
+
+        # And with actual secret keys
         task = mlrun.new_task().with_secrets("kubernetes", list(secrets.keys()))
         run = function.run(task, params={"secrets": list(secrets.keys())})
         for key, value in secrets.items():

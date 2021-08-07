@@ -9,10 +9,7 @@ import mlrun.errors
 from tests.system.base import TestMLRunSystem
 
 
-# TODO: unmark as enterprise when we release a new mlrun-kit that uses the new (0.6.3) mlrun helm chart which adds
-#  secrets permission to the mlrun-api role
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestKubernetesProjectSecrets(TestMLRunSystem):
     project_name = "db-system-test-project"
 
@@ -132,6 +129,18 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         # Negative test - try to list_secrets for k8s secrets (not implemented)
         with pytest.raises(mlrun.errors.MLRunBadRequestError):
             self._run_db.list_project_secrets(self.project_name, provider="kubernetes")
+
+        # Negative test - try to create_secret with invalid key
+        with pytest.raises(mlrun.errors.MLRunBadRequestError):
+            self._run_db.create_project_secrets(
+                self.project_name, "kubernetes", {"invalid/key": "value"}
+            )
+
+        # Negative test - try to create_secret with forbidden (internal) key
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            self._run_db.create_project_secrets(
+                self.project_name, "kubernetes", {"mlrun.key": "value"}
+            )
 
     def test_k8s_project_secrets_with_runtime(self):
         secrets = {"secret1": "JustMySecret", "secret2": "!@#$$%^^&&"}

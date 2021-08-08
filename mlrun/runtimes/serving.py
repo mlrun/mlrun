@@ -231,7 +231,6 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
-        model_monitoring_access_key: str = None,
     ):
         """set tracking stream parameters:
 
@@ -240,9 +239,6 @@ class ServingRuntime(RemoteRuntime):
         :param batch:        micro batch size (send micro batches of N records at a time)
         :param sample:       sample size (send only one of N records)
         :param stream_args:  stream initialization parameters, e.g. shards, retention_in_hours, ..
-        :param model_monitoring_access_key: access key with write permissions under project's paths
-                             (i.e. v3io:///projects/{project_name}). When provided, model monitoring functions will be
-                             automatically deployed.
         """
         self.spec.track_models = True
 

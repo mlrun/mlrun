@@ -419,12 +419,13 @@ def _build_function(
                 # Handle model monitoring
                 try:
                     if fn.spec.track_models:
+                        logger.info("Tracking enabled, initializing model monitoring")
                         model_monitoring_access_key = _get_project_secret(
                             fn.metadata.project, "MODEL_MONITORING_ACCESS_KEY"
                         )
                         if model_monitoring_access_key:
                             logger.info(
-                                "Tracking enabled, initializing model monitoring"
+                                "Model monitoring access key found, proceeding with initialization"
                             )
                             _init_serving_function_stream_args(fn=fn)
                             _create_model_monitoring_stream(project=fn.metadata.project)

@@ -345,6 +345,8 @@ class ProjectSpec(ModelObj):
 
     @functions.setter
     def functions(self, functions):
+        if not functions:
+            functions = []
         if not isinstance(functions, list):
             raise ValueError("functions must be a list")
 
@@ -379,6 +381,8 @@ class ProjectSpec(ModelObj):
 
     @workflows.setter
     def workflows(self, workflows):
+        if not workflows:
+            workflows = []
         if not isinstance(workflows, list):
             raise ValueError("workflows must be a list")
 
@@ -410,6 +414,8 @@ class ProjectSpec(ModelObj):
 
     @artifacts.setter
     def artifacts(self, artifacts):
+        if not artifacts:
+            artifacts = []
         if not isinstance(artifacts, list):
             raise ValueError("artifacts must be a list")
 

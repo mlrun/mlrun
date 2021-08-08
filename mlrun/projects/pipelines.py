@@ -112,6 +112,8 @@ def get_db_function(project, key):
 def enrich_function_object(
     project, function, decorator=None
 ) -> "mlrun.runtimes.BaseRuntime":
+    if hasattr(function, "_enriched"):
+        return function
     f = function.copy()
     f.metadata.project = project.metadata.name
     setattr(f, "_enriched", True)

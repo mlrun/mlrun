@@ -50,7 +50,7 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import _create_pipeline, _run_pipeline, get_db_function
+from .pipelines import FunctionsDict, _create_pipeline, _run_pipeline, get_db_function
 
 
 class ProjectError(Exception):
@@ -172,6 +172,8 @@ def load_project(
             clone_zip(url, context, secrets)
         else:
             project = _load_project_from_db(url, secrets, user_project)
+            project.spec.context = context
+            project.spec.subpath = subpath or project.spec.subpath
             from_db = True
 
     if not repo:
@@ -192,8 +194,8 @@ def load_project(
 
 def get_or_create_project(
     context,
-    name=None,
     url=None,
+    name=None,
     secrets=None,
     init_git=False,
     subpath="",
@@ -467,11 +469,11 @@ class ProjectSpec(ModelObj):
 
     @functions.setter
     def functions(self, functions):
-        if not isinstance(functions, list):
+        if functions and not isinstance(functions, list):
             raise ValueError("functions must be a list")
 
         function_definitions = {}
-        for function in functions:
+        for function in functions or []:
             if not isinstance(function, dict) and not hasattr(function, "to_dict"):
                 raise ValueError("function must be an object or dict")
             if isinstance(function, dict):
@@ -501,11 +503,11 @@ class ProjectSpec(ModelObj):
 
     @workflows.setter
     def workflows(self, workflows):
-        if not isinstance(workflows, list):
+        if workflows and not isinstance(workflows, list):
             raise ValueError("workflows must be a list")
 
         workflows_dict = {}
-        for workflow in workflows:
+        for workflow in workflows or []:
             if not isinstance(workflow, dict):
                 raise ValueError("workflow must be a dict")
             name = workflow.get("name", "")
@@ -532,11 +534,11 @@ class ProjectSpec(ModelObj):
 
     @artifacts.setter
     def artifacts(self, artifacts):
-        if not isinstance(artifacts, list):
+        if artifacts and not isinstance(artifacts, list):
             raise ValueError("artifacts must be a list")
 
         artifacts_dict = {}
-        for artifact in artifacts:
+        for artifact in artifacts or []:
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
@@ -1175,17 +1177,17 @@ class MlrunProject(ModelObj):
         )
         return item
 
-    def reload(self, sync=False):
-        """reload the project and function objects from yaml/specs
+    def reload(self, sync=False, context=None):
+        """reload the project and function objects from the project yaml/specs
 
-        :param sync:  set to True to load functions objects
+        :param sync:    set to True to load functions objects
+        :param context: context directory (where the yaml and code exist)
 
         :returns: project object
         """
-        if self.spec.context:
-            project = _load_project_dir(
-                self.spec.context, self.metadata.name, self.spec.subpath
-            )
+        context = context or self.spec.context
+        if context:
+            project = _load_project_dir(context, self.metadata.name, self.spec.subpath)
         else:
             project = _load_project_file(
                 self.spec.origin_url, self.metadata.name, self._secrets
@@ -1287,6 +1289,11 @@ class MlrunProject(ModelObj):
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
         return function
+
+    def get_enriched_functions(self):
+        """"get a virtual dict with all the project functions ready for use in a pipeline"""
+        self.sync_functions()
+        return FunctionsDict(self)
 
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir

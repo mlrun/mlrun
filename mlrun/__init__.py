@@ -32,7 +32,7 @@ from .platforms import (
     mount_v3io_legacy,
     v3io_cred,
 )
-from .projects import ProjectMetadata, load_project, new_project
+from .projects import ProjectMetadata, get_or_create_project, load_project, new_project
 from .run import (
     code_to_function,
     function_to_module,

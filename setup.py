@@ -88,6 +88,9 @@ extras_require = {
     # <12.7.0 from adlfs 0.6.3
     "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
+    # mlrun.frameworks requirements per framework:
+    "keras": ["tensorflow==2.4.1", "bokeh>=2.3.2"],
+    "pytorch": ["torch>=1.7", "bokeh>=2.3.2"]
 }
 extras_require["complete"] = sorted(
     {

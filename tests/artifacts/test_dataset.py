@@ -4,7 +4,6 @@ import dask.dataframe as dd
 import numpy
 import pandas
 import pandas.io.json
-from dask.datasets import timeseries
 from dask.distributed import Client
 
 import mlrun.artifacts.dataset
@@ -98,7 +97,7 @@ def _generate_dataset_artifact(format_):
 
 
 def test_dataset_preview_size_limit_from_large_dask_dataframe():
-    client = Client()
+    client = Client()  # noqa: F841
     print("Creating dataframes > 1GB")
     A = numpy.random.random_sample(size=(25000000, 6))
     df = pandas.DataFrame(data=A, columns=list("ABCDEF"))

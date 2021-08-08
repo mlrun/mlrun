@@ -1,5 +1,4 @@
 import os
-import random
 from pathlib import Path
 
 import dask.dataframe as dd
@@ -43,7 +42,7 @@ def verify_auth_parameters_and_configure_env(auth_method):
 
     logger.info(f"Testing auth method {auth_method}")
 
-    logger.info(f"Creating Dask Client")
+    logger.info("Creating Dask Client")
     dask_cluster = os.getenv("DASK_CLUSTER")
     if dask_cluster:
         if dask_cluster.startswith("db://"):
@@ -56,7 +55,7 @@ def verify_auth_parameters_and_configure_env(auth_method):
     else:
         from dask.distributed import Client
 
-        client = Client()
+        client = Client()  # noqa: F841
 
     return True
 

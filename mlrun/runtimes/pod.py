@@ -187,16 +187,16 @@ class AutoMountType(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
-        is_iguazio = mlconf.igz_version != ""
-        return AutoMountType.v3io_cred if is_iguazio else AutoMountType.auto
+        return AutoMountType.auto
 
     def get_modifier(self):
+        is_iguazio = mlconf.igz_version != ""
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_cred: mlrun.v3io_cred,
             AutoMountType.v3io_fuse: mlrun.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
-            AutoMountType.auto: mlrun.platforms.auto_mount,
+            AutoMountType.auto: mlrun.v3io_cred if is_iguazio else None,
         }[self]
 
 
@@ -459,7 +459,7 @@ class KubeResource(BaseRuntime):
             {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
         )
 
-    def auto_mount_based_on_config(self):
+    def try_auto_mount_based_on_config(self):
         if self.spec.mount_applied:
             logger.info("Mount already applied - not performing auto-mount")
             return

@@ -28,6 +28,9 @@ from tests.api.runtimes.base import TestRuntimeBase
 class TestNuclioRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
+        # Clear any auto-config params (some tests modify them)
+        mlconf.storage.auto_mount_type = "auto"
+        mlconf.storage.auto_mount_params = {}
 
     def custom_setup(self):
         self.image_name = "test/image:latest"

@@ -218,7 +218,7 @@ class BaseRuntime(ModelObj):
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
         return self._db_conn
 
-    def auto_mount_based_on_config(self):
+    def try_auto_mount_based_on_config(self):
         pass
 
     def run(
@@ -274,7 +274,7 @@ class BaseRuntime(ModelObj):
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
         # Perform auto-mount if necessary
-        self.auto_mount_based_on_config()
+        self.try_auto_mount_based_on_config()
 
         if local:
 

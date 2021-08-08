@@ -1,11 +1,8 @@
-import typing
-
 import fastapi
 
 import mlrun.api.api.deps
+import mlrun.api.crud.client_spec
 import mlrun.api.schemas
-import mlrun.api.utils.clients.iguazio
-import mlrun.runtimes
 
 router = fastapi.APIRouter()
 

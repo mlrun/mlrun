@@ -1,12 +1,4 @@
-import typing
-
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
-import mlrun.api.utils.projects.remotes.follower
-import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.project_member
-import mlrun.config
-import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.api.utils.clients import nuclio
 from mlrun.config import config, default_config

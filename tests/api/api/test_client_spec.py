@@ -25,3 +25,10 @@ def test_client_spec(
         assert response_body[key] is None
     assert response_body["ui_projects_prefix"] == overridden_ui_projects_prefix
     assert response_body["nuclio_version"] == nuclio_version
+
+    # check nuclio_version cache
+    mlrun.mlconf.nuclio_version = "y.y.y"
+    response = client.get("/api/client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+    assert response_body["nuclio_version"] == nuclio_version

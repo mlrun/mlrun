@@ -14,10 +14,12 @@
 
 
 import importlib.util as imputil
+
 import mlrun
-from ..utils import parse_versioned_object_uri
+
 from ..config import config
-from ..run import run_pipeline, wait_for_pipeline_completion
+from ..run import run_pipeline
+from ..utils import parse_versioned_object_uri
 
 
 class _PipelineContext:

@@ -44,14 +44,13 @@ from ..run import (
     get_object,
     import_function,
     new_function,
-    run_pipeline,
     wait_for_pipeline_completion,
 )
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import get_db_function, _run_pipeline, _create_pipeline
+from .pipelines import _create_pipeline, _run_pipeline, get_db_function
 
 
 class ProjectError(Exception):

@@ -49,9 +49,6 @@ class ModelEndpoints:
     ):
         """
         Creates or patch a KV record with the given model_endpoint record
-
-        :param access_key: V3IO access key for managing user permissions
-        :param model_endpoint: An object representing a model endpoint
         """
 
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:

@@ -37,7 +37,7 @@ def create_or_patch(
         mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
     )
-    access_key = get_access_key(auth_verifier.auth_info)
+    get_access_key(auth_verifier.auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"

@@ -1,18 +1,14 @@
-import fastapi
+from fastapi import APIRouter, Depends
 
-import mlrun.api.api.deps
 import mlrun.api.crud.client_spec
 import mlrun.api.schemas
+from mlrun.api.api import deps
 
-router = fastapi.APIRouter()
+router = APIRouter()
 
 
 @router.get(
     "/client-spec", response_model=mlrun.api.schemas.ClientSpec,
 )
-def get_client_spec(
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
-    ),
-):
-    return mlrun.api.crud.client_spec.ClientSpec().get_client_spec()
+def get_client_spec(auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),):
+    return mlrun.api.crud.client_spec.ClientSpec().get_client_spec(auth_verifier)

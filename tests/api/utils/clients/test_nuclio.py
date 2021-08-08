@@ -400,7 +400,38 @@ def test_get_dashboard_version(
         }
     }
     requests_mock.get(f"{api_url}/api/versions", json=response_body)
-    nuclio_dashboard_version = nuclio_client.get_dashboard_version()
+    nuclio_dashboard_version = nuclio_client.get_dashboard_version(
+        mlrun.api.schemas.AuthInfo()
+    )
+    assert nuclio_dashboard_version == label
+
+
+def test_get_dashboard_version_with_session(
+    api_url: str,
+    nuclio_client: mlrun.api.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    session = "1234"
+    label = "1.2.3"
+
+    def verify_get(request, context):
+        context.status_code = http.HTTPStatus.OK.value
+        assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
+        return {
+            "dashboard": {
+                "label": label,
+                "gitCommit": "commit sha",
+                "os": "linux",
+                "arch": "amd64",
+            }
+        }
+
+    requests_mock.get(
+        f"{api_url}/api/versions", json=verify_get,
+    )
+    nuclio_dashboard_version = nuclio_client.get_dashboard_version(
+        mlrun.api.schemas.AuthInfo(session=session)
+    )
     assert nuclio_dashboard_version == label
 
 

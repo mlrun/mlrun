@@ -23,7 +23,7 @@ from mlrun.api.schemas import (
     ModelEndpointSpec,
     ModelEndpointStatus,
 )
-from mlrun.artifacts import ModelArtifact # noqa: F401
+from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 

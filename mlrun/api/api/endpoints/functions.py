@@ -19,12 +19,6 @@ import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
 from mlrun.api.crud.model_endpoints import ModelEndpoints
-from mlrun.api.schemas import (
-    ModelEndpoint,
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpointStatus,
-)
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
@@ -571,6 +565,7 @@ def _create_model_monitoring_stream(project: str):
 
     if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
         response.raise_for_status([409, 204])
+
 
 def _init_serving_function_stream_args(fn: ServingRuntime):
     logger.debug("Initializing serving function stream args")

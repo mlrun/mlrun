@@ -234,9 +234,7 @@ class Client(
         self, session: str, name
     ) -> mlrun.api.schemas.Project:
         # TODO: Remove me when zebo returns owner
-        params = {
-            "include": "owner"
-        }
+        params = {"include": "owner"}
         response = self._send_request_to_api(
             "GET", f"projects/__name__/{name}", session, params=params
         )
@@ -337,9 +335,7 @@ class Client(
                 project.metadata.annotations
             )
         if project.spec.owner:
-            body["data"]["attributes"][
-                "owner_username"
-            ] = project.spec.owner
+            body["data"]["attributes"]["owner_username"] = project.spec.owner
         return body
 
     @staticmethod
@@ -409,7 +405,5 @@ class Client(
                 iguazio_project["attributes"]["annotations"]
             )
         if iguazio_project["attributes"].get("owner_username"):
-            mlrun_project.spec.owner = iguazio_project["attributes"][
-                "owner_username"
-            ]
+            mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
         return mlrun_project

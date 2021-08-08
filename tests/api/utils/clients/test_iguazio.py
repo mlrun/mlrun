@@ -165,7 +165,7 @@ def test_list_project_with_updated_after(
                 f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()
             ],
             # TODO: Remove me when zebo returns owner
-            "include": ["owner"]
+            "include": ["owner"],
         }
         context.status_code = http.HTTPStatus.OK.value
         _verify_request_headers(request.headers, session)

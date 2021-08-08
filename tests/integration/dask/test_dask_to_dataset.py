@@ -1,12 +1,10 @@
-
 import dask.dataframe as dd
-from dask.distributed import Client
 import numpy
 import pandas
 import pytest
+from dask.distributed import Client
 
 import mlrun.artifacts.dataset
-
 
 """
 Attempting to run this test from 'make test-dockerized' returns a
@@ -14,14 +12,17 @@ Killed Error 2.  However, it confirms that a dask dataframe, when passed
 as a dataset, generates the appropriate artifacts to be incorporated
 into mlrun
 """
+
+
 @pytest.fixture
 def make_client():
     client = Client()
     yield client
     client.shutdown()
 
+
 def test_dataset_preview_size_limit_from_large_dask_dataframe(make_client):
-    client = make_client
+    client = make_client  # noqa: F841
     print("Creating dataframes > 1GB")
     A = numpy.random.random_sample(size=(25000000, 6))
     df = pandas.DataFrame(data=A, columns=list("ABCDEF"))
@@ -80,7 +81,7 @@ def test_dataset_preview_size_limit_from_large_dask_dataframe(make_client):
 
 
 def test_dataset_preview_size_limit_from_small_dask_dataframe(make_client):
-    client = make_client
+    client = make_client  # noqa: F841
     A = numpy.random.random_sample(size=(10000, 6))
     df = pandas.DataFrame(data=A, columns=list("ABCDEF"))
     ddf = dd.from_pandas(df, npartitions=4).persist()

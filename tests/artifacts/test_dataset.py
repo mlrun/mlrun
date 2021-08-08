@@ -1,10 +1,8 @@
 import pathlib
 
-import dask.dataframe as dd
 import numpy
 import pandas
 import pandas.io.json
-from dask.distributed import Client
 
 import mlrun.artifacts.dataset
 import tests.conftest
@@ -94,4 +92,3 @@ def _generate_dataset_artifact(format_):
         df=data_frame, target_path=str(target_path), format=format_,
     )
     return artifact
-

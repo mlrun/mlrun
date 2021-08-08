@@ -17,6 +17,3 @@ adlfs~=0.7.1
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 bokeh>=2.3.2
-tensorboard==2.5.0
-tensorflow==2.4.1
-torch>=1.8

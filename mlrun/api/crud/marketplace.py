@@ -75,7 +75,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             return {}
 
         secret_prefix = self._generate_credentials_secret_key(source_name)
-        secrets = self._get_k8s().get_project_secret_values(self._internal_project_name)
+        secrets = self._get_k8s().get_project_secret_data(self._internal_project_name)
         source_secrets = {}
         for key, value in secrets.items():
             if key.startswith(secret_prefix):

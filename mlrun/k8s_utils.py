@@ -394,14 +394,14 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def get_project_secrets(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace=""):
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
             return None
 
         return list(secrets_data.keys())
 
-    def get_project_secret_values(self, project, secret_keys=None, namespace=""):
+    def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         results = {}
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:

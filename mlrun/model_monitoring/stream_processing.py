@@ -616,7 +616,7 @@ class MapFeatureNames(MapClass):
 
             if not feature_names:
                 logger.warn(
-                    f"Feature names are not initialized, they will be automatically generated",
+                    "Feature names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
                 feature_names = [f"f{i}" for i, _ in enumerate(event[FEATURES])]
@@ -631,7 +631,7 @@ class MapFeatureNames(MapClass):
 
             if not label_columns:
                 logger.warn(
-                    f"label column names are not initialized, they will be automatically generated",
+                    "label column names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
                 label_columns = [f"p{i}" for i, _ in enumerate(event[PREDICTION])]
@@ -720,7 +720,7 @@ def get_endpoint_record(
     kv_container: str, kv_path: str, endpoint_id: str, access_key: str
 ) -> Optional[dict]:
     logger.info(
-        f"Grabbing endpoint data",
+        "Grabbing endpoint data",
         container=kv_container,
         table_path=kv_path,
         key=endpoint_id,

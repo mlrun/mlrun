@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
-import importlib.util as imputil
 import pathlib
 import shutil
 import typing
@@ -52,7 +51,7 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, new_pipe_meta, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import FunctionsDict, enrich_function_object, get_db_function
+from .pipelines import get_db_function, _run_pipeline, _create_pipeline
 
 
 class ProjectError(Exception):
@@ -73,7 +72,12 @@ def init_repo(context, url, init_git):
 
 
 def new_project(
-    name, context=None, init_git=False, user_project=False, remote=None, template=None,
+    name,
+    context=None,
+    init_git=False,
+    user_project=False,
+    remote=None,
+    from_template=None,
 ):
     """Create a new MLRun project
 
@@ -82,21 +86,21 @@ def new_project(
     :param init_git:     if True, will git init the context dir
     :param user_project: add the current user name to the provided project name (making it unique per user)
     :param remote:       remote Git url
-    :param template:     path to project YAML/zip file that will be used as template
+    :param from_template:     path to project YAML/zip file that will be used as from_template
 
     :returns: project object
     """
     context = context or "./"
     name = _user_project_name(name, user_project)
 
-    if template:
-        if template.endswith(".yaml"):
-            project = _load_project_file(template)
-        elif template.endswith(".zip"):
-            clone_zip(template, context)
+    if from_template:
+        if from_template.endswith(".yaml"):
+            project = _load_project_file(from_template)
+        elif from_template.endswith(".zip"):
+            clone_zip(from_template, context)
             project = _load_project_dir(context, name)
         else:
-            raise ValueError("template must be a .yaml or .zip file")
+            raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
     else:
         project = MlrunProject(name=name)
@@ -196,7 +200,7 @@ def get_or_create_project(
     subpath="",
     clone=False,
     user_project=False,
-    template=None,
+    from_template=None,
 ):
     """Load a project from MLRun DB, or create/import if doesnt exist
 
@@ -216,7 +220,7 @@ def get_or_create_project(
     :param subpath:      project subpath (within the archive)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
-    :param template:     path to project YAML file that will be used as template (for new projects)
+    :param from_template:     path to project YAML file that will be used as from_template (for new projects)
 
     :returns: project object
     """
@@ -235,7 +239,7 @@ def get_or_create_project(
 
     except mlrun.errors.MLRunNotFoundError:
         if url:
-            return load_project(
+            project = load_project(
                 context,
                 url,
                 name,
@@ -245,14 +249,16 @@ def get_or_create_project(
                 clone=clone,
                 user_project=user_project,
             )
-
-        return new_project(
-            name,
-            context,
-            init_git=init_git,
-            user_project=user_project,
-            template=template,
-        )
+        else:
+            project = new_project(
+                name,
+                context,
+                init_git=init_git,
+                user_project=user_project,
+                from_template=from_template,
+            )
+        project.save()
+        return project
 
 
 def _load_project_dir(context, name="", subpath=""):
@@ -1273,13 +1279,15 @@ class MlrunProject(ModelObj):
 
         :returns: function object
         """
-        if key in self.spec._function_definitions:
-            if sync or not self._initialized or key not in self.spec._function_objects:
-                self.sync_functions()
+        if key in self.spec._function_objects and not sync:
+            function = self.spec._function_objects[key]
+        elif key in self.spec._function_definitions:
+            self.sync_functions()
             function = self.spec._function_objects[key]
         else:
             function = get_db_function(self, key)
-        return enrich_function_object(self, function)
+            self.spec._function_objects[key] = function
+        return function
 
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir
@@ -2004,71 +2012,3 @@ def _init_function_from_obj_legacy(func, project, name=None):
     if project.tag:
         func.metadata.tag = project.tag
     return name or func.metadata.name, func
-
-
-def _create_pipeline(project, pipeline, funcs, secrets=None, handler=None):
-    functions = FunctionsDict(project, funcs)
-    spec = imputil.spec_from_file_location("workflow", pipeline)
-    if spec is None:
-        raise ImportError(f"cannot import workflow {pipeline}")
-    mod = imputil.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-
-    setattr(mod, "funcs", functions)
-    setattr(mod, "this_project", project)
-
-    if hasattr(mod, "init_functions"):
-        getattr(mod, "init_functions")(functions, project, secrets)
-
-    # verify all functions are in this project
-    for f in functions.values():
-        f.metadata.project = project.metadata.name
-
-    if not handler and hasattr(mod, "kfpipeline"):
-        handler = "kfpipeline"
-    if not handler and hasattr(mod, "pipeline"):
-        handler = "pipeline"
-    if not handler or not hasattr(mod, handler):
-        raise ValueError(f"pipeline function ({handler or 'kfpipeline'}) not found")
-
-    return getattr(mod, handler)
-
-
-def _run_pipeline(
-    project,
-    name,
-    pipeline,
-    functions,
-    secrets=None,
-    arguments=None,
-    artifact_path=None,
-    namespace=None,
-    ttl=None,
-):
-    kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
-
-    namespace = namespace or config.namespace
-    id = run_pipeline(
-        kfpipeline,
-        project=project.metadata.name,
-        arguments=arguments,
-        experiment=name,
-        namespace=namespace,
-        artifact_path=artifact_path,
-        ttl=ttl,
-    )
-    return id
-
-
-def github_webhook(request):
-    signature = request.headers.get("X-Hub-Signature")
-    data = request.data
-    print("sig:", signature)
-    print("headers:", request.headers)
-    print("data:", data)
-    print("json:", request.get_json())
-
-    if request.headers.get("X-GitHub-Event") == "ping":
-        return {"msg": "Ok"}
-
-    return {"msg": "pushed"}

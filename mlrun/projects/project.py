@@ -271,6 +271,7 @@ class ProjectSpec(ModelObj):
         origin_url=None,
         goals=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
+        owner=None,
     ):
         self.repo = None
 
@@ -283,6 +284,7 @@ class ProjectSpec(ModelObj):
         self.origin_url = origin_url or ""
         self.goals = goals
         self.desired_state = desired_state
+        self.owner = owner
         self.branch = None
         self.tag = ""
         self.params = params or {}

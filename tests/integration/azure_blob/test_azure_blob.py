@@ -99,101 +99,31 @@ def test_azure_blob(auth_method):
     assert stat.size == len(test_string), "Stat size different than expected"
 
 
-# def test_list_dir(auth_method):
-#     verify_auth_parameters_and_configure_env(auth_method)
-#     blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
-#     blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
-#     print(f"\nBlob URL: {blob_url}")
+def test_list_dir(auth_method):
+    verify_auth_parameters_and_configure_env(auth_method)
+    blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
+    blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
+    print(f"\nBlob URL: {blob_url}")
 
-#     mlrun.run.get_dataitem(blob_url).put(test_string)
+    mlrun.run.get_dataitem(blob_url).put(test_string)
 
-#     # Check dir list for container
-#     dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
-#     assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
+    # Check dir list for container
+    dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
+    assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
-#     # Check dir list for folder in container
-#     dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir).listdir()
-#     assert blob_file in dir_list, "File not in folder dir-list"
-
-
-# def test_blob_upload(auth_method):
-#     verify_auth_parameters_and_configure_env(auth_method)
-#     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-#     blob_url = blob_path + "/" + blob_dir + "/" + blob_file
-#     print(f"\nBlob URL: {blob_url}")
-
-#     upload_data_item = mlrun.run.get_dataitem(blob_url)
-#     upload_data_item.upload(test_filename)
-
-#     response = upload_data_item.get()
-#     assert response.decode() == test_string, "Result differs from original test"
+    # Check dir list for folder in container
+    dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir).listdir()
+    assert blob_file in dir_list, "File not in folder dir-list"
 
 
-# def test_log_dask_to_azure(auth_method):
-#     verify_auth_parameters_and_configure_env(auth_method)
-#     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+def test_blob_upload(auth_method):
+    verify_auth_parameters_and_configure_env(auth_method)
+    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+    blob_url = blob_path + "/" + blob_dir + "/" + blob_file
+    print(f"\nBlob URL: {blob_url}")
 
-#     A = np.random.randint(0, 100, size=(10000, 4))
-#     df = pd.DataFrame(data=A, columns=list("ABCD"))
-#     ddf = dd.from_pandas(df, npartitions=4)
+    upload_data_item = mlrun.run.get_dataitem(blob_url)
+    upload_data_item.upload(test_filename)
 
-#     context = mlrun.get_or_create_ctx("test")
-#     context.log_dataset(
-#         key="test_data",
-#         df=ddf,
-#         artifact_path=f"az://{blob_path}/",
-#         format="parquet",
-#         stats=False,
-#     )
-#     dataitem = context.get_dataitem(f"{context.artifact_path}test_data.parquet")
-#     ddf2 = dataitem.as_df(df_module=dd)
-#     df2 = ddf2.compute()
-#     pd.testing.assert_frame_equal(df, df2)
-
-
-# def test_log_large_dask_dataframe_to_azure(auth_method):
-    # # Load a parquet file from Azure Open Datasets
-    # os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = "azureopendatastorage"
-    # print("Fetching demo_data from Azure Open Datasets")
-    # data_item = mlrun.datastore.store_manager.object(
-    #     "az://tutorials/noaa_isd_weather/demo_data.parquet"
-    # )
-    # ddf = data_item.as_df(df_module=dd)
-    # print(f"open_data has {ddf.npartitions} partitions")
-    # mem_size = ddf.memory_usage().sum().compute()
-    # print(f"demo data has size:  {mem_size}")
-
-    # # Create environmental vars
-    # verify_auth_parameters_and_configure_env(auth_method)
-    # context = mlrun.get_or_create_ctx("test")
-
-    # # Define the artifact location
-    # blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    # target_path=f"az://{blob_path}/"
-
-    # mlrun.log_dataset(
-    #     key="demo_data",
-    #     df = ddf,
-    #     format="parquet",
-    #     artifact_path=target_path,
-    # )
-    
-    # data_item2 = mlrun.get_dataitem(f"{target_path}demo_data.parquet")
-    # ddf2 = data_item2.get(df_module=dd)
-    # mem_size2 = ddf2.memory_usage().sum().compute()
-    # print(f"size of mlrun dataitem is:  {mem_size2}")
-    # assert mem_size == mem_size2
-    
-    # # Check the # of partitions in ddf2 vs the # of files written
-    # from adlfs import AzureBlobFileSystem
-    # fs = AzureBlobFileSystem(account_name=os.getenv("AZURE_STORAGE_ACCOUNT_NAME"),
-    #                          account_key=os.getenv("AZURE_STORAGE_ACCOUNT_KEY"),
-    #                          connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
-    #                          tenant_id=os.getenv("AZURE_STORAGE_TENANT_ID"),
-    #                          client_id=os.getenv("AZURE_STORAGE_CLIENT_ID"),
-    #                          client_secret=os.getenv("AZURE_STORAGE_CLIENT_SECRET"),
-    #                          sas_token=os.getenv("AZURE_STORAGE_SAS_TOKEN")
-    #                          )
-    # files = fs.ls(f"{target_path}demo_data.parquet")
-    # assert ddf2.npartitions == len(files)
-    
+    response = upload_data_item.get()
+    assert response.decode() == test_string, "Result differs from original test"

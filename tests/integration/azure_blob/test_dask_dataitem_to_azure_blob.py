@@ -42,7 +42,7 @@ def verify_auth_parameters_and_configure_env(auth_method):
         os.environ[env_var] = env_value
 
     logger.info(f"Testing auth method {auth_method}")
-    
+
     logger.info(f"Creating Dask Client")
     dask_cluster = os.getenv("DASK_CLUSTER")
     if dask_cluster:
@@ -51,11 +51,13 @@ def verify_auth_parameters_and_configure_env(auth_method):
             client = fn._get_dask_client
         elif dask_cluster.startswith("tcp://"):
             from dask.distributed import Client
+
             client = Client(dask_cluster)
     else:
         from dask.distributed import Client
+
         client = Client()
-        
+
     return True
 
 
@@ -121,31 +123,33 @@ def test_log_large_dask_dataframe_to_azure(auth_method):
 
     context.log_dataset(
         key="demo_data",
-        df = ddf,
+        df=ddf,
         format="parquet",
         artifact_path=target_path,
         stats=True,
     )
-    
+
     data_item2 = mlrun.get_dataitem(f"{target_path}demo_data.parquet")
     ddf2 = data_item2.as_df(df_module=dd)
-    
+
     # Check that a collection of files is written to Azure,
     # rather than a single parquet file
     from adlfs import AzureBlobFileSystem
-    fs = AzureBlobFileSystem(account_name=os.getenv("AZURE_STORAGE_ACCOUNT_NAME"),
-                             account_key=os.getenv("AZURE_STORAGE_ACCOUNT_KEY"),
-                             connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
-                             tenant_id=os.getenv("AZURE_STORAGE_TENANT_ID"),
-                             client_id=os.getenv("AZURE_STORAGE_CLIENT_ID"),
-                             client_secret=os.getenv("AZURE_STORAGE_CLIENT_SECRET"),
-                             sas_token=os.getenv("AZURE_STORAGE_SAS_TOKEN")
-                             )
+
+    fs = AzureBlobFileSystem(
+        account_name=os.getenv("AZURE_STORAGE_ACCOUNT_NAME"),
+        account_key=os.getenv("AZURE_STORAGE_ACCOUNT_KEY"),
+        connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
+        tenant_id=os.getenv("AZURE_STORAGE_TENANT_ID"),
+        client_id=os.getenv("AZURE_STORAGE_CLIENT_ID"),
+        client_secret=os.getenv("AZURE_STORAGE_CLIENT_SECRET"),
+        sas_token=os.getenv("AZURE_STORAGE_SAS_TOKEN"),
+    )
     # Verify that a directory was created, rather than a file
     path = target_path.partition("//")[2]
     path = os.path.join(path, "demo_data.parquet")
     assert fs.isdir(path) is True
-    
+
     # Verify that a collection of files was written
     files = fs.ls(path)
     assert len(files) > 4
@@ -155,4 +159,6 @@ def test_log_large_dask_dataframe_to_azure(auth_method):
     df = ddf.compute()
     df = df.reset_index(drop=True)
     # Verify that the returned dataframe matches the original
-    pd.testing.assert_frame_equal(df, df2, check_index_type=False, check_less_precise=True)    
+    pd.testing.assert_frame_equal(
+        df, df2, check_index_type=False, check_less_precise=True
+    )

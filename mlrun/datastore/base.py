@@ -193,7 +193,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            if self.supports_isdir() and fs.isdir(url) or df_module==dd:
+            if self.supports_isdir() and fs.isdir(url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options

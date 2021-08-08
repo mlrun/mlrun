@@ -1,6 +1,8 @@
 import ast
 import http
 import json
+import tempfile
+import traceback
 import typing
 
 import kfp
@@ -43,7 +45,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                 page_token = response.next_page_token
             project_runs = []
             for run_dict in run_dicts:
-                run_project = self._resolve_pipeline_project(run_dict)
+                run_project = self.resolve_project_from_pipeline(run_dict)
                 if run_project == project:
                     project_runs.append(run_dict)
             runs = project_runs
@@ -96,11 +98,66 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
         return run
 
+    def create_pipeline(
+        self,
+        experiment_name: str,
+        run_name: str,
+        content_type: str,
+        data: bytes,
+        arguments: dict = None,
+        namespace: str = mlrun.mlconf.namespace,
+    ):
+        if arguments is None:
+            arguments = {}
+        if "/yaml" in content_type:
+            content_type = ".yaml"
+        elif " /zip" in content_type:
+            content_type = ".zip"
+        else:
+            mlrun.api.api.utils.log_and_raise(
+                http.HTTPStatus.BAD_REQUEST.value,
+                reason=f"unsupported pipeline type {content_type}",
+            )
+
+        logger.debug("Writing pipeline to temp file", content_type=content_type)
+        print(str(data))
+
+        pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
+        with open(pipeline_file.name, "wb") as fp:
+            fp.write(data)
+
+        logger.info(
+            "Creating pipeline",
+            experiment_name=experiment_name,
+            run_name=run_name,
+            arguments=arguments,
+        )
+
+        try:
+            kfp_client = kfp.Client(namespace=namespace)
+            experiment = kfp_client.create_experiment(name=experiment_name)
+            run = kfp_client.run_pipeline(
+                experiment.id, run_name, pipeline_file.name, params=arguments
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed creating pipeline",
+                traceback=traceback.format_exc(),
+                exc=str(exc),
+            )
+            raise mlrun.errors.MLRunBadRequestError(f"Failed creating pipeline: {exc}")
+        finally:
+            pipeline_file.close()
+
+        return run
+
     def _format_runs(
         self,
         runs: typing.List[dict],
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
+        for run in runs:
+            run["project"] = self.resolve_project_from_pipeline(run)
         if format_ == mlrun.api.schemas.PipelinesFormat.full:
             return runs
         elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
@@ -114,6 +171,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                         in [
                             "id",
                             "name",
+                            "project",
                             "status",
                             "error",
                             "created_at",
@@ -185,12 +243,22 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
         return None
 
-    def _resolve_pipeline_project(self, pipeline):
+    def resolve_project_from_pipeline(self, pipeline):
         workflow_manifest = json.loads(
-            pipeline.get("pipeline_spec", {}).get("workflow_manifest", "{}")
+            pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
         )
+        return self.resolve_project_from_workflow_manifest(workflow_manifest)
+
+    def resolve_project_from_workflow_manifest(self, workflow_manifest):
         templates = workflow_manifest.get("spec", {}).get("templates", [])
         for template in templates:
+            project_from_annotation = (
+                template.get("metadata", {})
+                .get("annotations", {})
+                .get(mlrun.kfpops.project_annotation)
+            )
+            if project_from_annotation:
+                return project_from_annotation
             command = template.get("container", {}).get("command", [])
             action = None
             for index, argument in enumerate(command):

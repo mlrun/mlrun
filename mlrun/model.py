@@ -294,12 +294,14 @@ class ImageBuilder(ModelObj):
         code_origin=None,
         registry=None,
         load_source_on_run=None,
+        origin_filename=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
         self.codeEntryAttributes = ""  #: codeEntryAttributes
         self.source = source  #: source
         self.code_origin = code_origin  #: code_origin
+        self.origin_filename = origin_filename
         self.image = image  #: image
         self.base_image = base_image  #: base_image
         self.commands = commands or []  #: commands

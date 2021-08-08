@@ -151,6 +151,8 @@ default_config = {
             # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
             # it to None. the default for coalesce it True just adding it here to be explicit
             "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
+            # one of enabled, disabled, auto (in which it will be determined by whether the authorization mode is opa)
+            "schedule_credentials_secrets_store_mode": "auto",
         },
         "projects": {
             "leader": "mlrun",
@@ -227,6 +229,18 @@ default_config = {
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
+    },
+    "marketplace": {
+        "k8s_secrets_project_name": "-marketplace-secrets",
+        "catalog_filename": "catalog.json",
+        "default_source": {
+            # Set to false to avoid creating a global source (for example in a dark site)
+            "create": True,
+            "name": "mlrun_global_hub",
+            "description": "MLRun global function hub",
+            "url": "https://raw.githubusercontent.com/mlrun/marketplace",
+            "channel": "master",
+        },
     },
 }
 

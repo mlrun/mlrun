@@ -14,20 +14,24 @@
 
 from os import path
 
-from mlrun import code_to_function, new_model_server
+from mlrun import code_to_function, get_run_db, new_model_server
+from mlrun.utils import parse_versioned_object_uri
 from tests.conftest import examples_path, results
 
 
 def test_job_nb():
-    fn = code_to_function(filename=f"{examples_path}/mlrun_jobs.ipynb", kind="job")
+    filename = f"{examples_path}/mlrun_jobs.ipynb"
+    fn = code_to_function(filename=filename, kind="job")
     assert fn.kind == "job", "kind not set, test failed"
     assert fn.spec.build.functionSourceCode, "code not embedded"
+    assert fn.spec.build.origin_filename == filename, "did not record filename"
 
 
 def test_nuclio_nb():
+    filename = f"{examples_path}/xgb_serving.ipynb"
     fn = new_model_server(
         "iris-srv",
-        filename=f"{examples_path}/xgb_serving.ipynb",
+        filename=filename,
         models={"iris_v1": "xyz"},
         model_class="XGBoostModel",
     )
@@ -36,17 +40,28 @@ def test_nuclio_nb():
 
 
 def test_nuclio_nb_serving():
-    fn = code_to_function(
-        filename="https://raw.githubusercontent.com/mlrun/mlrun/master/examples/xgb_serving.ipynb"
-    )
+    filename = "https://raw.githubusercontent.com/mlrun/mlrun/master/examples/xgb_serving.ipynb"
+    fn = code_to_function(filename=filename)
     assert fn.kind == "remote", "kind not set, test failed"
     assert fn.spec.function_kind == "serving", "code not embedded"
+    assert fn.spec.build.origin_filename == filename, "did not record filename"
 
 
 def test_job_file():
-    fn = code_to_function(filename=f"{examples_path}/training.py", kind="job")
+    filename = f"{examples_path}/training.py"
+    fn = code_to_function(filename=filename, kind="job")
     assert fn.kind == "job", "kind not set, test failed"
     assert fn.spec.build.functionSourceCode, "code not embedded"
+    assert fn.spec.build.origin_filename == filename, "did not record filename"
+    run = fn.run(workdir=str(examples_path), local=True)
+
+    project, uri, tag, hash_key = parse_versioned_object_uri(run.spec.function)
+    local_fn = get_run_db().get_function(uri, project, tag=tag, hash_key=hash_key)
+    assert local_fn["spec"]["command"] == filename, "wrong command path"
+    assert (
+        local_fn["spec"]["build"]["functionSourceCode"]
+        == fn.spec.build.functionSourceCode
+    ), "code was not copied to local function"
 
 
 def test_job_file_noembed():

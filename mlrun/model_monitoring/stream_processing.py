@@ -3,27 +3,28 @@ import os
 from collections import defaultdict
 from datetime import datetime
 from os import environ
-from typing import Dict, List, Set, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import pandas as pd
 import v3io
 from nuclio import Event
 from storey import (
-    FieldAggregator,
-    NoopDriver,
-    Table,
-    Map,
-    MapClass,
     AggregateByKey,
-    build_flow,
+    FieldAggregator,
     Filter,
     FlatMap,
-    TSDBTarget,
+    Map,
+    MapClass,
+    NoopDriver,
     ParquetTarget,
     SyncEmitSource,
+    Table,
+    TSDBTarget,
+    build_flow,
 )
 from storey.dtypes import SlidingWindows
 from storey.steps import SampleWindow
+
 # Constants
 from v3io.dataplane import RaiseForStatus
 
@@ -31,10 +32,10 @@ from mlrun.config import config
 from mlrun.run import MLClientCtx
 from mlrun.utils import logger
 from mlrun.utils.model_monitoring import (
-    parse_model_endpoint_store_prefix,
     create_model_endpoint_id,
+    parse_model_endpoint_store_prefix,
 )
-from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
+from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ISO_8061_UTC = "%Y-%m-%d %H:%M:%S.%f%z"
 FUNCTION_URI = "function_uri"

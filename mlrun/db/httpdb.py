@@ -30,13 +30,14 @@ import mlrun
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
-from .base import RunDBError, RunDBInterface
+
 from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
+from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
     "format",

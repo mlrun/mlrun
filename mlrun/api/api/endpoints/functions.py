@@ -22,16 +22,15 @@ from mlrun.api.crud.model_endpoints import ModelEndpoints
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
-    ModelEndpointStatus,
     ModelEndpointSpec,
+    ModelEndpointStatus,
 )
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, runtime_resources_map
-from mlrun.runtimes import ServingRuntime
+from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in

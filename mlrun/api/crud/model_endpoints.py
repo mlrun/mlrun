@@ -8,8 +8,7 @@ from v3io.dataplane import RaiseForStatus
 import mlrun.api.api.utils
 import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
-from mlrun import code_to_function
-from mlrun.api.api.utils import get_run_db_instance, _submit_run
+from mlrun.api.api.utils import _submit_run, get_run_db_instance
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -30,8 +29,8 @@ from mlrun.errors import (
 from mlrun.model_monitoring.helpers import (
     get_model_monitoring_stream_processing_function,
 )
-from mlrun.runtimes import KubejobRuntime, RemoteRuntime
-from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
+from mlrun.runtimes import KubejobRuntime
+from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client

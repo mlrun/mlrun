@@ -18,8 +18,7 @@ from typing import List, Union
 import nuclio
 
 import mlrun
-from .function import NuclioSpec, RemoteRuntime
-from .function_reference import FunctionReference
+
 from ..model import ObjectList
 from ..secrets import SecretsStore
 from ..serving.server import GraphServer, create_graph_server
@@ -32,6 +31,8 @@ from ..serving.states import (
     new_remote_endpoint,
 )
 from ..utils import get_caller_globals, logger
+from .function import NuclioSpec, RemoteRuntime
+from .function_reference import FunctionReference
 
 serving_subkind = "serving_v2"
 

@@ -21,8 +21,8 @@ from io import BytesIO
 from numpy.core.fromnumeric import mean
 
 import mlrun
-from mlrun.utils import now_date, logger, parse_versioned_object_uri
-from .v2_serving import _ModelLogPusher
+from mlrun.utils import logger, now_date, parse_versioned_object_uri
+
 from ..api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -30,6 +30,7 @@ from ..api.schemas import (
     ModelEndpointStatus,
 )
 from ..config import config
+from .v2_serving import _ModelLogPusher
 
 
 class BaseModelRouter:

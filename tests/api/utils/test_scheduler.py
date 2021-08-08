@@ -1,8 +1,8 @@
 import asyncio
 import pathlib
 import time
+import typing
 from datetime import datetime, timedelta, timezone
-from typing import Generator
 
 import pytest
 from dateutil.tz import tzlocal
@@ -11,8 +11,11 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.api.api.deps
+import mlrun.api.crud
+import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
+import tests.api.conftest
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
@@ -22,11 +25,11 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-async def scheduler(db: Session) -> Generator:
+async def scheduler(db: Session) -> typing.Generator:
     logger.info("Creating scheduler")
     config.httpdb.scheduling.min_allowed_interval = "0"
     scheduler = Scheduler()
-    await scheduler.start(db, mlrun.api.schemas.AuthInfo())
+    await scheduler.start(db)
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     yield scheduler
     logger.info("Stopping scheduler")
@@ -568,9 +571,92 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     assert call_counter == 1
 
     # start the scheduler and and assert another run
-    await scheduler.start(db, mlrun.api.schemas.AuthInfo())
+    await scheduler.start(db)
     await asyncio.sleep(1)
     assert call_counter == 2
+
+
+@pytest.mark.asyncio
+async def test_rescheduling_secrets_storing(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    scheduler._store_schedule_credentials_in_secrets = True
+    name = "schedule-name"
+    project = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    session = "some-user-session"
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(session=session),
+        project,
+        name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+
+    jobs = scheduler._list_schedules_from_scheduler(project)
+    assert jobs[0].args[4].session == session
+    k8s_secrets_mock.assert_project_secrets(
+        project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
+    )
+
+    await scheduler.stop()
+
+    jobs = scheduler._list_schedules_from_scheduler(project)
+    assert jobs == []
+
+    await scheduler.start(db)
+    jobs = scheduler._list_schedules_from_scheduler(project)
+    assert jobs[0].args[4].session == session
+
+
+@pytest.mark.asyncio
+async def test_schedule_crud_secrets_handling(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    scheduler._store_schedule_credentials_in_secrets = True
+    name = "schedule-name"
+    project = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    session = "some-user-session"
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(session=session),
+        project,
+        name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+    k8s_secrets_mock.assert_project_secrets(
+        project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
+    )
+
+    session = "new-session"
+    # update labels
+    scheduler.update_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(session=session),
+        project,
+        name,
+        labels={"label-key": "label-value"},
+    )
+    k8s_secrets_mock.assert_project_secrets(
+        project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
+    )
+
+    # delete schedule
+    scheduler.delete_schedule(
+        db, project, name,
+    )
+    k8s_secrets_mock.assert_project_secrets(project, {})
 
 
 @pytest.mark.asyncio

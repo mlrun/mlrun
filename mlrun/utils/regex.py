@@ -16,6 +16,12 @@ dns_1123_label = [
     r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
 ]
 
+# https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L424
+k8s_secret_and_config_map_key = [
+    r"^.{0,253}$",
+    r"^[-._a-zA-Z0-9]+$",
+]
+
 # https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go#L136
 k8s_resource_quantity_regex = [r"^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"]
 
@@ -40,3 +46,5 @@ sparkjob_name = label_value + [r"^.{0,29}$"]
 # It should be a valid namespace name (cause we plan to map it to one) which is dns 1123 label
 # of the 3 restrictions, dns 1123 label is the most strict, so we enforce only it
 project_name = dns_1123_label
+
+secret_key = k8s_secret_and_config_map_key

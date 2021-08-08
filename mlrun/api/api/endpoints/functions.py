@@ -1,4 +1,4 @@
-import base64
+import base64  # noqa: F401
 import os
 import traceback
 from distutils.util import strtobool
@@ -571,56 +571,6 @@ def _create_model_monitoring_stream(project: str):
 
     if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
         response.raise_for_status([409, 204])
-
-
-def _init_model_monitoring_endpoint_records(
-    fn: ServingRuntime, db_session, auth_info: mlrun.api.schemas.AuthInfo
-):
-
-    stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=fn.metadata.project, kind="stream"
-    )
-
-    for model_name, values in fn.spec.graph.routes.items():
-        class_args = values.class_args or {}
-        model_path = class_args.get("model_path", None)
-        if not model_path:
-            continue
-
-        try:
-            path_parts = model_path.split("/")
-            file_name = path_parts[-1]
-            _, version = file_name.split(":")
-            if version:
-                model_name = f"{model_name}:{version}"
-        except ValueError:
-            pass
-
-        try:
-            model_endpoint = ModelEndpoint(
-                metadata=ModelEndpointMetadata(
-                    project=fn.metadata.project, labels=fn.metadata.labels
-                ),
-                spec=ModelEndpointSpec(
-                    function_uri=fn.uri,
-                    model=model_name,
-                    model_class=values.class_name,
-                    model_uri=model_path,
-                    stream_path=stream_path,
-                    active=True,
-                ),
-                status=ModelEndpointStatus(),
-            )
-
-            ModelEndpoints.create_or_patch(
-                db_session=db_session,
-                access_key=os.environ.get("V3IO_ACCESS_KEY"),
-                model_endpoint=model_endpoint,
-                auth_info=auth_info,
-            )
-        except Exception as e:
-            logger.error("Failed to create endpoint record", exc=e)
-
 
 def _init_serving_function_stream_args(fn: ServingRuntime):
     logger.debug("Initializing serving function stream args")

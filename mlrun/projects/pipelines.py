@@ -130,7 +130,7 @@ def enrich_function_object(
     return f
 
 
-def _create_pipeline(project, pipeline, funcs, secrets=None, handler=None):
+def _create_pipeline(project, pipeline, secrets=None, handler=None):
     functions = FunctionsDict(project)
     pipeline_context.set(project, functions)
     spec = imputil.spec_from_file_location("workflow", pipeline)
@@ -163,14 +163,13 @@ def _run_pipeline(
     project,
     name,
     pipeline,
-    functions,
     secrets=None,
     arguments=None,
     artifact_path=None,
     namespace=None,
     ttl=None,
 ):
-    kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
+    kfpipeline = _create_pipeline(project, pipeline, secrets)
 
     namespace = namespace or config.namespace
     id = run_pipeline(

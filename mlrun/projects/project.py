@@ -1290,7 +1290,7 @@ class MlrunProject(ModelObj):
             self.spec._function_objects[key] = function
         return function
 
-    def get_enriched_functions(self):
+    def get_function_objects(self):
         """"get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
@@ -1523,7 +1523,6 @@ class MlrunProject(ModelObj):
             self,
             name,
             workflow_path,
-            self.spec._function_objects,
             secrets=self._secrets,
             arguments=arguments,
             artifact_path=artifact_path,
@@ -1546,13 +1545,12 @@ class MlrunProject(ModelObj):
                        '{{workflow.uid}}' will be replaced by workflow id
         :param ttl:    pipeline ttl in secs (after that the pods will be removed)
         """
-        if not name or name not in self.spec.workflows:
+        if not name or name not in self.spec._workflows:
             raise ValueError(f"workflow {name} not found")
 
         workflow_path, code, _ = self.spec._get_wf_cfg(name)
-        pipeline = _create_pipeline(
-            self, workflow_path, self.spec._function_objects, secrets=self._secrets
-        )
+        self.sync_functions()
+        pipeline = _create_pipeline(self, workflow_path, secrets=self._secrets)
 
         artifact_path = artifact_path or self.spec.artifact_path
         conf = new_pipe_meta(artifact_path, ttl=ttl)

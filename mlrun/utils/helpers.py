@@ -114,7 +114,9 @@ class run_keys:
     secrets = "secret_sources"
 
 
-def verify_field_regex(field_name, field_value, patterns, raise_on_failure:bool = True) -> bool:
+def verify_field_regex(
+    field_name, field_value, patterns, raise_on_failure: bool = True
+) -> bool:
     logger.debug(
         "Validating field against patterns",
         field_name=field_name,

@@ -255,6 +255,9 @@ class Scheduler:
                     "Session is required to create schedules in OPA authorization mode"
                 )
             secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+            secret_key_map = (
+                mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+            )
             mlrun.api.crud.Secrets().store_secrets(
                 project,
                 schemas.SecretsData(
@@ -262,6 +265,7 @@ class Scheduler:
                     secrets={secret_key: auth_info.session},
                 ),
                 allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
             )
 
     def _remove_schedule_secrets(
@@ -273,11 +277,15 @@ class Scheduler:
         if self._store_schedule_credentials_in_secrets:
             # sanity
             secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
-            mlrun.api.crud.Secrets().delete_secrets(
+            secret_key_map = (
+                mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+            )
+            mlrun.api.crud.Secrets().delete_secret(
                 project,
                 self._secrets_provider,
-                [secret_key],
+                secret_key,
                 allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
             )
 
     def _validate_cron_trigger(
@@ -404,14 +412,17 @@ class Scheduler:
                     schedule_secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(
                         db_schedule.name
                     )
-                    secrets_data = mlrun.api.crud.Secrets().list_secrets(
+                    secret_key_map = (
+                        mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+                    )
+                    session = mlrun.api.crud.Secrets().get_secret(
                         db_schedule.project,
                         self._secrets_provider,
-                        [schedule_secret_key],
+                        schedule_secret_key,
                         allow_secrets_from_k8s=True,
                         allow_internal_secrets=True,
+                        key_map_secret_key=secret_key_map,
                     )
-                    session = secrets_data.secrets[schedule_secret_key]
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
                     db_schedule.name,

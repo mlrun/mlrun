@@ -234,4 +234,3 @@ def rundb_mock(client: TestClient) -> RunDBMock:
     BaseRuntime._use_remote_api = orig_use_remote_api
     BaseRuntime._get_db = orig_get_db
     mlconf.dbpath = orig_db_path
-

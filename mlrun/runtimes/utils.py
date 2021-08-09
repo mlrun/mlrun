@@ -290,6 +290,13 @@ def get_item_name(item, attr="name"):
 
 def apply_kfp(modify, cop, runtime):
     modify(cop)
+
+    # Have to do it here to avoid circular dependencies
+    from .pod import AutoMountType
+
+    if modify in AutoMountType.all_mount_modifiers():
+        runtime.spec.mount_applied = True
+
     api = client.ApiClient()
     for k, v in cop.pod_labels.items():
         runtime.metadata.labels[k] = v
@@ -315,7 +322,6 @@ def apply_kfp(modify, cop, runtime):
         cop.volumes.clear()
         cop.container.volume_mounts.clear()
 
-    runtime.spec.mount_applied = True
     return runtime
 
 

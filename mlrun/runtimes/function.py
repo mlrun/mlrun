@@ -460,6 +460,8 @@ class RemoteRuntime(KubeResource):
 
         save_record = False
         if not dashboard:
+            # Attempt auto-mounting, before sending to remote build
+            self.try_auto_mount_based_on_config()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
@@ -935,8 +937,6 @@ def compile_function_config(function: RemoteRuntime):
     # Add vault configurations to function's pod spec, if vault secret source was added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     function.add_secrets_config_to_spec()
-    # Perform auto-mount to function, if needed
-    function.try_auto_mount_based_on_config()
 
     env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
     for key, value in function._get_runtime_env().items():

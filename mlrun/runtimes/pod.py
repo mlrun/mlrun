@@ -181,22 +181,39 @@ class KubeResourceSpec(FunctionSpec):
 class AutoMountType(str, Enum):
     none = "none"
     auto = "auto"
-    v3io_cred = "v3io_cred"
+    v3io_credentials = "v3io_credentials"
     v3io_fuse = "v3io_fuse"
     pvc = "pvc"
 
     @classmethod
     def _missing_(cls, value):
+        return AutoMountType.default()
+
+    @staticmethod
+    def default():
         return AutoMountType.auto
+
+    # Any modifier that configures a mount on a runtime should be included here. These modifiers, if applied to the
+    # runtime, will suppress the auto-mount functionality.
+    @classmethod
+    def all_mount_modifiers(cls):
+        return [
+            mlrun.v3io_cred,
+            mlrun.mount_v3io,
+            mlrun.platforms.other.mount_pvc,
+            mlrun.auto_mount,
+        ]
 
     def get_modifier(self):
         is_iguazio = mlconf.igz_version != ""
         return {
             AutoMountType.none: None,
-            AutoMountType.v3io_cred: mlrun.v3io_cred,
+            AutoMountType.v3io_credentials: mlrun.v3io_cred,
             AutoMountType.v3io_fuse: mlrun.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
-            AutoMountType.auto: mlrun.v3io_cred if is_iguazio else None,
+            AutoMountType.auto: mlrun.v3io_cred
+            if is_iguazio
+            else mlrun.platforms.other.mount_pvc,
         }[self]
 
 
@@ -469,13 +486,13 @@ class KubeResource(BaseRuntime):
 
     def try_auto_mount_based_on_config(self):
         if self.spec.mount_applied:
-            logger.info("Mount already applied - not performing auto-mount")
+            logger.debug("Mount already applied - not performing auto-mount")
             return
 
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         modifier = auto_mount_type.get_modifier()
         if not modifier:
-            logger.info("Auto mount disabled due to user selection")
+            logger.debug("Auto mount disabled due to user selection")
             return
         mount_params = mlconf.storage.auto_mount_params.to_dict()
         self.apply(modifier(**mount_params))

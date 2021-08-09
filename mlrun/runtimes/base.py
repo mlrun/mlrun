@@ -220,6 +220,8 @@ class BaseRuntime(ModelObj):
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
         return self._db_conn
 
+    # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.
+    # That's why it's named differently.
     def try_auto_mount_based_on_config(self):
         pass
 
@@ -275,8 +277,9 @@ class BaseRuntime(ModelObj):
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
-        # Perform auto-mount if necessary
-        self.try_auto_mount_based_on_config()
+        # Perform auto-mount if necessary - make sure it only runs locally (when using remote API)
+        if self._use_remote_api():
+            self.try_auto_mount_based_on_config()
 
         if local:
 

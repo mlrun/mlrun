@@ -859,7 +859,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name="sched_test18",
+            name="sched_test21",
             entities=[fs.Entity("first_name")],
             timestamp_key="time",
         )
@@ -870,7 +870,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         sleep(60)
 
-        features = ["sched_test18.*"]
+        features = ["sched_test21.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
         svc = fs.get_online_feature_service(vec)
@@ -916,9 +916,16 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check offline
         resp = fs.get_offline_features(vec)
-        vec_df = resp.to_dataframe()
 
-        print(vec_df)
+        expected = pd.DataFrame(
+            {
+                "first_name": ["moshe", "dina", "moshe", "yosi"],
+                "data": [50, 10, 2000, 10],
+            }
+        )
+        expected.set_index(keys="first_name", inplace=True)
+
+        assert expected.equals(resp.to_dataframe())
 
 #        sleep(120)
 

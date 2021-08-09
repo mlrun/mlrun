@@ -295,8 +295,6 @@ class FeatureVector(ModelObj):
             feature_set_object = feature_set_objects[feature_set]
 
             feature_fields = feature_set_object.spec.features.keys()
-            if len(feature_fields) == 0:
-                print("fuck!")
             if feature_name == "*":
                 for field in feature_fields:
                     if field != feature_set_object.spec.timestamp_key:

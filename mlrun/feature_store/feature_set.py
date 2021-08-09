@@ -580,7 +580,6 @@ class FeatureSet(ModelObj):
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
-        print("ssaving in db")
         db = self._get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag or "latest"
@@ -588,7 +587,6 @@ class FeatureSet(ModelObj):
         as_dict["spec"]["features"] = as_dict["spec"].get(
             "features", []
         )  # bypass DB bug
-        print("as dict is " + str(as_dict))
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):

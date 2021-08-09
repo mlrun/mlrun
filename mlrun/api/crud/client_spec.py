@@ -9,7 +9,7 @@ cached_nuclio_version = None
 
 
 class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
-    def get_client_spec(self, auth_info: mlrun.api.schemas.AuthInfo = None):
+    def get_client_spec(self):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
         return mlrun.api.schemas.ClientSpec(
             version=config.version,
@@ -24,7 +24,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             kfp_image=config.kfp_image,
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
-            nuclio_version=self._resolve_nuclio_version(auth_info),
+            nuclio_version=self._resolve_nuclio_version(),
             # These have a default value, therefore we want to send them only if their value is not the default one
             # (otherwise clients don't know when to use server value and when to use client value)
             ui_projects_prefix=self._get_config_value_if_not_default(
@@ -55,7 +55,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
     # if not specified, get it from nuclio api client
     # since this is a heavy operation (sending requests to API), and it's unlikely that the version
     # will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-    def _resolve_nuclio_version(self, auth_info: mlrun.api.schemas.AuthInfo):
+    def _resolve_nuclio_version(self):
         global cached_nuclio_version
         if not cached_nuclio_version:
 
@@ -64,7 +64,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             if not nuclio_version and config.nuclio_dashboard_url:
                 try:
                     nuclio_client = nuclio.Client()
-                    nuclio_version = nuclio_client.get_dashboard_version(auth_info)
+                    nuclio_version = nuclio_client.get_dashboard_version()
                 except Exception as exc:
                     logger.warning("Failed to resolve nuclio version", exc=str(exc))
 

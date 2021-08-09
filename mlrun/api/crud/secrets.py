@@ -233,13 +233,16 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
             # clean key from key map
             key_map = self._get_secret_key_map(project, key_map_secret_key)
             del key_map[secret_key]
-            self.store_secrets(project,
-                               mlrun.api.schemas.SecretsData(
-                                   provider=provider,
-                                   secrets={key_map_secret_key: json.dumps(key_map)},
-                               ),
-                               allow_internal_secrets=True,
-                               allow_key_maps=True)
+            if key_map:
+                self.store_secrets(project,
+                                   mlrun.api.schemas.SecretsData(
+                                       provider=provider,
+                                       secrets={key_map_secret_key: json.dumps(key_map)},
+                                   ),
+                                   allow_internal_secrets=True,
+                                   allow_key_maps=True)
+            else:
+                self.delete_secrets(project, provider, [key_map_secret_key], allow_internal_secrets=True)
 
     def get_secret(
         self,

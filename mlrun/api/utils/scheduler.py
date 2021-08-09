@@ -284,6 +284,7 @@ class Scheduler:
                 project,
                 self._secrets_provider,
                 secret_key,
+                allow_secrets_from_k8s=True,
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )

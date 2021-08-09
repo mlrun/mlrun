@@ -29,8 +29,8 @@ from .base import Artifact
 default_preview_rows_length = 20
 max_preview_columns = 100
 max_csv = 10000
-max_ddf_memory = 1
 ddf_sample_pct = 0.2
+max_ddf_size = 1
 
 
 class TableArtifact(Artifact):
@@ -126,7 +126,7 @@ class DatasetArtifact(Artifact):
         if df is not None:
             if hasattr(df, "dask"):
                 # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas
-                if df.memory_usage(deep=True).sum().compute() // 1e9 < max_ddf_memory:
+                if (df.memory_usage(deep=True).sum().compute() / 1e9) < max_ddf_size:
                     df = df.compute()
             self.update_preview_fields_from_df(
                 self, df, stats, preview, ignore_preview_limits

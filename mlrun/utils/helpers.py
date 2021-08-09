@@ -114,7 +114,7 @@ class run_keys:
     secrets = "secret_sources"
 
 
-def verify_field_regex(field_name, field_value, patterns):
+def verify_field_regex(field_name, field_value, patterns, raise_on_failure:bool = True) -> bool:
     logger.debug(
         "Validating field against patterns",
         field_name=field_name,
@@ -124,15 +124,20 @@ def verify_field_regex(field_name, field_value, patterns):
 
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
-            logger.warn(
+            log_func = logger.warn if raise_on_failure else logger.debug
+            log_func(
                 "Field is malformed. Does not match required pattern",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
             )
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
-            )
+            if raise_on_failure:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
+                )
+            else:
+                return False
+    return True
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError

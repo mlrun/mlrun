@@ -268,13 +268,14 @@ def ingest(
 
         if source.schedule:
             featureset.reload(update_spec=False)
-            min_time = date.max
+            max_datetime = datetime(date.max.year, date.max.month, date.max.day)
+            min_time = max_datetime
             for target in featureset.status.targets:
                 if target.last_written:
                     cur_last_written = datetime.fromisoformat(target.last_written)
                     if cur_last_written < min_time:
                         min_time = cur_last_written
-            if min_time != date.max:
+            if min_time != max_datetime:
                 source.start_time = min_time
                 source.end_time = datetime.now()
 

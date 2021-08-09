@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
 
@@ -268,13 +268,13 @@ def ingest(
 
         if source.schedule:
             featureset.reload(update_spec=False)
-            min_time = datetime.date.max
+            min_time = date.max
             for target in featureset.status.targets:
                 if target.last_written:
                     cur_last_written = datetime.fromisoformat(target.last_written)
                     if cur_last_written < min_time:
                         min_time = cur_last_written
-            if min_time != datetime.date.max:
+            if min_time != date.max:
                 source.start_time = min_time
                 source.end_time = datetime.now()
 

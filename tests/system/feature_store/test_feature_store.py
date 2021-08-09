@@ -851,6 +851,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         path = data_set.status.targets[0].path
 
+        #the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
 
         source = ParquetSource(
@@ -858,7 +859,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name="sched_test17",
+            name="sched_test18",
             entities=[fs.Entity("first_name")],
             timestamp_key="time",
         )
@@ -869,7 +870,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         sleep(60)
 
-        features = ["sched_test17.*"]
+        features = ["sched_test18.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
         svc = fs.get_online_feature_service(vec)
@@ -884,9 +885,10 @@ class TestFeatureStore(TestMLRunSystem):
                     pd.Timestamp("2021-01-10 12:00:00"),
                     pd.Timestamp("2021-01-10 13:00:00"),
                     now + pd.Timedelta(minutes=10),
+                    pd.Timestamp("2021-01-09 13:00:00"),
                 ],
-                "first_name": ["moshe", "dina", "katya"],
-                "data": [50, 10, 25],
+                "first_name": ["moshe", "dina", "katya", "uri"],
+                "data": [50, 10, 25, 30],
             }
         )
         # writing down a remote source
@@ -901,14 +903,24 @@ class TestFeatureStore(TestMLRunSystem):
                 {"first_name": "moshe"},
                 {"first_name": "katya"},
                 {"first_name": "dina"},
+                {"first_name": "uri"}
             ]
         )
         assert resp[0]["data"] == 10
         assert resp[1]["data"] == 50
         assert resp[2] is None
         assert resp[3]["data"] == 10
+        assert resp[4] is None
 
-        sleep(120)
+        svc.close()
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        vec_df = resp.to_dataframe()
+
+        print(vec_df)
+
+#        sleep(120)
 
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])

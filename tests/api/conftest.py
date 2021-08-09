@@ -139,10 +139,7 @@ class RunDBMock:
         self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
     ):
         self._function = func.to_dict()
-        status = NuclioStatus(
-            state="ready",
-            nuclio_name="test-nuclio-name",
-        )
+        status = NuclioStatus(state="ready", nuclio_name="test-nuclio-name",)
         return {"data": {"status": status.to_dict()}}
 
     def get_builder_status(
@@ -217,12 +214,24 @@ class RunDBMock:
 @pytest.fixture()
 def rundb_mock(client: TestClient) -> RunDBMock:
     logger.info("Creating rundb mock")
-    rundb_mock = RunDBMock()
+    mock_object = RunDBMock()
 
-    mlrun.db.get_run_db = unittest.mock.Mock(return_value=rundb_mock)
+    orig_get_run_db = mlrun.db.get_run_db
+    mlrun.db.get_run_db = unittest.mock.Mock(return_value=mock_object)
 
+    orig_use_remote_api = BaseRuntime._use_remote_api
+    orig_get_db = BaseRuntime._get_db
     BaseRuntime._use_remote_api = unittest.mock.Mock(return_value=True)
-    BaseRuntime._get_db = unittest.mock.Mock(return_value=rundb_mock)
+    BaseRuntime._get_db = unittest.mock.Mock(return_value=mock_object)
 
+    orig_db_path = mlconf.dbpath
     mlconf.dbpath = "http://localhost:12345"
-    return rundb_mock
+    yield mock_object
+
+    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+    logger.info("Reverting mock")
+    mlrun.db.get_run_db = orig_get_run_db
+    BaseRuntime._use_remote_api = orig_use_remote_api
+    BaseRuntime._get_db = orig_get_db
+    mlconf.dbpath = orig_db_path
+

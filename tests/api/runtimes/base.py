@@ -29,6 +29,12 @@ class TestRuntimeBase:
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
         get_k8s().namespace = self.namespace
+
+        # set auto-mount to work as if this is an Iguazio system (otherwise it may try to mount PVC)
+        mlconf.igz_version = "1.1.1"
+        mlconf.storage.auto_mount_type = "auto"
+        mlconf.storage.auto_mount_params = ""
+
         self._logger = logger
         self.project = "test-project"
         self.name = "test-function"

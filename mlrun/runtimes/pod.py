@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import typing
 import uuid
 from copy import deepcopy
@@ -24,7 +23,7 @@ import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
-from ..utils import logger, normalize_name, update_in, verify_field_regex
+from ..utils import list2dict, logger, normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec
 from .utils import (
     apply_kfp,
@@ -198,10 +197,10 @@ class AutoMountType(str, Enum):
     @classmethod
     def all_mount_modifiers(cls):
         return [
-            mlrun.v3io_cred,
-            mlrun.mount_v3io,
-            mlrun.platforms.other.mount_pvc,
-            mlrun.auto_mount,
+            mlrun.v3io_cred.__name__,
+            mlrun.mount_v3io.__name__,
+            mlrun.platforms.other.mount_pvc.__name__,
+            mlrun.auto_mount.__name__,
         ]
 
     def get_modifier(self):
@@ -494,8 +493,11 @@ class KubeResource(BaseRuntime):
         if not modifier:
             logger.debug("Auto mount disabled due to user selection")
             return
-        mount_params = mlconf.storage.auto_mount_params.to_dict()
-        self.apply(modifier(**mount_params))
+
+        mount_params = mlconf.storage.auto_mount_params.split(",")
+        mount_params_dict = list2dict(mount_params)
+
+        self.apply(modifier(**mount_params_dict))
 
 
 def kube_resource_spec_to_pod_spec(

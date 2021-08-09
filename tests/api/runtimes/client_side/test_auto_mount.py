@@ -21,13 +21,6 @@ class TestAutoMountClientSide(TestRuntimeBase):
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
-    def custom_setup_after_fixtures(self):
-        # auto-mount is looking at this to check if we're running on Iguazio
-        mlconf.igz_version = "some_version"
-        # Reset those, as tests will use various values in them
-        mlconf.storage.auto_mount_type = "auto"
-        mlconf.storage.auto_mount_params = {}
-
     def _generate_kubejob_runtime(self):
         runtime = KubejobRuntime()
         runtime.spec.image = self.image_name
@@ -65,7 +58,6 @@ class TestAutoMountClientSide(TestRuntimeBase):
         self, db: Session, client: TestClient, cred_only, rundb_mock
     ):
         mlconf.storage.auto_mount_type = "v3io_cred" if cred_only else "v3io_fuse"
-        mlconf.storage.auto_mount_params = {}
 
         runtime = self._generate_kubejob_runtime()
         self._execute_run(runtime)
@@ -76,7 +68,9 @@ class TestAutoMountClientSide(TestRuntimeBase):
 
         runtime = self._generate_nuclio_runtime()
         runtime.deploy(project=self.project)
-        rundb_mock.assert_v3io_mount_or_creds_configured(self.v3io_user, self.v3io_access_key, cred_only=cred_only)
+        rundb_mock.assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key, cred_only=cred_only
+        )
 
     def test_run_with_automount_pvc(self, db: Session, client: TestClient, rundb_mock):
         mlconf.storage.auto_mount_type = "pvc"
@@ -85,7 +79,12 @@ class TestAutoMountClientSide(TestRuntimeBase):
             "volume_name": "test_volume",
             "volume_mount_path": "/mnt/test/path",
         }
-        mlconf.storage.auto_mount_params = pvc_params.copy()
+
+        pvc_params_str = ",".join(
+            [f"{key}={value}" for key, value in pvc_params.items()]
+        )
+        mlconf.storage.auto_mount_params = pvc_params_str
+
         runtime = self._generate_kubejob_runtime()
         self._execute_run(runtime)
 

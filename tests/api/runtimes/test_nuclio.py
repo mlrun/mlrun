@@ -28,9 +28,6 @@ from tests.api.runtimes.base import TestRuntimeBase
 class TestNuclioRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
-        # Clear any auto-config params (some tests modify them)
-        mlconf.storage.auto_mount_type = "auto"
-        mlconf.storage.auto_mount_params = {}
 
     def custom_setup(self):
         self.image_name = "test/image:latest"
@@ -346,23 +343,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()
         self._assert_nuclio_v3io_mount(local_path, remote_path)
-
-    @pytest.mark.parametrize("cred_only", [True, False])
-    def test_deploy_with_automount_v3io(
-        self, db: Session, client: TestClient, cred_only
-    ):
-        function = self._generate_runtime("nuclio")
-        local_path = "/local/path"
-        remote_path = "/container/and/path"
-
-        mlconf.storage.auto_mount_type = "v3io_cred" if cred_only else "v3io_fuse"
-        mlconf.storage.auto_mount_params = (
-            {} if cred_only else {"mount_path": local_path, "remote": remote_path}
-        )
-
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config()
-        self._assert_nuclio_v3io_mount(local_path, remote_path, cred_only=cred_only)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
         mlconf.nuclio_version = "1.6.10"

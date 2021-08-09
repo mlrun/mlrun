@@ -1848,6 +1848,8 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
     # verify all functions are in this project
     for f in functions.values():
         f.metadata.project = project.metadata.name
+        # After the user had a chance to initialize the functions (in init_functions), attempt to auto-mount them.
+        f.try_auto_mount_based_on_config()
 
     if not hasattr(mod, "kfpipeline"):
         raise ValueError("pipeline function (kfpipeline) not found")

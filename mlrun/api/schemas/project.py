@@ -54,6 +54,7 @@ class ProjectStatus(ObjectStatus):
 
 class ProjectSpec(pydantic.BaseModel):
     description: typing.Optional[str] = None
+    owner: typing.Optional[str] = None
     goals: typing.Optional[str] = None
     params: typing.Optional[dict] = None
     functions: typing.Optional[list] = None

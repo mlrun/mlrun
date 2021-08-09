@@ -271,6 +271,7 @@ class ProjectSpec(ModelObj):
         origin_url=None,
         goals=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
+        owner=None,
     ):
         self.repo = None
 
@@ -283,6 +284,7 @@ class ProjectSpec(ModelObj):
         self.origin_url = origin_url or ""
         self.goals = goals
         self.desired_state = desired_state
+        self.owner = owner
         self.branch = None
         self.tag = ""
         self.params = params or {}
@@ -345,6 +347,8 @@ class ProjectSpec(ModelObj):
 
     @functions.setter
     def functions(self, functions):
+        if not functions:
+            functions = []
         if not isinstance(functions, list):
             raise ValueError("functions must be a list")
 
@@ -379,6 +383,8 @@ class ProjectSpec(ModelObj):
 
     @workflows.setter
     def workflows(self, workflows):
+        if not workflows:
+            workflows = []
         if not isinstance(workflows, list):
             raise ValueError("workflows must be a list")
 
@@ -410,6 +416,8 @@ class ProjectSpec(ModelObj):
 
     @artifacts.setter
     def artifacts(self, artifacts):
+        if not artifacts:
+            artifacts = []
         if not isinstance(artifacts, list):
             raise ValueError("artifacts must be a list")
 

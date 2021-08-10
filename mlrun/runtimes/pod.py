@@ -59,6 +59,7 @@ class KubeResourceSpec(FunctionSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        mount_applied=False,
     ):
         super().__init__(
             command=command,
@@ -71,6 +72,7 @@ class KubeResourceSpec(FunctionSpec):
             workdir=workdir,
             default_handler=default_handler,
             pythonpath=pythonpath,
+            mount_applied=mount_applied,
         )
         self._volumes = {}
         self._volume_mounts = {}

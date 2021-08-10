@@ -149,9 +149,9 @@ class BokehArtifact(Artifact):
         # Validate input:
         try:
             from bokeh.plotting import Figure
-        except ModuleNotFoundError as e:
-            raise ModuleNotFoundError(
-                "Using 'BokehArtifact' requires bokeh>=2.3.2 "
+        except ImportError as e:
+            raise ImportError(
+                "Using 'BokehArtifact' requires bokeh~=2.3.2 "
                 "but bokeh is not found: {}".format(e)
             )
         if not isinstance(figure, Figure):

@@ -163,8 +163,8 @@ def test_get_secret(
                 invalid_secret_2_key: invalid_secret_2_value,
             },
         ),
-        True,
-        key_map_secret_key,
+        allow_internal_secrets=True,
+        key_map_secret_key=key_map_secret_key,
     )
 
     assert (
@@ -267,8 +267,8 @@ def test_delete_secret(
                 }
             ),
         ),
-        True,
-        key_map_secret_key,
+        allow_internal_secrets=True,
+        key_map_secret_key=key_map_secret_key,
     )
 
     k8s_secrets_mock.assert_project_secrets(
@@ -350,8 +350,8 @@ def test_store_secrets_with_key_map_success(
         mlrun.api.schemas.SecretsData(
             provider=provider, secrets={valid_secret_key: valid_secret_value}
         ),
-        True,
-        key_map_secret_key,
+        allow_internal_secrets=True,
+        key_map_secret_key=key_map_secret_key,
     )
     k8s_secrets_mock.assert_project_secrets(
         project, {valid_secret_key: valid_secret_value}
@@ -363,8 +363,8 @@ def test_store_secrets_with_key_map_success(
         mlrun.api.schemas.SecretsData(
             provider=provider, secrets={invalid_secret_key: invalid_secret_value}
         ),
-        True,
-        key_map_secret_key,
+        allow_internal_secrets=True,
+        key_map_secret_key=key_map_secret_key,
     )
     k8s_secrets_mock.assert_project_secrets(
         project,
@@ -381,8 +381,8 @@ def test_store_secrets_with_key_map_success(
         mlrun.api.schemas.SecretsData(
             provider=provider, secrets={invalid_secret_key: invalid_secret_value_2}
         ),
-        True,
-        key_map_secret_key,
+        allow_internal_secrets=True,
+        key_map_secret_key=key_map_secret_key,
     )
     k8s_secrets_mock.assert_project_secrets(
         project,
@@ -401,8 +401,8 @@ def test_store_secrets_with_key_map_success(
                 provider=provider,
                 secrets={invalid_secret_2_key: invalid_secret_2_value},
             ),
-            True,
-            key_map_secret_key,
+            allow_internal_secrets=True,
+            key_map_secret_key=key_map_secret_key,
         )
         k8s_secrets_mock.assert_project_secrets(
             project,
@@ -427,8 +427,8 @@ def test_store_secrets_with_key_map_success(
                 invalid_secret_2_key: invalid_secret_2_value_2,
             },
         ),
-        True,
-        key_map_secret_key,
+        allow_internal_secrets=True,
+        key_map_secret_key=key_map_secret_key,
     )
     k8s_secrets_mock.assert_project_secrets(
         project,

@@ -192,6 +192,18 @@ class Client(
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
+    def get_project_owner(
+            self, session: str, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        response = self._get_project_from_iguazio_without_parsing(
+            session, name, include_owner_session=True
+        )
+        iguazio_project = response.json()["data"]
+        return mlrun.api.schemas.ProjectOwner(
+            username=iguazio_project["attributes"]["owner_username"],
+            session=iguazio_project["attributes"]["owner_access_key"],
+        )
+
     def format_as_leader_project(
         self, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.IguazioProject:
@@ -241,14 +253,21 @@ class Client(
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _get_project_from_iguazio(
-        self, session: str, name
-    ) -> mlrun.api.schemas.Project:
+    def _get_project_from_iguazio_without_parsing(
+        self, session: str, name: str, include_owner_session: bool = False
+    ):
         # TODO: Remove me when zebo returns owner
         params = {"include": "owner"}
-        response = self._send_request_to_api(
+        if include_owner_session:
+            params["enrich_owner_access_key"] = "true"
+        return self._send_request_to_api(
             "GET", f"projects/__name__/{name}", session, params=params
         )
+
+    def _get_project_from_iguazio(
+        self, session: str, name: str, include_owner_session: bool = False
+    ) -> mlrun.api.schemas.Project:
+        response = self._get_project_from_iguazio_without_parsing(session, name)
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _wait_for_job_completion(self, session: str, job_id: str):

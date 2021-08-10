@@ -151,6 +151,36 @@ def test_get_grafana_service_url_no_urls(
     assert grafana_url is None
 
 
+def test_get_project_owner(
+        api_url: str,
+        iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+        requests_mock: requests_mock_package.Mocker,
+):
+    owner_username = "some-username"
+    project = _generate_project(owner=owner_username)
+    session = "1234"
+    owner_access_key = "some-access-key"
+
+    def verify_get(request, context):
+        assert request.qs == {
+            "include": ["owner"],
+            "enrich_owner_access_key": ["true"],
+        }
+        context.status_code = http.HTTPStatus.OK.value
+        _verify_request_headers(request.headers, session)
+        return {"data": _build_project_response(iguazio_client, project, owner_access_key=owner_access_key)}
+
+    # mock project response so store will update
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}", json=verify_get,
+    )
+    project_owner = iguazio_client.get_project_owner(
+        session, project.metadata.name,
+    )
+    assert project_owner.username == owner_username
+    assert project_owner.session == owner_access_key
+
+
 def test_list_project_with_updated_after(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
@@ -662,6 +692,7 @@ def _build_project_response(
     project: mlrun.api.schemas.Project,
     job_id: typing.Optional[str] = None,
     operational_status: typing.Optional[mlrun.api.schemas.ProjectState] = None,
+    owner_access_key: typing.Optional[str] = None,
 ):
     body = {
         "type": "project",
@@ -682,6 +713,8 @@ def _build_project_response(
         body["attributes"]["description"] = project.spec.description
     if project.spec.owner:
         body["attributes"]["owner_username"] = project.spec.owner
+    if owner_access_key:
+        body["attributes"]["owner_access_key"] = owner_access_key
     if project.metadata.labels:
         body["attributes"][
             "labels"

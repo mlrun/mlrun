@@ -617,7 +617,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "GET", f"projects/{project}/artifact-tags", error_message
         )
-        return response.json()['tags']
+        return response.json()["tags"]
 
     def store_function(self, function, name, project="", tag=None, versioned=False):
         """ Store a function object. Function is identified by its name and tag, and can be versioned."""

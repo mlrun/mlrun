@@ -19,7 +19,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     ) -> mlrun.api.schemas.AuthInfo:
         auth_info = mlrun.api.schemas.AuthInfo()
         header = request.headers.get("Authorization", "")
-        if self._basic_auth_required():
+        if self._basic_auth_configured():
             if not header.startswith(self._basic_prefix):
                 mlrun.api.api.utils.log_and_raise(
                     http.HTTPStatus.UNAUTHORIZED.value,
@@ -36,7 +36,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 )
             auth_info.username = username
             auth_info.password = password
-        elif self._bearer_auth_required():
+        elif self._bearer_auth_configured():
             if not header.startswith(self._bearer_prefix):
                 mlrun.api.api.utils.log_and_raise(
                     http.HTTPStatus.UNAUTHORIZED.value,
@@ -48,19 +48,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                     http.HTTPStatus.UNAUTHORIZED.value, reason="Token did not match"
                 )
             auth_info.token = token
-        elif self._iguazio_auth_required():
+        elif self._iguazio_auth_configured():
             iguazio_client = mlrun.api.utils.clients.iguazio.Client()
-            (
-                auth_info.username,
-                auth_info.session,
-                auth_info.user_id,
-                auth_info.user_group_ids,
-                planes,
-            ) = iguazio_client.verify_request_session(request)
+            auth_info = iguazio_client.verify_request_session(request)
             if "x-data-session-override" in request.headers:
                 auth_info.data_session = request.headers["x-data-session-override"]
-            elif "data" in planes:
-                auth_info.data_session = auth_info.session
         projects_role_header = request.headers.get(
             mlrun.api.schemas.HeaderNames.projects_role
         )
@@ -76,21 +68,21 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         return auth_info
 
     @staticmethod
-    def _basic_auth_required():
+    def _basic_auth_configured():
         return mlrun.mlconf.httpdb.authentication.mode == "basic" and (
             mlrun.mlconf.httpdb.authentication.basic.username
             or mlrun.mlconf.httpdb.authentication.basic.password
         )
 
     @staticmethod
-    def _bearer_auth_required():
+    def _bearer_auth_configured():
         return (
             mlrun.mlconf.httpdb.authentication.mode == "bearer"
             and mlrun.mlconf.httpdb.authentication.bearer.token
         )
 
     @staticmethod
-    def _iguazio_auth_required():
+    def _iguazio_auth_configured():
         return mlrun.mlconf.httpdb.authentication.mode == "iguazio"
 
     @staticmethod

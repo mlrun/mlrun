@@ -60,9 +60,7 @@ class Client(
 
     def verify_request_session(
         self, request: fastapi.Request
-    ) -> typing.Tuple[
-        str, str, typing.Optional[str], typing.List[str], typing.List[str]
-    ]:
+    ) -> mlrun.api.schemas.AuthInfo:
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
@@ -74,19 +72,32 @@ class Client(
                 "cookie": request.headers.get("cookie"),
             },
         )
+        return self._generate_auth_info_from_session_verification_response(response)
+
+    def verify_session(self, session: str):
+        response = self._send_request_to_api(
+            "POST",
+            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            session,
+        )
+
+    def _generate_auth_info_from_session_verification_response(self, response: requests.Response) -> mlrun.api.schemas.AuthInfo:
         gids = response.headers.get("x-user-group-ids")
         if gids:
             gids = gids.split(",")
         planes = response.headers.get("x-v3io-session-planes")
         if planes:
             planes = planes.split(",")
-        return (
-            response.headers["x-remote-user"],
-            response.headers["x-v3io-session-key"],
-            response.headers.get("x-user-id"),
-            gids or [],
-            planes or [],
+        planes = planes or []
+        auth_info = mlrun.api.schemas.AuthInfo(
+            username=response.headers["x-remote-user"],
+            session=response.headers["x-v3io-session-key"],
+            user_id=response.headers.get("x-user-id"),
+            user_group_ids=gids or [],
         )
+        if "data" in planes:
+            auth_info.data_session = auth_info.session
+        return auth_info
 
     def create_project(
         self,

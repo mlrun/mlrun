@@ -62,7 +62,7 @@ def test_store_secrets_with_key_map_verifications(
             ),
         )
 
-    # invalid key map name
+    # invalid key map name (wrong prefix)
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         mlrun.api.crud.Secrets().store_secrets(
             project,
@@ -70,6 +70,17 @@ def test_store_secrets_with_key_map_verifications(
                 provider=provider, secrets={"invalid/key": "value"}
             ),
             key_map_secret_key="invalid-key-map-secret-key",
+        )
+
+    # invalid key map name but with correct prefix
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.api.crud.Secrets().store_secrets(
+            project,
+            mlrun.api.schemas.SecretsData(
+                provider=provider, secrets={"invalid/key": "value"}
+            ),
+            allow_internal_secrets=True,
+            key_map_secret_key=f"{mlrun.api.crud.Secrets().key_map_secrets_key_prefix}invalid/key",
         )
 
     # internal not allowed

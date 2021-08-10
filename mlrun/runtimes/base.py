@@ -92,7 +92,6 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
-        mount_applied=False,
     ):
 
         self.command = command or ""
@@ -109,7 +108,7 @@ class FunctionSpec(ModelObj):
         self.default_handler = default_handler
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
-        self.mount_applied = mount_applied or False
+        self.mount_applied = False
 
     @property
     def build(self) -> ImageBuilder:

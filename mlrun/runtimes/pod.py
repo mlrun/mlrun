@@ -59,7 +59,6 @@ class KubeResourceSpec(FunctionSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
-        mount_applied=False,
     ):
         super().__init__(
             command=command,
@@ -88,7 +87,6 @@ class KubeResourceSpec(FunctionSpec):
             node_selector or mlrun.mlconf.get_default_function_node_selector()
         )
         self._affinity = affinity
-        self.mount_applied = mount_applied or False
 
     @property
     def volumes(self) -> list:

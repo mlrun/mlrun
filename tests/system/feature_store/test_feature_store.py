@@ -851,7 +851,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         path = data_set.status.targets[0].path
 
-        #the job will be scheduled every minute
+        # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
 
         source = ParquetSource(
@@ -859,18 +859,29 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name="sched_test21",
+            name="sched_test33",
             entities=[fs.Entity("first_name")],
             timestamp_key="time",
         )
+        target_fs_1 = ParquetTarget(
+            name="tar1",
+            path="v3io:///bigdata/fs1/",
+            partitioned=True,
+            partition_cols=["time"],
+        )
+        target_fs_2 = ParquetTarget(
+            name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+        )
+
         fs.ingest(
             feature_set,
             source,
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=[target_fs_1, target_fs_2, NoSqlTarget()],
         )
         sleep(60)
 
-        features = ["sched_test21.*"]
+        features = ["sched_test33.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
         svc = fs.get_online_feature_service(vec)
@@ -903,7 +914,7 @@ class TestFeatureStore(TestMLRunSystem):
                 {"first_name": "moshe"},
                 {"first_name": "katya"},
                 {"first_name": "dina"},
-                {"first_name": "uri"}
+                {"first_name": "uri"},
             ]
         )
         assert resp[0]["data"] == 10
@@ -912,22 +923,18 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[3]["data"] == 10
         assert resp[4] is None
 
+        print(resp)
+
         svc.close()
 
         # check offline
-        resp = fs.get_offline_features(vec)
+        resp = fs.get_offline_features(vec, target=target_fs_2)
+        assert len(resp.to_dataframe() == 4)
+        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
 
-        expected = pd.DataFrame(
-            {
-                "first_name": ["moshe", "dina", "moshe", "yosi"],
-                "data": [50, 10, 2000, 10],
-            }
-        )
-        expected.set_index(keys="first_name", inplace=True)
-
-        assert expected.equals(resp.to_dataframe())
-
-#        sleep(120)
+        resp = fs.get_offline_features(vec, target=target_fs_1)
+        assert len(resp.to_dataframe() == 4)
+        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
 
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])

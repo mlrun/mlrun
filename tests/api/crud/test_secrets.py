@@ -444,8 +444,7 @@ def test_store_secrets_with_key_map_success(
 
 
 def _mock_secrets_crud_uuid_generation():
-    uuids_list = [i for i in range(10000)]
-    uuids_iter = iter(uuids_list)
+    uuids_iter = iter(range(10000))
 
     def _mock_generate_uuid():
         return next(uuids_iter)

@@ -124,6 +124,7 @@ class NuclioSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        mount_applied=False,
     ):
 
         super().__init__(
@@ -145,6 +146,7 @@ class NuclioSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            mount_applied=mount_applied,
         )
 
         self.base_spec = base_spec or ""

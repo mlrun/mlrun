@@ -16,8 +16,8 @@ router = fastapi.APIRouter()
 @router.get("/runtimes")
 def list_runtimes(
     label_selector: str = None,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     project = "*"
@@ -39,8 +39,8 @@ def list_runtime_resources(
     group_by: typing.Optional[
         mlrun.api.schemas.ListRuntimeResourcesGroupByField
     ] = fastapi.Query(None, alias="group-by"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -63,8 +63,8 @@ def delete_runtimes(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -82,8 +82,8 @@ def delete_runtime(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -110,8 +110,8 @@ def delete_runtime_object(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session

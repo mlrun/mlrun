@@ -25,7 +25,7 @@ async def store_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -62,7 +62,7 @@ async def update_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -97,7 +97,7 @@ def get_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -119,7 +119,7 @@ def delete_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -150,7 +150,7 @@ def list_runs(
     start_time_to: str = None,
     last_update_time_from: str = None,
     last_update_time_to: str = None,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     runs = mlrun.api.crud.Runs().list_runs(
@@ -190,7 +190,7 @@ def delete_runs(
     labels: List[str] = Query([], alias="label"),
     state: str = None,
     days_ago: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(

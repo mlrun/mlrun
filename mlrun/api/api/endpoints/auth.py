@@ -10,8 +10,8 @@ router = fastapi.APIRouter()
 @router.post("/authorization/verifications")
 def verify_authorization(
     authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     mlrun.api.utils.clients.opa.Client().query_permissions(

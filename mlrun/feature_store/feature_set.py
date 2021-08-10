@@ -211,9 +211,7 @@ class FeatureSetStatus(ModelObj):
     def update_last_written_for_target(
         self, target_path: str, last_written: datetime.datetime
     ):
-        print("updating last written for " + target_path)
         for target in self._targets:
-            print("comparing to target.path" + str(target.path))
             if target.path == target_path or target.path.rstrip("/") == target_path:
                 target.last_written = last_written
 

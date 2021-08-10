@@ -277,7 +277,9 @@ def ingest(
                         min_time = cur_last_written
             if min_time != max_datetime:
                 source.start_time = min_time
-                source.end_time = datetime.now()
+                time_zone = min_time.tzinfo
+                current_time = datetime.now()
+                source.end_time = current_time.replace(tzinfo=time_zone)
 
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
         return_df = False

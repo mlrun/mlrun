@@ -149,7 +149,7 @@ class BokehArtifact(Artifact):
         # Validate input:
         try:
             from bokeh.plotting import Figure
-        except ImportError as e:
+        except ImportError:
             raise ImportError(
                 "Using 'BokehArtifact' requires bokeh package. Use pip install mlrun[bokeh] to install it"
             )

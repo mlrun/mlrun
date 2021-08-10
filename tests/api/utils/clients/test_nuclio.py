@@ -404,31 +404,6 @@ def test_get_dashboard_version(
     assert nuclio_dashboard_version == label
 
 
-def test_get_dashboard_version_with_session(
-    api_url: str,
-    nuclio_client: mlrun.api.utils.clients.nuclio.Client,
-    requests_mock: requests_mock_package.Mocker,
-):
-    label = "1.2.3"
-
-    def verify_get(request, context):
-        context.status_code = http.HTTPStatus.OK.value
-        return {
-            "dashboard": {
-                "label": label,
-                "gitCommit": "commit sha",
-                "os": "linux",
-                "arch": "amd64",
-            }
-        }
-
-    requests_mock.get(
-        f"{api_url}/api/versions", json=verify_get,
-    )
-    nuclio_dashboard_version = nuclio_client.get_dashboard_version()
-    assert nuclio_dashboard_version == label
-
-
 def _generate_project_body(
     name=None,
     description=None,

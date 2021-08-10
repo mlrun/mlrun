@@ -5,10 +5,11 @@ from mlrun.config import config, default_config
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 from mlrun.utils import logger
 
-cached_nuclio_version = None
-
 
 class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
+    def __init__(self):
+        self._cached_nuclio_version = None
+
     def get_client_spec(self):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
         return mlrun.api.schemas.ClientSpec(
@@ -56,8 +57,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
     # since this is a heavy operation (sending requests to API), and it's unlikely that the version
     # will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
     def _resolve_nuclio_version(self):
-        global cached_nuclio_version
-        if not cached_nuclio_version:
+        if not self._cached_nuclio_version:
 
             # config override everything
             nuclio_version = config.nuclio_version
@@ -68,6 +68,6 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
                 except Exception as exc:
                     logger.warning("Failed to resolve nuclio version", exc=str(exc))
 
-            cached_nuclio_version = nuclio_version
+            self._cached_nuclio_version = nuclio_version
 
-        return cached_nuclio_version
+        return self._cached_nuclio_version

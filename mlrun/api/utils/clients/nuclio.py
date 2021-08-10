@@ -1,7 +1,6 @@
 import copy
 import http
 import typing
-import urllib.parse
 
 import requests.adapters
 import sqlalchemy.orm

@@ -213,31 +213,19 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         allow_internal_secrets: bool = False,
         key_map_secret_key: typing.Optional[str] = None,
     ):
-        found_key_in_key_map = False
-        secret_key_to_remove = secret_key
-        if key_map_secret_key:
-            if provider != mlrun.api.schemas.SecretProviderName.kubernetes:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Secret using key map is not implemented for provider {provider}"
-                )
-            if self._is_secret_stored_in_key_map(secret_key):
-                secrets_data = self.list_secrets(
-                    project,
-                    provider,
-                    [key_map_secret_key],
-                    token,
-                    allow_secrets_from_k8s,
-                    allow_internal_secrets,
-                )
-                if secrets_data.secrets.get(key_map_secret_key):
-                    key_map = json.loads(secrets_data.secrets[key_map_secret_key])
-                    if secret_key in key_map:
-                        found_key_in_key_map = True
-                        secret_key_to_remove = key_map[secret_key]
+        from_key_map, secret_key_to_remove = self._resolve_secret_key(
+            project,
+            provider,
+            secret_key,
+            token,
+            allow_secrets_from_k8s,
+            allow_internal_secrets,
+            key_map_secret_key,
+        )
         self.delete_secrets(
             project, provider, [secret_key_to_remove], allow_internal_secrets
         )
-        if found_key_in_key_map:
+        if from_key_map:
             # clean key from key map
             key_map = self._get_secret_key_map(project, key_map_secret_key)
             del key_map[secret_key]
@@ -266,6 +254,35 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         allow_internal_secrets: bool = False,
         key_map_secret_key: typing.Optional[str] = None,
     ) -> typing.Optional[str]:
+        from_key_map, secret_key = self._resolve_secret_key(
+            project,
+            provider,
+            secret_key,
+            token,
+            allow_secrets_from_k8s,
+            allow_internal_secrets,
+            key_map_secret_key,
+        )
+        secrets_data = self.list_secrets(
+            project,
+            provider,
+            [secret_key],
+            token,
+            allow_secrets_from_k8s,
+            allow_internal_secrets,
+        )
+        return secrets_data.secrets.get(secret_key)
+
+    def _resolve_secret_key(
+        self,
+        project: str,
+        provider: mlrun.api.schemas.SecretProviderName,
+        secret_key: str,
+        token: typing.Optional[str] = None,
+        allow_secrets_from_k8s: bool = False,
+        allow_internal_secrets: bool = False,
+        key_map_secret_key: typing.Optional[str] = None,
+    ) -> typing.Tuple[bool, str]:
         if key_map_secret_key:
             if provider != mlrun.api.schemas.SecretProviderName.kubernetes:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -283,16 +300,8 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 if secrets_data.secrets.get(key_map_secret_key):
                     key_map = json.loads(secrets_data.secrets[key_map_secret_key])
                     if secret_key in key_map:
-                        secret_key = key_map[secret_key]
-        secrets_data = self.list_secrets(
-            project,
-            provider,
-            [secret_key],
-            token,
-            allow_secrets_from_k8s,
-            allow_internal_secrets,
-        )
-        return secrets_data.secrets.get(secret_key)
+                        return True, key_map[secret_key]
+        return False, secret_key
 
     def _validate_and_enrich_secrets_to_store(
         self,

@@ -227,7 +227,7 @@ def test_delete_secret_verifications(
             key_map_secret_key=key_map_secret_key,
         )
 
-    # key map without allow from k8s provider other than k8s
+    # key map without allow from k8s provider
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         mlrun.api.crud.Secrets().delete_secret(
             project, provider, "invalid/key", key_map_secret_key=key_map_secret_key

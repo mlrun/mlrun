@@ -3,7 +3,9 @@ from .mysql import MySQLUtil
 
 class SQLCollationUtil(object):
     class Collations(object):
-        sqlite = 'binary'
+
+        # with sqlite we use the default collation
+        sqlite = None
         mysql = 'utf8_bin'
 
     @staticmethod

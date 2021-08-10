@@ -151,8 +151,7 @@ class BokehArtifact(Artifact):
             from bokeh.plotting import Figure
         except ImportError as e:
             raise ImportError(
-                "Using 'BokehArtifact' requires bokeh~=2.3.2 "
-                "but bokeh is not found: {}".format(e)
+                "Using 'BokehArtifact' requires bokeh package. Use pip install mlrun[bokeh] to install it"
             )
         if not isinstance(figure, Figure):
             raise ValueError(

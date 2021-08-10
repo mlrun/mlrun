@@ -219,7 +219,6 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()
-            print(f"server_cfg={server_cfg}")
             self.server_version = server_cfg["version"]
             self._validate_version_compatibility(self.server_version, config.version)
             config.namespace = config.namespace or server_cfg.get("namespace")

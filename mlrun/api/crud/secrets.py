@@ -43,7 +43,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         secrets: mlrun.api.schemas.SecretsData,
         allow_internal_secrets: bool = False,
         key_map_secret_key: typing.Optional[str] = None,
-        allow_key_maps: bool = False,
+        allow_storing_key_maps: bool = False,
     ):
         """
         When secret keys are coming from other object identifiers, which may not be valid secret keys, use
@@ -52,7 +52,11 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         list_secrets won't do any operation on the data and delete_secrets won't handle cleaning the key map
         """
         secrets_to_store = self._validate_and_enrich_secrets_to_store(
-            project, secrets, allow_internal_secrets, key_map_secret_key, allow_key_maps
+            project,
+            secrets,
+            allow_internal_secrets,
+            key_map_secret_key,
+            allow_storing_key_maps,
         )
 
         if secrets.provider == mlrun.api.schemas.SecretProviderName.vault:
@@ -237,7 +241,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                         secrets={key_map_secret_key: json.dumps(key_map)},
                     ),
                     allow_internal_secrets=True,
-                    allow_key_maps=True,
+                    allow_storing_key_maps=True,
                 )
             else:
                 self.delete_secrets(
@@ -309,7 +313,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         secrets: mlrun.api.schemas.SecretsData,
         allow_internal_secrets: bool = False,
         key_map_secret_key: typing.Optional[str] = None,
-        allow_key_maps: bool = False,
+        allow_storing_key_maps: bool = False,
     ):
         secrets_to_store = secrets.secrets.copy()
         if secrets_to_store:
@@ -320,7 +324,10 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 self.validate_internal_secret_key_allowed(
                     secret_key, allow_internal_secrets
                 )
-                if self._is_key_map_secret_key(secret_key) and not allow_key_maps:
+                if (
+                    self._is_key_map_secret_key(secret_key)
+                    and not allow_storing_key_maps
+                ):
                     raise mlrun.errors.MLRunAccessDeniedError(
                         f"Not allowed to create/update key map (key starts with "
                         f"{self.key_map_secrets_key_prefix})"

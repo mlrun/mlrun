@@ -163,7 +163,9 @@ def test_list_project_with_updated_after(
         assert request.qs == {
             "filter[updated_at]": [
                 f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()
-            ]
+            ],
+            # TODO: Remove me when zebo returns owner
+            "include": ["owner"],
         }
         context.status_code = http.HTTPStatus.OK.value
         _verify_request_headers(request.headers, session)
@@ -186,14 +188,16 @@ def test_list_project(
     mock_projects = [
         {"name": "project-name-1"},
         {"name": "project-name-2", "description": "project-description-2"},
-        {"name": "project-name-3", "labels": {"key": "value"}},
+        {"name": "project-name-3", "owner": "some-owner"},
+        {"name": "project-name-4", "labels": {"key": "value"}},
         {
-            "name": "project-name-4",
+            "name": "project-name-5",
             "annotations": {"annotation-key": "annotation-value"},
         },
         {
-            "name": "project-name-5",
+            "name": "project-name-6",
             "description": "project-description-4",
+            "owner": "some-owner",
             "labels": {"key2": "value2"},
             "annotations": {"annotation-key2": "annotation-value2"},
         },
@@ -207,6 +211,7 @@ def test_list_project(
                     mock_project.get("description", ""),
                     mock_project.get("labels", {}),
                     mock_project.get("annotations", {}),
+                    owner=mock_project.get("owner", None),
                 ),
             )
             for mock_project in mock_projects
@@ -217,6 +222,7 @@ def test_list_project(
     for index, project in enumerate(projects):
         assert project.metadata.name == mock_projects[index]["name"]
         assert project.spec.description == mock_projects[index].get("description")
+        assert project.spec.owner == mock_projects[index].get("owner")
         assert (
             deepdiff.DeepDiff(
                 mock_projects[index].get("labels"),
@@ -622,6 +628,7 @@ def _generate_project(
     labels=None,
     annotations=None,
     created=None,
+    owner="project-owner",
 ) -> mlrun.api.schemas.Project:
     if labels is None:
         labels = {
@@ -642,6 +649,7 @@ def _generate_project(
         spec=mlrun.api.schemas.ProjectSpec(
             description=description,
             desired_state=mlrun.api.schemas.ProjectState.online,
+            owner=owner,
             some_extra_field="some value",
         ),
         status=mlrun.api.schemas.ProjectStatus(some_extra_field="some value",),
@@ -671,6 +679,8 @@ def _build_project_response(
     }
     if project.spec.description:
         body["attributes"]["description"] = project.spec.description
+    if project.spec.owner:
+        body["attributes"]["owner_username"] = project.spec.owner
     if project.metadata.labels:
         body["attributes"][
             "labels"
@@ -710,7 +720,7 @@ def _assert_project_creation(
         exclude_unset=True,
         exclude={
             "metadata": {"name", "created", "labels", "annotations"},
-            "spec": {"description", "desired_state"},
+            "spec": {"description", "desired_state", "owner"},
             "status": {"state"},
         },
     )

@@ -8,6 +8,8 @@ Create Date: 2020-11-09 11:19:51.472174
 import sqlalchemy as sa
 from alembic import op
 
+from mlrun.api.utils.sql_collation import SQLCollationUtil
+
 # revision identifiers, used by Alembic.
 revision = "f7b5a1a03629"
 down_revision = "2b6d23c715aa"
@@ -20,8 +22,8 @@ def upgrade():
     op.create_table(
         "entities_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(255, collation="utf8_bin"), nullable=True),
-        sa.Column("value", sa.String(255, collation="utf8_bin"), nullable=True),
+        sa.Column("name", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
+        sa.Column("value", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["entities.id"],),
         sa.PrimaryKeyConstraint("id"),
@@ -30,8 +32,8 @@ def upgrade():
     op.create_table(
         "features_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(255, collation="utf8_bin"), nullable=True),
-        sa.Column("value", sa.String(255, collation="utf8_bin"), nullable=True),
+        sa.Column("name", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
+        sa.Column("value", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["features.id"],),
         sa.PrimaryKeyConstraint("id"),

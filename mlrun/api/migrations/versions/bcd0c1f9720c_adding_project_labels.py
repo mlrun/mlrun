@@ -8,6 +8,8 @@ Create Date: 2020-12-20 03:42:02.763802
 import sqlalchemy as sa
 from alembic import op
 
+from mlrun.api.utils.sql_collation import SQLCollationUtil
+
 # revision identifiers, used by Alembic.
 revision = "bcd0c1f9720c"
 down_revision = "f4249b4ba6fa"
@@ -20,8 +22,8 @@ def upgrade():
     op.create_table(
         "projects_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(255, collation="utf8_bin"), nullable=True),
-        sa.Column("value", sa.String(255, collation="utf8_bin"), nullable=True),
+        sa.Column("name", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
+        sa.Column("value", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["projects.id"],),
         sa.PrimaryKeyConstraint("id"),

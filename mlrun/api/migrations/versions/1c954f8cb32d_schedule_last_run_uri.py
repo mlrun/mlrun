@@ -21,7 +21,9 @@ def upgrade():
     with op.batch_alter_table("schedules_v2") as batch_op:
         batch_op.add_column(
             sa.Column(
-                "last_run_uri", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True
+                "last_run_uri",
+                sa.String(255, collation=SQLCollationUtil.collation()),
+                nullable=True,
             )
         )
 

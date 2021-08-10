@@ -6,7 +6,7 @@ class SQLCollationUtil(object):
 
         # with sqlite we use the default collation
         sqlite = None
-        mysql = 'utf8_bin'
+        mysql = "utf8_bin"
 
     @staticmethod
     def collation():

@@ -20,15 +20,18 @@ depends_on = None
 def upgrade():
     with op.batch_alter_table("feature_sets_tags") as batch_op:
         batch_op.alter_column(
-            column_name="obj_name", type_=sa.String(255, collation=SQLCollationUtil.collation())
+            column_name="obj_name",
+            type_=sa.String(255, collation=SQLCollationUtil.collation()),
         )
     with op.batch_alter_table("feature_vectors_tags") as batch_op:
         batch_op.alter_column(
-            column_name="obj_name", type_=sa.String(255, collation=SQLCollationUtil.collation())
+            column_name="obj_name",
+            type_=sa.String(255, collation=SQLCollationUtil.collation()),
         )
     with op.batch_alter_table("functions_tags") as batch_op:
         batch_op.alter_column(
-            column_name="obj_name", type_=sa.String(255, collation=SQLCollationUtil.collation())
+            column_name="obj_name",
+            type_=sa.String(255, collation=SQLCollationUtil.collation()),
         )
 
 

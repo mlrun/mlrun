@@ -22,8 +22,16 @@ def upgrade():
     op.create_table(
         "schedules_v2_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
-        sa.Column("value", sa.String(255, collation=SQLCollationUtil.collation()), nullable=True),
+        sa.Column(
+            "name",
+            sa.String(255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+        ),
+        sa.Column(
+            "value",
+            sa.String(255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+        ),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["schedules_v2.id"],),
         sa.PrimaryKeyConstraint("id"),

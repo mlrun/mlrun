@@ -11,7 +11,7 @@ class MySQLUtil(object):
     dsn_regex = (
         r"mysql\+pymysql://(?P<username>.+)@(?P<host>.+):(?P<port>\d+)/(?P<database>.+)"
     )
-    check_table = 'projects'
+    check_table = "projects"
 
     def __init__(self):
         mysql_dsn_data = self.get_mysql_dsn_data()

@@ -49,4 +49,4 @@ class SQLiteMigrationUtil(object):
         """
         if not mlconf.httpdb.old_dsn:
             return ""
-        return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
+        return mlconf.httpdb.old_dsn.split("?")[0].split("sqlite:///")[-1]

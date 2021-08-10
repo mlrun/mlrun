@@ -118,7 +118,8 @@ def make_tag_v2(table):
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
         obj_name = Column(
-            String(255, collation=SQLCollationUtil.collation()), ForeignKey(f"{table}.name")
+            String(255, collation=SQLCollationUtil.collation()),
+            ForeignKey(f"{table}.name"),
         )
 
     return Tag
@@ -199,8 +200,12 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLCollationUtil.collation()), nullable=False)
-        name = Column(String(255, collation=SQLCollationUtil.collation()), nullable=False)
+        project = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         kind = Column(String(255, collation=SQLCollationUtil.collation()))
         desired_state = Column(String(255, collation=SQLCollationUtil.collation()))
         state = Column(String(255, collation=SQLCollationUtil.collation()))

@@ -80,4 +80,6 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         self, session: str, name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         project = self.get_project(session, name)
-        return mlrun.api.schemas.ProjectOwner(username=project.spec.owner, session=self.project_owner_session)
+        return mlrun.api.schemas.ProjectOwner(
+            username=project.spec.owner, session=self.project_owner_session
+        )

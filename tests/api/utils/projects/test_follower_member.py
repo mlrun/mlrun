@@ -171,9 +171,9 @@ def test_get_project(
 
 
 def test_get_project_owner(
-        db: sqlalchemy.orm.Session,
-        projects_follower: mlrun.api.utils.projects.follower.Member,
-        nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
     owner = "some-username"
     owner_session = "some-session"

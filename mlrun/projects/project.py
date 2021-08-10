@@ -1387,7 +1387,10 @@ class MlrunProject(ModelObj):
             if timeout:
                 logger.info("waiting for pipeline run completion")
                 run_info = wait_for_pipeline_completion(
-                    workflow_id, timeout=timeout, expected_statuses=expected_statuses
+                    workflow_id,
+                    timeout=timeout,
+                    expected_statuses=expected_statuses,
+                    project=self.metadata.name,
                 )
                 if run_info:
                     status = run_info["run"].get("status")

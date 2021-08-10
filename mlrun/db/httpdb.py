@@ -609,15 +609,15 @@ class HTTPRunDB(RunDBInterface):
         error = "del artifacts"
         self.api_call("DELETE", "artifacts", error, params=params)
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(self, project=None) -> List[str]:
         """ Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
         response = self.api_call(
-            "GET", f"/projects/{project}/artifact-tags", error_message
+            "GET", f"projects/{project}/artifact-tags", error_message
         )
-        return response.json()
+        return response.json()["tags"]
 
     def store_function(self, function, name, project="", tag=None, versioned=False):
         """ Store a function object. Function is identified by its name and tag, and can be versioned."""

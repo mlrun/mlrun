@@ -165,6 +165,9 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
+
+        # TODO: Remove me when zebo returns owner
+        params["include"] = "owner"
         response = self._send_request_to_api("GET", "projects", session, params=params)
         response_body = response.json()
         projects = []
@@ -230,8 +233,10 @@ class Client(
     def _get_project_from_iguazio(
         self, session: str, name
     ) -> mlrun.api.schemas.Project:
+        # TODO: Remove me when zebo returns owner
+        params = {"include": "owner"}
         response = self._send_request_to_api(
-            "GET", f"projects/__name__/{name}", session
+            "GET", f"projects/__name__/{name}", session, params=params
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
@@ -329,6 +334,8 @@ class Client(
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.annotations
             )
+        if project.spec.owner:
+            body["data"]["attributes"]["owner_username"] = project.spec.owner
         return body
 
     @staticmethod
@@ -339,7 +346,7 @@ class Client(
             exclude_unset=True,
             exclude={
                 "metadata": {"name", "created", "labels", "annotations"},
-                "spec": {"description", "desired_state"},
+                "spec": {"description", "desired_state", "owner"},
                 "status": {"state"},
             },
         )
@@ -397,4 +404,6 @@ class Client(
             mlrun_project.metadata.annotations = Client._transform_iguazio_labels_to_mlrun_labels(
                 iguazio_project["attributes"]["annotations"]
             )
+        if iguazio_project["attributes"].get("owner_username"):
+            mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
         return mlrun_project

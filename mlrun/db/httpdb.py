@@ -220,7 +220,6 @@ class HTTPRunDB(RunDBInterface):
         try:
             server_cfg = resp.json()
             print(f"server_cfg={server_cfg}")
-            print(f"config.nuclio_version={config.nuclio_version}")
             self.server_version = server_cfg["version"]
             self._validate_version_compatibility(self.server_version, config.version)
             config.namespace = config.namespace or server_cfg.get("namespace")

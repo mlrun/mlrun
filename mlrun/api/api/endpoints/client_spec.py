@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 import mlrun.api.crud.client_spec
 import mlrun.api.schemas
-from mlrun.api.api import deps
 
 router = APIRouter()
 

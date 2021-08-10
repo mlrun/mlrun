@@ -394,6 +394,7 @@ class ProjectSpec(ModelObj):
         goals=None,
         load_source_on_run=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
+        owner=None,
     ):
         self.repo = None
 
@@ -407,6 +408,7 @@ class ProjectSpec(ModelObj):
         self.origin_url = origin_url or ""
         self.goals = goals
         self.desired_state = desired_state
+        self.owner = owner
         self.branch = None
         self.tag = ""
         self.params = params or {}
@@ -469,11 +471,13 @@ class ProjectSpec(ModelObj):
 
     @functions.setter
     def functions(self, functions):
-        if functions and not isinstance(functions, list):
+        if not functions:
+            functions = []
+        if not isinstance(functions, list):
             raise ValueError("functions must be a list")
 
         function_definitions = {}
-        for function in functions or []:
+        for function in functions:
             if not isinstance(function, dict) and not hasattr(function, "to_dict"):
                 raise ValueError("function must be an object or dict")
             if isinstance(function, dict):
@@ -503,11 +507,13 @@ class ProjectSpec(ModelObj):
 
     @workflows.setter
     def workflows(self, workflows):
-        if workflows and not isinstance(workflows, list):
+        if not workflows:
+            workflows = []
+        if not isinstance(workflows, list):
             raise ValueError("workflows must be a list")
 
         workflows_dict = {}
-        for workflow in workflows or []:
+        for workflow in workflows:
             if not isinstance(workflow, dict):
                 raise ValueError("workflow must be a dict")
             name = workflow.get("name", "")
@@ -534,11 +540,13 @@ class ProjectSpec(ModelObj):
 
     @artifacts.setter
     def artifacts(self, artifacts):
-        if artifacts and not isinstance(artifacts, list):
+        if not artifacts:
+            artifacts = []
+        if not isinstance(artifacts, list):
             raise ValueError("artifacts must be a list")
 
         artifacts_dict = {}
-        for artifact in artifacts or []:
+        for artifact in artifacts:
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):

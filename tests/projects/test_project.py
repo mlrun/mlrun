@@ -131,6 +131,30 @@ def test_user_project():
     ), "project name doesnt include user name"
 
 
+def test_build_project_from_minimal_dict():
+    # When mlrun is follower, the created project will usually have all values set to None when created from the leader
+    # API, verify we successfully initialize Project instance from that
+    project_dict = {
+        "metadata": {"name": "default", "labels": None, "annotations": None},
+        "spec": {
+            "description": None,
+            "goals": None,
+            "params": None,
+            "functions": None,
+            "workflows": None,
+            "artifacts": None,
+            "artifact_path": None,
+            "conda": None,
+            "source": None,
+            "subpath": None,
+            "origin_url": None,
+            "desired_state": "online",
+        },
+        "status": {"state": "online"},
+    }
+    mlrun.projects.MlrunProject.from_dict(project_dict)
+
+
 def _assert_project_function_objects(project, expected_function_objects):
     project_function_objects = project.spec._function_objects
     assert len(project_function_objects) == len(expected_function_objects)

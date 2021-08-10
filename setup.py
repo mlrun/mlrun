@@ -89,7 +89,7 @@ extras_require = {
     "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     # mlrun.frameworks requirements per framework:  # TODO: should be added in a later PR
-    "bokeh": ["bokeh~=2.3.2"],
+    "bokeh": ["bokeh~=2.3"],
 }
 extras_require["complete"] = sorted(
     {

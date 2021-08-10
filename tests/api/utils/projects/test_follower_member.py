@@ -170,6 +170,23 @@ def test_get_project(
     _assert_project_not_in_follower(projects_follower, "name-doesnt-exist")
 
 
+def test_get_project_owner(
+        db: sqlalchemy.orm.Session,
+        projects_follower: mlrun.api.utils.projects.follower.Member,
+        nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+):
+    owner = "some-username"
+    owner_session = "some-session"
+    nop_leader.project_owner_session = owner_session
+    project = _generate_project(owner=owner)
+    projects_follower.create_project(
+        None, project,
+    )
+    project_owner = projects_follower.get_project_owner(None, project.metadata.name)
+    assert project_owner.username == owner
+    assert project_owner.session == owner_session
+
+
 def test_list_project(
     db: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
@@ -333,11 +350,12 @@ def _generate_project(
     desired_state=mlrun.api.schemas.ProjectDesiredState.online,
     state=mlrun.api.schemas.ProjectState.online,
     labels: typing.Optional[dict] = None,
+    owner="some-owner",
 ):
     return mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name, labels=labels),
         spec=mlrun.api.schemas.ProjectSpec(
-            description=description, desired_state=desired_state,
+            description=description, desired_state=desired_state, owner=owner,
         ),
         status=mlrun.api.schemas.ProjectStatus(state=state,),
     )

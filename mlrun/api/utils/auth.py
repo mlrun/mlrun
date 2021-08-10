@@ -67,6 +67,15 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info.data_session = request.headers["X-V3io-Session-Key"]
         return auth_info
 
+    def generate_auth_info_from_session(
+        self, session: str
+    ) -> mlrun.api.schemas.AuthInfo:
+        if not self._iguazio_auth_configured():
+            raise NotImplementedError(
+                "Session is currently supported only for iguazio authentication mode"
+            )
+        return mlrun.api.utils.clients.iguazio.Client().verify_session(session)
+
     @staticmethod
     def _basic_auth_configured():
         return mlrun.mlconf.httpdb.authentication.mode == "basic" and (

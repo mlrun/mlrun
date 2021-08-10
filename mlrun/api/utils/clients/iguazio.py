@@ -74,30 +74,13 @@ class Client(
         )
         return self._generate_auth_info_from_session_verification_response(response)
 
-    def verify_session(self, session: str):
+    def verify_session(self, session: str) -> mlrun.api.schemas.AuthInfo:
         response = self._send_request_to_api(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
             session,
         )
-
-    def _generate_auth_info_from_session_verification_response(self, response: requests.Response) -> mlrun.api.schemas.AuthInfo:
-        gids = response.headers.get("x-user-group-ids")
-        if gids:
-            gids = gids.split(",")
-        planes = response.headers.get("x-v3io-session-planes")
-        if planes:
-            planes = planes.split(",")
-        planes = planes or []
-        auth_info = mlrun.api.schemas.AuthInfo(
-            username=response.headers["x-remote-user"],
-            session=response.headers["x-v3io-session-key"],
-            user_id=response.headers.get("x-user-id"),
-            user_group_ids=gids or [],
-        )
-        if "data" in planes:
-            auth_info.data_session = auth_info.session
-        return auth_info
+        return self._generate_auth_info_from_session_verification_response(response)
 
     def create_project(
         self,
@@ -193,7 +176,7 @@ class Client(
         return self._get_project_from_iguazio(session, name)
 
     def get_project_owner(
-            self, session: str, name: str,
+        self, session: str, name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
             session, name, include_owner_session=True
@@ -330,6 +313,27 @@ class Client(
             logger.warning("Request to iguazio failed", **log_kwargs)
             mlrun.errors.raise_for_status(response)
         return response
+
+    @staticmethod
+    def _generate_auth_info_from_session_verification_response(
+        response: requests.Response,
+    ) -> mlrun.api.schemas.AuthInfo:
+        gids = response.headers.get("x-user-group-ids")
+        if gids:
+            gids = gids.split(",")
+        planes = response.headers.get("x-v3io-session-planes")
+        if planes:
+            planes = planes.split(",")
+        planes = planes or []
+        auth_info = mlrun.api.schemas.AuthInfo(
+            username=response.headers["x-remote-user"],
+            session=response.headers["x-v3io-session-key"],
+            user_id=response.headers.get("x-user-id"),
+            user_group_ids=gids or [],
+        )
+        if "data" in planes:
+            auth_info.data_session = auth_info.session
+        return auth_info
 
     @staticmethod
     def _transform_mlrun_project_to_iguazio_project(

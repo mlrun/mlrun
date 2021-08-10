@@ -597,7 +597,7 @@ def _get_project_secret(project_name: str, secret_key: str):
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-    secret_values = get_k8s_helper().get_project_secret_values(
+    secret_values = get_k8s_helper().get_project_secret_data(
         project=project_name, namespace=config.namespace
     )
     secret_value = secret_values[secret_key]

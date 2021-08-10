@@ -3,6 +3,7 @@ import typing
 import sqlite3_to_mysql
 
 from mlrun import mlconf
+from mlrun.utils import logger
 
 from .mysql import MySQLUtil
 
@@ -31,6 +32,8 @@ class SQLiteMigrationUtil(object):
         sqlite_file = self._get_old_db_file_path()
         if not sqlite_file or not self._mysql_dsn_data:
             return None
+
+        logger.info("Creating SQLite to MySQL Converter", sqlite_file=sqlite_file, mysql_dsn_data=self._mysql_dsn_data)
 
         return sqlite3_to_mysql.SQLite3toMySQL(
             sqlite_file=sqlite_file,

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import typing
 import uuid
 from copy import deepcopy
@@ -204,7 +205,10 @@ class AutoMountType(str, Enum):
         ]
 
     def get_modifier(self):
-        is_iguazio = mlconf.igz_version != ""
+        # Looking also for the env variable since mlconf.igz_version is not set in client envs such as Jupyter
+        is_iguazio = (
+            os.environ.get("IGZ_VERSION") is not None or mlconf.igz_version != ""
+        )
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_credentials: mlrun.v3io_cred,

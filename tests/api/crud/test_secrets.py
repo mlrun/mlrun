@@ -83,12 +83,12 @@ def test_store_secrets_with_key_map_verifications(
             key_map_secret_key=f"{mlrun.api.crud.Secrets().key_map_secrets_key_prefix}invalid/key",
         )
 
-    # internal not allowed
+    # Internal must be allowed when using key maps, verify that without internal allowed we fail
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         mlrun.api.crud.Secrets().store_secrets(
             project,
             mlrun.api.schemas.SecretsData(
-                provider=provider, secrets={"invalid/key": "value"}
+                provider=provider, secrets={"valid-key": "value"}
             ),
             key_map_secret_key=key_map_secret_key,
         )

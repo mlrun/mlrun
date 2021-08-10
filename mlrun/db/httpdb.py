@@ -216,7 +216,7 @@ class HTTPRunDB(RunDBInterface):
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
             return
-        resp = self.api_call("GET", "healthz", timeout=5)
+        resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()
             print(f"server_cfg={server_cfg}")

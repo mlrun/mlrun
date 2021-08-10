@@ -3,7 +3,6 @@ import datetime
 import os
 import pathlib
 import typing
-from time import sleep
 
 import sqlalchemy.orm
 
@@ -31,7 +30,6 @@ def init_data(from_scratch: bool = False) -> None:
     alembic_util.init_alembic(from_scratch=from_scratch)
 
     if not from_scratch:
-        sleep(10)
         sqlite_migration_util = SQLiteMigrationUtil()
         sqlite_migration_util.transfer()
 

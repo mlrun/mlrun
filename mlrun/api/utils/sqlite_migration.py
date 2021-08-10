@@ -41,6 +41,7 @@ class SQLiteMigrationUtil(object):
             mysql_database=self._mysql_dsn_data["database"],
             mysql_host=self._mysql_dsn_data["host"],
             mysql_port=int(self._mysql_dsn_data["port"]),
+            quiet=True,
         )
 
     @staticmethod

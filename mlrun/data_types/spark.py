@@ -132,10 +132,12 @@ def get_df_stats_spark(df, options, num_bins=20):
     if InferOptions.get_common_options(options, InferOptions.Index):
         df = df.select("*").withColumn("id", funcs.monotonically_increasing_id())
 
-    describe_df = df.describe(
-        include="all", percentiles=[], datetime_is_numeric=True
-    ).toPandas()
+    print("tyyype1 is " + str(type(df)))
+
+    describe_df = df.describe().toPandas()
     describe_df = describe_df.set_index("summary")
+
+    #include="all", percentiles=[], datetime_is_numeric=True
 
     results_dict = {}
     for col, values in describe_df.items():

@@ -146,7 +146,6 @@ def get_df_stats_spark(df, options, num_bins=20):
                 stats_dict[stat] = int(val)
             else:
                 stats_dict[stat] = str(val)
-        print("stats dict " + str(stats_dict))
         results_dict[col] = stats_dict
 
         if InferOptions.get_common_options(

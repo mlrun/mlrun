@@ -136,7 +136,9 @@ def get_df_stats_spark(df, options, num_bins=20):
 #    describe_df = describe_df.set_index("summary")
 
     describe_df = df.toPandas().describe(include="all", percentiles=[], datetime_is_numeric=True)
-    describe_df = describe_df.set_index("summary")
+    print("nnnnnnnnn")
+    print(describe_df)
+#    describe_df = describe_df.set_index("summary")
 
 #    describe_df = df.toPandas().set_index("summary")
     results_dict = {}

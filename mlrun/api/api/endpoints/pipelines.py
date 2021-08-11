@@ -202,20 +202,9 @@ def get_pipeline_legacy(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    run = mlrun.api.crud.Pipelines().get_pipeline(
-        db_session,
-        run_id,
-        namespace=namespace,
-        format_=mlrun.api.schemas.PipelinesFormat.summary,
+    return _get_pipeline_without_project(
+        db_session, auth_verifier.auth_info, run_id, namespace
     )
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
-        run["run"]["project"],
-        run["run"]["id"],
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
-    )
-    return run
 
 
 @router.get("/projects/{project}/pipelines/{run_id}")
@@ -231,13 +220,51 @@ def get_pipeline(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
-        project,
-        run_id,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
-    )
+    if project != "*":
+        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
+        )
+    else:
+        # In some flows the user may use SDK functions that won't require them to specify the pipeline's project (for
+        # backwards compatibility reasons), so the client will just send * in the project, in that case we use the
+        # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
+        # we don't use the return value from this function since the user may have asked for a different format than
+        # summary which is the one used inside
+        _get_pipeline_without_project(
+            db_session, auth_verifier.auth_info, run_id, namespace
+        )
     return mlrun.api.crud.Pipelines().get_pipeline(
         db_session, run_id, project, namespace, format_
     )
+
+
+def _get_pipeline_without_project(
+    db_session: Session,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    run_id: str,
+    namespace: str,
+):
+    """
+    This function is for when we receive a get pipeline request without the client specifying the project
+    So we first get the pipeline, resolve the project out of it, and now that we know the project, we can verify
+    permissions
+    """
+    run = mlrun.api.crud.Pipelines().get_pipeline(
+        db_session,
+        run_id,
+        namespace=namespace,
+        # minimal format that includes the project
+        format_=mlrun.api.schemas.PipelinesFormat.summary,
+    )
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+        run["run"]["project"],
+        run["run"]["id"],
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    return run

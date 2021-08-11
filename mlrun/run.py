@@ -936,6 +936,7 @@ def wait_for_pipeline_completion(
     expected_statuses: List[str] = None,
     namespace=None,
     remote=True,
+    project: str = None,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -945,6 +946,7 @@ def wait_for_pipeline_completion(
                                [ Succeeded ]
     :param namespace:  k8s namespace if not default
     :param remote:     read kfp data from mlrun service (default=True)
+    :param project:    the project of the pipeline
 
     :return: kfp run dict
     """
@@ -954,6 +956,7 @@ def wait_for_pipeline_completion(
     logger.debug(
         f"Waiting for run completion."
         f" run_id: {run_id},"
+        f" project: {project},"
         f" expected_statuses: {expected_statuses},"
         f" timeout: {timeout},"
         f" remote: {remote},"
@@ -964,7 +967,7 @@ def wait_for_pipeline_completion(
         mldb = get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
-            resp = mldb.get_pipeline(run_id, namespace=namespace)
+            resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             status = resp["run"]["status"]
             show_kfp_run(resp, clear_output=True)
             if status not in RunStatuses.stable_statuses():
@@ -1020,6 +1023,7 @@ def get_pipeline(
     format_: Union[
         str, mlrun.api.schemas.PipelinesFormat
     ] = mlrun.api.schemas.PipelinesFormat.summary,
+    project: str = None,
 ):
     """Get Pipeline status
 
@@ -1028,6 +1032,7 @@ def get_pipeline(
     :param format_:    Format of the results. Possible values are:
             - ``summary`` (default value) - Return summary of the object data.
             - ``full`` - Return full pipeline object.
+    :param project:    the project of the pipeline run
 
     :return: kfp run dict
     """
@@ -1041,7 +1046,9 @@ def get_pipeline(
                 ", please set the dbpath url"
             )
 
-        resp = mldb.get_pipeline(run_id, namespace=namespace, format_=format_)
+        resp = mldb.get_pipeline(
+            run_id, namespace=namespace, format_=format_, project=project
+        )
 
     else:
         client = Client(namespace=namespace)

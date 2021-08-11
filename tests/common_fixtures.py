@@ -136,7 +136,9 @@ def mock_failed_get_func(status_code: int):
 class RunDBMock:
     def __init__(self):
         self._function = None
-        self._runspec = None
+
+    def reset(self):
+        self._function = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -144,7 +146,6 @@ class RunDBMock:
         return "1234-1234-1234-1234"
 
     def submit_job(self, runspec, schedule=None):
-        self._runspec = runspec
         return {"status": {"status_text": "just a status"}}
 
     def remote_builder(

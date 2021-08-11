@@ -22,6 +22,7 @@ mapped to config.httpdb.port. Values should be in JSON format.
 """
 
 import base64
+import binascii
 import copy
 import json
 import os
@@ -246,8 +247,9 @@ default_config = {
         # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
         # Default is auto - which is v3io_credentials when running on Iguazio and pvc otherwise (MLRun kit)
         "auto_mount_type": "auto",
-        # Extra parameters to pass to the mount call (will be passed as kwargs). Parameters should be provided as a
-        # string of comma-separated parameters, using this format: "param1=value1,param2=value2"
+        # Extra parameters to pass to the mount call (will be passed as kwargs). Parameters can be either:
+        # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
+        # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
     },
 }
@@ -323,6 +325,29 @@ class Config:
             )
 
         return default_function_node_selector
+
+    @staticmethod
+    def get_storage_auto_mount_params():
+        auto_mount_params = {}
+        if config.storage.auto_mount_params:
+            try:
+                auto_mount_params = base64.b64decode(
+                    config.storage.auto_mount_params, validate=True
+                ).decode()
+                auto_mount_params = json.loads(auto_mount_params)
+            except binascii.Error:
+                # Importing here to avoid circular dependencies
+                from .utils import list2dict
+
+                # String wasn't base64 encoded. Parse it using a 'p1=v1,p2=v2' format.
+                mount_params = config.storage.auto_mount_params.split(",")
+                auto_mount_params = list2dict(mount_params)
+        if not isinstance(auto_mount_params, dict):
+            raise TypeError(
+                f"data in storage.auto_mount_params does not resolve to a dictionary: {auto_mount_params}"
+            )
+
+        return auto_mount_params
 
     def to_dict(self):
         return copy.copy(self._cfg)

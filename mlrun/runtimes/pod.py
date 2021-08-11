@@ -24,7 +24,7 @@ import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
-from ..utils import list2dict, logger, normalize_name, update_in, verify_field_regex
+from ..utils import logger, normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec
 from .utils import (
     apply_kfp,
@@ -498,8 +498,7 @@ class KubeResource(BaseRuntime):
             logger.debug("Auto mount disabled due to user selection")
             return
 
-        mount_params = mlconf.storage.auto_mount_params.split(",")
-        mount_params_dict = list2dict(mount_params)
+        mount_params_dict = mlconf.get_storage_auto_mount_params()
 
         self.apply(modifier(**mount_params_dict))
 

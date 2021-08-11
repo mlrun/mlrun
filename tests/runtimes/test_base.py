@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 
 import pytest
@@ -53,6 +55,7 @@ class TestAutoMount:
             "volume_mount_path": "/mnt/test/path",
         }
 
+        # Try with a simple string
         pvc_params_str = ",".join(
             [f"{key}={value}" for key, value in pvc_params.items()]
         )
@@ -62,3 +65,23 @@ class TestAutoMount:
         self._execute_run(runtime)
 
         rundb_mock.assert_pvc_mount_configured(pvc_params)
+
+        rundb_mock.reset()
+
+        # Try with a base64 json dictionary
+        pvc_params_str = base64.b64encode(json.dumps(pvc_params).encode())
+        mlconf.storage.auto_mount_params = pvc_params_str
+
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+
+        rundb_mock.assert_pvc_mount_configured(pvc_params)
+
+        # Try something that does not translate to a dictionary
+        bad_params_str = base64.b64encode(
+            json.dumps(["I'm", "not", "a", "dictionary"]).encode()
+        )
+        mlconf.storage.auto_mount_params = bad_params_str
+
+        with pytest.raises(TypeError):
+            mlconf.get_storage_auto_mount_params()

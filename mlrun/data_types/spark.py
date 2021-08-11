@@ -129,16 +129,16 @@ def get_dtype(df, colname):
 
 
 def get_df_stats_spark(df, options, num_bins=20):
-    print("in the funncccc")
     if InferOptions.get_common_options(options, InferOptions.Index):
         df = df.select("*").withColumn("id", funcs.monotonically_increasing_id())
 
-    describe_df = df.describe().toPandas()
+    describe_df = df.describe(
+        include="all", percentiles=[], datetime_is_numeric=True
+    ).toPandas()
     describe_df = describe_df.set_index("summary")
 
     results_dict = {}
     for col, values in describe_df.items():
-        print("col " + str(col) + " values " + str(values))
         stats_dict = {}
         for stat, val in values.dropna().items():
             if isinstance(val, (float, np.floating, np.float64)):
@@ -149,7 +149,6 @@ def get_df_stats_spark(df, options, num_bins=20):
                 stats_dict[stat] = str(val)
         print("stats dict " + str(stats_dict))
         results_dict[col] = stats_dict
-        print("**********************")
 
         if InferOptions.get_common_options(
             options, InferOptions.Histogram

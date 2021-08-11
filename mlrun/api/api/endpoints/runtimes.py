@@ -20,15 +20,7 @@ def list_runtimes(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    project = "*"
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
-        project,
-        "",
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
-    )
-    return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector)
+    _list_runtime_resources("*", auth_verifier.auth_info, label_selector)
 
 
 # TODO: move everything to use this endpoint instead of list_runtimes and deprecate it
@@ -50,14 +42,9 @@ def list_runtime_resources(
         mlrun.api.api.deps.AuthVerifier
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
-        project,
-        "",
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+    return _list_runtime_resources(
+        project, auth_verifier.auth_info, label_selector, group_by
     )
-    return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector, group_by)
 
 
 @router.get("/runtimes/{kind}", response_model=mlrun.api.schemas.KindRuntimeResources)
@@ -134,3 +121,47 @@ def delete_runtime_object(
         auth_verifier.auth_info.session,
     )
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+
+def _list_runtime_resources(
+    project: str,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    label_selector: str = None,
+    group_by: typing.Optional[
+        mlrun.api.schemas.ListRuntimeResourcesGroupByField
+    ] = None,
+) -> typing.Union[
+    mlrun.api.schemas.RuntimeResourcesOutput,
+    mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+    mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+]:
+    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
+    grouped_by_project_runtime_resources_output = mlrun.api.crud.Runtimes().list_runtimes(
+        project,
+        label_selector,
+        mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+    )
+    project_and_kind_tuples = []
+    for (
+        project,
+        kind_runtime_resources_map,
+    ) in grouped_by_project_runtime_resources_output.items():
+        for kind in kind_runtime_resources_map.keys():
+            project_and_kind_tuples.append((project, kind))
+    allowed_project_and_kinds = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
+        project_and_kind_tuples,
+        lambda project_and_kind_tuple: (
+            project_and_kind_tuple[0],
+            project_and_kind_tuple[1],
+        ),
+        auth_info,
+    )
+    allowed_project_to_kind_map = {}
+    for project, kind in allowed_project_and_kinds:
+        allowed_project_to_kind_map.setdefault(project, []).append(kind)
+    return mlrun.api.crud.Runtimes().filter_and_format_grouped_by_project_runtime_resources_output(
+        grouped_by_project_runtime_resources_output,
+        allowed_project_to_kind_map,
+        group_by,
+    )

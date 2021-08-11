@@ -1001,6 +1001,24 @@ class BaseRuntimeHandler(ABC):
         )
         return response
 
+    def build_output_from_runtime_resources(
+        self,
+        runtime_resources_list: List[mlrun.api.schemas.RuntimeResources],
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ):
+        pod_resources = []
+        crd_resources = []
+        for runtime_resources in runtime_resources_list:
+            pod_resources += runtime_resources.pod_resources
+            crd_resources += runtime_resources.crd_resources
+        response = self._build_list_resources_response(
+            pod_resources, crd_resources, group_by
+        )
+        response = self._build_output_from_runtime_resources(
+            response, runtime_resources_list, group_by
+        )
+        return response
+
     def delete_resources(
         self,
         db: DBInterface,
@@ -1119,6 +1137,22 @@ class BaseRuntimeHandler(ABC):
     ]:
         """
         Override this to list resources other then pods or CRDs (which are handled by the base class)
+        """
+        return response
+
+    def _build_output_from_runtime_resources(
+        self,
+        response: Union[
+            mlrun.api.schemas.RuntimeResources,
+            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        ],
+        runtime_resources_list: List[mlrun.api.schemas.RuntimeResources],
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ):
+        """
+        Override this to add runtime resources other then pods or CRDs (which are handled by the base class) to the
+        output
         """
         return response
 
@@ -1759,7 +1793,7 @@ class BaseRuntimeHandler(ABC):
             resources[first_field_value][
                 second_field_value
             ] = mlrun.api.schemas.RuntimeResources(pod_resources=[], crd_resources=[])
-        if not hasattr(
+        if not getattr(
             resources[first_field_value][second_field_value], resource_field_name
         ):
             setattr(

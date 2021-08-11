@@ -595,17 +595,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         """
         Handling listing service resources
         """
-        # Dask runtime resources are per function (and not per job) therefore, when grouping by job we're simply
-        # omitting the dask runtime resources
-        if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+        enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
+        if not enrich_needed:
             return response
-        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
-            # we'll handle it after listing the services
-            pass
-        elif group_by is not None:
-            raise NotImplementedError(
-                f"Provided group by field is not supported. group_by={group_by}"
-            )
         k8s_helper = get_k8s_helper()
         services = k8s_helper.v1api.list_namespaced_service(
             namespace, label_selector=label_selector
@@ -617,6 +609,55 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
                     name=service.metadata.name, labels=service.metadata.labels
                 )
             )
+        return self._enrich_service_resources_in_response(
+            response, service_resources, group_by
+        )
+
+    def _build_output_from_runtime_resources(
+        self,
+        response: Union[
+            mlrun.api.schemas.RuntimeResources,
+            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        ],
+        runtime_resources_list: List[mlrun.api.schemas.RuntimeResources],
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ):
+        enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
+        if not enrich_needed:
+            return response
+        service_resources = []
+        for runtime_resources in runtime_resources_list:
+            service_resources += runtime_resources.service_resources
+        return self._enrich_service_resources_in_response(
+            response, service_resources, group_by
+        )
+
+    def _validate_if_enrich_is_needed_by_group_by(
+        self,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> bool:
+        # Dask runtime resources are per function (and not per job) therefore, when grouping by job we're simply
+        # omitting the dask runtime resources
+        if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+            return False
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            return True
+        elif group_by is not None:
+            raise NotImplementedError(
+                f"Provided group by field is not supported. group_by={group_by}"
+            )
+
+    def _enrich_service_resources_in_response(
+        self,
+        response: Union[
+            mlrun.api.schemas.RuntimeResources,
+            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        ],
+        service_resources: List[mlrun.api.schemas.RuntimeResource],
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ):
         if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
             for service_resource in service_resources:
                 self._add_resource_to_grouped_by_project_resources_response(

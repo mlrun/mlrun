@@ -27,7 +27,7 @@ class RuntimeResources(pydantic.BaseModel):
 
 class KindRuntimeResources(pydantic.BaseModel):
     kind: str
-    resources = RuntimeResources
+    resources: RuntimeResources
 
 
 RuntimeResourcesOutput = typing.List[KindRuntimeResources]

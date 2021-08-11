@@ -24,7 +24,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
         ] = None,
     ) -> typing.Union[
-        mlrun.api.schemas.KindRuntimeResources,
+        mlrun.api.schemas.RuntimeResourcesOutput,
         mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
@@ -43,6 +43,47 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             else:
                 mergedeep.merge(runtimes, resources)
         return runtimes
+
+    def filter_and_format_grouped_by_project_runtime_resources_output(
+        self,
+        grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        allowed_project_to_kind_map: typing.Dict[str, typing.List],
+        group_by: typing.Optional[
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
+    ) -> typing.Union[
+        mlrun.api.schemas.RuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
+        runtime_resources_by_kind = {}
+        for (
+            project,
+            kind_runtime_resources_map,
+        ) in grouped_by_project_runtime_resources_output.items():
+            for kind, runtime_resources in kind_runtime_resources_map.items():
+                if (
+                    project in allowed_project_to_kind_map
+                    and kind in allowed_project_to_kind_map[project]
+                ):
+                    runtime_resources_by_kind.setdefault(kind, []).append(
+                        runtime_resources
+                    )
+        runtimes_resources_output = [] if group_by is None else {}
+        for kind, runtime_resources_list in runtime_resources_by_kind.items():
+            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            resources = runtime_handler.build_output_from_runtime_resources(
+                runtime_resources_list, group_by
+            )
+            if group_by is None:
+                runtimes_resources_output.append(
+                    mlrun.api.schemas.KindRuntimeResources(
+                        kind=kind, resources=resources
+                    )
+                )
+            else:
+                mergedeep.merge(runtimes_resources_output, resources)
+        return runtimes_resources_output
 
     def get_runtime(
         self,

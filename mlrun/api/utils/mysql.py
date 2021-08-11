@@ -25,6 +25,9 @@ class MySQLUtil(object):
             database=mysql_dsn_data["database"],
         )
 
+    def close(self):
+        self._connection.close()
+
     def check_db_has_data(self):
         with self._connection.cursor() as cursor:
             cursor.execute(f"SELECT COUNT(*) FROM `{self.check_table}`;")

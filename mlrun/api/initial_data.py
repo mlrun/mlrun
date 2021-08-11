@@ -26,8 +26,8 @@ def init_data(from_scratch: bool = False) -> None:
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     alembic_config_path = dir_path / "alembic.ini"
 
-    # alembic_util = AlembicUtil(alembic_config_path)
-    # alembic_util.init_alembic(from_scratch=from_scratch)
+    alembic_util = AlembicUtil(alembic_config_path)
+    alembic_util.init_alembic(from_scratch=from_scratch)
 
     if not from_scratch:
         sqlite_migration_util = SQLiteMigrationUtil()

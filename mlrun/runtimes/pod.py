@@ -204,19 +204,26 @@ class AutoMountType(str, Enum):
             mlrun.auto_mount.__name__,
         ]
 
-    def get_modifier(self):
-        # Looking also for the env variable since mlconf.igz_version is not set in client envs such as Jupyter
-        is_iguazio = (
-            os.environ.get("IGZ_VERSION") is not None or mlconf.igz_version != ""
+    @staticmethod
+    def _get_auto_modifier():
+        # If we're running on Iguazio - use v3io_cred
+        if mlconf.igz_version != "":
+            return mlrun.v3io_cred
+        # Else, either pvc mount if it's configured or do nothing otherwise
+        pvc_configured = (
+            "MLRUN_PVC_MOUNT" in os.environ
+            or "pvc_name" in mlconf.get_storage_auto_mount_params()
         )
+        return mlrun.platforms.other.mount_pvc if pvc_configured else None
+
+    def get_modifier(self):
+
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_credentials: mlrun.v3io_cred,
             AutoMountType.v3io_fuse: mlrun.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
-            AutoMountType.auto: mlrun.v3io_cred
-            if is_iguazio
-            else mlrun.platforms.other.mount_pvc,
+            AutoMountType.auto: self._get_auto_modifier(),
         }[self]
 
 

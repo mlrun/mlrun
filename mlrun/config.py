@@ -35,7 +35,7 @@ from threading import Lock
 import yaml
 
 env_prefix = "MLRUN_"
-env_file_key = f"{env_prefix}CONIFG_FILE"
+env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
 

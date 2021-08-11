@@ -33,6 +33,11 @@ def health():
         "default_function_node_selector": _get_config_value_if_not_default(
             "default_function_node_selector"
         ),
+        "igz_version": _get_config_value_if_not_default("igz_version"),
+        "auto_mount_type": _get_config_value_if_not_default("storage.auto_mount_type"),
+        "auto_mount_params": _get_config_value_if_not_default(
+            "storage.auto_mount_params"
+        ),
     }
 
 

@@ -16,12 +16,10 @@ import pathlib
 import shutil
 import typing
 import warnings
-from os import environ, path, remove
-from tempfile import mktemp
+from os import environ, path
 
 import yaml
 from git import Repo
-from kfp import compiler
 
 import mlrun.api.schemas
 import mlrun.errors
@@ -48,9 +46,9 @@ from ..run import (
 )
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import RunNotifications, logger, new_pipe_meta, update_in
+from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import FunctionsDict, _create_pipeline, _run_pipeline, get_db_function
+from .pipelines import FunctionsDict, WorkflowSpec, get_db_function, get_workflow_engine
 
 
 class ProjectError(Exception):
@@ -583,25 +581,6 @@ class ProjectSpec(ModelObj):
                 return True
         return False
 
-    def _get_wf_cfg(self, name, arguments=None):
-        workflow = self._workflows.get(name)
-        code = workflow.get("code")
-        if code:
-            workflow_path = mktemp(".py")
-            with open(workflow_path, "w") as wf:
-                wf.write(code)
-        else:
-            workflow_path = workflow.get("path", "")
-            if self.context and not workflow_path.startswith("/"):
-                workflow_path = path.join(self.context, workflow_path)
-
-        wf_args = workflow.get("args", {})
-        if arguments:
-            for k, v in arguments.items():
-                wf_args[k] = v
-
-        return workflow_path, code, wf_args
-
 
 class ProjectStatus(ModelObj):
     def __init__(self, state=None):
@@ -904,6 +883,7 @@ class MlrunProject(ModelObj):
         name,
         workflow_path: str,
         embed=False,
+        engine=None,
         args_schema: typing.List[EntrypointParam] = None,
         **args,
     ):
@@ -912,6 +892,7 @@ class MlrunProject(ModelObj):
         :param name:          name of the workflow
         :param workflow_path: url/path for the workflow file
         :param embed:         add the workflow code into the project.yaml
+        :param engine:        workflow processing engine ("kfp" or "local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param args:          argument values (key=value, ..)
         """
@@ -933,6 +914,7 @@ class MlrunProject(ModelObj):
                 for schema in args_schema
             ]
             workflow["args_schema"] = args_schema
+        workflow["engine"] = engine or "kfp"
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -1476,6 +1458,7 @@ class MlrunProject(ModelObj):
         watch=False,
         dirty=False,
         ttl=None,
+        engine=None,
     ):
         """run a workflow using kubeflow pipelines
 
@@ -1519,28 +1502,28 @@ class MlrunProject(ModelObj):
             else:
                 raise ValueError("workflow name or path must be specified")
 
-        code = None
-        if not workflow_path:
-            if name not in self.spec._workflows:
-                raise ValueError(f"workflow {name} not found")
-            workflow_path, code, arguments = self.spec._get_wf_cfg(name, arguments)
+        if workflow_path:
+            workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
+        else:
+            workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
+            workflow_spec.merge_args(arguments)
+            workflow_spec.ttl = ttl or workflow_spec.ttl
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path
-        run = _run_pipeline(
+        workflow_engine = get_workflow_engine(engine or workflow_spec.engine)
+        run = workflow_engine.run(
             self,
+            workflow_spec,
             name,
-            workflow_path,
             secrets=self._secrets,
-            arguments=arguments,
             artifact_path=artifact_path,
             namespace=namespace,
-            ttl=ttl,
         )
-        if code:
-            remove(workflow_path)
-        if watch:
-            self.get_run_status(run)
+        workflow_spec.clear_tmp()
+        if watch and workflow_engine.engine == "kfp":
+            # todo: change to use generic engine.wait_for_completion()
+            self.get_run_status(run.run_id)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -1556,15 +1539,10 @@ class MlrunProject(ModelObj):
         if not name or name not in self.spec._workflows:
             raise ValueError(f"workflow {name} not found")
 
-        workflow_path, code, _ = self.spec._get_wf_cfg(name)
+        workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
         self.sync_functions()
-        pipeline = _create_pipeline(self, workflow_path, secrets=self._secrets)
-
-        artifact_path = artifact_path or self.spec.artifact_path
-        conf = new_pipe_meta(artifact_path, ttl=ttl)
-        compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
-        if code:
-            remove(workflow_path)
+        workflow_engine = get_workflow_engine(workflow_spec.engine)
+        workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
 
     def get_run_status(
         self,

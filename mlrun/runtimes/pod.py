@@ -16,7 +16,7 @@ import typing
 import uuid
 from copy import deepcopy
 
-from kfp.dsl import ContainerOp
+from kfp.dsl import ContainerOp, _container_op
 from kubernetes import client
 
 import mlrun.errors
@@ -181,7 +181,6 @@ class KubeResource(BaseRuntime):
 
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
-        self._cop = ContainerOp("name", "image")
         self.verbose = False
 
     @property
@@ -208,7 +207,14 @@ class KubeResource(BaseRuntime):
         return struct
 
     def apply(self, modify):
-        return apply_kfp(modify, self._cop, self)
+
+        # suppress kubeflow pipelines op registration in apply()
+        old_op_handler = _container_op._register_op_handler
+        _container_op._register_op_handler = lambda x: self.metadata.name
+        cop = ContainerOp(self.metadata.name, "image")
+        _container_op._register_op_handler = old_op_handler
+
+        return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""
@@ -347,10 +353,7 @@ class KubeResource(BaseRuntime):
         return new_meta
 
     def copy(self):
-        self._cop = None
         fn = deepcopy(self)
-        self._cop = ContainerOp("name", "image")
-        fn._cop = ContainerOp("name", "image")
         return fn
 
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):

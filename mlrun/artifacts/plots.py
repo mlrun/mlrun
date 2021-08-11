@@ -17,11 +17,12 @@ from io import BytesIO
 from ..utils import dict_to_json
 from .base import Artifact
 
-plot_template = """<h3 style="text-align:center">{}</h3>
-<img title="{}" src="data:image/png;base64,{}">"""
-
 
 class PlotArtifact(Artifact):
+    _TEMPLATE = """
+<h3 style="text-align:center">{}</h3>
+<img title="{}" src="data:image/png;base64,{}">
+"""
     kind = "plot"
 
     def __init__(
@@ -55,10 +56,11 @@ class PlotArtifact(Artifact):
             data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode("utf-8")
-        return plot_template.format(self.description or self.key, self.key, data_uri)
+        return self._TEMPLATE.format(self.description or self.key, self.key, data_uri)
 
 
-chart_template = """
+class ChartArtifact(Artifact):
+    _TEMPLATE = """
 <html>
   <head>
     <script
@@ -82,8 +84,6 @@ chart_template = """
 </html>
 """
 
-
-class ChartArtifact(Artifact):
     kind = "chart"
 
     def __init__(
@@ -121,7 +121,55 @@ class ChartArtifact(Artifact):
             self.options["title"] = self.title or self.key
         data = [self.header] + self.rows
         return (
-            chart_template.replace("$data$", dict_to_json(data))
+            self._TEMPLATE.replace("$data$", dict_to_json(data))
             .replace("$opts$", dict_to_json(self.options))
             .replace("$chart$", self.chart)
         )
+
+
+class BokehArtifact(Artifact):
+    """
+    Bokeh artifact is an artifact for saving Bokeh generated figures. They will be stored in html format.
+    """
+
+    kind = "bokeh"
+
+    def __init__(
+        self, figure, key: str = None, target_path: str = None,
+    ):
+        """
+        Initialize a Bokeh artifact with the given figure.
+
+        :param figure:      Bokeh figure ('bokeh.plotting.Figure' object) to save as an artifact.
+        :param key:         Key for the artifact to be stored in the database.
+        :param target_path: Path to save the artifact.
+        """
+        super().__init__(key=key, target_path=target_path, viewer="bokeh")
+
+        # Validate input:
+        try:
+            from bokeh.plotting import Figure
+        except ImportError:
+            raise ImportError(
+                "Using 'BokehArtifact' requires bokeh package. Use pip install mlrun[bokeh] to install it"
+            )
+        if not isinstance(figure, Figure):
+            raise ValueError(
+                "BokehArtifact requires the figure parameter to be a "
+                "'bokeh.plotting.Figure' but received '{}'".format(type(figure))
+            )
+
+        # Continue initializing the bokeh artifact:
+        self._figure = figure
+        self.format = "html"
+
+    def get_body(self):
+        """
+        Get the artifact's body - the bokeh figure's html code.
+
+        :return: The figure's html code.
+        """
+        from bokeh.embed import file_html
+        from bokeh.resources import CDN
+
+        return file_html(self._figure, CDN, self.key)

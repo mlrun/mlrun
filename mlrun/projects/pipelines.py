@@ -187,6 +187,7 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
+    f.try_auto_mount_based_on_config()
     if decorator:
         decorator(f)
     return f
@@ -195,14 +196,18 @@ def enrich_function_object(
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(self, run_id, engine, args=None):
+    def __init__(self, run_id, engine, project, workflow=None):
         self.run_id = run_id
+        self.project = project
+        self.workflow = workflow
         self._engine = engine
-        self._args = args
 
     def wait_for_completion(self, run_id, timeout=None, expected_statuses=None):
         return self._engine.wait_for_completion(
-            run_id, timeout=timeout, expected_statuses=expected_statuses, **self._args
+            run_id,
+            project=self.project,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
         )
 
     def __str__(self):
@@ -236,7 +241,7 @@ class _PipelineRunner:
         return
 
     @staticmethod
-    def wait_for_completion(run_id, timeout=None, expected_statuses=None):
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         return ""
 
 
@@ -283,12 +288,16 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             ttl=workflow_spec.ttl,
         )
-        return _PipelineRunStatus(id, cls)
+        return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(run_id, timeout=None, expected_statuses=None):
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+        project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
-            run_id, timeout=timeout, expected_statuses=expected_statuses
+            run_id,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
+            project=project_name,
         )
         status = ""
         if run_info:

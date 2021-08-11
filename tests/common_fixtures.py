@@ -1,8 +1,10 @@
+import unittest
 from http import HTTPStatus
 from os import environ
 from typing import Callable, Generator
 from unittest.mock import Mock
 
+import deepdiff
 import pytest
 import requests
 import v3io.dataplane
@@ -20,6 +22,8 @@ from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
+from mlrun.runtimes import BaseRuntime
+from mlrun.runtimes.function import NuclioStatus
 from tests.conftest import logs_path, root_path, rundb_path
 
 session_maker: Callable
@@ -126,3 +130,117 @@ def mock_failed_get_func(status_code: int):
         return mock_response
 
     return mock_get
+
+
+# Mock class used for client-side runtime tests. This mocks the rundb interface, for running/deploying runtimes
+class RunDBMock:
+    def __init__(self):
+        self._function = None
+        self._runspec = None
+
+    # Expected to return a hash-key
+    def store_function(self, function, name, project="", tag=None, versioned=False):
+        self._function = function
+        return "1234-1234-1234-1234"
+
+    def submit_job(self, runspec, schedule=None):
+        self._runspec = runspec
+        return {"status": {"status_text": "just a status"}}
+
+    def remote_builder(
+        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+    ):
+        self._function = func.to_dict()
+        status = NuclioStatus(state="ready", nuclio_name="test-nuclio-name",)
+        return {"data": {"status": status.to_dict()}}
+
+    def get_builder_status(
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
+    ):
+        return "ready", last_log_timestamp
+
+    def assert_v3io_mount_or_creds_configured(
+        self, v3io_user, v3io_access_key, cred_only=False
+    ):
+        env_list = self._function["spec"]["env"]
+        env_dict = {item["name"]: item["value"] for item in env_list}
+        expected_env = {
+            "V3IO_USERNAME": v3io_user,
+            "V3IO_ACCESS_KEY": v3io_access_key,
+        }
+        result = deepdiff.DeepDiff(env_dict, expected_env, ignore_order=True)
+        # We allow extra env parameters
+        result.pop("dictionary_item_removed")
+        assert result == {}
+
+        volume_mounts = self._function["spec"]["volume_mounts"]
+        volumes = self._function["spec"]["volumes"]
+
+        if cred_only:
+            assert len(volumes) == 0
+            assert len(volume_mounts) == 0
+            return
+
+        expected_mounts = [
+            {"mountPath": "/v3io", "name": "v3io", "subPath": ""},
+            {"mountPath": "/User", "name": "v3io", "subPath": f"users/{v3io_user}"},
+        ]
+        expected_volumes = [
+            {
+                "flexVolume": {
+                    "driver": "v3io/fuse",
+                    "options": {"accessKey": v3io_access_key},
+                },
+                "name": "v3io",
+            }
+        ]
+
+        assert deepdiff.DeepDiff(volumes, expected_volumes) == {}
+        assert deepdiff.DeepDiff(volume_mounts, expected_mounts) == {}
+
+    def assert_pvc_mount_configured(self, pvc_params):
+        function_spec = self._function["spec"]
+
+        expected_volumes = [
+            {
+                "name": pvc_params["volume_name"],
+                "persistentVolumeClaim": {"claimName": pvc_params["pvc_name"]},
+            }
+        ]
+        expected_mounts = [
+            {
+                "mountPath": pvc_params["volume_mount_path"],
+                "name": pvc_params["volume_name"],
+            }
+        ]
+
+        assert deepdiff.DeepDiff(function_spec["volumes"], expected_volumes) == {}
+        assert deepdiff.DeepDiff(function_spec["volume_mounts"], expected_mounts) == {}
+
+
+@pytest.fixture()
+def rundb_mock() -> RunDBMock:
+    mock_object = RunDBMock()
+
+    orig_get_run_db = mlrun.db.get_run_db
+    mlrun.db.get_run_db = unittest.mock.Mock(return_value=mock_object)
+
+    orig_use_remote_api = BaseRuntime._use_remote_api
+    orig_get_db = BaseRuntime._get_db
+    BaseRuntime._use_remote_api = unittest.mock.Mock(return_value=True)
+    BaseRuntime._get_db = unittest.mock.Mock(return_value=mock_object)
+
+    orig_db_path = config.dbpath
+    config.dbpath = "http://localhost:12345"
+    yield mock_object
+
+    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+    mlrun.db.get_run_db = orig_get_run_db
+    BaseRuntime._use_remote_api = orig_use_remote_api
+    BaseRuntime._get_db = orig_get_db
+    config.dbpath = orig_db_path

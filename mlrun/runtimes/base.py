@@ -277,7 +277,7 @@ class BaseRuntime(ModelObj):
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
-        # Perform auto-mount if necessary - make sure it only runs locally (when using remote API)
+        # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
         if self._use_remote_api():
             self.try_auto_mount_based_on_config()
 

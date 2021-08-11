@@ -1,3 +1,4 @@
+import typing
 import unittest.mock
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -167,101 +168,58 @@ class TestRuntimeHandlerBase:
                 get_k8s().resolve_namespace(), label_selector=label_selector,
             )
         assertion_func(
-            runtime_handler,
+            self,
             resources,
             expected_crds=expected_crds,
             expected_pods=expected_pods,
             expected_services=expected_services,
+            runtime_handler=runtime_handler,
         )
 
-    @staticmethod
     def _assert_list_resources_grouped_by_job_response(
-        runtime_handler,
+        self,
         resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
+        **kwargs,
     ):
-        expected_crds = expected_crds or []
-        expected_pods = expected_pods or []
-        expected_services = expected_services or []
-        for index, crd in enumerate(expected_crds):
-            project = crd["metadata"]["labels"]["mlrun/project"]
-            job_uid = crd["metadata"]["labels"]["mlrun/uid"]
-            found = False
-            for crd_resource in resources[project][job_uid].crd_resources:
-                if crd_resource.name == crd["metadata"]["name"]:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            crd_resource.labels,
-                            crd["metadata"]["labels"],
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            crd_resource.status, crd["status"], ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected crd was not found in response resources")
-        for index, pod in enumerate(expected_pods):
-            pod_dict = pod.to_dict()
-            project = pod_dict["metadata"]["labels"]["mlrun/project"]
-            job_uid = pod_dict["metadata"]["labels"]["mlrun/uid"]
-            found = False
-            for pod_resource in resources[project][job_uid].pod_resources:
-                if pod_resource.name == pod_dict["metadata"]["name"]:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            pod_resource.labels,
-                            pod_dict["metadata"]["labels"],
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            pod_resource.status, pod_dict["status"], ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected pod was not found in response resources")
-        for index, service in enumerate(expected_services):
-            project = service["metadata"]["labels"]["mlrun/project"]
-            job_uid = service["metadata"]["labels"]["mlrun/uid"]
-            found = False
-            for service_resource in resources[project][job_uid].service_resources:
-                if service_resource.name == service.metadata.name:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            service_resource.labels,
-                            service.metadata.labels,
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            service_resource.status,
-                            service.metadata.status,
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected service was not found in response resources")
+        self._assert_list_resources_grouped_by_response(
+            resources,
+            lambda labels: (labels["mlrun/project"], labels["mlrun/uid"]),
+            expected_crds,
+            expected_pods,
+            expected_services,
+        )
 
-    @staticmethod
     def _assert_list_resources_grouped_by_project_response(
-        runtime_handler,
+        self,
         resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        expected_crds=None,
+        expected_pods=None,
+        expected_services=None,
+        runtime_handler=None,
+    ):
+        def _extract_project_and_kind_from_runtime_resources_labels(
+            labels: dict,
+        ) -> typing.Tuple[str, str]:
+            project = labels["mlrun/project"]
+            class_ = labels["mlrun/class"]
+            kind = runtime_handler._resolve_kind_from_class(class_)
+            return project, kind
+
+        self._assert_list_resources_grouped_by_response(
+            resources,
+            _extract_project_and_kind_from_runtime_resources_labels,
+            expected_crds,
+            expected_pods,
+            expected_services,
+        )
+
+    def _assert_list_resources_grouped_by_response(
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        group_by_field_extractor,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
@@ -270,88 +228,68 @@ class TestRuntimeHandlerBase:
         expected_pods = expected_pods or []
         expected_services = expected_services or []
         for index, crd in enumerate(expected_crds):
-            project = crd["metadata"]["labels"]["mlrun/project"]
-            class_ = crd["metadata"]["labels"]["mlrun/class"]
-            kind = runtime_handler._resolve_kind_from_class(class_)
-            found = False
-            for crd_resource in resources[project][kind].crd_resources:
-                if crd_resource.name == crd["metadata"]["name"]:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            crd_resource.labels,
-                            crd["metadata"]["labels"],
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            crd_resource.status, crd["status"], ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected crd was not found in response resources")
+            self._assert_resource_in_response_resources(
+                "crd", crd, resources, "crd_resources", group_by_field_extractor
+            )
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()
-            project = pod_dict["metadata"]["labels"]["mlrun/project"]
-            class_ = pod_dict["metadata"]["labels"]["mlrun/class"]
-            kind = runtime_handler._resolve_kind_from_class(class_)
-            found = False
-            for pod_resource in resources[project][kind].pod_resources:
-                if pod_resource.name == pod_dict["metadata"]["name"]:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            pod_resource.labels,
-                            pod_dict["metadata"]["labels"],
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            pod_resource.status, pod_dict["status"], ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected pod was not found in response resources")
+            self._assert_resource_in_response_resources(
+                "pod", pod_dict, resources, "pod_resources", group_by_field_extractor
+            )
         for index, service in enumerate(expected_services):
-            project = service["metadata"]["labels"]["mlrun/project"]
-            class_ = service["metadata"]["labels"]["mlrun/class"]
-            kind = runtime_handler._resolve_kind_from_class(class_)
-            found = False
-            for service_resource in resources[project][kind].service_resources:
-                if service_resource.name == service.metadata.name:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            service_resource.labels,
-                            service.metadata.labels,
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            service_resource.status,
-                            service.metadata.status,
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected service was not found in response resources")
+            self._assert_resource_in_response_resources(
+                "service",
+                service,
+                resources,
+                "service_resources",
+                group_by_field_extractor,
+            )
 
     @staticmethod
+    def _assert_resource_in_response_resources(
+        expected_resource_type: str,
+        expected_resource: dict,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources_field_name: str,
+        group_by_field_extractor,
+    ):
+        (
+            first_group_by_field_value,
+            second_group_by_field_value,
+        ) = group_by_field_extractor(expected_resource["metadata"]["labels"])
+        found = False
+        for resource in getattr(
+            resources[first_group_by_field_value][second_group_by_field_value],
+            resources_field_name,
+        ):
+            if resource.name == expected_resource["metadata"]["name"]:
+                found = True
+                assert (
+                    deepdiff.DeepDiff(
+                        resource.labels,
+                        expected_resource["metadata"]["labels"],
+                        ignore_order=True,
+                    )
+                    == {}
+                )
+                assert (
+                    deepdiff.DeepDiff(
+                        resource.status, expected_resource["status"], ignore_order=True,
+                    )
+                    == {}
+                )
+        if not found:
+            pytest.fail(
+                f"Expected {expected_resource_type} was not found in response resources"
+            )
+
     def _assert_list_resources_response(
-        runtime_handler,
+        self,
         resources: mlrun.api.schemas.RuntimeResources,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
+        **kwargs,
     ):
         expected_crds = expected_crds or []
         expected_pods = expected_pods or []

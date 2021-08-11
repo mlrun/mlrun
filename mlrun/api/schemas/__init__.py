@@ -86,12 +86,13 @@ from .project import (
     ProjectSummary,
 )
 from .runtime_resource import (
-    GroupedRuntimeResourcesOutput,
+    GroupedByJobRuntimeResourcesOutput,
+    GroupedByProjectRuntimeResourcesOutput,
+    KindRuntimeResources,
     ListRuntimeResourcesGroupByField,
     RuntimeResource,
     RuntimeResources,
     RuntimeResourcesOutput,
-    SpecificKindRuntimeResources,
 )
 from .schedule import (
     ScheduleCronTrigger,

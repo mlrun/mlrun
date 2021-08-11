@@ -6,6 +6,7 @@ import pydantic
 
 class ListRuntimeResourcesGroupByField(str, enum.Enum):
     job = "job"
+    project = "project"
 
 
 class RuntimeResource(pydantic.BaseModel):
@@ -24,13 +25,19 @@ class RuntimeResources(pydantic.BaseModel):
         extra = pydantic.Extra.allow
 
 
-class SpecificKindRuntimeResources(pydantic.BaseModel):
+class KindRuntimeResources(pydantic.BaseModel):
     kind: str
     resources = RuntimeResources
 
 
-RuntimeResourcesOutput = typing.List[SpecificKindRuntimeResources]
+RuntimeResourcesOutput = typing.List[KindRuntimeResources]
 
 
 # project name -> job uid -> runtime resources
-GroupedRuntimeResourcesOutput = typing.Dict[str, typing.Dict[str, RuntimeResources]]
+GroupedByJobRuntimeResourcesOutput = typing.Dict[
+    str, typing.Dict[str, RuntimeResources]
+]
+# project name -> kind -> runtime resources
+GroupedByProjectRuntimeResourcesOutput = typing.Dict[
+    str, typing.Dict[str, RuntimeResources]
+]

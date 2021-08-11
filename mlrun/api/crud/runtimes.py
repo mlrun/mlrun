@@ -24,8 +24,9 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
         ] = None,
     ) -> typing.Union[
-        mlrun.api.schemas.SpecificKindRuntimeResources,
-        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        mlrun.api.schemas.KindRuntimeResources,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         runtimes = [] if group_by is None else {}
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
@@ -35,7 +36,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             )
             if group_by is None:
                 runtimes.append(
-                    mlrun.api.schemas.SpecificKindRuntimeResources(
+                    mlrun.api.schemas.KindRuntimeResources(
                         kind=kind, resources=resources
                     )
                 )
@@ -48,16 +49,14 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         kind: str,
         label_selector: str = None,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-    ) -> mlrun.api.schemas.SpecificKindRuntimeResources:
+    ) -> mlrun.api.schemas.KindRuntimeResources:
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             mlrun.api.api.utils.log_and_raise(
                 http.HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
             )
         runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
         resources = runtime_handler.list_resources("*", label_selector)
-        return mlrun.api.schemas.SpecificKindRuntimeResources(
-            kind=kind, resources=resources
-        )
+        return mlrun.api.schemas.KindRuntimeResources(kind=kind, resources=resources)
 
     def delete_runtimes(
         self,

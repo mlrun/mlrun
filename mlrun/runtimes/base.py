@@ -962,6 +962,15 @@ class BaseRuntimeHandler(ABC):
         """
         pass
 
+    @staticmethod
+    @abstractmethod
+    def _get_possible_mlrun_class_label_values() -> List[str]:
+        """
+        Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
+        handler kind
+        """
+        pass
+
     def list_resources(
         self,
         project: str,
@@ -969,7 +978,8 @@ class BaseRuntimeHandler(ABC):
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[
         mlrun.api.schemas.RuntimeResources,
-        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support removing runtime resources in non k8s env
         if not mlrun.k8s_utils.get_k8s_helper(
@@ -1096,14 +1106,16 @@ class BaseRuntimeHandler(ABC):
         self,
         response: Union[
             mlrun.api.schemas.RuntimeResources,
-            mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         namespace: str,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[
         mlrun.api.schemas.RuntimeResources,
-        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         """
         Override this to list resources other then pods or CRDs (which are handled by the base class)
@@ -1181,12 +1193,16 @@ class BaseRuntimeHandler(ABC):
 
         return in_terminal_state, last_container_completion_time, run_state
 
-    @staticmethod
-    def _get_default_label_selector() -> str:
+    def _get_default_label_selector(self) -> str:
         """
         Override this to add a default label selector
         """
-        return ""
+        class_values = self._get_possible_mlrun_class_label_values()
+        if not class_values:
+            return ""
+        if len(class_values) == 1:
+            return f"mlrun/class={class_values[0]}"
+        return f"mlrun/class in ({', '.join(class_values)})"
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:
@@ -1307,7 +1323,7 @@ class BaseRuntimeHandler(ABC):
                     "name"
                 ]
             still_in_deletion_crds_to_pod_names = {}
-            jobs_runtime_resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput = self.list_resources(
+            jobs_runtime_resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput = self.list_resources(
                 "*",
                 label_selector,
                 mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
@@ -1644,7 +1660,8 @@ class BaseRuntimeHandler(ABC):
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[
         mlrun.api.schemas.RuntimeResources,
-        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         if crd_resources is None:
             crd_resources = []
@@ -1660,16 +1677,36 @@ class BaseRuntimeHandler(ABC):
                 return self._build_grouped_by_job_list_resources_response(
                     pod_resources, crd_resources
                 )
+            elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+                return self._build_grouped_by_project_list_resources_response(
+                    pod_resources, crd_resources
+                )
             else:
                 raise NotImplementedError(
                     f"Provided group by field is not supported. group_by={group_by}"
                 )
 
+    def _build_grouped_by_project_list_resources_response(
+        self,
+        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+    ) -> mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput:
+        resources = {}
+        for pod_resource in pod_resources:
+            self._add_resource_to_grouped_by_project_resources_response(
+                resources, "pod_resources", pod_resource
+            )
+        for crd_resource in crd_resources:
+            self._add_resource_to_grouped_by_project_resources_response(
+                resources, "crd_resources", crd_resource
+            )
+        return resources
+
     def _build_grouped_by_job_list_resources_response(
         self,
         pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
         crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
-    ) -> mlrun.api.schemas.GroupedRuntimeResourcesOutput:
+    ) -> mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput:
         resources = {}
         for pod_resource in pod_resources:
             self._add_resource_to_grouped_by_job_resources_response(
@@ -1681,24 +1718,68 @@ class BaseRuntimeHandler(ABC):
             )
         return resources
 
-    @staticmethod
+    def _add_resource_to_grouped_by_project_resources_response(
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resource_field_name: str,
+        resource: mlrun.api.schemas.RuntimeResource,
+    ):
+        if "mlrun/class" in resource.labels:
+            project = resource.labels.get("mlrun/project", config.default_project)
+            mlrun_class = resource.labels["mlrun/class"]
+            kind = self._resolve_kind_from_class(mlrun_class)
+            self._add_resource_to_grouped_by_field_resources_response(
+                project, kind, resources, resource_field_name, resource
+            )
+
     def _add_resource_to_grouped_by_job_resources_response(
-        resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
         resource_field_name: str,
         resource: mlrun.api.schemas.RuntimeResource,
     ):
         if "mlrun/uid" in resource.labels:
             project = resource.labels.get("mlrun/project", config.default_project)
             uid = resource.labels["mlrun/uid"]
-            if project not in resources:
-                resources[project] = {}
-            if uid not in resources[project]:
-                resources[project][uid] = mlrun.api.schemas.RuntimeResources(
-                    pod_resources=[], crd_resources=[]
-                )
-            if not hasattr(resources[project][uid], resource_field_name):
-                setattr(resources[project][uid], resource_field_name, [])
-            getattr(resources[project][uid], resource_field_name).append(resource)
+            self._add_resource_to_grouped_by_field_resources_response(
+                project, uid, resources, resource_field_name, resource
+            )
+
+    @staticmethod
+    def _add_resource_to_grouped_by_field_resources_response(
+        first_field_value: str,
+        second_field_value: str,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resource_field_name: str,
+        resource: mlrun.api.schemas.RuntimeResource,
+    ):
+        if first_field_value not in resources:
+            resources[first_field_value] = {}
+        if second_field_value not in resources[first_field_value]:
+            resources[first_field_value][
+                second_field_value
+            ] = mlrun.api.schemas.RuntimeResources(pod_resources=[], crd_resources=[])
+        if not hasattr(
+            resources[first_field_value][second_field_value], resource_field_name
+        ):
+            setattr(
+                resources[first_field_value][second_field_value],
+                resource_field_name,
+                [],
+            )
+        getattr(
+            resources[first_field_value][second_field_value], resource_field_name
+        ).append(resource)
+
+    @staticmethod
+    def _resolve_kind_from_class(mlrun_class: str) -> str:
+        class_to_kind_map = {}
+        for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
+            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            class_values = runtime_handler._get_possible_mlrun_class_label_values()
+            for value in class_values:
+                class_to_kind_map[value] = kind
+        return class_to_kind_map[mlrun_class]
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):

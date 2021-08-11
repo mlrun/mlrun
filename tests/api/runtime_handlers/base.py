@@ -8,8 +8,10 @@ import pytest
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun
 import mlrun.api.crud as crud
 import mlrun.api.schemas
+import mlrun.runtimes.constants
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -30,6 +32,7 @@ class TestRuntimeHandlerBase:
         self.project = "test-project"
         self.run_uid = "test_run_uid"
 
+        mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.constants.MPIJobCRDVersions.v1
         self.custom_setup()
 
         self._logger.info(
@@ -131,7 +134,18 @@ class TestRuntimeHandlerBase:
                 ]
             )
             assertion_func = (
-                TestRuntimeHandlerBase._assert_list_resources_grouped_response
+                TestRuntimeHandlerBase._assert_list_resources_grouped_by_job_response
+            )
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            project = self.project
+            label_selector = ",".join(
+                [
+                    runtime_handler._get_default_label_selector(),
+                    f"mlrun/project={self.project}",
+                ]
+            )
+            assertion_func = (
+                TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
             )
         else:
             raise NotImplementedError("Unsupported group by value")
@@ -153,6 +167,7 @@ class TestRuntimeHandlerBase:
                 get_k8s().resolve_namespace(), label_selector=label_selector,
             )
         assertion_func(
+            runtime_handler,
             resources,
             expected_crds=expected_crds,
             expected_pods=expected_pods,
@@ -160,8 +175,9 @@ class TestRuntimeHandlerBase:
         )
 
     @staticmethod
-    def _assert_list_resources_grouped_response(
-        resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+    def _assert_list_resources_grouped_by_job_response(
+        runtime_handler,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
@@ -243,7 +259,95 @@ class TestRuntimeHandlerBase:
                 pytest.fail("Expected service was not found in response resources")
 
     @staticmethod
+    def _assert_list_resources_grouped_by_project_response(
+        runtime_handler,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        expected_crds=None,
+        expected_pods=None,
+        expected_services=None,
+    ):
+        expected_crds = expected_crds or []
+        expected_pods = expected_pods or []
+        expected_services = expected_services or []
+        for index, crd in enumerate(expected_crds):
+            project = crd["metadata"]["labels"]["mlrun/project"]
+            class_ = crd["metadata"]["labels"]["mlrun/class"]
+            kind = runtime_handler._resolve_kind_from_class(class_)
+            found = False
+            for crd_resource in resources[project][kind].crd_resources:
+                if crd_resource.name == crd["metadata"]["name"]:
+                    found = True
+                    assert (
+                        deepdiff.DeepDiff(
+                            crd_resource.labels,
+                            crd["metadata"]["labels"],
+                            ignore_order=True,
+                        )
+                        == {}
+                    )
+                    assert (
+                        deepdiff.DeepDiff(
+                            crd_resource.status, crd["status"], ignore_order=True,
+                        )
+                        == {}
+                    )
+            if not found:
+                pytest.fail("Expected crd was not found in response resources")
+        for index, pod in enumerate(expected_pods):
+            pod_dict = pod.to_dict()
+            project = pod_dict["metadata"]["labels"]["mlrun/project"]
+            class_ = pod_dict["metadata"]["labels"]["mlrun/class"]
+            kind = runtime_handler._resolve_kind_from_class(class_)
+            found = False
+            for pod_resource in resources[project][kind].pod_resources:
+                if pod_resource.name == pod_dict["metadata"]["name"]:
+                    found = True
+                    assert (
+                        deepdiff.DeepDiff(
+                            pod_resource.labels,
+                            pod_dict["metadata"]["labels"],
+                            ignore_order=True,
+                        )
+                        == {}
+                    )
+                    assert (
+                        deepdiff.DeepDiff(
+                            pod_resource.status, pod_dict["status"], ignore_order=True,
+                        )
+                        == {}
+                    )
+            if not found:
+                pytest.fail("Expected pod was not found in response resources")
+        for index, service in enumerate(expected_services):
+            project = service["metadata"]["labels"]["mlrun/project"]
+            class_ = service["metadata"]["labels"]["mlrun/class"]
+            kind = runtime_handler._resolve_kind_from_class(class_)
+            found = False
+            for service_resource in resources[project][kind].service_resources:
+                if service_resource.name == service.metadata.name:
+                    found = True
+                    assert (
+                        deepdiff.DeepDiff(
+                            service_resource.labels,
+                            service.metadata.labels,
+                            ignore_order=True,
+                        )
+                        == {}
+                    )
+                    assert (
+                        deepdiff.DeepDiff(
+                            service_resource.status,
+                            service.metadata.status,
+                            ignore_order=True,
+                        )
+                        == {}
+                    )
+            if not found:
+                pytest.fail("Expected service was not found in response resources")
+
+    @staticmethod
     def _assert_list_resources_response(
+        runtime_handler,
         resources: mlrun.api.schemas.RuntimeResources,
         expected_crds=None,
         expected_pods=None,

@@ -574,21 +574,23 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/function={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class=dask"
+    def _get_possible_mlrun_class_label_values() -> List[str]:
+        return ["dask"]
 
     def _enrich_list_resources_response(
         self,
         response: Union[
             mlrun.api.schemas.RuntimeResources,
-            mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         namespace: str,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[
         mlrun.api.schemas.RuntimeResources,
-        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         """
         Handling listing service resources
@@ -597,6 +599,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         # omitting the dask runtime resources
         if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
             return response
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            # we'll handle it after listing the services
+            pass
         elif group_by is not None:
             raise NotImplementedError(
                 f"Provided group by field is not supported. group_by={group_by}"
@@ -612,7 +617,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
                     name=service.metadata.name, labels=service.metadata.labels
                 )
             )
-        response.service_resources = service_resources
+        if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            for service_resource in service_resources:
+                self._add_resource_to_grouped_by_project_resources_response(
+                    response, "service_resources", service_resource
+                )
+        else:
+            response.service_resources = service_resources
         return response
 
     def _delete_resources(

@@ -36,7 +36,8 @@ def list_runtimes(
     "/projects/{project}/runtime-resources",
     response_model=typing.Union[
         mlrun.api.schemas.RuntimeResourcesOutput,
-        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ],
 )
 def list_runtime_resources(
@@ -59,9 +60,7 @@ def list_runtime_resources(
     return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector, group_by)
 
 
-@router.get(
-    "/runtimes/{kind}", response_model=mlrun.api.schemas.SpecificKindRuntimeResources
-)
+@router.get("/runtimes/{kind}", response_model=mlrun.api.schemas.KindRuntimeResources)
 def get_runtime(kind: str, label_selector: str = None):
     return mlrun.api.crud.Runtimes().get_runtime(kind, label_selector)
 

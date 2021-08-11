@@ -121,7 +121,7 @@ class LocalFeatureMerger:
 
             # in case of using spark engine the index will be of the default type 'RangeIndex' and it will be replaced,
             # in other cases the index should already be set correctly.
-            if self._result_df.index is None or isinstance(self._result_df.index, pd.core.indexes.base.index):
+            if self._result_df.index is None or isinstance(self._result_df.index, pd.core.indexes.base.Index):
                 index_columns_missing = []
                 for index in index_columns:
                     if index not in self._result_df.columns:

@@ -32,7 +32,13 @@ def list_runtimes(
 
 
 # TODO: move everything to use this endpoint instead of list_runtimes and deprecate it
-@router.get("/projects/{project}/runtime-resources")
+@router.get(
+    "/projects/{project}/runtime-resources",
+    response_model=typing.Union[
+        mlrun.api.schemas.RuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+    ],
+)
 def list_runtime_resources(
     project: str,
     label_selector: str = None,
@@ -53,7 +59,9 @@ def list_runtime_resources(
     return mlrun.api.crud.Runtimes().list_runtimes(project, label_selector, group_by)
 
 
-@router.get("/runtimes/{kind}")
+@router.get(
+    "/runtimes/{kind}", response_model=mlrun.api.schemas.SpecificKindRuntimeResources
+)
 def get_runtime(kind: str, label_selector: str = None):
     return mlrun.api.crud.Runtimes().get_runtime(kind, label_selector)
 

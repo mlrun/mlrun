@@ -967,7 +967,10 @@ class BaseRuntimeHandler(ABC):
         project: str,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
-    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResources,
+        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+    ]:
         # We currently don't support removing runtime resources in non k8s env
         if not mlrun.k8s_utils.get_k8s_helper(
             silent=True
@@ -1091,11 +1094,17 @@ class BaseRuntimeHandler(ABC):
 
     def _enrich_list_resources_response(
         self,
-        response: Dict,
+        response: Union[
+            mlrun.api.schemas.RuntimeResources,
+            mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        ],
         namespace: str,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
-    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResources,
+        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+    ]:
         """
         Override this to list resources other then pods or CRDs (which are handled by the base class)
         """
@@ -1315,7 +1324,7 @@ class BaseRuntimeHandler(ABC):
                         still_in_deletion_crds_to_pod_names[
                             project_uid_crd_map[project][job_uid]
                         ] = [
-                            pod_resource["name"]
+                            pod_resource.name
                             for pod_resource in job_runtime_resources.pod_resources
                         ]
             if still_in_deletion_crds_to_pod_names:
@@ -1630,20 +1639,22 @@ class BaseRuntimeHandler(ABC):
 
     def _build_list_resources_response(
         self,
-        pod_resources: List = None,
-        crd_resources: List = None,
+        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
-    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResources,
+        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+    ]:
         if crd_resources is None:
             crd_resources = []
         if pod_resources is None:
             pod_resources = []
 
         if group_by is None:
-            return {
-                "crd_resources": crd_resources,
-                "pod_resources": pod_resources,
-            }
+            return mlrun.api.schemas.RuntimeResources(
+                crd_resources=crd_resources, pod_resources=pod_resources
+            )
         else:
             if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
                 return self._build_grouped_by_job_list_resources_response(
@@ -1655,7 +1666,9 @@ class BaseRuntimeHandler(ABC):
                 )
 
     def _build_grouped_by_job_list_resources_response(
-        self, pod_resources: List = None, crd_resources: List = None
+        self,
+        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
     ) -> mlrun.api.schemas.GroupedRuntimeResourcesOutput:
         resources = {}
         for pod_resource in pod_resources:
@@ -1672,15 +1685,15 @@ class BaseRuntimeHandler(ABC):
     def _add_resource_to_grouped_by_job_resources_response(
         resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput,
         resource_field_name: str,
-        resource: dict,
+        resource: mlrun.api.schemas.RuntimeResource,
     ):
-        if "mlrun/uid" in resource["labels"]:
-            project = resource["labels"].get("mlrun/project", config.default_project)
-            uid = resource["labels"]["mlrun/uid"]
+        if "mlrun/uid" in resource.labels:
+            project = resource.labels.get("mlrun/project", config.default_project)
+            uid = resource.labels["mlrun/uid"]
             if project not in resources:
                 resources[project] = {}
             if uid not in resources[project]:
-                resources[project][uid] = mlrun.api.schemas.RuntimeResourcesOutput(
+                resources[project][uid] = mlrun.api.schemas.RuntimeResources(
                     pod_resources=[], crd_resources=[]
                 )
             if not hasattr(resources[project][uid], resource_field_name):
@@ -1821,27 +1834,27 @@ class BaseRuntimeHandler(ABC):
                 raise
 
     @staticmethod
-    def _build_pod_resources(pods) -> List:
+    def _build_pod_resources(pods) -> List[mlrun.api.schemas.RuntimeResource]:
         pod_resources = []
         for pod in pods:
             pod_resources.append(
-                {
-                    "name": pod["metadata"]["name"],
-                    "labels": pod["metadata"]["labels"],
-                    "status": pod["status"],
-                }
+                mlrun.api.schemas.RuntimeResource(
+                    name=pod["metadata"]["name"],
+                    labels=pod["metadata"]["labels"],
+                    status=pod["status"],
+                )
             )
         return pod_resources
 
     @staticmethod
-    def _build_crd_resources(custom_objects) -> List:
+    def _build_crd_resources(custom_objects) -> List[mlrun.api.schemas.RuntimeResource]:
         crd_resources = []
         for custom_object in custom_objects:
             crd_resources.append(
-                {
-                    "name": custom_object["metadata"]["name"],
-                    "labels": custom_object["metadata"]["labels"],
-                    "status": custom_object.get("status", {}),
-                }
+                mlrun.api.schemas.RuntimeResource(
+                    name=custom_object["metadata"]["name"],
+                    labels=custom_object["metadata"]["labels"],
+                    status=custom_object.get("status", {}),
+                )
             )
         return crd_resources

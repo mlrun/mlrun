@@ -174,11 +174,11 @@ class TestRuntimeHandlerBase:
             job_uid = crd["metadata"]["labels"]["mlrun/uid"]
             found = False
             for crd_resource in resources[project][job_uid].crd_resources:
-                if crd_resource["name"] == crd["metadata"]["name"]:
+                if crd_resource.name == crd["metadata"]["name"]:
                     found = True
                     assert (
                         deepdiff.DeepDiff(
-                            crd_resource["labels"],
+                            crd_resource.labels,
                             crd["metadata"]["labels"],
                             ignore_order=True,
                         )
@@ -186,7 +186,7 @@ class TestRuntimeHandlerBase:
                     )
                     assert (
                         deepdiff.DeepDiff(
-                            crd_resource["status"], crd["status"], ignore_order=True,
+                            crd_resource.status, crd["status"], ignore_order=True,
                         )
                         == {}
                     )
@@ -198,11 +198,11 @@ class TestRuntimeHandlerBase:
             job_uid = pod_dict["metadata"]["labels"]["mlrun/uid"]
             found = False
             for pod_resource in resources[project][job_uid].pod_resources:
-                if pod_resource["name"] == pod_dict["metadata"]["name"]:
+                if pod_resource.name == pod_dict["metadata"]["name"]:
                     found = True
                     assert (
                         deepdiff.DeepDiff(
-                            pod_resource["labels"],
+                            pod_resource.labels,
                             pod_dict["metadata"]["labels"],
                             ignore_order=True,
                         )
@@ -210,9 +210,7 @@ class TestRuntimeHandlerBase:
                     )
                     assert (
                         deepdiff.DeepDiff(
-                            pod_resource["status"],
-                            pod_dict["status"],
-                            ignore_order=True,
+                            pod_resource.status, pod_dict["status"], ignore_order=True,
                         )
                         == {}
                     )
@@ -223,11 +221,11 @@ class TestRuntimeHandlerBase:
             job_uid = service["metadata"]["labels"]["mlrun/uid"]
             found = False
             for service_resource in resources[project][job_uid].service_resources:
-                if service_resource["name"] == service.metadata.name:
+                if service_resource.name == service.metadata.name:
                     found = True
                     assert (
                         deepdiff.DeepDiff(
-                            service_resource["labels"],
+                            service_resource.labels,
                             service.metadata.labels,
                             ignore_order=True,
                         )
@@ -235,7 +233,7 @@ class TestRuntimeHandlerBase:
                     )
                     assert (
                         deepdiff.DeepDiff(
-                            service_resource["status"],
+                            service_resource.status,
                             service.metadata.status,
                             ignore_order=True,
                         )
@@ -246,40 +244,33 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_list_resources_response(
-        resources, expected_crds=None, expected_pods=None, expected_services=None
+        resources: mlrun.api.schemas.RuntimeResources,
+        expected_crds=None,
+        expected_pods=None,
+        expected_services=None,
     ):
         expected_crds = expected_crds or []
         expected_pods = expected_pods or []
         expected_services = expected_services or []
-        assert len(resources["crd_resources"]) == len(expected_crds)
+        assert len(resources.crd_resources) == len(expected_crds)
         for index, crd in enumerate(expected_crds):
-            assert resources["crd_resources"][index]["name"] == crd["metadata"]["name"]
-            assert (
-                resources["crd_resources"][index]["labels"] == crd["metadata"]["labels"]
-            )
-            assert resources["crd_resources"][index]["status"] == crd.get("status", {})
-        assert len(resources["pod_resources"]) == len(expected_pods)
+            assert resources.crd_resources[index].name == crd["metadata"]["name"]
+            assert resources.crd_resources[index].labels == crd["metadata"]["labels"]
+            assert resources.crd_resources[index].status == crd.get("status", {})
+        assert len(resources.pod_resources) == len(expected_pods)
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()
+            assert resources.pod_resources[index].name == pod_dict["metadata"]["name"]
             assert (
-                resources["pod_resources"][index]["name"]
-                == pod_dict["metadata"]["name"]
+                resources.pod_resources[index].labels == pod_dict["metadata"]["labels"]
             )
-            assert (
-                resources["pod_resources"][index]["labels"]
-                == pod_dict["metadata"]["labels"]
-            )
-            assert resources["pod_resources"][index]["status"] == pod_dict["status"]
+            assert resources.pod_resources[index].status == pod_dict["status"]
         if expected_services:
-            assert len(resources["service_resources"]) == len(expected_services)
+            assert len(resources.service_resources) == len(expected_services)
             for index, service in enumerate(expected_services):
+                assert resources.service_resources[index].name == service.metadata.name
                 assert (
-                    resources["service_resources"][index]["name"]
-                    == service.metadata.name
-                )
-                assert (
-                    resources["service_resources"][index]["labels"]
-                    == service.metadata.labels
+                    resources.service_resources[index].labels == service.metadata.labels
                 )
 
     @staticmethod

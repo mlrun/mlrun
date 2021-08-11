@@ -579,11 +579,17 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
     def _enrich_list_resources_response(
         self,
-        response: Dict,
+        response: Union[
+            mlrun.api.schemas.RuntimeResources,
+            mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        ],
         namespace: str,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
-    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResources,
+        mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+    ]:
         """
         Handling listing service resources
         """
@@ -602,9 +608,11 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_resources = []
         for service in services.items:
             service_resources.append(
-                {"name": service.metadata.name, "labels": service.metadata.labels}
+                mlrun.api.schemas.RuntimeResource(
+                    name=service.metadata.name, labels=service.metadata.labels
+                )
             )
-        response["service_resources"] = service_resources
+        response.service_resources = service_resources
         return response
 
     def _delete_resources(

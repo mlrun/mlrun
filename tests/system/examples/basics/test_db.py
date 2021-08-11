@@ -68,7 +68,7 @@ class TestDB(TestMLRunSystem):
         for runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_exists = False
             for runtime in runtimes:
-                if runtime["kind"] == runtime_kind:
+                if runtime.kind == runtime_kind:
                     runtime_exists = True
                     break
             assert runtime_exists

@@ -1006,10 +1006,12 @@ def wait_for_pipeline_completion(
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
-    message = ", " + resp["run"].get("message", "") if resp else ""
+    message = resp["run"].get("message", "")
     if expected_statuses:
         if status not in expected_statuses:
-            raise RuntimeError(f"Pipeline run status {status} {message}")
+            raise RuntimeError(
+                f"Pipeline run status {status}{', ' + message if message else ''}"
+            )
 
     logger.debug(
         f"Finished waiting for pipeline completion."

@@ -263,7 +263,7 @@ class KubeResource(BaseRuntime):
         # suppress kubeflow pipelines op registration in apply()
         old_op_handler = _container_op._register_op_handler
         _container_op._register_op_handler = lambda x: self.metadata.name
-        cop = ContainerOp(self.metadata.name, "image")
+        cop = ContainerOp("name", "image")
         _container_op._register_op_handler = old_op_handler
 
         return apply_kfp(modify, cop, self)

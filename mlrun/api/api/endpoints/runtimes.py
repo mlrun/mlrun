@@ -13,7 +13,7 @@ import mlrun.api.utils.clients.opa
 router = fastapi.APIRouter()
 
 
-@router.get("/runtimes")
+@router.get("/runtimes", response_model=mlrun.api.schemas.RuntimeResourcesOutput)
 def list_runtimes(
     label_selector: str = None,
     auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(

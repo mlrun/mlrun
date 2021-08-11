@@ -11,7 +11,12 @@ class MySQLUtil(object):
     dsn_regex = (
         r"mysql\+pymysql://(?P<username>.+)@(?P<host>.+):(?P<port>\d+)/(?P<database>.+)"
     )
-    check_table = "projects"
+    check_tables = [
+        "projects",
+
+        # check functions as well just in case the previous version used a projects leader
+        "functions",
+    ]
 
     def __init__(self):
         mysql_dsn_data = self.get_mysql_dsn_data()
@@ -30,8 +35,11 @@ class MySQLUtil(object):
 
     def check_db_has_data(self):
         with self._connection.cursor() as cursor:
-            cursor.execute(f"SELECT COUNT(*) FROM `{self.check_table}`;")
-            return cursor.fetchone()[0] > 0
+            for check_table in self.check_tables:
+                cursor.execute(f"SELECT COUNT(*) FROM `{check_table}`;")
+                if cursor.fetchone()[0] > 0:
+                    return True
+        return False
 
     def dump_database_to_file(self, filepath: pathlib.Path):
         with self._connection.cursor() as cursor:

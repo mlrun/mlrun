@@ -52,21 +52,18 @@ def test_requirement_specifiers_inconsistencies():
     inconsistent_specifiers_map = {}
     print(requirement_specifiers_map)
     for requirement_name, requirement_specifiers in requirement_specifiers_map.items():
-        if not all(
-            requirement_specifier == requirement_specifiers[0]
-            for requirement_specifier in requirement_specifiers
-        ):
+        if not len(requirement_specifiers) == 1:
             inconsistent_specifiers_map[requirement_name] = requirement_specifiers
 
     ignored_inconsistencies_map = {
         # It's ==1.4.1 only in models-gpu because of tensorflow 2.2.0, TF version expected to be changed there soon so
         # ignoring for now
-        "scipy": ["~=1.0", "==1.4.1", "~=1.0"],
+        "scipy": {"~=1.0", "==1.4.1"},
         # It's ok we have 2 different versions cause they are for different python versions
-        "pandas": ["~=1.2; python_version >= '3.7'", "~=1.0; python_version < '3.7'"],
+        "pandas": {"~=1.2; python_version >= '3.7'", "~=1.0; python_version < '3.7'"},
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
-        "python-dotenv": ["", "~=0.17.0"],
+        "python-dotenv": {"", "~=0.17.0"},
     }
 
     for (
@@ -94,15 +91,15 @@ def test_requirement_from_remote():
         ]
     )
     assert len(requirement_specifiers_map) > 0
-    assert requirement_specifiers_map["some-package"] == [
+    assert requirement_specifiers_map["some-package"] == {
         "~=1.9, <1.17.50",
-    ]
-    assert requirement_specifiers_map["other-package"] == [
+    }
+    assert requirement_specifiers_map["other-package"] == {
         "==0.1",
-    ]
-    assert requirement_specifiers_map["more-package"] == [
+    }
+    assert requirement_specifiers_map["more-package"] == {
         "git+https://github.com/mlrun/something.git@some-branch",
-    ]
+    }
 
 
 def _generate_requirement_specifiers_map(requirement_specifiers):
@@ -115,7 +112,7 @@ def _generate_requirement_specifiers_map(requirement_specifiers):
     remote_location_regex = (
         r"^(?P<requirementSpecifier>.*)#egg=(?P<requirementName>[^#]+)"
     )
-    requirement_specifiers_map = collections.defaultdict(list)
+    requirement_specifiers_map = collections.defaultdict(set)
     for requirement_specifier in requirement_specifiers:
         regex = (
             remote_location_regex
@@ -126,7 +123,7 @@ def _generate_requirement_specifiers_map(requirement_specifiers):
         assert (
             match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_specifiers_map[match.groupdict()["requirementName"]].append(
+        requirement_specifiers_map[match.groupdict()["requirementName"]].add(
             match.groupdict()["requirementSpecifier"]
         )
     return requirement_specifiers_map

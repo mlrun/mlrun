@@ -1,6 +1,5 @@
 import pathlib
 import random
-import unittest.mock
 from http import HTTPStatus
 
 import deepdiff
@@ -9,8 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
+import tests.api.conftest
 from mlrun.api.crud.marketplace import Marketplace
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 
 
@@ -26,44 +25,6 @@ def _generate_source_dict(index, name, credentials=None):
             "status": {"state": "created"},
         },
     }
-
-
-class K8sMock:
-    def __init__(self):
-        self._mock_secrets = {}
-
-    def store_project_secrets(self, project, secrets, namespace=""):
-        self._mock_secrets.update(secrets)
-
-    def delete_project_secrets(self, project, secrets, namespace=""):
-        for key in secrets:
-            self._mock_secrets.pop(key, None)
-
-    def get_project_secrets(self, project, namespace=""):
-        return list(self._mock_secrets.keys())
-
-    def get_project_secret_values(self, project, secret_keys=None, namespace=""):
-        return self._mock_secrets
-
-
-def _mock_k8s_secrets(mock_object):
-    config.namespace = "default-tenant"
-
-    get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
-    )
-    get_k8s().get_project_secrets = unittest.mock.Mock(
-        side_effect=mock_object.get_project_secrets
-    )
-    get_k8s().get_project_secret_values = unittest.mock.Mock(
-        side_effect=mock_object.get_project_secret_values
-    )
-    get_k8s().store_project_secrets = unittest.mock.Mock(
-        side_effect=mock_object.store_project_secrets
-    )
-    get_k8s().delete_project_secrets = unittest.mock.Mock(
-        side_effect=mock_object.delete_project_secrets
-    )
 
 
 def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None):
@@ -88,9 +49,11 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
             )
 
 
-def test_marketplace_source_apis(db: Session, client: TestClient) -> None:
-    _mock_k8s_secrets(K8sMock())
-
+def test_marketplace_source_apis(
+    db: Session,
+    client: TestClient,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
     # Make sure the default source is there.
     response = client.get("/api/marketplace/sources")
     assert response.status_code == HTTPStatus.OK.value
@@ -168,12 +131,10 @@ def test_marketplace_source_apis(db: Session, client: TestClient) -> None:
 
 
 def test_marketplace_credentials_removed_from_db(
-    db: Session, client: TestClient
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ) -> None:
     # Validate that a source with credentials is stored (and retrieved back) without them, while the creds
     # are stored in the k8s secret.
-    k8s_mock = K8sMock()
-    _mock_k8s_secrets(k8s_mock)
     credentials = {"secret1": "value1", "another-secret": "42"}
     source_1 = _generate_source_dict(-1, "source_1", credentials)
     response = client.post("/api/marketplace/sources", json=source_1)
@@ -196,13 +157,14 @@ def test_marketplace_credentials_removed_from_db(
         f"source_1{mlrun.api.crud.marketplace.secret_name_separator}{key}": value
         for key, value in credentials.items()
     }
-    assert deepdiff.DeepDiff(k8s_mock._mock_secrets, expected_credentials) == {}
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
+    )
 
 
-def test_marketplace_source_manager() -> None:
-    k8s_mock = K8sMock()
-    _mock_k8s_secrets(k8s_mock)
-
+def test_marketplace_source_manager(
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
     manager = Marketplace()
 
     separator = mlrun.api.crud.marketplace.secret_name_separator
@@ -216,12 +178,16 @@ def test_marketplace_source_manager() -> None:
         source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
         manager.add_source(source_object)
 
-    assert deepdiff.DeepDiff(k8s_mock._mock_secrets, expected_credentials) == {}
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
+    )
 
     manager.remove_source("source_1")
     for key in credentials:
         expected_credentials.pop(f"source_1{separator}{key}")
-    assert deepdiff.DeepDiff(k8s_mock._mock_secrets, expected_credentials) == {}
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
+    )
 
     # Test catalog retrieval, with various filters
     catalog = manager.get_source_catalog(source_object)
@@ -256,11 +222,10 @@ def test_marketplace_source_manager() -> None:
     )
 
 
-def test_marketplace_default_source() -> None:
+def test_marketplace_default_source(
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
-    k8s_mock = K8sMock()
-    _mock_k8s_secrets(k8s_mock)
-
     manager = Marketplace()
 
     source_object = mlrun.api.schemas.MarketplaceSource.generate_default_source()
@@ -288,9 +253,9 @@ def test_marketplace_default_source() -> None:
         assert yaml_function_name == function_modified_name
 
 
-def test_marketplace_catalog_apis(db: Session, client: TestClient) -> None:
-    _mock_k8s_secrets(K8sMock())
-
+def test_marketplace_catalog_apis(
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
+) -> None:
     # Get the global hub source-name
     sources = client.get("/api/marketplace/sources").json()
     source_name = sources[0]["source"]["metadata"]["name"]

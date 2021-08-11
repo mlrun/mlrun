@@ -726,6 +726,17 @@ def retry_until_successful(
     )
 
 
+def get_ui_url(project, uid=None):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = "{}/{}/{}/jobs".format(
+            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
+        )
+        if uid:
+            url += f"/monitor/{uid}/overview"
+    return url
+
+
 class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
@@ -744,10 +755,9 @@ class RunNotifications:
         )
         if commit_id:
             message += f", commit={commit_id}"
-        if mlrun.mlconf.resolve_ui_url():
-            url = "{}/{}/{}/jobs".format(
-                mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
-            )
+        url = get_ui_url(project)
+        html = ""
+        if url:
             html = (
                 message
                 + f'<div><a href="{url}" target="_blank">click here to check progress</a></div>'
@@ -844,12 +854,8 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs or []:
                 meta = r["metadata"]
-                if config.resolve_ui_url():
-                    url = (
-                        f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/"
-                        f"{meta.get('project')}/jobs/monitor/{meta.get('uid')}/overview"
-                    )
-
+                url = get_ui_url(meta.get("project"), meta.get("uid"))
+                if url:
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:
                     line = meta.get("name")

@@ -707,6 +707,48 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert expected.equals(resp.to_dataframe())
 
+    def test_filter_offline_multiple_featuresets(self):
+        data = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-06-09 09:30:06.008"),
+                    pd.Timestamp("2021-06-09 10:29:07.009"),
+                    pd.Timestamp("2021-06-09 09:29:08.010"),
+                ],
+                "data": [10, 20, 30],
+                "string": ["ab", "cd", "ef"],
+            }
+        )
+
+        data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+
+        data2 = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-07-09 09:30:06.008"),
+                    pd.Timestamp("2021-07-09 10:29:07.009"),
+                    pd.Timestamp("2021-07-09 09:29:08.010"),
+                ],
+                "data": [10, 20, 30],
+                "string": ["ab", "cd", "ef"],
+            }
+        )
+
+        data_set2 = fs.FeatureSet("fs2", entities=[Entity("string")])
+        fs.ingest(data_set2, data2, infer_options=fs.InferOptions.default())
+
+        features = ["fs2.data", "fs1.time_stamp"]
+
+        vector = fs.FeatureVector("vector", features)
+        resp = fs.get_offline_features(
+            vector,
+            entity_timestamp_column="time_stamp",
+            start_time=datetime(2021, 6, 9, 9, 30),
+            end_time=datetime(2021, 6, 9, 10, 30),
+        )
+        assert len(resp.to_dataframe()) == 2
+
     def test_unaggregated_columns(self):
         test_base_time = datetime(2020, 12, 1, 17, 33, 15)
 

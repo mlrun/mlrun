@@ -14,6 +14,7 @@ router = fastapi.APIRouter()
 
 
 @router.get("/runtimes", response_model=mlrun.api.schemas.RuntimeResourcesOutput)
+# TODO: remove when 0.6.6 is no longer relevant
 def list_runtimes(
     label_selector: str = None,
     auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
@@ -23,7 +24,6 @@ def list_runtimes(
     _list_runtime_resources("*", auth_verifier.auth_info, label_selector)
 
 
-# TODO: move everything to use this endpoint instead of list_runtimes and deprecate it
 @router.get(
     "/projects/{project}/runtime-resources",
     response_model=typing.Union[

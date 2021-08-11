@@ -600,8 +600,8 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             runtime = run_db.get_runtime(kind=name, label_selector=selector)
             print(dict_to_yaml(runtime))
             return
-        runtimes = run_db.list_runtimes(label_selector=selector)
-        print(dict_to_yaml(runtimes))
+        runtimes = run_db.list_runtime_resources(label_selector=selector)
+        print(dict_to_yaml(runtimes.dict()))
     elif kind.startswith("run"):
         run_db = get_run_db()
         if name:

@@ -680,18 +680,48 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", "funcs", error, params=params)
         return resp.json()["funcs"]
 
-    def list_runtimes(self, label_selector: str = None) -> List:
+    def list_runtime_resources(
+        self,
+        project: str = None,
+        label_selector: str = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
         """ List current runtime resources, which are usually (but not limited to) Kubernetes pods or CRDs.
-        Function applies for runs of type ``['dask', 'job', 'spark', 'mpijob']``, and will return per runtime
-        kind a list of the resources (which may have already completed their execution).
+        Function applies for runs of type ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``, and will return per
+        runtime kind a list of the runtime resources (which may have already completed their execution).
 
+        :param project: Get only runtime resources of a specific project, by default None, which will return only the
+        projects you're authorized to see.
         :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
             to their labels.
+        :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
-        params = {"label_selector": label_selector}
-        error = "list runtimes"
-        resp = self.api_call("GET", "runtimes", error, params=params)
-        return resp.json()
+        if isinstance(group_by, mlrun.api.schemas.ListRuntimeResourcesGroupByField):
+            group_by = group_by.value
+        params = {"label_selector": label_selector, "group-by": group_by}
+        project_path = project if project else "*"
+        error = "Failed listing runtime resources"
+        response = self.api_call(
+            "GET", f"/projects/{project_path}/runtime-resources", error, params=params
+        )
+        if group_by is None:
+            return mlrun.api.schemas.RuntimeResourcesOutput(**response.json())
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+            return mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput(
+                **response.json()
+            )
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            return mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput(
+                **response.json()
+            )
+        else:
+            raise NotImplementedError(
+                f"Provided group by field is not supported. group_by={group_by}"
+            )
 
     def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
         """ Return a list of runtime resources of a given kind, and potentially matching a specified label.

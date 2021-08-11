@@ -245,7 +245,8 @@ default_config = {
     },
     "storage": {
         # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
-        # Default is auto - which is v3io_credentials when running on Iguazio and pvc otherwise (MLRun kit)
+        # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
+        # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
         # Extra parameters to pass to the mount call (will be passed as kwargs). Parameters can be either:
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"

@@ -39,7 +39,11 @@ class SQLiteMigrationUtil(object):
         if not sqlite_file or not self._mysql_dsn_data:
             return None
 
-        logger.info("Creating SQLite to MySQL Converter", sqlite_file=sqlite_file, mysql_dsn_data=self._mysql_dsn_data)
+        logger.info(
+            "Creating SQLite to MySQL Converter",
+            sqlite_file=sqlite_file,
+            mysql_dsn_data=self._mysql_dsn_data,
+        )
 
         return sqlite3_to_mysql.SQLite3toMySQL(
             sqlite_file=sqlite_file,

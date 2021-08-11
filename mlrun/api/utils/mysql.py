@@ -13,7 +13,6 @@ class MySQLUtil(object):
     )
     check_tables = [
         "projects",
-
         # check functions as well just in case the previous version used a projects leader
         "functions",
     ]

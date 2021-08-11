@@ -96,11 +96,10 @@ class AlembicUtil(object):
         if db_file_path == ":memory:":
             return
 
-        if "sqlite" in mlconf.httpdb.dsn:
-            self._backup_revision_sqlite(db_file_path, current_version)
-
-        elif "mysql" in mlconf.httpdb.dsn:
+        if "mysql" in mlconf.httpdb.dsn:
             self._backup_revision_mysql(db_file_path, current_version)
+        else:
+            self._backup_revision_sqlite(db_file_path, current_version)
 
     @staticmethod
     def _backup_revision_sqlite(db_file_path: str, current_version: str):

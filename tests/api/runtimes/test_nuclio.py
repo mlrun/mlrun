@@ -165,9 +165,22 @@ class TestNuclioRuntime(TestRuntimeBase):
             diff_result.pop("dictionary_item_removed", None)
             assert diff_result == {}
 
-    def _assert_nuclio_v3io_mount(self, local_path, remote_path):
+    def _assert_nuclio_v3io_mount(self, local_path="", remote_path="", cred_only=False):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
+
+        env_config = deploy_spec["env"]
+        expected_env = {
+            "V3IO_ACCESS_KEY": self.v3io_access_key,
+            "V3IO_USERNAME": self.v3io_user,
+            "V3IO_API": None,
+            "MLRUN_NAMESPACE": self.namespace,
+        }
+        self._assert_pod_env(env_config, expected_env)
+        if cred_only:
+            assert len(deploy_spec["volumes"]) == 0
+            return
+
         container, path = split_path(remote_path)
 
         expected_volume = {
@@ -190,15 +203,6 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
             == {}
         )
-
-        env_config = deploy_spec["env"]
-        expected_env = {
-            "V3IO_ACCESS_KEY": self.v3io_access_key,
-            "V3IO_USERNAME": self.v3io_user,
-            "V3IO_API": None,
-            "MLRUN_NAMESPACE": self.namespace,
-        }
-        self._assert_pod_env(env_config, expected_env)
 
     def _assert_node_selections(
         self,

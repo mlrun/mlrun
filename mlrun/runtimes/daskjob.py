@@ -647,6 +647,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             raise NotImplementedError(
                 f"Provided group by field is not supported. group_by={group_by}"
             )
+        return True
 
     def _enrich_service_resources_in_response(
         self,

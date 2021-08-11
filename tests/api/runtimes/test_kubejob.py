@@ -188,7 +188,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         # value from the k8s secret, using the correct keys.
         expected_env_from_secrets = {}
         for key in secret_keys:
-            env_variable_name = SecretsStore._k8s_env_variable_name_for_secret(key)
+            env_variable_name = SecretsStore.k8s_env_variable_name_for_secret(key)
             expected_env_from_secrets[env_variable_name] = {project_secret_name: key}
 
         self._execute_run(runtime, runspec=task)

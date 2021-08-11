@@ -96,13 +96,18 @@ class SecretsStore:
             if not isinstance(source, list):
                 raise ValueError("k8s secrets must be of type list")
             for secret in source:
-                env_value = environ.get(self._k8s_env_variable_name_for_secret(secret))
+                env_value = environ.get(self.k8s_env_variable_name_for_secret(secret))
                 if env_value:
                     self._hidden_secrets[prefix + secret] = env_value
             self._hidden_sources.append({"kind": kind, "source": source})
 
     def get(self, key, default=None):
-        return self._secrets.get(key) or self._hidden_secrets.get(key) or default
+        return (
+            self._secrets.get(key)
+            or self._hidden_secrets.get(key)
+            or environ.get(self.k8s_env_variable_name_for_secret(key))
+            or default
+        )
 
     def items(self):
         res = self._secrets.copy()
@@ -130,14 +135,14 @@ class SecretsStore:
                 return source["source"].get("k8s_secret", None)
 
     @staticmethod
-    def _k8s_env_variable_name_for_secret(secret_name):
+    def k8s_env_variable_name_for_secret(secret_name):
         return config.secret_stores.kubernetes.env_variable_prefix + secret_name.upper()
 
     def get_k8s_secrets(self):
         for source in self._hidden_sources:
             if source["kind"] == "kubernetes":
                 return {
-                    secret: self._k8s_env_variable_name_for_secret(secret)
+                    secret: self.k8s_env_variable_name_for_secret(secret)
                     for secret in source["source"]
                 }
         return None

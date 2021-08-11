@@ -14,6 +14,7 @@
 
 import importlib.util as imputil
 import json
+import pathlib
 import socket
 import time
 import uuid
@@ -153,6 +154,7 @@ def run_local(
         if len(sp) > 1:
             args = args or []
             args = sp[1:] + args
+        name = name or pathlib.Path(command).stem
 
     meta = BaseMetadata(name, project=project, tag=tag)
     command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
@@ -160,15 +162,17 @@ def run_local(
     if runtime:
         handler = handler or get_in(runtime, "spec.default_handler", "")
         meta = BaseMetadata.from_dict(runtime["metadata"])
-        meta.name = name or meta.name
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
     fn = new_function(meta.name, command=command, args=args, mode=mode)
-    meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
+    if runtime:
+        # copy the code/base-spec to the local function (for the UI and code logging)
+        fn.spec.description = get_in(runtime, "spec.description")
+        fn.spec.build = get_in(runtime, "spec.build", {})
     return fn.run(
         task,
         name=name,
@@ -241,15 +245,26 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
         command = get_in(runtime, "spec.command", "")
         code = get_in(runtime, "spec.build.functionSourceCode")
+        origin_filename = get_in(runtime, "spec.build.origin_filename")
         kind = get_in(runtime, "kind", "")
         if kind in RuntimeKinds.nuclio_runtimes():
             code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
         if code:
-            fpath = mktemp(".py")
-            code = b64decode(code).decode("utf-8")
-            command = fpath
-            with open(fpath, "w") as fp:
-                fp.write(code)
+            if (
+                origin_filename
+                and origin_filename.endswith(".py")
+                and path.isfile(origin_filename)
+            ):
+                command = origin_filename
+            else:
+                suffix = ".py"
+                if origin_filename:
+                    suffix = f"-{pathlib.Path(origin_filename).stem}.py"
+                fpath = mktemp(suffix)
+                code = b64decode(code).decode("utf-8")
+                command = fpath
+                with open(fpath, "w") as fp:
+                    fp.write(code)
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):
@@ -777,6 +792,7 @@ def code_to_function(
             raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
+        r.spec.build.origin_filename = filename or (name + ".ipynb")
         if requirements:
             r.with_requirements(requirements)
         update_meta(r)
@@ -800,6 +816,7 @@ def code_to_function(
     r.spec.image = image or get_in(spec, "spec.image", "")
     build = r.spec.build
     build.code_origin = code_origin
+    build.origin_filename = filename or (name + ".ipynb")
     build.base_image = get_in(spec, "spec.build.baseImage")
     build.commands = get_in(spec, "spec.build.commands")
     build.extra = get_in(spec, "spec.build.extra")
@@ -919,6 +936,7 @@ def wait_for_pipeline_completion(
     expected_statuses: List[str] = None,
     namespace=None,
     remote=True,
+    project: str = None,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -928,6 +946,7 @@ def wait_for_pipeline_completion(
                                [ Succeeded ]
     :param namespace:  k8s namespace if not default
     :param remote:     read kfp data from mlrun service (default=True)
+    :param project:    the project of the pipeline
 
     :return: kfp run dict
     """
@@ -937,6 +956,7 @@ def wait_for_pipeline_completion(
     logger.debug(
         f"Waiting for run completion."
         f" run_id: {run_id},"
+        f" project: {project},"
         f" expected_statuses: {expected_statuses},"
         f" timeout: {timeout},"
         f" remote: {remote},"
@@ -947,7 +967,7 @@ def wait_for_pipeline_completion(
         mldb = get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
-            resp = mldb.get_pipeline(run_id, namespace=namespace)
+            resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             status = resp["run"]["status"]
             show_kfp_run(resp, clear_output=True)
             if status not in RunStatuses.stable_statuses():
@@ -1003,6 +1023,7 @@ def get_pipeline(
     format_: Union[
         str, mlrun.api.schemas.PipelinesFormat
     ] = mlrun.api.schemas.PipelinesFormat.summary,
+    project: str = None,
 ):
     """Get Pipeline status
 
@@ -1011,6 +1032,7 @@ def get_pipeline(
     :param format_:    Format of the results. Possible values are:
             - ``summary`` (default value) - Return summary of the object data.
             - ``full`` - Return full pipeline object.
+    :param project:    the project of the pipeline run
 
     :return: kfp run dict
     """
@@ -1024,7 +1046,9 @@ def get_pipeline(
                 ", please set the dbpath url"
             )
 
-        resp = mldb.get_pipeline(run_id, namespace=namespace, format_=format_)
+        resp = mldb.get_pipeline(
+            run_id, namespace=namespace, format_=format_, project=project
+        )
 
     else:
         client = Client(namespace=namespace)

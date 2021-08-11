@@ -621,42 +621,70 @@ async def test_schedule_crud_secrets_handling(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     scheduler._store_schedule_credentials_in_secrets = True
-    name = "schedule-name"
-    project = config.default_project
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
-    session = "some-user-session"
-    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
-    scheduler.create_schedule(
-        db,
-        mlrun.api.schemas.AuthInfo(session=session),
-        project,
-        name,
-        schemas.ScheduleKinds.job,
-        scheduled_object,
-        cron_trigger,
-    )
-    k8s_secrets_mock.assert_project_secrets(
-        project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
-    )
+    for schedule_name in ["valid-secret-key", "invalid/secret/key"]:
+        project = config.default_project
+        scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+            db, project
+        )
+        session = "some-user-session"
+        cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+        scheduler.create_schedule(
+            db,
+            mlrun.api.schemas.AuthInfo(session=session),
+            project,
+            schedule_name,
+            schemas.ScheduleKinds.job,
+            scheduled_object,
+            cron_trigger,
+        )
+        secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(
+            schedule_name
+        )
+        key_map_secret_key = (
+            mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+        )
+        secret_value = mlrun.api.crud.Secrets().get_secret(
+            project,
+            scheduler._secrets_provider,
+            secret_key,
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+            key_map_secret_key=key_map_secret_key,
+        )
+        assert secret_value == session
 
-    session = "new-session"
-    # update labels
-    scheduler.update_schedule(
-        db,
-        mlrun.api.schemas.AuthInfo(session=session),
-        project,
-        name,
-        labels={"label-key": "label-value"},
-    )
-    k8s_secrets_mock.assert_project_secrets(
-        project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
-    )
+        session = "new-session"
+        # update labels
+        scheduler.update_schedule(
+            db,
+            mlrun.api.schemas.AuthInfo(session=session),
+            project,
+            schedule_name,
+            labels={"label-key": "label-value"},
+        )
+        secret_value = mlrun.api.crud.Secrets().get_secret(
+            project,
+            scheduler._secrets_provider,
+            secret_key,
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+            key_map_secret_key=key_map_secret_key,
+        )
+        assert secret_value == session
 
-    # delete schedule
-    scheduler.delete_schedule(
-        db, project, name,
-    )
-    k8s_secrets_mock.assert_project_secrets(project, {})
+        # delete schedule
+        scheduler.delete_schedule(
+            db, project, schedule_name,
+        )
+        secret_value = mlrun.api.crud.Secrets().get_secret(
+            project,
+            scheduler._secrets_provider,
+            secret_key,
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+            key_map_secret_key=key_map_secret_key,
+        )
+        assert secret_value is None
 
 
 @pytest.mark.asyncio

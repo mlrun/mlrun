@@ -16,7 +16,7 @@ import asyncio
 import json
 import typing
 from datetime import datetime
-from os import environ, getenv
+from os import getenv
 from time import sleep
 
 import nuclio
@@ -37,7 +37,7 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
+from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -124,6 +124,7 @@ class NuclioSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        mount_applied=False,
     ):
 
         super().__init__(
@@ -145,6 +146,7 @@ class NuclioSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            mount_applied=mount_applied,
         )
 
         self.base_spec = base_spec or ""
@@ -350,11 +352,10 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_v3io(self, local="", remote=""):
-        for key in ["V3IO_FRAMESD", "V3IO_USERNAME", "V3IO_ACCESS_KEY", "V3IO_API"]:
-            if key in environ:
-                self.set_env(key, environ[key])
         if local and remote:
             self.apply(mount_v3io(remote=remote, mount_path=local))
+        else:
+            self.apply(v3io_cred())
         return self
 
     def with_http(
@@ -461,6 +462,8 @@ class RemoteRuntime(KubeResource):
 
         save_record = False
         if not dashboard:
+            # Attempt auto-mounting, before sending to remote build
+            self.try_auto_mount_based_on_config()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)

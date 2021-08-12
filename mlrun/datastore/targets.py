@@ -791,6 +791,10 @@ class NoSqlTarget(BaseStoreTarget):
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
+            if len(key_column) > 2:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Spark supports maximun of 2 keys and {key_column} are provided"
+                )
             spark_options["key"] = key_column[0]
             if len(key_column) > 1:
                 spark_options["sorting-key"] = key_column[1]

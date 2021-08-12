@@ -758,7 +758,6 @@ class RunNotifications:
 
     def push_start_message(self, project, commit_id=None, id=None):
         message = f"Pipeline started in project {project}"
-        html = None
         if id:
             message += f" id={id}"
         commit_id = (

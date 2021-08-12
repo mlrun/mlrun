@@ -929,7 +929,7 @@ def run_pipeline(
             )
 
         id = run_result.run_id
-    logger.info(f"Pipeline run id={id}, check UI or DB for progress")
+    logger.info(f"Pipeline run id={id}, check UI for progress")
     return id
 
 

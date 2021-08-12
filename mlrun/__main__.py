@@ -770,18 +770,18 @@ def project(
     if artifact_path and not ("://" in artifact_path or artifact_path.startswith("/")):
         artifact_path = path.abspath(artifact_path)
     if param:
-        proj.params = fill_params(param, proj.params)
+        proj.spec.params = fill_params(param, proj.spec.params)
     if git_repo:
-        proj.params["git_repo"] = git_repo
+        proj.spec.params["git_repo"] = git_repo
     if git_issue:
-        proj.params["git_issue"] = git_issue
+        proj.spec.params["git_issue"] = git_issue
     commit = (
-        proj.params.get("commit")
+        proj.get_param("commit_id")
         or environ.get("GITHUB_SHA")
         or environ.get("CI_COMMIT_SHA")
     )
     if commit:
-        proj.params["commit"] = commit
+        proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         proj._secrets = SecretsStore.from_list(secrets)
@@ -800,6 +800,15 @@ def project(
         print(f"running workflow {run} file: {workflow_path}")
         message = run = ""
         had_error = False
+        gitops = (
+            git_issue
+            or environ.get("GITHUB_EVENT_PATH")
+            or environ.get("CI_MERGE_REQUEST_IID")
+        )
+        if gitops:
+            proj.notifiers.git_comment(
+                git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
+            )
         try:
             run = proj.run(
                 run,
@@ -817,18 +826,8 @@ def project(
             print(message)
         print(f"run id: {run.run_id}")
 
-        gitops = (
-            git_issue
-            or environ.get("GITHUB_EVENT_PATH")
-            or environ.get("CI_MERGE_REQUEST_IID")
-        )
-        n = RunNotifications(with_slack=True, secrets=proj._secrets)
-        if gitops:
-            n.git_comment(git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN"))
-        if not had_error:
-            n.push_start_message(proj.name, commit, run.run_id)
-        else:
-            n.push(message)
+        if had_error:
+            proj.notifiers.push(message)
         if had_error:
             exit(1)
 

@@ -36,12 +36,7 @@ from ..datastore import store_manager
 from ..db import get_run_db
 from ..features import Feature
 from ..model import EntrypointParam, ModelObj
-from ..run import (
-    code_to_function,
-    get_object,
-    import_function,
-    new_function,
-)
+from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
@@ -1519,6 +1514,9 @@ class MlrunProject(ModelObj):
             namespace=namespace,
         )
         workflow_spec.clear_tmp()
+        self.notifiers.push_start_message(
+            self.metadata.name, self.get_param("commit_id", None), run.run_id
+        )
         if watch and workflow_engine.engine == "kfp":
             self.get_run_status(run)
         return run

@@ -15,6 +15,7 @@ from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
+import v3io
 
 import mlrun
 import mlrun.errors
@@ -31,6 +32,7 @@ from ..datastore.targets import (
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
+from ..platforms.iguazio import parse_v3io_path, split_path
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
@@ -451,7 +453,9 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    if isinstance(source, StreamSource) and (source.path is None or source.path == "None"):
+    if isinstance(source, StreamSource) and (
+        source.path is None or source.path == "None"
+    ):
         source.path = get_default_prefix_for_target(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,
@@ -477,22 +481,42 @@ def deploy_ingestion_service(
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
 
-    # todo: add trigger (from source object)
-
     function.spec.graph = featureset.spec.graph
     function.spec.parameters = run_config.parameters
     function.spec.graph_initializer = (
         "mlrun.feature_store.ingestion.featureset_initializer"
     )
     function.verbose = function.verbose or verbose
-    if isinstance(source, StreamSource):
-        print("adding stream trigger, source.path=" + str(source.path) + " source.name=" + str(source.name) + " source.group "+str(source.group))
-        function.add_v3io_stream_trigger(
-            source.path, source.name, source.group, source.seek_to, source.shards
-        )
+    add_source_trigger(source, function)
+
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
     return function.deploy()
+
+
+def add_source_trigger(source, function):
+    if isinstance(source, StreamSource):
+        print(
+            "adding stream trigger, source.path="
+            + str(source.path)
+            + " source.name="
+            + str(source.name)
+            + " source.group "
+            + str(source.group)
+        )
+        endpoint, stream_path = parse_v3io_path(source.path)
+        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
+        container, stream_path = split_path(stream_path)
+        response = v3io_client.create_stream(
+            container=container,
+            path=stream_path,
+            shard_count=source.shards,
+            retention_period_hours=source.retention_in_hours,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+        )
+        function.add_v3io_stream_trigger(
+            source.path, source.name, source.group, source.seek_to, source.shards
+        )
 
 
 def _ingest_with_spark(

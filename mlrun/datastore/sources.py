@@ -280,6 +280,7 @@ class OnlineSource(BaseSourceDriver):
         "group",
         "seek_to",
         "shards",
+        "retention_in_hours",
     ]
     kind = ""
 
@@ -316,13 +317,32 @@ class HttpSource(OnlineSource):
 
 
 class StreamSource(OnlineSource):
+    """
+       Sets stream source for the flow. If stream doesn't exist it will create it
+
+       :parameter name: stream name. Default "stream"
+       :parameter group: consumer group. Default "serving"
+       :parameter seek_to: from where to consume the stream. Default earliest
+       :parameter shards: number of shards in the stream. Default 1
+       :parameter retention_in_hours: if stream doesn't exist and it will be created set retention time. Default 24h
+    """
+
     kind = "v3ioStream"
 
-    def __init__(self, name="stream", group="serving", seek_to="earliest", shards=1, **kwargs):
+    def __init__(
+        self,
+        name="stream",
+        group="serving",
+        seek_to="earliest",
+        shards=1,
+        retention_in_hours=24,
+        **kwargs,
+    ):
         super().__init__(name, **kwargs)
         self.group = group
         self.seek_to = seek_to
         self.shards = shards
+        self.retention_in_hours = retention_in_hours
 
 
 # map of sources (exclude DF source which is not serializable)

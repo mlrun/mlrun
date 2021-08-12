@@ -513,7 +513,7 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
 
-        if len(featureset.spec.entities.keys() > 2):
+        if len(featureset.spec.entities.keys()) > 2:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Spark supports maximun of 2 keys and {len(featureset.spec.entities.keys())} are provided"
             )

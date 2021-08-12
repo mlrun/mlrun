@@ -19,6 +19,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
     def list_runtimes(
         self,
         project: str,
+        kind: str = None,
         label_selector: str = None,
         group_by: typing.Optional[
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
@@ -28,21 +29,33 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
-        runtimes = [] if group_by is None else {}
-        for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
+        response = [] if group_by is None else {}
+
+        def _add_resources_to_response(_kind, _resources):
+            if group_by is None:
+                response.append(
+                    mlrun.api.schemas.KindRuntimeResources(
+                        kind=_kind, resources=_resources
+                    )
+                )
+            else:
+                mergedeep.merge(response, _resources)
+
+        if kind is not None:
+            self.validate_runtime_resources_kind(kind)
             runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
             resources = runtime_handler.list_resources(
                 project, label_selector, group_by
             )
-            if group_by is None:
-                runtimes.append(
-                    mlrun.api.schemas.KindRuntimeResources(
-                        kind=kind, resources=resources
-                    )
+            _add_resources_to_response(kind, resources)
+        else:
+            for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
+                runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+                resources = runtime_handler.list_resources(
+                    project, label_selector, group_by
                 )
-            else:
-                mergedeep.merge(runtimes, resources)
-        return runtimes
+                _add_resources_to_response(kind, resources)
+        return response
 
     def filter_and_format_grouped_by_project_runtime_resources_output(
         self,
@@ -85,19 +98,11 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
                 mergedeep.merge(runtimes_resources_output, resources)
         return runtimes_resources_output
 
-    def get_runtime(
-        self,
-        kind: str,
-        label_selector: str = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-    ) -> mlrun.api.schemas.KindRuntimeResources:
+    def validate_runtime_resources_kind(self, kind: str):
         if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-            mlrun.api.api.utils.log_and_raise(
-                http.HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid runtime kind {kind}. Must be one of: {mlrun.runtimes.RuntimeKinds.runtime_with_handlers()}"
             )
-        runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-        resources = runtime_handler.list_resources("*", label_selector)
-        return mlrun.api.schemas.KindRuntimeResources(kind=kind, resources=resources)
 
     def delete_runtimes(
         self,

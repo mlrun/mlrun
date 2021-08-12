@@ -195,8 +195,25 @@ def test_list_runtime_resources_no_resources(
     body = response.json()
     assert body == {}
 
+    # with kind filter
+    response = client.get(
+        "/api/projects/*/runtime-resources",
+        params={"kind": mlrun.runtimes.RuntimeKinds.job},
+    )
+    body = response.json()
+    assert body == []
 
-def test_list_kind_runtime_resources(
+    # legacy endpoint
+    response = client.get(f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}")
+    body = response.json()
+    expected_body = mlrun.api.schemas.KindRuntimeResources(
+        kind=mlrun.runtimes.RuntimeKinds.job,
+        resources=mlrun.api.schemas.RuntimeResources(),
+    ).dict()
+    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+
+def test_list_runtime_resources_filter_by_kind(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     (
@@ -211,27 +228,27 @@ def test_list_kind_runtime_resources(
     ) = _generate_grouped_by_project_runtime_resources_output()
     filtered_kind = mlrun.runtimes.RuntimeKinds.job
 
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
-        return_value=grouped_by_project_runtime_resources_output
+    runtime_handler = mlrun.runtimes.get_runtime_handler(filtered_kind)
+    runtime_handler.list_resources = unittest.mock.Mock(
+        return_value=_filter_project_and_kinds_from_grouped_by_project_runtime_resources_output(
+            [
+                (project_1, filtered_kind),
+                (project_2, filtered_kind),
+                (project_3, filtered_kind),
+            ],
+            grouped_by_project_runtime_resources_output,
+            structured=True,
+        )
     )
-
-    def _mock_opa_filter_resources_by_permissions(
-        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
-        resources: typing.List,
-        *args,
-        **kwargs,
-    ):
-        for project, kind in resources:
-            assert kind == filtered_kind
-        # allow all
-        return resources
-
     mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
-        side_effect=_mock_opa_filter_resources_by_permissions
+        side_effect=lambda _, resources, *args, **kwargs: resources
     )
-    response = client.get(f"/api/projects/*/runtime-resources/{filtered_kind}",)
+    response = client.get(
+        f"/api/projects/*/runtime-resources",
+        params={"kind": mlrun.runtimes.RuntimeKinds.job},
+    )
     body = response.json()
-    expected_body = mlrun.api.schemas.KindRuntimeResources(
+    expected_runtime_resources = mlrun.api.schemas.KindRuntimeResources(
         kind=mlrun.runtimes.RuntimeKinds.job,
         resources=mlrun.api.schemas.RuntimeResources(
             crd_resources=[],
@@ -243,24 +260,13 @@ def test_list_kind_runtime_resources(
             ].pod_resources,
         ),
     ).dict()
+    expected_body = [expected_runtime_resources]
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
 
-
-def test_list_kind_runtime_resources_no_resources(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-) -> None:
-    filtered_kind = mlrun.runtimes.RuntimeKinds.job
-
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(return_value={})
-
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
-        return_value=[]
-    )
-    response = client.get(f"/api/projects/*/runtime-resources/{filtered_kind}",)
+    # test legacy endpoint
+    response = client.get(f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}")
     body = response.json()
-    expected_body = mlrun.api.schemas.KindRuntimeResources(
-        kind=filtered_kind, resources=mlrun.api.schemas.RuntimeResources()
-    ).dict()
+    expected_body = expected_runtime_resources
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
 
 
@@ -372,9 +378,23 @@ def _mock_opa_filter_and_assert_list_response(
         params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
     )
     body = response.json()
-    expected_body = {}
-    for project, kind in opa_filter_response:
-        expected_body.setdefault(project, {})[
-            kind
-        ] = grouped_by_project_runtime_resources_output[project][kind].dict()
+    expected_body = _filter_project_and_kinds_from_grouped_by_project_runtime_resources_output(
+        opa_filter_response, grouped_by_project_runtime_resources_output
+    )
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+
+def _filter_project_and_kinds_from_grouped_by_project_runtime_resources_output(
+    filter_project_kind_tuples: typing.List[typing.Tuple[str, str]],
+    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    structured=False,
+):
+    filtered_output = {}
+    for project, kind in filter_project_kind_tuples:
+        if kind in grouped_by_project_runtime_resources_output[project]:
+            filtered_output.setdefault(project, {})[kind] = (
+                grouped_by_project_runtime_resources_output[project][kind].dict()
+                if not structured
+                else grouped_by_project_runtime_resources_output[project][kind]
+            )
+    return filtered_output

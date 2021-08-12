@@ -356,7 +356,7 @@ class BaseStoreTarget(DataTargetBase):
                     df.to_csv(self._target_path, storage_options=storage_options)
                 else:
                     raise NotImplementedError(
-                        "Format for writing dask dataframe unrecognized!"
+                        "Format for writing dask dataframe should be CSV or Parquet!"
                     )
             except Exception as exc:
                 raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")

@@ -37,7 +37,9 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
                 "default_function_node_selector"
             ),
             igz_version=self._get_config_value_if_not_default("igz_version"),
-            auto_mount_type=self._get_config_value_if_not_default("storage.auto_mount_type"),
+            auto_mount_type=self._get_config_value_if_not_default(
+                "storage.auto_mount_type"
+            ),
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
             ),

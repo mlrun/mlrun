@@ -32,7 +32,6 @@ from ..artifacts import (
     ModelArtifact,
     dict_to_artifact,
 )
-from ..config import config
 from ..datastore import store_manager
 from ..db import get_run_db
 from ..features import Feature
@@ -1906,7 +1905,9 @@ def _init_function_from_dict(f, project):
                 "use function object for more control/settings"
             )
         if in_context and with_repo:
-            func = new_function(name, command=relative_url, image=image, kind=kind or "job")
+            func = new_function(
+                name, command=relative_url, image=image, kind=kind or "job"
+            )
             if handler:
                 func.spec.default_handler = handler
         else:

@@ -435,8 +435,8 @@ def _build_function(
                                 db_session=db_session,
                                 auth_info=auth_info,
                             )
-                except Exception as e:
-                    logger.exception(e)
+                except Exception as exc:
+                    logger.warning("Failed deploying model monitoring infrastructure for the project", project=fn.metadata.project, exc=exc, traceback=traceback.format_exc())
 
             deploy_nuclio_function(fn, auth_info=auth_info)
             # deploy only start the process, the get status API is used to check readiness

@@ -16,10 +16,10 @@ class RuntimeResource(pydantic.BaseModel):
 
 
 class RuntimeResources(pydantic.BaseModel):
-    crd_resources: typing.List[RuntimeResource]
-    pod_resources: typing.List[RuntimeResource]
+    crd_resources: typing.List[RuntimeResource] = []
+    pod_resources: typing.List[RuntimeResource] = []
     # only for dask runtime
-    service_resources: typing.Optional[typing.List[RuntimeResource]]
+    service_resources: typing.Optional[typing.List[RuntimeResource]] = None
 
     class Config:
         extra = pydantic.Extra.allow

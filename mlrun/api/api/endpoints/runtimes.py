@@ -15,7 +15,7 @@ router = fastapi.APIRouter()
 
 @router.get("/runtimes", response_model=mlrun.api.schemas.RuntimeResourcesOutput)
 # TODO: remove when 0.6.6 is no longer relevant
-def list_runtimes(
+def list_runtime_resources_legacy(
     label_selector: str = None,
     auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
         mlrun.api.api.deps.AuthVerifier
@@ -48,8 +48,34 @@ def list_runtime_resources(
 
 
 @router.get("/runtimes/{kind}", response_model=mlrun.api.schemas.KindRuntimeResources)
-def get_runtime(kind: str, label_selector: str = None):
-    return mlrun.api.crud.Runtimes().get_runtime(kind, label_selector)
+# TODO: remove when 0.6.6 is no longer relevant
+def get_runtime(
+    kind: str,
+    label_selector: str = None,
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
+):
+    return _list_kind_runtime_resources(
+        auth_verifier.auth_info, "*", kind, label_selector
+    )
+
+
+@router.get(
+    "/projects/{project}/runtime-resources/{kind}",
+    response_model=mlrun.api.schemas.KindRuntimeResources,
+)
+def list_kind_runtime_resources(
+    project: str,
+    kind: str,
+    label_selector: str = None,
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
+):
+    return _list_kind_runtime_resources(
+        auth_verifier.auth_info, project, kind, label_selector
+    )
 
 
 @router.delete("/runtimes", status_code=http.HTTPStatus.NO_CONTENT.value)
@@ -130,6 +156,7 @@ def _list_runtime_resources(
     group_by: typing.Optional[
         mlrun.api.schemas.ListRuntimeResourcesGroupByField
     ] = None,
+    kind_filter: str = None,
 ) -> typing.Union[
     mlrun.api.schemas.RuntimeResourcesOutput,
     mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -147,7 +174,8 @@ def _list_runtime_resources(
         kind_runtime_resources_map,
     ) in grouped_by_project_runtime_resources_output.items():
         for kind in kind_runtime_resources_map.keys():
-            project_and_kind_tuples.append((project, kind))
+            if not kind_filter or (kind_filter and kind_filter == kind):
+                project_and_kind_tuples.append((project, kind))
     allowed_project_and_kinds = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
         project_and_kind_tuples,
@@ -165,3 +193,20 @@ def _list_runtime_resources(
         allowed_project_to_kind_map,
         group_by,
     )
+
+
+def _list_kind_runtime_resources(
+    auth_info: mlrun.api.schemas.AuthInfo,
+    project: str,
+    kind: str,
+    label_selector: str = None,
+) -> mlrun.api.schemas.KindRuntimeResources:
+    runtime_resources_output = _list_runtime_resources(
+        project, auth_info, label_selector, kind_filter=kind
+    )
+    if runtime_resources_output:
+        return runtime_resources_output[0]
+    else:
+        return mlrun.api.schemas.KindRuntimeResources(
+            kind=kind, resources=mlrun.api.schemas.RuntimeResources()
+        )

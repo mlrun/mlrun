@@ -1,3 +1,4 @@
+import typing
 import unittest.mock
 
 import deepdiff
@@ -167,6 +168,99 @@ def test_list_runtimes_resources_no_group_by(
             ),
         ).dict(),
     ]
+    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+
+def test_list_runtime_resources_no_resources(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(return_value={})
+
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        return_value=[]
+    )
+    response = client.get("/api/projects/*/runtime-resources",)
+    body = response.json()
+    assert body == []
+    response = client.get(
+        "/api/projects/*/runtime-resources",
+        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job},
+    )
+    body = response.json()
+    assert body == {}
+    response = client.get(
+        "/api/projects/*/runtime-resources",
+        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
+    )
+    body = response.json()
+    assert body == {}
+
+
+def test_list_kind_runtime_resources(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    (
+        project_1,
+        project_2,
+        project_3,
+        project_1_job_name,
+        project_2_job_name,
+        project_2_dask_name,
+        project_3_mpijob_name,
+        grouped_by_project_runtime_resources_output,
+    ) = _generate_grouped_by_project_runtime_resources_output()
+    filtered_kind = mlrun.runtimes.RuntimeKinds.job
+
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+        return_value=grouped_by_project_runtime_resources_output
+    )
+
+    def _mock_opa_filter_resources_by_permissions(
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resources: typing.List,
+        *args,
+        **kwargs,
+    ):
+        for project, kind in resources:
+            assert kind == filtered_kind
+        # allow all
+        return resources
+
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        side_effect=_mock_opa_filter_resources_by_permissions
+    )
+    response = client.get(f"/api/projects/*/runtime-resources/{filtered_kind}",)
+    body = response.json()
+    expected_body = mlrun.api.schemas.KindRuntimeResources(
+        kind=mlrun.runtimes.RuntimeKinds.job,
+        resources=mlrun.api.schemas.RuntimeResources(
+            crd_resources=[],
+            pod_resources=grouped_by_project_runtime_resources_output[project_1][
+                mlrun.runtimes.RuntimeKinds.job
+            ].pod_resources
+            + grouped_by_project_runtime_resources_output[project_2][
+                mlrun.runtimes.RuntimeKinds.job
+            ].pod_resources,
+        ),
+    ).dict()
+    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+
+def test_list_kind_runtime_resources_no_resources(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    filtered_kind = mlrun.runtimes.RuntimeKinds.job
+
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(return_value={})
+
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        return_value=[]
+    )
+    response = client.get(f"/api/projects/*/runtime-resources/{filtered_kind}",)
+    body = response.json()
+    expected_body = mlrun.api.schemas.KindRuntimeResources(
+        kind=filtered_kind, resources=mlrun.api.schemas.RuntimeResources()
+    ).dict()
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
 
 

@@ -18,7 +18,7 @@ import tempfile
 import time
 from datetime import datetime
 from os import path, remove
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import kfp
 import requests
@@ -735,11 +735,13 @@ class HTTPRunDB(RunDBInterface):
                 f"Provided group by field is not supported. group_by={group_by}"
             )
 
-    def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
+    def list_kind_runtime_resources(
+        self, kind: str, project: str = None, label_selector: str = None
+    ) -> mlrun.api.schemas.KindRuntimeResources:
         """ Return a list of runtime resources of a given kind, and potentially matching a specified label.
         There may be multiple runtime resources returned from this function. This function is similar to the
         :py:func:`~list_runtimes` function, only it focuses on a specific ``kind``, rather than list all runtimes
-        of all kinds which generate runtime pods.
+        resources of all kinds.
 
         Example::
 
@@ -747,17 +749,20 @@ class HTTPRunDB(RunDBInterface):
             for pod in project_pods:
                 print(pod["name"])
 
-        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'mpijob']``
+        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param project: Get only runtime resources of a specific project, by default None, which will return only the
+        projects you're authorized to see.
         :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
             to their labels.
 
         """
 
         params = {"label_selector": label_selector}
-        path = f"runtimes/{kind}"
-        error = f"get runtime {kind}"
-        resp = self.api_call("GET", path, error, params=params)
-        return resp.json()
+        project_path = project if project else "*"
+        path = f"/projects/{project_path}/runtime-resources/{kind}"
+        error = f"Failed listing kind runtime resources: {kind}"
+        response = self.api_call("GET", path, error, params=params)
+        return mlrun.api.schemas.KindRuntimeResources(**response.json())
 
     def delete_runtimes(
         self,

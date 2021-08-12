@@ -499,7 +499,7 @@ def add_source_trigger(source, function):
         endpoint, stream_path = parse_v3io_path(source.path)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         container, stream_path = split_path(stream_path)
-        response = v3io_client.create_stream(
+        v3io_client.create_stream(
             container=container,
             path=stream_path,
             shard_count=source.shards,

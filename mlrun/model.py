@@ -74,7 +74,6 @@ class ModelObj:
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
-
         if struct:
             for key, val in struct.items():
                 if key in fields and key not in deprecated_fields:

@@ -598,8 +598,11 @@ def _get_project_secret(project_name: str, secret_key: str):
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-    secret_values = get_k8s_helper().get_project_secret_data(
-        project=project_name, namespace=config.namespace
-    )
+    secret_value = mlrun.api.crud.Secrets().get_secret(
+            project_name,
+            mlrun.api.schemas.SecretProviderName.kubernetes,
+            secret_key,
+            allow_secrets_from_k8s=True,
+        )
     secret_value = secret_values[secret_key]
     return secret_value

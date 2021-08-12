@@ -14,7 +14,6 @@
 import os
 import typing
 import uuid
-from copy import deepcopy
 from enum import Enum
 
 from kfp.dsl import ContainerOp, _container_op
@@ -403,10 +402,6 @@ class KubeResource(BaseRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
-
-    def copy(self):
-        fn = deepcopy(self)
-        return fn
 
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (

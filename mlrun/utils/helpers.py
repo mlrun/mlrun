@@ -92,7 +92,8 @@ try:
     import IPython
 
     ipy = IPython.get_ipython()
-    if ipy:
+    # if its IPython terminal ignore (cant show html)
+    if ipy and "Terminal" not in str(type(ipy)):
         is_ipython = True
 except ImportError:
     pass

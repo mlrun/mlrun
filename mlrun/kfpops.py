@@ -362,7 +362,9 @@ def mlrun_op(
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
-        file_outputs[output.replace(".", "_")] = f"/tmp/{output}"
+        file_outputs[
+            output.replace(".", "_")
+        ] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
     if project:
         cmd += ["--project", project]
     if handler:
@@ -669,7 +671,7 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
             record["run_type"] = templates[name].get("run_type")
         dag[node["id"]] = record
 
-    return dag, project, workflow["status"].get("message", None)
+    return dag, project, workflow["status"].get("message", "")
 
 
 def format_summary_from_kfp_run(kfp_run, project=None, session=None):

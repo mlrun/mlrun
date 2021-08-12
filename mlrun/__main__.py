@@ -41,7 +41,6 @@ from .run import get_object, import_function, import_function_to_dict, new_funct
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
-    RunNotifications,
     dict_to_yaml,
     get_in,
     list2dict,
@@ -832,7 +831,7 @@ def project(
             exit(1)
 
         if watch:
-            proj.get_run_status(run, notifiers=n)
+            proj.get_run_status(run)
 
     elif sync:
         print("saving project functions to db ..")

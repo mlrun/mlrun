@@ -1,4 +1,5 @@
 import pathlib
+import shutil
 import sys
 
 import pytest
@@ -63,6 +64,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_run_git(self):
         name = "pipe2"
+        shutil.rmtree(project_dir, ignore_errors=True)
         self._create_project(name)
 
         project2 = mlrun.load_project(
@@ -71,3 +73,13 @@ class TestFeatureStore(TestMLRunSystem):
         run = project2.run("main", artifact_path=f"v3io:///projects/{name}")
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+    def test_get_or_create(self):
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = mlrun.get_or_create_project("newproj73", project_dir)
+        project.spec.description = "mytest"
+        project.save()
+
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = mlrun.get_or_create_project("newproj73", project_dir)
+        assert project.spec.description == "mytest", "failed to get project"

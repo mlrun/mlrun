@@ -30,7 +30,7 @@ def kfpipeline(model_pkg_class=default_pkg_class):
     )
 
     # test the model using a library (hub://) function and the generated model
-    test = funcs["test"].as_step(
+    funcs["test"].as_step(
         name="test",
         params={"label_column": "label"},
         inputs={

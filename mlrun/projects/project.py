@@ -68,6 +68,7 @@ def new_project(
     user_project=False,
     remote=None,
     from_template=None,
+    secrets=None,
 ):
     """Create a new MLRun project
 
@@ -77,6 +78,7 @@ def new_project(
     :param user_project: add the current user name to the provided project name (making it unique per user)
     :param remote:       remote Git url
     :param from_template:     path to project YAML/zip file that will be used as from_template
+    :param secrets:      key:secret dict or SecretsStore used to download sources
 
     :returns: project object
     """
@@ -85,13 +87,13 @@ def new_project(
 
     if from_template:
         if from_template.endswith(".yaml"):
-            project = _load_project_file(from_template)
+            project = _load_project_file(from_template, name, secrets)
         elif from_template.startswith("git://"):
-            clone_git(from_template, context, True)
+            clone_git(from_template, context, secrets, clone=True)
             shutil.rmtree(path.join(context, ".git"))
             project = _load_project_dir(context, name)
         elif from_template.endswith(".zip"):
-            clone_zip(from_template, context)
+            clone_zip(from_template, context, secrets)
             project = _load_project_dir(context, name)
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
@@ -184,9 +186,9 @@ def load_project(
 
 
 def get_or_create_project(
+    name,
     context,
     url=None,
-    name=None,
     secrets=None,
     init_git=False,
     subpath="",

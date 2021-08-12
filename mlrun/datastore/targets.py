@@ -791,9 +791,8 @@ class NoSqlTarget(BaseStoreTarget):
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
-            if len(key_column) == 1:
-                spark_options["key"] = key_column[0]
-            else:
+            spark_options["key"] = key_column[0]
+            if len(key_column) > 1:
                 spark_options["sorting-key"] = key_column[1]
         else:
             spark_options["key"] = key_column

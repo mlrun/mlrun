@@ -21,7 +21,7 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore.sources import StreamSource
+from ..datastore.sources import HttpSource, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
@@ -495,6 +495,9 @@ def deploy_ingestion_service(
 
 
 def add_source_trigger(source, function):
+    if isinstance(source, HttpSource):
+        # Http source is added automatically when creating serving function
+        return
     if isinstance(source, StreamSource):
         endpoint, stream_path = parse_v3io_path(source.path)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint)
@@ -511,7 +514,7 @@ def add_source_trigger(source, function):
         )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Source type {type(source)} is not supported yet"
+            f"Source type {type(source)} is not supported with ingestion_service yet"
         )
 
 

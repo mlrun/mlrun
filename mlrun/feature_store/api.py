@@ -268,18 +268,16 @@ def ingest(
 
         if source.schedule:
             featureset.reload(update_spec=False)
-            max_datetime = datetime(date.max.year, date.max.month, date.max.day)
-            min_time = max_datetime
+            min_time = datetime.max
             for target in featureset.status.targets:
                 if target.last_written:
                     cur_last_written = datetime.fromisoformat(target.last_written)
                     if cur_last_written < min_time:
                         min_time = cur_last_written
-            if min_time != max_datetime:
+            if min_time != datetime.max:
                 source.start_time = min_time
                 time_zone = min_time.tzinfo
-                current_time = datetime.now()
-                source.end_time = current_time.replace(tzinfo=time_zone)
+                source.end_time = datetime.now(tz=time_zone)
 
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
         return_df = False

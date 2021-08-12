@@ -832,7 +832,8 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-    def test_schedule_on_filtered_by_time(self):
+    @pytest.mark.parametrize("partitioned", [True, False])
+    def test_schedule_on_filtered_by_time(self, partitioned):
         now = datetime.now() + timedelta(minutes=2)
         data = pd.DataFrame(
             {
@@ -863,21 +864,30 @@ class TestFeatureStore(TestMLRunSystem):
             entities=[fs.Entity("first_name")],
             timestamp_key="time",
         )
-        target_fs_1 = ParquetTarget(
-            name="tar1",
-            path="v3io:///bigdata/fs1/",
-            partitioned=True,
-            partition_cols=["time"],
-        )
-        target_fs_2 = ParquetTarget(
-            name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
-        )
+
+        if partitioned:
+            targets = [
+                NoSqlTarget(),
+                ParquetTarget(
+                    name="tar1",
+                    path="v3io:///bigdata/fs1/",
+                    partitioned=True,
+                    partition_cols=["time"],
+                ),
+            ]
+        else:
+            targets = [
+                ParquetTarget(
+                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                ),
+                NoSqlTarget(),
+            ]
 
         fs.ingest(
             feature_set,
             source,
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
-            targets=[target_fs_1, target_fs_2, NoSqlTarget()],
+            targets=targets,
         )
         sleep(60)
 
@@ -923,16 +933,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[3]["data"] == 10
         assert resp[4] is None
 
-        print(resp)
-
         svc.close()
 
         # check offline
-        resp = fs.get_offline_features(vec, target=target_fs_2)
-        assert len(resp.to_dataframe() == 4)
-        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
-
-        resp = fs.get_offline_features(vec, target=target_fs_1)
+        resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
 

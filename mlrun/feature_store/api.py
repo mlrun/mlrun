@@ -502,19 +502,20 @@ def add_source_trigger(source, function):
         endpoint, stream_path = parse_v3io_path(source.path)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         container, stream_path = split_path(stream_path)
-        v3io_client.create_stream(
+        res = v3io_client.create_stream(
             container=container,
             path=stream_path,
             shard_count=source.shards,
             retention_period_hours=source.retention_in_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
         )
+        res.raise_for_status([409, 204])
         function.add_v3io_stream_trigger(
             source.path, source.name, source.group, source.seek_to, source.shards
         )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Source type {type(source)} is not supported with ingestion_service yet"
+            f"Source type {type(source)} is not supported with ingestion service yet"
         )
 
 

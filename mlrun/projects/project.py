@@ -250,6 +250,7 @@ def get_or_create_project(
                 init_git=init_git,
                 user_project=user_project,
                 from_template=from_template,
+                secrets=secrets,
             )
         project.save()
         return project

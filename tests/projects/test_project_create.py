@@ -2,7 +2,9 @@ import os
 import pathlib
 import shutil
 import sys
+
 import pytest
+
 import mlrun
 from tests.conftest import out_path
 

@@ -346,10 +346,18 @@ class BaseStoreTarget(DataTargetBase):
             options.update(kwargs)
             df.write.mode("overwrite").save(**options)
         elif hasattr(df, "dask"):
+            dask_options = self.get_dask_options()
+            storage_options = self._get_store().get_storage_options()
+            df = df.repartition(partition_size="100MB")
             try:
-                storage_options = self._get_store().get_storage_options()
-                df = df.repartition(partition_size="100MB")
-                df.to_parquet(self._target_path, storage_options=storage_options)
+                if dask_options["format"] == "parquet":
+                    df.to_parquet(self._target_path, storage_options=storage_options)
+                elif dask_options["format"] == "csv":
+                    df.to_csv(self._target_path, storage_options=storage_options)
+                else:
+                    raise NotImplementedError(
+                        "Format for writing dask dataframe unrecognized!"
+                    )
             except Exception as exc:
                 raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
         else:
@@ -459,6 +467,9 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
         # options used in spark.read.load(**options)
+        raise NotImplementedError()
+
+    def get_dask_options(self):
         raise NotImplementedError()
 
 
@@ -637,6 +648,9 @@ class ParquetTarget(BaseStoreTarget):
             "format": "parquet",
         }
 
+    def get_dask_options(self):
+        return {"format": "parquet"}
+
     def as_df(
         self,
         columns=None,
@@ -799,6 +813,9 @@ class NoSqlTarget(BaseStoreTarget):
             "format": "io.iguaz.v3io.spark.sql.kv",
             "key": key_column,
         }
+
+    def get_dask_options(self):
+        return {"format": "csv"}
 
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()

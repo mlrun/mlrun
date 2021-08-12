@@ -49,7 +49,7 @@ def list_runtime_resources(
 
 @router.get("/runtimes/{kind}", response_model=mlrun.api.schemas.KindRuntimeResources)
 # TODO: remove when 0.6.6 is no longer relevant
-def get_runtime(
+def list_kind_runtime_resources_legacy(
     kind: str,
     label_selector: str = None,
     auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(

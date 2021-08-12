@@ -709,15 +709,27 @@ class HTTPRunDB(RunDBInterface):
             "GET", f"/projects/{project_path}/runtime-resources", error, params=params
         )
         if group_by is None:
-            return mlrun.api.schemas.RuntimeResourcesOutput(**response.json())
+            structured_list = [
+                mlrun.api.schemas.KindRuntimeResources(**kind_runtime_resources)
+                for kind_runtime_resources in response.json()
+            ]
+            return structured_list
         elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
-            return mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput(
-                **response.json()
-            )
+            structured_dict = {}
+            for project, job_runtime_resources_map in response.json().items():
+                for job_id, runtime_resources in job_runtime_resources_map.items():
+                    structured_dict.setdefault(project, {})[
+                        job_id
+                    ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
+            return structured_dict
         elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
-            return mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput(
-                **response.json()
-            )
+            structured_dict = {}
+            for project, kind_runtime_resources_map in response.json().items():
+                for kind, runtime_resources in kind_runtime_resources_map.items():
+                    structured_dict.setdefault(project, {})[
+                        kind
+                    ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
+            return structured_dict
         else:
             raise NotImplementedError(
                 f"Provided group by field is not supported. group_by={group_by}"

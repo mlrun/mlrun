@@ -547,7 +547,8 @@ def _create_model_monitoring_stream(project: str):
 
     # TODO: How should we configure sharding here?
     logger.info(
-        "Creating endpoint stream",
+        "Creating model endpoint stream for project",
+        project=project,
         stream_path=stream_path,
         container=container,
         endpoint=config.v3io_api,

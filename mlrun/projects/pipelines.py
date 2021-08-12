@@ -49,7 +49,7 @@ class _PipelineContext:
             )
         return False
 
-    def enrich_function(self, function):
+    def enrich_function(self, function) -> mlrun.runtimes.BaseRuntime:
         self.is_initialized(raise_exception=True)
         return self.functions._enrich(function)
 
@@ -124,7 +124,7 @@ class FunctionsDict:
     def _enrich(self, function):
         return enrich_function_object(self.project, function, self._decorator)
 
-    def load_or_set_function(self, key, default=None):
+    def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
             function = self.project.func(key)
         except Exception as e:
@@ -135,7 +135,7 @@ class FunctionsDict:
         self._functions[key] = self._enrich(function)
         return self._functions[key]
 
-    def get(self, key, default=None):
+    def get(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         return self.load_or_set_function(key, default)
 
     def __getitem__(self, key):
@@ -163,7 +163,7 @@ class FunctionsDict:
         del self._functions[key]
 
 
-def get_db_function(project, key):
+def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
     project_instance, name, tag, hash_key = parse_versioned_object_uri(
         key, project.metadata.name
     )
@@ -173,7 +173,7 @@ def get_db_function(project, key):
 
 def enrich_function_object(
     project, function, decorator=None
-) -> "mlrun.runtimes.BaseRuntime":
+) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
     f = function.copy()
@@ -245,8 +245,8 @@ class _PipelineRunner:
         secrets=None,
         artifact_path=None,
         namespace=None,
-    ):
-        return
+    ) -> _PipelineRunStatus:
+        return None
 
     @staticmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
@@ -283,7 +283,7 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-    ):
+    ) -> _PipelineRunStatus:
         workflow_file = workflow_spec.get_source_file(project.spec.context)
         functions = FunctionsDict(project)
         pipeline_context.set(project, functions, workflow_spec)

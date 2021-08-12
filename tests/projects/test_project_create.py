@@ -31,7 +31,7 @@ class TestNewProject:
         )
         assert project.spec.description == "test", "failed to load yaml template"
 
-        filepath = os.path.join(project_dir, "data_prep.py")
+        filepath = os.path.join(project_dir, "prep_data.py")
         assert os.path.isfile(filepath), "file not copied"
 
     @pytest.mark.skipif(os.name == "nt", reason="Does not work on Windows")
@@ -44,5 +44,5 @@ class TestNewProject:
         )
         assert project.spec.description == "test", "failed to load yaml template"
 
-        filepath = os.path.join(project_dir, "data_prep.py")
+        filepath = os.path.join(project_dir, "prep_data.py")
         assert os.path.isfile(filepath), "file not copied"

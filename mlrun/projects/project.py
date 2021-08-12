@@ -41,7 +41,13 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import FunctionsDict, WorkflowSpec, get_db_function, get_workflow_engine
+from .pipelines import (
+    FunctionsDict,
+    WorkflowSpec,
+    _PipelineRunStatus,
+    get_db_function,
+    get_workflow_engine,
+)
 
 
 class ProjectError(Exception):
@@ -69,7 +75,7 @@ def new_project(
     remote=None,
     from_template=None,
     secrets=None,
-):
+) -> "MlrunProject":
     """Create a new MLRun project
 
     :param name:         project name
@@ -122,7 +128,7 @@ def load_project(
     subpath="",
     clone=False,
     user_project=False,
-):
+) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
     example::
@@ -195,7 +201,7 @@ def get_or_create_project(
     clone=False,
     user_project=False,
     from_template=None,
-):
+) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
     example::
@@ -728,7 +734,7 @@ class MlrunProject(ModelObj):
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source
 
-    def get_artifact_uri(self, key, category="artifact"):
+    def get_artifact_uri(self, key, category="artifact") -> str:
         """return the project artifact uri (store://..) from the artifact key
 
         :param key:  artifact key/name
@@ -1163,7 +1169,7 @@ class MlrunProject(ModelObj):
         )
         return item
 
-    def reload(self, sync=False, context=None):
+    def reload(self, sync=False, context=None) -> "MlrunProject":
         """reload the project and function objects from the project yaml/specs
 
         :param sync:    set to True to load functions objects
@@ -1259,7 +1265,7 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def func(self, key, sync=False) -> "mlrun.runtimes.BaseRuntime":
+    def func(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param sync:  will reload/reinit the function
@@ -1276,7 +1282,7 @@ class MlrunProject(ModelObj):
             self.spec._function_objects[key] = function
         return function
 
-    def get_function_objects(self):
+    def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
         """"get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
@@ -1455,7 +1461,7 @@ class MlrunProject(ModelObj):
         dirty=False,
         ttl=None,
         engine=None,
-    ):
+    ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
         :param name:      name of the workflow

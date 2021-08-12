@@ -290,6 +290,19 @@ def get_item_name(item, attr="name"):
 
 def apply_kfp(modify, cop, runtime):
     modify(cop)
+
+    # Have to do it here to avoid circular dependencies
+    from .pod import AutoMountType
+
+    # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is
+    # a nested function returned from the modifier function (such as 'v3io_cred.<locals>._use_v3io_cred')
+    modifier_name = modify.__qualname__
+    if any(
+        modifier_name.startswith(mount_modifier)
+        for mount_modifier in AutoMountType.all_mount_modifiers()
+    ):
+        runtime.spec.mount_applied = True
+
     api = client.ApiClient()
     for k, v in cop.pod_labels.items():
         runtime.metadata.labels[k] = v

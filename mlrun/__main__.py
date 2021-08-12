@@ -815,7 +815,7 @@ def project(
             message = f"failed to run pipeline, {exc}"
             had_error = True
             print(message)
-        print(f"run id: {run}")
+        print(f"run id: {run.run_id}")
 
         gitops = (
             git_issue
@@ -826,7 +826,7 @@ def project(
         if gitops:
             n.git_comment(git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN"))
         if not had_error:
-            n.push_start_message(proj.name, commit, run)
+            n.push_start_message(proj.name, commit, run.run_id)
         else:
             n.push(message)
         if had_error:

@@ -41,7 +41,6 @@ from ..run import (
     get_object,
     import_function,
     new_function,
-    wait_for_pipeline_completion,
 )
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
@@ -92,6 +91,10 @@ def new_project(
     if from_template:
         if from_template.endswith(".yaml"):
             project = _load_project_file(from_template)
+        elif from_template.startswith("git://"):
+            clone_git(from_template, context, True)
+            shutil.rmtree(path.join(context, ".git"))
+            project = _load_project_dir(context, name)
         elif from_template.endswith(".zip"):
             clone_zip(from_template, context)
             project = _load_project_dir(context, name)
@@ -1517,8 +1520,7 @@ class MlrunProject(ModelObj):
         )
         workflow_spec.clear_tmp()
         if watch and workflow_engine.engine == "kfp":
-            # todo: change to use generic engine.wait_for_completion()
-            self.get_run_status(run.run_id)
+            self.get_run_status(run)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -1541,31 +1543,26 @@ class MlrunProject(ModelObj):
 
     def get_run_status(
         self,
-        workflow_id,
+        run,
         timeout=60 * 60,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        status = ""
+        state = ""
         raise_error = None
         try:
             if timeout:
                 logger.info("waiting for pipeline run completion")
-                run_info = wait_for_pipeline_completion(
-                    workflow_id,
-                    timeout=timeout,
-                    expected_statuses=expected_statuses,
-                    project=self.metadata.name,
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
                 )
-                if run_info:
-                    status = run_info["run"].get("status")
         except RuntimeError as exc:
             # push runs table also when we have errors
             raise_error = exc
 
         mldb = get_run_db(secrets=self._secrets)
         runs = mldb.list_runs(
-            project=self.metadata.name, labels=f"workflow={workflow_id}"
+            project=self.metadata.name, labels=f"workflow={run.run_id}"
         )
 
         had_errors = 0
@@ -1573,18 +1570,18 @@ class MlrunProject(ModelObj):
             if r["status"].get("state", "") == "error":
                 had_errors += 1
 
-        text = f"Workflow {workflow_id} finished"
+        text = f"Workflow {run.run_id} finished"
         if had_errors:
             text += f" with {had_errors} errors"
-        if status:
-            text += f", status={status}"
+        if state:
+            text += f", state={state}"
 
         notifiers = notifiers or self._notifiers
         notifiers.push(text, runs)
 
         if raise_error:
             raise raise_error
-        return status, had_errors, text
+        return state, had_errors, text
 
     def clear_context(self):
         """delete all files and clear the context dir"""

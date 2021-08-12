@@ -196,19 +196,27 @@ def enrich_function_object(
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(self, run_id, engine, project, workflow=None):
+    def __init__(self, run_id, engine, project, workflow=None, state=""):
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
         self._engine = engine
+        self._state = state
 
-    def wait_for_completion(self, run_id, timeout=None, expected_statuses=None):
-        return self._engine.wait_for_completion(
-            run_id,
+    @property
+    def state(self):
+        if self._state not in mlrun.run.RunStatuses.stable_statuses():
+            self._status = self._engine.get_state(self.run_id, self.project)
+        return self._status
+
+    def wait_for_completion(self, timeout=None, expected_statuses=None):
+        self._state = self._engine.wait_for_completion(
+            self.run_id,
             project=self.project,
             timeout=timeout,
             expected_statuses=expected_statuses,
         )
+        return self._state
 
     def __str__(self):
         return str(self.run_id)
@@ -242,6 +250,9 @@ class _PipelineRunner:
 
     @staticmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+        return ""
+
+    def get_state(self, run_id, project=None):
         return ""
 
 
@@ -303,6 +314,13 @@ class _KFPRunner(_PipelineRunner):
         if run_info:
             status = run_info["run"].get("status")
         return status
+
+    def get_state(self, run_id, project=None):
+        project_name = project.metadata.name if project else ""
+        resp = mlrun.run.get_pipeline(run_id, project=project_name)
+        if resp:
+            return resp["run"].get("status", "")
+        return ""
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

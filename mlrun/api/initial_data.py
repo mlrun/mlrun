@@ -15,8 +15,8 @@ from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.utils import logger
 
-from .utils.alembic import AlembicUtil
-from .utils.sqlite_migration import SQLiteMigrationUtil
+from .utils.db.alembic import AlembicUtil
+from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
 
 def init_data(from_scratch: bool = False) -> None:

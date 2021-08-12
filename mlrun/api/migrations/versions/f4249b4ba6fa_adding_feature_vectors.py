@@ -8,7 +8,7 @@ Create Date: 2020-11-24 14:43:08.789873
 import sqlalchemy as sa
 from alembic import op
 
-from mlrun.api.utils.sql_collation import SQLCollationUtil
+from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 # revision identifiers, used by Alembic.
 revision = "f4249b4ba6fa"

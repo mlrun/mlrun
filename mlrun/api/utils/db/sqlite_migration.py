@@ -11,7 +11,7 @@ from .mysql import MySQLUtil
 class SQLiteMigrationUtil(object):
     def __init__(self):
         self._mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
-        self._converter = self._create_converter()
+        self._migrator = self._create_migrator()
         self._mysql_util = None
         if self._mysql_dsn_data:
             self._mysql_util = MySQLUtil()
@@ -19,7 +19,7 @@ class SQLiteMigrationUtil(object):
     def transfer(self):
 
         # if some data is missing, don't transfer the data
-        if not self._converter:
+        if not self._migrator:
             return
 
         db_has_data = False
@@ -32,9 +32,9 @@ class SQLiteMigrationUtil(object):
         if db_has_data:
             return
 
-        self._converter.transfer()
+        self._migrator.transfer()
 
-    def _create_converter(self) -> typing.Optional[sqlite3_to_mysql.SQLite3toMySQL]:
+    def _create_migrator(self) -> typing.Optional[sqlite3_to_mysql.SQLite3toMySQL]:
         sqlite_file = self._get_old_db_file_path()
         if not sqlite_file or not self._mysql_dsn_data:
             return None

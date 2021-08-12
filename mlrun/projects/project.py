@@ -159,11 +159,7 @@ def load_project(
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
         elif url.startswith("git://"):
-            remote, repo = clone_git(url, context, secrets, clone)
-            if not remote:
-                # if no remote for the repo set the url as remote
-                project.create_remote(url)
-            url = remote
+            url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets)
         elif url.endswith(".zip"):
@@ -411,7 +407,7 @@ class ProjectSpec(ModelObj):
         self.tag = ""
         self.params = params or {}
         self.conda = conda or {}
-        self.artifact_path = artifact_path or config.artifact_path
+        self.artifact_path = artifact_path
         self._artifacts = {}
         self.artifacts = artifacts or []
 
@@ -1650,7 +1646,7 @@ class MlrunProjectLegacy(ModelObj):
         self.conda = conda or {}
         self._mountdir = None
         self._artifact_mngr = None
-        self.artifact_path = artifact_path or config.artifact_path
+        self.artifact_path = artifact_path
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -1885,6 +1881,7 @@ def _init_function_from_dict(f, project):
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
 
+    relative_url = url
     if url and "://" not in url:
         if project.spec.context and not url.startswith("/"):
             url = path.join(project.spec.context, url)
@@ -1909,7 +1906,7 @@ def _init_function_from_dict(f, project):
                 "use function object for more control/settings"
             )
         if in_context and with_repo:
-            func = new_function(name, command=url, image=image, kind=kind or "job")
+            func = new_function(name, command=relative_url, image=image, kind=kind or "job")
             if handler:
                 func.spec.default_handler = handler
         else:

@@ -113,8 +113,10 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
-    def _get_offline_vector(self, features, features_size):
+    def _get_offline_vector(self, features, features_size, with_indexes=None):
         vector = fs.FeatureVector("myvector", features, "stock-quotes.xx")
+        vector.spec.with_indexes = with_indexes
+
         resp = fs.get_offline_features(
             vector, entity_rows=trades, entity_timestamp_column="time",
         )
@@ -192,6 +194,8 @@ class TestFeatureStore(TestMLRunSystem):
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
         self._get_offline_vector(features, features_size)
+
+        self._get_offline_vector(features, features_size, with_indexes=True)
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)

@@ -15,6 +15,7 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
+from .client_spec import ClientSpec
 from .constants import (
     DeletionStrategy,
     FeatureStorePartitionByField,

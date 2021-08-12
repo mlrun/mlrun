@@ -513,7 +513,7 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
 
-        key_column = featureset.spec.entities[0].name
+        key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
         if not targets:
             if not featureset.spec.targets:
@@ -530,7 +530,7 @@ def _ingest_with_spark(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Paths for spark ingest must contain schema, i.e v3io, s3, az"
                 )
-            spark_options = target.get_spark_options(key_column, timestamp_key)
+            spark_options = target.get_spark_options(key_columns, timestamp_key)
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )

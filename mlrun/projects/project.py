@@ -226,7 +226,7 @@ def get_or_create_project(
     """
 
     try:
-        return load_project(
+        project = load_project(
             context,
             name,
             name,
@@ -236,6 +236,8 @@ def get_or_create_project(
             clone=clone,
             user_project=user_project,
         )
+        logger.info(f"loaded project {name} from MLRun DB")
+        return project
 
     except mlrun.errors.MLRunNotFoundError:
         if url:
@@ -249,6 +251,7 @@ def get_or_create_project(
                 clone=clone,
                 user_project=user_project,
             )
+            logger.info(f"loaded project {name} from {url} or context")
         else:
             project = new_project(
                 name,
@@ -258,6 +261,7 @@ def get_or_create_project(
                 from_template=from_template,
                 secrets=secrets,
             )
+            logger.info(f"created and saved project {name}")
         project.save()
         return project
 

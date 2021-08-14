@@ -28,10 +28,11 @@ workflow execute the registered functions in a sequence/graph (DAG), can referen
 Projects can also be loaded and workflows/pipelines can be executed using the CLI (using `mlrun project` command)
 
 - [Creating a new project](#creating-a-new-project)
-- [Setting up Git Remote Repository](#setting-up-git-remote-repository)
-- [Loading existing projects](#loading-existing-projects)
-- [Updating the project and code](#updating-the-project-and-code)
-
+- [Load & Run projects from context, git or archive](#setting-up-git-remote-repository)
+- [Get from DB or create (get_or_create_project)](#get-from-db-or-create-get-or-create-project)
+- [Working with Git](#working-with-git)
+- [Updating and using project functions](#updating-and-using-project-functions)
+- [Using workflows for project automation and CI/CD](#using-workflows-for-project-automation-and-ci-cd)
 
 ## Creating a new project
 

@@ -60,7 +60,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
     def filter_and_format_grouped_by_project_runtime_resources_output(
         self,
         grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
-        allowed_project_to_kind_map: typing.Dict[str, typing.List],
+        allowed_projects: typing.List[str],
         group_by: typing.Optional[
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -75,10 +75,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
             kind_runtime_resources_map,
         ) in grouped_by_project_runtime_resources_output.items():
             for kind, runtime_resources in kind_runtime_resources_map.items():
-                if (
-                    project in allowed_project_to_kind_map
-                    and kind in allowed_project_to_kind_map[project]
-                ):
+                if project in allowed_projects:
                     runtime_resources_by_kind.setdefault(kind, []).append(
                         runtime_resources
                     )

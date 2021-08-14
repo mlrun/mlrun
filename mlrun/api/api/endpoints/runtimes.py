@@ -154,31 +154,24 @@ def _list_runtime_resources(
 ]:
     (
         _,
-        allowed_project_and_kinds,
+        allowed_projects,
         grouped_by_project_runtime_resources_output,
-    ) = _get_runtime_resources_allowed_project_and_kinds(
+    ) = _get_runtime_resources_allowed_projects(
         project, auth_info, label_selector, kind_filter
     )
-    allowed_project_to_kind_map = {}
-    for project, kind in allowed_project_and_kinds:
-        allowed_project_to_kind_map.setdefault(project, []).append(kind)
     return mlrun.api.crud.Runtimes().filter_and_format_grouped_by_project_runtime_resources_output(
-        grouped_by_project_runtime_resources_output,
-        allowed_project_to_kind_map,
-        group_by,
+        grouped_by_project_runtime_resources_output, allowed_projects, group_by,
     )
 
 
-def _get_runtime_resources_allowed_project_and_kinds(
+def _get_runtime_resources_allowed_projects(
     project: str,
     auth_info: mlrun.api.schemas.AuthInfo,
     label_selector: str = None,
     kind: str = None,
     action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
 ) -> typing.Tuple[
-    bool,
-    typing.List[typing.Tuple[str, str]],
-    mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    bool, typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
 ]:
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
     grouped_by_project_runtime_resources_output = mlrun.api.crud.Runtimes().list_runtimes(
@@ -187,32 +180,25 @@ def _get_runtime_resources_allowed_project_and_kinds(
         label_selector,
         mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
     )
-    project_and_kind_tuples = []
+    projects = []
     for (
         project,
         kind_runtime_resources_map,
     ) in grouped_by_project_runtime_resources_output.items():
-        for kind in kind_runtime_resources_map.keys():
-            project_and_kind_tuples.append((project, kind))
-    allowed_project_and_kinds = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+        projects.append(project)
+    allowed_projects = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
-        project_and_kind_tuples,
-        lambda project_and_kind_tuple: (
-            project_and_kind_tuple[0],
-            project_and_kind_tuple[1],
-        ),
+        projects,
+        lambda project: (project, "",),
         auth_info,
         action=action,
     )
     are_all_allowed = (
-        deepdiff.DeepDiff(
-            allowed_project_and_kinds, project_and_kind_tuples, ignore_order=True,
-        )
-        == {}
+        deepdiff.DeepDiff(allowed_projects, projects, ignore_order=True,) == {}
     )
     return (
         are_all_allowed,
-        allowed_project_and_kinds,
+        allowed_projects,
         grouped_by_project_runtime_resources_output,
     )
 

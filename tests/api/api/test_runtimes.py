@@ -29,27 +29,15 @@ def test_list_runtimes_resources_opa_filtering(
         return_value=grouped_by_project_runtime_resources_output
     )
     _mock_opa_filter_and_assert_list_response(
-        client,
-        grouped_by_project_runtime_resources_output,
-        [
-            (project_1, mlrun.runtimes.RuntimeKinds.job),
-            (project_2, mlrun.runtimes.RuntimeKinds.dask),
-        ],
+        client, grouped_by_project_runtime_resources_output, [project_1, project_2]
     )
 
     _mock_opa_filter_and_assert_list_response(
-        client,
-        grouped_by_project_runtime_resources_output,
-        [(project_3, mlrun.runtimes.RuntimeKinds.mpijob)],
+        client, grouped_by_project_runtime_resources_output, [project_3],
     )
 
     _mock_opa_filter_and_assert_list_response(
-        client,
-        grouped_by_project_runtime_resources_output,
-        [
-            (project_2, mlrun.runtimes.RuntimeKinds.job),
-            (project_2, mlrun.runtimes.RuntimeKinds.dask),
-        ],
+        client, grouped_by_project_runtime_resources_output, [project_2],
     )
 
 
@@ -72,12 +60,7 @@ def test_list_runtimes_resources_group_by_job(
     )
     # allow all
     mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
-        return_value=[
-            (project_1, mlrun.runtimes.RuntimeKinds.job),
-            (project_2, mlrun.runtimes.RuntimeKinds.job),
-            (project_2, mlrun.runtimes.RuntimeKinds.dask),
-            (project_3, mlrun.runtimes.RuntimeKinds.mpijob),
-        ]
+        side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
         "/api/projects/*/runtime-resources",
@@ -124,12 +107,7 @@ def test_list_runtimes_resources_no_group_by(
     )
     # allow all
     mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
-        return_value=[
-            (project_1, mlrun.runtimes.RuntimeKinds.job),
-            (project_2, mlrun.runtimes.RuntimeKinds.job),
-            (project_2, mlrun.runtimes.RuntimeKinds.dask),
-            (project_3, mlrun.runtimes.RuntimeKinds.mpijob),
-        ]
+        side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get("/api/projects/*/runtime-resources",)
     body = response.json()
@@ -230,14 +208,9 @@ def test_list_runtime_resources_filter_by_kind(
 
     runtime_handler = mlrun.runtimes.get_runtime_handler(filtered_kind)
     runtime_handler.list_resources = unittest.mock.Mock(
-        return_value=_filter_project_and_kinds_from_grouped_by_project_runtime_resources_output(
-            [
-                (project_1, filtered_kind),
-                (project_2, filtered_kind),
-                (project_3, filtered_kind),
-            ],
+        return_value=_filter_kind_from_grouped_by_project_runtime_resources_output(
+            mlrun.runtimes.RuntimeKinds.job,
             grouped_by_project_runtime_resources_output,
-            structured=True,
         )
     )
     mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
@@ -378,23 +351,38 @@ def _mock_opa_filter_and_assert_list_response(
         params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
     )
     body = response.json()
-    expected_body = _filter_project_and_kinds_from_grouped_by_project_runtime_resources_output(
+    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
         opa_filter_response, grouped_by_project_runtime_resources_output
     )
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
 
 
-def _filter_project_and_kinds_from_grouped_by_project_runtime_resources_output(
-    filter_project_kind_tuples: typing.List[typing.Tuple[str, str]],
+def _filter_kind_from_grouped_by_project_runtime_resources_output(
+    filter_kind: str,
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
-    structured=False,
 ):
     filtered_output = {}
-    for project, kind in filter_project_kind_tuples:
-        if kind in grouped_by_project_runtime_resources_output[project]:
-            filtered_output.setdefault(project, {})[kind] = (
-                grouped_by_project_runtime_resources_output[project][kind].dict()
-                if not structured
-                else grouped_by_project_runtime_resources_output[project][kind]
-            )
+    for (
+        project,
+        kind_runtime_resources_map,
+    ) in grouped_by_project_runtime_resources_output.items():
+        for kind, runtime_resources in kind_runtime_resources_map.items():
+            if kind == filter_kind:
+                filtered_output.setdefault(project, {})[
+                    kind
+                ] = grouped_by_project_runtime_resources_output[project][kind]
+    return filtered_output
+
+
+def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+    allowed_projects: typing.List[str],
+    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+):
+    filtered_output = {}
+    for project in allowed_projects:
+        filtered_output[project] = {}
+        for kind, kind_runtime_resources in grouped_by_project_runtime_resources_output[
+            project
+        ].items():
+            filtered_output[project][kind] = kind_runtime_resources.dict()
     return filtered_output

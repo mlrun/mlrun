@@ -711,7 +711,7 @@ def logs(uid, project, offset, db, watch):
     "-a",
     default="",
     multiple=True,
-    help="Kubeflow pipeline arguments name and value tuples, e.g. -a x=6",
+    help="Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6",
 )
 @click.option("--artifact-path", "-p", help="output artifacts path")
 @click.option(
@@ -728,13 +728,15 @@ def logs(uid, project, offset, db, watch):
 @click.option("--db", help="api and db service path/url")
 @click.option("--init-git", is_flag=True, help="for new projects init git context")
 @click.option(
-    "--clone", "-c", is_flag=True, help="force override/clone the context dir"
+    "--clone", "-c", is_flag=True, help="force override/clone into the context dir"
 )
 @click.option("--sync", is_flag=True, help="sync functions into db")
 @click.option(
     "--watch", "-w", is_flag=True, help="wait for pipeline completion (with -r flag)"
 )
-@click.option("--dirty", "-d", is_flag=True, help="allow git with uncommitted changes")
+@click.option(
+    "--dirty", "-d", is_flag=True, help="allow run with uncommitted git changes"
+)
 @click.option("--git-repo", help="git repo (org/repo) for git comments")
 @click.option(
     "--git-issue", type=int, default=None, help="git issue number for git comments"

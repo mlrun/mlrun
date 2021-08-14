@@ -75,8 +75,32 @@ def new_project(
     remote=None,
     from_template=None,
     secrets=None,
+    description=None,
 ) -> "MlrunProject":
-    """Create a new MLRun project
+    """Create a new MLRun project, optionally load it from a yaml/zip/git template
+
+    example::
+
+        # create a project with local and marketplace functions, a workflow, and an artifact
+        project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
+        project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
+        project.set_function('hub://sklearn_classifier', 'train')
+        project.set_artifact('data', Artifact(target_path=data_url))
+        project.set_workflow('main', "./myflow.py")
+        project.save()
+
+        # run the "main" workflow (watch=True to wait for run completion)
+        project.run("main", watch=True)
+
+    example (load from template)::
+
+        # create a new project from a zip template (can also use yaml/git templates)
+        # initialize a local git, and register the git remote path
+        project = mlrun.new_project("myproj", "./", init_git=True,
+                                    remote="git://github.com/mlrun/project-demo.git",
+                                    from_template="http://mysite/proj.zip")
+        project.run("main", watch=True)
+
 
     :param name:         project name
     :param context:      project local directory path
@@ -85,6 +109,7 @@ def new_project(
     :param remote:       remote Git url
     :param from_template:     path to project YAML/zip file that will be used as from_template
     :param secrets:      key:secret dict or SecretsStore used to download sources
+    :param description:  text describing the project
 
     :returns: project object
     """
@@ -115,6 +140,8 @@ def new_project(
     elif url:
         project.spec._source = url
         project.spec.origin_url = url
+    if description:
+        project.spec.description = description
     mlrun.mlconf.default_project = project.metadata.name
     return project
 
@@ -133,8 +160,8 @@ def load_project(
 
     example::
 
-        # load project and run the 'main' workflow
-        project = load_project("./", git://github.com/mlrun/demo-xgb-project.git)
+        # load the project and run the 'main' workflow
+        project = load_project("./", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
     :param context:      project local directory path
@@ -180,6 +207,8 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
+    if not project.metadata.name:
+        raise ValueError("project name must be specified")
     if not from_db or (url and url.startswith("git://")):
         project.spec.source = url or project.spec.source
         project.spec.origin_url = url or project.spec.origin_url
@@ -206,9 +235,10 @@ def get_or_create_project(
 
     example::
 
-        # load project and run the 'main' workflow
-        project = load_project("./", git://github.com/mlrun/demo-xgb-project.git)
-        project.run("main", arguments={'data': data_url})
+        # load project from the DB (if exist) or the source repo
+        project = get_or_create_project("myproj", "./", "git://github.com/mlrun/demo-xgb-project.git")
+        project.pull("development")  # pull the latest code from git
+        project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param context:      project local directory path
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
@@ -730,13 +760,13 @@ class MlrunProject(ModelObj):
     def set_source(self, source, pull_at_runtime=False):
         """set the project source code path(can be git/tar/zip archive)
 
-        :param source:     valid path to git, zip, or tar file, e.g.
+        :param source:     valid path to git, zip, or tar file, (or None for current) e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         """
         self.spec.load_source_on_run = pull_at_runtime
-        self.spec.source = source
+        self.spec.source = source or self.spec.source
 
     def get_artifact_uri(self, key, category="artifact") -> str:
         """return the project artifact uri (store://..) from the artifact key
@@ -944,6 +974,18 @@ class MlrunProject(ModelObj):
             PendingDeprecationWarning,
         )
         self.spec.artifacts = artifacts
+
+    def set_artifact(self, key, artifact):
+        """add/set an artifact in the project spec (will be registered on load)
+
+        example::
+
+            project.set_artifact('data', Artifact(target_path=data_url))
+
+        :param key:  artifact key/name
+        :param artifact:  mlrun Artifact object (or its subclasses)
+        """
+        self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):
         """register the artifacts in the MLRun DB (under this project)"""
@@ -1904,7 +1946,7 @@ def _init_function_from_dict(f, project):
             func.spec.image = image
     elif url.endswith(".ipynb"):
         func = code_to_function(
-            name, filename=url, image=image, kind=kind, handler=handler
+            name, filename=url, image=image, kind=kind or "job", handler=handler
         )
     elif url.endswith(".py"):
         if not image:

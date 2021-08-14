@@ -34,7 +34,7 @@ def list_runtime_resources_legacy(
 )
 def list_runtime_resources(
     project: str,
-    label_selector: str = None,
+    label_selector: str = fastapi.Query(None, alias="label-selector"),
     kind: str = None,
     group_by: typing.Optional[
         mlrun.api.schemas.ListRuntimeResourcesGroupByField
@@ -68,8 +68,41 @@ def list_runtime_resources_by_kind_legacy(
         )
 
 
+@router.delete(
+    "/projects/{project}/runtime-resources",
+    response_model=mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+)
+def delete_runtime_resources(
+    project: str,
+    label_selector: str = fastapi.Query(None, alias="label-selector"),
+    kind: str = None,
+    object_id: str = fastapi.Query(None, alias="object-id"),
+    force: bool = False,
+    grace_period: int = fastapi.Query(
+        mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
+    ),
+    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifier
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    return _delete_runtime_resources(
+        db_session,
+        auth_verifier.auth_info,
+        project,
+        label_selector,
+        kind,
+        object_id,
+        force,
+        grace_period,
+    )
+
+
 @router.delete("/runtimes", status_code=http.HTTPStatus.NO_CONTENT.value)
-def delete_runtimes(
+# TODO: remove when 0.6.6 is no longer relevant
+def delete_runtimes_legacy(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
@@ -80,14 +113,20 @@ def delete_runtimes(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    mlrun.api.crud.Runtimes().delete_runtimes(
-        db_session, label_selector, force, grace_period, auth_verifier.auth_info.session
+    return _delete_runtime_resources(
+        db_session,
+        auth_verifier.auth_info,
+        "*",
+        label_selector,
+        force=force,
+        grace_period=grace_period,
+        return_body=False,
     )
-    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
 @router.delete("/runtimes/{kind}", status_code=http.HTTPStatus.NO_CONTENT.value)
-def delete_runtime(
+# TODO: remove when 0.6.6 is no longer relevant
+def delete_runtime_legacy(
     kind: str,
     label_selector: str = None,
     force: bool = False,
@@ -99,22 +138,23 @@ def delete_runtime(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    mlrun.api.crud.Runtimes().delete_runtime(
+    return _delete_runtime_resources(
         db_session,
-        kind,
+        auth_verifier.auth_info,
+        "*",
         label_selector,
-        force,
-        grace_period,
-        auth_verifier.auth_info.session,
+        kind,
+        force=force,
+        grace_period=grace_period,
+        return_body=False,
     )
-    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
-# FIXME: find a more REST-y path
 @router.delete(
     "/runtimes/{kind}/{object_id}", status_code=http.HTTPStatus.NO_CONTENT.value
 )
-def delete_runtime_object(
+# TODO: remove when 0.6.6 is no longer relevant
+def delete_runtime_object_legacy(
     kind: str,
     object_id: str,
     label_selector: str = None,
@@ -127,16 +167,70 @@ def delete_runtime_object(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    mlrun.api.crud.Runtimes().delete_runtime_object(
+    return _delete_runtime_resources(
         db_session,
+        auth_verifier.auth_info,
+        "*",
+        label_selector,
         kind,
         object_id,
-        label_selector,
         force,
         grace_period,
-        auth_verifier.auth_info.session,
+        return_body=False,
     )
-    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+
+def _delete_runtime_resources(
+    db_session: sqlalchemy.orm.Session,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    project: str,
+    label_selector: str = fastapi.Query(None, alias="label-selector"),
+    kind: str = None,
+    object_id: str = fastapi.Query(None, alias="object-id"),
+    force: bool = False,
+    grace_period: int = fastapi.Query(
+        mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
+    ),
+    return_body: bool = True,
+) -> typing.Union[
+    mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, fastapi.Response
+]:
+    (
+        allowed_projects,
+        grouped_by_project_runtime_resources_output,
+    ) = _get_runtime_resources_allowed_projects(
+        project,
+        auth_info,
+        label_selector,
+        kind,
+        mlrun.api.schemas.AuthorizationAction.delete,
+    )
+    # if nothing allowed, simply return empty response
+    if allowed_projects:
+        permissions_label_selector = _generate_label_selector_for_allowed_projects(
+            allowed_projects
+        )
+        if label_selector:
+            label_selector = ",".join([label_selector, permissions_label_selector])
+        else:
+            label_selector = permissions_label_selector
+        mlrun.api.crud.Runtimes().delete_runtime_resources(
+            db_session,
+            kind,
+            object_id,
+            label_selector,
+            force,
+            grace_period,
+            auth_info.session,
+        )
+    if return_body:
+        return mlrun.api.crud.Runtimes().filter_and_format_grouped_by_project_runtime_resources_output(
+            grouped_by_project_runtime_resources_output,
+            allowed_projects,
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        )
+    else:
+        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
 def _list_runtime_resources(
@@ -153,7 +247,6 @@ def _list_runtime_resources(
     mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
 ]:
     (
-        _,
         allowed_projects,
         grouped_by_project_runtime_resources_output,
     ) = _get_runtime_resources_allowed_projects(
@@ -171,7 +264,7 @@ def _get_runtime_resources_allowed_projects(
     kind: str = None,
     action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
 ) -> typing.Tuple[
-    bool, typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
 ]:
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
     grouped_by_project_runtime_resources_output = mlrun.api.crud.Runtimes().list_runtimes(
@@ -193,28 +286,11 @@ def _get_runtime_resources_allowed_projects(
         auth_info,
         action=action,
     )
-    are_all_allowed = (
-        deepdiff.DeepDiff(allowed_projects, projects, ignore_order=True,) == {}
-    )
     return (
-        are_all_allowed,
         allowed_projects,
         grouped_by_project_runtime_resources_output,
     )
 
 
-def _list_kind_runtime_resources(
-    auth_info: mlrun.api.schemas.AuthInfo,
-    project: str,
-    kind: str,
-    label_selector: str = None,
-) -> mlrun.api.schemas.KindRuntimeResources:
-    runtime_resources_output = _list_runtime_resources(
-        project, auth_info, label_selector, kind_filter=kind
-    )
-    if runtime_resources_output:
-        return runtime_resources_output[0]
-    else:
-        return mlrun.api.schemas.KindRuntimeResources(
-            kind=kind, resources=mlrun.api.schemas.RuntimeResources()
-        )
+def _generate_label_selector_for_allowed_projects(allowed_projects: typing.List[str],):
+    return f"mlrun/project in ({', '.join(allowed_projects)})"

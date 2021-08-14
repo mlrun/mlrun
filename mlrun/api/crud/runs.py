@@ -64,7 +64,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             # aborting the run meaning deleting its runtime resources
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
             #  "knowledge" on the label selector
-            mlrun.api.crud.Runtimes().delete_runtimes(
+            mlrun.api.crud.Runtimes().delete_runtime_resources(
                 db_session,
                 label_selector=f"mlrun/project={project},mlrun/uid={uid}",
                 force=True,

@@ -101,69 +101,38 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
                 f"Invalid runtime kind {kind}. Must be one of: {mlrun.runtimes.RuntimeKinds.runtime_with_handlers()}"
             )
 
-    def delete_runtimes(
+    def delete_runtime_resources(
         self,
         db_session: sqlalchemy.orm.Session,
-        label_selector: str = None,
+        kind: typing.Optional[str] = None,
+        object_id: typing.Optional[str] = None,
+        label_selector: typing.Optional[str] = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
         leader_session: typing.Optional[str] = None,
     ):
-        for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
+        kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
+        if kind is not None:
+            self.validate_runtime_resources_kind(kind)
+            kinds = [kind]
+        for kind in kinds:
             runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-            runtime_handler.delete_resources(
-                mlrun.api.utils.singletons.db.get_db(),
-                db_session,
-                label_selector,
-                force,
-                grace_period,
-                leader_session,
-            )
-
-    def delete_runtime(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        kind: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
-        leader_session: typing.Optional[str] = None,
-    ):
-        if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-            mlrun.api.api.utils.log_and_raise(
-                http.HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
-            )
-        runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-        runtime_handler.delete_resources(
-            mlrun.api.utils.singletons.db.get_db(),
-            db_session,
-            label_selector,
-            force,
-            grace_period,
-            leader_session,
-        )
-
-    def delete_runtime_object(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        kind: str,
-        object_id: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
-        leader_session: typing.Optional[str] = None,
-    ):
-        if kind not in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-            mlrun.api.api.utils.log_and_raise(
-                http.HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
-            )
-        runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-        runtime_handler.delete_runtime_object_resources(
-            mlrun.api.utils.singletons.db.get_db(),
-            db_session,
-            object_id,
-            label_selector,
-            force,
-            grace_period,
-            leader_session,
-        )
+            if object_id:
+                runtime_handler.delete_runtime_object_resources(
+                    mlrun.api.utils.singletons.db.get_db(),
+                    db_session,
+                    object_id,
+                    label_selector,
+                    force,
+                    grace_period,
+                    leader_session,
+                )
+            else:
+                runtime_handler.delete_resources(
+                    mlrun.api.utils.singletons.db.get_db(),
+                    db_session,
+                    label_selector,
+                    force,
+                    grace_period,
+                    leader_session,
+                )

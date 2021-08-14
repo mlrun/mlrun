@@ -90,7 +90,7 @@ class Projects(
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # delete runtime resources
-        mlrun.api.crud.Runtimes().delete_runtimes(
+        mlrun.api.crud.Runtimes().delete_runtime_resources(
             session,
             label_selector=f"mlrun/project={name}",
             force=True,

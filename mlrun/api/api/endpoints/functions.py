@@ -34,7 +34,7 @@ async def store_function(
     name: str,
     tag: str = "",
     versioned: bool = False,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -79,7 +79,7 @@ def get_function(
     name: str,
     tag: str = "",
     hash_key="",
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -103,7 +103,7 @@ def get_function(
 def delete_function(
     project: str,
     name: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -124,7 +124,7 @@ def list_functions(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     functions = mlrun.api.crud.Functions().list_functions(
@@ -149,7 +149,7 @@ def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -192,7 +192,7 @@ async def build_function(
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     # TODO: ensure project here !!! for background task
@@ -230,7 +230,8 @@ async def start_function(
 @router.post("/status/function")
 @router.post("/status/function/")
 async def function_status(
-    request: Request, auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    request: Request,
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
 ):
     data = None
     try:
@@ -255,7 +256,7 @@ def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(

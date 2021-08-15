@@ -17,7 +17,7 @@ router = APIRouter()
 def create_schedule(
     project: str,
     schedule: schemas.ScheduleInput,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
@@ -49,7 +49,7 @@ def update_schedule(
     project: str,
     name: str,
     schedule: schemas.ScheduleUpdate,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -78,7 +78,7 @@ def list_schedules(
     labels: str = None,
     kind: schemas.ScheduleKinds = None,
     include_last_run: bool = False,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     schedules = get_scheduler().list_schedules(
@@ -101,7 +101,7 @@ def get_schedule(
     project: str,
     name: str,
     include_last_run: bool = False,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -120,7 +120,7 @@ def get_schedule(
 async def invoke_schedule(
     project: str,
     name: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await fastapi.concurrency.run_in_threadpool(
@@ -142,7 +142,7 @@ async def invoke_schedule(
 def delete_schedule(
     project: str,
     name: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -159,7 +159,7 @@ def delete_schedule(
 @router.delete("/projects/{project}/schedules", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_schedules(
     project: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     schedules = get_scheduler().list_schedules(db_session, project,)

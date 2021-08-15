@@ -509,7 +509,11 @@ def add_or_refresh_credentials(
 
     username = username or os.environ.get("V3IO_USERNAME")
     password = password or os.environ.get("V3IO_PASSWORD")
-    token = token or os.environ.get("V3IO_ACCESS_KEY")
+    token = (
+        token
+        or os.environ.get("MLRUN_AUTH_SESSION")
+        or os.environ.get("V3IO_ACCESS_KEY")
+    )
 
     # When it's not iguazio endpoint it's one of two options:
     # Enterprise, but we're in the cluster (and not from remote), e.g. url will be something like http://mlrun-api:8080

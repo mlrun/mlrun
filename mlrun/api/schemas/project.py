@@ -78,6 +78,11 @@ class Project(pydantic.BaseModel):
     status: ObjectStatus = ObjectStatus()
 
 
+class ProjectOwner(pydantic.BaseModel):
+    username: str
+    session: str
+
+
 class ProjectSummary(pydantic.BaseModel):
     name: str
     functions_count: int

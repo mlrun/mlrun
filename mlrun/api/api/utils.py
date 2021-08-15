@@ -140,13 +140,14 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
 
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
-    if auth_info and auth_info.session:
-        auth_env_vars = {
-            "V3IO_ACCESS_KEY": auth_info.session,
-        }
-        for key, value in auth_env_vars.items():
-            if not function.is_env_exists(key):
-                function.set_env(key, value)
+    if function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes():
+        if auth_info and auth_info.session:
+            auth_env_vars = {
+                "MLRUN_AUTH_SESSION": auth_info.session,
+            }
+            for key, value in auth_env_vars.items():
+                if not function.is_env_exists(key):
+                    function.set_env(key, value)
 
 
 def _submit_run(

@@ -14,8 +14,8 @@ router = fastapi.APIRouter()
     "/frontend-spec", response_model=mlrun.api.schemas.FrontendSpec,
 )
 def get_frontend_spec(
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     jobs_dashboard_url = None

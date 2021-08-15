@@ -61,9 +61,8 @@ def parse_project_name_from_feature_string(feature):
     return project_name.strip(), feature_name.strip()
 
 
-def get_feature_set_by_uri(uri, project=None):
+def parse_feature_set_uri(uri, project=None):
     """get feature set object from db by uri"""
-    db = mlrun.get_run_db()
     default_project = project or config.default_project
 
     # parse store://.. uri
@@ -75,7 +74,13 @@ def get_feature_set_by_uri(uri, project=None):
             )
         uri = new_uri
 
-    project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
+    return parse_versioned_object_uri(uri, default_project)
+
+
+def get_feature_set_by_uri(uri, project=None):
+    """get feature set object from db by uri"""
+    db = mlrun.get_run_db()
+    project, name, tag, uid = parse_feature_set_uri(uri, project)
     return db.get_feature_set(name, project, tag, uid)
 
 

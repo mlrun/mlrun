@@ -80,13 +80,7 @@ async def update_run(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     await run_in_threadpool(
-        mlrun.api.crud.Runs().update_run,
-        db_session,
-        project,
-        uid,
-        iter,
-        data,
-        auth_verifier.auth_info,
+        mlrun.api.crud.Runs().update_run, db_session, project, uid, iter, data,
     )
     return {}
 

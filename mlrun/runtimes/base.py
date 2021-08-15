@@ -1030,7 +1030,6 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
     ):
         # We currently don't support removing runtime resources in non k8s env
         if not mlrun.k8s_utils.get_k8s_helper(
@@ -1045,23 +1044,11 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
-                db,
-                db_session,
-                namespace,
-                label_selector,
-                force,
-                grace_period,
-                leader_session,
+                db, db_session, namespace, label_selector, force, grace_period,
             )
         else:
             deleted_resources = self._delete_pod_resources(
-                db,
-                db_session,
-                namespace,
-                label_selector,
-                force,
-                grace_period,
-                leader_session,
+                db, db_session, namespace, label_selector, force, grace_period,
             )
         self._delete_resources(
             db,
@@ -1081,18 +1068,13 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
     ):
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
-        self.delete_resources(
-            db, db_session, label_selector, force, grace_period, leader_session
-        )
+        self.delete_resources(db, db_session, label_selector, force, grace_period)
 
-    def monitor_runs(
-        self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
-    ):
+    def monitor_runs(self, db: DBInterface, db_session: Session):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._get_default_label_selector()
@@ -1113,7 +1095,6 @@ class BaseRuntimeHandler(ABC):
                     runtime_resource,
                     runtime_resource_is_crd,
                     namespace,
-                    leader_session,
                 )
             except Exception as exc:
                 logger.warning(
@@ -1209,7 +1190,6 @@ class BaseRuntimeHandler(ABC):
         uid: str,
         crd_object,
         run: Dict = None,
-        leader_session: Optional[str] = None,
     ):
         """
         Update the UI URL for relevant jobs.
@@ -1431,7 +1411,6 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
     ) -> List[Dict]:
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(
@@ -1465,7 +1444,7 @@ class BaseRuntimeHandler(ABC):
                 if self._are_resources_coupled_to_run_object():
                     try:
                         self._pre_deletion_runtime_resource_run_actions(
-                            db, db_session, pod_dict, run_state, leader_session
+                            db, db_session, pod_dict, run_state
                         )
                     except Exception as exc:
                         # Don't prevent the deletion for failure in the pre deletion run actions
@@ -1492,7 +1471,6 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
     ) -> List[Dict]:
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
@@ -1537,11 +1515,7 @@ class BaseRuntimeHandler(ABC):
 
                         try:
                             self._pre_deletion_runtime_resource_run_actions(
-                                db,
-                                db_session,
-                                crd_object,
-                                desired_run_state,
-                                leader_session,
+                                db, db_session, crd_object, desired_run_state,
                             )
                         except Exception as exc:
                             # Don't prevent the deletion for failure in the pre deletion run actions
@@ -1570,7 +1544,6 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         runtime_resource: Dict,
         run_state: str,
-        leader_session: Optional[str] = None,
     ):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
@@ -1588,9 +1561,7 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
 
-        self._ensure_run_state(
-            db, db_session, project, uid, run_state, leader_session=leader_session
-        )
+        self._ensure_run_state(db, db_session, project, uid, run_state)
 
         self._ensure_run_logs_collected(db, db_session, project, uid)
 
@@ -1673,7 +1644,6 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         runtime_resource_is_crd: bool,
         namespace: str,
-        leader_session: Optional[str] = None,
     ):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
         if not project or not uid:
@@ -1697,18 +1667,9 @@ class BaseRuntimeHandler(ABC):
             (_, _, run_state,) = self._resolve_pod_status_info(
                 db, db_session, runtime_resource
             )
-        self._update_ui_url(
-            db, db_session, project, uid, runtime_resource, run, leader_session
-        )
+        self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
         _, updated_run_state = self._ensure_run_state(
-            db,
-            db_session,
-            project,
-            uid,
-            run_state,
-            run,
-            search_run=False,
-            leader_session=leader_session,
+            db, db_session, project, uid, run_state, run, search_run=False,
         )
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
@@ -1870,7 +1831,6 @@ class BaseRuntimeHandler(ABC):
         run_state: str,
         run: Dict = None,
         search_run: bool = True,
-        leader_session: Optional[str] = None,
     ) -> Tuple[bool, str]:
         if run is None:
             run = {}

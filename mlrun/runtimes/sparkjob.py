@@ -627,7 +627,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         uid: str,
         crd_object,
         run: Dict = None,
-        leader_session: Optional[str] = None,
     ):
         app_state = (
             crd_object.get("status", {}).get("applicationState", {}).get("state")

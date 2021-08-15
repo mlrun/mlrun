@@ -419,7 +419,6 @@ def _mock_runtime_handlers_delete_resources(
         label_selector: str = None,
         force: bool = False,
         grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-        leader_session: typing.Optional[str] = None,
     ):
         assert (
             mlrun.api.api.endpoints.runtime_resources._generate_label_selector_for_allowed_projects(

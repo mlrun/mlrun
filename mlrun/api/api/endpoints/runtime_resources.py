@@ -215,13 +215,7 @@ def _delete_runtime_resources(
         else:
             label_selector = permissions_label_selector
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(
-            db_session,
-            kind,
-            object_id,
-            label_selector,
-            force,
-            grace_period,
-            auth_info.session,
+            db_session, kind, object_id, label_selector, force, grace_period,
         )
     if return_body:
         return mlrun.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(

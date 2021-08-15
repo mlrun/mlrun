@@ -101,7 +101,6 @@ class RuntimeResources(metaclass=mlrun.utils.singleton.Singleton,):
         label_selector: typing.Optional[str] = None,
         force: bool = False,
         grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
-        leader_session: typing.Optional[str] = None,
     ):
         kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
         if kind is not None:
@@ -117,7 +116,6 @@ class RuntimeResources(metaclass=mlrun.utils.singleton.Singleton,):
                     label_selector,
                     force,
                     grace_period,
-                    leader_session,
                 )
             else:
                 runtime_handler.delete_resources(
@@ -126,5 +124,4 @@ class RuntimeResources(metaclass=mlrun.utils.singleton.Singleton,):
                     label_selector,
                     force,
                     grace_period,
-                    leader_session,
                 )

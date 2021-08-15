@@ -69,13 +69,10 @@ def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
     }
 
 
-def get_run_db_instance(
-    db_session: Session,
-    auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-):
+def get_run_db_instance(db_session: Session,):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session, auth_info)
+        run_db = SQLRunDB(db.dsn, db_session)
     else:
         run_db = db.db
     run_db.connect()
@@ -168,7 +165,7 @@ def _submit_run(
         fn, task = _generate_function_and_task_from_submit_run_body(
             db_session, auth_info, data
         )
-        run_db = get_run_db_instance(db_session, auth_info)
+        run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"

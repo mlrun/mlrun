@@ -574,16 +574,21 @@ class Scheduler:
             import mlrun.api.utils.auth
             import mlrun.api.utils.singletons.project_member
 
-            logger.info("Schedule missing auth info which is required. Trying to fill from project owner",
-                        project_name=project_name,
-                        schedule_name=schedule_name)
+            logger.info(
+                "Schedule missing auth info which is required. Trying to fill from project owner",
+                project_name=project_name,
+                schedule_name=schedule_name,
+            )
 
             project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
                 db_session, project_name
             )
             # Update the schedule with the new auth info so we won't need to do the above again in the next run
             scheduler.update_schedule(
-                db_session, mlrun.api.schemas.AuthInfo(session=project_owner.session), project_name, schedule_name
+                db_session,
+                mlrun.api.schemas.AuthInfo(session=project_owner.session),
+                project_name,
+                schedule_name,
             )
 
         response = await submit_run(db_session, auth_info, scheduled_object)

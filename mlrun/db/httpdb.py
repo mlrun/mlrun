@@ -216,7 +216,7 @@ class HTTPRunDB(RunDBInterface):
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
             return
-        resp = self.api_call("GET", "healthz", timeout=5)
+        resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
@@ -273,6 +273,14 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
             )
+            config.igz_version = server_cfg.get("igz_version") or config.igz_version
+            config.storage.auto_mount_type = (
+                server_cfg.get("auto_mount_type") or config.storage.auto_mount_type
+            )
+            config.storage.auto_mount_params = (
+                server_cfg.get("auto_mount_params") or config.storage.auto_mount_params
+            )
+
         except Exception:
             pass
         return self
@@ -609,15 +617,15 @@ class HTTPRunDB(RunDBInterface):
         error = "del artifacts"
         self.api_call("DELETE", "artifacts", error, params=params)
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(self, project=None) -> List[str]:
         """ Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
         response = self.api_call(
-            "GET", f"/projects/{project}/artifact-tags", error_message
+            "GET", f"projects/{project}/artifact-tags", error_message
         )
-        return response.json()
+        return response.json()["tags"]
 
     def store_function(self, function, name, project="", tag=None, versioned=False):
         """ Store a function object. Function is identified by its name and tag, and can be versioned."""
@@ -1190,6 +1198,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Union[
             str, mlrun.api.schemas.PipelinesFormat
         ] = mlrun.api.schemas.PipelinesFormat.summary,
+        project: str = None,
     ):
         """ Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
@@ -1200,8 +1209,12 @@ class HTTPRunDB(RunDBInterface):
             if namespace:
                 params["namespace"] = namespace
             params["format"] = format_
+            project_path = project if project else "*"
             resp = self.api_call(
-                "GET", f"projects/*/pipelines/{run_id}", params=params, timeout=timeout
+                "GET",
+                f"projects/{project_path}/pipelines/{run_id}",
+                params=params,
+                timeout=timeout,
             )
         except OSError as err:
             logger.error(f"error cannot get pipeline: {err}")

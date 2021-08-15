@@ -1,6 +1,11 @@
+import pathlib
+import sys
+
 from deepdiff import DeepDiff
 
 import mlrun
+from mlrun import code_to_function
+from tests.runtimes.test_base import TestAutoMount
 
 
 def test_generate_nuclio_volumes():
@@ -53,3 +58,29 @@ def test_generate_nuclio_volumes():
     function = mlrun.new_function(runtime=runtime)
     nuclio_volumes = function.spec.generate_nuclio_volumes()
     assert DeepDiff(expected_nuclio_volumes, nuclio_volumes, ignore_order=True,) == {}
+
+
+class TestAutoMountNuclio(TestAutoMount):
+    def setup_method(self, method):
+        super().setup_method(method)
+        self.assets_path = (
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / "assets"
+        )
+        self.code_filename = str(self.assets_path / "sample_function.py")
+        self.code_handler = "test_func"
+
+    def _generate_runtime(self):
+        runtime = code_to_function(
+            name=self.name,
+            project=self.project,
+            filename=self.code_filename,
+            handler=self.code_handler,
+            kind="nuclio",
+            image=self.image_name,
+            description="test function",
+        )
+        return runtime
+
+    def _execute_run(self, runtime):
+        runtime.deploy(project=self.project)

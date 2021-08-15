@@ -863,9 +863,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name=name,
-            entities=[fs.Entity("first_name")],
-            timestamp_key="time",
+            name=name, entities=[fs.Entity("first_name")], timestamp_key="time",
         )
 
         if partitioned:

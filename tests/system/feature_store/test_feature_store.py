@@ -834,6 +834,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
+        name = f"sched-time-{str(partitioned)}"
+
         now = datetime.now() + timedelta(minutes=2)
         data = pd.DataFrame(
             {
@@ -860,7 +862,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name="sched_test33",
+            name=name,
             entities=[fs.Entity("first_name")],
             timestamp_key="time",
         )
@@ -891,7 +893,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         sleep(60)
 
-        features = ["sched_test33.*"]
+        features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
         svc = fs.get_online_feature_service(vec)

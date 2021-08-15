@@ -90,7 +90,8 @@ class LocalFeatureMerger:
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
             dfs.append(df)
-            append_drop_column(feature_set.spec.timestamp_key)
+            if not entity_timestamp_column and drop_indexes:
+                append_drop_column(feature_set.spec.timestamp_key)
             for key in feature_set.spec.entities.keys():
                 append_index(key)
 
@@ -117,12 +118,14 @@ class LocalFeatureMerger:
                 self.vector.save()
 
         # check if need to set indices
-        if not drop_indexes and index_columns:
+        if drop_indexes:
+            self._result_df.reset_index(drop=True, inplace=True)
+        elif index_columns:
 
             # in case of using spark engine the index will be of the default type 'RangeIndex' and it will be replaced,
             # in other cases the index should already be set correctly.
             if self._result_df.index is None or isinstance(
-                self._result_df.index, pd.core.indexes.base.Index
+                self._result_df.index, pd.core.indexes.range.RangeIndex
             ):
                 index_columns_missing = []
                 for index in index_columns:

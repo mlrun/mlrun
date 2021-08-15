@@ -200,6 +200,79 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
 
+    def test_get_offline_features_with_or_without_indexes(self):
+        # ingest test data
+        par_target = ParquetTarget(
+            **{
+                "path": "v3io:///bigdata/system-test-project/parquet/",
+                "name": "stocks-parquet",
+            }
+        )
+        targets = [par_target]
+        stocks_for_parquet = trades.copy()
+        stocks_for_parquet.to_parquet(
+            "v3io:///bigdata/system-test-project/stocks_test.parquet"
+        )
+        stocks_for_parquet.set_index("ticker", inplace=True)
+        stocks_set = fs.FeatureSet(
+            "stocks_parquet_test",
+            "stocks set",
+            [Entity("ticker", ValueType.STRING)],
+            timestamp_key="time",
+        )
+
+        df = fs.ingest(stocks_set, stocks_for_parquet, targets)
+        assert len(df) == len(stocks_for_parquet), "dataframe size doesnt match"
+        # assert stocks_set.status.stats["exchange"], "stats not created"
+
+        # test get offline features with different parameters
+        vector = fs.FeatureVector("offline-vec", ["stocks_parquet_test.*"])
+
+        # with_indexes = False, entity_timestamp_column = None
+        default_df = fs.get_offline_features(vector).to_dataframe()
+        assert isinstance(
+            default_df.index, pd.core.indexes.range.RangeIndex
+        ), "index column is not of default type"
+        assert default_df.index.name is None, "index column is not of default type"
+        assert "time" not in default_df.columns, "'time' column shouldn't be present"
+        assert (
+            "ticker" not in default_df.columns
+        ), "'ticker' column shouldn't be present"
+
+        # with_indexes = False, entity_timestamp_column = "time"
+        df_no_time = fs.get_offline_features(
+            vector, entity_timestamp_column="time"
+        ).to_dataframe()
+        assert isinstance(
+            df_no_time.index, pd.core.indexes.range.RangeIndex
+        ), "index column is not of default type"
+        assert df_no_time.index.name is None, "index column is not of default type"
+        assert "time" not in df_no_time.columns, "'time' column shouldn't be present"
+        assert (
+            "ticker" not in df_no_time.columns
+        ), "'ticker' column shouldn't be present"
+
+        # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
+        df_with_time = fs.get_offline_features(
+            vector, entity_timestamp_column="invalid"
+        ).to_dataframe()
+        assert isinstance(
+            df_with_time.index, pd.core.indexes.range.RangeIndex
+        ), "index column is not of default type"
+        assert df_with_time.index.name is None, "index column is not of default type"
+        assert (
+            "ticker" not in df_with_time.columns
+        ), "'ticker' column shouldn't be present"
+        assert "time" in df_with_time.columns, "'time' column should be present"
+
+        vector.spec.with_indexes = True
+        df_with_index = fs.get_offline_features(vector).to_dataframe()
+        assert not isinstance(
+            df_with_index.index, pd.core.indexes.range.RangeIndex
+        ), "index column is of default type"
+        assert df_with_index.index.name == "ticker"
+        assert "time" in df_with_index.columns, "'time' column should be present"
+
     def test_feature_set_db(self):
         name = "stocks_test"
         stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
@@ -1038,7 +1111,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["value"] == 3
         svc.close()
 
-        fs.ingest(fset, df2)
+        fs.ingest(fset, df2, targets=[NoSqlTarget()])
 
         csv_path = fset.get_target_path(name="csv")
         csv_df = pd.read_csv(csv_path)

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import warnings
 from typing import List
 
@@ -207,6 +208,13 @@ class FeatureSetStatus(ModelObj):
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
+    def update_last_written_for_target(
+        self, target_path: str, last_written: datetime.datetime
+    ):
+        for target in self._targets:
+            if target.path == target_path or target.path.rstrip("/") == target_path:
+                target.last_written = last_written
+
 
 class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
@@ -274,15 +282,13 @@ class FeatureSet(ModelObj):
         return uri
 
     def _override_run_db(
-        self,
-        session,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        self, session,
     ):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
         from ..api.api.utils import get_run_db_instance
 
-        self._run_db = get_run_db_instance(session, auth_info)
+        self._run_db = get_run_db_instance(session)
 
     def _get_run_db(self):
         if self._run_db:

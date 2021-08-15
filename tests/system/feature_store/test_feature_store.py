@@ -2,7 +2,8 @@ import os
 import random
 import string
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from time import sleep
 
 import fsspec
 import pandas as pd
@@ -832,24 +833,128 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
+    @pytest.mark.parametrize("partitioned", [True, False])
+    def test_schedule_on_filtered_by_time(self, partitioned):
+        name = f"sched-time-{str(partitioned)}"
+
+        now = datetime.now() + timedelta(minutes=2)
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
+
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource(
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name, entities=[fs.Entity("first_name")], timestamp_key="time",
+        )
+
+        if partitioned:
+            targets = [
+                NoSqlTarget(),
+                ParquetTarget(
+                    name="tar1",
+                    path="v3io:///bigdata/fs1/",
+                    partitioned=True,
+                    partition_cols=["time"],
+                ),
+            ]
+        else:
+            targets = [
+                ParquetTarget(
+                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                ),
+                NoSqlTarget(),
+            ]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=targets,
+        )
+        sleep(60)
+
+        features = [f"{name}.*"]
+        vec = fs.FeatureVector("sched_test-vec", features)
+
+        svc = fs.get_online_feature_service(vec)
+
+        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 2000
+
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 12:00:00"),
+                    pd.Timestamp("2021-01-10 13:00:00"),
+                    now + pd.Timedelta(minutes=10),
+                    pd.Timestamp("2021-01-09 13:00:00"),
+                ],
+                "first_name": ["moshe", "dina", "katya", "uri"],
+                "data": [50, 10, 25, 30],
+            }
+        )
+        # writing down a remote source
+        fs.ingest(data_set, data, targets=[target2])
+
+        sleep(60)
+        resp = svc.get(
+            [
+                {"first_name": "yosi"},
+                {"first_name": "moshe"},
+                {"first_name": "katya"},
+                {"first_name": "dina"},
+                {"first_name": "uri"},
+            ]
+        )
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 50
+        assert resp[2] is None
+        assert resp[3]["data"] == 10
+        assert resp[4] is None
+
+        svc.close()
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 4)
+        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
     @pytest.mark.parametrize(
         "fixed_window_type",
         [FixedWindowType.CurrentOpenWindow, FixedWindowType.LastClosedWindow],
     )
     def test_query_on_fixed_window(self, fixed_window_type):
         current_time = pd.Timestamp.now()
-        data = (
-            pd.DataFrame(
-                {
-                    "time": [
-                        current_time,
-                        current_time - pd.Timedelta(hours=current_time.hour + 2),
-                    ],
-                    "first_name": ["moshe", "moshe"],
-                    "last_name": ["cohen", "cohen"],
-                    "bid": [2000, 100],
-                },
-            ),
+        data = pd.DataFrame(
+            {
+                "time": [
+                    current_time,
+                    current_time - pd.Timedelta(hours=current_time.hour + 2),
+                ],
+                "first_name": ["moshe", "moshe"],
+                "last_name": ["cohen", "cohen"],
+                "bid": [2000, 100],
+            },
         )
         name = f"measurements_{uuid.uuid4()}"
 

@@ -15,8 +15,8 @@ router = fastapi.APIRouter()
 def get_background_task(
     project: str,
     name: str,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(

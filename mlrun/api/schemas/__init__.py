@@ -79,6 +79,7 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOwner,
     ProjectsFormat,
     ProjectsOutput,
     ProjectSpec,
@@ -87,8 +88,12 @@ from .project import (
     ProjectSummary,
 )
 from .runtime_resource import (
-    GroupedRuntimeResourcesOutput,
+    GroupedByJobRuntimeResourcesOutput,
+    GroupedByProjectRuntimeResourcesOutput,
+    KindRuntimeResources,
     ListRuntimeResourcesGroupByField,
+    RuntimeResource,
+    RuntimeResources,
     RuntimeResourcesOutput,
 )
 from .schedule import (

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
 
@@ -20,6 +21,7 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.sources import BaseSourceDriver
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
@@ -181,7 +183,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    overwrite=True,
+    overwrite=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -219,7 +221,9 @@ def ingest(
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
-                          (default: True. deletes the targets that are about to be ingested)
+                          (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
+                                    False for scheduled ingest - does not delete the target)
+
     """
     if featureset:
         if isinstance(featureset, str):
@@ -269,12 +273,33 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
             )
+
+        if source.schedule:
+            featureset.reload(update_spec=False)
+            min_time = datetime.max
+            for target in featureset.status.targets:
+                if target.last_written:
+                    cur_last_written = datetime.fromisoformat(target.last_written)
+                    if cur_last_written < min_time:
+                        min_time = cur_last_written
+            if min_time != datetime.max:
+                source.start_time = min_time
+                time_zone = min_time.tzinfo
+                source.end_time = datetime.now(tz=time_zone)
+
         mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
         return_df = False
 
     namespace = namespace or get_caller_globals()
 
     purge_targets = targets or featureset.spec.targets or get_default_targets()
+
+    if overwrite is None:
+        if isinstance(source, BaseSourceDriver) and source.schedule:
+            overwrite = False
+        else:
+            overwrite = True
+
     if overwrite:
         validate_target_list(targets=purge_targets)
         purge_target_names = [
@@ -312,7 +337,6 @@ def ingest(
         )
 
     if isinstance(source, str):
-        # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
     schema_options = InferOptions.get_common_options(

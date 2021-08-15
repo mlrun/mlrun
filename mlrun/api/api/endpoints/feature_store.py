@@ -25,7 +25,7 @@ def create_feature_set(
     project: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
@@ -61,7 +61,7 @@ def store_feature_set(
     reference: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
@@ -92,7 +92,7 @@ def patch_feature_set(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -117,7 +117,7 @@ def get_feature_set(
     project: str,
     name: str,
     reference: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -140,7 +140,7 @@ def delete_feature_set(
     project: str,
     name: str,
     reference: str = None,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -176,7 +176,7 @@ def list_feature_sets(
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
     sort: schemas.SortField = Query(None, alias="partition-sort-by"),
     order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_sets = mlrun.api.crud.FeatureStore().list_feature_sets(
@@ -240,7 +240,7 @@ def ingest_feature_set(
         schemas.FeatureSetIngestInput
     ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -283,7 +283,7 @@ def ingest_feature_set(
             auth_verifier.auth_info,
         )
     # Need to override the default rundb since we're in the server.
-    feature_set._override_run_db(db_session, auth_verifier.auth_info)
+    feature_set._override_run_db(db_session)
 
     if ingest_parameters.targets:
         data_targets = [
@@ -330,7 +330,7 @@ def list_features(
     tag: str = None,
     entities: List[str] = Query(None, alias="entity"),
     labels: List[str] = Query(None, alias="label"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     features = mlrun.api.crud.FeatureStore().list_features(
@@ -354,7 +354,7 @@ def list_entities(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query(None, alias="label"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     entities = mlrun.api.crud.FeatureStore().list_entities(
@@ -379,7 +379,7 @@ def create_feature_vector(
     project: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
@@ -413,7 +413,7 @@ def get_feature_vector(
     project: str,
     name: str,
     reference: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -444,7 +444,7 @@ def list_feature_vectors(
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
     sort: schemas.SortField = Query(None, alias="partition-sort-by"),
     order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_vectors = mlrun.api.crud.FeatureStore().list_feature_vectors(
@@ -481,7 +481,7 @@ def store_feature_vector(
     reference: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
@@ -513,7 +513,7 @@ def patch_feature_vector(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -536,7 +536,7 @@ def delete_feature_vector(
     project: str,
     name: str,
     reference: str = None,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(

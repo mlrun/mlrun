@@ -123,6 +123,11 @@ class Member(
             db_session, owner, format_, labels, state
         )
 
+    def get_project_owner(
+        self, db_session: sqlalchemy.orm.Session, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        raise NotImplementedError()
+
     def _start_periodic_sync(self):
         # if no followers no need for sync
         # the > 0 condition is to allow ourselves to disable the sync from configuration

@@ -54,15 +54,16 @@ class AzureBlobStore(DataStore):
 
     def get_storage_options(self):
         return dict(
-            account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
-            account_key=self._get_secret_or_env("AZURE_STORAGE_KEY"),
+            account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME") or self._get_secret_or_env("account_name"),
+            account_key=self._get_secret_or_env("AZURE_STORAGE_KEY") or self._get_secret_or_env("account_key"),
             connection_string=self._get_secret_or_env(
                 "AZURE_STORAGE_CONNECTION_STRING"
-            ),
-            tenant_id=self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
-            client_id=self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
-            client_secret=self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET"),
-            sas_token=self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
+            ) or self._get_secret_or_env("connection_string"),
+            tenant_id=self._get_secret_or_env("AZURE_STORAGE_TENANT_ID") or self._get_secret_or_env("tenant_id"),
+            client_id=self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID") or self._get_secret_or_env("client_id"),
+            client_secret=self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET") or self._get_secret_or_env("client_secret"),
+            sas_token=self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN") or self._get_secret_or_env("sas_token"),
+            credential=self._get_secret_or_env("credential")
         )
 
     def _convert_key_to_remote_path(self, key):

@@ -274,15 +274,13 @@ class FeatureSet(ModelObj):
         return uri
 
     def _override_run_db(
-        self,
-        session,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        self, session,
     ):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
         from ..api.api.utils import get_run_db_instance
 
-        self._run_db = get_run_db_instance(session, auth_info)
+        self._run_db = get_run_db_instance(session)
 
     def _get_run_db(self):
         if self._run_db:

@@ -15,6 +15,7 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
+from .client_spec import ClientSpec
 from .constants import (
     DeletionStrategy,
     FeatureStorePartitionByField,
@@ -87,8 +88,12 @@ from .project import (
     ProjectSummary,
 )
 from .runtime_resource import (
-    GroupedRuntimeResourcesOutput,
+    GroupedByJobRuntimeResourcesOutput,
+    GroupedByProjectRuntimeResourcesOutput,
+    KindRuntimeResources,
     ListRuntimeResourcesGroupByField,
+    RuntimeResource,
+    RuntimeResources,
     RuntimeResourcesOutput,
 )
 from .schedule import (

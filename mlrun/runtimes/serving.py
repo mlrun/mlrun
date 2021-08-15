@@ -107,6 +107,7 @@ class ServingSpec(NuclioSpec):
         track_models=None,
         secret_sources=None,
         default_content_type=None,
+        mount_applied=False,
     ):
 
         super().__init__(
@@ -132,6 +133,7 @@ class ServingSpec(NuclioSpec):
             service_account=service_account,
             readiness_timeout=readiness_timeout,
             build=build,
+            mount_applied=mount_applied,
         )
 
         self.models = models or {}

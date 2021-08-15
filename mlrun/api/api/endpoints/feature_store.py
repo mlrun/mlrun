@@ -283,7 +283,7 @@ def ingest_feature_set(
             auth_verifier.auth_info,
         )
     # Need to override the default rundb since we're in the server.
-    feature_set._override_run_db(db_session, auth_verifier.auth_info)
+    feature_set._override_run_db(db_session)
 
     if ingest_parameters.targets:
         data_targets = [

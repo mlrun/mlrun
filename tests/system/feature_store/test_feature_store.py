@@ -25,6 +25,7 @@ from mlrun.datastore.targets import (
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
+from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
@@ -830,6 +831,49 @@ class TestFeatureStore(TestMLRunSystem):
             ],
         }
     )
+
+    @pytest.mark.parametrize(
+        "fixed_window_type",
+        [FixedWindowType.CurrentOpenWindow, FixedWindowType.LastClosedWindow],
+    )
+    def test_query_on_fixed_window(self, fixed_window_type):
+        current_time = pd.Timestamp.now()
+        data = pd.DataFrame(
+            {
+                "time": [
+                    current_time,
+                    current_time - pd.Timedelta(hours=current_time.hour + 2),
+                ],
+                "first_name": ["moshe", "moshe"],
+                "last_name": ["cohen", "cohen"],
+                "bid": [2000, 100],
+            },
+        )
+        name = f"measurements_{uuid.uuid4()}"
+
+        # write to kv
+        data_set = fs.FeatureSet(
+            name, timestamp_key="time", entities=[Entity("first_name")]
+        )
+
+        data_set.add_aggregation(
+            name="bids", column="bid", operations=["sum", "max"], windows="24h",
+        )
+
+        fs.ingest(data_set, data, return_df=True)
+
+        features = [f"{name}.bids_sum_24h", f"{name}.last_name"]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector, fixed_window_type=fixed_window_type)
+
+        resp = svc.get([{"first_name": "moshe"}])
+        if fixed_window_type == FixedWindowType.CurrentOpenWindow:
+            expected = {"bids_sum_24h": 2000.0, "last_name": "cohen"}
+        else:
+            expected = {"bids_sum_24h": 100.0, "last_name": "cohen"}
+        assert resp[0] == expected
+        svc.close()
 
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])

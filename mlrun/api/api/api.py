@@ -5,6 +5,7 @@ from mlrun.api.api.endpoints import (
     artifacts,
     auth,
     background_tasks,
+    client_spec,
     feature_store,
     files,
     frontend_spec,
@@ -17,7 +18,7 @@ from mlrun.api.api.endpoints import (
     pipelines,
     projects,
     runs,
-    runtimes,
+    runtime_resources,
     schedules,
     secrets,
     submit,
@@ -43,6 +44,7 @@ api_router.include_router(
     functions.router, tags=["functions"], dependencies=[Depends(deps.AuthVerifierDep)]
 )
 api_router.include_router(healthz.router, tags=["healthz"])
+api_router.include_router(client_spec.router, tags=["client-spec"])
 api_router.include_router(
     logs.router, tags=["logs"], dependencies=[Depends(deps.AuthVerifierDep)]
 )
@@ -56,7 +58,9 @@ api_router.include_router(
     runs.router, tags=["runs"], dependencies=[Depends(deps.AuthVerifierDep)]
 )
 api_router.include_router(
-    runtimes.router, tags=["runtimes"], dependencies=[Depends(deps.AuthVerifierDep)]
+    runtime_resources.router,
+    tags=["runtime-resources"],
+    dependencies=[Depends(deps.AuthVerifierDep)],
 )
 api_router.include_router(
     schedules.router, tags=["schedules"], dependencies=[Depends(deps.AuthVerifierDep)]
@@ -80,6 +84,6 @@ api_router.include_router(
 api_router.include_router(
     secrets.router, tags=["secrets"], dependencies=[Depends(deps.AuthVerifierDep)]
 )
-api_router.include_router(grafana_proxy.router, tags=["grafana", "model_endpoints"])
-api_router.include_router(model_endpoints.router, tags=["model_endpoints"])
+api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
+api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(marketplace.router, tags=["marketplace"])

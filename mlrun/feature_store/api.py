@@ -34,7 +34,12 @@ from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
 from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
 from .feature_set import FeatureSet
-from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService
+from .feature_vector import (
+    FeatureVector,
+    FixedWindowType,
+    OfflineVectorResponse,
+    OnlineVectorService,
+)
 from .ingestion import (
     context_to_ingestion_params,
     init_featureset_graph,
@@ -139,7 +144,9 @@ def get_offline_features(
 
 
 def get_online_feature_service(
-    feature_vector: Union[str, FeatureVector], run_config: RunConfig = None,
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -152,11 +159,12 @@ def get_online_feature_service(
         resp = svc.get([{"ticker": "AAPL"}], as_list=True)
         print(resp)
 
-    :param feature_vector:  feature vector uri or FeatureVector object
-    :param run_config:   function and/or run configuration for remote jobs/services
+    :param feature_vector:    feature vector uri or FeatureVector object
+    :param run_config:        function and/or run configuration for remote jobs/services
+    :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
     feature_vector = _features_to_vector(feature_vector)
-    graph, index_columns = init_feature_vector_graph(feature_vector)
+    graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
     service = OnlineVectorService(feature_vector, graph, index_columns)
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
@@ -513,7 +521,7 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
 
-        key_column = featureset.spec.entities[0].name
+        key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
         if not targets:
             if not featureset.spec.targets:
@@ -530,7 +538,7 @@ def _ingest_with_spark(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Paths for spark ingest must contain schema, i.e v3io, s3, az"
                 )
-            spark_options = target.get_spark_options(key_column, timestamp_key)
+            spark_options = target.get_spark_options(key_columns, timestamp_key)
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )

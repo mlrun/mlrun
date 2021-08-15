@@ -70,6 +70,14 @@ class ModelObj:
         """create an object from a python dictionary"""
         struct = {} if struct is None else struct
         deprecated_fields = deprecated_fields or {}
+        print(
+            "fields "
+            + str(fields)
+            + " cls._dict_fields "
+            + str(cls._dict_fields)
+            + " struct "
+            + str(struct)
+        )
         fields = fields or cls._dict_fields
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())

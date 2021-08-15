@@ -1226,7 +1226,7 @@ class TestFeatureStore(TestMLRunSystem):
         # create feature set, ingest sample data and deploy nuclio function with stream source
         myset = FeatureSet("fset2", entities=[Entity("ticker")])
         fs.ingest(myset, quotes)
-        source = StreamSource(key_field="ticker")
+        source = StreamSource(key_field="ticker", time_field="time")
         filename = str(
             pathlib.Path(__file__).parent.parent.parent
             / "api"
@@ -1234,7 +1234,7 @@ class TestFeatureStore(TestMLRunSystem):
             / "assets"
             / "sample_function.py"
         )
-        mlrun.mlconf.feature_store.flush_interval = None
+
         function = mlrun.code_to_function(
             "ingest_transactions", kind="serving", filename=filename
         )

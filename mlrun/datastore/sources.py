@@ -338,7 +338,13 @@ class StreamSource(OnlineSource):
         retention_in_hours=24,
         **kwargs,
     ):
-        super().__init__(name, **kwargs)
+        attrs = {
+            "group": group,
+            "seek_to": seek_to,
+            "shards": shards,
+            "retention_in_hours": retention_in_hours,
+        }
+        super().__init__(name, attributes=attrs, **kwargs)
         self.group = group
         self.seek_to = seek_to
         self.shards = shards

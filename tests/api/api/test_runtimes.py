@@ -1,3 +1,4 @@
+import http
 import typing
 import unittest.mock
 
@@ -5,6 +6,7 @@ import deepdiff
 import fastapi.testclient
 import sqlalchemy.orm
 
+import mlrun.api.api.endpoints.runtimes
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
@@ -217,7 +219,7 @@ def test_list_runtime_resources_filter_by_kind(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
-        f"/api/projects/*/runtime-resources",
+        "/api/projects/*/runtime-resources",
         params={"kind": mlrun.runtimes.RuntimeKinds.job},
     )
     body = response.json()
@@ -241,6 +243,163 @@ def test_list_runtime_resources_filter_by_kind(
     body = response.json()
     expected_body = expected_runtime_resources
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+
+def test_delete_runtime_resources_nothing_allowed(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    (
+        project_1,
+        project_2,
+        project_3,
+        project_1_job_name,
+        project_2_job_name,
+        project_2_dask_name,
+        project_3_mpijob_name,
+        grouped_by_project_runtime_resources_output,
+    ) = _generate_grouped_by_project_runtime_resources_output()
+
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+        return_value=grouped_by_project_runtime_resources_output
+    )
+
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        return_value=[]
+    )
+    _assert_empty_responses_in_delete_endpoints(client)
+
+
+def test_delete_runtime_resources_no_resources(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(return_value={})
+
+    # allow all
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        side_effect=lambda _, resources, *args, **kwargs: resources
+    )
+    _assert_empty_responses_in_delete_endpoints(client)
+
+
+def test_delete_runtime_resources_opa_filtering(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    (
+        project_1,
+        project_2,
+        project_3,
+        project_1_job_name,
+        project_2_job_name,
+        project_2_dask_name,
+        project_3_mpijob_name,
+        grouped_by_project_runtime_resources_output,
+    ) = _generate_grouped_by_project_runtime_resources_output()
+
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+        return_value=grouped_by_project_runtime_resources_output
+    )
+
+    allowed_projects = [project_1, project_2]
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        return_value=allowed_projects
+    )
+    _mock_runtime_handlers_delete_resources(
+        mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
+    )
+    response = client.delete("/api/projects/*/runtime-resources",)
+    body = response.json()
+    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+        allowed_projects, grouped_by_project_runtime_resources_output
+    )
+    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+    # legacy endpoint
+    response = client.delete("/api/runtimes",)
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+
+def test_delete_runtime_resources_with_kind(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    (
+        project_1,
+        project_2,
+        project_3,
+        project_1_job_name,
+        project_2_job_name,
+        project_2_dask_name,
+        project_3_mpijob_name,
+        grouped_by_project_runtime_resources_output,
+    ) = _generate_grouped_by_project_runtime_resources_output()
+
+    kind = mlrun.runtimes.RuntimeKinds.job
+    grouped_by_project_runtime_resources_output = _filter_kind_from_grouped_by_project_runtime_resources_output(
+        kind, grouped_by_project_runtime_resources_output
+    )
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+        return_value=grouped_by_project_runtime_resources_output
+    )
+
+    allowed_projects = [project_1, project_3]
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        return_value=allowed_projects
+    )
+    _mock_runtime_handlers_delete_resources([kind], allowed_projects)
+    response = client.delete(
+        "/api/projects/*/runtime-resources", params={"kind": kind},
+    )
+    body = response.json()
+    expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
+        allowed_projects, kind, grouped_by_project_runtime_resources_output
+    )
+    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+    # legacy endpoint
+    response = client.delete(f"/api/runtimes/{kind}",)
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+
+def _mock_runtime_handlers_delete_resources(
+    kinds: typing.List[str], allowed_projects: typing.List[str],
+):
+    def _assert_delete_resources_label_selector(
+        db,
+        db_session,
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
+        leader_session: typing.Optional[str] = None,
+    ):
+        assert (
+            label_selector
+            == mlrun.api.api.endpoints.runtimes._generate_label_selector_for_allowed_projects(
+                allowed_projects
+            )
+        )
+
+    for kind in kinds:
+        runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+        runtime_handler.delete_resources = unittest.mock.Mock(
+            side_effect=_assert_delete_resources_label_selector
+        )
+
+
+def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestClient):
+    response = client.delete("/api/projects/*/runtime-resources",)
+    body = response.json()
+    assert body == {}
+
+    # legacy endpoints
+    response = client.delete("/api/runtimes",)
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+    response = client.delete(f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}",)
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+    response = client.delete(
+        f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
+    )
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def _generate_grouped_by_project_runtime_resources_output():
@@ -357,6 +516,19 @@ def _mock_opa_filter_and_assert_list_response(
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
 
 
+def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
+    allowed_projects: typing.List[str],
+    filter_kind: str,
+    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+):
+    filtered_output = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+        allowed_projects, grouped_by_project_runtime_resources_output
+    )
+    return _filter_kind_from_grouped_by_project_runtime_resources_output(
+        filter_kind, filtered_output
+    )
+
+
 def _filter_kind_from_grouped_by_project_runtime_resources_output(
     filter_kind: str,
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
@@ -380,9 +552,11 @@ def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
 ):
     filtered_output = {}
     for project in allowed_projects:
-        filtered_output[project] = {}
-        for kind, kind_runtime_resources in grouped_by_project_runtime_resources_output[
-            project
-        ].items():
-            filtered_output[project][kind] = kind_runtime_resources.dict()
+        if project in grouped_by_project_runtime_resources_output:
+            filtered_output[project] = {}
+            for (
+                kind,
+                kind_runtime_resources,
+            ) in grouped_by_project_runtime_resources_output[project].items():
+                filtered_output[project][kind] = kind_runtime_resources.dict()
     return filtered_output

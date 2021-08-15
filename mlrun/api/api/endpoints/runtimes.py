@@ -184,13 +184,11 @@ def _delete_runtime_resources(
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
-    label_selector: str = fastapi.Query(None, alias="label-selector"),
+    label_selector: str = None,
     kind: str = None,
-    object_id: str = fastapi.Query(None, alias="object-id"),
+    object_id: str = None,
     force: bool = False,
-    grace_period: int = fastapi.Query(
-        mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
-    ),
+    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
     return_body: bool = True,
 ) -> typing.Union[
     mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, fastapi.Response

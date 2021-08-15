@@ -1,4 +1,3 @@
-import http
 import typing
 
 import mergedeep

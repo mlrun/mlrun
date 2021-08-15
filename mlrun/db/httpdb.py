@@ -16,9 +16,10 @@ import http
 import os
 import tempfile
 import time
+import warnings
 from datetime import datetime
 from os import path, remove
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import kfp
 import requests
@@ -682,8 +683,10 @@ class HTTPRunDB(RunDBInterface):
 
     def list_runtime_resources(
         self,
-        project: str = None,
-        label_selector: str = None,
+        project: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        kind: Optional[str] = None,
+        object_id: Optional[str] = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[
         mlrun.api.schemas.RuntimeResourcesOutput,
@@ -698,11 +701,20 @@ class HTTPRunDB(RunDBInterface):
         projects you're authorized to see.
         :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
             to their labels.
+        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param object_id: The identifier of the mlrun object to query its runtime resources. for most function runtimes,
+        runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the runtime
+        resources are per Function, for which the identifier is the Function's name.
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         if isinstance(group_by, mlrun.api.schemas.ListRuntimeResourcesGroupByField):
             group_by = group_by.value
-        params = {"label_selector": label_selector, "group-by": group_by}
+        params = {
+            "label_selector": label_selector,
+            "group-by": group_by,
+            "kind": kind,
+            "object-id": object_id,
+        }
         project_path = project if project else "*"
         error = "Failed listing runtime resources"
         response = self.api_call(
@@ -735,34 +747,84 @@ class HTTPRunDB(RunDBInterface):
                 f"Provided group by field is not supported. group_by={group_by}"
             )
 
-    def list_kind_runtime_resources(
-        self, kind: str, project: str = None, label_selector: str = None
-    ) -> mlrun.api.schemas.KindRuntimeResources:
-        """ Return a list of runtime resources of a given kind, and potentially matching a specified label.
-        There may be multiple runtime resources returned from this function. This function is similar to the
-        :py:func:`~list_runtimes` function, only it focuses on a specific ``kind``, rather than list all runtimes
-        resources of all kinds.
+    def list_runtimes(self, label_selector: str = None) -> List:
+        """ Deprecated use :py:func:`~list_runtime_resources` instead
+        """
+        warnings.warn(
+            "This method is deprecated, use list_runtime_resources instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
+        params = {"label_selector": label_selector}
+        error = "list runtimes"
+        resp = self.api_call("GET", "runtimes", error, params=params)
+        return resp.json()
 
-        Example::
+    def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
+        """ Deprecated use :py:func:`~list_runtime_resources` (with kind filter) instead
+        """
+        warnings.warn(
+            "This method is deprecated, use list_runtime_resources (with kind filter) instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
+        params = {"label_selector": label_selector}
+        path = f"runtimes/{kind}"
+        error = f"get runtime {kind}"
+        resp = self.api_call("GET", path, error, params=params)
+        return resp.json()
 
-            project_pods = db.get_runtime('job', label_selector='mlrun/project=iris')['resources']['pod_resources']
-            for pod in project_pods:
-                print(pod["name"])
+    def delete_runtime_resources(
+        self,
+        project: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        kind: Optional[str] = None,
+        object_id: Optional[str] = None,
+        force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
+    ) -> mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput:
+        """ Delete all runtime resources which are in terminal state.
 
-        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
-        :param project: Get only runtime resources of a specific project, by default None, which will return only the
-        projects you're authorized to see.
-        :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
-            to their labels.
+        :param project: Delete only runtime resources of a specific project, by default None, which will delete only
+        from the projects you're authorized to delete from.
+        :param label_selector: Delete only runtime resources matching the label selector.
+        :param kind: The kind of runtime to delete. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param object_id: The identifier of the mlrun object to delete its runtime resources. for most function
+        runtimes, runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the
+        runtime resources are per Function, for which the identifier is the Function's name.
+        :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
+        period didn't pass.
+        :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
+        the moment they moved to terminal state.
 
+        :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
+        that were removed.
         """
 
-        params = {"label_selector": label_selector}
+        params = {
+            "label-selector": label_selector,
+            "kind": kind,
+            "object-id": object_id,
+            "force": force,
+            "grace-period": grace_period,
+        }
+        error = "Failed deleting runtime resources"
         project_path = project if project else "*"
-        path = f"/projects/{project_path}/runtime-resources/{kind}"
-        error = f"Failed listing kind runtime resources: {kind}"
-        response = self.api_call("GET", path, error, params=params)
-        return mlrun.api.schemas.KindRuntimeResources(**response.json())
+        response = self.api_call(
+            "DELETE",
+            f"/projects/{project_path}/runtime-resources",
+            error,
+            params=params,
+        )
+        structured_dict = {}
+        for project, kind_runtime_resources_map in response.json().items():
+            for kind, runtime_resources in kind_runtime_resources_map.items():
+                structured_dict.setdefault(project, {})[
+                    kind
+                ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
+        return structured_dict
 
     def delete_runtimes(
         self,
@@ -770,15 +832,14 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        """ Delete all runtimes which are matching the specific label selector provided. This will delete runtimes
-        of all applicable kinds. For deleting runtimes of a specific kind, use the :py:func:`~delete_runtime` function.
-
-        :param label_selector: Delete runtimes with this label assigned.
-        :param force: Force deletion. This parameter is passed to the Kubernetes deletion API for force-delete of pods.
-        :param grace_period: Grace period for the deleted resources before they are evacuated. This is passed to the
-            Kubernetes deletion API.
+        """ Deprecated use :py:func:`~delete_runtime_resources` instead
         """
-
+        warnings.warn(
+            "This method is deprecated, use delete_runtime_resources instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
         params = {
             "label_selector": label_selector,
             "force": force,
@@ -794,7 +855,14 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        """ Delete runtimes of a specific kind. See :py:func:`~delete_runtimes` for more details."""
+        """ Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead
+        """
+        warnings.warn(
+            "This method is deprecated, use delete_runtime_resources (with kind filter) instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
 
         params = {
             "label_selector": label_selector,
@@ -813,11 +881,14 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        """ Delete a specific runtime object identified by its ID. The object ID can be retrieved from the
-        runtime query functions, and used to target a specific runtime to delete.
-        The parameters are the same as those used in :py:func:`~delete_runtimes`.
+        """ Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead
         """
-
+        warnings.warn(
+            "This method is deprecated, use delete_runtime_resources (with kind and object_id filter) instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
         params = {
             "label_selector": label_selector,
             "force": force,

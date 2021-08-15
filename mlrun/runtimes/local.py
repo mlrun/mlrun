@@ -112,7 +112,9 @@ class ParallelRunner:
         client.close()
         if function_name and generator.options.teardown_dask:
             logger.info("tearing down the dask cluster..")
-            mlrun.get_run_db().delete_runtime_object("dask", function_name, force=True)
+            mlrun.get_run_db().delete_runtime_resources(
+                kind="dask", object_id=function_name, force=True
+            )
 
         return results
 

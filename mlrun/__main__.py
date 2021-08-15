@@ -890,26 +890,13 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
         mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b
     """
     mldb = get_run_db(api or mlconf.dbpath)
-    if kind:
-        if object_id:
-            mldb.delete_runtime_object(
-                kind=kind,
-                object_id=object_id,
-                label_selector=label_selector,
-                force=force,
-                grace_period=grace_period,
-            )
-        else:
-            mldb.delete_runtime(
-                kind=kind,
-                label_selector=label_selector,
-                force=force,
-                grace_period=grace_period,
-            )
-    else:
-        mldb.delete_runtimes(
-            label_selector=label_selector, force=force, grace_period=grace_period
-        )
+    mldb.delete_runtime_resources(
+        kind=kind,
+        object_id=object_id,
+        label_selector=label_selector,
+        force=force,
+        grace_period=grace_period,
+    )
 
 
 @main.command(name="watch-stream")

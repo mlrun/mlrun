@@ -15,6 +15,7 @@
 import getpass
 import shlex
 import traceback
+import typing
 import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
@@ -974,6 +975,7 @@ class BaseRuntimeHandler(ABC):
     def list_resources(
         self,
         project: str,
+        object_id: typing.Optional[str] = None,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[
@@ -988,7 +990,9 @@ class BaseRuntimeHandler(ABC):
             return {}
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(project, label_selector)
+        label_selector = self._resolve_label_selector(
+            project, object_id, label_selector
+        )
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
         crd_objects = self._list_crd_objects(namespace, label_selector)
@@ -1035,7 +1039,9 @@ class BaseRuntimeHandler(ABC):
             return
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector("*", label_selector)
+        label_selector = self._resolve_label_selector(
+            "*", label_selector=label_selector
+        )
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
@@ -1077,11 +1083,9 @@ class BaseRuntimeHandler(ABC):
         grace_period: int = config.runtime_resources_deletion_grace_period,
         leader_session: Optional[str] = None,
     ):
-        object_label_selector = self._get_object_label_selector(object_id)
-        if label_selector:
-            label_selector = ",".join([object_label_selector, label_selector])
-        else:
-            label_selector = object_label_selector
+        label_selector = self._add_object_label_selector_if_needed(
+            object_id, label_selector
+        )
         self.delete_resources(
             db, db_session, label_selector, force, grace_period, leader_session
         )
@@ -1119,6 +1123,19 @@ class BaseRuntimeHandler(ABC):
                     exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
+
+    def _add_object_label_selector_if_needed(
+        self,
+        object_id: typing.Optional[str] = None,
+        label_selector: typing.Optional[str] = None,
+    ):
+        if object_id:
+            object_label_selector = self._get_object_label_selector(object_id)
+            if label_selector:
+                label_selector = ",".join([object_label_selector, label_selector])
+            else:
+                label_selector = object_label_selector
+        return label_selector
 
     def _enrich_list_resources_response(
         self,
@@ -1286,7 +1303,12 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
-    def _resolve_label_selector(self, project: str, label_selector: str = None) -> str:
+    def _resolve_label_selector(
+        self,
+        project: str,
+        object_id: typing.Optional[str] = None,
+        label_selector: typing.Optional[str] = None,
+    ) -> str:
         default_label_selector = self._get_default_label_selector()
 
         if label_selector:
@@ -1296,6 +1318,10 @@ class BaseRuntimeHandler(ABC):
 
         if project and project != "*":
             label_selector = ",".join([label_selector, f"mlrun/project={project}"])
+
+        label_selector = self._add_object_label_selector_if_needed(
+            object_id, label_selector
+        )
 
         return label_selector
 
@@ -1359,8 +1385,8 @@ class BaseRuntimeHandler(ABC):
             still_in_deletion_crds_to_pod_names = {}
             jobs_runtime_resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput = self.list_resources(
                 "*",
-                label_selector,
-                mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+                label_selector=label_selector,
+                group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
             )
             for project, project_jobs in jobs_runtime_resources.items():
                 if project not in project_uid_crd_map:

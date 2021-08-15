@@ -19,6 +19,7 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         self,
         project: str,
         kind: str = None,
+        object_id: str = None,
         label_selector: str = None,
         group_by: typing.Optional[
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
@@ -29,31 +30,23 @@ class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         response = [] if group_by is None else {}
-
-        def _add_resources_to_response(_kind, _resources):
+        kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
+        if kind is not None:
+            self.validate_runtime_resources_kind(kind)
+            kinds = [kind]
+        for kind in kinds:
+            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            resources = runtime_handler.list_resources(
+                project, object_id, label_selector, group_by
+            )
             if group_by is None:
                 response.append(
                     mlrun.api.schemas.KindRuntimeResources(
-                        kind=_kind, resources=_resources
+                        kind=kind, resources=resources
                     )
                 )
             else:
-                mergedeep.merge(response, _resources)
-
-        if kind is not None:
-            self.validate_runtime_resources_kind(kind)
-            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-            resources = runtime_handler.list_resources(
-                project, label_selector, group_by
-            )
-            _add_resources_to_response(kind, resources)
-        else:
-            for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-                runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-                resources = runtime_handler.list_resources(
-                    project, label_selector, group_by
-                )
-                _add_resources_to_response(kind, resources)
+                mergedeep.merge(response, resources)
         return response
 
     def filter_and_format_grouped_by_project_runtime_resources_output(

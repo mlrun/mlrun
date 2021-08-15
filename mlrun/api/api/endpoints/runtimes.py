@@ -201,6 +201,7 @@ def _delete_runtime_resources(
         auth_info,
         label_selector,
         kind,
+        object_id,
         mlrun.api.schemas.AuthorizationAction.delete,
     )
     # if nothing allowed, simply return empty response
@@ -258,8 +259,9 @@ def _list_runtime_resources(
 def _get_runtime_resources_allowed_projects(
     project: str,
     auth_info: mlrun.api.schemas.AuthInfo,
-    label_selector: str = None,
-    kind: str = None,
+    label_selector: typing.Optional[str] = None,
+    kind: typing.Optional[str] = None,
+    object_id: typing.Optional[str] = None,
     action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
 ) -> typing.Tuple[
     typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
@@ -268,6 +270,7 @@ def _get_runtime_resources_allowed_projects(
     grouped_by_project_runtime_resources_output = mlrun.api.crud.Runtimes().list_runtimes(
         project,
         kind,
+        object_id,
         label_selector,
         mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
     )

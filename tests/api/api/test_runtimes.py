@@ -359,6 +359,53 @@ def test_delete_runtime_resources_with_kind(
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
+def test_delete_runtime_resources_with_object_id(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    (
+        project_1,
+        project_2,
+        project_3,
+        project_1_job_name,
+        project_2_job_name,
+        project_2_dask_name,
+        project_3_mpijob_name,
+        grouped_by_project_runtime_resources_output,
+    ) = _generate_grouped_by_project_runtime_resources_output()
+
+    kind = mlrun.runtimes.RuntimeKinds.job
+    mock_list_runtimes_output = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
+        [project_1], kind, grouped_by_project_runtime_resources_output, structured=True
+    )
+    object_id = (
+        grouped_by_project_runtime_resources_output[project_1][kind]
+        .pod_resources[0]
+        .name
+    )
+    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+        return_value=mock_list_runtimes_output
+    )
+
+    # allow all
+    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+        side_effect=lambda _, resources, *args, **kwargs: resources
+    )
+    _mock_runtime_handlers_delete_resources([kind], [project_1])
+    response = client.delete(
+        "/api/projects/*/runtime-resources",
+        params={"kind": kind, "object-id": object_id},
+    )
+    body = response.json()
+    expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
+        [project_1], kind, grouped_by_project_runtime_resources_output, structured=False
+    )
+    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+    # legacy endpoint
+    response = client.delete(f"/api/runtimes/{kind}/{object_id}",)
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+
 def _mock_runtime_handlers_delete_resources(
     kinds: typing.List[str], allowed_projects: typing.List[str],
 ):
@@ -371,10 +418,10 @@ def _mock_runtime_handlers_delete_resources(
         leader_session: typing.Optional[str] = None,
     ):
         assert (
-            label_selector
-            == mlrun.api.api.endpoints.runtimes._generate_label_selector_for_allowed_projects(
+            mlrun.api.api.endpoints.runtimes._generate_label_selector_for_allowed_projects(
                 allowed_projects
             )
+            in label_selector
         )
 
     for kind in kinds:
@@ -520,9 +567,10 @@ def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_
     allowed_projects: typing.List[str],
     filter_kind: str,
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    structured: bool = False,
 ):
     filtered_output = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        allowed_projects, grouped_by_project_runtime_resources_output
+        allowed_projects, grouped_by_project_runtime_resources_output, structured
     )
     return _filter_kind_from_grouped_by_project_runtime_resources_output(
         filter_kind, filtered_output
@@ -549,6 +597,7 @@ def _filter_kind_from_grouped_by_project_runtime_resources_output(
 def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
     allowed_projects: typing.List[str],
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    structured: bool = False,
 ):
     filtered_output = {}
     for project in allowed_projects:
@@ -558,5 +607,9 @@ def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
                 kind,
                 kind_runtime_resources,
             ) in grouped_by_project_runtime_resources_output[project].items():
-                filtered_output[project][kind] = kind_runtime_resources.dict()
+                filtered_output[project][kind] = (
+                    kind_runtime_resources
+                    if structured
+                    else kind_runtime_resources.dict()
+                )
     return filtered_output

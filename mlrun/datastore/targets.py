@@ -345,6 +345,21 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df.write.mode("overwrite").save(**options)
+        elif hasattr(df, "dask"):
+            dask_options = self.get_dask_options()
+            storage_options = self._get_store().get_storage_options()
+            df = df.repartition(partition_size="100MB")
+            try:
+                if dask_options["format"] == "parquet":
+                    df.to_parquet(self._target_path, storage_options=storage_options)
+                elif dask_options["format"] == "csv":
+                    df.to_csv(self._target_path, storage_options=storage_options)
+                else:
+                    raise NotImplementedError(
+                        "Format for writing dask dataframe should be CSV or Parquet!"
+                    )
+            except Exception as exc:
+                raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
         else:
             target_path = self._target_path
             fs = self._get_store().get_filesystem(False)
@@ -454,6 +469,9 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
+    def get_dask_options(self):
+        raise NotImplementedError()
+
 
 class ParquetTarget(BaseStoreTarget):
     """parquet target storage driver, used to materialize feature set/vector data into parquet files
@@ -484,6 +502,7 @@ class ParquetTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
+    support_dask = True
 
     def __init__(
         self,
@@ -628,6 +647,9 @@ class ParquetTarget(BaseStoreTarget):
             "path": store_path_to_spark(self._target_path),
             "format": "parquet",
         }
+
+    def get_dask_options(self):
+        return {"format": "parquet"}
 
     def as_df(
         self,
@@ -801,6 +823,9 @@ class NoSqlTarget(BaseStoreTarget):
         else:
             spark_options["key"] = key_column
         return spark_options
+
+    def get_dask_options(self):
+        return {"format": "csv"}
 
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()

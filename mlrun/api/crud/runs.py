@@ -36,7 +36,6 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         uid: str,
         iter: int,
         data: dict,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
         logger.debug("Updating run", project=project, uid=uid, iter=iter, data=data)
@@ -64,11 +63,10 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             # aborting the run meaning deleting its runtime resources
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
             #  "knowledge" on the label selector
-            mlrun.api.crud.Runtimes().delete_runtimes(
+            mlrun.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
                 label_selector=f"mlrun/project={project},mlrun/uid={uid}",
                 force=True,
-                leader_session=auth_info.session,
             )
         mlrun.api.utils.singletons.db.get_db().update_run(
             db_session, data, uid, project, iter

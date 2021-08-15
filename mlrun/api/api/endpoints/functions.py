@@ -402,7 +402,7 @@ def _build_function(
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
     try:
-        run_db = get_run_db_instance(db_session, auth_info)
+        run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
@@ -453,7 +453,7 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
                 reason="runtime error: 'start' not supported by this runtime",
             )
         try:
-            run_db = get_run_db_instance(db_session, auth_info)
+            run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?

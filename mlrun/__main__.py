@@ -597,11 +597,11 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         run_db = get_run_db(db or mlconf.dbpath)
         if name:
             # the runtime identifier is its kind
-            runtime = run_db.get_runtime(kind=name, label_selector=selector)
-            print(dict_to_yaml(runtime))
+            runtime = run_db.list_runtime_resources(kind=name, label_selector=selector)
+            print(dict_to_yaml(runtime.dict()))
             return
-        runtimes = run_db.list_runtimes(label_selector=selector)
-        print(dict_to_yaml(runtimes))
+        runtimes = run_db.list_runtime_resources(label_selector=selector)
+        print(dict_to_yaml(runtimes.dict()))
     elif kind.startswith("run"):
         run_db = get_run_db()
         if name:
@@ -888,26 +888,13 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
         mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b
     """
     mldb = get_run_db(api or mlconf.dbpath)
-    if kind:
-        if object_id:
-            mldb.delete_runtime_object(
-                kind=kind,
-                object_id=object_id,
-                label_selector=label_selector,
-                force=force,
-                grace_period=grace_period,
-            )
-        else:
-            mldb.delete_runtime(
-                kind=kind,
-                label_selector=label_selector,
-                force=force,
-                grace_period=grace_period,
-            )
-    else:
-        mldb.delete_runtimes(
-            label_selector=label_selector, force=force, grace_period=grace_period
-        )
+    mldb.delete_runtime_resources(
+        kind=kind,
+        object_id=object_id,
+        label_selector=label_selector,
+        force=force,
+        grace_period=grace_period,
+    )
 
 
 @main.command(name="watch-stream")

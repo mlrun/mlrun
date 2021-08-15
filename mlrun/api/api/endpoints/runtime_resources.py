@@ -213,7 +213,7 @@ def _delete_runtime_resources(
             label_selector = ",".join([label_selector, permissions_label_selector])
         else:
             label_selector = permissions_label_selector
-        mlrun.api.crud.Runtimes().delete_runtime_resources(
+        mlrun.api.crud.RuntimeResources().delete_runtime_resources(
             db_session,
             kind,
             object_id,
@@ -223,7 +223,7 @@ def _delete_runtime_resources(
             auth_info.session,
         )
     if return_body:
-        return mlrun.api.crud.Runtimes().filter_and_format_grouped_by_project_runtime_resources_output(
+        return mlrun.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
             grouped_by_project_runtime_resources_output,
             allowed_projects,
             mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
@@ -251,7 +251,7 @@ def _list_runtime_resources(
     ) = _get_runtime_resources_allowed_projects(
         project, auth_info, label_selector, kind_filter
     )
-    return mlrun.api.crud.Runtimes().filter_and_format_grouped_by_project_runtime_resources_output(
+    return mlrun.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
         grouped_by_project_runtime_resources_output, allowed_projects, group_by,
     )
 
@@ -267,7 +267,7 @@ def _get_runtime_resources_allowed_projects(
     typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
 ]:
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
-    grouped_by_project_runtime_resources_output = mlrun.api.crud.Runtimes().list_runtimes(
+    grouped_by_project_runtime_resources_output = mlrun.api.crud.RuntimeResources().list_runtime_resources(
         project,
         kind,
         object_id,

@@ -14,8 +14,8 @@ import mlrun.runtimes
 import mlrun.utils.singleton
 
 
-class Runtimes(metaclass=mlrun.utils.singleton.Singleton,):
-    def list_runtimes(
+class RuntimeResources(metaclass=mlrun.utils.singleton.Singleton,):
+    def list_runtime_resources(
         self,
         project: str,
         kind: str = None,

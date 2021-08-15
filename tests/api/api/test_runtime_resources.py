@@ -6,7 +6,7 @@ import deepdiff
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.api.api.endpoints.runtimes
+import mlrun.api.api.endpoints.runtime_resources
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
@@ -27,7 +27,7 @@ def test_list_runtimes_resources_opa_filtering(
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_output()
 
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
     )
     _mock_opa_filter_and_assert_list_response(
@@ -57,7 +57,7 @@ def test_list_runtimes_resources_group_by_job(
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_output()
 
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
@@ -104,7 +104,7 @@ def test_list_runtimes_resources_no_group_by(
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_output()
 
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
@@ -154,7 +154,9 @@ def test_list_runtimes_resources_no_group_by(
 def test_list_runtime_resources_no_resources(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(return_value={})
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
+        return_value={}
+    )
 
     mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
         return_value=[]
@@ -259,7 +261,7 @@ def test_delete_runtime_resources_nothing_allowed(
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_output()
 
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
     )
 
@@ -272,7 +274,9 @@ def test_delete_runtime_resources_nothing_allowed(
 def test_delete_runtime_resources_no_resources(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(return_value={})
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
+        return_value={}
+    )
 
     # allow all
     mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
@@ -295,7 +299,7 @@ def test_delete_runtime_resources_opa_filtering(
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_output()
 
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
     )
 
@@ -336,7 +340,7 @@ def test_delete_runtime_resources_with_kind(
     grouped_by_project_runtime_resources_output = _filter_kind_from_grouped_by_project_runtime_resources_output(
         kind, grouped_by_project_runtime_resources_output
     )
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
     )
 
@@ -382,7 +386,7 @@ def test_delete_runtime_resources_with_object_id(
         .pod_resources[0]
         .name
     )
-    mlrun.api.crud.Runtimes().list_runtimes = unittest.mock.Mock(
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=mock_list_runtimes_output
     )
 
@@ -418,7 +422,7 @@ def _mock_runtime_handlers_delete_resources(
         leader_session: typing.Optional[str] = None,
     ):
         assert (
-            mlrun.api.api.endpoints.runtimes._generate_label_selector_for_allowed_projects(
+            mlrun.api.api.endpoints.runtime_resources._generate_label_selector_for_allowed_projects(
                 allowed_projects
             )
             in label_selector

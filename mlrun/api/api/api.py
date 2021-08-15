@@ -18,7 +18,7 @@ from mlrun.api.api.endpoints import (
     pipelines,
     projects,
     runs,
-    runtimes,
+    runtime_resources,
     schedules,
     secrets,
     submit,
@@ -58,7 +58,9 @@ api_router.include_router(
     runs.router, tags=["runs"], dependencies=[Depends(deps.AuthVerifier)]
 )
 api_router.include_router(
-    runtimes.router, tags=["runtimes"], dependencies=[Depends(deps.AuthVerifier)]
+    runtime_resources.router,
+    tags=["runtime-resources"],
+    dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(
     schedules.router, tags=["schedules"], dependencies=[Depends(deps.AuthVerifier)]
@@ -82,6 +84,6 @@ api_router.include_router(
 api_router.include_router(
     secrets.router, tags=["secrets"], dependencies=[Depends(deps.AuthVerifier)]
 )
-api_router.include_router(grafana_proxy.router, tags=["grafana", "model_endpoints"])
-api_router.include_router(model_endpoints.router, tags=["model_endpoints"])
+api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
+api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(marketplace.router, tags=["marketplace"])

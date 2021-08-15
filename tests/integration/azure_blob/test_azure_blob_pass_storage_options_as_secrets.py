@@ -1,4 +1,3 @@
-import os
 import random
 from pathlib import Path
 
@@ -25,13 +24,8 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
     "conn_str": ["connection_string"],
     "sas_token": ["account_name", "sas_token"],
     "account_key": ["account_name", "account_key"],
-    "spn": [
-        "account_name",
-        "client_id",
-        "client_secret",
-        "tenant_id",
-    ],
-    "credential": ["credential"]
+    "spn": ["account_name", "client_id", "client_secret", "tenant_id"],
+    "credential": ["credential"],
 }
 
 
@@ -107,7 +101,9 @@ def test_list_dir(auth_method):
     assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
     # Check dir list for folder in container
-    dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir, storage_options).listdir()
+    dir_list = mlrun.run.get_dataitem(
+        blob_container_path + "/" + blob_dir, storage_options
+    ).listdir()
     assert blob_file in dir_list, "File not in folder dir-list"
 
 

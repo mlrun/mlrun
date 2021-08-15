@@ -277,10 +277,6 @@ class OnlineSource(BaseSourceDriver):
         "time_field",
         "online",
         "workers",
-        "group",
-        "seek_to",
-        "shards",
-        "retention_in_hours",
     ]
     kind = ""
 
@@ -345,10 +341,6 @@ class StreamSource(OnlineSource):
             "retention_in_hours": retention_in_hours,
         }
         super().__init__(name, attributes=attrs, **kwargs)
-        self.group = group
-        self.seek_to = seek_to
-        self.shards = shards
-        self.retention_in_hours = retention_in_hours
 
 
 # map of sources (exclude DF source which is not serializable)

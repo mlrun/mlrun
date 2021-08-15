@@ -838,18 +838,16 @@ class TestFeatureStore(TestMLRunSystem):
     )
     def test_query_on_fixed_window(self, fixed_window_type):
         current_time = pd.Timestamp.now()
-        data = (
-            pd.DataFrame(
-                {
-                    "time": [
-                        current_time,
-                        current_time - pd.Timedelta(hours=current_time.hour + 2),
-                    ],
-                    "first_name": ["moshe", "moshe"],
-                    "last_name": ["cohen", "cohen"],
-                    "bid": [2000, 100],
-                },
-            ),
+        data = pd.DataFrame(
+            {
+                "time": [
+                    current_time,
+                    current_time - pd.Timedelta(hours=current_time.hour + 2),
+                ],
+                "first_name": ["moshe", "moshe"],
+                "last_name": ["cohen", "cohen"],
+                "bid": [2000, 100],
+            },
         )
         name = f"measurements_{uuid.uuid4()}"
 

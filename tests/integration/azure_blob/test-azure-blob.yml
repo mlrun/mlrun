@@ -15,4 +15,14 @@ env:
   AZURE_STORAGE_TENANT_ID:
 
   # Storage container within the given storage account where objects will be created.
-  AZURE_CONTAINER:
+  AZURE_CONTAINER:  
+
+  # Support storage_options keywords
+  connection_string: 
+  account_name:  
+  account_key:  
+  sas_token:
+  client_id:
+  client_secret:
+  client_id:
+  credential: 

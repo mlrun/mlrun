@@ -655,7 +655,7 @@ async def test_rescheduling_secrets_storing(
     )
 
     jobs = scheduler._list_schedules_from_scheduler(project)
-    assert jobs[0].args[4].session == session
+    assert jobs[0].args[5].session == session
     k8s_secrets_mock.assert_project_secrets(
         project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
     )
@@ -667,7 +667,7 @@ async def test_rescheduling_secrets_storing(
 
     await scheduler.start(db)
     jobs = scheduler._list_schedules_from_scheduler(project)
-    assert jobs[0].args[4].session == session
+    assert jobs[0].args[5].session == session
 
 
 @pytest.mark.asyncio

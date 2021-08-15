@@ -18,9 +18,9 @@ class RuntimeResources(metaclass=mlrun.utils.singleton.Singleton,):
     def list_runtime_resources(
         self,
         project: str,
-        kind: str = None,
-        object_id: str = None,
-        label_selector: str = None,
+        kind: typing.Optional[str] = None,
+        object_id: typing.Optional[str] = None,
+        label_selector: typing.Optional[str] = None,
         group_by: typing.Optional[
             mlrun.api.schemas.ListRuntimeResourcesGroupByField
         ] = None,

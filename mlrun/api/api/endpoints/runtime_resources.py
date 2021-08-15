@@ -34,8 +34,9 @@ def list_runtime_resources_legacy(
 )
 def list_runtime_resources(
     project: str,
-    label_selector: str = fastapi.Query(None, alias="label-selector"),
-    kind: str = None,
+    label_selector: typing.Optional[str] = fastapi.Query(None, alias="label-selector"),
+    kind: typing.Optional[str] = None,
+    object_id: typing.Optional[str] = fastapi.Query(None, alias="object-id"),
     group_by: typing.Optional[
         mlrun.api.schemas.ListRuntimeResourcesGroupByField
     ] = fastapi.Query(None, alias="group-by"),
@@ -44,7 +45,7 @@ def list_runtime_resources(
     ),
 ):
     return _list_runtime_resources(
-        project, auth_verifier.auth_info, label_selector, group_by, kind
+        project, auth_verifier.auth_info, label_selector, group_by, kind, object_id
     )
 
 
@@ -74,9 +75,9 @@ def list_runtime_resources_by_kind_legacy(
 )
 def delete_runtime_resources(
     project: str,
-    label_selector: str = fastapi.Query(None, alias="label-selector"),
-    kind: str = None,
-    object_id: str = fastapi.Query(None, alias="object-id"),
+    label_selector: typing.Optional[str] = fastapi.Query(None, alias="label-selector"),
+    kind: typing.Optional[str] = None,
+    object_id: typing.Optional[str] = fastapi.Query(None, alias="object-id"),
     force: bool = False,
     grace_period: int = fastapi.Query(
         mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
@@ -184,9 +185,9 @@ def _delete_runtime_resources(
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
-    label_selector: str = None,
-    kind: str = None,
-    object_id: str = None,
+    label_selector: typing.Optional[str] = None,
+    kind: typing.Optional[str] = None,
+    object_id: typing.Optional[str] = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
     return_body: bool = True,
@@ -235,11 +236,12 @@ def _delete_runtime_resources(
 def _list_runtime_resources(
     project: str,
     auth_info: mlrun.api.schemas.AuthInfo,
-    label_selector: str = None,
+    label_selector: typing.Optional[str] = None,
     group_by: typing.Optional[
         mlrun.api.schemas.ListRuntimeResourcesGroupByField
     ] = None,
-    kind_filter: str = None,
+    kind_filter: typing.Optional[str] = None,
+    object_id: typing.Optional[str] = None,
 ) -> typing.Union[
     mlrun.api.schemas.RuntimeResourcesOutput,
     mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -249,7 +251,7 @@ def _list_runtime_resources(
         allowed_projects,
         grouped_by_project_runtime_resources_output,
     ) = _get_runtime_resources_allowed_projects(
-        project, auth_info, label_selector, kind_filter
+        project, auth_info, label_selector, kind_filter, object_id
     )
     return mlrun.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
         grouped_by_project_runtime_resources_output, allowed_projects, group_by,

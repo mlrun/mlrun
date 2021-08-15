@@ -597,9 +597,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         run_db = get_run_db(db or mlconf.dbpath)
         if name:
             # the runtime identifier is its kind
-            runtime = run_db.list_runtime_resources(
-                kind=name, label_selector=selector
-            )
+            runtime = run_db.list_runtime_resources(kind=name, label_selector=selector)
             print(dict_to_yaml(runtime.dict()))
             return
         runtimes = run_db.list_runtime_resources(label_selector=selector)

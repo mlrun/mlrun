@@ -79,6 +79,7 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOwner,
     ProjectsFormat,
     ProjectsOutput,
     ProjectSpec,

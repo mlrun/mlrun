@@ -1,8 +1,14 @@
+import unittest.mock
+import deepdiff
+import typing
 from http import HTTPStatus
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+import mlrun.api.schemas
+import mlrun.api.api.endpoints.feature_store
+import mlrun.api.utils.clients.opa
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
@@ -403,4 +409,41 @@ def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> No
 
     _test_partition_by_for_feature_store_objects(
         client, "feature_vectors", project_name, count
+    )
+
+
+def test_verify_feature_vector_features_permissions(db: Session, client: TestClient) -> None:
+    project = "some-project"
+    features = [
+        "without-project.*",
+        "without-project.with-feature-name",
+        "without-project.with-feature-alias as some-alias",
+        "without-project:with-tag.*",
+        "with-project/name.*",
+        "with-project/name:and-tag.*",
+        "with-project/name@and-uid.*",
+        "store://feature-sets/with-project/name:and-tag.*",
+        "store://feature-sets/with-project/name@and-uid.*",
+        "store://feature-sets/without-project.with-feature-alias as some-alias",
+    ]
+    label_feature = "some-feature-set.some-feature"
+    def _verify_queried_resources(
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resources: typing.List,
+        project_and_resource_name_extractor: typing.Callable,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ):
+        expected_resources = [
+            (project, "without-project"),
+            ("with-project", "name"),
+            (project, "some-feature-set"),
+        ]
+        assert deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
+    mlrun.api.utils.clients.opa.Client().query_resources_permissions = unittest.mock.Mock(side_effect=_verify_queried_resources)
+    mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        {"spec": {"features": features, "label_feature": label_feature}}
     )

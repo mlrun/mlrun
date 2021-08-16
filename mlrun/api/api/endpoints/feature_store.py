@@ -392,7 +392,7 @@ def create_feature_vector(
         mlrun.api.schemas.AuthorizationAction.create,
         auth_verifier.auth_info,
     )
-    _verify_feature_vector_features_permission(
+    _verify_feature_vector_features_permissions(
         auth_verifier.auth_info, project, feature_vector.dict()
     )
     feature_vector_uid = mlrun.api.crud.FeatureStore().create_feature_vector(
@@ -497,7 +497,7 @@ def store_feature_vector(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
-    _verify_feature_vector_features_permission(
+    _verify_feature_vector_features_permissions(
         auth_verifier.auth_info, project, feature_vector.dict()
     )
     tag, uid = parse_reference(reference)
@@ -529,7 +529,7 @@ def patch_feature_vector(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
-    _verify_feature_vector_features_permission(
+    _verify_feature_vector_features_permissions(
         auth_verifier.auth_info, project, feature_vector_patch
     )
     tag, uid = parse_reference(reference)
@@ -564,7 +564,7 @@ def delete_feature_vector(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-def _verify_feature_vector_features_permission(
+def _verify_feature_vector_features_permissions(
     auth_info: mlrun.api.schemas.AuthInfo, project: str, feature_vector: dict
 ):
     features = []
@@ -575,14 +575,14 @@ def _verify_feature_vector_features_permission(
     feature_set_project_to_name_set_map = {}
     for feature in features:
         feature_set_uri, _, _ = mlrun.feature_store.common.parse_feature_string(feature)
-        project, name, _, _ = mlrun.feature_store.common.parse_feature_set_uri(
+        _project, name, _, _ = mlrun.feature_store.common.parse_feature_set_uri(
             feature_set_uri, project
         )
-        feature_set_project_to_name_set_map.setdefault(project, set()).add(name)
+        feature_set_project_to_name_set_map.setdefault(_project, set()).add(name)
     feature_set_project_name_tuples = []
-    for project, names in feature_set_project_to_name_set_map.items():
+    for _project, names in feature_set_project_to_name_set_map.items():
         for name in names:
-            feature_set_project_name_tuples.append((project, name))
+            feature_set_project_name_tuples.append((_project, name))
     mlrun.api.utils.clients.opa.Client().query_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         feature_set_project_name_tuples,

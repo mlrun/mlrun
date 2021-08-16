@@ -31,7 +31,7 @@ router = APIRouter()
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
 def grafana_proxy_model_endpoints_check_connection(
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
 ):
     """
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
@@ -46,7 +46,8 @@ def grafana_proxy_model_endpoints_check_connection(
     response_model=List[Union[GrafanaTable, GrafanaTimeSeriesTarget]],
 )
 async def grafana_proxy_model_endpoints_query(
-    request: Request, auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier)
+    request: Request,
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
 ) -> List[Union[GrafanaTable, GrafanaTimeSeriesTarget]]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
@@ -73,7 +74,7 @@ async def grafana_proxy_model_endpoints_query(
 @router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
 async def grafana_proxy_model_endpoints_search(
     request: Request,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ) -> List[str]:
     """

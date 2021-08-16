@@ -34,8 +34,8 @@ def list_pipelines(
         mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     page_size: int = Query(None, gt=0, le=200),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     total_size, next_page_token, runs = None, None, []
@@ -80,8 +80,8 @@ async def submit_pipeline_legacy(
     namespace: str = config.namespace,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     response = await _create_pipeline(
@@ -97,8 +97,8 @@ async def create_pipeline(
     namespace: str = config.namespace,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     response = await _create_pipeline(
@@ -197,8 +197,8 @@ def _try_resolve_project_from_body(
 def get_pipeline_legacy(
     run_id: str,
     namespace: str = Query(config.namespace),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -215,8 +215,8 @@ def get_pipeline(
     format_: mlrun.api.schemas.PipelinesFormat = Query(
         mlrun.api.schemas.PipelinesFormat.summary, alias="format"
     ),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):

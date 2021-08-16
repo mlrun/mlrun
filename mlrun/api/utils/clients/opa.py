@@ -46,6 +46,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         resources: typing.List,
         project_and_resource_name_extractor: typing.Callable,
         auth_info: mlrun.api.schemas.AuthInfo,
+        action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
     ) -> typing.List:
         # TODO: execute in parallel
         filtered_resources = []
@@ -55,7 +56,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 resource_type,
                 project_name,
                 resource_name,
-                mlrun.api.schemas.AuthorizationAction.read,
+                action,
                 auth_info,
                 raise_on_forbidden=False,
             )

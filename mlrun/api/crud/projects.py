@@ -76,7 +76,7 @@ class Projects(
             if deletion_strategy == mlrun.api.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name, auth_info)
+            self.delete_project_resources(session, name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -84,17 +84,11 @@ class Projects(
         projects_store.delete_project(session, name, deletion_strategy)
 
     def delete_project_resources(
-        self,
-        session: sqlalchemy.orm.Session,
-        name: str,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        self, session: sqlalchemy.orm.Session, name: str,
     ):
         # delete runtime resources
-        mlrun.api.crud.Runtimes().delete_runtimes(
-            session,
-            label_selector=f"mlrun/project={name}",
-            force=True,
-            leader_session=auth_info.session,
+        mlrun.api.crud.RuntimeResources().delete_runtime_resources(
+            session, label_selector=f"mlrun/project={name}", force=True,
         )
 
         mlrun.api.crud.Logs().delete_logs(name)

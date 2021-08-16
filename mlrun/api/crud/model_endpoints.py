@@ -450,7 +450,7 @@ class ModelEndpoints:
             f"hub://model_monitoring_batch:{config.model_endpoint_monitoring.batch_processing_function_branch}"
         )
 
-        fn.set_db_connection(get_run_db_instance(db_session, auth_info))
+        fn.set_db_connection(get_run_db_instance(db_session))
 
         fn.metadata.project = project
 

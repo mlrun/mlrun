@@ -167,12 +167,19 @@ class ParquetSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        start_time: Optional[Union[str, datetime]] = None,
-        end_time: Optional[Union[str, datetime]] = None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
     ):
-        super().__init__(name, path, attributes, key_field, time_field, schedule)
-        self.start_time = start_time
-        self.end_time = end_time
+        super().__init__(
+            name,
+            path,
+            attributes,
+            key_field,
+            time_field,
+            schedule,
+            start_time,
+            end_time,
+        )
 
     def to_step(
         self,

@@ -44,7 +44,7 @@ class LocalFeatureMerger:
             if drop_indexes and key and key not in index_columns:
                 index_columns.append(key)
 
-        if entity_timestamp_column:
+        if entity_timestamp_column and drop_indexes:
             index_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
         self.vector.save()
@@ -57,13 +57,25 @@ class LocalFeatureMerger:
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            df = feature_set.to_dataframe(
-                columns=column_names,
-                df_module=df_module,
-                start_time=start_time,
-                end_time=end_time,
-                time_column=entity_timestamp_column,
-            )
+            # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
+            # column is from a specific feature set (can't be entity timestamp)
+            if (
+                entity_timestamp_column in column_names
+                or feature_set.spec.timestamp_key == entity_timestamp_column
+            ):
+                df = feature_set.to_dataframe(
+                    columns=column_names,
+                    df_module=df_module,
+                    start_time=start_time,
+                    end_time=end_time,
+                    time_column=entity_timestamp_column,
+                )
+            else:
+                df = feature_set.to_dataframe(
+                    columns=column_names,
+                    df_module=df_module,
+                    time_column=entity_timestamp_column,
+                )
             # rename columns with aliases
             df.rename(
                 columns={name: alias for name, alias in columns if alias}, inplace=True
@@ -108,7 +120,7 @@ class LocalFeatureMerger:
         featureset_dfs: List[pd.DataFrame],
     ):
         merged_df = entity_df
-        if entity_df is None:
+        if entity_df is None and featureset_dfs:
             merged_df = featureset_dfs.pop(0)
             featureset = featuresets.pop(0)
             entity_timestamp_column = (

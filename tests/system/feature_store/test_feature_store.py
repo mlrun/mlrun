@@ -3,7 +3,7 @@ import pathlib
 import random
 import string
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import fsspec
@@ -11,7 +11,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import pytest
 from pandas.util.testing import assert_frame_equal
-from storey import EmitAfterMaxEvent, MapClass
+from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
@@ -32,6 +32,7 @@ from mlrun.datastore.targets import (
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
+from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
@@ -630,7 +631,6 @@ class TestFeatureStore(TestMLRunSystem):
             operations=["sum", "max"],
             windows="1h",
             period="10m",
-            emit_policy=EmitAfterMaxEvent(1),
         )
         fs.preview(
             data_set,
@@ -691,6 +691,63 @@ class TestFeatureStore(TestMLRunSystem):
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         features = ["fs1.*"]
+        vector = fs.FeatureVector("vector", features)
+        vector.spec.with_indexes = True
+
+        resp = fs.get_offline_features(
+            vector,
+            entity_timestamp_column="time_stamp",
+            start_time=datetime(2021, 6, 9, 9, 30),
+            end_time=datetime(2021, 6, 9, 10, 30),
+        )
+
+        expected = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-06-09 09:30:06.008"),
+                    pd.Timestamp("2021-06-09 10:29:07.009"),
+                ],
+                "data": [10, 20],
+                "string": ["ab", "cd"],
+            }
+        )
+        expected.set_index(keys="string", inplace=True)
+
+        assert expected.equals(resp.to_dataframe())
+
+    def test_filter_offline_multiple_featuresets(self):
+        data = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-06-09 09:30:06.008"),
+                    pd.Timestamp("2021-06-09 10:29:07.009"),
+                    pd.Timestamp("2021-06-09 09:29:08.010"),
+                ],
+                "data": [10, 20, 30],
+                "string": ["ab", "cd", "ef"],
+            }
+        )
+
+        data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+
+        data2 = pd.DataFrame(
+            {
+                "time_stamp": [
+                    pd.Timestamp("2021-07-09 09:30:06.008"),
+                    pd.Timestamp("2021-07-09 10:29:07.009"),
+                    pd.Timestamp("2021-07-09 09:29:08.010"),
+                ],
+                "data": [10, 20, 30],
+                "string": ["ab", "cd", "ef"],
+            }
+        )
+
+        data_set2 = fs.FeatureSet("fs2", entities=[Entity("string")])
+        fs.ingest(data_set2, data2, infer_options=fs.InferOptions.default())
+
+        features = ["fs2.data", "fs1.time_stamp"]
+
         vector = fs.FeatureVector("vector", features)
         resp = fs.get_offline_features(
             vector,
@@ -781,6 +838,155 @@ class TestFeatureStore(TestMLRunSystem):
             ],
         }
     )
+
+    @pytest.mark.parametrize("partitioned", [True, False])
+    def test_schedule_on_filtered_by_time(self, partitioned):
+        name = f"sched-time-{str(partitioned)}"
+
+        now = datetime.now() + timedelta(minutes=2)
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
+
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource(
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name, entities=[fs.Entity("first_name")], timestamp_key="time",
+        )
+
+        if partitioned:
+            targets = [
+                NoSqlTarget(),
+                ParquetTarget(
+                    name="tar1",
+                    path="v3io:///bigdata/fs1/",
+                    partitioned=True,
+                    partition_cols=["time"],
+                ),
+            ]
+        else:
+            targets = [
+                ParquetTarget(
+                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                ),
+                NoSqlTarget(),
+            ]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=targets,
+        )
+        sleep(60)
+
+        features = [f"{name}.*"]
+        vec = fs.FeatureVector("sched_test-vec", features)
+
+        svc = fs.get_online_feature_service(vec)
+
+        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 2000
+
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 12:00:00"),
+                    pd.Timestamp("2021-01-10 13:00:00"),
+                    now + pd.Timedelta(minutes=10),
+                    pd.Timestamp("2021-01-09 13:00:00"),
+                ],
+                "first_name": ["moshe", "dina", "katya", "uri"],
+                "data": [50, 10, 25, 30],
+            }
+        )
+        # writing down a remote source
+        fs.ingest(data_set, data, targets=[target2])
+
+        sleep(60)
+        resp = svc.get(
+            [
+                {"first_name": "yosi"},
+                {"first_name": "moshe"},
+                {"first_name": "katya"},
+                {"first_name": "dina"},
+                {"first_name": "uri"},
+            ]
+        )
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 50
+        assert resp[2] is None
+        assert resp[3]["data"] == 10
+        assert resp[4] is None
+
+        svc.close()
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 4)
+        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    @pytest.mark.parametrize(
+        "fixed_window_type",
+        [FixedWindowType.CurrentOpenWindow, FixedWindowType.LastClosedWindow],
+    )
+    def test_query_on_fixed_window(self, fixed_window_type):
+        current_time = pd.Timestamp.now()
+        data = pd.DataFrame(
+            {
+                "time": [
+                    current_time,
+                    current_time - pd.Timedelta(hours=current_time.hour + 2),
+                ],
+                "first_name": ["moshe", "moshe"],
+                "last_name": ["cohen", "cohen"],
+                "bid": [2000, 100],
+            },
+        )
+        name = f"measurements_{uuid.uuid4()}"
+
+        # write to kv
+        data_set = fs.FeatureSet(
+            name, timestamp_key="time", entities=[Entity("first_name")]
+        )
+
+        data_set.add_aggregation(
+            name="bids", column="bid", operations=["sum", "max"], windows="24h",
+        )
+
+        fs.ingest(data_set, data, return_df=True)
+
+        features = [f"{name}.bids_sum_24h", f"{name}.last_name"]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector, fixed_window_type=fixed_window_type)
+
+        resp = svc.get([{"first_name": "moshe"}])
+        if fixed_window_type == FixedWindowType.CurrentOpenWindow:
+            expected = {"bids_sum_24h": 2000.0, "last_name": "cohen"}
+        else:
+            expected = {"bids_sum_24h": 100.0, "last_name": "cohen"}
+        assert resp[0] == expected
+        svc.close()
 
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])

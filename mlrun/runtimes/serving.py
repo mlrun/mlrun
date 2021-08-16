@@ -107,6 +107,7 @@ class ServingSpec(NuclioSpec):
         track_models=None,
         secret_sources=None,
         default_content_type=None,
+        mount_applied=False,
     ):
 
         super().__init__(
@@ -132,6 +133,7 @@ class ServingSpec(NuclioSpec):
             service_account=service_account,
             readiness_timeout=readiness_timeout,
             build=build,
+            mount_applied=mount_applied,
         )
 
         self.models = models or {}
@@ -412,7 +414,7 @@ class ServingRuntime(RemoteRuntime):
                     self._secrets.get_azure_vault_k8s_secret()
                 )
             k8s_secrets = self._secrets.get_k8s_secrets()
-            if k8s_secrets:
+            if k8s_secrets is not None:
                 self._add_project_k8s_secrets_to_spec(
                     k8s_secrets, project=self.metadata.project
                 )

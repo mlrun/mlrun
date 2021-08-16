@@ -60,9 +60,7 @@ class Client(
 
     def verify_request_session(
         self, request: fastapi.Request
-    ) -> typing.Tuple[
-        str, str, typing.Optional[str], typing.List[str], typing.List[str]
-    ]:
+    ) -> mlrun.api.schemas.AuthInfo:
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
@@ -74,19 +72,15 @@ class Client(
                 "cookie": request.headers.get("cookie"),
             },
         )
-        gids = response.headers.get("x-user-group-ids")
-        if gids:
-            gids = gids.split(",")
-        planes = response.headers.get("x-v3io-session-planes")
-        if planes:
-            planes = planes.split(",")
-        return (
-            response.headers["x-remote-user"],
-            response.headers["x-v3io-session-key"],
-            response.headers.get("x-user-id"),
-            gids or [],
-            planes or [],
+        return self._generate_auth_info_from_session_verification_response(response)
+
+    def verify_session(self, session: str) -> mlrun.api.schemas.AuthInfo:
+        response = self._send_request_to_api(
+            "POST",
+            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            session,
         )
+        return self._generate_auth_info_from_session_verification_response(response)
 
     def create_project(
         self,
@@ -165,6 +159,9 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
+
+        # TODO: Remove me when zebo returns owner
+        params["include"] = "owner"
         response = self._send_request_to_api("GET", "projects", session, params=params)
         response_body = response.json()
         projects = []
@@ -177,6 +174,18 @@ class Client(
 
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
+
+    def get_project_owner(
+        self, session: str, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        response = self._get_project_from_iguazio_without_parsing(
+            session, name, include_owner_session=True
+        )
+        iguazio_project = response.json()["data"]
+        return mlrun.api.schemas.ProjectOwner(
+            username=iguazio_project["attributes"]["owner_username"],
+            session=iguazio_project["attributes"]["owner_access_key"],
+        )
 
     def format_as_leader_project(
         self, project: mlrun.api.schemas.Project
@@ -227,12 +236,21 @@ class Client(
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _get_project_from_iguazio(
-        self, session: str, name
-    ) -> mlrun.api.schemas.Project:
-        response = self._send_request_to_api(
-            "GET", f"projects/__name__/{name}", session
+    def _get_project_from_iguazio_without_parsing(
+        self, session: str, name: str, include_owner_session: bool = False
+    ):
+        # TODO: Remove me when zebo returns owner
+        params = {"include": "owner"}
+        if include_owner_session:
+            params["enrich_owner_access_key"] = "true"
+        return self._send_request_to_api(
+            "GET", f"projects/__name__/{name}", session, params=params
         )
+
+    def _get_project_from_iguazio(
+        self, session: str, name: str, include_owner_session: bool = False
+    ) -> mlrun.api.schemas.Project:
+        response = self._get_project_from_iguazio_without_parsing(session, name)
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _wait_for_job_completion(self, session: str, job_id: str):
@@ -297,6 +315,27 @@ class Client(
         return response
 
     @staticmethod
+    def _generate_auth_info_from_session_verification_response(
+        response: requests.Response,
+    ) -> mlrun.api.schemas.AuthInfo:
+        gids = response.headers.get("x-user-group-ids")
+        if gids:
+            gids = gids.split(",")
+        planes = response.headers.get("x-v3io-session-planes")
+        if planes:
+            planes = planes.split(",")
+        planes = planes or []
+        auth_info = mlrun.api.schemas.AuthInfo(
+            username=response.headers["x-remote-user"],
+            session=response.headers["x-v3io-session-key"],
+            user_id=response.headers.get("x-user-id"),
+            user_group_ids=gids or [],
+        )
+        if "data" in planes:
+            auth_info.data_session = auth_info.session
+        return auth_info
+
+    @staticmethod
     def _transform_mlrun_project_to_iguazio_project(
         project: mlrun.api.schemas.Project,
     ) -> dict:
@@ -329,6 +368,8 @@ class Client(
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.annotations
             )
+        if project.spec.owner:
+            body["data"]["attributes"]["owner_username"] = project.spec.owner
         return body
 
     @staticmethod
@@ -339,7 +380,7 @@ class Client(
             exclude_unset=True,
             exclude={
                 "metadata": {"name", "created", "labels", "annotations"},
-                "spec": {"description", "desired_state"},
+                "spec": {"description", "desired_state", "owner"},
                 "status": {"state"},
             },
         )
@@ -397,4 +438,6 @@ class Client(
             mlrun_project.metadata.annotations = Client._transform_iguazio_labels_to_mlrun_labels(
                 iguazio_project["attributes"]["annotations"]
             )
+        if iguazio_project["attributes"].get("owner_username"):
+            mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
         return mlrun_project

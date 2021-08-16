@@ -114,7 +114,9 @@ class run_keys:
     secrets = "secret_sources"
 
 
-def verify_field_regex(field_name, field_value, patterns):
+def verify_field_regex(
+    field_name, field_value, patterns, raise_on_failure: bool = True
+) -> bool:
     logger.debug(
         "Validating field against patterns",
         field_name=field_name,
@@ -124,15 +126,20 @@ def verify_field_regex(field_name, field_value, patterns):
 
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
-            logger.warn(
+            log_func = logger.warn if raise_on_failure else logger.debug
+            log_func(
                 "Field is malformed. Does not match required pattern",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
             )
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
-            )
+            if raise_on_failure:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
+                )
+            else:
+                return False
+    return True
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
@@ -726,6 +733,17 @@ def retry_until_successful(
     )
 
 
+def get_ui_url(project, uid=None):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = "{}/{}/{}/jobs".format(
+            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
+        )
+        if uid:
+            url += f"/monitor/{uid}/overview"
+    return url
+
+
 class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
@@ -744,10 +762,9 @@ class RunNotifications:
         )
         if commit_id:
             message += f", commit={commit_id}"
-        if mlrun.mlconf.resolve_ui_url():
-            url = "{}/{}/{}/jobs".format(
-                mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
-            )
+        url = get_ui_url(project)
+        html = ""
+        if url:
             html = (
                 message
                 + f'<div><a href="{url}" target="_blank">click here to check progress</a></div>'
@@ -844,12 +861,8 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs or []:
                 meta = r["metadata"]
-                if config.resolve_ui_url():
-                    url = (
-                        f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/"
-                        f"{meta.get('project')}/jobs/monitor/{meta.get('uid')}/overview"
-                    )
-
+                url = get_ui_url(meta.get("project"), meta.get("uid"))
+                if url:
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:
                     line = meta.get("name")

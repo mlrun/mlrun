@@ -25,7 +25,7 @@ def create_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = fastapi.Depends(deps.AuthVerifierDep),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().create_project(
@@ -55,7 +55,7 @@ def store_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = fastapi.Depends(deps.AuthVerifierDep),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().store_project(
@@ -87,7 +87,7 @@ def patch_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = fastapi.Depends(deps.AuthVerifierDep),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     project, is_running_in_background = get_project_member().patch_project(
@@ -109,7 +109,7 @@ def patch_project(
 def get_project(
     name: str,
     db_session: Session = fastapi.Depends(deps.get_db_session),
-    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = fastapi.Depends(deps.AuthVerifierDep),
 ):
     return get_project_member().get_project(
         db_session, name, auth_verifier.auth_info.session
@@ -128,7 +128,7 @@ def delete_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = fastapi.Depends(deps.AuthVerifierDep),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     is_running_in_background = get_project_member().delete_project(
@@ -136,7 +136,7 @@ def delete_project(
         name,
         deletion_strategy,
         auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info.session,
+        auth_verifier.auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -153,7 +153,7 @@ def list_projects(
     owner: str = None,
     labels: typing.List[str] = fastapi.Query(None, alias="label"),
     state: schemas.ProjectState = None,
-    auth_verifier: deps.AuthVerifier = fastapi.Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = fastapi.Depends(deps.AuthVerifierDep),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     return get_project_member().list_projects(

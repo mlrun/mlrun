@@ -130,6 +130,7 @@ def main():
     "--auto-mount", is_flag=True, help="add volume mount to job using auto mount option"
 )
 @click.option("--workdir", default="", help="run working directory")
+@click.option("--origin-file", default="", help="for internal use")
 @click.option("--label", multiple=True, help="run labels (key=val)")
 @click.option("--watch", "-w", is_flag=True, help="watch/tail run log")
 @click.option("--verbose", is_flag=True, help="verbose log")
@@ -172,6 +173,7 @@ def run(
     local,
     auto_mount,
     workdir,
+    origin_file,
     label,
     watch,
     verbose,
@@ -251,6 +253,9 @@ def run(
         code = get_in(runtime, "spec.build.functionSourceCode", code)
     if from_env and code:
         code = b64decode(code).decode("utf-8")
+        origin_file = pathlib.Path(
+            get_in(runtime, "spec.build.origin_filename", origin_file)
+        )
         if kfp:
             print(f"code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
@@ -261,10 +266,10 @@ def run(
             exit(1)
         if mode == "pass":
             if "{codefile}" in url:
-                url_file = "codefile"
+                url_file = origin_file.name or "codefile"
                 url = url.replace("{codefile}", url_file)
-            elif suffix == ".sh":
-                url_file = "codefile.sh"
+            elif suffix == ".sh" or origin_file.suffix == ".sh":
+                url_file = origin_file.name or "codefile.sh"
                 url = f"bash {url_file} {url_args}".strip()
             else:
                 print(
@@ -274,6 +279,8 @@ def run(
                 exit(1)
         else:
             url_file = "main.py"
+            if origin_file.name:
+                url_file = origin_file.stem + ".py"
             url = f"{url_file} {url_args}".strip()
         with open(url_file, "w") as fp:
             fp.write(code)
@@ -590,11 +597,11 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         run_db = get_run_db(db or mlconf.dbpath)
         if name:
             # the runtime identifier is its kind
-            runtime = run_db.get_runtime(kind=name, label_selector=selector)
-            print(dict_to_yaml(runtime))
+            runtime = run_db.list_runtime_resources(kind=name, label_selector=selector)
+            print(dict_to_yaml(runtime.dict()))
             return
-        runtimes = run_db.list_runtimes(label_selector=selector)
-        print(dict_to_yaml(runtimes))
+        runtimes = run_db.list_runtime_resources(label_selector=selector)
+        print(dict_to_yaml(runtimes.dict()))
     elif kind.startswith("run"):
         run_db = get_run_db()
         if name:
@@ -881,26 +888,13 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
         mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b
     """
     mldb = get_run_db(api or mlconf.dbpath)
-    if kind:
-        if object_id:
-            mldb.delete_runtime_object(
-                kind=kind,
-                object_id=object_id,
-                label_selector=label_selector,
-                force=force,
-                grace_period=grace_period,
-            )
-        else:
-            mldb.delete_runtime(
-                kind=kind,
-                label_selector=label_selector,
-                force=force,
-                grace_period=grace_period,
-            )
-    else:
-        mldb.delete_runtimes(
-            label_selector=label_selector, force=force, grace_period=grace_period
-        )
+    mldb.delete_runtime_resources(
+        kind=kind,
+        object_id=object_id,
+        label_selector=label_selector,
+        force=force,
+        grace_period=grace_period,
+    )
 
 
 @main.command(name="watch-stream")

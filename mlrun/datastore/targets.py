@@ -192,10 +192,12 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
             features=features if not target.after_step else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
+            featureset_status=resource.status,
         )
     if to_df:
         # add dataframe target, will return a dataframe
         driver = DFTarget()
+
         driver.add_writer_step(
             graph,
             final_step,
@@ -345,6 +347,21 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df.write.mode("overwrite").save(**options)
+        elif hasattr(df, "dask"):
+            dask_options = self.get_dask_options()
+            storage_options = self._get_store().get_storage_options()
+            df = df.repartition(partition_size="100MB")
+            try:
+                if dask_options["format"] == "parquet":
+                    df.to_parquet(self._target_path, storage_options=storage_options)
+                elif dask_options["format"] == "csv":
+                    df.to_csv(self._target_path, storage_options=storage_options)
+                else:
+                    raise NotImplementedError(
+                        "Format for writing dask dataframe should be CSV or Parquet!"
+                    )
+            except Exception as exc:
+                raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
         else:
             target_path = self._target_path
             fs = self._get_store().get_filesystem(False)
@@ -414,7 +431,13 @@ class BaseStoreTarget(DataTargetBase):
         return target
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         raise NotImplementedError()
 
@@ -454,6 +477,9 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
+    def get_dask_options(self):
+        raise NotImplementedError()
+
 
 class ParquetTarget(BaseStoreTarget):
     """parquet target storage driver, used to materialize feature set/vector data into parquet files
@@ -484,6 +510,7 @@ class ParquetTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
+    support_dask = True
 
     def __init__(
         self,
@@ -563,7 +590,13 @@ class ParquetTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         column_list = self._get_column_list(
             features=features,
@@ -608,6 +641,15 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
+        if self.attributes:
+            self.attributes[
+                "update_last_written"
+            ] = featureset_status.update_last_written_for_target
+        else:
+            self.attributes = {
+                "update_last_written": featureset_status.update_last_written_for_target
+            }
+
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
@@ -628,6 +670,9 @@ class ParquetTarget(BaseStoreTarget):
             "path": store_path_to_spark(self._target_path),
             "format": "parquet",
         }
+
+    def get_dask_options(self):
+        return {"format": "parquet"}
 
     def as_df(
         self,
@@ -684,7 +729,13 @@ class CSVTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         column_list = self._get_column_list(
@@ -755,7 +806,13 @@ class NoSqlTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         table = self._resource.uri
@@ -786,11 +843,24 @@ class NoSqlTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None):
-        return {
+        spark_options = {
             "path": store_path_to_spark(self._target_path),
             "format": "io.iguaz.v3io.spark.sql.kv",
-            "key": key_column,
         }
+        if isinstance(key_column, list) and len(key_column) >= 1:
+            if len(key_column) > 2:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Spark supports maximun of 2 keys and {key_column} are provided"
+                )
+            spark_options["key"] = key_column[0]
+            if len(key_column) > 1:
+                spark_options["sorting-key"] = key_column[1]
+        else:
+            spark_options["key"] = key_column
+        return spark_options
+
+    def get_dask_options(self):
+        return {"format": "csv"}
 
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
@@ -834,7 +904,13 @@ class StreamTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         from storey import V3ioDriver
 
@@ -878,7 +954,13 @@ class TSDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         endpoint, uri = parse_v3io_path(self._target_path)
@@ -968,7 +1050,13 @@ class CustomTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
@@ -1006,7 +1094,13 @@ class DFTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         # todo: column filter

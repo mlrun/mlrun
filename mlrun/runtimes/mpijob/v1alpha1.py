@@ -161,8 +161,8 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class=mpijob"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["mpijob"]
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:

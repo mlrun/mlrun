@@ -23,7 +23,6 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
@@ -609,10 +608,9 @@ def _get_project_secret(project_name: str, secret_key: str):
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
     secret_value = mlrun.api.crud.Secrets().get_secret(
-            project_name,
-            mlrun.api.schemas.SecretProviderName.kubernetes,
-            secret_key,
-            allow_secrets_from_k8s=True,
-        )
-    secret_value = secret_values[secret_key]
+        project_name,
+        mlrun.api.schemas.SecretProviderName.kubernetes,
+        secret_key,
+        allow_secrets_from_k8s=True,
+    )
     return secret_value

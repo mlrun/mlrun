@@ -15,6 +15,7 @@
 import concurrent
 import copy
 import json
+import traceback
 from enum import Enum
 from io import BytesIO
 
@@ -694,5 +695,9 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
             endpoint_id=model_endpoint.metadata.uid,
             model_endpoint=model_endpoint,
         )
-    except Exception as e:
-        logger.warning("Failed creating model endpoint record", exc=exc, traceback=traceback.format_exc())
+    except Exception as exc:
+        logger.warning(
+            "Failed creating model endpoint record",
+            exc=exc,
+            traceback=traceback.format_exc(),
+        )

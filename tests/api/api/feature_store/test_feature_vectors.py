@@ -29,7 +29,11 @@ def _generate_feature_vector(name):
             "extra_metadata": 100,
         },
         "spec": {
-            "features": ["feature_set:*", "feature_set:something", "just_a_feature"],
+            "features": [
+                "feature_set.*",
+                "feature_set.something",
+                "feature_set.just_a_feature",
+            ],
             "description": "just a bunch of features",
             "extra_spec": True,
         },

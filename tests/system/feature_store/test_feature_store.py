@@ -834,14 +834,9 @@ class TestFeatureStore(TestMLRunSystem):
     )
 
     def test_ingest_pandas_engine(self):
-        data = pd.DataFrame(
-            {
-                "name": ["ab", "cd"],
-                "data": [10, 20],
-            },
-        )
+        data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
 
-        data.set_index(['name'], inplace=True)
+        data.set_index(["name"], inplace=True)
         fset = fs.FeatureSet("pandass", entities=[fs.Entity("name")], engine="pandas")
         fs.ingest(featureset=fset, source=data)
 

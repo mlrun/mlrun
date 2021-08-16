@@ -44,7 +44,7 @@ async def store_function(
         auth_info=auth_verifier.auth_info,
     )
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -82,7 +82,7 @@ def get_function(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -106,7 +106,7 @@ def delete_function(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -130,7 +130,7 @@ def list_functions(
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
     )
-    functions = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    functions = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         functions,
         lambda function: (
@@ -161,7 +161,7 @@ async def build_function(
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
         function.get("metadata", {}).get("name"),
@@ -206,7 +206,7 @@ async def start_function(
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.metadata.project,
         function.metadata.name,
@@ -259,7 +259,7 @@ def build_status(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
@@ -483,7 +483,7 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     if not project or not name:
         project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,

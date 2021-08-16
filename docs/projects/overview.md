@@ -1,12 +1,12 @@
 # Projects, Automation & CI/CD
 
-A Project is a container for all your work on a particular activity. All the associated code, function, 
+A Project is a container for all your work on a particular activity. All the associated code, functions, 
 jobs/workflows and artifacts are organized within the projects. Projects can be mapped to `GIT` repositories which 
 enable versioning, collaboration, and CI/CD.
 
 Users can create project definitions using the SDK or a Yaml file and store those in MLRun DB, file, or archive.
 Project definitions include lists of parameters, functions, workflows (pipelines), and artifacts. 
-Once the project is loaded your can run jobs/workflows which refer to any project element by name, 
+Once the project is loaded you can run jobs/workflows which refer to any project element by name, 
 allowing separation between configuration and code.
 
 Projects refer to a `context` directory which holds all the project code and configuration, the `context` dir is 
@@ -38,14 +38,20 @@ Projects can also be loaded and workflows/pipelines can be executed using the CL
 
 To define a new project from scratch we use {py:meth}`~mlrun.projects.new_project`, we must specify a `name`, 
 location for the `context` directory (e.g. `./`) and other optional parameters (see below).
+The `context` dir holds the configuration, code, and workflow files, file paths in the project are relative to the context root.
 
 ```python
-    # create a project with local and marketplace functions, a workflow, and an artifact
+    # create a project with local and marketplace functions
     project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
     project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
     project.set_function('hub://sklearn_classifier', 'train')
-    project.set_artifact('data', Artifact(target_path=data_url))
+    
+    # register a simple named artifact in the project (to be used in workflows)  
+    data_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv'
     project.set_workflow('main', "./myflow.py")
+
+    # add a multi-stage workflow (./myflow.py) to the project with the name 'main' and save the project 
+    project.set_artifact('data', Artifact(target_path=data_url))
     project.save()
 
     # run the "main" workflow (watch=True to wait for run completion)
@@ -80,13 +86,17 @@ spec:
     key: data
 ```
  
-Projects can also be created from a template (yaml file, zip file, or git repo), allowing users to create reusable skeletons
+Projects can also be created from a template (yaml file, zip file, or git repo), allowing users to create reusable skeletons,
+content of the zip/tar/git archive is copied into the context dir.
+
+The `init_git` flag is used to initialize git in the context dir, `remote` attribute is used to register the remote 
+git repository URL, and `user_project` flag indicate the project name is unique to the user. 
 
 Example create a new project from a zip template:
 
 ```python
     # create a project from zip, initialize a local git, and register the git remote path
-    project = mlrun.new_project("myproj", "./", init_git=True,
+    project = mlrun.new_project("myproj", "./", init_git=True, user_project=True,
                                 remote="git://github.com/mlrun/demo-xgb-project.git",
                                 from_template="http://mysite/proj.zip")
     # add another marketplace function and save
@@ -105,9 +115,9 @@ When our project is already created and stored in a git archive we can quickly l
 {py:meth}`~mlrun.projects.load_project` method. `load_project` will use a local context directory (with initialized `git`) 
 or clone a remote repo into the local dir and return a project object.
 
-Users need to provide the path to the `context` dir, the git/zip/tar archive `url` and a project `name`. they can also specify 
-`secrets` (repo credentials), `init_git` flag (to initialize git in the context dir), `clone` flag (indicating we must clone and ignore/remove local copy),
-`user_project` flag (indicate the project name is unique to the user).
+Users need to provide the path to the `context` dir and the git/zip/tar archive `url`, the `name` can be specified or taken 
+from the project object, they can also specify `secrets` (repo credentials), `init_git` flag (to initialize git in the context dir), 
+`clone` flag (indicating we must clone and ignore/remove local copy), and `user_project` flag (indicate the project name is unique to the user).
 
 example, load a project from git and run the `main` workflow:
 
@@ -116,7 +126,10 @@ example, load a project from git and run the `main` workflow:
     project.run("main", arguments={'data': data_url})
 ```
 
-> **Note**: If URL is not specified it will use the context and search for Git repo inside it, or use the init_git=True flag to initialize a Git repo in the target context directory.
+```{admonition} Note
+If the `url` parameter is not specified it will search for Git repo inside the context dir and use its metadata, 
+or use the init_git=True flag to initialize a Git repo in the target context directory.
+```
 
 ### Load & run using the CLI
 
@@ -215,9 +228,9 @@ project.push('master', 'some edits')
 Projects host or link to functions which are used in job or workflow runs. you add functions to a project using 
 {py:meth}`~mlrun.projects.MlrunProject.set_function` this will register them as part of the project definition (and Yaml file),
 alternatively you can create functions using methods like {py:func}`~mlrun.run.code_to_function` and save them to the DB (under the same project). 
-**the preferred approach would be to use `set_function` (which also records the functions in the project spec).
+the preferred approach would be to use `set_function` (which also records the functions in the project spec).
 
-The {py:meth}`~mlrun.projects.MlrunProject.set_function` method allow you to add/update many type of functions:
+The {py:meth}`~mlrun.projects.MlrunProject.set_function` method allow you to add/update many types of functions:
 * **marketplace functions** - load/register a marketplace function into the project (func="hub://...")
 * **notebook file** - convert a notebook file into a function (func="path/to/file.ipynb")
 * **python file** - convert a python file into a function (func="path/to/file.py")
@@ -232,7 +245,7 @@ If the function is not a single file function, and it require access to multiple
 you should set the `with_repo=True` which will add the entire repo code into the destination container during build or run time.
 
 ```{admonition} Note
-when using `with_repo=True` the functions need be be deployed (`function.deploy()`) to build a container, unless you set `project.spec.load_source_on_run=True` which instructs MLRun to load the git/archive repo into the function container 
+when using `with_repo=True` the functions need to be deployed (`function.deploy()`) to build a container, unless you set `project.spec.load_source_on_run=True` which instructs MLRun to load the git/archive repo into the function container 
 at run time and do not require a build (this is simpler when developing, for production its preferred to build the image with the code)
 ```
 

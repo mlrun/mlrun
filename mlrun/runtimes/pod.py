@@ -259,7 +259,8 @@ class KubeResource(BaseRuntime):
 
     def apply(self, modify):
 
-        # suppress kubeflow pipelines op registration in apply()
+        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
+        # we remove the hook to suppress kubeflow op registration and return it after the apply()
         old_op_handler = _container_op._register_op_handler
         _container_op._register_op_handler = lambda x: self.metadata.name
         cop = ContainerOp("name", "image")

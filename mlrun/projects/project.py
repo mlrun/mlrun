@@ -114,7 +114,7 @@ def new_project(
     :returns: project object
     """
     context = context or "./"
-    name = _user_project_name(name, user_project)
+    name = _add_username_to_project_name_if_needed(name, user_project)
 
     if from_template:
         if from_template.endswith(".yaml"):
@@ -182,7 +182,7 @@ def load_project(
     secrets = secrets or {}
     repo = None
     project = None
-    name = _user_project_name(name, user_project)
+    name = _add_username_to_project_name_if_needed(name, user_project)
     if not context:
         raise ValueError("valid context (local dir path) must be provided")
 
@@ -320,7 +320,7 @@ def _load_project_dir(context, name="", subpath=""):
     return project
 
 
-def _user_project_name(name, user_project):
+def _add_username_to_project_name_if_needed(name, user_project):
     if user_project:
         if not name:
             raise ValueError("user_project must be specified together with name")
@@ -331,7 +331,9 @@ def _user_project_name(name, user_project):
 
 def _load_project_from_db(url, secrets, user_project=False):
     db = get_run_db(secrets=secrets)
-    project_name = _user_project_name(url.replace("db://", ""), user_project)
+    project_name = _add_username_to_project_name_if_needed(
+        url.replace("db://", ""), user_project
+    )
     return db.get_project(project_name)
 
 
@@ -1312,6 +1314,20 @@ class MlrunProject(ModelObj):
         self.spec.remove_function(name)
 
     def func(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
+        """get function object by name
+
+        :param sync:  will reload/reinit the function
+
+        :returns: function object
+        """
+        warnings.warn(
+            "This will be deprecated in future releases, use  get_function() instead",
+            # TODO: do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.get_function(key, sync)
+
+    def get_function(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param sync:  will reload/reinit the function

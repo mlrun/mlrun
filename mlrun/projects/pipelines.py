@@ -62,7 +62,9 @@ def get_workflow_engine(engine_kind):
         return _KFPRunner
     # todo: add engines
     else:
-        raise ValueError(f"unsupported workflow engine {engine_kind}")
+        mlrun.errors.MLRunInvalidArgumentError(
+            f"Provided workflow engine is not supported. engine_kind={engine_kind}"
+        )
 
 
 class WorkflowSpec(mlrun.model.ModelObj):
@@ -330,7 +332,8 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    setattr(mod, "funcs", functions)
+    setattr(mod, "funcs", functions)  # should be replaced with "functions" in future
+    setattr(mod, "functions", functions)
     setattr(mod, "this_project", project)
 
     if hasattr(mod, "init_functions"):

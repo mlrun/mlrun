@@ -483,9 +483,7 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    if isinstance(source, StreamSource) and (
-        source.path is None or source.path == "None"
-    ):
+    if isinstance(source, StreamSource) and not source.path:
         source.path = get_default_prefix_for_target(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,

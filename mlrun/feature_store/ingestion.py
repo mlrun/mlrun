@@ -259,6 +259,9 @@ def add_source_trigger(source, function):
             "consumerGroup"
         ] = source.attributes["group"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
+            "topics"
+        ] = source.attributes["topic"]
+        func.spec.config["spec.triggers.kafka"]["attributes"][
             "initialOffset"
         ] = source.attributes["initial_offset"]
         sasl_user = source.attributes.get("sasl_user")

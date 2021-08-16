@@ -115,7 +115,6 @@ class TestFeatureStore(TestMLRunSystem):
 
     def _get_offline_vector(self, features, features_size):
         vector = fs.FeatureVector("myvector", features, "stock-quotes.xx")
-
         resp = fs.get_offline_features(
             vector, entity_rows=trades, entity_timestamp_column="time",
         )

@@ -349,6 +349,43 @@ class StreamSource(OnlineSource):
         }
         super().__init__(name, attributes=attrs, **kwargs)
 
+class KafkaSource(OnlineSource):
+    """
+       Sets kafka source for the flow
+       :parameter brokers: A list of broker IP addresses
+       :parameter topic: A list of topic(s) on which to listen.
+       :parameter group: consumer group. Default "serving"
+       :parameter initial_offset: from where to consume the stream. Default earliest
+       :parameter partitions: Optional, A list of partitions numbers for which the function receives events.
+       :parameter sasl_user: Optional, user name to use for sasl authentications
+       :parameter sasl_pass: Optional, password to use for sasl authentications
+    """
+
+    kind = "kafka"
+
+    def __init__(
+        self,
+        brokers,
+        topic,
+        group="serving",
+        initial_offset="earliest",
+        partitions=None,
+        sasl_user=None,
+        sasl_pass=None,
+        **kwargs,
+    ):
+        attrs = {
+            "brokers": brokers,
+            "topic": topic,
+            "partitions": partitions,
+            "group": group,
+            "initial_offset": initial_offset,
+        }
+        if sasl_user and sasl_pass:
+            attrs["sasl_user"] = sasl_user
+            attrs["sasl_user"] = sasl_user
+        super().__init__(attributes=attrs, **kwargs)
+
 
 # map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
@@ -357,5 +394,6 @@ source_kind_to_driver = {
     "parquet": ParquetSource,
     "http": HttpSource,
     "v3ioStream": StreamSource,
+    "kafka": KafkaSource,
     "custom": CustomSource,
 }

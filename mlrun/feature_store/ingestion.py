@@ -20,9 +20,10 @@ from nuclio import KafkaTrigger
 import mlrun
 from mlrun.datastore.sources import (
     HttpSource,
+    KafkaSource,
     StreamSource,
     get_source_from_dict,
-    get_source_step, KafkaSource,
+    get_source_step,
 )
 from mlrun.datastore.targets import (
     add_target_steps,
@@ -254,8 +255,12 @@ def add_source_trigger(source, function):
                 partitions=source.attributes.get("partitions"),
             ),
         )
-        func.spec.config['spec.triggers.kafka']['attributes']["consumerGroup"] = source.attributes["group"]
-        func.spec.config['spec.triggers.kafka']['attributes']["initialOffset"] = source.attributes["initial_offset"]
+        func.spec.config["spec.triggers.kafka"]["attributes"][
+            "consumerGroup"
+        ] = source.attributes["group"]
+        func.spec.config["spec.triggers.kafka"]["attributes"][
+            "initialOffset"
+        ] = source.attributes["initial_offset"]
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")
         if sasl_user and sasl_pass:

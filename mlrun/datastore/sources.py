@@ -349,6 +349,7 @@ class StreamSource(OnlineSource):
         }
         super().__init__(name, attributes=attrs, **kwargs)
 
+
 class KafkaSource(OnlineSource):
     """
        Sets kafka source for the flow

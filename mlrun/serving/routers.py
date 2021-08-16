@@ -695,4 +695,4 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
             model_endpoint=model_endpoint,
         )
     except Exception as e:
-        logger.error("Failed to create endpoint record", exc=e)
+        logger.warning("Failed creating model endpoint record", exc=exc, traceback=traceback.format_exc())

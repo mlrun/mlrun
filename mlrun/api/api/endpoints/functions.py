@@ -556,7 +556,8 @@ def _create_model_monitoring_stream(project: str):
 
     # TODO: How should we configure sharding here?
     logger.info(
-        "Creating endpoint stream",
+        "Creating model endpoint stream for project",
+        project=project,
         stream_path=stream_path,
         container=container,
         endpoint=config.v3io_api,
@@ -606,8 +607,11 @@ def _get_project_secret(project_name: str, secret_key: str):
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-    secret_values = get_k8s_helper().get_project_secret_data(
-        project=project_name, namespace=config.namespace
-    )
+    secret_value = mlrun.api.crud.Secrets().get_secret(
+            project_name,
+            mlrun.api.schemas.SecretProviderName.kubernetes,
+            secret_key,
+            allow_secrets_from_k8s=True,
+        )
     secret_value = secret_values[secret_key]
     return secret_value

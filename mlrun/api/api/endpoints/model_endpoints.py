@@ -37,6 +37,7 @@ def create_or_patch(
         mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
     )
+    # get_access_key will validate the needed auth (which is used later) exists in the request
     get_access_key(auth_verifier.auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(

@@ -22,6 +22,7 @@ from mlrun.api.crud.model_endpoints import ModelEndpoints
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
+from mlrun.errors import MLRunRuntimeError
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
@@ -420,23 +421,31 @@ def _build_function(
                 try:
                     if fn.spec.track_models:
                         logger.info("Tracking enabled, initializing model monitoring")
+                        _init_serving_function_stream_args(fn=fn)
                         model_monitoring_access_key = _get_project_secret(
                             fn.metadata.project, "MODEL_MONITORING_ACCESS_KEY"
                         )
-                        if model_monitoring_access_key:
-                            logger.info(
-                                "Model monitoring access key found, proceeding with initialization"
+                        # TODO: if model monitoring is not defined we should try to grab the project owner access key
+                        #  as well
+                        if not model_monitoring_access_key:
+                            raise MLRunRuntimeError(
+                                "MODEL_MONITORING_ACCESS_KEY not found in project secrets"
                             )
-                            _init_serving_function_stream_args(fn=fn)
-                            _create_model_monitoring_stream(project=fn.metadata.project)
-                            ModelEndpoints.deploy_monitoring_functions(
-                                project=fn.metadata.project,
-                                model_monitoring_access_key=model_monitoring_access_key,
-                                db_session=db_session,
-                                auth_info=auth_info,
-                            )
+
+                        _create_model_monitoring_stream(project=fn.metadata.project)
+                        ModelEndpoints.deploy_monitoring_functions(
+                            project=fn.metadata.project,
+                            model_monitoring_access_key=model_monitoring_access_key,
+                            db_session=db_session,
+                            auth_info=auth_info,
+                        )
                 except Exception as exc:
-                    logger.warning("Failed deploying model monitoring infrastructure for the project", project=fn.metadata.project, exc=exc, traceback=traceback.format_exc())
+                    logger.warning(
+                        "Failed deploying model monitoring infrastructure for the project",
+                        project=fn.metadata.project,
+                        exc=exc,
+                        traceback=traceback.format_exc(),
+                    )
 
             deploy_nuclio_function(fn, auth_info=auth_info)
             # deploy only start the process, the get status API is used to check readiness
@@ -559,8 +568,8 @@ def _create_model_monitoring_stream(project: str):
     response = v3io_client.create_stream(
         container=container,
         path=stream_path,
-        shard_count=1,
-        retention_period_hours=24,
+        shard_count=config.serving_stream_args.shard_count,
+        retention_period_hours=config.serving_stream_args.retention_period_hours,
         raise_for_status=v3io.dataplane.RaiseForStatus.never,
     )
 
@@ -571,7 +580,7 @@ def _create_model_monitoring_stream(project: str):
 def _init_serving_function_stream_args(fn: ServingRuntime):
     logger.debug("Initializing serving function stream args")
     if "stream_args" in fn.spec.parameters:
-        logger.debug("stream args found in function spec parameters")
+        logger.debug("Adding access key to pipelines stream args")
         if "access_key" not in fn.spec.parameters["stream_args"]:
             logger.debug("pipelines access key added to stream args")
             fn.spec.parameters["stream_args"]["access_key"] = os.environ.get(

@@ -317,12 +317,14 @@ class VotingEnsemble(BaseModelRouter):
         self.format_response_with_col_name_flag = False
 
     def post_init(self, mode="sync"):
-        if not hasattr(self.context, "server"):
+        server = getattr(self.context, "_server", None) or getattr(
+            self.context, "server", None
+        )
+        if not server:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
-            logger.warn(str(dir(self.context)))
             return
 
-        _init_endpoint_record(self.context.server, self)
+        _init_endpoint_record(server, self)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -682,7 +684,7 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
                 ),
                 active=True,
             ),
-            status=ModelEndpointStatus(),
+            status=ModelEndpointStatus(children=list(voting_ensemble.routes.keys())),
         )
 
         db = mlrun.get_run_db()

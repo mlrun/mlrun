@@ -377,7 +377,7 @@ class GraphContext:
         elif not logger:
             self.logger = create_logger(level, "human", "flow", sys.stdout)
 
-        self.server = server
+        self._server = server
         self.current_function = None
         self.get_store_resource = None
         self.get_table = None
@@ -388,18 +388,18 @@ class GraphContext:
             self.logger.error(
                 f"got error from {source} state:\n{event.body}\n{message}"
             )
-        if self.server and self.server._error_stream_object:
-            message = format_error(self.server, self, source, event, message, kwargs)
-            self.server._error_stream_object.push(message)
+        if self._server and self._server._error_stream_object:
+            message = format_error(self._server, self, source, event, message, kwargs)
+            self._server._error_stream_object.push(message)
 
     def get_param(self, key: str, default=None):
-        if self.server and self.server.parameters:
-            return self.server.parameters.get(key, default)
+        if self._server and self._server.parameters:
+            return self._server.parameters.get(key, default)
         return default
 
     def get_secret(self, key: str):
-        if self.server and self.server._secrets:
-            return self.server._secrets.get(key)
+        if self._server and self._server._secrets:
+            return self._server._secrets.get(key)
         return None
 
 

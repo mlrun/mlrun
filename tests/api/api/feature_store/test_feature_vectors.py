@@ -1,13 +1,14 @@
-import unittest.mock
-import deepdiff
 import typing
+import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
+import deepdiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-import mlrun.api.schemas
+
 import mlrun.api.api.endpoints.feature_store
+import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
 
 from .base import (
@@ -412,7 +413,9 @@ def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> No
     )
 
 
-def test_verify_feature_vector_features_permissions(db: Session, client: TestClient) -> None:
+def test_verify_feature_vector_features_permissions(
+    db: Session, client: TestClient
+) -> None:
     project = "some-project"
     features = [
         "without-project.*",
@@ -427,6 +430,7 @@ def test_verify_feature_vector_features_permissions(db: Session, client: TestCli
         "store://feature-sets/without-project.with-feature-alias as some-alias",
     ]
     label_feature = "some-feature-set.some-feature"
+
     def _verify_queried_resources(
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         resources: typing.List,
@@ -440,10 +444,15 @@ def test_verify_feature_vector_features_permissions(db: Session, client: TestCli
             ("with-project", "name"),
             (project, "some-feature-set"),
         ]
-        assert deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
-    mlrun.api.utils.clients.opa.Client().query_resources_permissions = unittest.mock.Mock(side_effect=_verify_queried_resources)
+        assert (
+            deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
+        )
+
+    mlrun.api.utils.clients.opa.Client().query_resources_permissions = unittest.mock.Mock(
+        side_effect=_verify_queried_resources
+    )
     mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
         mlrun.api.schemas.AuthInfo(),
         project,
-        {"spec": {"features": features, "label_feature": label_feature}}
+        {"spec": {"features": features, "label_feature": label_feature}},
     )

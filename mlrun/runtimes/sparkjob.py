@@ -627,7 +627,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         uid: str,
         crd_object,
         run: Dict = None,
-        leader_session: Optional[str] = None,
     ):
         app_state = (
             crd_object.get("status", {}).get("applicationState", {}).get("state")
@@ -655,8 +654,8 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class=spark"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["spark"]
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

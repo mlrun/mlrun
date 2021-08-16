@@ -42,7 +42,7 @@ async def store_function(
     name: str,
     tag: str = "",
     versioned: bool = False,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -87,7 +87,7 @@ def get_function(
     name: str,
     tag: str = "",
     hash_key="",
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -111,7 +111,7 @@ def get_function(
 def delete_function(
     project: str,
     name: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -132,7 +132,7 @@ def list_functions(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     functions = mlrun.api.crud.Functions().list_functions(
@@ -157,7 +157,7 @@ def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -200,7 +200,7 @@ async def build_function(
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     # TODO: ensure project here !!! for background task
@@ -238,7 +238,8 @@ async def start_function(
 @router.post("/status/function")
 @router.post("/status/function/")
 async def function_status(
-    request: Request, auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    request: Request,
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
 ):
     data = None
     try:
@@ -263,7 +264,7 @@ def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -410,7 +411,7 @@ def _build_function(
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
     try:
-        run_db = get_run_db_instance(db_session, auth_info)
+        run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
@@ -493,7 +494,7 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
                 reason="runtime error: 'start' not supported by this runtime",
             )
         try:
-            run_db = get_run_db_instance(db_session, auth_info)
+            run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?

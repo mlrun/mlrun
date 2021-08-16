@@ -1387,7 +1387,10 @@ class MlrunProject(ModelObj):
             if timeout:
                 logger.info("waiting for pipeline run completion")
                 run_info = wait_for_pipeline_completion(
-                    workflow_id, timeout=timeout, expected_statuses=expected_statuses
+                    workflow_id,
+                    timeout=timeout,
+                    expected_statuses=expected_statuses,
+                    project=self.metadata.name,
                 )
                 if run_info:
                     status = run_info["run"].get("status")
@@ -1856,6 +1859,8 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
     # verify all functions are in this project
     for f in functions.values():
         f.metadata.project = project.metadata.name
+        # After the user had a chance to initialize the functions (in init_functions), attempt to auto-mount them.
+        f.try_auto_mount_based_on_config()
 
     if not hasattr(mod, "kfpipeline"):
         raise ValueError("pipeline function (kfpipeline) not found")

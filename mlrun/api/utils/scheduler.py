@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import traceback
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -255,6 +256,9 @@ class Scheduler:
                     "Session is required to create schedules in OPA authorization mode"
                 )
             secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+            secret_key_map = (
+                mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+            )
             mlrun.api.crud.Secrets().store_secrets(
                 project,
                 schemas.SecretsData(
@@ -262,6 +266,7 @@ class Scheduler:
                     secrets={secret_key: auth_info.session},
                 ),
                 allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
             )
 
     def _remove_schedule_secrets(
@@ -273,11 +278,16 @@ class Scheduler:
         if self._store_schedule_credentials_in_secrets:
             # sanity
             secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
-            mlrun.api.crud.Secrets().delete_secrets(
+            secret_key_map = (
+                mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+            )
+            mlrun.api.crud.Secrets().delete_secret(
                 project,
                 self._secrets_provider,
-                [secret_key],
+                secret_key,
+                allow_secrets_from_k8s=True,
                 allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
             )
 
     def _validate_cron_trigger(
@@ -404,14 +414,17 @@ class Scheduler:
                     schedule_secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(
                         db_schedule.name
                     )
-                    secrets_data = mlrun.api.crud.Secrets().list_secrets(
+                    secret_key_map = (
+                        mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+                    )
+                    session = mlrun.api.crud.Secrets().get_secret(
                         db_schedule.project,
                         self._secrets_provider,
-                        [schedule_secret_key],
+                        schedule_secret_key,
                         allow_secrets_from_k8s=True,
                         allow_internal_secrets=True,
+                        key_map_secret_key=secret_key_map,
                     )
-                    session = secrets_data.secrets[schedule_secret_key]
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
                     db_schedule.name,
@@ -425,6 +438,7 @@ class Scheduler:
                 logger.warn(
                     "Failed rescheduling job. Continuing",
                     exc=str(exc),
+                    traceback=traceback.format_exc(),
                     db_schedule=db_schedule,
                 )
 
@@ -480,6 +494,7 @@ class Scheduler:
             return (
                 Scheduler.submit_run_wrapper,
                 [
+                    self,
                     scheduled_object_copy,
                     project_name,
                     schedule_name,
@@ -508,6 +523,7 @@ class Scheduler:
 
     @staticmethod
     async def submit_run_wrapper(
+        scheduler,
         scheduled_object,
         project_name,
         schedule_name,
@@ -549,6 +565,31 @@ class Scheduler:
                 active_runs=len(active_runs),
             )
             return
+
+        # if credentials are needed but missing (will happen for schedules on upgrade from scheduler that didn't store
+        # credentials to one that does store) enrich them
+        # Note that here we're using the "knowledge" that submit_run only requires the session of the auth info
+        if not auth_info.session and scheduler._store_schedule_credentials_in_secrets:
+            # import here to avoid circular imports
+            import mlrun.api.utils.auth
+            import mlrun.api.utils.singletons.project_member
+
+            logger.info(
+                "Schedule missing auth info which is required. Trying to fill from project owner",
+                project_name=project_name,
+                schedule_name=schedule_name,
+            )
+
+            project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                db_session, project_name
+            )
+            # Update the schedule with the new auth info so we won't need to do the above again in the next run
+            scheduler.update_schedule(
+                db_session,
+                mlrun.api.schemas.AuthInfo(session=project_owner.session),
+                project_name,
+                schedule_name,
+            )
 
         response = await submit_run(db_session, auth_info, scheduled_object)
 

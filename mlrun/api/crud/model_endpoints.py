@@ -65,7 +65,7 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            run_db = mlrun.api.api.utils.get_run_db_instance(db_session, auth_info)
+            run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
             model_obj: ModelArtifact = (
                 mlrun.datastore.store_resources.get_store_resource(
                     model_endpoint.spec.model_uri, db=run_db

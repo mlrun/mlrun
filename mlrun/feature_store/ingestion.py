@@ -256,13 +256,13 @@ def add_source_trigger(source, function):
             ),
         )
         func.spec.config["spec.triggers.kafka"]["attributes"][
-            "consumerGroup"
+            "ConsumerGroup"
         ] = source.attributes["group"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
-            "topics"
+            "Topics"
         ] = source.attributes["topic"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
-            "initialOffset"
+            "InitialOffset"
         ] = source.attributes["initial_offset"]
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")

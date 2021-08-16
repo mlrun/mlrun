@@ -111,12 +111,14 @@ class V2ModelServer:
             else:
                 self._load_and_update_state()
 
-        if not hasattr(self.context, "server"):
-            logger.warn("GraphServer not initialized for V2ModelServer instance")
-            logger.warn(str(dir(self.context)))
+        server = getattr(self.context, "_server", None) or getattr(
+            self.context, "server", None
+        )
+        if not server:
+            logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(self.context.server, self)
+        _init_endpoint_record(server, self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""

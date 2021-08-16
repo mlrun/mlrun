@@ -840,6 +840,22 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
+    def test_ingest_pandas_engine(self):
+        data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
+
+        data.set_index(["name"], inplace=True)
+        fset = fs.FeatureSet("pandass", entities=[fs.Entity("name")], engine="pandas")
+        fs.ingest(featureset=fset, source=data)
+
+        features = ["pandass.*"]
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"name": "ab"}])
+        assert resp[0] == {"data": 10}
+
+        svc.close()
+
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"

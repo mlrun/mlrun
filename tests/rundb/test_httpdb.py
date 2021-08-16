@@ -514,7 +514,7 @@ def test_feature_vectors(create_server):
     # Test store_feature_set, which allows updates as well as inserts
     db.store_feature_vector(feature_vector, project=project)
 
-    feature_vector_update = {"spec": {"features": ["bla", "blu"]}}
+    feature_vector_update = {"spec": {"features": ["bla.asd", "blu.asd"]}}
 
     # additive mode means add the feature to the features-list
     db.patch_feature_vector(

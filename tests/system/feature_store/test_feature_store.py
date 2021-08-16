@@ -211,7 +211,7 @@ class TestFeatureStore(TestMLRunSystem):
             pd.Timestamp("2021-03-28 13:30:00.038"),
             pd.Timestamp("2021-03-28 13:30:00.048"),
             pd.Timestamp("2021-03-28 13:30:00.048"),
-            pd.Timestamp("2021-03-28 13:30:00.048")
+            pd.Timestamp("2021-03-28 13:30:00.048"),
         ]
         stocks_for_parquet.to_parquet(
             "v3io:///bigdata/system-test-project/stocks_test.parquet"

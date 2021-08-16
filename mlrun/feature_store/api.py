@@ -15,13 +15,12 @@ from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
-import v3io
 
 import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore.sources import HttpSource, StreamSource
+from ..datastore.sources import StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
@@ -32,7 +31,6 @@ from ..datastore.targets import (
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
-from ..platforms.iguazio import parse_v3io_path, split_path
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
@@ -40,6 +38,7 @@ from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
 from .feature_set import FeatureSet
 from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService
 from .ingestion import (
+    add_source_trigger,
     context_to_ingestion_params,
     init_featureset_graph,
     run_ingestion_job,
@@ -492,35 +491,6 @@ def deploy_ingestion_service(
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
     return function.deploy()
-
-
-def add_source_trigger(source, function):
-    if isinstance(source, HttpSource):
-        # Http source is added automatically when creating serving function
-        return
-    if isinstance(source, StreamSource):
-        endpoint, stream_path = parse_v3io_path(source.path)
-        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
-        container, stream_path = split_path(stream_path)
-        res = v3io_client.create_stream(
-            container=container,
-            path=stream_path,
-            shard_count=source.attributes["shards"],
-            retention_period_hours=source.attributes["retention_in_hours"],
-            raise_for_status=v3io.dataplane.RaiseForStatus.never,
-        )
-        res.raise_for_status([409, 204])
-        function.add_v3io_stream_trigger(
-            source.path,
-            source.name,
-            source.attributes["group"],
-            source.attributes["seek_to"],
-            source.attributes["shards"],
-        )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Source type {type(source)} is not supported with ingestion service yet"
-        )
 
 
 def _ingest_with_spark(

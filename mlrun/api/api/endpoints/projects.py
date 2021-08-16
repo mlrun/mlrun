@@ -129,7 +129,9 @@ def get_project(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        name, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
     return get_project_member().get_project(
         db_session, name, auth_verifier.auth_info.session
     )
@@ -187,6 +189,18 @@ def list_projects(
         mlrun.api.api.deps.get_db_session
     ),
 ):
+    projects_output = get_project_member().list_projects(
+        db_session,
+        owner,
+        mlrun.api.schemas.ProjectsFormat.name_only,
+        labels,
+        state,
+        auth_verifier.auth_info.projects_role,
+        auth_verifier.auth_info.session,
+    )
+    allowed_project_names = mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions(
+        projects_output.projects, auth_verifier.auth_info,
+    )
     return get_project_member().list_projects(
         db_session,
         owner,
@@ -195,4 +209,5 @@ def list_projects(
         state,
         auth_verifier.auth_info.projects_role,
         auth_verifier.auth_info.session,
+        allowed_project_names,
     )

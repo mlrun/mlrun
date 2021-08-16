@@ -64,6 +64,22 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 filtered_resources.append(resource)
         return filtered_resources
 
+    def filter_projects_by_permissions(
+        self,
+        project_names: typing.List[str],
+        auth_info: mlrun.api.schemas.AuthInfo,
+        action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
+    ) -> typing.List:
+        # TODO: execute in parallel
+        filtered_projects = []
+        for project_name in project_names:
+            allowed = self.query_project_permissions(
+                project_name, action, auth_info, raise_on_forbidden=False,
+            )
+            if allowed:
+                filtered_projects.append(project_name)
+        return filtered_projects
+
     def query_resources_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
@@ -103,6 +119,22 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             resource_name = "*"
         return self.query_permissions(
             resource_type.to_resource_string(project_name, resource_name),
+            action,
+            auth_info,
+            raise_on_forbidden,
+        )
+
+    def query_project_permissions(
+        self,
+        project_name: str,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        return self.query_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.project.to_resource_string(
+                project_name, ""
+            ),
             action,
             auth_info,
             raise_on_forbidden,

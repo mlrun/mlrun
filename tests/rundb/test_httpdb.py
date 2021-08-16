@@ -489,7 +489,11 @@ def _create_feature_vector(name):
             "tag": "latest",
         },
         "spec": {
-            "features": ["feature_set:*", "feature_set:something", "just_a_feature"],
+            "features": [
+                "feature_set.*",
+                "feature_set.something",
+                "feature_set.just_a_feature",
+            ],
             "description": "just a bunch of features",
         },
         "status": {"state": "created"},

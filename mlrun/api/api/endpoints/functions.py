@@ -569,8 +569,8 @@ def _create_model_monitoring_stream(project: str):
     response = v3io_client.create_stream(
         container=container,
         path=stream_path,
-        shard_count=config.serving_stream_args.shard_count,
-        retention_period_hours=config.serving_stream_args.retention_period_hours,
+        shard_count=config.model_endpoint_monitoring.serving_stream_args.shard_count,
+        retention_period_hours=config.model_endpoint_monitoring.serving_stream_args.retention_period_hours,
         raise_for_status=v3io.dataplane.RaiseForStatus.never,
     )
 

@@ -206,6 +206,13 @@ class TestFeatureStore(TestMLRunSystem):
         )
         targets = [par_target]
         stocks_for_parquet = trades.copy()
+        stocks_for_parquet["another_time"] = [
+            pd.Timestamp("2021-03-28 13:30:00.023"),
+            pd.Timestamp("2021-03-28 13:30:00.038"),
+            pd.Timestamp("2021-03-28 13:30:00.048"),
+            pd.Timestamp("2021-03-28 13:30:00.048"),
+            pd.Timestamp("2021-03-28 13:30:00.048")
+        ]
         stocks_for_parquet.to_parquet(
             "v3io:///bigdata/system-test-project/stocks_test.parquet"
         )
@@ -250,7 +257,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
         df_with_time = fs.get_offline_features(
-            vector, entity_timestamp_column="invalid"
+            vector, entity_timestamp_column="another_time"
         ).to_dataframe()
         assert isinstance(
             df_with_time.index, pd.core.indexes.range.RangeIndex

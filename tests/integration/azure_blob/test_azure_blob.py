@@ -69,7 +69,7 @@ def verify_auth_parameters_and_configure_env(auth_method):
         return None
 
     elif auth_method.startswith("fsspec"):
-        storage_options={}
+        storage_options = {}
         for var in test_params:
             value = config["env"].get(var)
             if not value:
@@ -77,7 +77,7 @@ def verify_auth_parameters_and_configure_env(auth_method):
             storage_options[var] = value
         logger.info(f"Testing auth method {auth_method}")
         return storage_options
-    
+
     else:
         raise ValueError("auth_method not known")
 
@@ -135,7 +135,9 @@ def test_list_dir(auth_method):
     assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
     # Check dir list for folder in container
-    dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir, storage_options).listdir()
+    dir_list = mlrun.run.get_dataitem(
+        blob_container_path + "/" + blob_dir, storage_options
+    ).listdir()
     assert blob_file in dir_list, "File not in folder dir-list"
 
 

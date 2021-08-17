@@ -441,8 +441,15 @@ class FileRunDB(RunDBInterface):
         format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: Optional[List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        if owner or format_ == mlrun.api.schemas.ProjectsFormat.full or labels or state:
+        if (
+            owner
+            or format_ == mlrun.api.schemas.ProjectsFormat.full
+            or labels
+            or state
+            or names
+        ):
             raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):

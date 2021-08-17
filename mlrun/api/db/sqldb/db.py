@@ -866,10 +866,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
+        if names:
+            query = query.filter(Project.name.in_(names))
         project_records = query.all()
         project_names = [project_record.name for project_record in project_records]
         projects = []

@@ -276,7 +276,7 @@ def _get_runtime_resources_allowed_projects(
         kind_runtime_resources_map,
     ) in grouped_by_project_runtime_resources_output.items():
         projects.append(project)
-    allowed_projects = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    allowed_projects = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
         projects,
         lambda project: (project, "",),

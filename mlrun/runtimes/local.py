@@ -245,6 +245,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         else:
             command = self.spec.command
             command = command.format(**runobj.spec.parameters)
+            logger.info(f"handler was not provided running main ({command})")
             arg_list = command.split()
             if self.spec.mode == "pass":
                 cmd = arg_list

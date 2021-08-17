@@ -855,11 +855,21 @@ class RunObject(RunTemplate):
 
 
 class EntrypointParam(ModelObj):
-    def __init__(self, name="", type=None, default=None, doc=""):
+    def __init__(
+        self,
+        name="",
+        type=None,
+        default=None,
+        doc="",
+        required=None,
+        choices: list = None,
+    ):
         self.name = name
         self.type = type
         self.default = default
         self.doc = doc
+        self.required = required
+        self.choices = choices
 
 
 class FunctionEntrypoint(ModelObj):

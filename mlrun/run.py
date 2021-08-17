@@ -390,7 +390,7 @@ def get_or_create_ctx(
     return ctx
 
 
-def import_function(url="", secrets=None, db="", project=None):
+def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
     Function can be imported from function repositories (mlrun marketplace or local db),
@@ -411,6 +411,7 @@ def import_function(url="", secrets=None, db="", project=None):
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
+    :param new_name: optional, override the imported function name
 
     :returns: function object
     """
@@ -431,6 +432,8 @@ def import_function(url="", secrets=None, db="", project=None):
     # simply default to the default project
     if project and is_hub_uri:
         function.metadata.project = project
+    if new_name:
+        function.metadata.name = new_name
     return function
 
 
@@ -926,7 +929,7 @@ def run_pipeline(
             )
 
         id = run_result.run_id
-    logger.info(f"Pipeline run id={id}, check UI or DB for progress")
+    logger.info(f"Pipeline run id={id}, check UI for progress")
     return id
 
 
@@ -1003,14 +1006,18 @@ def wait_for_pipeline_completion(
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
+    message = resp["run"].get("message", "")
     if expected_statuses:
         if status not in expected_statuses:
-            raise RuntimeError(f"run status {status} not in expected statuses")
+            raise RuntimeError(
+                f"Pipeline run status {status}{', ' + message if message else ''}"
+            )
 
     logger.debug(
         f"Finished waiting for pipeline completion."
         f" run_id: {run_id},"
         f" status: {status},"
+        f" message: {message},"
         f" namespace: {namespace}"
     )
 

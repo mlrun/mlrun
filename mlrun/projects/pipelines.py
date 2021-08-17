@@ -89,6 +89,10 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self._tmp_path = None
 
     def get_source_file(self, context=""):
+        if not self.code and not self.path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "workflow must have code or path properties"
+            )
         if self.code:
             workflow_path = mktemp(".py")
             with open(workflow_path, "w") as wf:

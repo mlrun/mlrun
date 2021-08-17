@@ -19,8 +19,6 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 import getpass
 from os import environ, path
 
-from projects.project import _add_username_to_project_name_if_needed
-
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -35,6 +33,7 @@ from .platforms import (
     v3io_cred,
 )
 from .projects import ProjectMetadata, get_or_create_project, load_project, new_project
+from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
     code_to_function,
     function_to_module,

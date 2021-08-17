@@ -63,7 +63,7 @@ Table Of Content
 
    runtimes/functions
    hyper-params
-   projects
+   projects/overview
    ci-pipeline
    load-from-marketplace
    secrets

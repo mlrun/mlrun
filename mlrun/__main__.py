@@ -41,7 +41,6 @@ from .run import get_object, import_function, import_function_to_dict, new_funct
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
-    RunNotifications,
     dict_to_yaml,
     get_in,
     list2dict,
@@ -712,7 +711,7 @@ def logs(uid, project, offset, db, watch):
     "-a",
     default="",
     multiple=True,
-    help="Kubeflow pipeline arguments name and value tuples, e.g. -a x=6",
+    help="Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6",
 )
 @click.option("--artifact-path", "-p", help="output artifacts path")
 @click.option(
@@ -729,13 +728,15 @@ def logs(uid, project, offset, db, watch):
 @click.option("--db", help="api and db service path/url")
 @click.option("--init-git", is_flag=True, help="for new projects init git context")
 @click.option(
-    "--clone", "-c", is_flag=True, help="force override/clone the context dir"
+    "--clone", "-c", is_flag=True, help="force override/clone into the context dir"
 )
 @click.option("--sync", is_flag=True, help="sync functions into db")
 @click.option(
     "--watch", "-w", is_flag=True, help="wait for pipeline completion (with -r flag)"
 )
-@click.option("--dirty", "-d", is_flag=True, help="allow git with uncommitted changes")
+@click.option(
+    "--dirty", "-d", is_flag=True, help="allow run with uncommitted git changes"
+)
 @click.option("--git-repo", help="git repo (org/repo) for git comments")
 @click.option(
     "--git-issue", type=int, default=None, help="git issue number for git comments"
@@ -770,18 +771,18 @@ def project(
     if artifact_path and not ("://" in artifact_path or artifact_path.startswith("/")):
         artifact_path = path.abspath(artifact_path)
     if param:
-        proj.params = fill_params(param, proj.params)
+        proj.spec.params = fill_params(param, proj.spec.params)
     if git_repo:
-        proj.params["git_repo"] = git_repo
+        proj.spec.params["git_repo"] = git_repo
     if git_issue:
-        proj.params["git_issue"] = git_issue
+        proj.spec.params["git_issue"] = git_issue
     commit = (
-        proj.params.get("commit")
+        proj.get_param("commit_id")
         or environ.get("GITHUB_SHA")
         or environ.get("CI_COMMIT_SHA")
     )
     if commit:
-        proj.params["commit"] = commit
+        proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         proj._secrets = SecretsStore.from_list(secrets)
@@ -800,6 +801,15 @@ def project(
         print(f"running workflow {run} file: {workflow_path}")
         message = run = ""
         had_error = False
+        gitops = (
+            git_issue
+            or environ.get("GITHUB_EVENT_PATH")
+            or environ.get("CI_MERGE_REQUEST_IID")
+        )
+        if gitops:
+            proj.notifiers.git_comment(
+                git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
+            )
         try:
             run = proj.run(
                 run,
@@ -815,25 +825,15 @@ def project(
             message = f"failed to run pipeline, {exc}"
             had_error = True
             print(message)
-        print(f"run id: {run}")
+        print(f"run id: {run.run_id}")
 
-        gitops = (
-            git_issue
-            or environ.get("GITHUB_EVENT_PATH")
-            or environ.get("CI_MERGE_REQUEST_IID")
-        )
-        n = RunNotifications(with_slack=True, secrets=proj._secrets).print()
-        if gitops:
-            n.git_comment(git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN"))
-        if not had_error:
-            n.push_start_message(proj.name, commit, run)
-        else:
-            n.push(message)
+        if had_error:
+            proj.notifiers.push(message)
         if had_error:
             exit(1)
 
         if watch:
-            proj.get_run_status(run, notifiers=n)
+            proj.get_run_status(run)
 
     elif sync:
         print("saving project functions to db ..")

@@ -129,9 +129,11 @@ def get_project(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        name, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
-    )
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            name, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+        )
     return get_project_member().get_project(
         db_session, name, auth_verifier.auth_info.session
     )
@@ -198,9 +200,12 @@ def list_projects(
         auth_verifier.auth_info.projects_role,
         auth_verifier.auth_info.session,
     )
-    allowed_project_names = mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions(
-        projects_output.projects, auth_verifier.auth_info,
-    )
+    allowed_project_names = projects_output.projects
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
+        allowed_project_names = mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions(
+            projects_output.projects, auth_verifier.auth_info,
+        )
     return get_project_member().list_projects(
         db_session,
         owner,
@@ -211,3 +216,11 @@ def list_projects(
         auth_verifier.auth_info.session,
         allowed_project_names,
     )
+
+
+def _is_request_from_leader(
+    projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole],
+) -> bool:
+    if projects_role and projects_role.value == mlrun.mlconf.httpdb.projects.leader:
+        return True
+    return False

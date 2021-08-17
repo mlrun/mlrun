@@ -346,7 +346,7 @@ class Member(
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]
-    ):
+    ) -> bool:
         if projects_role and projects_role.value == self._leader_name:
             return True
         return False

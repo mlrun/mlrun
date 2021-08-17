@@ -226,7 +226,6 @@ class TestFeatureStore(TestMLRunSystem):
 
         df = fs.ingest(stocks_set, stocks_for_parquet, targets)
         assert len(df) == len(stocks_for_parquet), "dataframe size doesnt match"
-        # assert stocks_set.status.stats["exchange"], "stats not created"
 
         # test get offline features with different parameters
         vector = fs.FeatureVector("offline-vec", ["stocks_parquet_test.*"])
@@ -250,10 +249,13 @@ class TestFeatureStore(TestMLRunSystem):
             df_no_time.index, pd.core.indexes.range.RangeIndex
         ), "index column is not of default type"
         assert df_no_time.index.name is None, "index column is not of default type"
-        assert "time" not in df_no_time.columns, "'time' column shouldn't be present"
+        assert "time" not in df_no_time.columns, "'time' column should not be present"
         assert (
             "ticker" not in df_no_time.columns
         ), "'ticker' column shouldn't be present"
+        assert (
+            "another_time" in df_no_time.columns
+        ), "'another_time' column should be present"
 
         # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
         df_with_time = fs.get_offline_features(
@@ -267,6 +269,9 @@ class TestFeatureStore(TestMLRunSystem):
             "ticker" not in df_with_time.columns
         ), "'ticker' column shouldn't be present"
         assert "time" in df_with_time.columns, "'time' column should be present"
+        assert (
+            "another_time" not in df_with_time.columns
+        ), "'another_time' column should not be present"
 
         vector.spec.with_indexes = True
         df_with_index = fs.get_offline_features(vector).to_dataframe()

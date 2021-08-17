@@ -583,7 +583,7 @@ def _verify_feature_vector_features_permissions(
     for _project, names in feature_set_project_to_name_set_map.items():
         for name in names:
             feature_set_project_name_tuples.append((_project, name))
-    mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         feature_set_project_name_tuples,
         lambda feature_set_project_name_tuple: (

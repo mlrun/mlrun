@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
+import typing
 from subprocess import run
 
 from mlrun.config import config
@@ -173,8 +174,8 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class=remote-spark"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["remote-spark"]
 
 
 def igz_spark_pre_hook():

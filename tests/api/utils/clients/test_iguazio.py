@@ -44,13 +44,7 @@ def test_verify_request_session_success(
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = mock_request_headers
 
-    mock_response_headers = {
-        "X-Remote-User": "some-user",
-        "X-V3io-Session-Key": "some-access-key",
-        "x-user-id": "some-uid",
-        "x-user-group-ids": "some-gid,some-gid2,some-gid3",
-        "x-v3io-session-planes": "control,data",
-    }
+    mock_response_headers = _generate_session_verification_response_headers()
 
     def _verify_session_mock(request, context):
         for header_key, header_value in mock_request_headers.items():
@@ -62,14 +56,10 @@ def test_verify_request_session_success(
         f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
         json=_verify_session_mock,
     )
-    (username, access_key, uid, gids, planes) = iguazio_client.verify_request_session(
-        mock_request
+    auth_info = iguazio_client.verify_request_session(mock_request)
+    _assert_auth_info_from_session_verification_mock_response_headers(
+        auth_info, mock_response_headers
     )
-    assert username == mock_response_headers["X-Remote-User"]
-    assert access_key == mock_response_headers["X-V3io-Session-Key"]
-    assert uid == mock_response_headers["x-user-id"]
-    assert gids == mock_response_headers["x-user-group-ids"].split(",")
-    assert planes == mock_response_headers["x-v3io-session-planes"].split(",")
 
 
 def test_verify_request_session_failure(
@@ -86,6 +76,29 @@ def test_verify_request_session_failure(
     )
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         iguazio_client.verify_request_session(mock_request)
+
+
+def test_verify_session_success(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    session = "some-session"
+    mock_response_headers = _generate_session_verification_response_headers()
+
+    def _verify_session_mock(request, context):
+        _verify_request_cookie(request.headers, session)
+        context.headers = mock_response_headers
+        return {}
+
+    requests_mock.post(
+        f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
+        json=_verify_session_mock,
+    )
+    auth_info = iguazio_client.verify_session(session)
+    _assert_auth_info_from_session_verification_mock_response_headers(
+        auth_info, mock_response_headers
+    )
 
 
 def test_get_grafana_service_url_success(
@@ -150,6 +163,38 @@ def test_get_grafana_service_url_no_urls(
     assert grafana_url is None
 
 
+def test_get_project_owner(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    owner_username = "some-username"
+    project = _generate_project(owner=owner_username)
+    session = "1234"
+    owner_access_key = "some-access-key"
+
+    def verify_get(request, context):
+        assert request.qs == {
+            "include": ["owner"],
+            "enrich_owner_access_key": ["true"],
+        }
+        context.status_code = http.HTTPStatus.OK.value
+        _verify_project_request_headers(request.headers, session)
+        return {
+            "data": _build_project_response(
+                iguazio_client, project, owner_access_key=owner_access_key
+            )
+        }
+
+    # mock project response so store will update
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}", json=verify_get,
+    )
+    project_owner = iguazio_client.get_project_owner(session, project.metadata.name,)
+    assert project_owner.username == owner_username
+    assert project_owner.session == owner_access_key
+
+
 def test_list_project_with_updated_after(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
@@ -163,10 +208,12 @@ def test_list_project_with_updated_after(
         assert request.qs == {
             "filter[updated_at]": [
                 f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()
-            ]
+            ],
+            # TODO: Remove me when zebo returns owner
+            "include": ["owner"],
         }
         context.status_code = http.HTTPStatus.OK.value
-        _verify_request_headers(request.headers, session)
+        _verify_project_request_headers(request.headers, session)
         return {"data": [_build_project_response(iguazio_client, project)]}
 
     # mock project response so store will update
@@ -186,14 +233,16 @@ def test_list_project(
     mock_projects = [
         {"name": "project-name-1"},
         {"name": "project-name-2", "description": "project-description-2"},
-        {"name": "project-name-3", "labels": {"key": "value"}},
+        {"name": "project-name-3", "owner": "some-owner"},
+        {"name": "project-name-4", "labels": {"key": "value"}},
         {
-            "name": "project-name-4",
+            "name": "project-name-5",
             "annotations": {"annotation-key": "annotation-value"},
         },
         {
-            "name": "project-name-5",
+            "name": "project-name-6",
             "description": "project-description-4",
+            "owner": "some-owner",
             "labels": {"key2": "value2"},
             "annotations": {"annotation-key2": "annotation-value2"},
         },
@@ -207,6 +256,7 @@ def test_list_project(
                     mock_project.get("description", ""),
                     mock_project.get("labels", {}),
                     mock_project.get("annotations", {}),
+                    owner=mock_project.get("owner", None),
                 ),
             )
             for mock_project in mock_projects
@@ -217,6 +267,7 @@ def test_list_project(
     for index, project in enumerate(projects):
         assert project.metadata.name == mock_projects[index]["name"]
         assert project.spec.description == mock_projects[index].get("description")
+        assert project.spec.owner == mock_projects[index].get("owner")
         assert (
             deepdiff.DeepDiff(
                 mock_projects[index].get("labels"),
@@ -383,7 +434,7 @@ def test_store_project_update(
     def verify_store_update(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
         context.status_code = http.HTTPStatus.OK.value
-        _verify_request_headers(request.headers, session)
+        _verify_project_request_headers(request.headers, session)
         return {"data": _build_project_response(iguazio_client, project)}
 
     empty_project = _generate_project(description="", labels={}, annotations={})
@@ -427,7 +478,7 @@ def test_patch_project(
         )
         _assert_project_creation(iguazio_client, request.json(), patched_project)
         context.status_code = http.HTTPStatus.OK.value
-        _verify_request_headers(request.headers, session)
+        _verify_project_request_headers(request.headers, session)
         return {"data": _build_project_response(iguazio_client, patched_project)}
 
     # mock project response on get (patch does get first)
@@ -531,6 +582,51 @@ def test_format_as_leader_project(
     )
 
 
+def _generate_session_verification_response_headers(
+    username="some-user",
+    session="some-access-key",
+    user_id="some-user-id",
+    user_group_ids="some-group-id-1,some-group-id-2",
+    planes="control,data",
+):
+    return {
+        "X-Remote-User": username,
+        "X-V3io-Session-Key": session,
+        "x-user-id": user_id,
+        "x-user-group-ids": user_group_ids,
+        "x-v3io-session-planes": planes,
+    }
+
+
+def _assert_auth_info_from_session_verification_mock_response_headers(
+    auth_info: mlrun.api.schemas.AuthInfo, response_headers: dict
+):
+    _assert_auth_info(
+        auth_info,
+        response_headers["X-Remote-User"],
+        response_headers["X-V3io-Session-Key"],
+        response_headers["X-V3io-Session-Key"],
+        response_headers["x-user-id"],
+        response_headers["x-user-group-ids"].split(","),
+    )
+
+
+def _assert_auth_info(
+    auth_info: mlrun.api.schemas.AuthInfo,
+    username: str,
+    session: str,
+    data_session: str,
+    user_id: str,
+    user_group_ids: typing.List[str],
+):
+    assert auth_info.username == username
+    assert auth_info.session == session
+    assert auth_info.user_id == user_id
+    assert auth_info.user_group_ids == user_group_ids
+    # we returned data in planes so a data session as well
+    assert auth_info.data_session == data_session
+
+
 def _create_project_and_assert(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
@@ -577,7 +673,7 @@ def _verify_deletion(project_name, session, job_id, request, context):
         request.headers["igz-project-deletion-strategy"]
         == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
     )
-    _verify_request_headers(request.headers, session)
+    _verify_project_request_headers(request.headers, session)
     context.status_code = http.HTTPStatus.ACCEPTED.value
     return {"data": {"type": "job", "id": job_id}}
 
@@ -585,7 +681,7 @@ def _verify_deletion(project_name, session, job_id, request, context):
 def _verify_creation(iguazio_client, project, session, job_id, request, context):
     _assert_project_creation(iguazio_client, request.json(), project)
     context.status_code = http.HTTPStatus.CREATED.value
-    _verify_request_headers(request.headers, session)
+    _verify_project_request_headers(request.headers, session)
     return {
         "data": _build_project_response(
             iguazio_client, project, job_id, mlrun.api.schemas.ProjectState.creating
@@ -593,8 +689,12 @@ def _verify_creation(iguazio_client, project, session, job_id, request, context)
     }
 
 
-def _verify_request_headers(headers: dict, session: str):
+def _verify_request_cookie(headers: dict, session: str):
     assert headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
+
+
+def _verify_project_request_headers(headers: dict, session: str):
+    _verify_request_cookie(headers, session)
     assert headers[mlrun.api.schemas.HeaderNames.projects_role] == "mlrun"
 
 
@@ -622,6 +722,7 @@ def _generate_project(
     labels=None,
     annotations=None,
     created=None,
+    owner="project-owner",
 ) -> mlrun.api.schemas.Project:
     if labels is None:
         labels = {
@@ -642,6 +743,7 @@ def _generate_project(
         spec=mlrun.api.schemas.ProjectSpec(
             description=description,
             desired_state=mlrun.api.schemas.ProjectState.online,
+            owner=owner,
             some_extra_field="some value",
         ),
         status=mlrun.api.schemas.ProjectStatus(some_extra_field="some value",),
@@ -653,6 +755,7 @@ def _build_project_response(
     project: mlrun.api.schemas.Project,
     job_id: typing.Optional[str] = None,
     operational_status: typing.Optional[mlrun.api.schemas.ProjectState] = None,
+    owner_access_key: typing.Optional[str] = None,
 ):
     body = {
         "type": "project",
@@ -671,6 +774,10 @@ def _build_project_response(
     }
     if project.spec.description:
         body["attributes"]["description"] = project.spec.description
+    if project.spec.owner:
+        body["attributes"]["owner_username"] = project.spec.owner
+    if owner_access_key:
+        body["attributes"]["owner_access_key"] = owner_access_key
     if project.metadata.labels:
         body["attributes"][
             "labels"
@@ -710,7 +817,7 @@ def _assert_project_creation(
         exclude_unset=True,
         exclude={
             "metadata": {"name", "created", "labels", "annotations"},
-            "spec": {"description", "desired_state"},
+            "spec": {"description", "desired_state", "owner"},
             "status": {"state"},
         },
     )

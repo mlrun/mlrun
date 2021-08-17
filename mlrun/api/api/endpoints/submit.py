@@ -24,7 +24,7 @@ router = APIRouter()
 async def submit_job(
     request: Request,
     username: Optional[str] = Header(None, alias="x-remote-user"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None

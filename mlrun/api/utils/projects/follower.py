@@ -227,6 +227,11 @@ class Member(
         elif self.projects_store_mode == self.ProjectsStoreMode.none:
             return self._leader_client.get_project(leader_session, name)
 
+    def get_project_owner(
+        self, db_session: sqlalchemy.orm.Session, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        return self._leader_client.get_project_owner(self._sync_session, name)
+
     def list_projects(
         self,
         db_session: sqlalchemy.orm.Session,

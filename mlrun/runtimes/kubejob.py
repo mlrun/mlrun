@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import time
+import typing
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -253,7 +254,9 @@ class KubejobRuntime(KubeResource):
                     self._secrets.get_azure_vault_k8s_secret()
                 )
             k8s_secrets = self._secrets.get_k8s_secrets()
-            if k8s_secrets:
+            # the get_k8s_secrets function may return an empty dictionary - it's a different case than returning None
+            # (asking for all secrets of that project)
+            if k8s_secrets is not None:
                 self._add_project_k8s_secrets_to_spec(k8s_secrets, runobj)
 
         pod_spec = func_to_pod(
@@ -312,5 +315,5 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class in (build, job)"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["build", "job"]

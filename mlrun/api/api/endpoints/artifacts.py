@@ -27,7 +27,7 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -69,7 +69,7 @@ async def store_artifact(
 @router.get("/projects/{project}/artifact-tags")
 def list_artifact_tags(
     project: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag_tuples = get_db().list_artifact_tags(db_session, project)
@@ -98,7 +98,7 @@ def get_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -121,7 +121,7 @@ def delete_artifact(
     uid: str,
     key: str,
     tag: str = "",
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(
@@ -146,7 +146,7 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
@@ -181,7 +181,7 @@ def delete_artifacts(
     name: str = "",
     tag: str = "",
     labels: List[str] = Query([], alias="label"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(

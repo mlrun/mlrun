@@ -19,8 +19,8 @@ def get_files(
     user: str = "",
     size: int = 0,
     offset: int = 0,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     _, filename = objpath.split(objpath)
@@ -66,8 +66,8 @@ def get_files(
 def get_filestat(
     schema: str = "",
     path: str = "",
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     user: str = "",
 ):

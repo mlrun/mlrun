@@ -1,4 +1,5 @@
 import os
+import pathlib
 import random
 import string
 import uuid
@@ -14,8 +15,14 @@ from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
+import tests.conftest
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource, DataFrameSource, ParquetSource
+from mlrun.datastore.sources import (
+    CSVSource,
+    DataFrameSource,
+    ParquetSource,
+    StreamSource,
+)
 from mlrun.datastore.targets import (
     CSVTarget,
     NoSqlTarget,
@@ -833,6 +840,22 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
+    def test_ingest_pandas_engine(self):
+        data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
+
+        data.set_index(["name"], inplace=True)
+        fset = fs.FeatureSet("pandass", entities=[fs.Entity("name")], engine="pandas")
+        fs.ingest(featureset=fset, source=data)
+
+        features = ["pandass.*"]
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"name": "ab"}])
+        assert resp[0] == {"data": 10}
+
+        svc.close()
+
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"
@@ -1420,6 +1443,52 @@ class TestFeatureStore(TestMLRunSystem):
             check_like=True,
             check_names=True,
         )
+
+    def test_stream_source(self):
+        # create feature set, ingest sample data and deploy nuclio function with stream source
+        myset = FeatureSet("fset2", entities=[Entity("ticker")])
+        fs.ingest(myset, quotes)
+        source = StreamSource(key_field="ticker", time_field="time")
+        filename = str(
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "api"
+            / "runtimes"
+            / "assets"
+            / "sample_function.py"
+        )
+
+        function = mlrun.code_to_function(
+            "ingest_transactions", kind="serving", filename=filename
+        )
+        function.spec.default_content_type = "application/json"
+        run_config = fs.RunConfig(function=function, local=False).apply(
+            mlrun.mount_v3io()
+        )
+        fs.deploy_ingestion_service(
+            featureset=myset, source=source, run_config=run_config
+        )
+        # push records to stream
+        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/fset2/v3ioStream"
+        events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
+        client = mlrun.platforms.V3ioStreamClient(stream_path, seek_to="EARLIEST")
+        events_pusher.push(
+            {
+                "ticker": "AAPL",
+                "time": "2021-08-15T10:58:37.415101",
+                "bid": 300,
+                "ask": 100,
+            }
+        )
+        # verify new records in stream
+        resp = client.get_records()
+        assert len(resp) != 0
+        # read from online service updated data
+        vector = fs.FeatureVector("my-vec", ["fset2.*"])
+        svc = fs.get_online_feature_service(vector)
+        sleep(5)
+        resp = svc.get([{"ticker": "AAPL"}])
+        svc.close()
+        assert resp[0]["bid"] == 300
 
 
 def verify_purge(fset, targets):

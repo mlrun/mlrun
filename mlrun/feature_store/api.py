@@ -21,10 +21,11 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore.sources import BaseSourceDriver
+from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
+    get_default_prefix_for_target,
     get_default_targets,
     get_target_driver,
     validate_target_list,
@@ -43,6 +44,7 @@ from .feature_vector import (
     OnlineVectorService,
 )
 from .ingestion import (
+    add_source_trigger,
     context_to_ingestion_params,
     init_featureset_graph,
     run_ingestion_job,
@@ -481,6 +483,12 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
+    if isinstance(source, StreamSource) and not source.path:
+        source.path = get_default_prefix_for_target(source.kind).format(
+            project=featureset.metadata.project,
+            kind=source.kind,
+            name=featureset.metadata.name,
+        )
     source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters
     )
@@ -501,14 +509,14 @@ def deploy_ingestion_service(
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
 
-    # todo: add trigger (from source object)
-
     function.spec.graph = featureset.spec.graph
     function.spec.parameters = run_config.parameters
     function.spec.graph_initializer = (
         "mlrun.feature_store.ingestion.featureset_initializer"
     )
     function.verbose = function.verbose or verbose
+    add_source_trigger(source, function)
+
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
     return function.deploy()

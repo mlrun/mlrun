@@ -392,6 +392,9 @@ def create_feature_vector(
         mlrun.api.schemas.AuthorizationAction.create,
         auth_verifier.auth_info,
     )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector.dict()
+    )
     feature_vector_uid = mlrun.api.crud.FeatureStore().create_feature_vector(
         db_session, project, feature_vector, versioned,
     )
@@ -494,6 +497,9 @@ def store_feature_vector(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector.dict()
+    )
     tag, uid = parse_reference(reference)
     uid = mlrun.api.crud.FeatureStore().store_feature_vector(
         db_session, project, name, feature_vector, tag, uid, versioned,
@@ -508,7 +514,7 @@ def store_feature_vector(
 def patch_feature_vector(
     project: str,
     name: str,
-    feature_vector_update: dict,
+    feature_vector_patch: dict,
     reference: str,
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
@@ -523,9 +529,12 @@ def patch_feature_vector(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector_patch
+    )
     tag, uid = parse_reference(reference)
     mlrun.api.crud.FeatureStore().patch_feature_vector(
-        db_session, project, name, feature_vector_update, tag, uid, patch_mode,
+        db_session, project, name, feature_vector_patch, tag, uid, patch_mode,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -553,3 +562,34 @@ def delete_feature_vector(
         db_session, project, name, tag, uid
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
+def _verify_feature_vector_features_permissions(
+    auth_info: mlrun.api.schemas.AuthInfo, project: str, feature_vector: dict
+):
+    features = []
+    if feature_vector.get("spec", {}).get("features"):
+        features.extend(feature_vector["spec"]["features"])
+    if feature_vector.get("spec", {}).get("label_feature"):
+        features.append(feature_vector["spec"]["label_feature"])
+    feature_set_project_to_name_set_map = {}
+    for feature in features:
+        feature_set_uri, _, _ = mlrun.feature_store.common.parse_feature_string(feature)
+        _project, name, _, _ = mlrun.feature_store.common.parse_feature_set_uri(
+            feature_set_uri, project
+        )
+        feature_set_project_to_name_set_map.setdefault(_project, set()).add(name)
+    feature_set_project_name_tuples = []
+    for _project, names in feature_set_project_to_name_set_map.items():
+        for name in names:
+            feature_set_project_name_tuples.append((_project, name))
+    mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        feature_set_project_name_tuples,
+        lambda feature_set_project_name_tuple: (
+            feature_set_project_name_tuple[0],
+            feature_set_project_name_tuple[1],
+        ),
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )

@@ -362,7 +362,9 @@ def mlrun_op(
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
-        file_outputs[output.replace(".", "_")] = os.path.join("/tmp", output)
+        file_outputs[
+            output.replace(".", "_")
+        ] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
     if project:
         cmd += ["--project", project]
     if handler:
@@ -669,12 +671,14 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
             record["run_type"] = templates[name].get("run_type")
         dag[node["id"]] = record
 
-    return dag, project
+    return dag, project, workflow["status"].get("message", "")
 
 
 def format_summary_from_kfp_run(kfp_run, project=None, session=None):
     override_project = project if project and project != "*" else None
-    dag, project = generate_kfp_dag_and_resolve_project(kfp_run, override_project)
+    dag, project, message = generate_kfp_dag_and_resolve_project(
+        kfp_run, override_project
+    )
     run_id = get_in(kfp_run, "run.id")
 
     # enrich DAG with mlrun run info
@@ -711,6 +715,7 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
         ]
     }
     short_run["run"]["project"] = project
+    short_run["run"]["message"] = message
     return short_run
 
 

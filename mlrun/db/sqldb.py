@@ -34,13 +34,9 @@ from .base import RunDBError, RunDBInterface
 
 class SQLDB(RunDBInterface):
     def __init__(
-        self,
-        dsn,
-        session=None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        self, dsn, session=None,
     ):
         self.session = session
-        self.auth_info = auth_info
         self.dsn = dsn
         self.db = None
 
@@ -75,13 +71,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().update_run,
-            self.session,
-            project,
-            uid,
-            iter,
-            updates,
-            self.auth_info,
+            mlrun.api.crud.Runs().update_run, self.session, project, uid, iter, updates,
         )
 
     def abort_run(self, uid, project="", iter=0):

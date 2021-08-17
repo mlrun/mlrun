@@ -56,6 +56,12 @@ class Member(abc.ABC):
     ) -> mlrun.api.schemas.IguazioProject:
         pass
 
+    @abc.abstractmethod
+    def get_project_owner(
+        self, session: str, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        pass
+
     def patch_project(
         self,
         session: str,

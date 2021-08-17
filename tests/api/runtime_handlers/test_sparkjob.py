@@ -84,14 +84,20 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
-        mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])
-        pods = self._mock_list_resources_pods()
-        self._assert_runtime_handler_list_resources(
-            RuntimeKinds.spark,
-            expected_crds=mocked_responses[0]["items"],
-            expected_pods=pods,
-            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
-        )
+        for group_by in [
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        ]:
+            mocked_responses = self._mock_list_namespaced_crds(
+                [[self.completed_crd_dict]]
+            )
+            pods = self._mock_list_resources_pods()
+            self._assert_runtime_handler_list_resources(
+                RuntimeKinds.spark,
+                expected_crds=mocked_responses[0]["items"],
+                expected_pods=pods,
+                group_by=group_by,
+            )
 
     def test_delete_resources_completed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [

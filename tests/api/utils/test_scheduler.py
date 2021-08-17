@@ -2,6 +2,7 @@ import asyncio
 import pathlib
 import time
 import typing
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.api.deps
 import mlrun.api.crud
+import mlrun.api.utils.auth
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
@@ -213,6 +215,60 @@ async def test_create_schedule_success_cron_trigger_validation(
             do_nothing,
             cron_trigger,
         )
+
+
+@pytest.mark.asyncio
+async def test_schedule_upgrade_from_scheduler_without_credentials_store(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    """
+    Continue here
+    this test doesn't work cause reload schedules takes for granted that there is a session, which made me think whether
+    session is enough - after runtimes refactor and getting auth info out of sqlrundb is will be enough, so also can
+    remove the mlrun.api.utils.auth.AuthVerifier().generate_auth_info_from_session call from scheduler run wrapper
+    """
+    name = "schedule-name"
+    project = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    now = datetime.now()
+    expected_call_counter = 3
+    now_plus_2_seconds = now + timedelta(seconds=2)
+    now_plus_5_seconds = now + timedelta(seconds=2 + expected_call_counter)
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_2_seconds, end_date=now_plus_5_seconds
+    )
+    # we're before upgrade so create a schedule with empty auth info
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+    # stop scheduler, reconfigure to store credentials and start again (upgrade)
+    await scheduler.stop()
+    scheduler._store_schedule_credentials_in_secrets = True
+    await scheduler.start(db)
+
+    # at this point the schedule is inside the scheduler without auth_info, so the first trigger should try to generate
+    # auth info, mock the functions for this
+    username = "some-username"
+    session = "some-session"
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
+        return_value=mlrun.api.schemas.ProjectOwner(username=username, session=session)
+    )
+
+    await asyncio.sleep(2 + expected_call_counter + 1)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 3
+    assert (
+        mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
+        == 1
+    )
 
 
 @pytest.mark.asyncio
@@ -599,7 +655,7 @@ async def test_rescheduling_secrets_storing(
     )
 
     jobs = scheduler._list_schedules_from_scheduler(project)
-    assert jobs[0].args[4].session == session
+    assert jobs[0].args[5].session == session
     k8s_secrets_mock.assert_project_secrets(
         project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
     )
@@ -611,7 +667,7 @@ async def test_rescheduling_secrets_storing(
 
     await scheduler.start(db)
     jobs = scheduler._list_schedules_from_scheduler(project)
-    assert jobs[0].args[4].session == session
+    assert jobs[0].args[5].session == session
 
 
 @pytest.mark.asyncio

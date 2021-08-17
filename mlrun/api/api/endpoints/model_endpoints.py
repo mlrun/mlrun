@@ -21,8 +21,8 @@ def create_or_patch(
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
@@ -62,8 +62,8 @@ def create_or_patch(
 def delete_endpoint_record(
     project: str,
     endpoint_id: str,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> Response:
     """
@@ -89,8 +89,8 @@ def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpointList:
     """
@@ -137,8 +137,8 @@ def get_endpoint(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpoint:
     mlrun.api.utils.clients.opa.Client().query_resource_permissions(

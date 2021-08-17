@@ -14,10 +14,9 @@
 import os
 import typing
 import uuid
-from copy import deepcopy
 from enum import Enum
 
-from kfp.dsl import ContainerOp
+from kfp.dsl import ContainerOp, _container_op
 from kubernetes import client
 
 import mlrun.errors
@@ -233,7 +232,6 @@ class KubeResource(BaseRuntime):
 
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
-        self._cop = ContainerOp("name", "image")
         self.verbose = False
 
     @property
@@ -260,7 +258,15 @@ class KubeResource(BaseRuntime):
         return struct
 
     def apply(self, modify):
-        return apply_kfp(modify, self._cop, self)
+
+        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
+        # we remove the hook to suppress kubeflow op registration and return it after the apply()
+        old_op_handler = _container_op._register_op_handler
+        _container_op._register_op_handler = lambda x: self.metadata.name
+        cop = ContainerOp("name", "image")
+        _container_op._register_op_handler = old_op_handler
+
+        return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""
@@ -397,13 +403,6 @@ class KubeResource(BaseRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
-
-    def copy(self):
-        self._cop = None
-        fn = deepcopy(self)
-        self._cop = ContainerOp("name", "image")
-        fn._cop = ContainerOp("name", "image")
-        return fn
 
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (

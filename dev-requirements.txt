@@ -3,9 +3,9 @@ twine~=3.1
 # from 20.8 (the next version) it requires click>=7.1.2 which conflicts with kfp - TODO: bump black (kfp bumped, this is not a problem anymore)
 black<=19.10b0
 flake8~=3.8
-pytest-asyncio~=0.14
+pytest-asyncio~=0.15.0
 deepdiff~=5.0
-pytest-alembic~=0.2
+pytest-alembic~=0.3.0
 requests-mock~=1.8
 # needed for system tests
 matplotlib~=3.0

@@ -107,7 +107,7 @@ def new_project(
     :param init_git:     if True, will git init the context dir
     :param user_project: add the current user name to the provided project name (making it unique per user)
     :param remote:       remote Git url
-    :param from_template:     path to project YAML/zip file that will be used as from_template
+    :param from_template:     path to project YAML/zip file that will be used as a template
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param description:  text describing the project
 

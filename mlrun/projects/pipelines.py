@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import abc
 import importlib.util as imputil
 import os
 from tempfile import mktemp
@@ -62,7 +61,7 @@ def get_workflow_engine(engine_kind):
         return _KFPRunner
     # todo: add engines
     else:
-        mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunInvalidArgumentError(
             f"Provided workflow engine is not supported. engine_kind={engine_kind}"
         )
 
@@ -227,18 +226,20 @@ class _PipelineRunStatus:
         return str(self.run_id)
 
 
-class _PipelineRunner:
+class _PipelineRunner(abc.ABC):
     """abstract pipeline runner class"""
 
     engine = ""
 
     @classmethod
+    @abc.abstractmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         raise NotImplementedError(
             f"save operation not supported in {cls.engine} pipeline engine"
         )
 
     @classmethod
+    @abc.abstractmethod
     def run(
         cls,
         project,
@@ -251,9 +252,11 @@ class _PipelineRunner:
         return None
 
     @staticmethod
+    @abc.abstractmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         return ""
 
+    @abc.abstractmethod
     def get_state(self, run_id, project=None):
         return ""
 

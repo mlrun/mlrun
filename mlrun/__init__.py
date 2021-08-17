@@ -19,6 +19,8 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 import getpass
 from os import environ, path
 
+from projects.project import _add_username_to_project_name_if_needed
+
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -107,10 +109,7 @@ def set_environment(
     if access_key:
         environ["V3IO_ACCESS_KEY"] = access_key
 
-    if project and user_project:
-        user = environ.get("V3IO_USERNAME") or getpass.getuser()
-        project = f"{project}-{user}"
-
+    project = _add_username_to_project_name_if_needed(project, user_project)
     if project:
         ProjectMetadata.validate_project_name(project)
 

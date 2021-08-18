@@ -3,7 +3,7 @@ from typing import Dict, List, Union
 import numpy as np
 from bokeh.plotting import figure
 
-from mlrun import MLClientCtx
+import mlrun
 from mlrun.artifacts import Artifact, BokehArtifact
 from mlrun.frameworks._common.loggers.logger import Logger
 from mlrun.frameworks._common.model_handler import ModelHandler

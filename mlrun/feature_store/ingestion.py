@@ -253,8 +253,8 @@ def add_source_trigger(source, function):
             partitions=source.attributes.get("partitions"),
         )
         trigger.kind = "kafka-cluster"
-
-        func = function.add_trigger("kafka", trigger,)
+        trigger._struct["kind"] = "kafka-cluster1"
+        func = function.add_trigger("kafka-cluster", trigger,)
         func.spec.config["spec.triggers.kafka"]["attributes"][
             "ConsumerGroup"
         ] = source.attributes["group"]

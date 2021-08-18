@@ -139,6 +139,7 @@ default_config = {
                 "address": "",
                 "request_timeout": 10,
                 "permission_query_path": "",
+                "permission_filter_path": "",
                 "log_level": 0,
             },
         },

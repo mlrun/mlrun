@@ -158,7 +158,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
-        raise_on_forbidden: bool = True
+        raise_on_forbidden: bool = True,
     ):
         return self.query_resource_permissions(
             resource_type,

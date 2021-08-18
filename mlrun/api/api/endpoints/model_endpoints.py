@@ -48,6 +48,8 @@ def create_or_patch(
             f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
+    # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
+    # V3IO_ACCESS_KEY here
     ModelEndpoints.create_or_patch(
         db_session=db_session,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),

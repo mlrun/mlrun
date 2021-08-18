@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun
+from mlrun.api.api.deps import AuthVerifierDep
 from mlrun.api.crud.marketplace import Marketplace
+from mlrun.api.schemas import AuthorizationAction
 from mlrun.api.schemas.marketplace import (
     IndexedMarketplaceSource,
     MarketplaceCatalog,
@@ -25,7 +27,10 @@ router = APIRouter()
 def create_source(
     source: IndexedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.create)
+
     get_db().create_marketplace_source(db_session, source)
     # Handle credentials if they exist
     Marketplace().add_source(source.source)
@@ -35,7 +40,12 @@ def create_source(
 @router.get(
     path="/marketplace/sources", response_model=List[IndexedMarketplaceSource],
 )
-def list_sources(db_session: Session = Depends(mlrun.api.api.deps.get_db_session),):
+def list_sources(
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
+):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+
     return get_db().list_marketplace_sources(db_session)
 
 
@@ -43,8 +53,12 @@ def list_sources(db_session: Session = Depends(mlrun.api.api.deps.get_db_session
     path="/marketplace/sources/{source_name}", status_code=HTTPStatus.NO_CONTENT.value,
 )
 def delete_source(
-    source_name: str, db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    source_name: str,
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.delete)
+
     get_db().delete_marketplace_source(db_session, source_name)
     Marketplace().remove_source(source_name)
 
@@ -53,8 +67,12 @@ def delete_source(
     path="/marketplace/sources/{source_name}", response_model=IndexedMarketplaceSource,
 )
 def get_source(
-    source_name: str, db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    source_name: str,
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+
     return get_db().get_marketplace_source(db_session, source_name)
 
 
@@ -65,7 +83,10 @@ def store_source(
     source_name: str,
     source: IndexedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.store)
+
     get_db().store_marketplace_source(db_session, source_name, source)
     # Handle credentials if they exist
     Marketplace().add_source(source.source)
@@ -83,7 +104,10 @@ def get_catalog(
     tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return Marketplace().get_source_catalog(
         ordered_source.source, channel, version, tag, force_refresh
@@ -102,7 +126,10 @@ def get_item(
     tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return Marketplace().get_item(
         ordered_source.source, item_name, channel, version, tag, force_refresh
@@ -114,7 +141,10 @@ def get_object(
     source_name: str,
     url: str,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     object_data = Marketplace().get_item_object_using_source_credentials(
         ordered_source.source, url
@@ -127,3 +157,14 @@ def get_object(
     if not ctype:
         ctype = "application/octet-stream"
     return Response(content=object_data, media_type=ctype)
+
+
+def _verify_action_allowed(auth_verifier: AuthVerifierDep, action: AuthorizationAction):
+    # We don't pass a project or resource name, since marketplace permissions are global for now.
+    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        "",
+        "",
+        action,
+        auth_verifier.auth_info,
+    )

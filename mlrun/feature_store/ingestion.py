@@ -255,16 +255,16 @@ def add_source_trigger(source, function):
         trigger._struct["kind"] = "kafka-cluster"
         trigger._struct["maxWorkers"] = 1
         func = function.add_trigger("kafka", trigger)
-        func.spec.config["spec.triggers.kafka-cluster"]["attributes"][
+        func.spec.config["spec.triggers.kafka"]["attributes"][
             "ConsumerGroup"
         ] = source.attributes["group"]
-        func.spec.config["spec.triggers.kafka-cluster"]["attributes"][
+        func.spec.config["spec.triggers.kafka"]["attributes"][
             "Topics"
         ] = source.attributes["topics"]
-        func.spec.config["spec.triggers.kafka-cluster"]["attributes"][
+        func.spec.config["spec.triggers.kafka"]["attributes"][
             "InitialOffset"
         ] = source.attributes["initial_offset"]
-        func.spec.config["spec.triggers.kafka-cluster"]["attributes"][
+        func.spec.config["spec.triggers.kafka"]["attributes"][
             "Brokers"
         ] = source.attributes["brokers"]
         sasl_user = source.attributes.get("sasl_user")

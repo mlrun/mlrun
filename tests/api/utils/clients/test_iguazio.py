@@ -300,9 +300,9 @@ def test_create_project(
 
 
 def test_create_project_failures(
-        api_url: str,
-        iguazio_client: mlrun.api.utils.clients.iguazio.Client,
-        requests_mock: requests_mock_package.Mocker,
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
 ):
     """
     The exception handling is generic so no need to test it for every action (read/update/delete).
@@ -319,15 +319,16 @@ def test_create_project_failures(
     requests_mock.post(
         f"{api_url}/api/projects",
         status_code=http.HTTPStatus.BAD_REQUEST.value,
-        json={"errors": [
-            {
-                "status": http.HTTPStatus.BAD_REQUEST.value,
-                "detail": error_message
-            }
-        ]},
+        json={
+            "errors": [
+                {"status": http.HTTPStatus.BAD_REQUEST.value, "detail": error_message}
+            ]
+        },
     )
 
-    with pytest.raises(mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"):
+    with pytest.raises(
+        mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"
+    ):
         iguazio_client.create_project(
             session, project,
         )
@@ -342,19 +343,32 @@ def test_create_project_failures(
         ),
     )
     error_message = "failed creating project in Nuclio for example"
-    job_result = json.dumps({"status": http.HTTPStatus.BAD_REQUEST.value, "message": error_message})
+    job_result = json.dumps(
+        {"status": http.HTTPStatus.BAD_REQUEST.value, "message": error_message}
+    )
     _mock_job_progress(
-        api_url, requests_mock, session, job_id, mlrun.api.utils.clients.iguazio.JobStates.failed, job_result
+        api_url,
+        requests_mock,
+        session,
+        job_id,
+        mlrun.api.utils.clients.iguazio.JobStates.failed,
+        job_result,
     )
 
-    with pytest.raises(mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"):
+    with pytest.raises(
+        mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"
+    ):
         iguazio_client.create_project(
             session, project,
         )
 
     # mock job failure - without nice error message (shouldn't happen, but let's test)
     _mock_job_progress(
-        api_url, requests_mock, session, job_id, mlrun.api.utils.clients.iguazio.JobStates.failed
+        api_url,
+        requests_mock,
+        session,
+        job_id,
+        mlrun.api.utils.clients.iguazio.JobStates.failed,
     )
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
@@ -762,17 +776,32 @@ def _verify_project_request_headers(headers: dict, session: str):
     assert headers[mlrun.api.schemas.HeaderNames.projects_role] == "mlrun"
 
 
-def _mock_job_progress(api_url, requests_mock, session: str, job_id: str,
-                       terminal_job_state: str = mlrun.api.utils.clients.iguazio.JobStates.completed,
-                       job_result: str = ""):
+def _mock_job_progress(
+    api_url,
+    requests_mock,
+    session: str,
+    job_id: str,
+    terminal_job_state: str = mlrun.api.utils.clients.iguazio.JobStates.completed,
+    job_result: str = "",
+):
     def _mock_get_job(state, result, session, request, context):
         context.status_code = http.HTTPStatus.OK.value
         assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
         return {"data": {"attributes": {"state": state, "result": result}}}
 
     responses = [
-        functools.partial(_mock_get_job, mlrun.api.utils.clients.iguazio.JobStates.in_progress, job_result, session),
-        functools.partial(_mock_get_job, mlrun.api.utils.clients.iguazio.JobStates.in_progress, job_result, session),
+        functools.partial(
+            _mock_get_job,
+            mlrun.api.utils.clients.iguazio.JobStates.in_progress,
+            job_result,
+            session,
+        ),
+        functools.partial(
+            _mock_get_job,
+            mlrun.api.utils.clients.iguazio.JobStates.in_progress,
+            job_result,
+            session,
+        ),
         functools.partial(_mock_get_job, terminal_job_state, job_result, session),
     ]
     mocker = requests_mock.get(

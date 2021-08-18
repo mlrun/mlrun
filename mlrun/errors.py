@@ -73,9 +73,7 @@ def raise_for_status_code(status_code: int, message: str = None):
     If no specific error exists, raises an MLRunHTTPError
     """
     try:
-        raise STATUS_ERRORS[status_code](
-            message
-        )
+        raise STATUS_ERRORS[status_code](message)
     except KeyError:
         raise MLRunHTTPError(message)
 

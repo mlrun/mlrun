@@ -2,6 +2,7 @@ import typing
 
 import fastapi
 
+import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.runtimes
@@ -12,10 +13,16 @@ router = fastapi.APIRouter()
 @router.get(
     "/frontend-spec", response_model=mlrun.api.schemas.FrontendSpec,
 )
-def get_frontend_spec(session: typing.Optional[str] = fastapi.Cookie(None)):
+def get_frontend_spec(
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
+    ),
+):
     jobs_dashboard_url = None
-    if session:
-        jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
+    if auth_verifier.auth_info.session:
+        jobs_dashboard_url = _resolve_jobs_dashboard_url(
+            auth_verifier.auth_info.session
+        )
     feature_flags = _resolve_feature_flags()
     return mlrun.api.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,

@@ -16,17 +16,20 @@
 __all__ = [
     "load_project",
     "new_project",
+    "get_or_create_project",
     "MlrunProject",
     "ProjectMetadata",
     "ProjectSpec",
     "ProjectStatus",
 ]
 
+from .pipelines import pipeline_context  # noqa
 from .project import (
     MlrunProject,
     ProjectMetadata,
     ProjectSpec,
     ProjectStatus,
+    get_or_create_project,
     load_project,
     new_project,
 )

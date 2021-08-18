@@ -12,6 +12,7 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import tests.conftest
 
 
 @pytest.fixture
@@ -58,7 +59,7 @@ def test_list_pipelines_names_only(
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
         "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.Format.name_only},
+        params={"format": mlrun.api.schemas.PipelinesFormat.name_only},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(runs), next_page_token=None
@@ -73,13 +74,13 @@ def test_list_pipelines_metadata_only(
 ) -> None:
     runs = _generate_run_mocks()
     expected_runs = [run.to_dict() for run in runs]
-    expected_runs = mlrun.api.crud.pipelines._format_runs(
-        expected_runs, mlrun.api.schemas.Format.metadata_only
+    expected_runs = mlrun.api.crud.pipelines.Pipelines()._format_runs(
+        expected_runs, mlrun.api.schemas.PipelinesFormat.metadata_only
     )
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
         "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.Format.metadata_only},
+        params={"format": mlrun.api.schemas.PipelinesFormat.metadata_only},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(runs), next_page_token=None
@@ -94,9 +95,13 @@ def test_list_pipelines_full(
 ) -> None:
     runs = _generate_run_mocks()
     expected_runs = [run.to_dict() for run in runs]
+    expected_runs = mlrun.api.crud.pipelines.Pipelines()._format_runs(
+        expected_runs, mlrun.api.schemas.PipelinesFormat.full
+    )
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
-        "/api/projects/*/pipelines", params={"format": mlrun.api.schemas.Format.full}
+        "/api/projects/*/pipelines",
+        params={"format": mlrun.api.schemas.PipelinesFormat.full},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(runs), next_page_token=None
@@ -113,12 +118,12 @@ def test_list_pipelines_specific_project(
     runs = _generate_run_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
-    mlrun.api.crud.pipelines._resolve_pipeline_project = unittest.mock.Mock(
+    mlrun.api.crud.pipelines.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
     response = client.get(
         f"/api/projects/{project}/pipelines",
-        params={"format": mlrun.api.schemas.Format.name_only},
+        params={"format": mlrun.api.schemas.PipelinesFormat.name_only},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None
@@ -127,6 +132,55 @@ def test_list_pipelines_specific_project(
 
     # revert mock setting (it's global function, without reloading it the mock will persist to following tests)
     importlib.reload(mlrun.api.crud.pipelines)
+
+
+def test_create_pipeline(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+) -> None:
+    project = "some-project"
+    pipeline_file_path = (
+        tests.conftest.tests_root_directory
+        / "api"
+        / "api"
+        / "assets"
+        / "pipelines.yaml"
+    )
+    with open(str(pipeline_file_path), "r") as file:
+        contents = file.read()
+    _mock_pipelines_creation(kfp_client_mock)
+    response = client.post(
+        f"/api/projects/{project}/pipelines",
+        data=contents,
+        headers={"content-type": "application/yaml"},
+    )
+    response_body = response.json()
+    assert response_body["id"] == "some-run-id"
+
+
+def test_create_pipeline_legacy(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+) -> None:
+    pipeline_file_path = (
+        tests.conftest.tests_root_directory
+        / "api"
+        / "api"
+        / "assets"
+        / "pipelines.yaml"
+    )
+    with open(str(pipeline_file_path), "r") as file:
+        contents = file.read()
+    _mock_pipelines_creation(kfp_client_mock)
+    response = client.post(
+        "/api/submit_pipeline",
+        data=contents,
+        headers={"content-type": "application/yaml"},
+    )
+    response_body = response.json()
+    assert response_body["id"] == "some-run-id"
 
 
 def _generate_run_mocks():
@@ -164,6 +218,26 @@ def _generate_run_mocks():
             ),
         ),
     ]
+
+
+def _mock_pipelines_creation(kfp_client_mock: kfp.Client):
+    def _mock_create_experiment(name, description=None, namespace=None):
+        return kfp_server_api.models.ApiExperiment(
+            id="some-exp-id", name=name, description=description,
+        )
+
+    def _mock_run_pipeline(
+        experiment_id,
+        job_name,
+        pipeline_package_path=None,
+        params={},
+        pipeline_id=None,
+        version_id=None,
+    ):
+        return kfp_server_api.models.ApiRun(id="some-run-id", name=job_name)
+
+    kfp_client_mock.create_experiment = _mock_create_experiment
+    kfp_client_mock.run_pipeline = _mock_run_pipeline
 
 
 def _mock_list_runs_with_one_run_per_page(kfp_client_mock: kfp.Client, runs):

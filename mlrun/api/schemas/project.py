@@ -7,6 +7,14 @@ import pydantic
 from .object import ObjectKind, ObjectStatus
 
 
+class ProjectsFormat(str, enum.Enum):
+    full = "full"
+    name_only = "name_only"
+    summary = "summary"
+    # internal - allowed only in follower mode, only for the leader for upgrade purposes
+    leader = "leader"
+
+
 class ProjectMetadata(pydantic.BaseModel):
     name: str
     created: typing.Optional[datetime.datetime] = None
@@ -46,6 +54,7 @@ class ProjectStatus(ObjectStatus):
 
 class ProjectSpec(pydantic.BaseModel):
     description: typing.Optional[str] = None
+    owner: typing.Optional[str] = None
     goals: typing.Optional[str] = None
     params: typing.Optional[dict] = None
     functions: typing.Optional[list] = None
@@ -67,6 +76,11 @@ class Project(pydantic.BaseModel):
     metadata: ProjectMetadata
     spec: ProjectSpec = ProjectSpec()
     status: ObjectStatus = ObjectStatus()
+
+
+class ProjectOwner(pydantic.BaseModel):
+    username: str
+    session: str
 
 
 class ProjectSummary(pydantic.BaseModel):

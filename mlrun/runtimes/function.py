@@ -16,11 +16,12 @@ import asyncio
 import json
 import typing
 from datetime import datetime
-from os import environ, getenv
+from os import getenv
 from time import sleep
 
 import nuclio
 import requests
+import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
@@ -36,7 +37,7 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
+from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -44,6 +45,54 @@ from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
 
 default_max_replicas = 4
+
+
+def validate_nuclio_version_compatibility(*min_versions):
+    """
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
+    ]
+    try:
+        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
+    except ValueError:
+        logger.warning(
+            "Unable to parse nuclio version, assuming compatibility",
+            nuclio_version=mlconf.nuclio_version,
+            min_versions=min_versions,
+        )
+        return True
+
+    parsed_min_versions.sort(reverse=True)
+    for parsed_min_version in parsed_min_versions:
+        if (
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
+        ):
+            return False
+
+        if parsed_current_version >= parsed_min_version:
+            return True
+    return False
+
+
+def min_nuclio_versions(*versions):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+            if validate_nuclio_version_compatibility(*versions):
+                return function(*args, **kwargs)
+
+            message = (
+                f"{function.__name__} is supported since nuclio {' or '.join(versions)}, currently using "
+                f"nuclio {mlconf.nuclio_version}, please upgrade."
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
+
+        return wrapper
+
+    return decorator
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -72,6 +121,10 @@ class NuclioSpec(KubeResourceSpec):
         service_account=None,
         readiness_timeout=None,
         default_handler=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
+        mount_applied=False,
     ):
 
         super().__init__(
@@ -90,6 +143,10 @@ class NuclioSpec(KubeResourceSpec):
             entry_points=entry_points,
             description=description,
             default_handler=default_handler,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
+            mount_applied=mount_applied,
         )
 
         self.base_spec = base_spec or ""
@@ -295,11 +352,10 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_v3io(self, local="", remote=""):
-        for key in ["V3IO_FRAMESD", "V3IO_USERNAME", "V3IO_ACCESS_KEY", "V3IO_API"]:
-            if key in environ:
-                self.set_env(key, environ[key])
         if local and remote:
             self.apply(mount_v3io(remote=remote, mount_path=local))
+        else:
+            self.apply(v3io_cred())
         return self
 
     def with_http(
@@ -406,6 +462,8 @@ class RemoteRuntime(KubeResource):
 
         save_record = False
         if not dashboard:
+            # Attempt auto-mounting, before sending to remote build
+            self.try_auto_mount_based_on_config()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
@@ -478,13 +536,14 @@ class RemoteRuntime(KubeResource):
             logger.error("Nuclio function failed to deploy", function_state=state)
             raise RunError(f"function {self.metadata.name} deployment failed")
 
+    @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
-        raise NotImplementedError("Node selection is not supported for nuclio runtime")
+        super().with_node_selection(node_name, node_selector, affinity)
 
     def _get_state(
         self,
@@ -902,6 +961,12 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
+    if function.spec.node_selector:
+        spec.set_config("spec.nodeSelector", function.spec.node_selector)
+    if function.spec.node_name:
+        spec.set_config("spec.nodeName", function.spec.node_name)
+    if function.spec.affinity:
+        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

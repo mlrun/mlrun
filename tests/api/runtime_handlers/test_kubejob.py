@@ -3,6 +3,7 @@ from datetime import timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
@@ -43,12 +44,22 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             RuntimeKinds.job, expected_pods=pods
         )
 
-    def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
+    def test_list_resources_grouped_by(self, db: Session, client: TestClient):
+        for group_by in [
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        ]:
+            pods = self._mock_list_resources_pods()
+            self._assert_runtime_handler_list_resources(
+                RuntimeKinds.job, expected_pods=pods, group_by=group_by,
+            )
+
+    def test_list_resources_grouped_by_project(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.job,
             expected_pods=pods,
-            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
         )
 
     def test_delete_resources_completed_pod(self, db: Session, client: TestClient):
@@ -214,7 +225,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = self._mock_read_namespaced_pod_log()
         self.run["status"]["state"] = RunStates.completed
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_pods_calls - 1
         )
@@ -237,7 +250,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
         self.run["status"]["last_update"] = now_date().isoformat()
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
 
         # Mocking pod that is still in non-terminal state
         self._mock_list_namespaced_pods([[self.running_pod]])
@@ -255,7 +270,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.run["status"]["last_update"] = (
             now_date() - timedelta(seconds=float(2 * debounce_period))
         ).isoformat()
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
 
         # Mocking pod that is still in non-terminal state
         self._mock_list_namespaced_pods([[self.running_pod]])

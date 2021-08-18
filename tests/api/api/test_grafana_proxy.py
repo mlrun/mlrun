@@ -1,4 +1,5 @@
 import os
+import unittest.mock
 from datetime import datetime, timedelta
 from random import randint
 from typing import Optional
@@ -12,6 +13,8 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
 
+import mlrun
+import mlrun.api.utils.clients.iguazio
 from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
     _validate_query_parameters,
@@ -43,10 +46,19 @@ def _is_env_params_dont_exist() -> bool:
 def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
-    response = client.get(
-        url="/api/grafana-proxy/model-endpoints",
-        headers={"X-V3io-Session-Key": "fake-access-key"},
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.api.utils.clients.iguazio.Client().verify_request_session = unittest.mock.Mock(
+        return_value=(
+            mlrun.api.schemas.AuthInfo(
+                username=None,
+                session="some-session",
+                data_session="some-session",
+                user_id=None,
+                user_group_ids=[],
+            )
+        )
     )
+    response = client.get(url="/api/grafana-proxy/model-endpoints",)
     assert response.status_code == 200
 
 

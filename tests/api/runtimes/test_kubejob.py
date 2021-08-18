@@ -21,6 +21,8 @@ from tests.api.runtimes.base import TestRuntimeBase
 class TestKubejobRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()
+        # auto-mount is looking at this to check if we're running on Iguazio
+        mlconf.igz_version = "some_version"
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
@@ -150,7 +152,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         self._execute_run(runtime)
         self._assert_pod_creation_config()
-        self._assert_v3io_mount_configured(v3io_user, v3io_access_key)
+        self._assert_v3io_mount_or_creds_configured(v3io_user, v3io_access_key)
 
         # Mount a PVC. Create a new runtime so we don't have both v3io and the PVC mounted
         runtime = self._generate_runtime()
@@ -188,7 +190,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         # value from the k8s secret, using the correct keys.
         expected_env_from_secrets = {}
         for key in secret_keys:
-            env_variable_name = SecretsStore._k8s_env_variable_name_for_secret(key)
+            env_variable_name = SecretsStore.k8s_env_variable_name_for_secret(key)
             expected_env_from_secrets[env_variable_name] = {project_secret_name: key}
 
         self._execute_run(runtime, runspec=task)

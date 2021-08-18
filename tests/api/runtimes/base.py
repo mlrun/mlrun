@@ -29,6 +29,12 @@ class TestRuntimeBase:
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
         get_k8s().namespace = self.namespace
+
+        # set auto-mount to work as if this is an Iguazio system (otherwise it may try to mount PVC)
+        mlconf.igz_version = "1.1.1"
+        mlconf.storage.auto_mount_type = "auto"
+        mlconf.storage.auto_mount_params = ""
+
         self._logger = logger
         self.project = "test-project"
         self.name = "test-function"
@@ -209,6 +215,11 @@ class TestRuntimeBase:
             side_effect=_generate_pod
         )
 
+        # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
+        get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
+            return_value=client.V1PodList(items=[])
+        )
+
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
         secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
@@ -236,6 +247,7 @@ class TestRuntimeBase:
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
         get_k8s().v1api.create_namespaced_pod.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
 
         runtime.run(
             name=self.name,
@@ -348,7 +360,9 @@ class TestRuntimeBase:
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[0]
 
-    def _assert_v3io_mount_configured(self, v3io_user, v3io_access_key):
+    def _assert_v3io_mount_or_creds_configured(
+        self, v3io_user, v3io_access_key, cred_only=False
+    ):
         args = self._get_pod_creation_args()
         pod_spec = args.spec
         container_spec = pod_spec.containers[0]
@@ -362,6 +376,11 @@ class TestRuntimeBase:
                 "V3IO_ACCESS_KEY": v3io_access_key,
             },
         )
+
+        if cred_only:
+            assert len(pod_spec.volumes) == 0
+            assert len(container_spec.volume_mounts) == 0
+            return
 
         expected_volume = {
             "flexVolume": {

@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import traceback
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -10,11 +11,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.deps
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.model import RunObject
 from mlrun.runtimes.constants import RunStates
@@ -30,10 +30,19 @@ class Scheduler:
         # we don't allow to schedule a job to run more then one time per X
         # NOTE this cannot be less then one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
+        self._secrets_provider = schemas.SecretProviderName.kubernetes
 
-    async def start(
-        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
-    ):
+        self._store_schedule_credentials_in_secrets = (
+            mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
+            == "enabled"
+            or (
+                mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
+                == "auto"
+                and mlrun.mlconf.httpdb.authorization.mode == "opa"
+            )
+        )
+
+    async def start(self, db_session: Session):
         logger.info("Starting scheduler")
         self._scheduler.start()
         # the scheduler shutdown and start operation are not fully async compatible yet -
@@ -42,7 +51,7 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            self._reload_schedules(db_session, auth_info)
+            self._reload_schedules(db_session)
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=exc)
 
@@ -80,9 +89,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        get_project_member().ensure_project(
-            db_session, project, leader_session=auth_info.session
-        )
+        self._store_schedule_secrets(auth_info, project, name)
         get_db().create_schedule(
             db_session,
             project,
@@ -129,6 +136,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
+        self._store_schedule_secrets(auth_info, project, name)
         get_db().update_schedule(
             db_session,
             project,
@@ -137,7 +145,6 @@ class Scheduler:
             cron_trigger,
             labels,
             concurrency_limit,
-            auth_info.session,
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
         updated_schedule = self._transform_and_enrich_db_schedule(
@@ -188,14 +195,32 @@ class Scheduler:
             db_session, db_schedule, include_last_run
         )
 
-    def delete_schedule(self, db_session: Session, project: str, name: str):
+    def delete_schedule(
+        self, db_session: Session, project: str, name: str,
+    ):
         logger.debug("Deleting schedule", project=project, name=name)
+        self._remove_schedule_scheduler_resources(project, name)
+        get_db().delete_schedule(db_session, project, name)
+
+    def delete_schedules(
+        self, db_session: Session, project: str,
+    ):
+        schedules = self.list_schedules(db_session, project,)
+        logger.debug("Deleting schedules", project=project)
+        for schedule in schedules.schedules:
+            self._remove_schedule_scheduler_resources(schedule.project, schedule.name)
+        get_db().delete_schedules(db_session, project)
+
+    def _remove_schedule_scheduler_resources(self, project, name):
+        self._remove_schedule_from_scheduler(project, name)
+        self._remove_schedule_secrets(project, name)
+
+    def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)
         # don't fail on delete if job doesn't exist
         job = self._scheduler.get_job(job_id)
         if job:
             self._scheduler.remove_job(job_id)
-        get_db().delete_schedule(db_session, project, name)
 
     async def invoke_schedule(
         self,
@@ -217,6 +242,53 @@ class Scheduler:
             auth_info,
         )
         return await function(*args, **kwargs)
+
+    def _store_schedule_secrets(
+        self, auth_info: mlrun.api.schemas.AuthInfo, project: str, name: str,
+    ):
+        # import here to avoid circular imports
+        import mlrun.api.crud
+
+        if self._store_schedule_credentials_in_secrets:
+            # sanity
+            if not auth_info.session:
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Session is required to create schedules in OPA authorization mode"
+                )
+            secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+            secret_key_map = (
+                mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+            )
+            mlrun.api.crud.Secrets().store_secrets(
+                project,
+                schemas.SecretsData(
+                    provider=self._secrets_provider,
+                    secrets={secret_key: auth_info.session},
+                ),
+                allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
+            )
+
+    def _remove_schedule_secrets(
+        self, project: str, name: str,
+    ):
+        # import here to avoid circular imports
+        import mlrun.api.crud
+
+        if self._store_schedule_credentials_in_secrets:
+            # sanity
+            secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+            secret_key_map = (
+                mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+            )
+            mlrun.api.crud.Secrets().delete_secret(
+                project,
+                self._secrets_provider,
+                secret_key,
+                allow_secrets_from_k8s=True,
+                allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
+            )
 
     def _validate_cron_trigger(
         self,
@@ -328,14 +400,31 @@ class Scheduler:
             next_run_time=next_run_time,
         )
 
-    def _reload_schedules(
-        self, db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
-    ):
+    def _reload_schedules(self, db_session: Session):
         logger.info("Reloading schedules")
         db_schedules = get_db().list_schedules(db_session)
         for db_schedule in db_schedules:
             # don't let one failure fail the rest
             try:
+                # import here to avoid circular imports
+                import mlrun.api.crud
+
+                session = None
+                if self._store_schedule_credentials_in_secrets:
+                    schedule_secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(
+                        db_schedule.name
+                    )
+                    secret_key_map = (
+                        mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+                    )
+                    session = mlrun.api.crud.Secrets().get_secret(
+                        db_schedule.project,
+                        self._secrets_provider,
+                        schedule_secret_key,
+                        allow_secrets_from_k8s=True,
+                        allow_internal_secrets=True,
+                        key_map_secret_key=secret_key_map,
+                    )
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
                     db_schedule.name,
@@ -343,12 +432,13 @@ class Scheduler:
                     db_schedule.scheduled_object,
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
-                    auth_info,
+                    mlrun.api.schemas.AuthInfo(session=session),
                 )
             except Exception as exc:
                 logger.warn(
                     "Failed rescheduling job. Continuing",
                     exc=str(exc),
+                    traceback=traceback.format_exc(),
                     db_schedule=db_schedule,
                 )
 
@@ -404,6 +494,7 @@ class Scheduler:
             return (
                 Scheduler.submit_run_wrapper,
                 [
+                    self,
                     scheduled_object_copy,
                     project_name,
                     schedule_name,
@@ -420,6 +511,10 @@ class Scheduler:
         logger.warn(message, scheduled_object_kind=scheduled_kind)
         raise NotImplementedError(message)
 
+    def _list_schedules_from_scheduler(self, project: str):
+        jobs = self._scheduler.get_jobs()
+        return [job for job in jobs if self._resolve_job_id(project, "") in job.id]
+
     def _resolve_job_id(self, project, name) -> str:
         """
         :return: returns the identifier that will be used inside the APScheduler
@@ -428,6 +523,7 @@ class Scheduler:
 
     @staticmethod
     async def submit_run_wrapper(
+        scheduler,
         scheduled_object,
         project_name,
         schedule_name,
@@ -435,6 +531,7 @@ class Scheduler:
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
         # import here to avoid circular imports
+        import mlrun.api.crud
         from mlrun.api.api.utils import submit_run
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
@@ -453,7 +550,7 @@ class Scheduler:
 
         db_session = create_session()
 
-        active_runs = get_db().list_runs(
+        active_runs = mlrun.api.crud.Runs().list_runs(
             db_session,
             state=RunStates.non_terminal_states(),
             project=project_name,
@@ -469,6 +566,31 @@ class Scheduler:
             )
             return
 
+        # if credentials are needed but missing (will happen for schedules on upgrade from scheduler that didn't store
+        # credentials to one that does store) enrich them
+        # Note that here we're using the "knowledge" that submit_run only requires the session of the auth info
+        if not auth_info.session and scheduler._store_schedule_credentials_in_secrets:
+            # import here to avoid circular imports
+            import mlrun.api.utils.auth
+            import mlrun.api.utils.singletons.project_member
+
+            logger.info(
+                "Schedule missing auth info which is required. Trying to fill from project owner",
+                project_name=project_name,
+                schedule_name=schedule_name,
+            )
+
+            project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                db_session, project_name
+            )
+            # Update the schedule with the new auth info so we won't need to do the above again in the next run
+            scheduler.update_schedule(
+                db_session,
+                mlrun.api.schemas.AuthInfo(session=project_owner.session),
+                project_name,
+                schedule_name,
+            )
+
         response = await submit_run(db_session, auth_info, scheduled_object)
 
         run_metadata = response["data"]["metadata"]
@@ -476,11 +598,7 @@ class Scheduler:
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
         get_db().update_schedule(
-            db_session,
-            run_metadata["project"],
-            schedule_name,
-            last_run_uri=run_uri,
-            leader_session=auth_info.session,
+            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
         )
 
         close_session(db_session)

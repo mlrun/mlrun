@@ -13,6 +13,7 @@
 # limitations under the License.
 import collections
 from copy import copy
+from enum import Enum
 from typing import List
 
 import pandas as pd
@@ -338,6 +339,12 @@ class OnlineVectorService:
         """get feature vector given the provided entity inputs"""
         results = []
         futures = []
+        if isinstance(entity_rows, dict):
+            entity_rows = [entity_rows]
+        if not isinstance(entity_rows, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{entity_rows} is of type {type(entity_rows)}. It should be list of Dictionaries"
+            )
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
         for future in futures:
@@ -401,3 +408,22 @@ class OfflineVectorResponse:
         """return results as csv file"""
         size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
         return size
+
+
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
+            )

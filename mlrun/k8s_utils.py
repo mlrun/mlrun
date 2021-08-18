@@ -383,20 +383,39 @@ class K8sHelper:
             k8s_secret.data = secret_data
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
-    def get_project_secret_keys(self, project, namespace=""):
+    def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
         namespace = self.resolve_namespace(namespace)
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException as exc:
-            # If secret doesn't exist, return empty list
-            if exc.status != 404:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
-                raise exc
+        except ApiException:
             return None
 
-        return list(k8s_secret.data.keys())
+        return k8s_secret.data
+
+    def get_project_secret_keys(self, project, namespace=""):
+        secrets_data = self._get_project_secrets_raw_data(project, namespace)
+        if not secrets_data:
+            return None
+
+        return list(secrets_data.keys())
+
+    def get_project_secret_data(self, project, secret_keys=None, namespace=""):
+        results = {}
+        secrets_data = self._get_project_secrets_raw_data(project, namespace)
+        if not secrets_data:
+            return results
+
+        # If not asking for specific keys, return all
+        secret_keys = secret_keys or secrets_data.keys()
+
+        for key in secret_keys:
+            encoded_value = secrets_data.get(key)
+            if encoded_value:
+                results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
+
+        return results
 
 
 class BasePod:

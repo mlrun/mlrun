@@ -15,10 +15,12 @@
 # this file is based on the code from kubeflow pipelines git
 import os
 
+from mlrun.errors import MLRunInvalidArgumentError
+
 from .iguazio import mount_v3io
 
 
-def mount_pvc(pvc_name, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):
+def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):
     """
     Modifier function to apply to a Container Op to simplify volume, volume mount addition and
     enable better reuse of volumes, volume claims across container ops.
@@ -28,6 +30,20 @@ def mount_pvc(pvc_name, volume_name="pipeline", volume_mount_path="/mnt/pipeline
         train = train_op(...)
         train.apply(mount_pvc('claim-name', 'pipeline', '/mnt/pipeline'))
     """
+    if "MLRUN_PVC_MOUNT" in os.environ:
+        mount = os.environ.get("MLRUN_PVC_MOUNT")
+        items = mount.split(":")
+        if len(items) != 2:
+            raise MLRunInvalidArgumentError(
+                "MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>"
+            )
+        pvc_name = items[0]
+        volume_mount_path = items[1]
+
+    if not pvc_name:
+        raise MLRunInvalidArgumentError(
+            "No PVC name: use the pvc_name parameter or configure the MLRUN_PVC_MOUNT environment variable"
+        )
 
     def _mount_pvc(task):
         from kubernetes import client as k8s_client
@@ -57,15 +73,7 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
             volume_name=volume_name or "pvc",
         )
     if "MLRUN_PVC_MOUNT" in os.environ:
-        mount = os.environ.get("MLRUN_PVC_MOUNT")
-        items = mount.split(":")
-        if len(items) != 2:
-            raise ValueError("MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>")
-        return mount_pvc(
-            pvc_name=items[0],
-            volume_mount_path=items[1],
-            volume_name=volume_name or "pvc",
-        )
+        return mount_pvc(volume_name=volume_name or "pvc",)
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
     raise ValueError("failed to auto mount, need to set env vars")

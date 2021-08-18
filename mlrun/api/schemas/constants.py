@@ -5,15 +5,6 @@ import mergedeep
 import mlrun.errors
 
 
-class Format(str, Enum):
-    full = "full"
-    name_only = "name_only"
-    metadata_only = "metadata_only"
-    summary = "summary"
-    # internal - allowed only in follower mode, only for the leader for upgrade purposes
-    leader = "leader"
-
-
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
@@ -85,6 +76,7 @@ class HeaderNames:
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
+    pipeline_arguments = f"{headers_prefix}pipeline-arguments"
 
 
 class FeatureStorePartitionByField(str, Enum):

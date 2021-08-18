@@ -25,7 +25,7 @@ def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
     }
     uid = "some-uid"
     project = "some-project"
-    get_db().store_run(db, run_with_nan_float, uid, project)
+    mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
     resp = client.get(f"/api/run/{project}/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
@@ -58,9 +58,9 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         (run_aborted, run_aborted_uid),
         (run_dask, run_dask_uid),
     ]:
-        get_db().store_run(db, run, run_uid, project)
+        mlrun.api.crud.Runs().store_run(db, run, run_uid, project=project)
 
-    mlrun.api.crud.Runtimes().delete_runtimes = unittest.mock.Mock()
+    mlrun.api.crud.RuntimeResources().delete_runtime_resources = unittest.mock.Mock()
     abort_body = {"status.state": mlrun.runtimes.constants.RunStates.aborted}
     # completed is terminal state - should fail
     response = client.patch(f"/api/run/{project}/{run_completed_uid}", json=abort_body)
@@ -76,7 +76,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         f"/api/run/{project}/{run_in_progress_uid}", json=abort_body
     )
     assert response.status_code == HTTPStatus.OK.value
-    mlrun.api.crud.Runtimes().delete_runtimes.assert_called_once()
+    mlrun.api.crud.RuntimeResources().delete_runtime_resources.assert_called_once()
 
 
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:

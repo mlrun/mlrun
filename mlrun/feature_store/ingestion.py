@@ -252,9 +252,9 @@ def add_source_trigger(source, function):
             topic=source.attributes["topics"],
             partitions=source.attributes.get("partitions"),
         )
-        trigger.kind = "kafka-cluster"
         trigger._struct["kind"] = "kafka-cluster"
-        func = function.add_trigger("kafka-cluster", trigger,)
+        trigger._struct["maxWorkers"] = 1
+        func = function.add_trigger("kafka", trigger)
         func.spec.config["spec.triggers.kafka-cluster"]["attributes"][
             "ConsumerGroup"
         ] = source.attributes["group"]
@@ -264,6 +264,9 @@ def add_source_trigger(source, function):
         func.spec.config["spec.triggers.kafka-cluster"]["attributes"][
             "InitialOffset"
         ] = source.attributes["initial_offset"]
+        func.spec.config["spec.triggers.kafka-cluster"]["attributes"][
+            "Brokers"
+        ] = source.attributes["brokers"]
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")
         if sasl_user and sasl_pass:

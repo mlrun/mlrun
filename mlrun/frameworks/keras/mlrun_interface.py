@@ -83,7 +83,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                         "experimental_run_tf_function"
                     ] = experimental_run_tf_function
                 # Call the original compile method:
-                compile_method(*args, **kwargs)
+                return compile_method(*args, **kwargs)
 
             return wrapper
 
@@ -122,7 +122,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 kwargs["steps_per_epoch"] = steps_per_epoch
                 kwargs["validation_steps"] = validation_steps
                 # Call the original fit method:
-                fit_method(*args, **kwargs)
+                return fit_method(*args, **kwargs)
 
             return wrapper
 
@@ -132,7 +132,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         self,
         context: mlrun.MLClientCtx = None,
         add_mlrun_logger: bool = True,
-        mlrun_callback__kwargs: Dict[str, Any] = None,
+        mlrun_callback_kwargs: Dict[str, Any] = None,
         add_tensorboard_logger: bool = True,
         tensorboard_callback_kwargs: Dict[str, Any] = None,
     ):
@@ -144,7 +144,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
 
         :param context:                     The MLRun context to log with.
         :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
-        :param mlrun_callback__kwargs:      Key word arguments for the MLRun callback. For further information see the
+        :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
                                             documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
                                             and 'auto_log' parameters are already given here.
         :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
@@ -161,8 +161,8 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
             context = mlrun.get_or_create_ctx(KerasMLRunInterface.DEFAULT_CONTEXT_NAME)
 
         # Set the dictionaries defaults:
-        mlrun_callback__kwargs = (
-            {} if mlrun_callback__kwargs is None else mlrun_callback__kwargs
+        mlrun_callback_kwargs = (
+            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
         )
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
@@ -173,7 +173,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
             # Add the MLRun logging callback:
             self._callbacks.append(
                 MLRunLoggingCallback(
-                    context=context, auto_log=True, **mlrun_callback__kwargs
+                    context=context, auto_log=True, **mlrun_callback_kwargs
                 )
             )
         if add_tensorboard_logger:
@@ -238,8 +238,6 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         ):
             # Pin each GPU to a single process:
             gpus = tf.config.experimental.list_physical_devices("GPU")
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
             if gpus:
                 tf.config.experimental.set_visible_devices(
                     gpus[self._hvd.local_rank()], "GPU"

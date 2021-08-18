@@ -274,9 +274,8 @@ class PyTorchMLRunInterface:
 
     def add_auto_logging_callbacks(
         self,
-        custom_objects: Dict[Union[str, List[str]], str] = None,
         add_mlrun_logger: bool = True,
-        mlrun_callback__kwargs: Dict[str, Any] = None,
+        mlrun_callback_kwargs: Dict[str, Any] = None,
         add_tensorboard_logger: bool = True,
         tensorboard_callback_kwargs: Dict[str, Any] = None,
     ):
@@ -285,17 +284,8 @@ class PyTorchMLRunInterface:
         MLRun and Tensorboard, see 'pytorch.callbacks.MLRunLoggingCallback' and
         'pytorch.callbacks.TensorboardLoggingCallback'.
 
-        :param custom_objects:              Custom objects the model is using. Expecting a dictionary with the classes
-                                            names to import as keys (if multiple classes needed to be imported from the
-                                            same py file a list can be given) and the python file from where to import
-                                            them as their values. The model class itself must be specified in order to
-                                            properly save it for later being loaded with a handler. For example:
-                                            {
-                                                "class_name": "/path/to/model.py",
-                                                ["layer1", "layer2"]: "/path/to/custom_layers.py"
-                                            }
         :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
-        :param mlrun_callback__kwargs:      Key word arguments for the MLRun callback. For further information see the
+        :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
                                             documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
                                             'custom_objects' and 'auto_log' parameters are already given here.
         :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
@@ -304,8 +294,8 @@ class PyTorchMLRunInterface:
                                             'context' and 'auto_log' parameters are already given here.
         """
         # Set the dictionaries defaults:
-        mlrun_callback__kwargs = (
-            {} if mlrun_callback__kwargs is None else mlrun_callback__kwargs
+        mlrun_callback_kwargs = (
+            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
         )
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
@@ -316,10 +306,7 @@ class PyTorchMLRunInterface:
             # Add the MLRun logging callback:
             self._callbacks.append(
                 MLRunLoggingCallback(
-                    context=self._context,
-                    custom_objects=custom_objects,
-                    auto_log=True,
-                    **mlrun_callback__kwargs
+                    context=self._context, auto_log=True, **mlrun_callback_kwargs
                 )
             )
         if add_tensorboard_logger:
@@ -372,7 +359,7 @@ class PyTorchMLRunInterface:
         :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
                                          None, meaning it will be read from context if available and if not - False.
 
-        :raise ValueError: In case on of the given parameters is invalid.
+        :raise ValueError: In case one of the given parameters is invalid.
         """
         # Parse and validate input:
         # # Metric functions:

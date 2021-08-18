@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 from tensorflow import keras
 
@@ -19,6 +19,8 @@ class KerasModelServer(V2ModelServer):
         name: str,
         model_path: str = None,
         model: keras.Model = None,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        custom_objects_directory: str = None,
         protocol: str = None,
         model_format: str = KerasModelHandler.ModelFormats.H5,
         **class_args,
@@ -26,14 +28,31 @@ class KerasModelServer(V2ModelServer):
         """
         Initialize a serving class for a tf.keras model.
 
-        :param context:      The mlrun context to work with.
-        :param name:         The model name to be served.
-        :param model_path:   Path to the model directory to load. Can be passed as a store model object.
-        :param model:        The model to use.
-        :param protocol:     -
-        :param model_format: The format used to save the model. One of the members of the KerasModelHandler.ModelFormats
-                             class.
-        :param class_args:   -
+        :param context:                  The mlrun context to work with.
+        :param name:                     The model name to be served.
+        :param model_path:               Path to the model directory to load. Can be passed as a store model object.
+        :param model:                    The model to use.
+        :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
+                                         is a path to a python file and its value is the custom object name to import
+                                         from it. If multiple objects needed to be imported from the same py file a list
+                                         can be given. The map can be passed as a path to a json file as well. For
+                                         example:
+                                         {
+                                             "/.../custom_optimizer.py": "optimizer",
+                                             "/.../custom_layers.py": ["layer1", "layer2"]
+                                         }
+                                         All the paths will be accessed from the given 'custom_objects_directory',
+                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
+                                         Notice: The custom objects will be imported in the order they came in this
+                                         dictionary (or json). If a custom object is depended on another, make sure to
+                                         put it below the one it relies on.
+        :param custom_objects_directory: Path to the directory with all the python files required for the custom
+                                         objects. Can be passed as a zip file as well (will be extracted during the run
+                                         before loading the model).
+        :param protocol:                 -
+        :param model_format:             The format used to save the model. One of the members of the
+                                         KerasModelHandler.ModelFormats class.
+        :param class_args:               -
         """
         super(KerasModelServer, self).__init__(
             context=context,
@@ -45,10 +64,12 @@ class KerasModelServer(V2ModelServer):
         )
         self._model_handler = KerasModelHandler(
             model_name=name,
-            context=self.context,
             model_path=model_path,
             model=model,
+            custom_objects_map=custom_objects_map,
+            custom_objects_directory=custom_objects_directory,
             model_format=model_format,
+            context=self.context,
         )
 
     def load(self):

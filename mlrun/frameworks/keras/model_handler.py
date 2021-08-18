@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Union
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.models import Model
+from tensorflow.keras import Model
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -26,13 +26,17 @@ class KerasModelHandler(ModelHandler):
         H5 = "H5"
         JSON_ARCHITECTURE_H5_WEIGHTS = "json_H5"
 
+    # Constant artifact names:
+    _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
+    _WEIGHTS_FILE_ARTIFACT_NAME = "{}_weights_file"
+
     def __init__(
         self,
         model_name: str,
         model_path: str = None,
         model: Model = None,
         context: mlrun.MLClientCtx = None,
-        custom_objects_map: Union[Dict[Union[str, List[str]], str], str] = None,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         model_format: str = ModelFormats.H5,
         save_traces: bool = False,
@@ -46,7 +50,7 @@ class KerasModelHandler(ModelHandler):
         :param model_path:               Path to the model's directory to load it from. The model files must start with
                                          the given model name and the directory must contain based on the given model
                                          formats:
-                                         * SavedModel - A zip file 'model_name.zip'.
+                                         * SavedModel - A zip file 'model_name.zip' or a directory named 'model_name'.
                                          * H5 - A h5 file 'model_name.h5'.
                                          * Architecture and weights - The json file 'model_name.json' and h5 weight file
                                            'model_name.h5'.
@@ -54,19 +58,23 @@ class KerasModelHandler(ModelHandler):
                                          format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param context:                  MLRun context to work with for logging the model.
-        :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. The keys
-                                         are the classes / functions names and the values are their paths to the python
-                                         files for the handler to import them from. If multiple objects needed to be
-                                         imported from the same py file a list can be given. Notice, if the model was
-                                         saved with the 'save_traces' flag on (True) the custom objects are not needed
-                                         for loading the model. The map can be passed as a path to a json file as well.
-                                         For example:
+        :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
+                                         is a path to a python file and its value is the custom object name to import
+                                         from it. If multiple objects needed to be imported from the same py file a list
+                                         can be given. The map can be passed as a path to a json file as well. For
+                                         example:
                                          {
-                                             "optimizer": "/custom_objects_directory/.../custom_optimizer.py",
-                                             ["layer1", "layer2"]: "/custom_objects_directory/.../custom_layers.py"
+                                             "/.../custom_optimizer.py": "optimizer",
+                                             "/.../custom_layers.py": ["layer1", "layer2"]
                                          }
+                                         All the paths will be accessed from the given 'custom_objects_directory',
+                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
+                                         Notice: The custom objects will be imported in the order they came in this
+                                         dictionary (or json). If a custom object is depended on another, make sure to
+                                         put it below the one it relies on.
         :param custom_objects_directory: Path to the directory with all the python files required for the custom
-                                         objects.
+                                         objects. Can be passed as a zip file as well (will be extracted during the run
+                                         before loading the model).
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
                                          member of the class 'ModelFormats'. Defaulted to
                                          'ModelFormats.JSON_ARCHITECTURE_H5'.
@@ -80,21 +88,6 @@ class KerasModelHandler(ModelHandler):
                            * There was no model or model directory supplied.
                            * 'save_traces' parameter was miss-used.
         """
-        # TODO: Implement local directory loading and from fb.
-        if model_path is not None and not mlrun.datastore.is_store_uri(model_path):
-            raise NotImplementedError(
-                "Initializing a keras handler with a directory path is not yet implemented. "
-                "Please use a store object of a loaded model instead."
-            )
-        # TODO: Implement the custom objects support.
-        if custom_objects_map is not None and custom_objects_directory is not None:
-            raise NotImplementedError("Custom objects are not yet supported.")
-
-        # Setup the handler with name, path, model and context:
-        super(KerasModelHandler, self).__init__(
-            model_name=model_name, model_path=model_path, model=model, context=context
-        )
-
         # Validate given format:
         if model_format not in [
             KerasModelHandler.ModelFormats.SAVED_MODEL,
@@ -104,15 +97,6 @@ class KerasModelHandler(ModelHandler):
             raise ValueError(
                 "Unrecognized model format: '{}'. Please use one of the class members of "
                 "'KerasModelHandler.ModelFormats'".format(model_format)
-            )
-
-        # Validate custom objects input:
-        if (custom_objects_map is not None and custom_objects_directory is None) or (
-            custom_objects_map is None and custom_objects_directory is not None
-        ):
-            raise ValueError(
-                "Custom objects must be supplied with the custom object to python file map and the "
-                "directory with all the python files."
             )
 
         # Validate 'save_traces':
@@ -127,22 +111,22 @@ class KerasModelHandler(ModelHandler):
                     "The 'save_traces' parameter is valid only for the 'SavedModel' format."
                 )
 
-        # Store the custom objects:
-        self._custom_objects_map = custom_objects_map
-        self._custom_objects_directory = custom_objects_directory
-        self._custom_objects = None
-
         # Store the configuration:
         self._model_format = model_format
         self._save_traces = save_traces
 
-        # Get the model files and configurations from the given model path, downloading to local if needed:
-        if model_path is not None:
-            self._get_model_from_path()
+        # If the model format is architecture and weights, this will hold the weights file collected:
+        self._weights_file = None  # type: str
 
-        # Import the custom objects:
-        if self._custom_objects_map is not None:
-            self._import_custom_objects()
+        # Setup the base handler class:
+        super(KerasModelHandler, self).__init__(
+            model_name=model_name,
+            model_path=model_path,
+            model=model,
+            custom_objects_map=custom_objects_map,
+            custom_objects_directory=custom_objects_directory,
+            context=context,
+        )
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     def save(
@@ -182,7 +166,9 @@ class KerasModelHandler(ModelHandler):
                 self._model.save(self._model_name)
             # Zip it:
             model_file = "{}.zip".format(self._model_name)
-            shutil.make_archive(model_file, "zip", self._model_name)
+            shutil.make_archive(
+                base_name=self._model_name, format="zip", base_dir=self._model_name
+            )
 
         # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Save as a json architecture and h5 weights files:
         else:
@@ -195,26 +181,22 @@ class KerasModelHandler(ModelHandler):
             weights_file = "{}.h5".format(self._model_name)
             self._model.save_weights(weights_file)
 
-        # Save the custom objects:
-        # TODO: Save the custom objects dictionary as a json file named "custom_objects_map.json", zip it with the
-        #       custom objects directory and log them both as a zip file named "custom_objects.zip".
-
         # Update the paths and log artifacts if context is available:
-        if model_file:
-            self._model_file = model_file
+        self._model_file = model_file
+        if self._context is not None:
+            artifacts[
+                self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
+            ] = self._context.log_artifact(
+                model_file,
+                local_path=model_file,
+                artifact_path=output_path,
+                db_key=False,
+            )
+        if weights_file is not None:
+            self._weights_file = weights_file
             if self._context is not None:
                 artifacts[
-                    "{}_model_file".format(self._model_name)
-                ] = self._context.log_artifact(
-                    model_file,
-                    local_path=model_file,
-                    artifact_path=output_path,
-                    db_key=False,
-                )
-        if weights_file:
-            if self._context is not None:
-                artifacts[
-                    "{}_weights_file".format(self._model_name)
+                    self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
                 ] = self._context.log_artifact(
                     weights_file,
                     local_path=weights_file,
@@ -224,48 +206,47 @@ class KerasModelHandler(ModelHandler):
 
         return artifacts if self._context is not None else None
 
-    def load(self, weights_path: str = None, *args, **kwargs):
+    def load(self, checkpoint: str = None, *args, **kwargs):
         """
-        Load the specified model in this handler. If a checkpoint is required to be loaded, it can be given by its tag
-        (epoch) it was logged with as an artifact or the local path to the file. Additional parameters for the class
+        Load the specified model in this handler. If a checkpoint is required to be loaded, it can be given here
+        according to the provided model path in the initialization of this handler. Additional parameters for the class
         initializer can be passed via the args list and kwargs dictionary.
 
-        :param weights_path: Tag to look for in the extra data for weights that were logged along side the model, or
-                             path to the local file of the weights.
+        :param checkpoint: The checkpoint label to load the weights from. If the model path is of a store object, the
+                           checkpoint will be taken from the logged checkpoints artifacts logged with the model. If the
+                           model path is of a local directory, the checkpoint will be searched in it by the provided
+                           name to this parameter.
         """
-        super(KerasModelHandler, self).load()
+        # TODO: Add support for checkpoint loading after creating MLRun's checkpoint callback.
+        if checkpoint is not None:
+            raise NotImplementedError(
+                "Loading a model using checkpoint is not yet implemented."
+            )
 
-        # Get the model file and if available, its artifacts:
-        model_file = None  # type: str
+        super(KerasModelHandler, self).load()
 
         # ModelFormats.H5 - Load from a .h5 file:
         if self._model_format == KerasModelHandler.ModelFormats.H5:
-            model_file = self._model_file
+            self._model = keras.models.load_model(
+                self._model_file, custom_objects=self._custom_objects
+            )
 
         # ModelFormats.SAVED_MODEL - Load from a SavedModel directory:
         elif self._model_format == KerasModelHandler.ModelFormats.SAVED_MODEL:
-            # Unzip the SavedModel directory:
-            with zipfile.ZipFile(self._model_file, "r") as zip_file:
-                zip_file.extractall(os.path.dirname(self._model_file))
-            # Load the model from the unzipped directory:
-            model_file = self._model_file.split(".")[0]
+            self._model = keras.models.load_model(
+                self._model_file, custom_objects=self._custom_objects
+            )
 
         # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Load from a .json architecture file and a .h5 weights file:
         else:
-            raise NotImplementedError  # TODO: Implement the weights file lookup in the extra data of the model.
-            # # Get the model from the model path:
-            # self._get_model(model_file_suffix=".json")
-            # # Load the model architecture (json):
-            # with open(self._model_file, "r") as json_file:
-            #     model_architecture = json_file.read()
-            # self._model = keras.models.model_from_json(model_architecture)
-            # # Load the model weights (h5):
-            # weights_path = None
-            # self._model.load_weights(weights_path)
-
-        self._model = keras.models.load_model(
-            model_file, custom_objects=self._custom_objects
-        )
+            # Load the model architecture (json):
+            with open(self._model_file, "r") as json_file:
+                model_architecture = json_file.read()
+            self._model = keras.models.model_from_json(
+                model_architecture, custom_objects=self._custom_objects
+            )
+            # Load the model weights (h5):
+            self._model.load_weights(self._weights_file)
 
     def log(
         self,
@@ -295,6 +276,9 @@ class KerasModelHandler(ModelHandler):
         # Save the model:
         model_artifacts = self.save()
 
+        # Log the custom objects:
+        custom_objects_artifacts = self._log_custom_objects()
+
         # Log the model:
         self._context.log_model(
             self._model.name,
@@ -307,41 +291,116 @@ class KerasModelHandler(ModelHandler):
             },
             parameters=parameters,
             metrics=self._context.results,
-            extra_data={**model_artifacts, **artifacts, **extra_data},
+            extra_data={
+                **model_artifacts,
+                **custom_objects_artifacts,
+                **artifacts,
+                **extra_data,
+            },
         )
 
-    def _get_model_from_path(self):
+    def _collect_files_from_store_object(self):
         """
-        Use the 'get_model' method to get the logged model file, artifact and extra data if any are available and read
-        them into this handler.
+        If the model path given is of a store object, collect the needed model files into this handler for later loading
+        the model.
         """
-        # Path of a store uri:
-        if mlrun.datastore.is_store_uri(self._model_path):
-            # Get the artifact and model file along with its extra data:
-            (
-                self._model_file,
-                self._model_artifact,
-                self._extra_data,
-            ) = mlrun.artifacts.get_model(self._model_path)
-            # Read the settings:
-            self._model_format = self._model_artifact.labels["model-format"]
-            self._save_traces = self._model_artifact.labels["save-traces"]
-            # TODO: Read the custom objects logged as well.
+        # Get the artifact and model file along with its extra data:
+        (
+            self._model_file,
+            self._model_artifact,
+            self._extra_data,
+        ) = mlrun.artifacts.get_model(self._model_path)
 
-    def _import_custom_objects(self):
+        # Read the settings:
+        self._model_format = self._model_artifact.labels["model-format"]
+        self._save_traces = self._model_artifact.labels["save-traces"]
+
+        # Read the custom objects:
+        if (
+            self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+            in self._extra_data
+        ):
+            self._custom_objects_map = self._extra_data[
+                self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+            ].local()
+            self._custom_objects_directory = self._extra_data[
+                self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
+            ].local()
+        else:
+            self._custom_objects_map = None
+            self._custom_objects_directory = None
+
+        # Read additional files according to the model format used:
+        # # ModelFormats.SAVED_MODEL - Unzip the SavedModel archive:
+        if self._model_format == KerasModelHandler.ModelFormats.SAVED_MODEL:
+            # Unzip the SavedModel directory:
+            with zipfile.ZipFile(self._model_file, "r") as zip_file:
+                zip_file.extractall(os.path.dirname(self._model_file))
+            # Set the model file to the unzipped directory:
+            self._model_file = self._model_file.split(".")[0]
+        # # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Get the weights file:
+        elif (
+            self._model_format
+            == KerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
+        ):
+            # Get the weights file:
+            self._weights_file = self._extra_data[
+                self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
+            ].local()
+
+    def _collect_files_from_local_path(self):
         """
-        Import the custom objects from the map and directory provided.
+        If the model path given is of a local path, search for the needed model files and collect them into this handler
+        for later loading the model.
         """
-        self._custom_objects = {}
-        for custom_objects_names, py_file in self._custom_objects_map.items():
-            self._custom_objects = {
-                **self._custom_objects,
-                **self._import_module(
-                    classes_names=(
-                        custom_objects_names
-                        if isinstance(custom_objects_names, list)
-                        else [custom_objects_names]
-                    ),
-                    py_file_path=py_file,
-                ),
-            }
+        # ModelFormats.H5 - Get the h5 model file:
+        if self._model_format == KerasModelHandler.ModelFormats.H5:
+            self._model_file = os.path.join(
+                self._model_path, "{}.h5".format(self._model_name)
+            )
+            if not os.path.exists(self._model_file):
+                raise FileNotFoundError(
+                    "The model file '{}.h5' was not found within the given 'model_path': "
+                    "'{}'".format(self._model_name, self._model_path)
+                )
+
+        # ModelFormats.SAVED_MODEL - Get the zip file and extract it, or simply locate the directory:
+        elif self._model_format == KerasModelHandler.ModelFormats.SAVED_MODEL:
+            self._model_file = os.path.join(
+                self._model_path, "{}.zip".format(self._model_name)
+            )
+            if os.path.exists(self._model_file):
+                # Unzip it:
+                with zipfile.ZipFile(self._model_file, "r") as zip_file:
+                    zip_file.extractall(self._custom_objects_directory)
+                # Set the model file to the unzipped directory:
+                self._model_file = self._model_file.rsplit(".", 1)[0]
+            else:
+                # Look for the SavedModel directory:
+                self._model_file = os.path.join(self._model_path, self._model_name)
+                if not os.path.exists(self._model_file):
+                    raise FileNotFoundError(
+                        "There is no SavedModel zip archive '{}' or a SavedModel directory named '{}' the given "
+                        "'model_path': '{}'".format(
+                            "{}.zip".format(self._model_name),
+                            self._model_name,
+                            self._model_path,
+                        )
+                    )
+
+        # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Save as a json architecture and h5 weights files:
+        else:
+            # Locate the model architecture json file:
+            self._model_file = "{}.json".format(self._model_name)
+            if not os.path.exists(os.path.join(self._model_path, self._model_file)):
+                raise FileNotFoundError(
+                    "The model architecture file '{}' is missing in the given 'model_path': "
+                    "'{}'".format(self._model_file, self._model_path)
+                )
+            # Locate the model weights h5 file:
+            self._weights_file = "{}.h5".format(self._model_name)
+            if not os.path.exists(os.path.join(self._model_path, self._weights_file)):
+                raise FileNotFoundError(
+                    "The model weights file '{}' is missing in the given 'model_path': "
+                    "'{}'".format(self._weights_file, self._model_path)
+                )

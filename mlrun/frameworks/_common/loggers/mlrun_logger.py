@@ -2,7 +2,7 @@ from typing import Dict, Union
 
 import numpy as np
 
-from mlrun import MLClientCtx
+import mlrun
 from mlrun.artifacts import Artifact, ChartArtifact
 from mlrun.frameworks._common.loggers.logger import Logger
 from mlrun.frameworks._common.model_handler import ModelHandler
@@ -29,7 +29,7 @@ class MLRunLogger(Logger):
 
     def __init__(
         self,
-        context: MLClientCtx,
+        context: mlrun.MLClientCtx,
         log_model_labels: Dict[str, TrackableType],
         log_model_parameters: Dict[str, TrackableType],
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]],
@@ -82,24 +82,15 @@ class MLRunLogger(Logger):
 
         :param epoch: The epoch number that has just ended.
         """
-        # Create child context to hold the current epoch's results:
-        child_context = self._context.get_child_context()
-
-        # Set the current iteration according to the epoch number:
-        child_context._iteration = epoch + 1
-
         # Log the collected hyperparameters and values as results to the epoch's child context:
         for static_parameter, value in self._static_hyperparameters.items():
-            child_context.log_result(static_parameter, value)
+            self._context.log_result(static_parameter, value)
         for dynamic_parameter, values in self._dynamic_hyperparameters.items():
-            child_context.log_result(dynamic_parameter, values[-1])
+            self._context.log_result(dynamic_parameter, values[-1])
         for metric, results in self._training_summaries.items():
-            child_context.log_result("training_{}".format(metric), results[-1])
+            self._context.log_result("training_{}".format(metric), results[-1])
         for metric, results in self._validation_summaries.items():
-            child_context.log_result("validation_{}".format(metric), results[-1])
-
-        # Update the last epoch to the main context:
-        self._context._results = child_context.results
+            self._context.log_result("validation_{}".format(metric), results[-1])
 
         # Log the epochs metrics results as chart artifacts:
         for metrics_prefix, metrics_dictionary in zip(
@@ -121,10 +112,10 @@ class MLRunLogger(Logger):
                     ),
                 )
                 # Log the artifact:
-                child_context.log_artifact(
+                self._context.log_artifact(
                     chart_artifact,
                     local_path=chart_artifact.key,
-                    artifact_path=child_context.artifact_path,
+                    artifact_path=self._context.artifact_path,
                 )
                 # Collect it for later adding it to the model logging as extra data:
                 self._artifacts[chart_name] = chart_artifact

@@ -53,12 +53,12 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> typing.List:
         def _generate_opa_resource(resource):
             project_name, resource_name = project_and_resource_name_extractor(resource)
-            return self._generate_opa_resource_from_project_resource(resource_type, project_name, resource_name)
+            return self._generate_opa_resource_from_project_resource(
+                resource_type, project_name, resource_name
+            )
+
         return self.filter_by_permissions(
-            resources,
-            _generate_opa_resource,
-            action,
-            auth_info
+            resources, _generate_opa_resource, action, auth_info
         )
 
     def filter_projects_by_permissions(
@@ -71,7 +71,7 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             project_names,
             self._generate_opa_resource_from_project_name,
             action,
-            auth_info
+            auth_info,
         )
 
     def query_project_resources_permissions(
@@ -108,7 +108,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         raise_on_forbidden: bool = True,
     ) -> bool:
         return self.query_permissions(
-            self._generate_opa_resource_from_project_resource(resource_type, project_name, resource_name),
+            self._generate_opa_resource_from_project_resource(
+                resource_type, project_name, resource_name
+            ),
             action,
             auth_info,
             raise_on_forbidden,
@@ -184,8 +186,8 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         if action == mlrun.api.schemas.AuthorizationAction.store:
             raise NotImplementedError("Store action is not supported in filtering")
         if (
-                self._is_request_from_leader(auth_info.projects_role)
-                or mlrun.mlconf.httpdb.authorization.mode == "none"
+            self._is_request_from_leader(auth_info.projects_role)
+            or mlrun.mlconf.httpdb.authorization.mode == "none"
         ):
             return resources
         opa_resources = []
@@ -329,9 +331,9 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
 
     @staticmethod
     def _generate_opa_resource_from_project_resource(
-            resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
-            project_name: str,
-            resource_name: str,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        project_name: str,
+        resource_name: str,
     ):
         if not project_name:
             project_name = "*"

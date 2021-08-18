@@ -571,9 +571,13 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {0: "hello"}}
+        assert resp2.to_dict() == {
+            "my_string": {"mykey1": "hello"},
+            "my_time": {"mykey1": pd.Timestamp("2019-01-26 14:52:37")},
+        }
 
         measurements = fs.FeatureSet(
             name, entities=[Entity(key)], timestamp_key="my_time"
@@ -597,9 +601,16 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {0: "hello", 1: None}}
+        assert resp2.to_dict() == {
+            "my_string": {"mykey1": "hello", "mykey2": None},
+            "my_time": {
+                "mykey1": pd.Timestamp("2019-01-26 14:52:37"),
+                "mykey2": pd.Timestamp("2019-01-26 14:52:37"),
+            },
+        }
 
     def test_ordered_pandas_asof_merge(self):
         targets = [ParquetTarget(), NoSqlTarget()]

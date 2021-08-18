@@ -247,26 +247,23 @@ def add_source_trigger(source, function):
         )
     if isinstance(source, KafkaSource):
         partitions = source.attributes.get("partitions")
-        func = function.add_trigger(
-            "kafka",
-            KafkaTrigger(
-                url=source.attributes["brokers"],
-                topic=source.attributes["topic"],
-                partitions=source.attributes.get("partitions"),
-            ),
+        trigger = KafkaTrigger(
+            url=source.attributes["brokers"],
+            topic=source.attributes["topics"],
+            partitions=source.attributes.get("partitions"),
         )
+        trigger.kind = "kafka-cluster"
+
+        func = function.add_trigger("kafka", trigger,)
         func.spec.config["spec.triggers.kafka"]["attributes"][
             "ConsumerGroup"
         ] = source.attributes["group"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
             "Topics"
-        ] = source.attributes["topic"]
+        ] = source.attributes["topics"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
             "InitialOffset"
         ] = source.attributes["initial_offset"]
-        func.spec.config["spec.triggers.kafka"]["kind"][
-            "kafka-cluster"
-        ] = source.attributes["group"]
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")
         if sasl_user and sasl_pass:

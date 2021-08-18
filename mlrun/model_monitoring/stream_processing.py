@@ -127,7 +127,7 @@ class EventStreamProcessor:
         )
 
         logger.info(
-            "V3IO Configuration",
+            "Initializing model monitoring event stream processor",
             v3io_access_key=self.v3io_access_key,
             model_monitoring_access_key=self.model_monitoring_access_key,
             default_store_prefix=config.model_endpoint_monitoring.store_prefixes.default,

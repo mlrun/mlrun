@@ -17,6 +17,16 @@ env:
   # Storage container within the given storage account where objects will be created.
   AZURE_CONTAINER:  
 
+  # Support storage_options keywords
+  connection_string: 
+  account_name:  
+  account_key:  
+  sas_token:
+  client_id:
+  client_secret:
+  client_id:
+  credential: 
+
   # Provide a mlrun function with kind="dask" (i.e. db://<PROJECT>/<FUNCTION>)
   # or a Dask Scheduler address in the form ("tcp://").  If none, this will
   # create a local distributed client, which causes DDF writes to run slowly

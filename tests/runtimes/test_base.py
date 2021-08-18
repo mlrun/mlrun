@@ -28,12 +28,13 @@ class TestAutoMount:
         runtime.spec.image = self.image_name
         return runtime
 
-    def _execute_run(self, runtime):
+    def _execute_run(self, runtime, disable_auto_mount=False):
         runtime.run(
             name=self.name,
             project=self.project,
             artifact_path=self.artifact_path,
             watch=False,
+            disable_auto_mount=disable_auto_mount,
         )
 
     @pytest.mark.parametrize("cred_only", [True, False])
@@ -46,6 +47,12 @@ class TestAutoMount:
         rundb_mock.assert_v3io_mount_or_creds_configured(
             self.v3io_user, self.v3io_access_key, cred_only=cred_only
         )
+
+        # Check that disable-auto-mount works. Need a fresh runtime, to reset its mount-applied indication.
+        rundb_mock.reset()
+        runtime = self._generate_runtime()
+        self._execute_run(runtime, disable_auto_mount=True)
+        rundb_mock.assert_no_mount_or_creds_configured()
 
     def test_run_with_automount_pvc(self, rundb_mock):
         mlconf.storage.auto_mount_type = "pvc"
@@ -76,6 +83,12 @@ class TestAutoMount:
         self._execute_run(runtime)
 
         rundb_mock.assert_pvc_mount_configured(pvc_params)
+
+        # Try with disable-auto-mount
+        rundb_mock.reset()
+        runtime = self._generate_runtime()
+        self._execute_run(runtime, disable_auto_mount=True)
+        rundb_mock.assert_no_mount_or_creds_configured()
 
         # Try something that does not translate to a dictionary
         bad_params_str = base64.b64encode(

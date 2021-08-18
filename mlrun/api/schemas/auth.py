@@ -25,6 +25,7 @@ class AuthorizationAction(str, enum.Enum):
 
 
 class AuthorizationResourceTypes(str, enum.Enum):
+    project = "project"
     log = "log"
     runtime_resource = "runtime-resource"
     function = "function"
@@ -45,6 +46,8 @@ class AuthorizationResourceTypes(str, enum.Enum):
         self, project_name: str, resource_name: str,
     ):
         return {
+            # project is the resource itself, so no need for both resource_name and project_name
+            AuthorizationResourceTypes.project: "/projects/{project_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
             AuthorizationResourceTypes.background_task: "/projects/{project_name}/background-tasks/{resource_name}",

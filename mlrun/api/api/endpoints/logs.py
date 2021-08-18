@@ -22,7 +22,7 @@ async def store_log(
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,
@@ -50,7 +50,7 @@ def get_log(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,

@@ -243,7 +243,6 @@ class ServingRuntime(RemoteRuntime):
         :param stream_args:  stream initialization parameters, e.g. shards, retention_in_hours, ..
         """
         self.spec.track_models = True
-
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:

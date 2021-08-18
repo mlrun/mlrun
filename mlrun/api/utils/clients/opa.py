@@ -160,7 +160,6 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        logger.error("In query_global_resource_permissions. ", dict=self.__dict__, dir=dir(self))
         return self.query_resource_permissions(
             resource_type,
             project_name="",

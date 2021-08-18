@@ -427,9 +427,13 @@ def get_feature_vector(
         auth_verifier.auth_info,
     )
     tag, uid = parse_reference(reference)
-    return mlrun.api.crud.FeatureStore().get_feature_vector(
+    feature_vector = mlrun.api.crud.FeatureStore().get_feature_vector(
         db_session, project, name, tag, uid
     )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector.dict()
+    )
+    return feature_vector
 
 
 @router.get(
@@ -471,6 +475,10 @@ def list_feature_vectors(
         ),
         auth_verifier.auth_info,
     )
+    for feature_vector in feature_vectors:
+        _verify_feature_vector_features_permissions(
+            auth_verifier.auth_info, project, feature_vector.dict()
+        )
     return mlrun.api.schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
 
 

@@ -30,7 +30,11 @@ def create_source(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.create)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.create,
+        auth_verifier.auth_info,
+    )
 
     get_db().create_marketplace_source(db_session, source)
     # Handle credentials if they exist
@@ -45,7 +49,11 @@ def list_sources(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
 
     return get_db().list_marketplace_sources(db_session)
 
@@ -58,7 +66,11 @@ def delete_source(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.delete)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
 
     get_db().delete_marketplace_source(db_session, source_name)
     Marketplace().remove_source(source_name)
@@ -72,7 +84,11 @@ def get_source(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
 
     return get_db().get_marketplace_source(db_session, source_name)
 
@@ -86,7 +102,11 @@ def store_source(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.store)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.store,
+        auth_verifier.auth_info,
+    )
 
     get_db().store_marketplace_source(db_session, source_name, source)
     # Handle credentials if they exist
@@ -107,7 +127,11 @@ def get_catalog(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
 
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return Marketplace().get_source_catalog(
@@ -129,7 +153,11 @@ def get_item(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
 
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return Marketplace().get_item(
@@ -144,7 +172,11 @@ def get_object(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
-    _verify_action_allowed(auth_verifier, AuthorizationAction.read)
+    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
 
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
     object_data = Marketplace().get_item_object_using_source_credentials(
@@ -158,14 +190,3 @@ def get_object(
     if not ctype:
         ctype = "application/octet-stream"
     return Response(content=object_data, media_type=ctype)
-
-
-def _verify_action_allowed(auth_verifier: AuthVerifierDep, action: AuthorizationAction):
-    # We don't pass a project or resource name, since marketplace permissions are global for now.
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
-        "",
-        "",
-        action,
-        auth_verifier.auth_info,
-    )

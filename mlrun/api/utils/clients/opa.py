@@ -153,6 +153,22 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             )
         return allowed
 
+    def query_global_resource_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True
+    ):
+        return self.query_resource_permissions(
+            resource_type,
+            project_name="",
+            resource_name="",
+            action=action,
+            auth_info=auth_info,
+            raise_on_forbidden=raise_on_forbidden,
+        )
+
     def _check_allowed_project_owners_cache(
         self, resource: str, auth_info: mlrun.api.schemas.AuthInfo
     ):

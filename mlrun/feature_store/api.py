@@ -289,7 +289,6 @@ def ingest(
                 source.start_time = min_time
                 time_zone = min_time.tzinfo
                 source.end_time = datetime.now(tz=time_zone)
-                mlrun_context.logger.debug()
                 filter_time_string = (
                     f"Source.start_time for the job is{str(source.start_time)}. "
                     f"Source.end_time is {str(source.end_time)}"

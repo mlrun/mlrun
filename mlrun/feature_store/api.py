@@ -119,6 +119,8 @@ def get_offline_features(
     """
     feature_vector = _features_to_vector(feature_vector)
 
+    feature_vector.verify_feature_vector_permissions(mlrun.api.schemas.AuthorizationAction.update)
+
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
@@ -167,6 +169,8 @@ def get_online_feature_service(
     :param run_config:        function and/or run configuration for remote jobs/services
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
+    feature_vector.verify_feature_vector_permissions(mlrun.api.schemas.AuthorizationAction.read)
+
     feature_vector = _features_to_vector(feature_vector)
     graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
     service = OnlineVectorService(feature_vector, graph, index_columns)
@@ -250,6 +254,7 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
+    featureset.verify_feature_set_permissions(mlrun.api.schemas.AuthorizationAction.update)
 
     if run_config:
         # remote job execution
@@ -307,6 +312,8 @@ def ingest(
         purge_target_names = [
             t if isinstance(t, str) else t.name for t in purge_targets
         ]
+        featureset.verify_feature_set_permissions(mlrun.api.schemas.AuthorizationAction.delete)
+
         featureset.purge_targets(target_names=purge_target_names, silent=True)
     else:
         for target in purge_targets:
@@ -407,6 +414,8 @@ def preview(
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
+
+    featureset.verify_feature_set_permissions(mlrun.api.schemas.AuthorizationAction.update)
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

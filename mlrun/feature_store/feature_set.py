@@ -412,6 +412,22 @@ class FeatureSet(ModelObj):
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
+    def verify_feature_set_permissions(self, action: mlrun.api.schemas.AuthorizationAction):
+        project_name = self._metadata.project or mlconf.default_project
+        auth_info = mlrun.api.schemas.AuthInfo()
+
+        fs_project_name = [project_name, self.metadata.name]
+        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+            fs_project_name,
+            lambda feature_set_project_name_tuple: (
+                fs_project_name[0],
+                fs_project_name[1],
+            ),
+            action,
+            auth_info,
+        )
+
     def add_aggregation(
         self,
         name,

@@ -123,12 +123,11 @@ def test_patch_project(
     _assert_project_in_follower(projects_follower, project)
 
     patched_description = "new description"
-    # project exists - store will update
     patched_project, _ = projects_follower.patch_project(
         None, project.metadata.name, {"spec": {"description": patched_description}}
     )
     expected_patched_project = _generate_project(description=patched_description)
-    expected_patched_project.status.state = mlrun.api.schemas.ProjectState.online.value
+    expected_patched_project.status.state = mlrun.api.schemas.ProjectState.online
     _assert_projects_equal(expected_patched_project, patched_project)
     _assert_project_in_follower(projects_follower, expected_patched_project)
 
@@ -169,6 +168,23 @@ def test_get_project(
     # this functions uses get_project to assert, second assert will verify we're raising not found error
     _assert_project_in_follower(projects_follower, project)
     _assert_project_not_in_follower(projects_follower, "name-doesnt-exist")
+
+
+def test_get_project_owner(
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+):
+    owner = "some-username"
+    owner_session = "some-session"
+    nop_leader.project_owner_session = owner_session
+    project = _generate_project(owner=owner)
+    projects_follower.create_project(
+        None, project,
+    )
+    project_owner = projects_follower.get_project_owner(None, project.metadata.name)
+    assert project_owner.username == owner
+    assert project_owner.session == owner_session
 
 
 def test_list_project(
@@ -212,6 +228,13 @@ def test_list_project(
         projects_follower,
         [archived_project, archived_and_labeled_project],
         state=mlrun.api.schemas.ProjectState.archived,
+    )
+
+    # list specific names only
+    _assert_list_projects(
+        projects_follower,
+        [archived_project, labeled_project],
+        names=[archived_project.metadata.name, labeled_project.metadata.name],
     )
 
     # list labeled - key existence
@@ -334,11 +357,12 @@ def _generate_project(
     desired_state=mlrun.api.schemas.ProjectDesiredState.online,
     state=mlrun.api.schemas.ProjectState.online,
     labels: typing.Optional[dict] = None,
+    owner="some-owner",
 ):
     return mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name, labels=labels),
         spec=mlrun.api.schemas.ProjectSpec(
-            description=description, desired_state=desired_state,
+            description=description, desired_state=desired_state, owner=owner,
         ),
         status=mlrun.api.schemas.ProjectStatus(state=state,),
     )

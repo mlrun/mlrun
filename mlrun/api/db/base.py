@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from mlrun.api import schemas
 
@@ -220,6 +220,7 @@ class DBInterface(ABC):
         format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
+        names: Optional[List[str]] = None,
     ) -> schemas.ProjectsOutput:
         pass
 
@@ -403,3 +404,24 @@ class DBInterface(ABC):
 
     def list_artifact_tags(self, session, project):
         return []
+
+    def create_marketplace_source(
+        self, session, ordered_source: schemas.IndexedMarketplaceSource
+    ):
+        pass
+
+    def store_marketplace_source(
+        self, session, name, ordered_source: schemas.IndexedMarketplaceSource
+    ):
+        pass
+
+    def list_marketplace_sources(
+        self, session
+    ) -> List[schemas.IndexedMarketplaceSource]:
+        pass
+
+    def delete_marketplace_source(self, session, name):
+        pass
+
+    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+        pass

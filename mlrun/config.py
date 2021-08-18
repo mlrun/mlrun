@@ -22,6 +22,7 @@ mapped to config.httpdb.port. Values should be in JSON format.
 """
 
 import base64
+import binascii
 import copy
 import json
 import os
@@ -34,7 +35,7 @@ from threading import Lock
 import yaml
 
 env_prefix = "MLRUN_"
-env_file_key = f"{env_prefix}CONIFG_FILE"
+env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
 
@@ -151,6 +152,8 @@ default_config = {
             # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
             # it to None. the default for coalesce it True just adding it here to be explicit
             "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
+            # one of enabled, disabled, auto (in which it will be determined by whether the authorization mode is opa)
+            "schedule_credentials_secrets_store_mode": "auto",
         },
         "projects": {
             "leader": "mlrun",
@@ -164,7 +167,7 @@ default_config = {
             # from leader because of some auth restriction, we will probably go back to it at some point since it's
             # better performance wise, so made it a mode
             # one of: cache, none
-            "follower_projects_store_mode": "none",
+            "follower_projects_store_mode": "cache",
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -227,6 +230,28 @@ default_config = {
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
+    },
+    "marketplace": {
+        "k8s_secrets_project_name": "-marketplace-secrets",
+        "catalog_filename": "catalog.json",
+        "default_source": {
+            # Set to false to avoid creating a global source (for example in a dark site)
+            "create": True,
+            "name": "mlrun_global_hub",
+            "description": "MLRun global function hub",
+            "url": "https://raw.githubusercontent.com/mlrun/marketplace",
+            "channel": "master",
+        },
+    },
+    "storage": {
+        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
+        # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
+        # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
+        "auto_mount_type": "auto",
+        # Extra parameters to pass to the mount call (will be passed as kwargs). Parameters can be either:
+        # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
+        # 2. A base-64 encoded json dictionary containing the list of parameters
+        "auto_mount_params": "",
     },
 }
 
@@ -301,6 +326,29 @@ class Config:
             )
 
         return default_function_node_selector
+
+    @staticmethod
+    def get_storage_auto_mount_params():
+        auto_mount_params = {}
+        if config.storage.auto_mount_params:
+            try:
+                auto_mount_params = base64.b64decode(
+                    config.storage.auto_mount_params, validate=True
+                ).decode()
+                auto_mount_params = json.loads(auto_mount_params)
+            except binascii.Error:
+                # Importing here to avoid circular dependencies
+                from .utils import list2dict
+
+                # String wasn't base64 encoded. Parse it using a 'p1=v1,p2=v2' format.
+                mount_params = config.storage.auto_mount_params.split(",")
+                auto_mount_params = list2dict(mount_params)
+        if not isinstance(auto_mount_params, dict):
+            raise TypeError(
+                f"data in storage.auto_mount_params does not resolve to a dictionary: {auto_mount_params}"
+            )
+
+        return auto_mount_params
 
     def to_dict(self):
         return copy.copy(self._cfg)

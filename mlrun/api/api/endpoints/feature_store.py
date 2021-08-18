@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.clients.opa
+import mlrun.api.utils.singletons.project_member
 import mlrun.feature_store
 from mlrun import v3io_cred
 from mlrun.api import schemas
@@ -24,11 +25,21 @@ def create_feature_set(
     project: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_verifier.auth_info
+    )
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        project,
+        feature_set.metadata.name,
+        mlrun.api.schemas.AuthorizationAction.create,
+        auth_verifier.auth_info,
+    )
     feature_set_uid = mlrun.api.crud.FeatureStore().create_feature_set(
-        db_session, project, feature_set, versioned, auth_verifier.auth_info,
+        db_session, project, feature_set, versioned,
     )
 
     return mlrun.api.crud.FeatureStore().get_feature_set(
@@ -37,7 +48,6 @@ def create_feature_set(
         feature_set.metadata.name,
         feature_set.metadata.tag or "latest",
         feature_set_uid,
-        auth_verifier.auth_info,
     )
 
 
@@ -51,27 +61,25 @@ def store_feature_set(
     reference: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    tag, uid = parse_reference(reference)
-    uid = mlrun.api.crud.FeatureStore().store_feature_set(
-        db_session,
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_verifier.auth_info
+    )
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
-        feature_set,
-        tag,
-        uid,
-        versioned,
+        mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
     )
+    tag, uid = parse_reference(reference)
+    uid = mlrun.api.crud.FeatureStore().store_feature_set(
+        db_session, project, name, feature_set, tag, uid, versioned,
+    )
     return mlrun.api.crud.FeatureStore().get_feature_set(
-        db_session,
-        project,
-        feature_set.metadata.name,
-        tag,
-        uid,
-        auth_verifier.auth_info,
+        db_session, project, feature_set.metadata.name, tag, uid,
     )
 
 
@@ -84,19 +92,19 @@ def patch_feature_set(
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    tag, uid = parse_reference(reference)
-    mlrun.api.crud.FeatureStore().patch_feature_set(
-        db_session,
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
-        feature_set_update,
-        tag,
-        uid,
-        patch_mode,
+        mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
+    )
+    tag, uid = parse_reference(reference)
+    mlrun.api.crud.FeatureStore().patch_feature_set(
+        db_session, project, name, feature_set_update, tag, uid, patch_mode,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -109,12 +117,19 @@ def get_feature_set(
     project: str,
     name: str,
     reference: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     tag, uid = parse_reference(reference)
     feature_set = mlrun.api.crud.FeatureStore().get_feature_set(
-        db_session, project, name, tag, uid, auth_verifier.auth_info,
+        db_session, project, name, tag, uid
     )
     return feature_set
 
@@ -125,14 +140,21 @@ def delete_feature_set(
     project: str,
     name: str,
     reference: str = None,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
     tag = uid = None
     if reference:
         tag, uid = parse_reference(reference)
     mlrun.api.crud.FeatureStore().delete_feature_set(
-        db_session, project, name, tag, uid, auth_verifier.auth_info
+        db_session, project, name, tag, uid
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -154,7 +176,7 @@ def list_feature_sets(
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
     sort: schemas.SortField = Query(None, alias="partition-sort-by"),
     order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_sets = mlrun.api.crud.FeatureStore().list_feature_sets(
@@ -170,10 +192,14 @@ def list_feature_sets(
         rows_per_partition,
         sort,
         order,
+    )
+    feature_sets = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        feature_sets.feature_sets,
+        lambda feature_set: (feature_set.metadata.project, feature_set.metadata.name,),
         auth_verifier.auth_info,
     )
-
-    return feature_sets
+    return mlrun.api.schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
 
 def _has_v3io_path(data_source, data_targets, feature_set):
@@ -214,28 +240,51 @@ def ingest_feature_set(
         schemas.FeatureSetIngestInput
     ] = schemas.FeatureSetIngestInput(),
     username: str = Header(None, alias="x-remote-user"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
-    tag, uid = parse_reference(reference)
-    feature_set_record = mlrun.api.crud.FeatureStore().get_feature_set(
-        db_session, project, name, tag, uid, auth_verifier.auth_info
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        project,
+        "",
+        mlrun.api.schemas.AuthorizationAction.create,
+        auth_verifier.auth_info,
     )
-
-    feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
-    # Need to override the default rundb since we're in the server.
-    feature_set._override_run_db(db_session, auth_verifier.auth_info)
-
     data_source = data_targets = None
     if ingest_parameters.source:
         data_source = DataSource.from_dict(ingest_parameters.source.dict())
+    if data_source.schedule:
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            project,
+            "",
+            mlrun.api.schemas.AuthorizationAction.create,
+            auth_verifier.auth_info,
+        )
+    tag, uid = parse_reference(reference)
+    feature_set_record = mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session, project, name, tag, uid
+    )
+    feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
+    if feature_set.spec.function:
+        function = feature_set.spec.function.function_object
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.function,
+            function.metadata.project,
+            function.metadata.name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
+        )
+    # Need to override the default rundb since we're in the server.
+    feature_set._override_run_db(db_session)
+
     if ingest_parameters.targets:
         data_targets = [
             DataTargetBase.from_dict(data_target.dict())
@@ -281,13 +330,22 @@ def list_features(
     tag: str = None,
     entities: List[str] = Query(None, alias="entity"),
     labels: List[str] = Query(None, alias="label"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     features = mlrun.api.crud.FeatureStore().list_features(
-        db_session, project, name, tag, entities, labels, auth_verifier.auth_info
+        db_session, project, name, tag, entities, labels
     )
-    return features
+    features = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature,
+        features.features,
+        lambda feature_list_output: (
+            feature_list_output.feature.name,
+            feature_list_output.feature_set_digest.metadata.project,
+        ),
+        auth_verifier.auth_info,
+    )
+    return mlrun.api.schemas.FeaturesOutput(features=features)
 
 
 @router.get("/projects/{project}/entities", response_model=schemas.EntitiesOutput)
@@ -296,13 +354,22 @@ def list_entities(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query(None, alias="label"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    features = mlrun.api.crud.FeatureStore().list_entities(
-        db_session, project, name, tag, labels, auth_verifier.auth_info
+    entities = mlrun.api.crud.FeatureStore().list_entities(
+        db_session, project, name, tag, labels
     )
-    return features
+    entities = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.entity,
+        entities.entities,
+        lambda entity_list_output: (
+            entity_list_output.entity.name,
+            entity_list_output.feature_set_digest.metadata.project,
+        ),
+        auth_verifier.auth_info,
+    )
+    return mlrun.api.schemas.EntitiesOutput(entities=entities)
 
 
 @router.post(
@@ -312,11 +379,24 @@ def create_feature_vector(
     project: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_verifier.auth_info
+    )
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
+        project,
+        feature_vector.metadata.name,
+        mlrun.api.schemas.AuthorizationAction.create,
+        auth_verifier.auth_info,
+    )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector.dict()
+    )
     feature_vector_uid = mlrun.api.crud.FeatureStore().create_feature_vector(
-        db_session, project, feature_vector, versioned, auth_verifier.auth_info
+        db_session, project, feature_vector, versioned,
     )
 
     return mlrun.api.crud.FeatureStore().get_feature_vector(
@@ -325,7 +405,6 @@ def create_feature_vector(
         feature_vector.metadata.name,
         feature_vector.metadata.tag or "latest",
         feature_vector_uid,
-        auth_verifier.auth_info,
     )
 
 
@@ -337,13 +416,24 @@ def get_feature_vector(
     project: str,
     name: str,
     reference: str,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    tag, uid = parse_reference(reference)
-    return mlrun.api.crud.FeatureStore().get_feature_vector(
-        db_session, project, name, tag, uid, auth_verifier.auth_info
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
     )
+    tag, uid = parse_reference(reference)
+    feature_vector = mlrun.api.crud.FeatureStore().get_feature_vector(
+        db_session, project, name, tag, uid
+    )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector.dict()
+    )
+    return feature_vector
 
 
 @router.get(
@@ -361,7 +451,7 @@ def list_feature_vectors(
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
     sort: schemas.SortField = Query(None, alias="partition-sort-by"),
     order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_vectors = mlrun.api.crud.FeatureStore().list_feature_vectors(
@@ -375,10 +465,21 @@ def list_feature_vectors(
         rows_per_partition,
         sort,
         order,
+    )
+    feature_vectors = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
+        feature_vectors.feature_vectors,
+        lambda feature_vector: (
+            feature_vector.metadata.project,
+            feature_vector.metadata.name,
+        ),
         auth_verifier.auth_info,
     )
-
-    return feature_vectors
+    for feature_vector in feature_vectors:
+        _verify_feature_vector_features_permissions(
+            auth_verifier.auth_info, project, feature_vector.dict()
+        )
+    return mlrun.api.schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
 
 
 @router.put(
@@ -391,23 +492,29 @@ def store_feature_vector(
     reference: str,
     feature_vector: schemas.FeatureVector,
     versioned: bool = True,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    tag, uid = parse_reference(reference)
-    uid = mlrun.api.crud.FeatureStore().store_feature_vector(
-        db_session,
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_verifier.auth_info
+    )
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
-        feature_vector,
-        tag,
-        uid,
-        versioned,
+        mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
+    )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector.dict()
+    )
+    tag, uid = parse_reference(reference)
+    uid = mlrun.api.crud.FeatureStore().store_feature_vector(
+        db_session, project, name, feature_vector, tag, uid, versioned,
     )
 
     return mlrun.api.crud.FeatureStore().get_feature_vector(
-        db_session, project, name, tag, uid, auth_verifier.auth_info,
+        db_session, project, name, tag, uid
     )
 
 
@@ -415,24 +522,27 @@ def store_feature_vector(
 def patch_feature_vector(
     project: str,
     name: str,
-    feature_vector_update: dict,
+    feature_vector_patch: dict,
     reference: str,
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    tag, uid = parse_reference(reference)
-    mlrun.api.crud.FeatureStore().patch_feature_vector(
-        db_session,
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
-        feature_vector_update,
-        tag,
-        uid,
-        patch_mode,
+        mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
+    )
+    _verify_feature_vector_features_permissions(
+        auth_verifier.auth_info, project, feature_vector_patch
+    )
+    tag, uid = parse_reference(reference)
+    mlrun.api.crud.FeatureStore().patch_feature_vector(
+        db_session, project, name, feature_vector_patch, tag, uid, patch_mode,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -443,13 +553,51 @@ def delete_feature_vector(
     project: str,
     name: str,
     reference: str = None,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
     tag = uid = None
     if reference:
         tag, uid = parse_reference(reference)
     mlrun.api.crud.FeatureStore().delete_feature_vector(
-        db_session, project, name, tag, uid, auth_verifier.auth_info
+        db_session, project, name, tag, uid
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
+def _verify_feature_vector_features_permissions(
+    auth_info: mlrun.api.schemas.AuthInfo, project: str, feature_vector: dict
+):
+    features = []
+    if feature_vector.get("spec", {}).get("features"):
+        features.extend(feature_vector["spec"]["features"])
+    if feature_vector.get("spec", {}).get("label_feature"):
+        features.append(feature_vector["spec"]["label_feature"])
+    feature_set_project_to_name_set_map = {}
+    for feature in features:
+        feature_set_uri, _, _ = mlrun.feature_store.common.parse_feature_string(feature)
+        _project, name, _, _ = mlrun.feature_store.common.parse_feature_set_uri(
+            feature_set_uri, project
+        )
+        feature_set_project_to_name_set_map.setdefault(_project, set()).add(name)
+    feature_set_project_name_tuples = []
+    for _project, names in feature_set_project_to_name_set_map.items():
+        for name in names:
+            feature_set_project_name_tuples.append((_project, name))
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        feature_set_project_name_tuples,
+        lambda feature_set_project_name_tuple: (
+            feature_set_project_name_tuple[0],
+            feature_set_project_name_tuple[1],
+        ),
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )

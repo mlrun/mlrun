@@ -15,6 +15,7 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
+from .client_spec import ClientSpec
 from .constants import (
     DeletionStrategy,
     FeatureStorePartitionByField,
@@ -46,6 +47,15 @@ from .feature_store import (
 )
 from .frontend_spec import FeatureFlags, FrontendSpec, ProjectMembershipFeatureFlag
 from .function import FunctionState
+from .marketplace import (
+    IndexedMarketplaceSource,
+    MarketplaceCatalog,
+    MarketplaceItem,
+    MarketplaceObjectMetadata,
+    MarketplaceSource,
+    MarketplaceSourceSpec,
+    last_source_index,
+)
 from .model_endpoints import (
     Features,
     FeatureValues,
@@ -69,6 +79,7 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOwner,
     ProjectsFormat,
     ProjectsOutput,
     ProjectSpec,
@@ -77,8 +88,12 @@ from .project import (
     ProjectSummary,
 )
 from .runtime_resource import (
-    GroupedRuntimeResourcesOutput,
+    GroupedByJobRuntimeResourcesOutput,
+    GroupedByProjectRuntimeResourcesOutput,
+    KindRuntimeResources,
     ListRuntimeResourcesGroupByField,
+    RuntimeResource,
+    RuntimeResources,
     RuntimeResourcesOutput,
 )
 from .schedule import (

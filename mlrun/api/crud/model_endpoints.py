@@ -45,13 +45,6 @@ class ModelEndpoints:
         :param access_key: V3IO access key for managing user permissions
         :param model_endpoint: An object representing a model endpoint
         """
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-            model_endpoint.metadata.project,
-            model_endpoint.metadata.uid,
-            mlrun.api.schemas.AuthorizationAction.store,
-            auth_info,
-        )
 
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
             logger.info(
@@ -67,7 +60,7 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            run_db = mlrun.api.api.utils.get_run_db_instance(db_session, auth_info)
+            run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
             model_obj: ModelArtifact = (
                 mlrun.datastore.store_resources.get_store_resource(
                     model_endpoint.spec.model_uri, db=run_db
@@ -146,13 +139,6 @@ class ModelEndpoints:
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
         """
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-            project,
-            endpoint_id,
-            mlrun.api.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
         access_key = get_access_key(auth_info)
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
@@ -248,13 +234,6 @@ class ModelEndpoints:
                 end=end,
             )
             endpoint_list.endpoints.append(endpoint)
-        allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-            endpoint_list.endpoints,
-            lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
-            auth_info,
-        )
-        endpoint_list.endpoints = allowed_endpoints
         return endpoint_list
 
     @staticmethod
@@ -279,13 +258,6 @@ class ModelEndpoints:
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
         the output of the resulting object
         """
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-            project,
-            endpoint_id,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
         access_key = get_access_key(auth_info)
         logger.info(
             "Getting model endpoint record from kv", endpoint_id=endpoint_id,

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
+import mlrun.api.utils.clients.opa
 from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError
@@ -20,14 +21,21 @@ def create_or_patch(
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
     """
     Either create or updates the kv record of a given ModelEndpoint object
     """
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_verifier.auth_info,
+    )
     access_key = get_access_key(auth_verifier.auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
@@ -54,13 +62,20 @@ def create_or_patch(
 def delete_endpoint_record(
     project: str,
     endpoint_id: str,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> Response:
     """
     Clears endpoint record from KV by endpoint_id
     """
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_verifier.auth_info,
+    )
     ModelEndpoints.delete_endpoint_record(auth_verifier.auth_info, project, endpoint_id)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -74,8 +89,8 @@ def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpointList:
     """
@@ -102,6 +117,13 @@ def list_endpoints(
         start=start,
         end=end,
     )
+    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        endpoints.endpoints,
+        lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
+        auth_verifier.auth_info,
+    )
+    endpoints.endpoints = allowed_endpoints
     return endpoints
 
 
@@ -115,10 +137,17 @@ def get_endpoint(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpoint:
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
     endpoint = ModelEndpoints.get_endpoint(
         auth_info=auth_verifier.auth_info,
         project=project,

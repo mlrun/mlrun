@@ -32,7 +32,8 @@ from .platforms import (
     mount_v3io_legacy,
     v3io_cred,
 )
-from .projects import ProjectMetadata, load_project, new_project
+from .projects import ProjectMetadata, get_or_create_project, load_project, new_project
+from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
     code_to_function,
     function_to_module,
@@ -107,10 +108,7 @@ def set_environment(
     if access_key:
         environ["V3IO_ACCESS_KEY"] = access_key
 
-    if project and user_project:
-        user = environ.get("V3IO_USERNAME") or getpass.getuser()
-        project = f"{project}-{user}"
-
+    project = _add_username_to_project_name_if_needed(project, user_project)
     if project:
         ProjectMetadata.validate_project_name(project)
 

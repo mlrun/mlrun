@@ -99,6 +99,7 @@ class RuntimeKinds(object):
     mpijob = "mpijob"
     serving = "serving"
     local = "local"
+    handler = "handler"
 
     @staticmethod
     def all():
@@ -139,6 +140,13 @@ class RuntimeKinds(object):
             RuntimeKinds.remote,
             RuntimeKinds.nuclio,
             RuntimeKinds.serving,
+        ]
+
+    @staticmethod
+    def local_runtimes():
+        return [
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
         ]
 
 

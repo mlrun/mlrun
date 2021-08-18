@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -160,6 +160,7 @@ class FileDB(DBInterface):
         format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
+        names: Optional[List[str]] = None,
     ) -> schemas.ProjectsOutput:
         return self._transform_run_db_error(
             self.db.list_projects, owner, format_, labels, state

@@ -44,12 +44,22 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             RuntimeKinds.job, expected_pods=pods
         )
 
-    def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
+    def test_list_resources_grouped_by(self, db: Session, client: TestClient):
+        for group_by in [
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        ]:
+            pods = self._mock_list_resources_pods()
+            self._assert_runtime_handler_list_resources(
+                RuntimeKinds.job, expected_pods=pods, group_by=group_by,
+            )
+
+    def test_list_resources_grouped_by_project(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.job,
             expected_pods=pods,
-            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
         )
 
     def test_delete_resources_completed_pod(self, db: Session, client: TestClient):

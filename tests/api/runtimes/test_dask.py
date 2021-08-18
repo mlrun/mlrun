@@ -123,7 +123,9 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
         )
-        self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key
+        )
         self._assert_scheduler_pod_args()
 
     def test_dask_runtime_with_resources(self, db: Session, client: TestClient):
@@ -158,7 +160,9 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
         )
-        self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key
+        )
         self._assert_pods_resources(
             expected_requests,
             expected_worker_limits,

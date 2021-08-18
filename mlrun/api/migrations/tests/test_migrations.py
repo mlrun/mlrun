@@ -1,6 +1,8 @@
+import copy
 import logging
 
 import pytest
+import pytest_alembic.plugin.fixtures
 from sqlalchemy.orm import sessionmaker
 
 from mlrun.api.db.sqldb.models import Schedule
@@ -22,36 +24,41 @@ class Constants:
     schedule_concurrency_limit_project = "schedule-concurrency-limit-project"
 
 
-@pytest.fixture
-def alembic_config():
-    return {
-        "before_revision_data": {
-            Constants.schedule_id_revision: [
-                {
-                    "__tablename__": Constants.schedule_table,
-                    "project": Constants.schedule_id_project,
-                    "name": name,
-                }
-                for name in ["test-schedule1", "test-schedule2"]
-            ],
-            Constants.last_run_uri_revision: [
-                {
-                    "__tablename__": Constants.schedule_table,
-                    "project": Constants.last_run_uri_project,
-                    "name": name,
-                }
-                for name in ["test-schedule3", "test-schedule4"]
-            ],
-            Constants.schedule_concurrency_limit_revision: [
-                {
-                    "__tablename__": Constants.schedule_table,
-                    "project": Constants.schedule_concurrency_limit_project,
-                    "name": name,
-                }
-                for name in ["test-schedule5", "test-schedule6"]
-            ],
-        },
-    }
+alembic_config = {
+    "before_revision_data": {
+        Constants.schedule_id_revision: [
+            {
+                "__tablename__": Constants.schedule_table,
+                "project": Constants.schedule_id_project,
+                "name": name,
+            }
+            for name in ["test-schedule1", "test-schedule2"]
+        ],
+        Constants.last_run_uri_revision: [
+            {
+                "__tablename__": Constants.schedule_table,
+                "project": Constants.last_run_uri_project,
+                "name": name,
+            }
+            for name in ["test-schedule3", "test-schedule4"]
+        ],
+        Constants.schedule_concurrency_limit_revision: [
+            {
+                "__tablename__": Constants.schedule_table,
+                "project": Constants.schedule_concurrency_limit_project,
+                "name": name,
+            }
+            for name in ["test-schedule5", "test-schedule6"]
+        ],
+    },
+}
+
+
+# alembic modifies the original config for some reason, so in order to
+# access it during the tests we need to supply alembic with a copy.
+alembic_runner = pytest_alembic.plugin.fixtures.create_alembic_fixture(
+    raw_config=copy.deepcopy(alembic_config)
+)
 
 
 @pytest.fixture
@@ -63,7 +70,7 @@ def alembic_session(alembic_engine):
 
 
 @pytest.mark.alembic
-def test_schedule_id_column(alembic_runner, alembic_session, alembic_config):
+def test_schedule_id_column(alembic_runner, alembic_session):
     alembic_runner.migrate_up_to(Constants.schedule_id_revision)
 
     revision_data = alembic_config["before_revision_data"][
@@ -81,7 +88,7 @@ def test_schedule_id_column(alembic_runner, alembic_session, alembic_config):
 
 
 @pytest.mark.alembic
-def test_schedule_last_run_uri_column(alembic_runner, alembic_session, alembic_config):
+def test_schedule_last_run_uri_column(alembic_runner, alembic_session):
     alembic_runner.migrate_up_to(Constants.last_run_uri_revision)
 
     revision_data = alembic_config["before_revision_data"][
@@ -99,9 +106,7 @@ def test_schedule_last_run_uri_column(alembic_runner, alembic_session, alembic_c
 
 
 @pytest.mark.alembic
-def test_schedule_concurrency_limit_column(
-    alembic_runner, alembic_session, alembic_config
-):
+def test_schedule_concurrency_limit_column(alembic_runner, alembic_session):
     alembic_runner.migrate_up_to(Constants.schedule_concurrency_limit_revision)
 
     revision_data = alembic_config["before_revision_data"][

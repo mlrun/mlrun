@@ -6,15 +6,13 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
-from mlrun.runtimes.constants import MPIJobCRDVersions, PodPhases, RunStates
+from mlrun.runtimes.constants import PodPhases, RunStates
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
-        config.mpijob_crd_version = MPIJobCRDVersions.v1
         self.runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
         self.runtime_handler.wait_for_deletion_interval = 0
 
@@ -95,14 +93,20 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
-        mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
-        pods = self._mock_list_resources_pods()
-        self._assert_runtime_handler_list_resources(
-            RuntimeKinds.mpijob,
-            expected_crds=mocked_responses[0]["items"],
-            expected_pods=pods,
-            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
-        )
+        for group_by in [
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        ]:
+            mocked_responses = self._mock_list_namespaced_crds(
+                [[self.succeeded_crd_dict]]
+            )
+            pods = self._mock_list_resources_pods()
+            self._assert_runtime_handler_list_resources(
+                RuntimeKinds.mpijob,
+                expected_crds=mocked_responses[0]["items"],
+                expected_pods=pods,
+                group_by=group_by,
+            )
 
     def test_delete_resources_succeeded_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [

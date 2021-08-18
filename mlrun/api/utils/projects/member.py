@@ -113,5 +113,12 @@ class Member(abc.ABC):
         state: mlrun.api.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
+        pass
+
+    @abc.abstractmethod
+    def get_project_owner(
+        self, db_session: sqlalchemy.orm.Session, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
         pass

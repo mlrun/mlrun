@@ -1,8 +1,10 @@
 import os
+import pathlib
 import random
 import string
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from time import sleep
 
 import fsspec
 import pandas as pd
@@ -13,8 +15,14 @@ from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
+import tests.conftest
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource, DataFrameSource, ParquetSource
+from mlrun.datastore.sources import (
+    CSVSource,
+    DataFrameSource,
+    ParquetSource,
+    StreamSource,
+)
 from mlrun.datastore.targets import (
     CSVTarget,
     NoSqlTarget,
@@ -25,6 +33,7 @@ from mlrun.datastore.targets import (
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
+from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
@@ -915,6 +924,171 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
+    def test_ingest_pandas_engine(self):
+        data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
+
+        data.set_index(["name"], inplace=True)
+        fset = fs.FeatureSet("pandass", entities=[fs.Entity("name")], engine="pandas")
+        fs.ingest(featureset=fset, source=data)
+
+        features = ["pandass.*"]
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"name": "ab"}])
+        assert resp[0] == {"data": 10}
+
+        svc.close()
+
+    @pytest.mark.parametrize("partitioned", [True, False])
+    def test_schedule_on_filtered_by_time(self, partitioned):
+        name = f"sched-time-{str(partitioned)}"
+
+        now = datetime.now() + timedelta(minutes=2)
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
+
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource(
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name, entities=[fs.Entity("first_name")], timestamp_key="time",
+        )
+
+        if partitioned:
+            targets = [
+                NoSqlTarget(),
+                ParquetTarget(
+                    name="tar1",
+                    path="v3io:///bigdata/fs1/",
+                    partitioned=True,
+                    partition_cols=["time"],
+                ),
+            ]
+        else:
+            targets = [
+                ParquetTarget(
+                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                ),
+                NoSqlTarget(),
+            ]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=targets,
+        )
+        sleep(60)
+
+        features = [f"{name}.*"]
+        vec = fs.FeatureVector("sched_test-vec", features)
+
+        svc = fs.get_online_feature_service(vec)
+
+        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 2000
+
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 12:00:00"),
+                    pd.Timestamp("2021-01-10 13:00:00"),
+                    now + pd.Timedelta(minutes=10),
+                    pd.Timestamp("2021-01-09 13:00:00"),
+                ],
+                "first_name": ["moshe", "dina", "katya", "uri"],
+                "data": [50, 10, 25, 30],
+            }
+        )
+        # writing down a remote source
+        fs.ingest(data_set, data, targets=[target2])
+
+        sleep(60)
+        resp = svc.get(
+            [
+                {"first_name": "yosi"},
+                {"first_name": "moshe"},
+                {"first_name": "katya"},
+                {"first_name": "dina"},
+                {"first_name": "uri"},
+            ]
+        )
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 50
+        assert resp[2] is None
+        assert resp[3]["data"] == 10
+        assert resp[4] is None
+
+        svc.close()
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 4)
+        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    @pytest.mark.parametrize(
+        "fixed_window_type",
+        [FixedWindowType.CurrentOpenWindow, FixedWindowType.LastClosedWindow],
+    )
+    def test_query_on_fixed_window(self, fixed_window_type):
+        current_time = pd.Timestamp.now()
+        data = pd.DataFrame(
+            {
+                "time": [
+                    current_time,
+                    current_time - pd.Timedelta(hours=current_time.hour + 2),
+                ],
+                "first_name": ["moshe", "moshe"],
+                "last_name": ["cohen", "cohen"],
+                "bid": [2000, 100],
+            },
+        )
+        name = f"measurements_{uuid.uuid4()}"
+
+        # write to kv
+        data_set = fs.FeatureSet(
+            name, timestamp_key="time", entities=[Entity("first_name")]
+        )
+
+        data_set.add_aggregation(
+            name="bids", column="bid", operations=["sum", "max"], windows="24h",
+        )
+
+        fs.ingest(data_set, data, return_df=True)
+
+        features = [f"{name}.bids_sum_24h", f"{name}.last_name"]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector, fixed_window_type=fixed_window_type)
+
+        resp = svc.get([{"first_name": "moshe"}])
+        if fixed_window_type == FixedWindowType.CurrentOpenWindow:
+            expected = {"bids_sum_24h": 2000.0, "last_name": "cohen"}
+        else:
+            expected = {"bids_sum_24h": 100.0, "last_name": "cohen"}
+        assert resp[0] == expected
+        svc.close()
+
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])
 
@@ -1354,6 +1528,52 @@ class TestFeatureStore(TestMLRunSystem):
             check_like=True,
             check_names=True,
         )
+
+    def test_stream_source(self):
+        # create feature set, ingest sample data and deploy nuclio function with stream source
+        myset = FeatureSet("fset2", entities=[Entity("ticker")])
+        fs.ingest(myset, quotes)
+        source = StreamSource(key_field="ticker", time_field="time")
+        filename = str(
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "api"
+            / "runtimes"
+            / "assets"
+            / "sample_function.py"
+        )
+
+        function = mlrun.code_to_function(
+            "ingest_transactions", kind="serving", filename=filename
+        )
+        function.spec.default_content_type = "application/json"
+        run_config = fs.RunConfig(function=function, local=False).apply(
+            mlrun.mount_v3io()
+        )
+        fs.deploy_ingestion_service(
+            featureset=myset, source=source, run_config=run_config
+        )
+        # push records to stream
+        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/fset2/v3ioStream"
+        events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
+        client = mlrun.platforms.V3ioStreamClient(stream_path, seek_to="EARLIEST")
+        events_pusher.push(
+            {
+                "ticker": "AAPL",
+                "time": "2021-08-15T10:58:37.415101",
+                "bid": 300,
+                "ask": 100,
+            }
+        )
+        # verify new records in stream
+        resp = client.get_records()
+        assert len(resp) != 0
+        # read from online service updated data
+        vector = fs.FeatureVector("my-vec", ["fset2.*"])
+        svc = fs.get_online_feature_service(vector)
+        sleep(5)
+        resp = svc.get([{"ticker": "AAPL"}])
+        svc.close()
+        assert resp[0]["bid"] == 300
 
 
 def verify_purge(fset, targets):

@@ -105,7 +105,7 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
         clone_git(source, target_dir, secrets, clone)
     else:
         if path.exists(source) and path.isdir(source):
-            if workdir:
+            if workdir and workdir != source:
                 raise ValueError("cannot specify both source and workdir")
             return path.realpath(source)
         raise ValueError(f"unsupported source format/path {source}")

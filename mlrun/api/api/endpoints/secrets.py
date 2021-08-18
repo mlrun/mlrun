@@ -17,11 +17,11 @@ router = fastapi.APIRouter()
 def store_project_secrets(
     project: str,
     secrets: schemas.SecretsData,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         secrets.provider,
@@ -38,11 +38,11 @@ def delete_project_secrets(
     project: str,
     provider: schemas.SecretProviderName,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
@@ -59,11 +59,11 @@ def list_secret_keys(
     project: str,
     provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
@@ -79,11 +79,11 @@ def list_secrets(
     secrets: List[str] = fastapi.Query(None, alias="secret"),
     provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,

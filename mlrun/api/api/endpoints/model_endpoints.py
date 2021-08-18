@@ -21,15 +21,15 @@ def create_or_patch(
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
     """
     Either create or updates the kv record of a given ModelEndpoint object
     """
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -62,14 +62,14 @@ def create_or_patch(
 def delete_endpoint_record(
     project: str,
     endpoint_id: str,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> Response:
     """
     Clears endpoint record from KV by endpoint_id
     """
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -89,8 +89,8 @@ def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpointList:
     """
@@ -117,7 +117,7 @@ def list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
@@ -137,11 +137,11 @@ def get_endpoint(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpoint:
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import time
+import typing
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -314,5 +315,5 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class in (build, job)"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["build", "job"]

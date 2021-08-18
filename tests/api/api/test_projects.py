@@ -374,12 +374,16 @@ def test_projects_crud(
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
-    for index, project in enumerate(projects_output.projects):
-        _assert_project(
-            expected[index],
-            project,
-            extra_exclude={"spec": {"description", "desired_state"}},
-        )
+    for project in projects_output.projects:
+        for _project in expected:
+            if _project.metadata.name == project.metadata.name:
+                _assert_project(
+                    _project,
+                    project,
+                    extra_exclude={"spec": {"description", "desired_state"}},
+                )
+            expected.remove(_project)
+            break
 
     # patch project 1 to have the labels as well
     labels_1 = copy.deepcopy(labels_2)
@@ -753,7 +757,12 @@ def _list_project_names_and_assert(
     params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
     response = client.get("/api/projects", params=params,)
-    assert expected_names == response.json()["projects"]
+    assert (
+        deepdiff.DeepDiff(
+            expected_names, response.json()["projects"], ignore_order=True,
+        )
+        == {}
+    )
 
 
 def _assert_project_response(

@@ -48,7 +48,15 @@ def test_grafana_proxy_model_endpoints_check_connection(
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     mlrun.api.utils.clients.iguazio.Client().verify_request_session = unittest.mock.Mock(
-        return_value=(None, "some-session", None, [], ["data"])
+        return_value=(
+            mlrun.api.schemas.AuthInfo(
+                username=None,
+                session="some-session",
+                data_session="some-session",
+                user_id=None,
+                user_group_ids=[],
+            )
+        )
     )
     response = client.get(url="/api/grafana-proxy/model-endpoints",)
     assert response.status_code == 200

@@ -25,7 +25,7 @@ async def store_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -35,7 +35,7 @@ async def store_run(
         auth_info=auth_verifier.auth_info,
     )
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -62,11 +62,11 @@ async def update_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -80,13 +80,7 @@ async def update_run(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     await run_in_threadpool(
-        mlrun.api.crud.Runs().update_run,
-        db_session,
-        project,
-        uid,
-        iter,
-        data,
-        auth_verifier.auth_info,
+        mlrun.api.crud.Runs().update_run, db_session, project, uid, iter, data,
     )
     return {}
 
@@ -97,10 +91,10 @@ def get_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -119,10 +113,10 @@ def delete_run(
     project: str,
     uid: str,
     iter: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -150,7 +144,7 @@ def list_runs(
     start_time_to: str = None,
     last_update_time_from: str = None,
     last_update_time_to: str = None,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     runs = mlrun.api.crud.Runs().list_runs(
@@ -168,7 +162,7 @@ def list_runs(
         last_update_time_from=datetime_from_iso(last_update_time_from),
         last_update_time_to=datetime_from_iso(last_update_time_to),
     )
-    filtered_runs = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    filtered_runs = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         runs,
         lambda run: (
@@ -190,7 +184,7 @@ def delete_runs(
     labels: List[str] = Query([], alias="label"),
     state: str = None,
     days_ago: int = 0,
-    auth_verifier: deps.AuthVerifier = Depends(deps.AuthVerifier),
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
     start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
@@ -204,7 +198,7 @@ def delete_runs(
         state=state,
         start_time_from=start_time_from,
     )
-    mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         runs,
         lambda run: (

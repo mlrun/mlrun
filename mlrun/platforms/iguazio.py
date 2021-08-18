@@ -301,12 +301,16 @@ def v3io_cred(api="", user="", access_key=""):
         web_api = api or environ.get("V3IO_API") or mlconf.v3io_api
         _user = user or environ.get("V3IO_USERNAME")
         _access_key = access_key or environ.get("V3IO_ACCESS_KEY")
+        v3io_framesd = mlconf.v3io_framesd or environ.get("V3IO_FRAMESD")
 
         return (
             task.add_env_variable(k8s_client.V1EnvVar(name="V3IO_API", value=web_api))
             .add_env_variable(k8s_client.V1EnvVar(name="V3IO_USERNAME", value=_user))
             .add_env_variable(
                 k8s_client.V1EnvVar(name="V3IO_ACCESS_KEY", value=_access_key)
+            )
+            .add_env_variable(
+                k8s_client.V1EnvVar(name="V3IO_FRAMESD", value=v3io_framesd)
             )
         )
 
@@ -505,7 +509,11 @@ def add_or_refresh_credentials(
 
     username = username or os.environ.get("V3IO_USERNAME")
     password = password or os.environ.get("V3IO_PASSWORD")
-    token = token or os.environ.get("V3IO_ACCESS_KEY")
+    token = (
+        token
+        or os.environ.get("MLRUN_AUTH_SESSION")
+        or os.environ.get("V3IO_ACCESS_KEY")
+    )
 
     # When it's not iguazio endpoint it's one of two options:
     # Enterprise, but we're in the cluster (and not from remote), e.g. url will be something like http://mlrun-api:8080

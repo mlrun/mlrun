@@ -18,6 +18,7 @@ import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
+from datetime import datetime
 from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -854,11 +855,21 @@ class RunObject(RunTemplate):
 
 
 class EntrypointParam(ModelObj):
-    def __init__(self, name="", type=None, default=None, doc=""):
+    def __init__(
+        self,
+        name="",
+        type=None,
+        default=None,
+        doc="",
+        required=None,
+        choices: list = None,
+    ):
         self.name = name
         self.type = type
         self.default = default
         self.doc = doc
+        self.required = required
+        self.choices = choices
 
 
 class FunctionEntrypoint(ModelObj):
@@ -995,6 +1006,8 @@ class DataSource(ModelObj):
         "online",
         "workers",
         "max_age",
+        "start_time",
+        "end_time",
     ]
     kind = None
 
@@ -1006,13 +1019,18 @@ class DataSource(ModelObj):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
     ):
+
         self.name = name
-        self.path = str(path)
+        self.path = str(path) if path is not None else None
         self.attributes = attributes
         self.schedule = schedule
         self.key_field = key_field
         self.time_field = time_field
+        self.start_time = start_time
+        self.end_time = end_time
 
         self.online = None
         self.max_age = None
@@ -1075,6 +1093,7 @@ class DataTargetBase(ModelObj):
         self.path = path
         self.after_step = after_step
         self.attributes = attributes or {}
+        self.last_written = None
         self.partitioned = partitioned
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
@@ -1106,6 +1125,7 @@ class DataTarget(DataTargetBase):
         "status",
         "updated",
         "size",
+        "last_written",
     ]
 
     def __init__(
@@ -1118,6 +1138,7 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
+        self.last_written = None
         self._producer = None
         self.producer = {}
 

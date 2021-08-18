@@ -17,6 +17,30 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
+class JobStates:
+    completed = "completed"
+    failed = "failed"
+    canceled = "canceled"
+    in_progress = "in_progress"
+
+    @staticmethod
+    def all():
+        return [
+            JobStates.completed,
+            JobStates.failed,
+            JobStates.canceled,
+            JobStates.in_progress,
+        ]
+
+    @staticmethod
+    def terminal_states():
+        return [
+            JobStates.completed,
+            JobStates.failed,
+            JobStates.canceled,
+        ]
+
+
 class Client(
     mlrun.api.utils.projects.remotes.leader.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
@@ -38,7 +62,12 @@ class Client(
         If nothing found, returns None
         """
         logger.debug("Getting grafana service url from Iguazio")
-        response = self._send_request_to_api("GET", "app_services_manifests", session)
+        response = self._send_request_to_api(
+            "GET",
+            "app_services_manifests",
+            "Failed getting app services manifests from Iguazio",
+            session,
+        )
         response_body = response.json()
         for app_services_manifest in response_body.get("data", []):
             for app_service in app_services_manifest.get("attributes", {}).get(
@@ -60,33 +89,29 @@ class Client(
 
     def verify_request_session(
         self, request: fastapi.Request
-    ) -> typing.Tuple[
-        str, str, typing.Optional[str], typing.List[str], typing.List[str]
-    ]:
+    ) -> mlrun.api.schemas.AuthInfo:
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
         response = self._send_request_to_api(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            "Failed verifying iguazio session",
             headers={
                 "authorization": request.headers.get("authorization"),
                 "cookie": request.headers.get("cookie"),
             },
         )
-        gids = response.headers.get("x-user-group-ids")
-        if gids:
-            gids = gids.split(",")
-        planes = response.headers.get("x-v3io-session-planes")
-        if planes:
-            planes = planes.split(",")
-        return (
-            response.headers["x-remote-user"],
-            response.headers["x-v3io-session-key"],
-            response.headers.get("x-user-id"),
-            gids or [],
-            planes or [],
+        return self._generate_auth_info_from_session_verification_response(response)
+
+    def verify_session(self, session: str) -> mlrun.api.schemas.AuthInfo:
+        response = self._send_request_to_api(
+            "POST",
+            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            "Failed verifying iguazio session",
+            session,
         )
+        return self._generate_auth_info_from_session_verification_response(response)
 
     def create_project(
         self,
@@ -138,7 +163,12 @@ class Client(
         }
         try:
             response = self._send_request_to_api(
-                "DELETE", "projects", session, headers=headers, json=body
+                "DELETE",
+                "projects",
+                "Failed deleting project in Iguazio",
+                session,
+                headers=headers,
+                json=body,
             )
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
@@ -152,7 +182,9 @@ class Client(
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]
-                self._wait_for_job_completion(session, job_id)
+                self._wait_for_job_completion(
+                    session, job_id, "Project deletion job failed"
+                )
                 return False
             return True
 
@@ -168,7 +200,13 @@ class Client(
 
         # TODO: Remove me when zebo returns owner
         params["include"] = "owner"
-        response = self._send_request_to_api("GET", "projects", session, params=params)
+        response = self._send_request_to_api(
+            "GET",
+            "projects",
+            "Failed listing projects from Iguazio",
+            session,
+            params=params,
+        )
         response_body = response.json()
         projects = []
         for iguazio_project in response_body["data"]:
@@ -180,6 +218,18 @@ class Client(
 
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
+
+    def get_project_owner(
+        self, session: str, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        response = self._get_project_from_iguazio_without_parsing(
+            session, name, include_owner_session=True
+        )
+        iguazio_project = response.json()["data"]
+        return mlrun.api.schemas.ProjectOwner(
+            username=iguazio_project["attributes"]["owner_username"],
+            session=iguazio_project["attributes"]["owner_access_key"],
+        )
 
     def format_as_leader_project(
         self, project: mlrun.api.schemas.Project
@@ -205,7 +255,9 @@ class Client(
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         project, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
-            self._wait_for_job_completion(session, job_id)
+            self._wait_for_job_completion(
+                session, job_id, "Project creation job failed"
+            )
             return (
                 self._get_project_from_iguazio(session, project.metadata.name),
                 False,
@@ -215,7 +267,9 @@ class Client(
     def _post_project_to_iguazio(
         self, session: str, body: dict
     ) -> typing.Tuple[mlrun.api.schemas.Project, str]:
-        response = self._send_request_to_api("POST", "projects", session, json=body)
+        response = self._send_request_to_api(
+            "POST", "projects", "Failed creating project in Iguazio", session, json=body
+        )
         response_body = response.json()
         return (
             self._transform_iguazio_project_to_mlrun_project(response_body["data"]),
@@ -226,36 +280,70 @@ class Client(
         self, session: str, name: str, body: dict
     ) -> mlrun.api.schemas.Project:
         response = self._send_request_to_api(
-            "PUT", f"projects/__name__/{name}", session, json=body
+            "PUT",
+            f"projects/__name__/{name}",
+            "Failed updating project in Iguazio",
+            session,
+            json=body,
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _get_project_from_iguazio(
-        self, session: str, name
-    ) -> mlrun.api.schemas.Project:
+    def _get_project_from_iguazio_without_parsing(
+        self, session: str, name: str, include_owner_session: bool = False
+    ):
         # TODO: Remove me when zebo returns owner
         params = {"include": "owner"}
-        response = self._send_request_to_api(
-            "GET", f"projects/__name__/{name}", session, params=params
+        if include_owner_session:
+            params["enrich_owner_access_key"] = "true"
+        return self._send_request_to_api(
+            "GET",
+            f"projects/__name__/{name}",
+            "Failed getting project from Iguazio",
+            session,
+            params=params,
         )
+
+    def _get_project_from_iguazio(
+        self, session: str, name: str, include_owner_session: bool = False
+    ) -> mlrun.api.schemas.Project:
+        response = self._get_project_from_iguazio_without_parsing(session, name)
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _wait_for_job_completion(self, session: str, job_id: str):
+    def _wait_for_job_completion(self, session: str, job_id: str, error_message: str):
         def _verify_job_in_terminal_state():
-            response = self._send_request_to_api("GET", f"jobs/{job_id}", session)
-            job_state = response.json()["data"]["attributes"]["state"]
-            if job_state not in ["canceled", "failed", "completed"]:
-                raise Exception(f"Job in progress. State: {job_state}")
+            response = self._send_request_to_api(
+                "GET", f"jobs/{job_id}", "Failed getting job from Iguazio", session
+            )
+            response_body = response.json()
+            _job_state = response_body["data"]["attributes"]["state"]
+            if _job_state not in JobStates.terminal_states():
+                raise Exception(f"Job in progress. State: {_job_state}")
+            return _job_state, response_body["data"]["attributes"]["result"]
 
-        mlrun.utils.helpers.retry_until_successful(
+        job_state, job_result = mlrun.utils.helpers.retry_until_successful(
             self._wait_for_job_completion_retry_interval,
             360,
             logger,
             False,
             _verify_job_in_terminal_state,
         )
+        if job_state != JobStates.completed:
+            status_code = None
+            try:
+                parsed_result = json.loads(job_result)
+                error_message = f"{error_message} {parsed_result['message']}"
+                # status is optional
+                if "status" in parsed_result:
+                    status_code = int(parsed_result["status"])
+            except Exception:
+                pass
+            if not status_code:
+                raise mlrun.errors.MLRunRuntimeError(error_message)
+            raise mlrun.errors.raise_for_status_code(status_code, error_message)
 
-    def _send_request_to_api(self, method, path, session=None, **kwargs):
+    def _send_request_to_api(
+        self, method, path, error_message: str, session=None, **kwargs
+    ):
         url = f"{self._api_url}/api/{path}"
         # support session being already a cookie
         session_cookie = session
@@ -296,10 +384,32 @@ class Client(
                 except Exception:
                     pass
                 else:
+                    error_message = f"{error_message}: {str(errors)}"
                     log_kwargs.update({"ctx": ctx, "errors": errors})
             logger.warning("Request to iguazio failed", **log_kwargs)
-            mlrun.errors.raise_for_status(response)
+            mlrun.errors.raise_for_status(response, error_message)
         return response
+
+    @staticmethod
+    def _generate_auth_info_from_session_verification_response(
+        response: requests.Response,
+    ) -> mlrun.api.schemas.AuthInfo:
+        gids = response.headers.get("x-user-group-ids")
+        if gids:
+            gids = gids.split(",")
+        planes = response.headers.get("x-v3io-session-planes")
+        if planes:
+            planes = planes.split(",")
+        planes = planes or []
+        auth_info = mlrun.api.schemas.AuthInfo(
+            username=response.headers["x-remote-user"],
+            session=response.headers["x-v3io-session-key"],
+            user_id=response.headers.get("x-user-id"),
+            user_group_ids=gids or [],
+        )
+        if "data" in planes:
+            auth_info.data_session = auth_info.session
+        return auth_info
 
     @staticmethod
     def _transform_mlrun_project_to_iguazio_project(

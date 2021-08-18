@@ -13,6 +13,7 @@
 # limitations under the License.
 import collections
 from copy import copy
+from enum import Enum
 from typing import List
 
 import pandas as pd
@@ -407,3 +408,22 @@ class OfflineVectorResponse:
         """return results as csv file"""
         size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
         return size
+
+
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
+            )

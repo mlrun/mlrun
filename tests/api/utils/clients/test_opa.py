@@ -26,8 +26,15 @@ async def permission_query_path() -> str:
 
 
 @pytest.fixture()
+async def permission_filter_path() -> str:
+    permission_filter_path = "/v1/data/service/authz/filter_allowed"
+    mlrun.mlconf.httpdb.authorization.opa.permission_filter_path = permission_filter_path
+    return permission_filter_path
+
+
+@pytest.fixture()
 async def opa_client(
-    api_url: str, permission_query_path: str,
+    api_url: str, permission_query_path: str, permission_filter_path: str,
 ) -> mlrun.api.utils.clients.opa.Client:
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
@@ -68,6 +75,64 @@ def test_query_permissions_success(
     )
     allowed = opa_client.query_permissions(resource, action, auth_info)
     assert allowed is True
+
+
+def test_filter_by_permission(
+        api_url: str,
+        permission_filter_path: str,
+        opa_client: mlrun.api.utils.clients.opa.Client,
+        requests_mock: requests_mock_package.Mocker,
+):
+    resources = [
+        {
+            "resource_id": 1,
+            "opa_resource": "/some-resource",
+            "allowed": True
+        },
+        {
+            "resource_id": 2,
+            "opa_resource": "/two-objects-same-opa-resource",
+            "allowed": True
+        },
+        {
+            "resource_id": 3,
+            "opa_resource": "/two-objects-same-opa-resource",
+            "allowed": True
+        },
+        {
+            "resource_id": 4,
+            "opa_resource": "/not-allowed-resource",
+            "allowed": False
+        },
+    ]
+    expected_allowed_resources = [resource for resource in resources if resource["allowed"]]
+    allowed_opa_resources = [resource["opa_resource"] for resource in expected_allowed_resources]
+    action = mlrun.api.schemas.AuthorizationAction.create
+    auth_info = mlrun.api.schemas.AuthInfo(
+        user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
+    )
+
+    def mock_filter_query_success(request, context):
+        opa_resources = [resource["opa_resource"] for resource in resources]
+        assert (
+                deepdiff.DeepDiff(
+                    opa_client._generate_filter_request_body(
+                        opa_resources, action.value, auth_info
+                    ),
+                    request.json(),
+                    ignore_order=True,
+                )
+                == {}
+        )
+        context.status_code = http.HTTPStatus.OK.value
+        return {"result": allowed_opa_resources}
+
+    requests_mock.post(
+        f"{api_url}{permission_filter_path}", json=mock_filter_query_success
+    )
+    allowed_resources = opa_client.filter_by_permissions(resources, lambda resource: resource["opa_resource"], action,
+                                                         auth_info)
+    assert deepdiff.DeepDiff(expected_allowed_resources, allowed_resources, ignore_order=True,) == {}
 
 
 def test_query_permissions_failure(

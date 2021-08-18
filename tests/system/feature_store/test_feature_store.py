@@ -496,10 +496,10 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector, entity_timestamp_column="timestamp")
         resp2 = resp2.to_dataframe().to_dict()
 
-        resp1.pop("timestamp")
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
@@ -542,9 +542,8 @@ class TestFeatureStore(TestMLRunSystem):
         resp2 = resp.to_dataframe()
         assert len(resp2) == 10
         result_columns = list(resp2.columns)
-        orig_columns.remove("timestamp")
         orig_columns.remove("patient_id")
-        assert result_columns == orig_columns
+        assert result_columns.sort() == orig_columns.sort()
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -574,7 +573,7 @@ class TestFeatureStore(TestMLRunSystem):
         vector = fs.FeatureVector("myvector", features)
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {"mykey1": "hello"}}
+        assert resp2.to_dict() == {"my_string": {0: "hello"}}
 
         measurements = fs.FeatureSet(
             name, entities=[Entity(key)], timestamp_key="my_time"
@@ -600,7 +599,7 @@ class TestFeatureStore(TestMLRunSystem):
         vector = fs.FeatureVector("myvector", features)
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {"mykey1": "hello", "mykey2": None}}
+        assert resp2.to_dict() == {"my_string": {0: "hello", 1: None}}
 
     def test_ordered_pandas_asof_merge(self):
         targets = [ParquetTarget(), NoSqlTarget()]
@@ -1148,6 +1147,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["fvec-parquet-fset.*"]
         fvec = fs.FeatureVector("fvec-parquet", features=features)
+        fvec.spec.with_indexes = True
 
         target = ParquetTarget()
         off1 = fs.get_offline_features(fvec, target=target)
@@ -1216,6 +1216,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["override-false.*"]
         fvec = fs.FeatureVector("override-false-vec", features=features)
+        fvec.spec.with_indexes = True
 
         off1 = fs.get_offline_features(fvec).to_dataframe()
         assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
@@ -1333,10 +1334,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["rWQTKqbhje.*"]
         vector = fs.FeatureVector("WPAyrYux", features)
-        vector.spec.with_indexes = False
+        vector.spec.with_indexes = True
         resp = fs.get_offline_features(vector)
         off_df = resp.to_dataframe()
-        del orig_df["time_stamp"]
         if None in list(orig_df.index.names):
             orig_df.set_index(["temdojgz", "bikyseca", "nkxuonfx"], inplace=True)
         orig_df = orig_df.sort_values(

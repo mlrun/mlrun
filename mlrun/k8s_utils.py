@@ -17,7 +17,6 @@ from datetime import datetime
 from sys import stdout
 
 from kubernetes import client, config
-from kubernetes.client import V1PriorityClassList
 from kubernetes.client.rest import ApiException
 
 import mlrun.errors

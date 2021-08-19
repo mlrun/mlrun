@@ -1014,7 +1014,7 @@ class HTTPRunDB(RunDBInterface):
             image that already has MLRun in it.
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
-        :param builder_env:   Kaniko builder pod env vars (for config/credentials)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         """
 
         try:

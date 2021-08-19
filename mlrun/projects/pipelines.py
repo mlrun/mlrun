@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import builtins
 import importlib.util as imputil
 import os
 from tempfile import mktemp
@@ -185,7 +186,11 @@ def enrich_function_object(
     f.metadata.project = project.metadata.name
     setattr(f, "_enriched", True)
     src = f.spec.build.source
-    if project.spec.source and src and src in [".", "./"]:
+    if src and src in [".", "./"]:
+
+        if not project.spec.source:
+            raise ValueError("project source must be specified when cloning context to a function")
+
         if project.spec.mountdir:
             f.spec.workdir = project.spec.mountdir
             f.spec.build.source = ""
@@ -247,8 +252,9 @@ class _PipelineRunner(abc.ABC):
     def run(
         cls,
         project,
-        name,
         workflow_spec: WorkflowSpec,
+        name,
+        workflow_handler=None,
         secrets=None,
         artifact_path=None,
         namespace=None,
@@ -289,18 +295,22 @@ class _KFPRunner(_PipelineRunner):
         project,
         workflow_spec: WorkflowSpec,
         name=None,
+        workflow_handler=None,
         secrets=None,
         artifact_path=None,
         namespace=None,
     ) -> _PipelineRunStatus:
-        workflow_file = workflow_spec.get_source_file(project.spec.context)
         functions = FunctionsDict(project)
         pipeline_context.set(project, functions, workflow_spec)
-        kfpipeline = create_pipeline(project, workflow_file, functions, secrets)
+        if not workflow_handler or not callable(workflow_handler):
+            workflow_file = workflow_spec.get_source_file(project.spec.context)
+            workflow_handler = create_pipeline(project, workflow_file, functions, secrets, handler=workflow_handler)
+        else:
+            builtins.funcs = functions
 
         namespace = namespace or config.namespace
         id = run_pipeline(
-            kfpipeline,
+            workflow_handler,
             project=project.metadata.name,
             arguments=workflow_spec.args,
             experiment=name or workflow_spec.name,

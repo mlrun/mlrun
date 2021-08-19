@@ -1517,6 +1517,7 @@ class MlrunProject(ModelObj):
         workflow_path=None,
         arguments=None,
         artifact_path=None,
+        workflow_handler=None,
         namespace=None,
         sync=False,
         watch=False,
@@ -1534,6 +1535,8 @@ class MlrunProject(ModelObj):
         :param artifact_path:
                           target path/url for workflow artifacts, the string
                           '{{workflow.uid}}' will be replaced by workflow id
+        :param workflow_handler:
+                          workflow function handler (for running workflow function directly)
         :param namespace: kubernetes namespace if other than default
         :param sync:      force functions sync before run
         :param watch:     wait for pipeline completion
@@ -1560,13 +1563,13 @@ class MlrunProject(ModelObj):
         if not self.spec._function_objects:
             raise ValueError("no functions in the project")
 
-        if not name and not workflow_path:
+        if not name and not workflow_path and not workflow_handler:
             if self.spec.workflows:
                 name = list(self.spec._workflows.keys())[0]
             else:
                 raise ValueError("workflow name or path must be specified")
 
-        if workflow_path:
+        if workflow_path or workflow_handler:
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
             workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
@@ -1580,6 +1583,7 @@ class MlrunProject(ModelObj):
             self,
             workflow_spec,
             name,
+            workflow_handler=workflow_handler,
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
@@ -1938,9 +1942,6 @@ def _init_function_from_dict(f, project):
     image = f.get("image", None)
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
-
-    if with_repo and not project.spec.source:
-        raise ValueError("project source must be specified when cloning context")
 
     in_context = False
     if not url and "spec" not in f:

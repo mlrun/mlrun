@@ -116,7 +116,7 @@ class KubejobRuntime(KubeResource):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
-        builder_env=None,
+        builder_env: dict = None,
     ):
         """deploy function, build container with dependencies
 
@@ -124,7 +124,8 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param skip_deployed: skip the build if we already have an image for the function
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars (for config/credentials)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
         """
 
         build = self.spec.build

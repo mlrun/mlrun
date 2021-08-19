@@ -71,7 +71,6 @@ def list_pipelines(
     )
 
 
-# curl -d@/path/to/pipe.yaml http://localhost:8080/submit_pipeline
 @router.post("/submit_pipeline")
 @router.post("/submit_pipeline/")
 # TODO: remove when 0.6.6 is no longer relevant
@@ -190,7 +189,6 @@ def _try_resolve_project_from_body(
     )
 
 
-# curl http://localhost:8080/pipelines/:id
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
 # TODO: remove when 0.6.6 is no longer relevant

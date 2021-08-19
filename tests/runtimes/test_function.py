@@ -82,5 +82,5 @@ class TestAutoMountNuclio(TestAutoMount):
         )
         return runtime
 
-    def _execute_run(self, runtime):
-        runtime.deploy(project=self.project)
+    def _execute_run(self, runtime, disable_auto_mount=False):
+        runtime.deploy(project=self.project, disable_auto_mount=disable_auto_mount)

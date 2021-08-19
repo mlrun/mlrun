@@ -34,13 +34,13 @@ To assign MLRun jobs and Nuclio functions to specific nodes you use the Kubernet
 
 ```{admonition} Note
 By default Iguazio uses the key:value pair 
-<br/>
-`app.iguazio.com/lifecycle = preemptible`
-<br/>
+<br>
+```app.iguazio.com/lifecycle = preemptible```
+<br>
 or
-<br/>
-`app.iguazio.com/lifecycle = non-preemptible`
-<br/>
+<br>
+```app.iguazio.com/lifecycle = non-preemptible```
+<br>
 to determine spot or on demand nodes.
 ```
 
@@ -59,18 +59,28 @@ However, when you use multiple labels a logical `and` is performed on the labels
 3. Press New Job, or select a job from the list of running jobs.
 4. Scroll to and open the Resources pane.
 5. In the **Node Selector** section, press **+**.
-    # <img src="../_static/images/ml_run-job_resources_node_selector.png" alt="node-selector" width="800"/>
-6. Enter a **key:value** pair. For example:
-
-# <img src="../_static/images/mlrun_jobs_key_non-preemtible.png" alt="non-preemtible" width="800"/>
-or
+   <br>
+   <br/>
+   <img src="../_static/images/ml_run-job_resources_node_selector.png" width="800"/>
+<br>
 <br/>
-# <img src="../_static/images/mlrun_jobs_key_preemtible.png" alt="preemtible" width="800"/>
-When complete press Run now or Schedule for later. 
+6. Enter a **key:value** pair. For example:
+   <br>
+   <br/>
+   <img src="../_static/images/mlrun_jobs_key_non-preemtible.png" width="800"/>
+   <br>
+   <br/>
+   or
+   <br>
+   <br/>
+   <img src="../_static/images/mlrun_jobs_key_preemtible.png" width="800"/>
+   <br>
+   <br/>
+   When complete press **Run now** or **Schedule for later**.  
 
 **Assign an MLRun job to a node using the SDK:**
 You can use node selection using the SDK by adding the key:value pairs in your Jupyter notebook. 
 For On demand use the following function:
-` func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': ' non-preemptible '})`
+```func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': ' non-preemptible '})```
 For Spot instances use the following function:
-` func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': ' preemptible '})` 
+```func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': ' preemptible '})``` 

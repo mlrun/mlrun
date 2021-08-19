@@ -16,7 +16,6 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/job.json http://localhost:8080/submit
 @router.post("/submit")
 @router.post("/submit/")
 @router.post("/submit_job")

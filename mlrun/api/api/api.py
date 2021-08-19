@@ -22,7 +22,6 @@ from mlrun.api.api.endpoints import (
     schedules,
     secrets,
     submit,
-    tags,
 )
 
 api_router = APIRouter()
@@ -67,9 +66,6 @@ api_router.include_router(
 )
 api_router.include_router(
     submit.router, tags=["submit"], dependencies=[Depends(deps.AuthVerifierDep)]
-)
-api_router.include_router(
-    tags.router, tags=["tags"], dependencies=[Depends(deps.AuthVerifierDep)]
 )
 api_router.include_router(
     feature_store.router,

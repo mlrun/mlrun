@@ -449,6 +449,7 @@ class RemoteRuntime(KubeResource):
         tag="",
         verbose=False,
         auth_info: AuthInfo = None,
+        disable_auto_mount=False,
     ):
         # todo: verify that the function name is normalized
 
@@ -462,8 +463,9 @@ class RemoteRuntime(KubeResource):
 
         save_record = False
         if not dashboard:
-            # Attempt auto-mounting, before sending to remote build
-            self.try_auto_mount_based_on_config()
+            if not disable_auto_mount:
+                # Attempt auto-mounting, before sending to remote build
+                self.try_auto_mount_based_on_config()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)

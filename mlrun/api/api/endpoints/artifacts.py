@@ -18,7 +18,6 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/artifact http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -65,7 +64,6 @@ async def store_artifact(
     return {}
 
 
-# curl http://localhost:8080/artifact/p1/tags
 @router.get("/projects/{project}/artifact-tags")
 def list_artifact_tags(
     project: str,
@@ -91,7 +89,6 @@ def list_artifact_tags(
     }
 
 
-# curl http://localhost:8080/projects/my-proj/artifact/key?tag=latest
 @router.get("/projects/{project}/artifact/{key:path}")
 def get_artifact(
     project: str,
@@ -114,7 +111,6 @@ def get_artifact(
     }
 
 
-# curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
 @router.delete("/artifact/{project}/{uid}")
 def delete_artifact(
     project: str,
@@ -135,7 +131,6 @@ def delete_artifact(
     return {}
 
 
-# curl http://localhost:8080/artifacts?project=p1?label=l1
 @router.get("/artifacts")
 def list_artifacts(
     project: str = config.default_project,
@@ -174,7 +169,6 @@ def list_artifacts(
     }
 
 
-# curl -X DELETE http://localhost:8080/artifacts?project=p1?label=l1
 @router.delete("/artifacts")
 def delete_artifacts(
     project: str = mlrun.mlconf.default_project,

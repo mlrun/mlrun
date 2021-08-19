@@ -118,16 +118,19 @@ class WorkflowSpec(mlrun.model.ModelObj):
 class FunctionsDict:
     """Virtual dictionary hosting the project functions, cached or in the DB"""
 
-    def __init__(self, project, decorator=None):
+    def __init__(self, project, decorator=None, disable_auto_mount=False):
         self.project = project
         self._decorator = decorator
+        self._disable_auto_mount = disable_auto_mount
 
     @property
     def _functions(self):
         return self.project.spec._function_objects
 
     def _enrich(self, function):
-        return enrich_function_object(self.project, function, self._decorator)
+        return enrich_function_object(
+            self.project, function, self._decorator, self._disable_auto_mount
+        )
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
@@ -177,7 +180,7 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None
+    project, function, decorator=None, disable_auto_mount=False
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
@@ -192,7 +195,8 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
-    f.try_auto_mount_based_on_config()
+    if not disable_auto_mount:
+        f.try_auto_mount_based_on_config()
     if decorator:
         decorator(f)
     return f
@@ -294,7 +298,12 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
     ) -> _PipelineRunStatus:
         workflow_file = workflow_spec.get_source_file(project.spec.context)
-        functions = FunctionsDict(project)
+        disable_auto_mount = (
+            workflow_spec.args.pop("disable_auto_mount", False)
+            if workflow_spec.args
+            else False
+        )
+        functions = FunctionsDict(project, disable_auto_mount=disable_auto_mount)
         pipeline_context.set(project, functions, workflow_spec)
         kfpipeline = create_pipeline(project, workflow_file, functions, secrets)
 

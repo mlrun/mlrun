@@ -274,6 +274,14 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
             )
+            config.default_function_priority_class = (
+                server_cfg.get("default_function_priority_class")
+                or config.default_function_priority_class
+            )
+            config.valid_function_priority_classes = (
+                server_cfg.get("valid_function_priority_classes")
+                or config.valid_function_priority_classes
+            )
             config.igz_version = server_cfg.get("igz_version") or config.igz_version
             config.storage.auto_mount_type = (
                 server_cfg.get("auto_mount_type") or config.storage.auto_mount_type

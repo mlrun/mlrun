@@ -130,6 +130,7 @@ class SparkJobSpec(KubeResourceSpec):
         hadoop_conf=None,
         node_selector=None,
         use_default_image=False,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -151,6 +152,7 @@ class SparkJobSpec(KubeResourceSpec):
             workdir=workdir,
             build=build,
             node_selector=node_selector,
+            priority_class_name=priority_class_name,
         )
 
         self.driver_resources = driver_resources or {}

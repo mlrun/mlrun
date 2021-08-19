@@ -2,6 +2,7 @@ import mlrun.api.schemas
 import mlrun.utils.singleton
 from mlrun.api.utils.clients import nuclio
 from mlrun.config import config, default_config
+from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 from mlrun.utils import logger
 
@@ -9,6 +10,7 @@ from mlrun.utils import logger
 class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
     def __init__(self):
         self._cached_nuclio_version = None
+        self._cached_valid_function_priority_classes = None
 
     def get_client_spec(self):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
@@ -26,6 +28,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
+            valid_function_priority_classes=self._resolve_valid_function_priority_classes(),
             # These have a default value, therefore we want to send them only if their value is not the default one
             # (otherwise clients don't know when to use server value and when to use client value)
             ui_projects_prefix=self._get_config_value_if_not_default(
@@ -42,6 +45,9 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             ),
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
+            ),
+            default_function_priority_class=self._get_config_value_if_not_default(
+                "default_function_priority_class"
             ),
         )
 
@@ -78,3 +84,22 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             self._cached_nuclio_version = nuclio_version
 
         return self._cached_nuclio_version
+
+    def _resolve_valid_function_priority_classes(self):
+        if not self._cached_valid_function_priority_classes:
+            k8s = get_k8s_helper(silent=True)
+            if not k8s.is_running_inside_kubernetes_cluster():
+                return []
+
+            available_priority_class_names = k8s.list_priority_class_names()
+            valid_function_priority_classes = []
+            if config.valid_function_priority_classes:
+                valid_function_priority_classes = config.valid_function_priority_classes.split(
+                    ","
+                )
+
+            self._cached_valid_function_priority_classes = set(
+                valid_function_priority_classes
+            ).intersection(set(available_priority_class_names))
+
+        return self._cached_valid_function_priority_classes

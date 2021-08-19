@@ -94,6 +94,8 @@ default_config = {
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
+    "default_function_priority_class": "",
+    "valid_function_priority_classes": "",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),

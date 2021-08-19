@@ -24,3 +24,5 @@ class ClientSpec(pydantic.BaseModel):
     igz_version: typing.Optional[str]
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Optional[str]
+    default_function_priority_class: typing.Optional[str]
+    valid_function_priority_classes: typing.List[str] = []

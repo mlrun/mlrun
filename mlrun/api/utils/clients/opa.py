@@ -203,13 +203,13 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             return resources
         body = self._generate_filter_request_body(opa_resources, action, auth_info)
         if self._log_level > 5:
-            logger.debug("Sending request to OPA", body=body)
+            logger.debug("Sending filter request to OPA", body=body)
         response = self._send_request_to_api(
             "POST", self._permission_filter_path, json=body
         )
         response_body = response.json()
         if self._log_level > 5:
-            logger.debug("Received response from OPA", body=response_body)
+            logger.debug("Received filter response from OPA", body=response_body)
         allowed_opa_resources = response_body["result"]
         allowed_resources = []
         for index, opa_resource in enumerate(opa_resources):

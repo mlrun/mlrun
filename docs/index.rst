@@ -67,6 +67,7 @@ Table Of Content
    ci-pipeline
    load-from-marketplace
    secrets
+   node-affinity
 
 .. toctree::
    :maxdepth: 1

@@ -13,17 +13,15 @@
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
 
-from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 import deepdiff
-import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import Artifact, Run, _tagged
+from mlrun.api.db.sqldb.models import Artifact
 from mlrun.lists import ArtifactList
 from tests.conftest import new_run
 

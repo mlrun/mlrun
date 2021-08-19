@@ -11,7 +11,6 @@ from mlrun.utils import logger
 router = fastapi.APIRouter()
 
 
-# curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @router.get("/files")
 def get_files(
     schema: str = "",
@@ -61,7 +60,6 @@ def get_files(
     )
 
 
-# curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
 @router.get("/filestat")
 def get_filestat(
     schema: str = "",

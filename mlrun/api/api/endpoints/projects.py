@@ -12,7 +12,6 @@ from mlrun.api.utils.singletons.project_member import get_project_member
 router = fastapi.APIRouter()
 
 
-# curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
 @router.post(
     "/projects",
     responses={
@@ -46,7 +45,6 @@ def create_project(
     return project
 
 
-# curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
 @router.put(
     "/projects/{name}",
     responses={
@@ -118,7 +116,6 @@ def patch_project(
     return project
 
 
-# curl http://localhost:8080/project/<name>
 @router.get("/projects/{name}", response_model=mlrun.api.schemas.Project)
 def get_project(
     name: str,
@@ -175,7 +172,6 @@ def delete_project(
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
-# curl http://localhost:8080/projects?full=true
 @router.get("/projects", response_model=mlrun.api.schemas.ProjectsOutput)
 def list_projects(
     format_: mlrun.api.schemas.ProjectsFormat = fastapi.Query(

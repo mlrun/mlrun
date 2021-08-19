@@ -10,7 +10,6 @@ import mlrun.api.utils.clients.opa
 router = fastapi.APIRouter()
 
 
-# curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @router.post("/log/{project}/{uid}")
 async def store_log(
     request: fastapi.Request,
@@ -36,7 +35,6 @@ async def store_log(
     return {}
 
 
-# curl http://localhost:8080/log/prj/7
 @router.get("/log/{project}/{uid}")
 def get_log(
     project: str,

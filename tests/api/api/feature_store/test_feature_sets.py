@@ -598,9 +598,10 @@ def test_entities_list(db: Session, client: TestClient) -> None:
 
     # set a new tag
     tag = "my-new-tag"
-    query = {"feature_sets": {"name": f"{name}_{idx}"}}
-    resp = client.post(f"/api/{project_name}/tag/{tag}", json=query)
-    assert resp.status_code == HTTPStatus.OK.value
+    feature_set["metadata"]["tag"] = tag
+    _store_and_assert_feature_set(
+        client, project_name, f"{name}_{idx}", tag, feature_set
+    )
     # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
     entities_response = _list_and_assert_objects(
         client, "entities", project_name, f"name=entity_{idx}", 2
@@ -639,9 +640,8 @@ def test_features_list(db: Session, client: TestClient) -> None:
 
     # set a new tag
     tag = "my-new-tag"
-    query = {"feature_sets": {"name": name}}
-    resp = client.post(f"/api/{project_name}/tag/{tag}", json=query)
-    assert resp.status_code == HTTPStatus.OK.value
+    feature_set["metadata"]["tag"] = tag
+    _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
     # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
     features_response = _list_and_assert_objects(
         client, "features", project_name, "name=feature3", 2

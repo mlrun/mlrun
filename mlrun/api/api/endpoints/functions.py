@@ -26,7 +26,6 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 router = APIRouter()
 
 
-# curl -d@/path/to/func.json http://localhost:8080/func/prj/7?tag=0.3.2
 @router.post("/func/{project}/{name}")
 async def store_function(
     request: Request,
@@ -72,7 +71,6 @@ async def store_function(
     }
 
 
-# curl http://localhost:8080/log/prj/7?tag=0.2.3
 @router.get("/func/{project}/{name}")
 def get_function(
     project: str,
@@ -117,7 +115,6 @@ def delete_function(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-# curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
 @router.get("/funcs")
 def list_functions(
     project: str = config.default_project,
@@ -144,7 +141,6 @@ def list_functions(
     }
 
 
-# curl -d@/path/to/job.json http://localhost:8080/build/function
 @router.post("/build/function")
 @router.post("/build/function/")
 async def build_function(
@@ -186,7 +182,6 @@ async def build_function(
     }
 
 
-# curl -d@/path/to/job.json http://localhost:8080/start/function
 @router.post("/start/function", response_model=mlrun.api.schemas.BackgroundTask)
 @router.post("/start/function/", response_model=mlrun.api.schemas.BackgroundTask)
 async def start_function(
@@ -226,7 +221,6 @@ async def start_function(
     return background_task
 
 
-# curl -d@/path/to/job.json http://localhost:8080/status/function
 @router.post("/status/function")
 @router.post("/status/function/")
 async def function_status(
@@ -245,7 +239,6 @@ async def function_status(
     }
 
 
-# curl -d@/path/to/job.json http://localhost:8080/build/status
 @router.get("/build/status")
 @router.get("/build/status/")
 def build_status(

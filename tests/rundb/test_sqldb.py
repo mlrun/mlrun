@@ -175,54 +175,6 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     )
 
 
-@pytest.mark.parametrize(
-    "cls", [tagged_model for tagged_model in _tagged if tagged_model != Run]
-)
-def test_tags(db: SQLDB, db_session: Session, cls):
-    p1, n1 = "prj1", "name1"
-    object_identifier = "name"
-    if cls == Artifact:
-        object_identifier = "key"
-    obj1, obj2, obj3 = cls(), cls(), cls()
-    for index, obj in enumerate([obj1, obj2, obj3]):
-        setattr(obj, object_identifier, f"obj-identifier-{index}")
-    db_session.add(obj1)
-    db_session.add(obj2)
-    db_session.add(obj3)
-    db_session.commit()
-
-    db.tag_objects(db_session, [obj1, obj2], p1, n1)
-    objs = db.find_tagged(db_session, p1, n1)
-    assert {obj1, obj2} == set(objs)
-
-    db.del_tag(db_session, p1, n1)
-    objs = db.find_tagged(db_session, p1, n1)
-    assert [] == objs
-
-
-def _tag_objs(db: SQLDB, db_session: Session, count, project, tags):
-    tagged = [tagged_model for tagged_model in _tagged if tagged_model != Run]
-    by_tag = defaultdict(list)
-    for idx in range(count):
-        cls = tagged[idx % len(tagged)]
-        obj = cls()
-        by_tag[tags[idx % len(tags)]].append(obj)
-        db_session.add(obj)
-    db_session.commit()
-    for tag, objs in by_tag.items():
-        db.tag_objects(db_session, objs, project, tag)
-
-
-def test_list_tags(db: SQLDB, db_session: Session):
-    p1, tags1 = "prj1", ["a", "b", "c"]
-    _tag_objs(db, db_session, 17, p1, tags1)
-    p2, tags2 = "prj2", ["b", "c", "d", "e"]
-    _tag_objs(db, db_session, 11, p2, tags2)
-
-    tags = db.list_tags(db_session, p1)
-    assert set(tags) == set(tags1), "tags"
-
-
 def test_projects_crud(db: SQLDB, db_session: Session):
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="p1"),

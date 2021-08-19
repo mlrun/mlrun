@@ -97,6 +97,8 @@ def train(
     :param context:                     The context to use for the logs.
 
     :return: The initialized trainer.
+
+    :raise ValueError: If 'auto_log' is set to True and one of the custom objects parameter given is None.
     """
     # Initialize the interface:
     interface = PyTorchMLRunInterface(model=model, context=context)

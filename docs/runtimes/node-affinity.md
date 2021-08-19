@@ -49,7 +49,7 @@ However, when you use multiple labels a logical `and` is performed on the labels
 
 ```{admonition} Note
 * Do not use node specific labels as this may result in eliminating all possible nodes.
-* When assigning MLRun jobs or nuclio functions to Spot instances it is the user’s responsibility 
+* When assigning MLRun jobs to Spot instances it is the user’s responsibility 
   to deal with preempting issues within the running application/function.
 ``` 
 

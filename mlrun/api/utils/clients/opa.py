@@ -28,6 +28,11 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
         )
         self._permission_filter_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_filter_path
+            # a little hack to make this work until the provisioners of mlrun start configuring the filter path
+            # TODO: remove me
+            or mlrun.mlconf.httpdb.authorization.opa.permission_query_path.replace(
+                "allow", "filter_allowed"
+            )
         )
         self._request_timeout = int(
             mlrun.mlconf.httpdb.authorization.opa.request_timeout

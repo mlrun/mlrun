@@ -86,4 +86,8 @@ api_router.include_router(
 )
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
-api_router.include_router(marketplace.router, tags=["marketplace"])
+api_router.include_router(
+    marketplace.router,
+    tags=["marketplace"],
+    dependencies=[Depends(deps.AuthVerifierDep)],
+)

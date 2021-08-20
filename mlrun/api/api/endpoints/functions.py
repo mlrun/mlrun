@@ -26,7 +26,6 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 router = APIRouter()
 
 
-# curl -d@/path/to/func.json http://localhost:8080/func/prj/7?tag=0.3.2
 @router.post("/func/{project}/{name}")
 async def store_function(
     request: Request,
@@ -44,7 +43,7 @@ async def store_function(
         auth_info=auth_verifier.auth_info,
     )
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -72,7 +71,6 @@ async def store_function(
     }
 
 
-# curl http://localhost:8080/log/prj/7?tag=0.2.3
 @router.get("/func/{project}/{name}")
 def get_function(
     project: str,
@@ -82,7 +80,7 @@ def get_function(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -106,7 +104,7 @@ def delete_function(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -117,7 +115,6 @@ def delete_function(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-# curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
 @router.get("/funcs")
 def list_functions(
     project: str = config.default_project,
@@ -130,7 +127,7 @@ def list_functions(
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
     )
-    functions = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    functions = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         functions,
         lambda function: (
@@ -144,7 +141,6 @@ def list_functions(
     }
 
 
-# curl -d@/path/to/job.json http://localhost:8080/build/function
 @router.post("/build/function")
 @router.post("/build/function/")
 async def build_function(
@@ -161,7 +157,7 @@ async def build_function(
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
         function.get("metadata", {}).get("name"),
@@ -187,7 +183,6 @@ async def build_function(
     }
 
 
-# curl -d@/path/to/job.json http://localhost:8080/start/function
 @router.post("/start/function", response_model=mlrun.api.schemas.BackgroundTask)
 @router.post("/start/function/", response_model=mlrun.api.schemas.BackgroundTask)
 async def start_function(
@@ -207,7 +202,7 @@ async def start_function(
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.metadata.project,
         function.metadata.name,
@@ -227,7 +222,6 @@ async def start_function(
     return background_task
 
 
-# curl -d@/path/to/job.json http://localhost:8080/status/function
 @router.post("/status/function")
 @router.post("/status/function/")
 async def function_status(
@@ -246,7 +240,6 @@ async def function_status(
     }
 
 
-# curl -d@/path/to/job.json http://localhost:8080/build/status
 @router.get("/build/status")
 @router.get("/build/status/")
 def build_status(
@@ -260,7 +253,7 @@ def build_status(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
@@ -489,7 +482,7 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     if not project or not name:
         project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,

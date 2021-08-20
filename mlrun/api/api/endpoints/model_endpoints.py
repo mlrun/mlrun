@@ -29,7 +29,7 @@ def create_or_patch(
     """
     Either create or updates the kv record of a given ModelEndpoint object
     """
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -69,7 +69,7 @@ def delete_endpoint_record(
     """
     Clears endpoint record from KV by endpoint_id
     """
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -117,7 +117,7 @@ def list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
@@ -141,7 +141,7 @@ def get_endpoint(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpoint:
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,

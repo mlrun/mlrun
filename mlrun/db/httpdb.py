@@ -718,7 +718,7 @@ class HTTPRunDB(RunDBInterface):
         project_path = project if project else "*"
         error = "Failed listing runtime resources"
         response = self.api_call(
-            "GET", f"/projects/{project_path}/runtime-resources", error, params=params
+            "GET", f"projects/{project_path}/runtime-resources", error, params=params
         )
         if group_by is None:
             structured_list = [
@@ -814,7 +814,7 @@ class HTTPRunDB(RunDBInterface):
         project_path = project if project else "*"
         response = self.api_call(
             "DELETE",
-            f"/projects/{project_path}/runtime-resources",
+            f"projects/{project_path}/runtime-resources",
             error,
             params=params,
         )

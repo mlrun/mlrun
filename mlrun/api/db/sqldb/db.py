@@ -733,14 +733,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         ).feature_vectors:
             self.delete_feature_vector(session, project, feature_vector.metadata.name)
 
-    def tag_objects(self, session, objs, project: str, name: str):
-        # only artifacts left with this tagging schema
-        for obj in objs:
-            if isinstance(obj, Artifact):
-                self.tag_artifacts(session, [obj], project, name)
-            else:
-                self.tag_objects_v2(session, [obj], project, name)
-
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
             query = (
@@ -765,39 +757,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             tag.obj_id = obj.id
             session.add(tag)
         session.commit()
-
-    def del_tag(self, session, project: str, name: str):
-        """Remove tag (project, name) from all objects"""
-        count = 0
-        for cls in _tagged:
-            for obj in self._query(session, cls.Tag, project=project, name=name):
-                session.delete(obj)
-                count += 1
-        session.commit()
-        return count
-
-    def find_tagged(self, session, project: str, name: str):
-        """Return all objects tagged with (project, name)
-
-        If not tag found, will return an empty str.
-        """
-        db_objects = []
-        for cls in _tagged:
-            for tag in self._query(session, cls.Tag, project=project, name=name):
-                db_objects.append(self._query(session, cls).get(tag.obj_id))
-
-        # TODO: this shouldn't return the db objects as is, sometimes they might be encoded with pickle, should
-        #  something like:
-        # objects = [db_object.struct if hasattr(db_object, "struct") else db_object for db_object in db_objects]
-        return db_objects
-
-    def list_tags(self, session, project: str):
-        """Return all tags for a project"""
-        tags = set()
-        for cls in _tagged:
-            for tag in self._query(session, cls.Tag, project=project):
-                tags.add(tag.name)
-        return tags
 
     def create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
@@ -866,10 +825,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
+        if names:
+            query = query.filter(Project.name.in_(names))
         project_records = query.all()
         project_names = [project_record.name for project_record in project_records]
         projects = []

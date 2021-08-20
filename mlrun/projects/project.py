@@ -1529,6 +1529,7 @@ class MlrunProject(ModelObj):
         dirty=False,
         ttl=None,
         engine=None,
+        disable_auto_mount=False,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1547,6 +1548,8 @@ class MlrunProject(ModelObj):
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
+        :param engine:    workflow engine running the workflow. Only supported value is 'kfp' (also used if None)
+        :param disable_auto_mount: avoid applying auto-mount to workflow functions (default is False)
 
         :returns: run id
         """
@@ -1580,6 +1583,8 @@ class MlrunProject(ModelObj):
             workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
+
+        workflow_spec.merge_args({"disable_auto_mount": disable_auto_mount})
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path

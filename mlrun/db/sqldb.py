@@ -256,22 +256,6 @@ class SQLDB(RunDBInterface):
     def list_schedules(self):
         return self._transform_db_error(self.db.list_schedules, self.session)
 
-    def tag_objects(self, objs, project: str, name: str):
-        return self._transform_db_error(
-            self.db.tag_objects, self.session, objs, project, name
-        )
-
-    def del_tag(self, project: str, name: str):
-        return self._transform_db_error(self.db.del_tag, self.session, project, name)
-
-    def find_tagged(self, project: str, name: str):
-        return self._transform_db_error(
-            self.db.find_tagged, self.session, project, name
-        )
-
-    def list_tags(self, project: str):
-        return self._transform_db_error(self.db.list_tags, self.session, project)
-
     def store_project(
         self, name: str, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:

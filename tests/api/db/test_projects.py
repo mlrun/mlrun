@@ -151,6 +151,35 @@ def test_list_project(
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
+def test_list_project_names_filter(
+    db: DBInterface, db_session: sqlalchemy.orm.Session,
+):
+
+    project_names = ["project-1", "project-2", "project-3", "project-4", "project-5"]
+    for project in project_names:
+        db.create_project(
+            db_session,
+            mlrun.api.schemas.Project(
+                metadata=mlrun.api.schemas.ProjectMetadata(name=project),
+            ),
+        )
+    filter_names = [project_names[0], project_names[3], project_names[4]]
+    projects_output = db.list_projects(
+        db_session,
+        format_=mlrun.api.schemas.ProjectsFormat.name_only,
+        names=filter_names,
+    )
+
+    assert (
+        deepdiff.DeepDiff(filter_names, projects_output.projects, ignore_order=True,)
+        == {}
+    )
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
 def test_create_project(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):

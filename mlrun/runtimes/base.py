@@ -245,6 +245,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
+        disable_auto_mount=False,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -271,6 +272,7 @@ class BaseRuntime(ModelObj):
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
+        :param disable_auto_mount: Do not apply auto-mount prior to running (default is False)
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -279,7 +281,7 @@ class BaseRuntime(ModelObj):
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
         # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
-        if self._use_remote_api():
+        if self._use_remote_api() and not disable_auto_mount:
             self.try_auto_mount_based_on_config()
 
         if local:

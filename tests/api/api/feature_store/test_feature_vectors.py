@@ -452,7 +452,7 @@ def test_verify_feature_vector_features_permissions(
             deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
         )
 
-    mlrun.api.utils.clients.opa.Client().query_resources_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions = unittest.mock.Mock(
         side_effect=_verify_queried_resources
     )
     mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(

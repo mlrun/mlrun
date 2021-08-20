@@ -260,7 +260,7 @@ class ModelHandler(ABC):
         :return: The logged artifacts in an 'extra data' style to be logged with the model.
         """
         # Check if custom objects were used:
-        if self._custom_objects == {}:
+        if self._custom_objects is None or self._custom_objects == {}:
             return {}
 
         # Initialize the returning artifacts dictionary:

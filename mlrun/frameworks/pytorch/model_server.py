@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Type, Union
 
-import torch
 from torch.nn import Module
 
 import mlrun
@@ -10,8 +9,8 @@ from mlrun.serving.v2_serving import V2ModelServer
 
 class PyTorchModelServer(V2ModelServer):
     """
-    Tensorflow.keras Model serving class, inheriting the V2ModelServer class for being initialized automatically by the
-    model server and be able to run locally as part of a nuclio serverless function, or as part of a real-time pipeline.
+    PyTorch Model serving class, inheriting the V2ModelServer class for being initialized automatically by the model
+    server and be able to run locally as part of a nuclio serverless function, or as part of a real-time pipeline.
     """
 
     def __init__(
@@ -20,7 +19,7 @@ class PyTorchModelServer(V2ModelServer):
         name: str,
         model_class: Union[Type[Module], str],
         model_path: str = None,
-        model: torch.Module = None,
+        model: Module = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         protocol: str = None,

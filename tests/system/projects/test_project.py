@@ -21,10 +21,11 @@ projects_dir = f"{out_path}/proj"
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
-    train = funcs["train"].as_step(
+    funcs = mlrun.projects.pipeline_context.functions
+    funcs["train"].as_step(
         name="train",
         inputs={"dataset": data_url},
-        params={"model_pkg_class": model_pkg_class, "label_column": "label",},
+        params={"model_pkg_class": model_pkg_class, "label_column": "label"},
         outputs=["model", "test_set"],
     )
 

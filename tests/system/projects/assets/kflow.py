@@ -13,7 +13,7 @@ def kfpipeline(model_pkg_class=default_pkg_class, build=0):
 
     # if build=True, build the function image before the run
     with dsl.Condition(build == 1) as build_cond:
-        deploy = funcs["prep-data"].deploy_step()
+        funcs["prep-data"].deploy_step()
 
     # run a local data prep function
     prep_data = (

@@ -16,7 +16,7 @@ import pathlib
 import shutil
 import typing
 import warnings
-from os import environ, path, makedirs
+from os import environ, makedirs, path
 
 import yaml
 from git import Repo
@@ -57,8 +57,10 @@ class ProjectError(Exception):
 def init_repo(context, url, init_git):
     repo = None
     if not path.isdir(context):
-        raise ValueError(f"context {context} is not an existing dir path, "
-                         "make sure you create the context directory first")
+        raise ValueError(
+            f"context {context} is not an existing dir path, "
+            "make sure you create the context directory first"
+        )
     try:
         repo = Repo(context)
         url = get_repo_url(repo)

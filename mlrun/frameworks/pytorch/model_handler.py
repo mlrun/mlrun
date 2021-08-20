@@ -170,7 +170,9 @@ class PyTorchModelHandler(ModelHandler):
         model_artifacts = self.save()
 
         # Log the custom objects:
-        custom_objects_artifacts = self._log_custom_objects()
+        custom_objects_artifacts = (
+            self._log_custom_objects() if self._custom_objects_map is not None else {}
+        )
 
         # Log the model:
         self._context.log_model(

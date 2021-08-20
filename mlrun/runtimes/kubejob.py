@@ -233,6 +233,9 @@ class KubejobRuntime(KubeResource):
     ):
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
+        # mark that the function/image is built as part of the pipeline so other places
+        # which use the function will grab the updated image/status
+        self._build_in_pipeline = True
         return build_op(
             name,
             self,

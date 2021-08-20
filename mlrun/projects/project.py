@@ -16,7 +16,7 @@ import pathlib
 import shutil
 import typing
 import warnings
-from os import environ, path
+from os import environ, path, makedirs
 
 import yaml
 from git import Repo
@@ -57,7 +57,8 @@ class ProjectError(Exception):
 def init_repo(context, url, init_git):
     repo = None
     if not path.isdir(context):
-        raise ValueError(f"context {context} is not an existing dir path")
+        raise ValueError(f"context {context} is not an existing dir path, "
+                         "make sure you create the context directory first")
     try:
         repo = Repo(context)
         url = get_repo_url(repo)
@@ -199,6 +200,8 @@ def load_project(
         else:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
+            if not path.isdir(context):
+                makedirs(context)
             project.spec.subpath = subpath or project.spec.subpath
             from_db = True
 
@@ -1676,7 +1679,7 @@ class MlrunProject(ModelObj):
     def export(self, filepath=None):
         """save the project object into a file (default to project.yaml)"""
         filepath = filepath or path.join(
-            self.spec.context, self.spec.subpath, "project.yaml"
+            self.spec.context, self.spec.subpath or "", "project.yaml"
         )
         project_dir = pathlib.Path(filepath).parent
         if not project_dir.exists():

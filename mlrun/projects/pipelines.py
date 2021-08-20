@@ -189,7 +189,9 @@ def enrich_function_object(
     if src and src in [".", "./"]:
 
         if not project.spec.source:
-            raise ValueError("project source must be specified when cloning context to a function")
+            raise ValueError(
+                "project source must be specified when cloning context to a function"
+            )
 
         if project.spec.mountdir:
             f.spec.workdir = project.spec.mountdir
@@ -216,8 +218,8 @@ class _PipelineRunStatus:
     @property
     def state(self):
         if self._state not in mlrun.run.RunStatuses.stable_statuses():
-            self._status = self._engine.get_state(self.run_id, self.project)
-        return self._status
+            self._state = self._engine.get_state(self.run_id, self.project)
+        return self._state
 
     def wait_for_completion(self, timeout=None, expected_statuses=None):
         self._state = self._engine.wait_for_completion(
@@ -304,7 +306,9 @@ class _KFPRunner(_PipelineRunner):
         pipeline_context.set(project, functions, workflow_spec)
         if not workflow_handler or not callable(workflow_handler):
             workflow_file = workflow_spec.get_source_file(project.spec.context)
-            workflow_handler = create_pipeline(project, workflow_file, functions, secrets, handler=workflow_handler)
+            workflow_handler = create_pipeline(
+                project, workflow_file, functions, secrets, handler=workflow_handler
+            )
         else:
             builtins.funcs = functions
 

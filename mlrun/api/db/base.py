@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from mlrun.api import schemas
 
@@ -220,6 +220,7 @@ class DBInterface(ABC):
         format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
+        names: Optional[List[str]] = None,
     ) -> schemas.ProjectsOutput:
         pass
 

@@ -242,6 +242,7 @@ class Member(
         # needed only for external usage when requesting leader format
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         projects = []
         if format_ == mlrun.api.schemas.ProjectsFormat.leader:
@@ -257,7 +258,9 @@ class Member(
             # leader mode (in which the projects are maintained in the DB) to follower mode in which the leader needs
             # to be aware of the already existing projects so we're allowing only to the leader, to read from the DB,
             # and return it in the leader's format
-            projects = get_db().list_projects(db_session, owner, format_, labels, state)
+            projects = get_db().list_projects(
+                db_session, owner, format_, labels, state, names
+            )
             leader_projects = [
                 self._leader_client.format_as_leader_project(project)
                 for project in projects.projects
@@ -270,6 +273,10 @@ class Member(
             projects, _ = self._leader_client.list_projects(leader_session)
 
         # filter projects
+        if names:
+            projects = [
+                project for project in projects if project.metadata.name in names
+            ]
         if owner:
             raise NotImplementedError(
                 "Filtering projects by owner is currently not supported in follower mode"
@@ -339,7 +346,7 @@ class Member(
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]
-    ):
+    ) -> bool:
         if projects_role and projects_role.value == self._leader_name:
             return True
         return False

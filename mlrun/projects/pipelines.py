@@ -255,7 +255,7 @@ class _PipelineRunner(abc.ABC):
         cls,
         project,
         workflow_spec: WorkflowSpec,
-        name,
+        name=None,
         workflow_handler=None,
         secrets=None,
         artifact_path=None,

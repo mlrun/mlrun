@@ -17,7 +17,7 @@ class PyTorchModelServer(V2ModelServer):
         self,
         context: mlrun.MLClientCtx,
         name: str,
-        model_class: Union[Type[Module], str],
+        model_class: Union[Type[Module], str] = None,
         model_path: str = None,
         model: Module = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
@@ -26,12 +26,14 @@ class PyTorchModelServer(V2ModelServer):
         **class_args,
     ):
         """
-        Initialize a serving class for a tf.keras model.
+        Initialize a serving class for a torch model.
 
         :param context:                  The mlrun context to work with.
         :param name:                     The name of this server to be initialized.
         :param model_class:              The model's class type object. Can be passed as the class's name (string) as
                                          well. The model class must appear in the custom objects map dictionary / json.
+                                         If the model path given is of a store object, this model class name will be
+                                         read from the logged label of the model.
         :param model_path:               Path to the model directory to load. Can be passed as a store model object.
         :param model:                    The model to use.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
@@ -45,12 +47,16 @@ class PyTorchModelServer(V2ModelServer):
                                          }
                                          All the paths will be accessed from the given 'custom_objects_directory',
                                          meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
+                                         If the model path given is of a store object, the custom objects map will be
+                                         read from the logged custom object map artifact of the model.
                                          Notice: The custom objects will be imported in the order they came in this
                                          dictionary (or json). If a custom object is depended on another, make sure to
                                          put it below the one it relies on.
         :param custom_objects_directory: Path to the directory with all the python files required for the custom
                                          objects. Can be passed as a zip file as well (will be extracted during the run
-                                         before loading the model).
+                                         before loading the model). If the model path given is of a store object, the
+                                         custom objects files will be read from the logged custom object artifact of the
+                                         model.
         :param protocol:                 -
         :param class_args:               -
         """

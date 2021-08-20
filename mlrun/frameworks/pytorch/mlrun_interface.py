@@ -286,8 +286,8 @@ class PyTorchMLRunInterface:
 
         :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
         :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
-                                            documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
-                                            'custom_objects' and 'auto_log' parameters are already given here.
+                                            documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
+                                            and 'auto_log' parameters are already given here.
         :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
         :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                             the documentation of the class 'TensorboardLoggingCallback'. Note that both

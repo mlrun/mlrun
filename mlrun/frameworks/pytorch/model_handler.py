@@ -17,7 +17,7 @@ class PyTorchModelHandler(ModelHandler):
     def __init__(
         self,
         model_name: str,
-        model_class: Union[Type[Module], str],
+        model_class: Union[Type[Module], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         model_path: str = None,
@@ -29,6 +29,8 @@ class PyTorchModelHandler(ModelHandler):
         :param model_name:               The model name for saving and logging the model.
         :param model_class:              The model's class type object. Can be passed as the class's name (string) as
                                          well. The model class must appear in the custom objects map dictionary / json.
+                                         If the model path given is of a store object, this model class name will be
+                                         read from the logged label of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -40,26 +42,36 @@ class PyTorchModelHandler(ModelHandler):
                                          }
                                          All the paths will be accessed from the given 'custom_objects_directory',
                                          meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
+                                         If the model path given is of a store object, the custom objects map will be
+                                         read from the logged custom object map artifact of the model.
                                          Notice: The custom objects will be imported in the order they came in this
                                          dictionary (or json). If a custom object is depended on another, make sure to
                                          put it below the one it relies on.
         :param custom_objects_directory: Path to the directory with all the python files required for the custom
                                          objects. Can be passed as a zip file as well (will be extracted during the run
-                                         before loading the model).
+                                         before loading the model). If the model path given is of a store object, the
+                                         custom objects files will be read from the logged custom object artifact of the
+                                         model.
         :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
                                          with the given model name. The model path can be also passed as a model object
                                          path in the following format:
                                          'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param context:                  MLRun context to work with for logging the model.
+
+        :raise ValueError: If the provided model path is of a local model files but the model class name was not
+                           provided (=None).
         """
         # Will hold the model's weights .pt file:
         self._weights_file = None  # type: str
 
-        # Store the model's class name:
-        self._model_class_name = (
-            model_class if isinstance(model_class, str) else model_class.__name__
-        )
+        # Store the model's class name: (will be
+        if model is not None:
+            # Take it from the model provided:
+            self._model_class_name = type(model_class).__name__
+        else:
+            # Store the given value and edit later in one of the collect_files methods:
+            self._model_class_name = model_class
 
         # Setup the base handler class:
         super(PyTorchModelHandler, self).__init__(
@@ -217,7 +229,22 @@ class PyTorchModelHandler(ModelHandler):
         """
         If the model path given is of a local path, search for the needed model files and collect them into this handler
         for later loading the model.
+
+        :raise ValueError: If the provided model class name from the user was None.
         """
+        # Read the model class provided:
+        if self._model_class_name is None:
+            raise ValueError(
+                "The model class name must be provided when loading the model from local path. Otherwise, the handler "
+                "will not be able to load the model."
+            )
+        self._model_class_name = (
+            self._model_class_name
+            if isinstance(self._model_class_name, str)
+            else self._model_class_name.__name__
+        )
+
+        # Collect the weights file:
         self._weights_file = os.path.join(
             self._model_path, "{}.pt".format(self._model_name)
         )

@@ -60,12 +60,16 @@ class MLRunLoggingCallback(LoggingCallback):
                                          }
                                          All the paths will be accessed from the given 'custom_objects_directory',
                                          meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
+                                         If the model path given is of a store object, the custom objects map will be
+                                         read from the logged custom object map artifact of the model.
                                          Notice: The custom objects will be imported in the order they came in this
                                          dictionary (or json). If a custom object is depended on another, make sure to
                                          put it below the one it relies on.
         :param custom_objects_directory: Path to the directory with all the python files required for the custom
                                          objects. Can be passed as a zip file as well (will be extracted during the run
-                                         before loading the model).
+                                         before loading the model). If the model path given is of a store object, the
+                                         custom objects files will be read from the logged custom object artifact of the
+                                         model.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.

@@ -52,12 +52,16 @@ class ModelHandler(ABC):
                                          }
                                          All the paths will be accessed from the given 'custom_objects_directory',
                                          meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
+                                         If the model path given is of a store object, the custom objects map will be
+                                         read from the logged custom object map artifact of the model.
                                          Notice: The custom objects will be imported in the order they came in this
                                          dictionary (or json). If a custom object is depended on another, make sure to
                                          put it below the one it relies on.
         :param custom_objects_directory: Path to the directory with all the python files required for the custom
                                          objects. Can be passed as a zip file as well (will be extracted during the run
-                                         before loading the model).
+                                         before loading the model). If the model path given is of a store object, the
+                                         custom objects files will be read from the logged custom object artifact of the
+                                         model.
         :param context:                  MLRun context to work with for logging the model.
 
         :raise ValueError: In case one of the given parameters are invalid.
@@ -317,11 +321,13 @@ class ModelHandler(ABC):
                            following format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
         :param model:      Model to handle or None in case a loading parameters were supplied.
 
-        :raise ValueError: If both parameters were None.
+        :raise ValueError: If both parameters were None or both parameters were provided.
         """
-        if model_path is None and model is None:
+        if (model_path is None and model is None) or (
+            model_path is not None and model is not None
+        ):
             raise ValueError(
-                "At least one of 'model' or 'model_path' must be provided to the model handler."
+                "Only one of 'model' or 'model_path' must be provided to the model handler."
             )
 
     @staticmethod

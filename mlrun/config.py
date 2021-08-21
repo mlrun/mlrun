@@ -191,10 +191,13 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
+        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         "store_prefixes": {
-            "default": "v3io:///projects/{project}/model-endpoints/{kind}"
+            "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
+            "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
+        "batch_processing_function_branch": "master",
     },
     "secret_stores": {
         "vault": {

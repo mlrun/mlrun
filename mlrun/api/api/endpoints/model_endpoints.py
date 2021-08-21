@@ -1,3 +1,4 @@
+import os
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -36,7 +37,8 @@ def create_or_patch(
         mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
     )
-    access_key = get_access_key(auth_verifier.auth_info)
+    # get_access_key will validate the needed auth (which is used later) exists in the request
+    get_access_key(auth_verifier.auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
@@ -46,9 +48,11 @@ def create_or_patch(
             f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
+    # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
+    # V3IO_ACCESS_KEY here
     ModelEndpoints.create_or_patch(
         db_session=db_session,
-        access_key=access_key,
+        access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
         auth_info=auth_verifier.auth_info,
     )

@@ -15,13 +15,13 @@ from tests.system.base import TestMLRunSystem
 data_url = "https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv"
 model_pkg_class = "sklearn.linear_model.LogisticRegression"
 projects_dir = f"{out_path}/proj"
+funcs = mlrun.projects.pipeline_context.functions
 
 
 # pipeline for inline test (run pipeline from handler)
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
-    funcs = mlrun.projects.pipeline_context.functions
     funcs["train"].as_step(
         name="train",
         inputs={"dataset": data_url},

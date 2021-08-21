@@ -26,37 +26,6 @@ from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
 
 
-class _PipelineContext:
-    """current (running) pipeline context"""
-
-    def __init__(self):
-        self.project = None
-        self.workflow = None
-        self.functions = None
-        self.workflow_id = None
-
-    def set(self, project, functions, workflow=None):
-        self.project = project
-        self.workflow = workflow
-        self.functions = functions
-
-    def is_initialized(self, raise_exception=False):
-        if self.project:
-            return True
-        if raise_exception:
-            raise ValueError(
-                "pipeline context is not initialized, must be used inside a pipeline"
-            )
-        return False
-
-    def enrich_function(self, function) -> mlrun.runtimes.BaseRuntime:
-        self.is_initialized(raise_exception=True)
-        return self.functions._enrich(function)
-
-
-pipeline_context = _PipelineContext()
-
-
 def get_workflow_engine(engine_kind):
     if not engine_kind or engine_kind == "kfp":
         return _KFPRunner
@@ -167,6 +136,37 @@ class FunctionsDict:
 
     def __delitem__(self, key):
         del self._functions[key]
+
+
+class _PipelineContext:
+    """current (running) pipeline context"""
+
+    def __init__(self):
+        self.project = None
+        self.workflow = None
+        self.functions = FunctionsDict(None)
+        self.workflow_id = None
+
+    def set(self, project, workflow=None):
+        self.project = project
+        self.workflow = workflow
+        self.functions.project = project
+
+    def is_initialized(self, raise_exception=False):
+        if self.project:
+            return True
+        if raise_exception:
+            raise ValueError(
+                "pipeline context is not initialized, must be used inside a pipeline"
+            )
+        return False
+
+    def enrich_function(self, function) -> mlrun.runtimes.BaseRuntime:
+        self.is_initialized(raise_exception=True)
+        return self.functions._enrich(function)
+
+
+pipeline_context = _PipelineContext()
 
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
@@ -302,15 +302,18 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
     ) -> _PipelineRunStatus:
-        functions = FunctionsDict(project)
-        pipeline_context.set(project, functions, workflow_spec)
+        pipeline_context.set(project, workflow_spec)
         if not workflow_handler or not callable(workflow_handler):
             workflow_file = workflow_spec.get_source_file(project.spec.context)
             workflow_handler = create_pipeline(
-                project, workflow_file, functions, secrets, handler=workflow_handler
+                project,
+                workflow_file,
+                pipeline_context.functions,
+                secrets,
+                handler=workflow_handler,
             )
         else:
-            builtins.funcs = functions
+            builtins.funcs = pipeline_context.functions
 
         namespace = namespace or config.namespace
         id = run_pipeline(

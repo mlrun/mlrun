@@ -29,10 +29,9 @@ def classification():
     for m in classification_models:
         model = apply_mlrun(m, X_train=X_train, X_test=X_test,
                             y_train=y_train, y_test=y_test)
-        model.save()
-        # model.fit(X_train, y_train.values.reshape(-1, ))
-        # pred = model.predict(X_test)
-        # print(model,pred)
+        model.fit(X_train, y_train.values.reshape(-1, ))
+        pred = model.predict(X_test)
+        print(model,pred)
 
 
 classification()

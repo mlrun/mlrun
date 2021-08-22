@@ -195,6 +195,36 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
+    def test_dask_with_priority_class_name(self, db: Session, client: TestClient):
+        default_priority_class_name = "default-priority"
+        mlrun.mlconf.default_function_priority_class = default_priority_class_name
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_priority_class_name=default_priority_class_name,
+        )
+
+        runtime = self._generate_runtime()
+        medium_priority_class_name = "medium-priority"
+        mlrun.mlconf.valid_function_priority_classes = [medium_priority_class_name]
+        runtime.with_priority_class(medium_priority_class_name)
+
+        _ = runtime.client
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_priority_class_name=medium_priority_class_name,
+        )
+
     def test_dask_with_default_node_selector(self, db: Session, client: TestClient):
         node_selector = {
             "label-a": "val1",

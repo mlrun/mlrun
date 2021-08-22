@@ -403,6 +403,41 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
+    def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
+
+        # default is applied regardless of nuclio version - it will be ignored by nuclio
+        default_priority_class_name = "default-priority"
+        mlrun.mlconf.default_function_priority_class = default_priority_class_name
+        function = self._generate_runtime("nuclio")
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config()
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["priorityClassName"] == default_priority_class_name
+
+        function = self._generate_runtime()
+        medium_priority_class_name = "medium-priority"
+        mlrun.mlconf.valid_function_priority_classes = [medium_priority_class_name]
+        mlconf.nuclio_version = "1.5.20"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_priority_class(medium_priority_class_name)
+
+        mlconf.nuclio_version = "1.6.10"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_priority_class(medium_priority_class_name)
+
+        mlconf.nuclio_version = "1.6.18"
+        function.with_priority_class(medium_priority_class_name)
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=2)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["priorityClassName"] == medium_priority_class_name
+
     def test_validate_nuclio_version_compatibility(self):
         # nuclio version we have
         mlconf.nuclio_version = "1.6.10"

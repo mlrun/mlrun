@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Type, Union
 import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.frameworks._common import ModelHandler
+import pickle
+import joblib
 
 
 class SklearnModelHandler(ModelHandler):
@@ -36,7 +38,7 @@ class SklearnModelHandler(ModelHandler):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        model: model = None,
+        model = None,
         model_path: str = None,
         save_format: str = SaveFormats.PICKLE
     ):
@@ -97,10 +99,10 @@ class SklearnModelHandler(ModelHandler):
         artifacts = {}  # type: Dict[str, Artifact]
 
 
-        if self._save_format == SaveFormats.PICKLE:
+        if self._save_format == self.SaveFormats.PICKLE:
             pickle.dump(model, open(output_path, 'wb'))
             
-        elif self._save_format == SaveFormats.JOBLIB:
+        elif self._save_format == self.SaveFormats.JOBLIB:
             joblib.dump(model, output_path)
         
         

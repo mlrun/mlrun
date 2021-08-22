@@ -549,6 +549,10 @@ class RemoteRuntime(KubeResource):
     ):
         super().with_node_selection(node_name, node_selector, affinity)
 
+    @min_nuclio_versions("1.6.18")
+    def with_priority_class(self, priority_class_name: typing.Optional[str] = None):
+        super().with_priority_class(priority_class_name)
+
     def _get_state(
         self,
         dashboard="",

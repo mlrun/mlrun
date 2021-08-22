@@ -70,7 +70,7 @@ class TestAutoMountNuclio(TestAutoMount):
         self.code_filename = str(self.assets_path / "sample_function.py")
         self.code_handler = "test_func"
 
-    def _generate_runtime(self):
+    def _generate_runtime(self, disable_auto_mount=False):
         runtime = code_to_function(
             name=self.name,
             project=self.project,
@@ -80,7 +80,8 @@ class TestAutoMountNuclio(TestAutoMount):
             image=self.image_name,
             description="test function",
         )
+        runtime.spec.disable_auto_mount = disable_auto_mount
         return runtime
 
-    def _execute_run(self, runtime, disable_auto_mount=False):
-        runtime.deploy(project=self.project, disable_auto_mount=disable_auto_mount)
+    def _execute_run(self, runtime):
+        runtime.deploy(project=self.project)

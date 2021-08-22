@@ -23,6 +23,7 @@ from mlrun.utils import new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
+from ..runtimes.pod import AutoMountType
 
 
 class _PipelineContext:
@@ -118,19 +119,16 @@ class WorkflowSpec(mlrun.model.ModelObj):
 class FunctionsDict:
     """Virtual dictionary hosting the project functions, cached or in the DB"""
 
-    def __init__(self, project, decorator=None, disable_auto_mount=False):
+    def __init__(self, project, decorator=None):
         self.project = project
         self._decorator = decorator
-        self._disable_auto_mount = disable_auto_mount
 
     @property
     def _functions(self):
         return self.project.spec._function_objects
 
     def _enrich(self, function):
-        return enrich_function_object(
-            self.project, function, self._decorator, self._disable_auto_mount
-        )
+        return enrich_function_object(self.project, function, self._decorator)
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
@@ -180,7 +178,7 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None, disable_auto_mount=False
+    project, function, decorator=None
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
@@ -195,10 +193,14 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
-    if not disable_auto_mount:
-        f.try_auto_mount_based_on_config()
+
     if decorator:
         decorator(f)
+
+    if AutoMountType.is_auto_modifier(decorator) or project.spec.disable_auto_mount:
+        f.spec.disable_auto_mount = True
+    f.try_auto_mount_based_on_config()
+
     return f
 
 
@@ -298,12 +300,7 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
     ) -> _PipelineRunStatus:
         workflow_file = workflow_spec.get_source_file(project.spec.context)
-        disable_auto_mount = (
-            workflow_spec.args.pop("disable_auto_mount", False)
-            if workflow_spec.args
-            else False
-        )
-        functions = FunctionsDict(project, disable_auto_mount=disable_auto_mount)
+        functions = FunctionsDict(project)
         pipeline_context.set(project, functions, workflow_spec)
         kfpipeline = create_pipeline(project, workflow_file, functions, secrets)
 

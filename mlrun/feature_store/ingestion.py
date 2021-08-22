@@ -254,6 +254,8 @@ def add_source_trigger(source, function):
         )
         trigger._struct["kind"] = "kafka-cluster"
         trigger._struct["maxWorkers"] = 1
+        trigger._struct["workerAllocationMode"] = "pool"
+        trigger._struct["fetchDefault"] = 1048576
         func = function.add_trigger("kafka", trigger)
         func.spec.config["spec.triggers.kafka"]["attributes"][
             "ConsumerGroup"

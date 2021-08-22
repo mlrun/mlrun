@@ -276,6 +276,7 @@ def ingest(
                 "data source was not specified"
             )
 
+        filter_time_string = ""
         if source.schedule:
             featureset.reload(update_spec=False)
             min_time = datetime.max
@@ -288,8 +289,14 @@ def ingest(
                 source.start_time = min_time
                 time_zone = min_time.tzinfo
                 source.end_time = datetime.now(tz=time_zone)
+                filter_time_string = (
+                    f"Source.start_time for the job is{str(source.start_time)}. "
+                    f"Source.end_time is {str(source.end_time)}"
+                )
 
-        mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
+        mlrun_context.logger.info(
+            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+        )
         return_df = False
 
     namespace = namespace or get_caller_globals()

@@ -16,7 +16,6 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/job.json http://localhost:8080/submit
 @router.post("/submit")
 @router.post("/submit/")
 @router.post("/submit_job")
@@ -50,7 +49,7 @@ async def submit_job(
             _,
         ) = mlrun.utils.helpers.parse_versioned_object_uri(function_url)
         await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+            mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
             mlrun.api.schemas.AuthorizationResourceTypes.function,
             function_project,
             function_name,
@@ -59,7 +58,7 @@ async def submit_job(
         )
     if data.get("schedule"):
         await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+            mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
             mlrun.api.schemas.AuthorizationResourceTypes.schedule,
             data["task"]["metadata"]["project"],
             data["task"]["metadata"]["name"],
@@ -68,7 +67,7 @@ async def submit_job(
         )
     else:
         await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+            mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
             mlrun.api.schemas.AuthorizationResourceTypes.run,
             data["task"]["metadata"]["project"],
             "",

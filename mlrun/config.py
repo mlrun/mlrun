@@ -139,6 +139,7 @@ default_config = {
                 "address": "",
                 "request_timeout": 10,
                 "permission_query_path": "",
+                "permission_filter_path": "",
                 "log_level": 0,
             },
         },
@@ -167,7 +168,7 @@ default_config = {
             # from leader because of some auth restriction, we will probably go back to it at some point since it's
             # better performance wise, so made it a mode
             # one of: cache, none
-            "follower_projects_store_mode": "none",
+            "follower_projects_store_mode": "cache",
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -190,10 +191,13 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
+        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         "store_prefixes": {
-            "default": "v3io:///projects/{project}/model-endpoints/{kind}"
+            "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
+            "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
+        "batch_processing_function_branch": "master",
     },
     "secret_stores": {
         "vault": {

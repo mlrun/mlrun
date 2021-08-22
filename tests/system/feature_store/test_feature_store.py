@@ -505,10 +505,10 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector, entity_timestamp_column="timestamp")
         resp2 = resp2.to_dataframe().to_dict()
 
-        resp1.pop("timestamp")
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
@@ -551,9 +551,8 @@ class TestFeatureStore(TestMLRunSystem):
         resp2 = resp.to_dataframe()
         assert len(resp2) == 10
         result_columns = list(resp2.columns)
-        orig_columns.remove("timestamp")
         orig_columns.remove("patient_id")
-        assert result_columns == orig_columns
+        assert result_columns.sort() == orig_columns.sort()
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -581,9 +580,13 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {"mykey1": "hello"}}
+        assert resp2.to_dict() == {
+            "my_string": {"mykey1": "hello"},
+            "my_time": {"mykey1": pd.Timestamp("2019-01-26 14:52:37")},
+        }
 
         measurements = fs.FeatureSet(
             name, entities=[Entity(key)], timestamp_key="my_time"
@@ -607,9 +610,16 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {"mykey1": "hello", "mykey2": None}}
+        assert resp2.to_dict() == {
+            "my_string": {"mykey1": "hello", "mykey2": None},
+            "my_time": {
+                "mykey1": pd.Timestamp("2019-01-26 14:52:37"),
+                "mykey2": pd.Timestamp("2019-01-26 14:52:37"),
+            },
+        }
 
     def test_ordered_pandas_asof_merge(self):
         targets = [ParquetTarget(), NoSqlTarget()]
@@ -1322,6 +1332,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["fvec-parquet-fset.*"]
         fvec = fs.FeatureVector("fvec-parquet", features=features)
+        fvec.spec.with_indexes = True
 
         target = ParquetTarget()
         off1 = fs.get_offline_features(fvec, target=target)
@@ -1390,6 +1401,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["override-false.*"]
         fvec = fs.FeatureVector("override-false-vec", features=features)
+        fvec.spec.with_indexes = True
 
         off1 = fs.get_offline_features(fvec).to_dataframe()
         assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
@@ -1507,10 +1519,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["rWQTKqbhje.*"]
         vector = fs.FeatureVector("WPAyrYux", features)
-        vector.spec.with_indexes = False
+        vector.spec.with_indexes = True
         resp = fs.get_offline_features(vector)
         off_df = resp.to_dataframe()
-        del orig_df["time_stamp"]
         if None in list(orig_df.index.names):
             orig_df.set_index(["temdojgz", "bikyseca", "nkxuonfx"], inplace=True)
         orig_df = orig_df.sort_values(
@@ -1574,6 +1585,39 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"ticker": "AAPL"}])
         svc.close()
         assert resp[0]["bid"] == 300
+
+    def test_join_with_table(self):
+        table_url = "v3io:///bigdata/system-test-project/nosql/test_join_with_table"
+
+        df = pd.DataFrame({"name": ["ABC", "DEF"], "aug": ["1", "2"]})
+        fset = fs.FeatureSet(
+            name="test_join_with_table_fset", entities=[fs.Entity("name")]
+        )
+        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+
+        df = pd.DataFrame(
+            {
+                "key": ["mykey1", "mykey2", "mykey3"],
+                "foreignkey1": ["AB", "DE", "GH"],
+                "foreignkey2": ["C", "F", "I"],
+            }
+        )
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset.set_targets([], with_defaults=False)
+        fset.graph.to(
+            "storey.JoinWithTable",
+            table=table_url,
+            _key_extractor="(event['foreignkey1'] + event['foreignkey2'])",
+            attributes=["aug"],
+            inner_join=True,
+        )
+        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        assert df.to_dict() == {
+            "foreignkey1": {"mykey1": "AB", "mykey2": "DE"},
+            "foreignkey2": {"mykey1": "C", "mykey2": "F"},
+            "aug": {"mykey1": "1", "mykey2": "2"},
+        }
 
 
 def verify_purge(fset, targets):

@@ -1,3 +1,4 @@
+import os
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -29,14 +30,15 @@ def create_or_patch(
     """
     Either create or updates the kv record of a given ModelEndpoint object
     """
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
         mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
     )
-    access_key = get_access_key(auth_verifier.auth_info)
+    # get_access_key will validate the needed auth (which is used later) exists in the request
+    get_access_key(auth_verifier.auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
@@ -46,9 +48,11 @@ def create_or_patch(
             f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
+    # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
+    # V3IO_ACCESS_KEY here
     ModelEndpoints.create_or_patch(
         db_session=db_session,
-        access_key=access_key,
+        access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
         auth_info=auth_verifier.auth_info,
     )
@@ -69,7 +73,7 @@ def delete_endpoint_record(
     """
     Clears endpoint record from KV by endpoint_id
     """
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -117,7 +121,7 @@ def list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
@@ -141,7 +145,7 @@ def get_endpoint(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpoint:
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,

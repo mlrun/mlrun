@@ -18,7 +18,6 @@ from mlrun.utils import logger
 router = APIRouter()
 
 
-# curl -d@/path/to/artifact http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -37,7 +36,7 @@ async def store_artifact(
         auth_info=auth_verifier.auth_info,
     )
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_resource_permissions,
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -65,7 +64,6 @@ async def store_artifact(
     return {}
 
 
-# curl http://localhost:8080/artifact/p1/tags
 @router.get("/projects/{project}/artifact-tags")
 def list_artifact_tags(
     project: str,
@@ -74,7 +72,7 @@ def list_artifact_tags(
 ):
     tag_tuples = get_db().list_artifact_tags(db_session, project)
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    allowed_artifact_keys = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    allowed_artifact_keys = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         list(artifact_key_to_tag.keys()),
         lambda artifact_key: (project, artifact_key,),
@@ -91,7 +89,6 @@ def list_artifact_tags(
     }
 
 
-# curl http://localhost:8080/projects/my-proj/artifact/key?tag=latest
 @router.get("/projects/{project}/artifact/{key:path}")
 def get_artifact(
     project: str,
@@ -101,7 +98,7 @@ def get_artifact(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -114,7 +111,6 @@ def get_artifact(
     }
 
 
-# curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
 @router.delete("/artifact/{project}/{uid}")
 def delete_artifact(
     project: str,
@@ -124,7 +120,7 @@ def delete_artifact(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -135,7 +131,6 @@ def delete_artifact(
     return {}
 
 
-# curl http://localhost:8080/artifacts?project=p1?label=l1
 @router.get("/artifacts")
 def list_artifacts(
     project: str = config.default_project,
@@ -160,7 +155,7 @@ def list_artifacts(
         iter=iter,
         best_iteration=best_iteration,
     )
-    artifacts = mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions(
+    artifacts = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         lambda artifact: (
@@ -174,7 +169,6 @@ def list_artifacts(
     }
 
 
-# curl -X DELETE http://localhost:8080/artifacts?project=p1?label=l1
 @router.delete("/artifacts")
 def delete_artifacts(
     project: str = mlrun.mlconf.default_project,
@@ -187,7 +181,7 @@ def delete_artifacts(
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
         db_session, project, name, tag, labels
     )
-    mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         lambda artifact: (artifact["project"], artifact["db_key"]),

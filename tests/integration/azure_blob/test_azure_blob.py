@@ -22,19 +22,31 @@ blob_dir = "test_mlrun_azure_blob"
 blob_file = f"file_{random.randint(0, 1000)}.txt"
 
 AUTH_METHODS_AND_REQUIRED_PARAMS = {
-    "conn_str": ["AZURE_STORAGE_CONNECTION_STRING"],
-    "sas_token": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_SAS_TOKEN"],
-    "account_key": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT_KEY"],
-    "spn": [
+    "env_conn_str": ["AZURE_STORAGE_CONNECTION_STRING"],
+    "env_sas_token": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_SAS_TOKEN"],
+    "env_account_key": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT_KEY"],
+    "env_spn": [
         "AZURE_STORAGE_ACCOUNT_NAME",
         "AZURE_STORAGE_CLIENT_ID",
         "AZURE_STORAGE_CLIENT_SECRET",
         "AZURE_STORAGE_TENANT_ID",
     ],
+    "fsspec_conn_str": ["connection_string"],
+    "fsspec_sas_token": ["account_name", "sas_token"],
+    "fsspec_account_key": ["account_name", "account_key"],
+    "fsspec_spn": ["account_name", "client_id", "client_secret", "tenant_id"],
+    "fsspec_credential": ["credential"],
 }
 
 
 def verify_auth_parameters_and_configure_env(auth_method):
+    # This sets up the authentication method against Azure
+    # if testing the use of Azure credentials stored as
+    # environmental variable, it creates the environmental
+    # variables and returns storage_options = None.  Otherwise
+    # it returns adlfs-recognized parameters compliant with the
+    # fsspec api.  These get saved as secrets by mlrun.get_dataitem()
+    # for authentication.
     if not config["env"].get("AZURE_CONTAINER"):
         return False
 
@@ -46,14 +58,28 @@ def verify_auth_parameters_and_configure_env(auth_method):
     if not test_params:
         return False
 
-    for env_var in test_params:
-        env_value = config["env"].get(env_var)
-        if not env_value:
-            return False
-        os.environ[env_var] = env_value
+    if auth_method.startswith("env"):
+        for env_var in test_params:
+            env_value = config["env"].get(env_var)
+            if not env_value:
+                return False
+            os.environ[env_var] = env_value
 
-    logger.info(f"Testing auth method {auth_method}")
-    return True
+        logger.info(f"Testing auth method {auth_method}")
+        return None
+
+    elif auth_method.startswith("fsspec"):
+        storage_options = {}
+        for var in test_params:
+            value = config["env"].get(var)
+            if not value:
+                return False
+            storage_options[var] = value
+        logger.info(f"Testing auth method {auth_method}")
+        return storage_options
+
+    else:
+        raise ValueError("auth_method not known")
 
 
 # Apply parametrization to all tests in this file. Skip test if auth method is not configured.
@@ -73,13 +99,13 @@ pytestmark = pytest.mark.parametrize(
 
 
 def test_azure_blob(auth_method):
-    verify_auth_parameters_and_configure_env(auth_method)
+    storage_options = verify_auth_parameters_and_configure_env(auth_method)
     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
     blob_url = blob_path + "/" + blob_dir + "/" + blob_file
 
     print(f"\nBlob URL: {blob_url}")
 
-    data_item = mlrun.run.get_dataitem(blob_url)
+    data_item = mlrun.run.get_dataitem(blob_url, secrets=storage_options)
     data_item.put(test_string)
 
     # Validate append is properly blocked (currently not supported for Azure blobs)
@@ -97,29 +123,31 @@ def test_azure_blob(auth_method):
 
 
 def test_list_dir(auth_method):
-    verify_auth_parameters_and_configure_env(auth_method)
+    storage_options = verify_auth_parameters_and_configure_env(auth_method)
     blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
     blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
     print(f"\nBlob URL: {blob_url}")
 
-    mlrun.run.get_dataitem(blob_url).put(test_string)
+    mlrun.run.get_dataitem(blob_url, storage_options).put(test_string)
 
     # Check dir list for container
-    dir_list = mlrun.run.get_dataitem(blob_container_path).listdir()
+    dir_list = mlrun.run.get_dataitem(blob_container_path, storage_options).listdir()
     assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
     # Check dir list for folder in container
-    dir_list = mlrun.run.get_dataitem(blob_container_path + "/" + blob_dir).listdir()
+    dir_list = mlrun.run.get_dataitem(
+        blob_container_path + "/" + blob_dir, storage_options
+    ).listdir()
     assert blob_file in dir_list, "File not in folder dir-list"
 
 
 def test_blob_upload(auth_method):
-    verify_auth_parameters_and_configure_env(auth_method)
+    storage_options = verify_auth_parameters_and_configure_env(auth_method)
     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
     blob_url = blob_path + "/" + blob_dir + "/" + blob_file
     print(f"\nBlob URL: {blob_url}")
 
-    upload_data_item = mlrun.run.get_dataitem(blob_url)
+    upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
     upload_data_item.upload(test_filename)
 
     response = upload_data_item.get()

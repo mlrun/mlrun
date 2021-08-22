@@ -118,9 +118,10 @@ class Member(
         state: mlrun.api.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
-            db_session, owner, format_, labels, state
+            db_session, owner, format_, labels, state, names
         )
 
     def get_project_owner(

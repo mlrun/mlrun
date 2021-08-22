@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 9,
-  "iteration": 1616587077779,
+  "id": 7,
+  "iteration": 1627466285618,
   "links": [
     {
       "icon": "external link",
@@ -85,7 +85,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv; \ncontainer=projects; \ntable=$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
           "type": "table"
         }
       ],
@@ -154,7 +154,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv; \ncontainer=projects; \ntable=$PROJECT/model-endpoints/endpoints; \nfields=predictions_per_second;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=predictions_per_second;",
           "type": "table"
         }
       ],
@@ -209,7 +209,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv; container=projects; table=$PROJECT/model-endpoints/endpoints; fields=latency_avg_1h;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=latency_avg_1h;",
           "type": "table"
         }
       ],
@@ -278,7 +278,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv; \ncontainer=projects; \ntable=$PROJECT/model-endpoints/endpoints; \nfields=error_count;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=error_count;",
           "type": "table"
         }
       ],
@@ -659,7 +659,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=projects;\ntable=$PROJECT/model-endpoints/events;\nfields=predictions_per_second;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;",
           "type": "timeserie"
         }
       ],
@@ -756,7 +756,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=projects;\ntable=$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;",
           "type": "timeserie"
         }
       ],
@@ -891,11 +891,7 @@
     "list": [
       {
         "allValue": null,
-        "current": {
-          "selected": false,
-          "text": "",
-          "value": ""
-        },
+        "current": {},
         "datasource": "mlrun-api",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
@@ -925,5 +921,5 @@
   "timezone": "",
   "title": "Overview",
   "uid": "g0M4uh0Mz",
-  "version": 4
+  "version": 2
 }

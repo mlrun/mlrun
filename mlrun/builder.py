@@ -45,7 +45,7 @@ def make_dockerfile(
     if src_dir:
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
-        dock += "ADD {src_dir} {workdir}\n"
+        dock += f"ADD {src_dir} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -68,6 +68,7 @@ def make_kaniko_pod(
     secret_name=None,
     name="",
     verbose=False,
+    builder_env=None,
 ):
 
     if not dockertext and not dockerfile:
@@ -89,6 +90,7 @@ def make_kaniko_pod(
         args=args,
         kind="build",
     )
+    kpod.env = builder_env
 
     if secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
@@ -151,6 +153,7 @@ def build_image(
     name="",
     extra=None,
     verbose=False,
+    builder_env=None,
 ):
 
     if registry:
@@ -197,8 +200,14 @@ def build_image(
     elif source and "://" in source and not v3io:
         context = source
     elif source:
+        parsed_url = urlparse(source)
         if v3io:
-            source = urlparse(source).path
+            source = parsed_url.path
+        elif source.startswith("git://"):
+            # if the user provided branch (w/o refs/..) we add the "refs/.."
+            fragment = parsed_url.fragment or ""
+            if not fragment.startswith("refs/"):
+                source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
         to_mount = True
         if source.endswith(".tar.gz"):
             source, src_dir = path.split(source)
@@ -223,6 +232,7 @@ def build_image(
         secret_name=secret_name,
         name=name,
         verbose=verbose,
+        builder_env=builder_env,
     )
 
     if to_mount:
@@ -257,7 +267,12 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
 
 
 def build_runtime(
-    runtime, with_mlrun, mlrun_version_specifier, skip_deployed, interactive=False
+    runtime,
+    with_mlrun,
+    mlrun_version_specifier,
+    skip_deployed,
+    interactive=False,
+    builder_env=None,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -306,6 +321,7 @@ def build_runtime(
         mlrun_version_specifier=mlrun_version_specifier,
         extra=build.extra,
         verbose=runtime.verbose,
+        builder_env=builder_env,
     )
     runtime.status.build_pod = None
     if status == "skipped":

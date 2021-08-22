@@ -135,6 +135,20 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
             raise_on_forbidden,
         )
 
+    def query_global_resource_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        return self.query_permissions(
+            resource_type.to_resource_string("", ""),
+            action=action,
+            auth_info=auth_info,
+            raise_on_forbidden=raise_on_forbidden,
+        )
+
     def query_permissions(
         self,
         resource: str,

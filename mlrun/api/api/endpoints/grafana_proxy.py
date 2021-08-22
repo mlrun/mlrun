@@ -128,6 +128,10 @@ def grafana_list_endpoints(
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
 
+    if project:
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        )
     endpoint_list = ModelEndpoints.list_endpoints(
         auth_info=auth_info,
         project=project,

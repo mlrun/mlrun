@@ -111,6 +111,9 @@ def list_endpoints(
      Or by using a "," (comma) separator:
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
      """
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
     endpoints = ModelEndpoints.list_endpoints(
         auth_info=auth_verifier.auth_info,
         project=project,

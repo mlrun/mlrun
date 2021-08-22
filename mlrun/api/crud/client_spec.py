@@ -87,19 +87,8 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
 
     def _resolve_valid_function_priority_classes(self):
         if not self._cached_valid_function_priority_classes:
-            k8s = get_k8s_helper(silent=True)
-            if not k8s.is_running_inside_kubernetes_cluster():
-                return []
-
-            available_priority_class_names = k8s.list_priority_class_names()
-            valid_function_priority_classes = []
-            if config.valid_function_priority_classes:
-                valid_function_priority_classes = config.valid_function_priority_classes.split(
-                    ","
-                )
-
-            self._cached_valid_function_priority_classes = set(
-                valid_function_priority_classes
-            ).intersection(set(available_priority_class_names))
+            self._cached_valid_function_priority_classes = config.valid_function_priority_classes.split(
+                ","
+            )
 
         return self._cached_valid_function_priority_classes

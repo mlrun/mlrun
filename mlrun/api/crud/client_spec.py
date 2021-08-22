@@ -26,7 +26,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
-            valid_function_priority_classes=config.valid_function_priority_classes.split(
+            valid_function_priority_class_names=config.valid_function_priority_class_names.split(
                 ","
             ),
             # These have a default value, therefore we want to send them only if their value is not the default one

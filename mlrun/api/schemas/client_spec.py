@@ -25,4 +25,4 @@ class ClientSpec(pydantic.BaseModel):
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Optional[str]
     default_function_priority_class: typing.Optional[str]
-    valid_function_priority_classes: typing.List[str] = []
+    valid_function_priority_class_names: typing.List[str] = []

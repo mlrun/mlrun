@@ -144,7 +144,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
 
         medium_priority_class_name = "medium-priority"
-        mlrun.mlconf.valid_function_priority_classes = [medium_priority_class_name]
+        mlrun.mlconf.valid_function_priority_class_names = [medium_priority_class_name]
         runtime.with_priority_class(medium_priority_class_name)
         self._execute_run(runtime)
         self._assert_pod_creation_config(
@@ -162,7 +162,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         runtime = self._generate_runtime()
 
-        mlrun.mlconf.valid_function_priority_classes = []
+        mlrun.mlconf.valid_function_priority_class_names = []
         mlrun.mlconf.default_function_priority_class = medium_priority_class_name
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)

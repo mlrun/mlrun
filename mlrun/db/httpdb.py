@@ -278,9 +278,9 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("default_function_priority_class")
                 or config.default_function_priority_class
             )
-            config.valid_function_priority_classes = (
-                server_cfg.get("valid_function_priority_classes")
-                or config.valid_function_priority_classes
+            config.valid_function_priority_class_names = (
+                server_cfg.get("valid_function_priority_class_names")
+                or config.valid_function_priority_class_names
             )
             config.igz_version = server_cfg.get("igz_version") or config.igz_version
             config.storage.auto_mount_type = (

@@ -94,7 +94,7 @@ default_config = {
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
-    # default priority class to be applied to functions running with priority class
+    # default priority class to be applied to functions running on k8s cluster
     "default_function_priority_class": "",
     # valid options for priority classes - separated by a comma
     "valid_function_priority_classes": "",

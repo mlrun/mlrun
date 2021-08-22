@@ -182,6 +182,7 @@ async def build_function(
         with_mlrun,
         skip_deployed,
         mlrun_version_specifier,
+        data.get("builder_env"),
     )
     return {
         "data": fn.to_dict(),
@@ -394,6 +395,7 @@ def _build_function(
     with_mlrun,
     skip_deployed,
     mlrun_version_specifier,
+    builder_env=None,
 ):
     fn = None
     ready = None
@@ -445,7 +447,11 @@ def _build_function(
             ready = False
         else:
             ready = build_runtime(
-                fn, with_mlrun, mlrun_version_specifier, skip_deployed
+                fn,
+                with_mlrun,
+                mlrun_version_specifier,
+                skip_deployed,
+                builder_env=builder_env,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())

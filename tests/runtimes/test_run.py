@@ -30,6 +30,7 @@ def test_new_function_from_runtime():
             "build": {"commands": []},
             "affinity": None,
             "mount_applied": False,
+            "priority_class_name": False,
         },
         "verbose": False,
     }

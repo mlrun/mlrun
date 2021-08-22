@@ -48,7 +48,6 @@ class K8sHelper:
         try:
             self._init_k8s_config(log)
             self.v1api = client.CoreV1Api()
-            self.scheduling_v1api = client.SchedulingV1Api()
             self.crdapi = client.CustomObjectsApi()
         except Exception:
             if not silent:
@@ -417,18 +416,6 @@ class K8sHelper:
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
 
         return results
-
-    def list_priority_class_names(self):
-        try:
-            v1_priority_class_list = self.scheduling_v1api.list_priority_class()
-        except ApiException as exc:
-            logger.error(f"failed to list priority class: {exc}")
-            raise exc
-
-        names = []
-        for v1_priority_class in v1_priority_class_list:
-            names.append(v1_priority_class.metadata.name)
-        return names
 
 
 class BasePod:

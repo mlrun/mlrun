@@ -53,6 +53,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        priority_class_name=None,
     ):
         super().__init__(
             command=command,
@@ -76,6 +77,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            priority_class_name=priority_class_name,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 
@@ -185,6 +187,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             update_in(pod_template, "spec.nodeSelector", self.spec.node_selector)
             update_in(
                 pod_template, "spec.affinity", self.spec._get_sanitized_affinity()
+            )
+            update_in(
+                pod_template, "spec.priorityClassName", self.spec.priority_class_name
             )
 
         # configuration for workers only

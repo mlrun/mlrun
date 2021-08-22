@@ -2,7 +2,6 @@ import mlrun.api.schemas
 import mlrun.utils.singleton
 from mlrun.api.utils.clients import nuclio
 from mlrun.config import config, default_config
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 from mlrun.utils import logger
 

@@ -80,6 +80,9 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
         update_in(
             job, "spec.template.spec.affinity", self.spec._get_sanitized_affinity()
         )
+        update_in(
+            job, "spec.template.spec.priorityClassName", self.spec.priority_class_name
+        )
 
         extra_env = self._generate_runtime_env(runobj)
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]

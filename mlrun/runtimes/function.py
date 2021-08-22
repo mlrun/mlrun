@@ -971,6 +971,8 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config("spec.nodeName", function.spec.node_name)
     if function.spec.affinity:
         spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    if function.spec.priority_class_name:
+        spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

@@ -310,6 +310,8 @@ class SparkRuntime(KubejobRuntime):
                 self.spec.restart_policy["submission_retry_interval"],
                 int,
             )
+        if self.spec.priority_class_name:
+            update_in(job, "spec.priority_class_name", self.spec.priority_class_name)
 
         update_in(job, "metadata", meta.to_dict())
         update_in(job, "spec.driver.labels", pod_labels)

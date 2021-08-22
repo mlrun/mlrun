@@ -40,7 +40,9 @@ def list_pipelines(
 ):
     if project != "*":
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
-            project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
         )
     total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():

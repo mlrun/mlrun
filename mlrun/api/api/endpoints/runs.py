@@ -144,7 +144,9 @@ def list_runs(
 ):
     if project != "*":
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
-            project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
         )
     runs = mlrun.api.crud.Runs().list_runs(
         db_session,

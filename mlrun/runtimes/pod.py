@@ -349,14 +349,13 @@ class KubeResource(BaseRuntime):
         if priority_class_name:
             valid_priority_class_names = self.list_valid_priority_class_names()
             if priority_class_name not in valid_priority_class_names:
-                logger.warn(
-                    "Priority class name not in available priority class names",
+                message = "Priority class name not in available priority class names"
+                logger.warning(
+                    message,
                     priority_class_name=priority_class_name,
                     valid_priority_class_names=valid_priority_class_names,
                 )
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Priority class name was not found"
-                )
+                raise mlrun.errors.MLRunInvalidArgumentError(message)
             self.spec.priority_class_name = priority_class_name
         else:
             self.spec.priority_class_name = mlconf.default_function_priority_class

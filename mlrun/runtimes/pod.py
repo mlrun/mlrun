@@ -89,7 +89,9 @@ class KubeResourceSpec(FunctionSpec):
             node_selector or mlrun.mlconf.get_default_function_node_selector()
         )
         self._affinity = affinity
-        self.priority_class_name = priority_class_name
+        self.priority_class_name = (
+            priority_class_name or mlrun.mlconf.default_function_priority_class
+        )
 
     @property
     def volumes(self) -> list:
@@ -339,26 +341,23 @@ class KubeResource(BaseRuntime):
         if affinity:
             self.spec.affinity = affinity
 
-    def with_priority_class(self, priority_class_name: typing.Optional[str] = None):
+    def with_priority_class(self, priority_class_name: typing.Optional[str]):
         """
         Enables to control the priority of the pod
         If not passed - will default to the default_function_priority_class passed in config
 
         :param priority_class_name:       The name of the priority class
         """
-        if priority_class_name:
-            valid_priority_class_names = self.list_valid_priority_class_names()
-            if priority_class_name not in valid_priority_class_names:
-                message = "Priority class name not in available priority class names"
-                logger.warning(
-                    message,
-                    priority_class_name=priority_class_name,
-                    valid_priority_class_names=valid_priority_class_names,
-                )
-                raise mlrun.errors.MLRunInvalidArgumentError(message)
-            self.spec.priority_class_name = priority_class_name
-        else:
-            self.spec.priority_class_name = mlconf.default_function_priority_class
+        valid_priority_class_names = self.list_valid_priority_class_names()
+        if priority_class_name not in valid_priority_class_names:
+            message = "Priority class name not in available priority class names"
+            logger.warning(
+                message,
+                priority_class_name=priority_class_name,
+                valid_priority_class_names=valid_priority_class_names,
+            )
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
+        self.spec.priority_class_name = priority_class_name
 
     def list_valid_priority_class_names(self):
         return mlconf.valid_function_priority_classes

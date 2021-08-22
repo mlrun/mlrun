@@ -151,11 +151,10 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_priority_class_name=medium_priority_class_name
         )
 
-        runtime = self._generate_runtime()
-
         default_priority_class_name = "default-priority"
         mlrun.mlconf.default_function_priority_class = default_priority_class_name
-        runtime.with_priority_class()
+        runtime = self._generate_runtime()
+
         self._execute_run(runtime)
         self._assert_pod_creation_config(
             expected_priority_class_name=default_priority_class_name

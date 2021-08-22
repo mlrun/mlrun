@@ -142,6 +142,10 @@ def list_runs(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if project != "*":
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+        )
     runs = mlrun.api.crud.Runs().list_runs(
         db_session,
         name=name,

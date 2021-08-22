@@ -38,6 +38,10 @@ def list_pipelines(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
+    if project != "*":
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+        )
     total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be

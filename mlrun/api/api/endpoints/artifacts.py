@@ -70,6 +70,9 @@ def list_artifact_tags(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
     tag_tuples = get_db().list_artifact_tags(db_session, project)
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
     allowed_artifact_keys = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
@@ -144,6 +147,10 @@ def list_artifacts(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
+
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
         db_session,
         project,

@@ -131,6 +131,9 @@ def list_functions(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
     )

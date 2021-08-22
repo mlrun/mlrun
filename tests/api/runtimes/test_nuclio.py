@@ -405,13 +405,23 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
 
-        # default is applied regardless of nuclio version - it will be ignored by nuclio
+        mlconf.nuclio_version = "1.5.20"
         default_priority_class_name = "default-priority"
         mlrun.mlconf.default_function_priority_class = default_priority_class_name
         function = self._generate_runtime("nuclio")
 
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert "priorityClassName" not in deploy_spec
+
+        mlconf.nuclio_version = "1.6.18"
+        function = self._generate_runtime("nuclio")
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=2)
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
@@ -432,7 +442,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.with_priority_class(medium_priority_class_name)
 
         deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=2)
+        self._assert_deploy_called_basic_config(call_count=3)
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 

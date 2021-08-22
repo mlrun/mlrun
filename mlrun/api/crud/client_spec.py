@@ -9,7 +9,6 @@ from mlrun.utils import logger
 class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
     def __init__(self):
         self._cached_nuclio_version = None
-        self._cached_valid_function_priority_classes = None
 
     def get_client_spec(self):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
@@ -27,7 +26,9 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
-            valid_function_priority_classes=self._resolve_valid_function_priority_classes(),
+            valid_function_priority_classes=config.valid_function_priority_classes.split(
+                ","
+            ),
             # These have a default value, therefore we want to send them only if their value is not the default one
             # (otherwise clients don't know when to use server value and when to use client value)
             ui_projects_prefix=self._get_config_value_if_not_default(
@@ -83,11 +84,3 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             self._cached_nuclio_version = nuclio_version
 
         return self._cached_nuclio_version
-
-    def _resolve_valid_function_priority_classes(self):
-        if not self._cached_valid_function_priority_classes:
-            self._cached_valid_function_priority_classes = config.valid_function_priority_classes.split(
-                ","
-            )
-
-        return self._cached_valid_function_priority_classes

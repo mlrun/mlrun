@@ -975,7 +975,10 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config("spec.nodeName", function.spec.node_name)
     if function.spec.affinity:
         spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
-    if function.spec.priority_class_name:
+    # don't send default or any priority class name if nuclio is not compatible
+    if function.spec.priority_class_name and validate_nuclio_version_compatibility(
+        "1.6.18"
+    ):
         spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
 
     if function.spec.replicas:

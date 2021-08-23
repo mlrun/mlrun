@@ -1,5 +1,5 @@
-# Node affinity for MLRun jobs and Nuclio functions
-Node affinity can be applied to MLRun and Nuclio functions to determine on which nodes 
+# Node affinity for MLRun jobs
+Node affinity can be applied to MLRun to determine on which nodes 
 they can be placed. The rules are defined using custom labels on nodes and label selectors. 
 Node affinity allows towards Spot or On Demand groups of nodes.
 
@@ -15,17 +15,17 @@ susceptible to spot capacity availability. This is a good choice if you can be f
 and if your applications can be interrupted.
 
 ## Stateless and Stateful Applications 
-When deploying your MLRun jobs and Nuclio functions to specific nodes, please take into consideration that on demand 
+When deploying your MLRun jobs to specific nodes, please take into consideration that on demand 
 nodes are best designed to run stateful applications while spot nodes are best designed to stateless applications. 
-MLRun jobs and Nuclio functions which are stateful, and are assigned to run on spot nodes, may be subject to interruption 
+MLRun jobs which are stateful, and are assigned to run on spot nodes, may be subject to interruption 
 and will to be designed so that the job/function state will be saved when scaling to zero.
 
 ## Node Selector
-Using the **Node Selector** you can assign MLRun jobs and Nuclio functions to specific nodes within the cluster. 
+Using the **Node Selector** you can assign MLRun jobs to specific nodes within the cluster. 
 **Node Selector** is available for all modes of deployment in the platform including the platform UI, 
 command line, and programmable interfaces.
 
-To assign MLRun jobs and Nuclio functions to specific nodes you use the Kubernetes node label 
+To assign MLRun jobs to specific nodes you use the Kubernetes node label 
 `app.iguazio.com/lifecycle` with the values of:
 
 * preemptible – assign to EC2 Spot instances
@@ -44,7 +44,7 @@ or
 to determine spot or on demand nodes.
 ```
 
-You can use multiple labels to assign MLRun jobs or Nuclio functions to specific nodes. 
+You can use multiple labels to assign MLRun jobs to specific nodes. 
 However, when you use multiple labels a logical `and` is performed on the labels.
 
 ```{admonition} Note

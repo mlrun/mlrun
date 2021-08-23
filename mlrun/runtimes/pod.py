@@ -89,9 +89,14 @@ class KubeResourceSpec(FunctionSpec):
             node_selector or mlrun.mlconf.get_default_function_node_selector()
         )
         self._affinity = affinity
-        self.priority_class_name = (
-            priority_class_name or mlrun.mlconf.default_function_priority_class_name
-        )
+        self.priority_class_name = None
+        if priority_class_name:
+            self.priority_class_name = priority_class_name
+        elif (
+            mlconf.default_function_priority_class_name
+            in mlconf.get_valid_function_priority_class_names()
+        ):
+            self.priority_class_name = mlconf.default_function_priority_class_name
 
     @property
     def volumes(self) -> list:

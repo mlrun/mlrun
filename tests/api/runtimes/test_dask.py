@@ -198,6 +198,7 @@ class TestDaskRuntime(TestRuntimeBase):
     def test_dask_with_priority_class_name(self, db: Session, client: TestClient):
         default_priority_class_name = "default-priority"
         mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
+        mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
         runtime = self._generate_runtime()
 
         _ = runtime.client
@@ -213,7 +214,9 @@ class TestDaskRuntime(TestRuntimeBase):
 
         runtime = self._generate_runtime()
         medium_priority_class_name = "medium-priority"
-        mlrun.mlconf.valid_function_priority_class_names = medium_priority_class_name
+        mlrun.mlconf.valid_function_priority_class_names = ",".join(
+            [default_priority_class_name, medium_priority_class_name]
+        )
         runtime.with_priority_class(medium_priority_class_name)
 
         _ = runtime.client

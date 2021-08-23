@@ -425,6 +425,16 @@ class TestNuclioRuntime(TestRuntimeBase):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
+        assert "priorityClassName" not in deploy_spec
+
+        mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
+        function = self._generate_runtime("nuclio")
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=3)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
         assert deploy_spec["priorityClassName"] == default_priority_class_name
 
         function = self._generate_runtime()
@@ -442,7 +452,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.with_priority_class(medium_priority_class_name)
 
         deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=3)
+        self._assert_deploy_called_basic_config(call_count=4)
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 

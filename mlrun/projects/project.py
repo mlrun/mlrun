@@ -1970,8 +1970,9 @@ def _init_function_from_dict(f, project):
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
+        # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
-            name, filename=url, image=image, kind=kind or "job", handler=handler
+            name, filename=url, image=image, kind=kind, handler=handler
         )
     elif url.endswith(".py"):
         if not image:

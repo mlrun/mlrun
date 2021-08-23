@@ -2,7 +2,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
-from mlrun.api.schemas import SecretProviderName
+import mlrun
 from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.platforms.iguazio import parse_v3io_path
@@ -93,6 +93,6 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 def set_project_monitoring_key(access_key: str, project: Optional[str] = None):
     get_run_db().create_project_secrets(
         project=project or config.default_project,
-        provider=SecretProviderName.kubernetes,
+        provider=mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets={"MODEL_MONITORING_ACCESS_KEY": access_key},
     )

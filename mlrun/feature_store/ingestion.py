@@ -248,41 +248,17 @@ def add_source_trigger(source, function):
     if isinstance(source, KafkaSource):
         partitions = source.attributes.get("partitions")
         trigger = KafkaTrigger(
-            url=source.attributes["brokers"],
-            topic=source.attributes["topics"],
-            partitions=source.attributes.get("partitions"),
+            brokers=source.attributes["brokers"],
+            topics=source.attributes["topics"],
+            partitions=partitions,
+            consumer_group=source.attributes["group"],
+            initial_offset=source.attributes["initial_offset"],
         )
-        trigger._struct["kind"] = "kafka-cluster"
-        trigger._struct["maxWorkers"] = 1
         func = function.add_trigger("kafka", trigger)
-        func.spec.config["spec.triggers.kafka"]["attributes"][
-            "ConsumerGroup"
-        ] = source.attributes["group"]
-        func.spec.config["spec.triggers.kafka"]["attributes"][
-            "Brokers"
-        ] = [source.attributes["brokers"]]
-        func.spec.config["spec.triggers.kafka"]["attributes"][
-            "Topics"
-        ] = source.attributes["topics"]
-        func.spec.config["spec.triggers.kafka"]["attributes"][
-            "InitialOffset"
-        ] = source.attributes["initial_offset"]
-        func.spec.config["spec.triggers.kafka"]["attributes"]["SessionTimeout"] = "10s"
-        func.spec.config["spec.triggers.kafka"]["attributes"][
-            "HeartbeatInterval"
-        ] = "3s"
-        func.spec.config["spec.triggers.kafka"]["attributes"][
-            "WorkerAllocationMode"
-        ] = "pool"
-        func.spec.config["spec.triggers.kafka"]["attributes"]["FetchDefault"] = 1048576
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")
         if sasl_user and sasl_pass:
-            func.spec.config["spec.triggers.kafka"]["attributes"]["Sasl"] = {
-                "Enable": True,
-                "User": sasl_user,
-                "Password": sasl_pass,
-            }
+            trigger.sasl(sasl_user, sasl_pass)
         replicas = 1 if not partitions else len(partitions)
         func.spec.min_replicas = replicas
         func.spec.max_replicas = replicas

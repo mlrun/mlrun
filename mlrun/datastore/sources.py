@@ -353,7 +353,7 @@ class StreamSource(OnlineSource):
 class KafkaSource(OnlineSource):
     """
        Sets kafka source for the flow
-       :parameter url: broker IP addresses
+       :parameter brokers: list of broker IP addresses
        :parameter topics: list of topic names on which to listen.
        :parameter group: consumer group. Default "serving"
        :parameter initial_offset: from where to consume the stream. Default earliest
@@ -366,8 +366,8 @@ class KafkaSource(OnlineSource):
 
     def __init__(
         self,
-        url="localhost:9092",
-        topics=["topic"],
+        brokers="localhost:9092",
+        topics="topic",
         group="serving",
         initial_offset="earliest",
         partitions=None,
@@ -376,9 +376,11 @@ class KafkaSource(OnlineSource):
         **kwargs,
     ):
         if isinstance(topics, str):
-            topics = list[topics]
+            topics = list(topics)
+        if isinstance(brokers, str):
+            topics = list(brokers)
         attrs = {
-            "brokers": url,
+            "brokers": brokers,
             "topics": topics,
             "partitions": partitions,
             "group": group,

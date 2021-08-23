@@ -56,11 +56,11 @@ class ProjectError(Exception):
 
 def init_repo(context, url, init_git):
     repo = None
-    if not path.isdir(context):
-        raise ValueError(
-            f"context {context} is not an existing dir path, "
-            "make sure you create the context directory first"
-        )
+    context_path = pathlib.Path(context)
+    if not context_path.exists():
+        context_path.mkdir(parents=True)
+    elif not context_path.is_dir():
+        raise ValueError(f"context {context} is not a dir path")
     try:
         repo = Repo(context)
         url = get_repo_url(repo)

@@ -81,6 +81,19 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             run = kfp_client.get_run(run_id)
             if run:
                 run = run.to_dict()["run"]
+                if project and project != "*":
+                    # we need to resolve the project from the returned run for the project enforcement here, so we
+                    # can't really get back only the names here
+                    computed_format = (
+                        mlrun.api.schemas.PipelinesFormat.metadata_only
+                        if format_ == mlrun.api.schemas.PipelinesFormat.name_only
+                        else format_
+                    )
+                    run_for_project = self._format_run(db_session, run, computed_format)
+                    if run_for_project["project"] != project:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Pipeline run with id {run_id} is not of project {project}"
+                        )
                 run = self._format_run(db_session, run, format_)
 
         except Exception as exc:
@@ -244,15 +257,10 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
     def resolve_project_from_pipeline(self, pipeline):
 
-        list_response_workflow_manifest = json.loads(
+        workflow_manifest = json.loads(
             pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
         )
-        detail_response_workflow_manifest = json.loads(
-            pipeline.get("pipeline_runtime", {}).get("workflow_manifest") or "{}"
-        )
-        return self.resolve_project_from_workflow_manifest(
-            list_response_workflow_manifest or detail_response_workflow_manifest
-        )
+        return self.resolve_project_from_workflow_manifest(workflow_manifest)
 
     def resolve_project_from_workflow_manifest(self, workflow_manifest):
         templates = workflow_manifest.get("spec", {}).get("templates", [])

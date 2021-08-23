@@ -48,7 +48,7 @@ def list_pipelines(
     total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
-        # "*", so we can't really get back only the names here
+        # "*"), so we can't really get back only the names here
         computed_format = (
             mlrun.api.schemas.PipelinesFormat.metadata_only
             if format_ == mlrun.api.schemas.PipelinesFormat.name_only

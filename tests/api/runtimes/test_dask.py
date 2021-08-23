@@ -197,7 +197,7 @@ class TestDaskRuntime(TestRuntimeBase):
 
     def test_dask_with_priority_class_name(self, db: Session, client: TestClient):
         default_priority_class_name = "default-priority"
-        mlrun.mlconf.default_function_priority_class = default_priority_class_name
+        mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
         runtime = self._generate_runtime()
 
         _ = runtime.client

@@ -90,7 +90,7 @@ class KubeResourceSpec(FunctionSpec):
         )
         self._affinity = affinity
         self.priority_class_name = (
-            priority_class_name or mlrun.mlconf.default_function_priority_class
+            priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
 
     @property
@@ -344,7 +344,7 @@ class KubeResource(BaseRuntime):
     def with_priority_class(self, name: typing.Optional[str]):
         """
         Enables to control the priority of the pod
-        If not passed - will default to mlrun.mlconf.default_function_priority_class
+        If not passed - will default to mlrun.mlconf.default_function_priority_class_name
 
         :param name:       The name of the priority class
         """

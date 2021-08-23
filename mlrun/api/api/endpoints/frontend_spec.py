@@ -29,7 +29,7 @@ def get_frontend_spec(
         jobs_dashboard_url=jobs_dashboard_url,
         abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
         feature_flags=feature_flags,
-        default_function_priority_class=config.default_function_priority_class,
+        default_function_priority_class_name=config.default_function_priority_class_name,
         valid_function_priority_class_names=config.get_valid_function_priority_class_names(),
     )
 

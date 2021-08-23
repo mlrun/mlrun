@@ -95,9 +95,9 @@ default_config = {
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
     # default priority class to be applied to functions running on k8s cluster
-    "default_function_priority_class": "",
+    "default_function_priority_class_name": "",
     # valid options for priority classes - separated by a comma
-    # empty string means nothing is valid, will use default_function_priority_class if present
+    # empty string means nothing is valid, will use default_function_priority_class_name if present
     # else will not support pods priority
     "valid_function_priority_class_names": "",
     "httpdb": {

@@ -28,8 +28,8 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             nuclio_version=self._resolve_nuclio_version(),
             # These don't have a default value, but we don't send them if they are not set
             # because they will be irrelevant
-            default_function_priority_class=self._get_config_value_if_not_default(
-                "default_function_priority_class"
+            default_function_priority_class_name=self._get_config_value_if_not_default(
+                "default_function_priority_class_name"
             ),
             valid_function_priority_class_names=self._get_config_value_if_not_default(
                 "valid_function_priority_class_names"

@@ -317,6 +317,15 @@ class PyTorchMLRunInterface:
                 )
             )
 
+    def predict(self):
+        """
+        Run prediction on the given data. Batched data can be predicted as well.
+
+        :return: The model's prediction output.
+        """
+        # TODO: Implement it in order to make the serving work.
+        raise NotImplementedError
+
     def _parse_and_store(
         self,
         training_set: DataLoader = None,

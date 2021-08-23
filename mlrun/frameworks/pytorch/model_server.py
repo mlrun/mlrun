@@ -4,6 +4,7 @@ from torch.nn import Module
 
 import mlrun
 from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
+from mlrun.frameworks.pytorch.mlrun_interface import PyTorchMLRunInterface
 from mlrun.serving.v2_serving import V2ModelServer
 
 
@@ -87,15 +88,20 @@ class PyTorchModelServer(V2ModelServer):
 
     def predict(self, request: Dict[str, Any]) -> list:
         """
-        Infer the inputs through the model using 'torch.Module.__call__' and return its output. The inferred data will
+        Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.
 
         :param request: The request of the model. The input to the model will be read from the "inputs" key.
 
-        :return: The 'torch.Module.__call__' returned output on the given inputs.
+        :return: The model's prediction on the given input.
         """
+        # Get the inputs:
         images = request["inputs"]
-        predicted_probability = self.model(images)
+
+        # Initialize the interface and predict:
+        interface = PyTorchMLRunInterface(model=self.model)
+        predicted_probability = interface.predict(images)
+
         return predicted_probability.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:

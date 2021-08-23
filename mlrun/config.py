@@ -97,6 +97,8 @@ default_config = {
     # default priority class to be applied to functions running on k8s cluster
     "default_function_priority_class": "",
     # valid options for priority classes - separated by a comma
+    # empty string means nothing is valid, will use default_function_priority_class if present else
+    # will not support pods priority
     "valid_function_priority_class_names": "",
     "httpdb": {
         "port": 8080,
@@ -331,6 +333,12 @@ class Config:
             )
 
         return default_function_node_selector
+
+    @staticmethod
+    def get_valid_function_priority_class_names():
+        if not config.valid_function_priority_class_names:
+            return []
+        return config.valid_function_priority_class_names.split(",")
 
     @staticmethod
     def get_storage_auto_mount_params():

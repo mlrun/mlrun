@@ -341,26 +341,26 @@ class KubeResource(BaseRuntime):
         if affinity:
             self.spec.affinity = affinity
 
-    def with_priority_class(self, priority_class_name: typing.Optional[str]):
+    def with_priority_class(self, name: typing.Optional[str]):
         """
         Enables to control the priority of the pod
-        If not passed - will default to the default_function_priority_class passed in config
+        If not passed - will default to mlrun.mlconf.default_function_priority_class
 
-        :param priority_class_name:       The name of the priority class
+        :param name:       The name of the priority class
         """
         valid_priority_class_names = self.list_valid_priority_class_names()
-        if priority_class_name not in valid_priority_class_names:
+        if name not in valid_priority_class_names:
             message = "Priority class name not in available priority class names"
             logger.warning(
                 message,
-                priority_class_name=priority_class_name,
+                priority_class_name=name,
                 valid_priority_class_names=valid_priority_class_names,
             )
             raise mlrun.errors.MLRunInvalidArgumentError(message)
-        self.spec.priority_class_name = priority_class_name
+        self.spec.priority_class_name = name
 
     def list_valid_priority_class_names(self):
-        return mlconf.valid_function_priority_class_names
+        return mlconf.get_valid_function_priority_class_names()
 
     def _verify_and_set_limits(
         self,

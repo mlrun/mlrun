@@ -969,12 +969,14 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
-    if function.spec.node_selector:
-        spec.set_config("spec.nodeSelector", function.spec.node_selector)
-    if function.spec.node_name:
-        spec.set_config("spec.nodeName", function.spec.node_name)
-    if function.spec.affinity:
-        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    # don't send node selections if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
+        if function.spec.node_selector:
+            spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        if function.spec.node_name:
+            spec.set_config("spec.nodeName", function.spec.node_name)
+        if function.spec.affinity:
+            spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
     # don't send default or any priority class name if nuclio is not compatible
     if function.spec.priority_class_name and validate_nuclio_version_compatibility(
         "1.6.18"

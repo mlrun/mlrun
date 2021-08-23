@@ -26,8 +26,12 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
-            valid_function_priority_class_names=config.valid_function_priority_class_names.split(
-                ","
+            # These don't have a default value, but we don't send them if they are not set
+            default_function_node_selector=self._get_config_value_if_not_default(
+                "default_function_node_selector"
+            ),
+            valid_function_priority_class_names=self._get_config_value_if_not_default(
+                "valid_function_priority_class_names"
             ),
             # These have a default value, therefore we want to send them only if their value is not the default one
             # (otherwise clients don't know when to use server value and when to use client value)
@@ -36,9 +40,6 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             ),
             scrape_metrics=self._get_config_value_if_not_default("scrape_metrics"),
             hub_url=self._get_config_value_if_not_default("hub_url"),
-            default_function_node_selector=self._get_config_value_if_not_default(
-                "default_function_node_selector"
-            ),
             igz_version=self._get_config_value_if_not_default("igz_version"),
             auto_mount_type=self._get_config_value_if_not_default(
                 "storage.auto_mount_type"

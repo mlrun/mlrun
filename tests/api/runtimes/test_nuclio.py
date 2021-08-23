@@ -429,7 +429,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function = self._generate_runtime()
         medium_priority_class_name = "medium-priority"
-        mlrun.mlconf.valid_function_priority_class_names = [medium_priority_class_name]
+        mlrun.mlconf.valid_function_priority_class_names = medium_priority_class_name
         mlconf.nuclio_version = "1.5.20"
         with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
             function.with_priority_class(medium_priority_class_name)

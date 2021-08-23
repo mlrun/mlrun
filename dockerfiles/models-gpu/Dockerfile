@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VERSION=11.0
+ARG CUDA_VER=11.0
 
-FROM nvidia/cuda:${CUDA_VERSION}-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
 # need to be redeclared since used in the from
-ARG CUDA_VERSION
+ARG CUDA_VER
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -55,7 +55,7 @@ RUN conda config --add channels conda-forge && \
 RUN conda install -n base cmake cython \
     && conda clean -aqy
 
-RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VERSION} \
+RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VER} \
     && conda clean -aqy
 
 RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \

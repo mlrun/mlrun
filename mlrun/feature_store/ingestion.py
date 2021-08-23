@@ -260,7 +260,7 @@ def add_source_trigger(source, function):
         ] = source.attributes["group"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
             "Brokers"
-        ] = source.attributes["brokers"]
+        ] = [source.attributes["brokers"]]
         func.spec.config["spec.triggers.kafka"]["attributes"][
             "Topics"
         ] = source.attributes["topics"]
@@ -278,7 +278,7 @@ def add_source_trigger(source, function):
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")
         if sasl_user and sasl_pass:
-            func.spec.config["spec.triggers.kafka"]["attributes"]["sasl"] = {
+            func.spec.config["spec.triggers.kafka"]["attributes"]["Sasl"] = {
                 "Enable": True,
                 "User": sasl_user,
                 "Password": sasl_pass,

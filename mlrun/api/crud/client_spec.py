@@ -27,6 +27,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
             # These don't have a default value, but we don't send them if they are not set
+            # because they will be irrelevant
             default_function_priority_class=self._get_config_value_if_not_default(
                 "default_function_priority_class"
             ),

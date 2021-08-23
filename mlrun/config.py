@@ -197,10 +197,13 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
+        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         "store_prefixes": {
-            "default": "v3io:///projects/{project}/model-endpoints/{kind}"
+            "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
+            "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
+        "batch_processing_function_branch": "master",
     },
     "secret_stores": {
         "vault": {
@@ -254,7 +257,7 @@ default_config = {
         # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
-        "auto_mount_type": "auto",
+        "auto_mount_type": "none",
         # Extra parameters to pass to the mount call (will be passed as kwargs). Parameters can be either:
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters

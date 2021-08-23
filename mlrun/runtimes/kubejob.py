@@ -116,6 +116,7 @@ class KubejobRuntime(KubeResource):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
     ):
         """deploy function, build container with dependencies
 
@@ -123,6 +124,8 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param skip_deployed: skip the build if we already have an image for the function
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
         """
 
         build = self.spec.build
@@ -142,7 +145,11 @@ class KubejobRuntime(KubeResource):
         if self._is_remote_api():
             db = self._get_db()
             data = db.remote_builder(
-                self, with_mlrun, mlrun_version_specifier, skip_deployed
+                self,
+                with_mlrun,
+                mlrun_version_specifier,
+                skip_deployed,
+                builder_env=builder_env,
             )
             logger.info(
                 f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
@@ -226,6 +233,9 @@ class KubejobRuntime(KubeResource):
     ):
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
+        # mark that the function/image is built as part of the pipeline so other places
+        # which use the function will grab the updated image/status
+        self._build_in_pipeline = True
         return build_op(
             name,
             self,

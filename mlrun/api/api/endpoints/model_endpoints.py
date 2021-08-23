@@ -1,3 +1,4 @@
+import os
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -5,8 +6,8 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
+import mlrun.api.crud
 import mlrun.api.utils.clients.opa
-from mlrun.api.crud.model_endpoints import ModelEndpoints, get_access_key
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError
 
@@ -36,7 +37,8 @@ def create_or_patch(
         mlrun.api.schemas.AuthorizationAction.store,
         auth_verifier.auth_info,
     )
-    access_key = get_access_key(auth_verifier.auth_info)
+    # get_access_key will validate the needed auth (which is used later) exists in the request
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_verifier.auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
@@ -46,9 +48,11 @@ def create_or_patch(
             f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
-    ModelEndpoints.create_or_patch(
+    # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
+    # V3IO_ACCESS_KEY here
+    mlrun.api.crud.ModelEndpoints().create_or_patch(
         db_session=db_session,
-        access_key=access_key,
+        access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
         auth_info=auth_verifier.auth_info,
     )
@@ -76,7 +80,9 @@ def delete_endpoint_record(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_verifier.auth_info,
     )
-    ModelEndpoints.delete_endpoint_record(auth_verifier.auth_info, project, endpoint_id)
+    mlrun.api.crud.ModelEndpoints().delete_endpoint_record(
+        auth_verifier.auth_info, project, endpoint_id
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -107,7 +113,10 @@ def list_endpoints(
      Or by using a "," (comma) separator:
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
      """
-    endpoints = ModelEndpoints.list_endpoints(
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
+    endpoints = mlrun.api.crud.ModelEndpoints().list_endpoints(
         auth_info=auth_verifier.auth_info,
         project=project,
         model=model,
@@ -148,7 +157,7 @@ def get_endpoint(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    endpoint = ModelEndpoints.get_endpoint(
+    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
         auth_info=auth_verifier.auth_info,
         project=project,
         endpoint_id=endpoint_id,

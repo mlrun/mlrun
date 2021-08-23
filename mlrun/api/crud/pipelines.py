@@ -76,20 +76,12 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary,
     ):
         kfp_client = kfp.Client(namespace=namespace)
+        run = None
         try:
             run = kfp_client.get_run(run_id)
             if run:
-                run = run.to_dict()
-                if format_ == mlrun.api.schemas.PipelinesFormat.summary:
-                    run = mlrun.kfpops.format_summary_from_kfp_run(
-                        run["run"], project=project, session=db_session
-                    )
-                elif format_ == mlrun.api.schemas.PipelinesFormat.full:
-                    pass
-                else:
-                    raise NotImplementedError(
-                        f"Provided format is not supported. format={format_}"
-                    )
+                run = run.to_dict()["run"]
+                run = self._format_run(db_session, run, format_)
 
         except Exception as exc:
             mlrun.api.api.utils.log_and_raise(

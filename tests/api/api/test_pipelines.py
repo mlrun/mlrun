@@ -50,85 +50,50 @@ def test_list_pipelines_empty_list(
     _assert_list_pipelines_response(expected_response, response)
 
 
-def test_list_pipelines_names_only(
+def test_list_pipelines_formats(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
-    runs = _generate_run_mocks()
-    expected_runs = [run.name for run in runs]
-    _mock_list_runs(kfp_client_mock, runs)
-    response = client.get(
-        "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.PipelinesFormat.name_only},
-    )
-    expected_response = mlrun.api.schemas.PipelinesOutput(
-        runs=expected_runs, total_size=len(runs), next_page_token=None
-    )
-    _assert_list_pipelines_response(expected_response, response)
+    for format_ in [
+        mlrun.api.schemas.PipelinesFormat.full,
+        mlrun.api.schemas.PipelinesFormat.metadata_only,
+        mlrun.api.schemas.PipelinesFormat.summary,
+        mlrun.api.schemas.PipelinesFormat.name_only,
+    ]:
+        runs = _generate_run_mocks()
+        expected_runs = [run.to_dict() for run in runs]
+        expected_runs = mlrun.api.crud.Pipelines()._format_runs(
+            db, expected_runs, format_
+        )
+        _mock_list_runs(kfp_client_mock, runs)
+        response = client.get("/api/projects/*/pipelines", params={"format": format_},)
+        expected_response = mlrun.api.schemas.PipelinesOutput(
+            runs=expected_runs, total_size=len(runs), next_page_token=None
+        )
+        _assert_list_pipelines_response(expected_response, response)
 
 
-def test_list_pipelines_metadata_only(
+def test_get_pipeline_formats(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
-    runs = _generate_run_mocks()
-    expected_runs = [run.to_dict() for run in runs]
-    expected_runs = mlrun.api.crud.Pipelines()._format_runs(
-        db, expected_runs, mlrun.api.schemas.PipelinesFormat.metadata_only
-    )
-    _mock_list_runs(kfp_client_mock, runs)
-    response = client.get(
-        "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.PipelinesFormat.metadata_only},
-    )
-    expected_response = mlrun.api.schemas.PipelinesOutput(
-        runs=expected_runs, total_size=len(runs), next_page_token=None
-    )
-    _assert_list_pipelines_response(expected_response, response)
-
-
-def test_list_pipelines_summary(
-    db: sqlalchemy.orm.Session,
-    client: fastapi.testclient.TestClient,
-    kfp_client_mock: kfp.Client,
-) -> None:
-    runs = _generate_run_mocks()
-    expected_runs = [run.to_dict() for run in runs]
-    expected_runs = mlrun.api.crud.Pipelines()._format_runs(
-        db, expected_runs, mlrun.api.schemas.PipelinesFormat.summary
-    )
-    _mock_list_runs(kfp_client_mock, runs)
-    response = client.get(
-        "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.PipelinesFormat.summary},
-    )
-    expected_response = mlrun.api.schemas.PipelinesOutput(
-        runs=expected_runs, total_size=len(runs), next_page_token=None
-    )
-    _assert_list_pipelines_response(expected_response, response)
-
-
-def test_list_pipelines_full(
-    db: sqlalchemy.orm.Session,
-    client: fastapi.testclient.TestClient,
-    kfp_client_mock: kfp.Client,
-) -> None:
-    runs = _generate_run_mocks()
-    expected_runs = [run.to_dict() for run in runs]
-    expected_runs = mlrun.api.crud.Pipelines()._format_runs(
-        db, expected_runs, mlrun.api.schemas.PipelinesFormat.full
-    )
-    _mock_list_runs(kfp_client_mock, runs)
-    response = client.get(
-        "/api/projects/*/pipelines",
-        params={"format": mlrun.api.schemas.PipelinesFormat.full},
-    )
-    expected_response = mlrun.api.schemas.PipelinesOutput(
-        runs=expected_runs, total_size=len(runs), next_page_token=None
-    )
-    _assert_list_pipelines_response(expected_response, response)
+    for format_ in [
+        mlrun.api.schemas.PipelinesFormat.full,
+        mlrun.api.schemas.PipelinesFormat.metadata_only,
+        mlrun.api.schemas.PipelinesFormat.summary,
+        mlrun.api.schemas.PipelinesFormat.name_only,
+    ]:
+        runs = _generate_run_mocks()
+        run = runs[0]
+        expected_run = run.to_dict()
+        expected_run = mlrun.api.crud.Pipelines()._format_run(db, expected_run, format_)
+        _mock_get_run(kfp_client_mock, run)
+        response = client.get(
+            f"/api/projects/*/pipelines/{run.id}", params={"format": format_},
+        )
+        _assert_get_pipeline_response(expected_run, response)
 
 
 def test_list_pipelines_specific_project(
@@ -413,6 +378,15 @@ def _mock_list_runs(
     kfp_client_mock._run_api.list_runs = list_runs_mock
 
 
+def _mock_get_run(
+    kfp_client_mock: kfp.Client, run,
+):
+    def get_run_mock(*args, **kwargs):
+        return kfp_server_api.models.api_run_detail.ApiRunDetail(run=run)
+
+    kfp_client_mock.get_run = get_run_mock
+
+
 def _assert_list_pipelines_response(
     expected_response: mlrun.api.schemas.PipelinesOutput, response
 ):
@@ -420,4 +394,11 @@ def _assert_list_pipelines_response(
     assert (
         deepdiff.DeepDiff(expected_response.dict(), response.json(), ignore_order=True,)
         == {}
+    )
+
+
+def _assert_get_pipeline_response(expected_response: dict, response):
+    assert response.status_code == http.HTTPStatus.OK.value
+    assert (
+        deepdiff.DeepDiff(expected_response, response.json(), ignore_order=True,) == {}
     )

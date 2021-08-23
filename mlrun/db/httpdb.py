@@ -256,12 +256,12 @@ class HTTPRunDB(RunDBInterface):
                 "nuclio_version"
             )
             config.default_function_priority_class = (
-                server_cfg.get("default_function_priority_class")
-                or config.default_function_priority_class
+                config.default_function_priority_class
+                or server_cfg.get("default_function_priority_class")
             )
             config.valid_function_priority_class_names = (
-                server_cfg.get("valid_function_priority_class_names")
-                or config.valid_function_priority_class_names
+                config.valid_function_priority_class_names
+                or server_cfg.get("valid_function_priority_class_names")
             )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first

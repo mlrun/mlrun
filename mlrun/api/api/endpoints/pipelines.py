@@ -37,6 +37,7 @@ def list_pipelines(
     auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
         mlrun.api.api.deps.AuthVerifierDep
     ),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     if project != "*":
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
@@ -54,6 +55,7 @@ def list_pipelines(
             else format_
         )
         total_size, next_page_token, runs = mlrun.api.crud.Pipelines().list_pipelines(
+            db_session,
             project,
             namespace,
             sort_by,

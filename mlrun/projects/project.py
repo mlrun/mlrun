@@ -24,7 +24,13 @@ from git import Repo
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.regex
-
+from .pipelines import (
+    FunctionsDict,
+    WorkflowSpec,
+    _PipelineRunStatus,
+    get_db_function,
+    get_workflow_engine,
+)
 from ..artifacts import (
     ArtifactManager,
     ArtifactProducer,
@@ -41,13 +47,7 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from .pipelines import (
-    FunctionsDict,
-    WorkflowSpec,
-    _PipelineRunStatus,
-    get_db_function,
-    get_workflow_engine,
-)
+from ..utils.model_monitoring import set_project_monitoring_key
 
 
 class ProjectError(Exception):
@@ -1691,6 +1691,9 @@ class MlrunProject(ModelObj):
             project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
+
+    def set_monitoring_key(self, access_key: str):
+        set_project_monitoring_key(access_key=access_key, project=self.metadata.name)
 
 
 class MlrunProjectLegacy(ModelObj):

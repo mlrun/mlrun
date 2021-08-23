@@ -1036,7 +1036,9 @@ class MlrunProject(ModelObj):
         target_path=None,
     ):
         am = self._get_artifact_manager()
-        artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = (
+            artifact_path or self.spec.artifact_path or mlrun.mlconf.artifact_path
+        )
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             artifact_path, self.metadata.name
         )
@@ -1122,7 +1124,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             ds,
             local_path=local_path,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             target_path=target_path,
             tag=tag,
             upload=upload,
@@ -1215,7 +1217,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             model,
             local_path=model_dir,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             tag=tag,
             upload=upload,
             labels=labels,

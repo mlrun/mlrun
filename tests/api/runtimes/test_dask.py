@@ -66,12 +66,10 @@ class TestDaskRuntime(TestRuntimeBase):
         # https://docs.mlrun.org/en/latest/runtimes/dask-mlrun.html#set-up-the-environment
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
+        os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key
+        mlconf.default_project = self.project
+        mlconf.artifact_path = self.artifact_path
 
-        mlrun.set_environment(
-            project=self.project,
-            access_key=self.v3io_access_key,
-            artifact_path=self.artifact_path,
-        )
         dask_cluster = mlrun.new_function(
             self.name, project=self.project, kind="dask", image=self.image_name
         )

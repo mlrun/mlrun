@@ -1,8 +1,11 @@
+import base64  # noqa: F401
+import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List
 
+import v3io
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -15,13 +18,17 @@ import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
+from mlrun.api.crud.model_endpoints import ModelEndpoints
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
+from mlrun.errors import MLRunRuntimeError
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, runtime_resources_map
+from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
+from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
+from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 
 router = APIRouter()
 
@@ -124,6 +131,9 @@ def list_functions(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
     )
@@ -175,6 +185,7 @@ async def build_function(
         with_mlrun,
         skip_deployed,
         mlrun_version_specifier,
+        data.get("builder_env"),
     )
     return {
         "data": fn.to_dict(),
@@ -387,6 +398,7 @@ def _build_function(
     with_mlrun,
     skip_deployed,
     mlrun_version_specifier,
+    builder_env=None,
 ):
     fn = None
     ready = None
@@ -401,12 +413,48 @@ def _build_function(
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
+
+            if fn.kind == RuntimeKinds.serving:
+                # Handle model monitoring
+                try:
+                    if fn.spec.track_models:
+                        logger.info("Tracking enabled, initializing model monitoring")
+                        _init_serving_function_stream_args(fn=fn)
+                        model_monitoring_access_key = _get_project_secret(
+                            fn.metadata.project, "MODEL_MONITORING_ACCESS_KEY"
+                        )
+                        # TODO: if model monitoring is not defined we should try to grab the project owner access key
+                        #  as well
+                        if not model_monitoring_access_key:
+                            raise MLRunRuntimeError(
+                                "MODEL_MONITORING_ACCESS_KEY not found in project secrets"
+                            )
+
+                        _create_model_monitoring_stream(project=fn.metadata.project)
+                        ModelEndpoints.deploy_monitoring_functions(
+                            project=fn.metadata.project,
+                            model_monitoring_access_key=model_monitoring_access_key,
+                            db_session=db_session,
+                            auth_info=auth_info,
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed deploying model monitoring infrastructure for the project",
+                        project=fn.metadata.project,
+                        exc=exc,
+                        traceback=traceback.format_exc(),
+                    )
+
             deploy_nuclio_function(fn, auth_info=auth_info)
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
             ready = build_runtime(
-                fn, with_mlrun, mlrun_version_specifier, skip_deployed
+                fn,
+                with_mlrun,
+                mlrun_version_specifier,
+                skip_deployed,
+                builder_env=builder_env,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
@@ -498,3 +546,73 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+
+
+def _create_model_monitoring_stream(project: str):
+
+    stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind="stream"
+    )
+
+    _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+    # TODO: How should we configure sharding here?
+    logger.info(
+        "Creating model endpoint stream for project",
+        project=project,
+        stream_path=stream_path,
+        container=container,
+        endpoint=config.v3io_api,
+    )
+
+    v3io_client = v3io.dataplane.Client(
+        endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+    )
+    response = v3io_client.create_stream(
+        container=container,
+        path=stream_path,
+        shard_count=config.model_endpoint_monitoring.serving_stream_args.shard_count,
+        retention_period_hours=config.model_endpoint_monitoring.serving_stream_args.retention_period_hours,
+        raise_for_status=v3io.dataplane.RaiseForStatus.never,
+    )
+
+    if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+        response.raise_for_status([409, 204])
+
+
+def _init_serving_function_stream_args(fn: ServingRuntime):
+    logger.debug("Initializing serving function stream args")
+    if "stream_args" in fn.spec.parameters:
+        logger.debug("Adding access key to pipelines stream args")
+        if "access_key" not in fn.spec.parameters["stream_args"]:
+            logger.debug("pipelines access key added to stream args")
+            fn.spec.parameters["stream_args"]["access_key"] = os.environ.get(
+                "V3IO_ACCESS_KEY"
+            )
+    else:
+        logger.debug("pipelines access key added to stream args")
+        fn.spec.parameters["stream_args"] = {
+            "access_key": os.environ.get("V3IO_ACCESS_KEY")
+        }
+
+    fn.save(versioned=True)
+
+
+def _get_function_env_var(fn: ServingRuntime, var_name: str):
+    for env_var in fn.spec.env:
+        if get_item_name(env_var) == var_name:
+            return env_var
+    return None
+
+
+def _get_project_secret(project_name: str, secret_key: str):
+    logger.info(
+        "Getting project secret", project_name=project_name, namespace=config.namespace
+    )
+    secret_value = mlrun.api.crud.Secrets().get_secret(
+        project_name,
+        mlrun.api.schemas.SecretProviderName.kubernetes,
+        secret_key,
+        allow_secrets_from_k8s=True,
+    )
+    return secret_value

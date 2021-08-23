@@ -7,9 +7,9 @@ import yaml
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.schemas
 import tests.api.conftest
-import mlrun.api.crud
 from mlrun.config import config
 
 

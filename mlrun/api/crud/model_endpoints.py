@@ -384,7 +384,9 @@ class ModelEndpoints:
             auth_info=auth_info,
         )
 
-    def write_endpoint_to_kv(self, access_key: str, endpoint: ModelEndpoint, update: bool = True):
+    def write_endpoint_to_kv(
+        self, access_key: str, endpoint: ModelEndpoint, update: bool = True
+    ):
         """
         Writes endpoint data to KV, a prerequisite for initializing the monitoring process
 
@@ -477,15 +479,17 @@ class ModelEndpoints:
             if metric_data is None:
                 continue
 
-            values = [(str(timestamp), value) for timestamp, value in metric_data.items()]
+            values = [
+                (str(timestamp), value) for timestamp, value in metric_data.items()
+            ]
             metrics_mapping[metric] = Metric(name=metric, values=values)
         return metrics_mapping
 
     @staticmethod
     def deploy_model_monitoring_stream_processing(
-            project: str,
-            model_monitoring_access_key: str,
-            auto_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        model_monitoring_access_key: str,
+        auto_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info(
             f"Checking deployment status for model monitoring stream processing function [{project}]"
@@ -523,10 +527,10 @@ class ModelEndpoints:
 
     @staticmethod
     def deploy_model_monitoring_batch_processing(
-            project: str,
-            model_monitoring_access_key: str,
-            db_session,
-            auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        model_monitoring_access_key: str,
+        db_session,
+        auth_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info(
             f"Checking deployment status for model monitoring batch processing function [{project}]"

@@ -14,12 +14,12 @@ from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.utils.clients.iguazio
 from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
     _validate_query_parameters,
 )
-import mlrun.api.crud
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
@@ -64,7 +64,9 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(_get_access_key(), endpoint)
+        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(
+            _get_access_key(), endpoint
+        )
 
     response = client.post(
         url="/api/grafana-proxy/model-endpoints/query",

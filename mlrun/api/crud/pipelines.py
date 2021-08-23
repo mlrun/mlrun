@@ -82,7 +82,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                 run = run.to_dict()
                 if format_ == mlrun.api.schemas.PipelinesFormat.summary:
                     run = mlrun.kfpops.format_summary_from_kfp_run(
-                        run['run'], project=project, session=db_session
+                        run["run"], project=project, session=db_session
                     )
                 elif format_ == mlrun.api.schemas.PipelinesFormat.full:
                     pass
@@ -164,13 +164,13 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         return formatted_runs
 
     def _format_run(
-            self,
-            db_session: sqlalchemy.orm.Session,
-            run: dict,
-            format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run: dict,
+        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
     ) -> dict:
         run["project"] = self.resolve_project_from_pipeline(run)
-        run = run['run'] if 'run' in run else run
+        run = run["run"] if "run" in run else run
         if format_ == mlrun.api.schemas.PipelinesFormat.full:
             return run
         elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
@@ -178,24 +178,22 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                 k: str(v)
                 for k, v in run.items()
                 if k
-                   in [
-                       "id",
-                       "name",
-                       "project",
-                       "status",
-                       "error",
-                       "created_at",
-                       "scheduled_at",
-                       "finished_at",
-                       "description",
-                   ]
+                in [
+                    "id",
+                    "name",
+                    "project",
+                    "status",
+                    "error",
+                    "created_at",
+                    "scheduled_at",
+                    "finished_at",
+                    "description",
+                ]
             }
         elif format_ == mlrun.api.schemas.PipelinesFormat.name_only:
             return run.get("name")
         elif format_ == mlrun.api.schemas.PipelinesFormat.summary:
-            return mlrun.kfpops.format_summary_from_kfp_run(
-                run, session=db_session
-            )
+            return mlrun.kfpops.format_summary_from_kfp_run(run, session=db_session)
         else:
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"
@@ -260,7 +258,9 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         detail_response_workflow_manifest = json.loads(
             pipeline.get("pipeline_runtime", {}).get("workflow_manifest") or "{}"
         )
-        return self.resolve_project_from_workflow_manifest(list_response_workflow_manifest or detail_response_workflow_manifest)
+        return self.resolve_project_from_workflow_manifest(
+            list_response_workflow_manifest or detail_response_workflow_manifest
+        )
 
     def resolve_project_from_workflow_manifest(self, workflow_manifest):
         templates = workflow_manifest.get("spec", {}).get("templates", [])

@@ -1002,7 +1002,7 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
-            resp = format_summary_from_kfp_run(resp['run'])
+            resp = format_summary_from_kfp_run(resp["run"])
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
@@ -1066,7 +1066,7 @@ def get_pipeline(
                 not format_
                 or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
             ):
-                resp = format_summary_from_kfp_run(resp['run'])
+                resp = format_summary_from_kfp_run(resp["run"])
 
     show_kfp_run(resp)
     return resp

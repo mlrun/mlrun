@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.opa
 from mlrun.api.api import deps
-import mlrun.api.crud
 from mlrun.api.schemas import (
     GrafanaColumn,
     GrafanaDataPoint,

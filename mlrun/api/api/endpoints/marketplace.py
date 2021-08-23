@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.utils.clients.opa
 from mlrun.api.api.deps import AuthVerifierDep
-import mlrun.api.crud
 from mlrun.api.schemas import AuthorizationAction
 from mlrun.api.schemas.marketplace import (
     IndexedMarketplaceSource,

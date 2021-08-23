@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
-import mlrun.api.utils.clients.opa
 import mlrun.api.crud
+import mlrun.api.utils.clients.opa
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError
 
@@ -80,7 +80,9 @@ def delete_endpoint_record(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_verifier.auth_info,
     )
-    mlrun.api.crud.ModelEndpoints().delete_endpoint_record(auth_verifier.auth_info, project, endpoint_id)
+    mlrun.api.crud.ModelEndpoints().delete_endpoint_record(
+        auth_verifier.auth_info, project, endpoint_id
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 

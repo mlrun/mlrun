@@ -26,6 +26,15 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
+            # These don't have a default value, but we don't send them if they are not set to allow the client to know
+            # when to use server value and when to use client value (server only if set). Since their default value is
+            # empty and not set is also empty we can use the same _get_config_value_if_not_default
+            default_function_priority_class_name=self._get_config_value_if_not_default(
+                "default_function_priority_class_name"
+            ),
+            valid_function_priority_class_names=self._get_config_value_if_not_default(
+                "valid_function_priority_class_names"
+            ),
             # These have a default value, therefore we want to send them only if their value is not the default one
             # (otherwise clients don't know when to use server value and when to use client value)
             ui_projects_prefix=self._get_config_value_if_not_default(
@@ -42,12 +51,6 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             ),
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
-            ),
-            default_function_priority_class_name=self._get_config_value_if_not_default(
-                "default_function_priority_class_name"
-            ),
-            valid_function_priority_class_names=self._get_config_value_if_not_default(
-                "valid_function_priority_class_names"
             ),
         )
 

@@ -408,6 +408,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlconf.nuclio_version = "1.5.20"
         default_priority_class_name = "default-priority"
         mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
+        mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
         function = self._generate_runtime("nuclio")
 
         deploy_nuclio_function(function)
@@ -418,6 +419,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert "priorityClassName" not in deploy_spec
 
         mlconf.nuclio_version = "1.6.18"
+        mlrun.mlconf.valid_function_priority_class_names = ""
         function = self._generate_runtime("nuclio")
 
         deploy_nuclio_function(function)

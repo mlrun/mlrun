@@ -62,7 +62,7 @@ RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
     && conda clean -aqy
 
 ARG TENSORFLOW_VERSION=2.4.1
-RUN python -m pip install 'tensorflow~=${TENSORFLOW_VERSION}'
+RUN python -m pip install tensorflow~=${TENSORFLOW_VERSION}
 
 ARG OMPI=4.1.0
 
@@ -86,7 +86,7 @@ ARG HOROVOD_VERSION=0.22.1
     #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-        python -m pip install 'horovod~=${HOROVOD_VERSION}' && \
+        python -m pip install horovod~=${HOROVOD_VERSION} && \
     ldconfig
 
 WORKDIR /mlrun

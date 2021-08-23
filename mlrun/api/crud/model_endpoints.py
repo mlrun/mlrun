@@ -35,13 +35,14 @@ from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
-ENDPOINTS = "endpoints"
-EVENTS = "events"
-
 
 class ModelEndpoints:
-    @staticmethod
+
+    ENDPOINTS = "endpoints"
+    EVENTS = "events"
+
     def create_or_patch(
+        self,
         db_session: Session,
         access_key: str,
         model_endpoint: ModelEndpoint,
@@ -79,7 +80,7 @@ class ModelEndpoints:
 
             if not model_endpoint.spec.label_names and hasattr(model_obj, "outputs"):
                 model_label_names = [
-                    _clean_feature_name(f.name) for f in model_obj.outputs
+                    self._clean_feature_name(f.name) for f in model_obj.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
 
@@ -106,11 +107,11 @@ class ModelEndpoints:
                 model_endpoint.status.feature_stats.items()
             ):
                 if model_endpoint.spec.feature_names:
-                    clean_name = _clean_feature_name(
+                    clean_name = self._clean_feature_name(
                         model_endpoint.spec.feature_names[i]
                     )
                 else:
-                    clean_name = _clean_feature_name(feature)
+                    clean_name = self._clean_feature_name(feature)
                 clean_feature_stats[clean_name] = stats
                 clean_feature_names.append(clean_name)
             model_endpoint.status.feature_stats = clean_feature_stats
@@ -125,7 +126,7 @@ class ModelEndpoints:
         # system
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
-        write_endpoint_to_kv(
+        self.write_endpoint_to_kv(
             access_key=access_key, endpoint=model_endpoint, update=True,
         )
 
@@ -133,9 +134,8 @@ class ModelEndpoints:
 
         return model_endpoint
 
-    @staticmethod
     def delete_endpoint_record(
-        auth_info: mlrun.api.schemas.AuthInfo, project: str, endpoint_id: str
+        self, auth_info: mlrun.api.schemas.AuthInfo, project: str, endpoint_id: str
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
@@ -144,12 +144,12 @@ class ModelEndpoints:
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
         """
-        access_key = get_access_key(auth_info)
+        access_key = self.get_access_key(auth_info)
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=ENDPOINTS
+            project=project, kind=self.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -162,8 +162,8 @@ class ModelEndpoints:
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
-    @staticmethod
     def list_endpoints(
+        self,
         auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         model: Optional[str] = None,
@@ -210,7 +210,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=ENDPOINTS
+            project=project, kind=self.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -218,7 +218,7 @@ class ModelEndpoints:
             container=container,
             table_path=path,
             access_key=auth_info.data_session,
-            filter_expression=build_kv_cursor_filter_expression(
+            filter_expression=self.build_kv_cursor_filter_expression(
                 project, function, model, labels
             ),
             attribute_names=["endpoint_id"],
@@ -230,7 +230,7 @@ class ModelEndpoints:
             if item is None:
                 break
             endpoint_id = item["endpoint_id"]
-            endpoint = ModelEndpoints.get_endpoint(
+            endpoint = self.get_endpoint(
                 auth_info=auth_info,
                 project=project,
                 endpoint_id=endpoint_id,
@@ -241,8 +241,8 @@ class ModelEndpoints:
             endpoint_list.endpoints.append(endpoint)
         return endpoint_list
 
-    @staticmethod
     def get_endpoint(
+        self,
         auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
@@ -263,7 +263,7 @@ class ModelEndpoints:
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
         the output of the resulting object
         """
-        access_key = get_access_key(auth_info)
+        access_key = self.get_access_key(auth_info)
         logger.info(
             "Getting model endpoint record from kv", endpoint_id=endpoint_id,
         )
@@ -271,7 +271,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=ENDPOINTS
+            project=project, kind=self.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -290,30 +290,30 @@ class ModelEndpoints:
         labels = endpoint.get("labels")
 
         feature_names = endpoint.get("feature_names")
-        feature_names = _json_loads_if_not_none(feature_names)
+        feature_names = self._json_loads_if_not_none(feature_names)
 
         label_names = endpoint.get("label_names")
-        label_names = _json_loads_if_not_none(label_names)
+        label_names = self._json_loads_if_not_none(label_names)
 
         feature_stats = endpoint.get("feature_stats")
-        feature_stats = _json_loads_if_not_none(feature_stats)
+        feature_stats = self._json_loads_if_not_none(feature_stats)
 
         current_stats = endpoint.get("current_stats")
-        current_stats = _json_loads_if_not_none(current_stats)
+        current_stats = self._json_loads_if_not_none(current_stats)
 
         drift_measures = endpoint.get("drift_measures")
-        drift_measures = _json_loads_if_not_none(drift_measures)
+        drift_measures = self._json_loads_if_not_none(drift_measures)
 
         children = endpoint.get("children")
-        children = _json_loads_if_not_none(children)
+        children = self._json_loads_if_not_none(children)
 
         monitor_configuration = endpoint.get("monitor_configuration")
-        monitor_configuration = _json_loads_if_not_none(monitor_configuration)
+        monitor_configuration = self._json_loads_if_not_none(monitor_configuration)
 
         endpoint = ModelEndpoint(
             metadata=ModelEndpointMetadata(
                 project=endpoint.get("project"),
-                labels=_json_loads_if_not_none(labels),
+                labels=self._json_loads_if_not_none(labels),
                 uid=endpoint_id,
             ),
             spec=ModelEndpointSpec(
@@ -342,7 +342,7 @@ class ModelEndpoints:
         )
 
         if feature_analysis and feature_names:
-            endpoint_features = get_endpoint_features(
+            endpoint_features = self.get_endpoint_features(
                 feature_names=feature_names,
                 feature_stats=feature_stats,
                 current_stats=current_stats,
@@ -352,7 +352,7 @@ class ModelEndpoints:
                 endpoint.status.drift_measures = drift_measures
 
         if metrics:
-            endpoint_metrics = get_endpoint_metrics(
+            endpoint_metrics = self.get_endpoint_metrics(
                 access_key=access_key,
                 project=project,
                 endpoint_id=endpoint_id,
@@ -365,30 +365,127 @@ class ModelEndpoints:
 
         return endpoint
 
-    @staticmethod
     def deploy_monitoring_functions(
+        self,
         project: str,
         model_monitoring_access_key: str,
         db_session,
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
-        ModelEndpoints.deploy_model_monitoring_stream_processing(
+        self.deploy_model_monitoring_stream_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             auto_info=auth_info,
         )
-        ModelEndpoints.deploy_model_monitoring_batch_processing(
+        self.deploy_model_monitoring_batch_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
         )
 
+    def write_endpoint_to_kv(self, access_key: str, endpoint: ModelEndpoint, update: bool = True):
+        """
+        Writes endpoint data to KV, a prerequisite for initializing the monitoring process
+
+        :param access_key: V3IO access key for managing user permissions
+        :param endpoint: ModelEndpoint object
+        :param update: When True, use client.kv.update, otherwise use client.kv.put
+        """
+
+        labels = endpoint.metadata.labels or {}
+        searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
+
+        feature_names = endpoint.spec.feature_names or []
+        label_names = endpoint.spec.label_names or []
+        feature_stats = endpoint.status.feature_stats or {}
+        current_stats = endpoint.status.current_stats or {}
+        children = endpoint.status.children or []
+        monitor_configuration = endpoint.spec.monitor_configuration or {}
+
+        client = get_v3io_client(endpoint=config.v3io_api)
+        function = client.kv.update if update else client.kv.put
+
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=endpoint.metadata.project, kind=self.ENDPOINTS
+        )
+        _, container, path = parse_model_endpoint_store_prefix(path)
+
+        function(
+            container=container,
+            table_path=path,
+            key=endpoint.metadata.uid,
+            access_key=access_key,
+            attributes={
+                "endpoint_id": endpoint.metadata.uid,
+                "project": endpoint.metadata.project,
+                "function_uri": endpoint.spec.function_uri,
+                "model": endpoint.spec.model,
+                "model_class": endpoint.spec.model_class or "",
+                "labels": json.dumps(labels),
+                "model_uri": endpoint.spec.model_uri or "",
+                "stream_path": endpoint.spec.stream_path or "",
+                "active": endpoint.spec.active or "",
+                "state": endpoint.status.state or "",
+                "feature_stats": json.dumps(feature_stats),
+                "current_stats": json.dumps(current_stats),
+                "feature_names": json.dumps(feature_names),
+                "children": json.dumps(children),
+                "label_names": json.dumps(label_names),
+                "monitor_configuration": json.dumps(monitor_configuration),
+                **searchable_labels,
+            },
+        )
+
+        return endpoint
+
+    def get_endpoint_metrics(
+        self,
+        access_key: str,
+        project: str,
+        endpoint_id: str,
+        metrics: List[str],
+        start: str = "now-1h",
+        end: str = "now",
+    ) -> Dict[str, Metric]:
+
+        if not metrics:
+            raise MLRunInvalidArgumentError("Metric names must be provided")
+
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=self.EVENTS
+        )
+        _, container, path = parse_model_endpoint_store_prefix(path)
+
+        client = get_frames_client(
+            token=access_key, address=config.v3io_framesd, container=container,
+        )
+
+        data = client.read(
+            backend="tsdb",
+            table=path,
+            columns=["endpoint_id", *metrics],
+            filter=f"endpoint_id=='{endpoint_id}'",
+            start=start,
+            end=end,
+        )
+
+        data_dict = data.to_dict()
+        metrics_mapping = {}
+        for metric in metrics:
+            metric_data = data_dict.get(metric)
+            if metric_data is None:
+                continue
+
+            values = [(str(timestamp), value) for timestamp, value in metric_data.items()]
+            metrics_mapping[metric] = Metric(name=metric, values=values)
+        return metrics_mapping
+
     @staticmethod
     def deploy_model_monitoring_stream_processing(
-        project: str,
-        model_monitoring_access_key: str,
-        auto_info: mlrun.api.schemas.AuthInfo,
+            project: str,
+            model_monitoring_access_key: str,
+            auto_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info(
             f"Checking deployment status for model monitoring stream processing function [{project}]"
@@ -426,10 +523,10 @@ class ModelEndpoints:
 
     @staticmethod
     def deploy_model_monitoring_batch_processing(
-        project: str,
-        model_monitoring_access_key: str,
-        db_session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+            project: str,
+            model_monitoring_access_key: str,
+            db_session,
+            auth_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info(
             f"Checking deployment status for model monitoring batch processing function [{project}]"
@@ -474,168 +571,70 @@ class ModelEndpoints:
 
         _submit_run(db_session=db_session, auth_info=auth_info, data=data)
 
+    @staticmethod
+    def get_endpoint_features(
+        feature_names: List[str],
+        feature_stats: Optional[dict],
+        current_stats: Optional[dict],
+    ) -> List[Features]:
+        safe_feature_stats = feature_stats or {}
+        safe_current_stats = current_stats or {}
 
-def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool = True):
-    """
-    Writes endpoint data to KV, a prerequisite for initializing the monitoring process
+        features = []
+        for name in feature_names:
+            if feature_stats is not None and name not in feature_stats:
+                logger.warn(f"Feature '{name}' missing from 'feature_stats'")
+            if current_stats is not None and name not in current_stats:
+                logger.warn(f"Feature '{name}' missing from 'current_stats'")
+            f = Features.new(
+                name, safe_feature_stats.get(name), safe_current_stats.get(name)
+            )
+            features.append(f)
+        return features
 
-    :param access_key: V3IO access key for managing user permissions
-    :param endpoint: ModelEndpoint object
-    :param update: When True, use client.kv.update, otherwise use client.kv.put
-    """
+    @staticmethod
+    def build_kv_cursor_filter_expression(
+        project: str,
+        function: Optional[str] = None,
+        model: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+    ):
+        if not project:
+            raise MLRunInvalidArgumentError("project can't be empty")
 
-    labels = endpoint.metadata.labels or {}
-    searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
+        filter_expression = [f"project=='{project}'"]
 
-    feature_names = endpoint.spec.feature_names or []
-    label_names = endpoint.spec.label_names or []
-    feature_stats = endpoint.status.feature_stats or {}
-    current_stats = endpoint.status.current_stats or {}
-    children = endpoint.status.children or []
-    monitor_configuration = endpoint.spec.monitor_configuration or {}
+        if function:
+            filter_expression.append(f"function=='{function}'")
+        if model:
+            filter_expression.append(f"model=='{model}'")
+        if labels:
+            for label in labels:
 
-    client = get_v3io_client(endpoint=config.v3io_api)
-    function = client.kv.update if update else client.kv.put
+                if not label.startswith("_"):
+                    label = f"_{label}"
 
-    path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=endpoint.metadata.project, kind=ENDPOINTS
-    )
-    _, container, path = parse_model_endpoint_store_prefix(path)
+                if "=" in label:
+                    lbl, value = list(map(lambda x: x.strip(), label.split("=")))
+                    filter_expression.append(f"{lbl}=='{value}'")
+                else:
+                    filter_expression.append(f"exists({label})")
 
-    function(
-        container=container,
-        table_path=path,
-        key=endpoint.metadata.uid,
-        access_key=access_key,
-        attributes={
-            "endpoint_id": endpoint.metadata.uid,
-            "project": endpoint.metadata.project,
-            "function_uri": endpoint.spec.function_uri,
-            "model": endpoint.spec.model,
-            "model_class": endpoint.spec.model_class or "",
-            "labels": json.dumps(labels),
-            "model_uri": endpoint.spec.model_uri or "",
-            "stream_path": endpoint.spec.stream_path or "",
-            "active": endpoint.spec.active or "",
-            "state": endpoint.status.state or "",
-            "feature_stats": json.dumps(feature_stats),
-            "current_stats": json.dumps(current_stats),
-            "feature_names": json.dumps(feature_names),
-            "children": json.dumps(children),
-            "label_names": json.dumps(label_names),
-            "monitor_configuration": json.dumps(monitor_configuration),
-            **searchable_labels,
-        },
-    )
+        return " AND ".join(filter_expression)
 
-    return endpoint
+    @staticmethod
+    def _json_loads_if_not_none(field: Any):
+        if field is None:
+            return None
+        return json.loads(field)
 
+    @staticmethod
+    def _clean_feature_name(feature_name):
+        return feature_name.replace(" ", "_").replace("(", "").replace(")", "")
 
-def _json_loads_if_not_none(field: Any):
-    if field is None:
-        return None
-    return json.loads(field)
-
-
-def _clean_feature_name(feature_name):
-    return feature_name.replace(" ", "_").replace("(", "").replace(")", "")
-
-
-def get_endpoint_metrics(
-    access_key: str,
-    project: str,
-    endpoint_id: str,
-    metrics: List[str],
-    start: str = "now-1h",
-    end: str = "now",
-) -> Dict[str, Metric]:
-
-    if not metrics:
-        raise MLRunInvalidArgumentError("Metric names must be provided")
-
-    path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=project, kind=EVENTS
-    )
-    _, container, path = parse_model_endpoint_store_prefix(path)
-
-    client = get_frames_client(
-        token=access_key, address=config.v3io_framesd, container=container,
-    )
-
-    data = client.read(
-        backend="tsdb",
-        table=path,
-        columns=["endpoint_id", *metrics],
-        filter=f"endpoint_id=='{endpoint_id}'",
-        start=start,
-        end=end,
-    )
-
-    data_dict = data.to_dict()
-    metrics_mapping = {}
-    for metric in metrics:
-        metric_data = data_dict.get(metric)
-        if metric_data is None:
-            continue
-
-        values = [(str(timestamp), value) for timestamp, value in metric_data.items()]
-        metrics_mapping[metric] = Metric(name=metric, values=values)
-    return metrics_mapping
-
-
-def get_endpoint_features(
-    feature_names: List[str],
-    feature_stats: Optional[dict],
-    current_stats: Optional[dict],
-) -> List[Features]:
-    safe_feature_stats = feature_stats or {}
-    safe_current_stats = current_stats or {}
-
-    features = []
-    for name in feature_names:
-        if feature_stats is not None and name not in feature_stats:
-            logger.warn(f"Feature '{name}' missing from 'feature_stats'")
-        if current_stats is not None and name not in current_stats:
-            logger.warn(f"Feature '{name}' missing from 'current_stats'")
-        f = Features.new(
-            name, safe_feature_stats.get(name), safe_current_stats.get(name)
-        )
-        features.append(f)
-    return features
-
-
-def build_kv_cursor_filter_expression(
-    project: str,
-    function: Optional[str] = None,
-    model: Optional[str] = None,
-    labels: Optional[List[str]] = None,
-):
-    if not project:
-        raise MLRunInvalidArgumentError("project can't be empty")
-
-    filter_expression = [f"project=='{project}'"]
-
-    if function:
-        filter_expression.append(f"function=='{function}'")
-    if model:
-        filter_expression.append(f"model=='{model}'")
-    if labels:
-        for label in labels:
-
-            if not label.startswith("_"):
-                label = f"_{label}"
-
-            if "=" in label:
-                lbl, value = list(map(lambda x: x.strip(), label.split("=")))
-                filter_expression.append(f"{lbl}=='{value}'")
-            else:
-                filter_expression.append(f"exists({label})")
-
-    return " AND ".join(filter_expression)
-
-
-def get_access_key(auth_info: mlrun.api.schemas.AuthInfo):
-    access_key = auth_info.data_session
-    if not access_key:
-        raise MLRunBadRequestError("Data session is missing")
-    return access_key
+    @staticmethod
+    def get_access_key(auth_info: mlrun.api.schemas.AuthInfo):
+        access_key = auth_info.data_session
+        if not access_key:
+            raise MLRunBadRequestError("Data session is missing")
+        return access_key

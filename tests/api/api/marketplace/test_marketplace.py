@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 import tests.api.conftest
-from mlrun.api.crud.marketplace import Marketplace
+import mlrun.api.crud
 from mlrun.config import config
 
 
@@ -165,7 +165,7 @@ def test_marketplace_credentials_removed_from_db(
 def test_marketplace_source_manager(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    manager = Marketplace()
+    manager = mlrun.api.crud.Marketplace()
 
     separator = mlrun.api.crud.marketplace.secret_name_separator
     credentials = {"secret1": "value1", "secret2": "value2"}
@@ -226,7 +226,7 @@ def test_marketplace_default_source(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
-    manager = Marketplace()
+    manager = mlrun.api.crud.Marketplace()
 
     source_object = mlrun.api.schemas.MarketplaceSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)

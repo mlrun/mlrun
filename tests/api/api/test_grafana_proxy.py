@@ -19,12 +19,7 @@ from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
     _validate_query_parameters,
 )
-from mlrun.api.crud.model_endpoints import (
-    ENDPOINTS,
-    EVENTS,
-    ModelEndpoints,
-    write_endpoint_to_kv,
-)
+import mlrun.api.crud
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
@@ -69,7 +64,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        write_endpoint_to_kv(_get_access_key(), endpoint)
+        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(_get_access_key(), endpoint)
 
     response = client.post(
         url="/api/grafana-proxy/model-endpoints/query",
@@ -332,12 +327,12 @@ def _get_access_key() -> Optional[str]:
 def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=ENDPOINTS
+            project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().ENDPOINTS
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=EVENTS
+            project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
@@ -383,7 +378,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
 )
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=EVENTS
+        project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -399,7 +394,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     for endpoint in endpoints:
-        ModelEndpoints.create_or_patch(_get_access_key(), endpoint)
+        mlrun.api.crud.ModelEndpoints().create_or_patch(_get_access_key(), endpoint)
 
         total = 0
 

@@ -13,16 +13,7 @@ from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
 import mlrun.api.schemas
-from mlrun.api.crud.model_endpoints import (
-    ENDPOINTS,
-    EVENTS,
-    ModelEndpoints,
-    build_kv_cursor_filter_expression,
-    get_access_key,
-    get_endpoint_features,
-    get_endpoint_metrics,
-    write_endpoint_to_kv,
-)
+import mlrun.api.crud
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -56,8 +47,8 @@ def _is_env_params_dont_exist() -> bool:
 def test_clear_endpoint(db: Session, client: TestClient):
     auth_info = _get_auth_info()
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(auth_info.data_session, endpoint)
-    kv_record = ModelEndpoints.get_endpoint(
+    mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(auth_info.data_session, endpoint)
+    kv_record = mlrun.api.crud.ModelEndpoints().get_endpoint(
         auth_info=auth_info,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
@@ -72,7 +63,7 @@ def test_clear_endpoint(db: Session, client: TestClient):
     assert response.status_code == 204
 
     with pytest.raises(MLRunNotFoundError):
-        ModelEndpoints.get_endpoint(
+        mlrun.api.crud.ModelEndpoints().get_endpoint(
             auth_info=auth_info,
             project=endpoint.metadata.project,
             endpoint_id=endpoint.metadata.uid,
@@ -85,9 +76,9 @@ def test_clear_endpoint(db: Session, client: TestClient):
 def test_store_endpoint_update_existing(db: Session, client: TestClient):
     auth_info = _get_auth_info()
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(access_key=auth_info.data_session, endpoint=endpoint)
+    mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(access_key=auth_info.data_session, endpoint=endpoint)
 
-    kv_record_before_update = ModelEndpoints.get_endpoint(
+    kv_record_before_update = mlrun.api.crud.ModelEndpoints().get_endpoint(
         auth_info=auth_info,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
@@ -106,7 +97,7 @@ def test_store_endpoint_update_existing(db: Session, client: TestClient):
 
     assert response.status_code == 204
 
-    kv_record_after_update = ModelEndpoints.get_endpoint(
+    kv_record_after_update = mlrun.api.crud.ModelEndpoints().get_endpoint(
         auth_info=auth_info,
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
@@ -122,7 +113,7 @@ def test_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("testing") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
+        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
 
     response = client.get(
         url=f"/api/projects/{TEST_PROJECT}/model-endpoints",
@@ -156,7 +147,7 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
         if i < 4:
             endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-        write_endpoint_to_kv(_get_auth_info().data_session, endpoint_details)
+        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(_get_auth_info().data_session, endpoint_details)
 
     filter_model = client.get(
         f"/api/projects/{TEST_PROJECT}/model-endpoints/?model=filterme",
@@ -188,7 +179,7 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
 )
 def test_get_endpoint_metrics(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=EVENTS
+        project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -202,7 +193,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 
     for i in range(5):
         endpoint = _mock_random_endpoint()
-        write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
+        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
         frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
 
         total = 0
@@ -252,7 +243,7 @@ def test_get_endpoint_metrics(db: Session, client: TestClient):
 )
 def test_get_endpoint_metric_function():
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=EVENTS
+        project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -265,7 +256,7 @@ def test_get_endpoint_metric_function():
     start = datetime.utcnow()
 
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
+    mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
 
     frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
 
@@ -287,7 +278,7 @@ def test_get_endpoint_metric_function():
         backend="tsdb", table=path, dfs=dfs, index_cols=["timestamp", "endpoint_id"],
     )
 
-    endpoint_metrics = get_endpoint_metrics(
+    endpoint_metrics = mlrun.api.crud.ModelEndpoints().get_endpoint_metrics(
         access_key=_get_auth_info().data_session,
         project=TEST_PROJECT,
         endpoint_id=endpoint.metadata.uid,
@@ -306,18 +297,18 @@ def test_get_endpoint_metric_function():
 )
 def test_build_kv_cursor_filter_expression():
     with pytest.raises(MLRunInvalidArgumentError):
-        build_kv_cursor_filter_expression("")
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression("")
 
-    filter_expression = build_kv_cursor_filter_expression(project=TEST_PROJECT)
+    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(project=TEST_PROJECT)
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
-    filter_expression = build_kv_cursor_filter_expression(
+    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
         project=TEST_PROJECT, function="test_function", model="test_model"
     )
     expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
-    filter_expression = build_kv_cursor_filter_expression(
+    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
         project=TEST_PROJECT, labels=["lbl1", "lbl2"]
     )
     assert (
@@ -325,7 +316,7 @@ def test_build_kv_cursor_filter_expression():
         == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
     )
 
-    filter_expression = build_kv_cursor_filter_expression(
+    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
         project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
     )
     assert (
@@ -334,11 +325,11 @@ def test_build_kv_cursor_filter_expression():
 
 
 def test_get_access_key():
-    key = get_access_key(mlrun.api.schemas.AuthInfo(data_session="asd"))
+    key = mlrun.api.crud.ModelEndpoints().get_access_key(mlrun.api.schemas.AuthInfo(data_session="asd"))
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        get_access_key(mlrun.api.schemas.AuthInfo())
+        mlrun.api.crud.ModelEndpoints().get_access_key(mlrun.api.schemas.AuthInfo())
 
 
 def test_get_endpoint_features_function():
@@ -478,7 +469,7 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    features = get_endpoint_features(feature_names, stats, stats)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(feature_names, stats, stats)
     assert len(features) == 4
     # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
     for feature in features:
@@ -491,7 +482,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = get_endpoint_features(feature_names, stats, None)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(feature_names, stats, None)
     assert len(features) == 4
     for feature in features:
         assert feature.expected is not None
@@ -500,7 +491,7 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = get_endpoint_features(feature_names, None, stats)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(feature_names, None, stats)
     assert len(features) == 4
     for feature in features:
         assert feature.expected is None
@@ -509,7 +500,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = get_endpoint_features(feature_names[1:], None, stats)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(feature_names[1:], None, stats)
     assert len(features) == 3
 
 
@@ -518,8 +509,8 @@ def test_get_endpoint_features_function():
 )
 def test_deserialize_endpoint_from_kv():
     endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
-    endpoint_from_kv = ModelEndpoints.get_endpoint(
+    mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(_get_auth_info().data_session, endpoint)
+    endpoint_from_kv = mlrun.api.crud.ModelEndpoints().get_endpoint(
         auth_info=_get_auth_info(),
         project=endpoint.metadata.project,
         endpoint_id=endpoint.metadata.uid,
@@ -542,7 +533,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
     )
 
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=ENDPOINTS
+        project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().ENDPOINTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 

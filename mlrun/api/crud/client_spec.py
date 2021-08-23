@@ -27,8 +27,8 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
             # These don't have a default value, but we don't send them if they are not set
-            default_function_node_selector=self._get_config_value_if_not_default(
-                "default_function_node_selector"
+            default_function_priority_class=self._get_config_value_if_not_default(
+                "default_function_priority_class"
             ),
             valid_function_priority_class_names=self._get_config_value_if_not_default(
                 "valid_function_priority_class_names"
@@ -40,15 +40,15 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             ),
             scrape_metrics=self._get_config_value_if_not_default("scrape_metrics"),
             hub_url=self._get_config_value_if_not_default("hub_url"),
+            default_function_node_selector=self._get_config_value_if_not_default(
+                "default_function_node_selector"
+            ),
             igz_version=self._get_config_value_if_not_default("igz_version"),
             auto_mount_type=self._get_config_value_if_not_default(
                 "storage.auto_mount_type"
             ),
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
-            ),
-            default_function_priority_class=self._get_config_value_if_not_default(
-                "default_function_priority_class"
             ),
         )
 

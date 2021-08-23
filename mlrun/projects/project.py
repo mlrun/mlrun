@@ -24,13 +24,7 @@ from git import Repo
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.regex
-from .pipelines import (
-    FunctionsDict,
-    WorkflowSpec,
-    _PipelineRunStatus,
-    get_db_function,
-    get_workflow_engine,
-)
+
 from ..artifacts import (
     ArtifactManager,
     ArtifactProducer,
@@ -48,6 +42,13 @@ from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_monitoring_key
+from .pipelines import (
+    FunctionsDict,
+    WorkflowSpec,
+    _PipelineRunStatus,
+    get_db_function,
+    get_workflow_engine,
+)
 
 
 class ProjectError(Exception):

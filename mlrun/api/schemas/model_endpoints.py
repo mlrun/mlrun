@@ -90,6 +90,7 @@ class ModelEndpointStatus(ObjectStatus):
     drift_measures: Optional[dict]
     metrics: Optional[Dict[str, Metric]]
     features: Optional[List[Features]]
+    children: Optional[List[str]]
 
     class Config:
         extra = Extra.allow

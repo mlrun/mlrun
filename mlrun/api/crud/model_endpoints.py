@@ -1,12 +1,14 @@
 import json
 from typing import Any, Dict, List, Optional
 
+from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
 
 import mlrun.api.api.utils
 import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
+from mlrun.api.api.utils import _submit_run, get_run_db_instance
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -16,6 +18,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.api.schemas.model_endpoints import ModelEndpointList
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.artifacts import ModelArtifact
 from mlrun.config import config
 from mlrun.errors import (
@@ -23,6 +26,11 @@ from mlrun.errors import (
     MLRunInvalidArgumentError,
     MLRunNotFoundError,
 )
+from mlrun.model_monitoring.helpers import (
+    get_model_monitoring_stream_processing_function,
+)
+from mlrun.runtimes import KubejobRuntime
+from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
@@ -41,9 +49,6 @@ class ModelEndpoints:
     ):
         """
         Creates or patch a KV record with the given model_endpoint record
-
-        :param access_key: V3IO access key for managing user permissions
-        :param model_endpoint: An object representing a model endpoint
         """
 
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
@@ -299,6 +304,9 @@ class ModelEndpoints:
         drift_measures = endpoint.get("drift_measures")
         drift_measures = _json_loads_if_not_none(drift_measures)
 
+        children = endpoint.get("children")
+        children = _json_loads_if_not_none(children)
+
         monitor_configuration = endpoint.get("monitor_configuration")
         monitor_configuration = _json_loads_if_not_none(monitor_configuration)
 
@@ -324,6 +332,7 @@ class ModelEndpoints:
                 state=endpoint.get("state") or None,
                 feature_stats=feature_stats or None,
                 current_stats=current_stats or None,
+                children=children or None,
                 first_request=endpoint.get("first_request") or None,
                 last_request=endpoint.get("last_request") or None,
                 accuracy=endpoint.get("accuracy") or None,
@@ -356,6 +365,115 @@ class ModelEndpoints:
 
         return endpoint
 
+    @staticmethod
+    def deploy_monitoring_functions(
+        project: str,
+        model_monitoring_access_key: str,
+        db_session,
+        auth_info: mlrun.api.schemas.AuthInfo,
+    ):
+        ModelEndpoints.deploy_model_monitoring_stream_processing(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            auto_info=auth_info,
+        )
+        ModelEndpoints.deploy_model_monitoring_batch_processing(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+        )
+
+    @staticmethod
+    def deploy_model_monitoring_stream_processing(
+        project: str,
+        model_monitoring_access_key: str,
+        auto_info: mlrun.api.schemas.AuthInfo,
+    ):
+        logger.info(
+            f"Checking deployment status for model monitoring stream processing function [{project}]"
+        )
+        try:
+            get_nuclio_deploy_status(
+                name="model-monitoring-stream", project=project, tag=""
+            )
+            logger.info(
+                f"Detected model monitoring stream processing function [{project}] already deployed"
+            )
+            return
+        except DeployError:
+            logger.info(
+                f"Deploying model monitoring stream processing function [{project}]"
+            )
+
+        fn = get_model_monitoring_stream_processing_function(project)
+        fn.metadata.project = project
+
+        stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind="stream"
+        )
+
+        fn.add_v3io_stream_trigger(
+            stream_path=stream_path, name="monitoring_stream_trigger"
+        )
+
+        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
+        fn.set_env("MLRUN_AUTH_SESSION", model_monitoring_access_key)
+        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
+
+        fn.apply(mlrun.mount_v3io())
+        deploy_nuclio_function(fn, auth_info=auto_info)
+
+    @staticmethod
+    def deploy_model_monitoring_batch_processing(
+        project: str,
+        model_monitoring_access_key: str,
+        db_session,
+        auth_info: mlrun.api.schemas.AuthInfo,
+    ):
+        logger.info(
+            f"Checking deployment status for model monitoring batch processing function [{project}]"
+        )
+        function_list = get_db().list_functions(
+            session=db_session, name="model-monitoring-batch", project=project
+        )
+
+        if function_list:
+            logger.info(
+                f"Detected model monitoring batch processing function [{project}] already deployed"
+            )
+            return
+
+        logger.info(f"Deploying model monitoring batch processing function [{project}]")
+
+        fn: KubejobRuntime = mlrun.import_function(
+            f"hub://model_monitoring_batch:{config.model_endpoint_monitoring.batch_processing_function_branch}"
+        )
+
+        fn.set_db_connection(get_run_db_instance(db_session))
+
+        fn.metadata.project = project
+
+        fn.apply(mlrun.mount_v3io())
+
+        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
+
+        # Needs to be a member of the project and have access to project data path
+        fn.set_env("MLRUN_AUTH_SESSION", model_monitoring_access_key)
+
+        function_uri = fn.save(versioned=True)
+        function_uri = function_uri.replace("db://", "")
+
+        task = mlrun.new_task(name="model-monitoring-batch", project=project)
+
+        data = {
+            "task": task.to_dict(),
+            "schedule": "0 */1 * * *",
+            "functionUrl": function_uri,
+        }
+
+        _submit_run(db_session=db_session, auth_info=auth_info, data=data)
+
 
 def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool = True):
     """
@@ -373,6 +491,7 @@ def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool 
     label_names = endpoint.spec.label_names or []
     feature_stats = endpoint.status.feature_stats or {}
     current_stats = endpoint.status.current_stats or {}
+    children = endpoint.status.children or []
     monitor_configuration = endpoint.spec.monitor_configuration or {}
 
     client = get_v3io_client(endpoint=config.v3io_api)
@@ -402,6 +521,7 @@ def write_endpoint_to_kv(access_key: str, endpoint: ModelEndpoint, update: bool 
             "feature_stats": json.dumps(feature_stats),
             "current_stats": json.dumps(current_stats),
             "feature_names": json.dumps(feature_names),
+            "children": json.dumps(children),
             "label_names": json.dumps(label_names),
             "monitor_configuration": json.dumps(monitor_configuration),
             **searchable_labels,

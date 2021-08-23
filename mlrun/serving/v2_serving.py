@@ -14,7 +14,7 @@
 import threading
 import time
 import traceback
-from typing import Dict, Optional
+from typing import Dict
 
 import mlrun
 from mlrun.api.schemas import (
@@ -23,7 +23,8 @@ from mlrun.api.schemas import (
     ModelEndpointSpec,
     ModelEndpointStatus,
 )
-from mlrun.datastore import _DummyStream
+from mlrun.artifacts import ModelArtifact  # noqa: F401
+from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 
@@ -110,7 +111,14 @@ class V2ModelServer:
             else:
                 self._load_and_update_state()
 
-        _init_endpoint_record(self.context, self._model_logger)
+        server = getattr(self.context, "_server", None) or getattr(
+            self.context, "server", None
+        )
+        if not server:
+            logger.warn("GraphServer not initialized for VotingEnsemble instance")
+            return
+
+        _init_endpoint_record(server, self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -130,7 +138,6 @@ class V2ModelServer:
     to all the model metadata attributes.
 
     get_model is usually used in the model .load() method to init the model
-
     Examples
     --------
     ::
@@ -371,30 +378,28 @@ class _ModelLogPusher:
                 self.output_stream.push([data])
 
 
-def _init_endpoint_record(context, model_logger: Optional[_ModelLogPusher]):
-    if model_logger is None or isinstance(model_logger.output_stream, _DummyStream):
-        return
-
+def _init_endpoint_record(graph_server, model: V2ModelServer):
+    logger.info("Initializing endpoint records")
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(
-            model_logger.function_uri
+            graph_server.function_uri
         )
 
-        if model_logger.model.version:
-            model = f"{model_logger.model.name}:{model_logger.model.version}"
+        if model.version:
+            versioned_model_name = f"{model.name}:{model.version}"
         else:
-            model = model_logger.model.name
+            versioned_model_name = f"{model.name}:latest"
 
         model_endpoint = ModelEndpoint(
-            metadata=ModelEndpointMetadata(
-                project=project, labels=model_logger.model.labels
-            ),
+            metadata=ModelEndpointMetadata(project=project, labels=model.labels),
             spec=ModelEndpointSpec(
-                function_uri=model_logger.function_uri,
-                model=model,
-                model_class=model_logger.model.__class__.__name__,
-                model_uri=model_logger.model.model_path,
-                stream_path=model_logger.stream_path,
+                function_uri=graph_server.function_uri,
+                model=versioned_model_name,
+                model_class=model.__class__.__name__,
+                model_uri=model.model_path,
+                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project, kind="stream"
+                ),
                 active=True,
             ),
             status=ModelEndpointStatus(),

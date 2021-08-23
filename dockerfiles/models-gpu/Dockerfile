@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.0
+ARG CUDA_VERSION=11.0
 
-FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:${CUDA_VERSION}-cudnn8-devel-ubuntu18.04
 
 # need to be redeclared since used in the from
-ARG CUDA_VER
+ARG CUDA_VERSION
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -55,13 +55,14 @@ RUN conda config --add channels conda-forge && \
 RUN conda install -n base cmake cython \
     && conda clean -aqy
 
-RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VER} \
+RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VERSION} \
     && conda clean -aqy
 
 RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
     && conda clean -aqy
 
-RUN python -m pip install 'tensorflow~=2.2.0'
+ARG TENSORFLOW_VERSION=2.4.1
+RUN python -m pip install 'tensorflow~=${TENSORFLOW_VERSION}'
 
 ARG OMPI=4.1.0
 
@@ -80,11 +81,12 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
+ARG HOROVOD_VERSION=0.22.1
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-        python -m pip install 'horovod~=0.20.0' && \
+        python -m pip install 'horovod~=${HOROVOD_VERSION}' && \
     ldconfig
 
 WORKDIR /mlrun

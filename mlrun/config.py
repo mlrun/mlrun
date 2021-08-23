@@ -97,7 +97,6 @@ default_config = {
     # default priority class to be applied to functions running on k8s cluster
     "default_function_priority_class_name": "",
     # valid options for priority classes - separated by a comma
-    # empty string means nothing is valid
     "valid_function_priority_class_names": "",
     "httpdb": {
         "port": 8080,

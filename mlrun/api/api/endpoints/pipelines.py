@@ -37,17 +37,25 @@ def list_pipelines(
     auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
         mlrun.api.api.deps.AuthVerifierDep
     ),
+    db_session: Session = Depends(deps.get_db_session),
 ):
+    if project != "*":
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
+        )
     total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
-        # "*", so we can't really get back only the names here
+        # "*"), so we can't really get back only the names here
         computed_format = (
             mlrun.api.schemas.PipelinesFormat.metadata_only
             if format_ == mlrun.api.schemas.PipelinesFormat.name_only
             else format_
         )
         total_size, next_page_token, runs = mlrun.api.crud.Pipelines().list_pipelines(
+            db_session,
             project,
             namespace,
             sort_by,
@@ -71,7 +79,6 @@ def list_pipelines(
     )
 
 
-# curl -d@/path/to/pipe.yaml http://localhost:8080/submit_pipeline
 @router.post("/submit_pipeline")
 @router.post("/submit_pipeline/")
 # TODO: remove when 0.6.6 is no longer relevant
@@ -190,7 +197,6 @@ def _try_resolve_project_from_body(
     )
 
 
-# curl http://localhost:8080/pipelines/:id
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
 # TODO: remove when 0.6.6 is no longer relevant

@@ -25,6 +25,7 @@ import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
+from mlrun.utils.helpers import logger
 
 _cached_control_session = None
 
@@ -374,10 +375,28 @@ class OutputStream:
         retention_in_hours=None,
         create=True,
         endpoint=None,
+        access_key=None,
     ):
-        self._v3io_client = v3io.dataplane.Client(endpoint=endpoint)
+        v3io_client_kwargs = {}
+        if endpoint:
+            v3io_client_kwargs["endpoint"] = endpoint
+        if access_key:
+            v3io_client_kwargs["access_key"] = access_key
+
+        self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
         self._container, self._stream_path = split_path(stream_path)
+
         if create:
+
+            logger.debug(
+                "Creating output stream",
+                endpoint=endpoint,
+                container=self._container,
+                stream_path=self._stream_path,
+                shards=shards,
+                retention_in_hours=retention_in_hours,
+            )
+
             response = self._v3io_client.create_stream(
                 container=self._container,
                 path=self._stream_path,
@@ -509,6 +528,9 @@ def add_or_refresh_credentials(
 
     username = username or os.environ.get("V3IO_USERNAME")
     password = password or os.environ.get("V3IO_PASSWORD")
+    # V3IO_ACCESS_KEY` is used by other packages like v3io, MLRun also uses it as the access key used to
+    # communicate with the API from the client. `MLRUN_AUTH_SESSION` is for when we want
+    # different access keys for the 2 usages
     token = (
         token
         or os.environ.get("MLRUN_AUTH_SESSION")

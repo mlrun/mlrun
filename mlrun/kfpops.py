@@ -636,9 +636,9 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):
-    workflow = run["pipeline_runtime"].get("workflow_manifest", None)
+    workflow = run.get("pipeline_spec", {}).get("workflow_manifest")
     if not workflow:
-        return None, project
+        return None, project, None
     workflow = json.loads(workflow)
 
     templates = {}
@@ -679,7 +679,7 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
     dag, project, message = generate_kfp_dag_and_resolve_project(
         kfp_run, override_project
     )
-    run_id = get_in(kfp_run, "run.id")
+    run_id = get_in(kfp_run, "id")
 
     # enrich DAG with mlrun run info
     if session:
@@ -701,7 +701,7 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
     short_run = {"graph": dag}
     short_run["run"] = {
         k: str(v)
-        for k, v in kfp_run["run"].items()
+        for k, v in kfp_run.items()
         if k
         in [
             "id",

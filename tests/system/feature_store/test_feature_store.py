@@ -1586,6 +1586,39 @@ class TestFeatureStore(TestMLRunSystem):
         svc.close()
         assert resp[0]["bid"] == 300
 
+    def test_join_with_table(self):
+        table_url = "v3io:///bigdata/system-test-project/nosql/test_join_with_table"
+
+        df = pd.DataFrame({"name": ["ABC", "DEF"], "aug": ["1", "2"]})
+        fset = fs.FeatureSet(
+            name="test_join_with_table_fset", entities=[fs.Entity("name")]
+        )
+        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+
+        df = pd.DataFrame(
+            {
+                "key": ["mykey1", "mykey2", "mykey3"],
+                "foreignkey1": ["AB", "DE", "GH"],
+                "foreignkey2": ["C", "F", "I"],
+            }
+        )
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset.set_targets([], with_defaults=False)
+        fset.graph.to(
+            "storey.JoinWithTable",
+            table=table_url,
+            _key_extractor="(event['foreignkey1'] + event['foreignkey2'])",
+            attributes=["aug"],
+            inner_join=True,
+        )
+        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        assert df.to_dict() == {
+            "foreignkey1": {"mykey1": "AB", "mykey2": "DE"},
+            "foreignkey2": {"mykey1": "C", "mykey2": "F"},
+            "aug": {"mykey1": "1", "mykey2": "2"},
+        }
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-import mlrun.api.crud.client_spec
+import mlrun.api.crud
 import mlrun.api.schemas
 
 router = APIRouter()
@@ -10,4 +10,4 @@ router = APIRouter()
     "/client-spec", response_model=mlrun.api.schemas.ClientSpec,
 )
 def get_client_spec():
-    return mlrun.api.crud.client_spec.ClientSpec().get_client_spec()
+    return mlrun.api.crud.ClientSpec().get_client_spec()

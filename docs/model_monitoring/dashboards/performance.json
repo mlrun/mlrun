@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 11,
-  "iteration": 1616589366496,
+  "id": 9,
+  "iteration": 1627466092078,
   "links": [
     {
       "asDropdown": true,
@@ -93,7 +93,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb; container=projects; table=$PROJECT/model-endpoints/events; filter=endpoint_id=='$MODEL'  AND record_type=='drift_measures';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODEL'  AND record_type=='drift_measures';",
           "type": "timeserie"
         }
       ],
@@ -190,7 +190,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb; container=projects; table=$PROJECT/model-endpoints/events; fields=latency_avg_5m,latency_avg_1h;\nfilter=endpoint_id=='$MODEL';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_5m,latency_avg_1h;\nfilter=endpoint_id=='$MODEL';",
           "type": "timeserie"
         }
       ],
@@ -286,7 +286,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=projects; table=$PROJECT/model-endpoints/events; fields=predictions_per_second;\nfilter=endpoint_id=='$MODEL';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;\nfilter=endpoint_id=='$MODEL';",
           "type": "timeserie"
         }
       ],
@@ -382,7 +382,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=projects; table=$PROJECT/model-endpoints/events; fields=predictions_count_5m,predictions_count_1h;\nfilter=endpoint_id=='$MODEL';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_count_5m,predictions_count_1h;\nfilter=endpoint_id=='$MODEL';",
           "type": "timeserie"
         }
       ],
@@ -481,7 +481,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb; container=projects; table=$PROJECT/model-endpoints/events; filter=endpoint_id=='$MODEL'  AND record_type=='custom_metrics';",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/model-endpoints/events; filter=endpoint_id=='$MODEL'  AND record_type=='custom_metrics';",
           "type": "timeserie"
         }
       ],
@@ -537,11 +537,7 @@
     "list": [
       {
         "allValue": null,
-        "current": {
-          "selected": false,
-          "text": "",
-          "value": ""
-        },
+        "current": {},
         "datasource": "mlrun-api",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
@@ -563,26 +559,16 @@
       },
       {
         "allValue": null,
-        "current": {
-          "selected": false,
-          "text": "",
-          "value": ""
-        },
+        "current": {},
         "datasource": "iguazio",
-        "definition": "backend=kv;container=projects;table=$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
+        "definition": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
         "hide": 0,
         "includeAll": false,
         "label": "Model",
         "multi": false,
         "name": "MODEL",
-        "options": [
-          {
-            "selected": true,
-            "text": "",
-            "value": ""
-          }
-        ],
-        "query": "backend=kv;container=projects;table=$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
+        "options": [],
+        "query": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
         "refresh": 0,
         "regex": "",
         "skipUrlSync": false,
@@ -603,5 +589,5 @@
   "timezone": "",
   "title": "Performance",
   "uid": "9CazA-UGz",
-  "version": 5
+  "version": 2
 }

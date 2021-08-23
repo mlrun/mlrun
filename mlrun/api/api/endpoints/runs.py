@@ -18,7 +18,6 @@ from mlrun.utils.helpers import datetime_from_iso
 router = APIRouter()
 
 
-# curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @router.post("/run/{project}/{uid}")
 async def store_run(
     request: Request,
@@ -55,7 +54,6 @@ async def store_run(
     return {}
 
 
-# curl -X PATCH -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @router.patch("/run/{project}/{uid}")
 async def update_run(
     request: Request,
@@ -85,7 +83,6 @@ async def update_run(
     return {}
 
 
-# curl http://localhost:8080/run/p1/3
 @router.get("/run/{project}/{uid}")
 def get_run(
     project: str,
@@ -107,7 +104,6 @@ def get_run(
     }
 
 
-# curl -X DELETE http://localhost:8080/run/p1/3
 @router.delete("/run/{project}/{uid}")
 def delete_run(
     project: str,
@@ -129,7 +125,6 @@ def delete_run(
     return {}
 
 
-# curl http://localhost:8080/runs?project=p1&name=x&label=l1&label=l2&sort=no
 @router.get("/runs")
 def list_runs(
     project: str = None,
@@ -147,6 +142,12 @@ def list_runs(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if project != "*":
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
+        )
     runs = mlrun.api.crud.Runs().list_runs(
         db_session,
         name=name,
@@ -176,7 +177,6 @@ def list_runs(
     }
 
 
-# curl -X DELETE http://localhost:8080/runs?project=p1&name=x&days_ago=3
 @router.delete("/runs")
 def delete_runs(
     project: str = None,

@@ -198,7 +198,6 @@ class Client(
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
 
-        # TODO: Remove me when zebo returns owner
         params["include"] = "owner"
         response = self._send_request_to_api(
             "GET",
@@ -291,7 +290,6 @@ class Client(
     def _get_project_from_iguazio_without_parsing(
         self, session: str, name: str, include_owner_session: bool = False
     ):
-        # TODO: Remove me when zebo returns owner
         params = {"include": "owner"}
         if include_owner_session:
             params["enrich_owner_access_key"] = "true"

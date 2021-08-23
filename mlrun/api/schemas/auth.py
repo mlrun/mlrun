@@ -40,6 +40,7 @@ class AuthorizationResourceTypes(str, enum.Enum):
     run = "run"
     model_endpoint = "model-endpoint"
     pipeline = "pipeline"
+    marketplace_source = "marketplace-source"
 
     def to_resource_string(
         self, project_name: str, resource_name: str,
@@ -62,6 +63,8 @@ class AuthorizationResourceTypes(str, enum.Enum):
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
+            # Marketplace sources are not project-scoped, and auth is globally on the sources endpoint.
+            AuthorizationResourceTypes.marketplace_source: "/marketplace/sources",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

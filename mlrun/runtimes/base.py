@@ -779,7 +779,10 @@ class BaseRuntime(ModelObj):
         #     image = self.full_image_path()
 
         if use_db:
-            url = self.save(versioned=True, refresh=True)
+            # if the same function is built as part of the pipeline we do not use the versioned function
+            # rather the latest function w the same tag so we can pick up the updated image/status
+            versioned = False if hasattr(self, "_build_in_pipeline") else False
+            url = self.save(versioned=versioned, refresh=True)
         else:
             url = None
 

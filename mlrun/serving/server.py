@@ -215,15 +215,24 @@ class GraphServer(ModelObj):
     def run(self, event, context=None, get_body=False, extra_args=None):
         server_context = self.context
         context = context or server_context
+        event.content_type = event.content_type or self.default_content_type or ""
+        if isinstance(event.body, (str, bytes)) and (
+            not event.content_type or event.content_type in ["json", "application/json"]
+        ):
+            # assume it is json and try to load
+            try:
+                body = json.loads(event.body)
+                event.body = body
+            except json.decoder.JSONDecodeError as exc:
+                if event.content_type in ["json", "application/json"]:
+                    # if its json type and didnt load, raise exception
+                    message = f"failed to json decode event, {exc}"
+                    context.logger.error(message)
+                    server_context.push_error(event, message, source="_handler")
+                    return context.Response(
+                        body=message, content_type="text/plain", status_code=400
+                    )
         try:
-            if not event.content_type and self.default_content_type:
-                event.content_type = self.default_content_type
-            if (
-                isinstance(event.body, (str, bytes))
-                and event.content_type
-                and event.content_type in ["json", "application/json"]
-            ):
-                event.body = json.loads(event.body)
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
             message = str(exc)

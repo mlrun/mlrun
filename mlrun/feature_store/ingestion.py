@@ -259,6 +259,9 @@ def add_source_trigger(source, function):
             "ConsumerGroup"
         ] = source.attributes["group"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
+            "Brokers"
+        ] = source.attributes["brokers"]
+        func.spec.config["spec.triggers.kafka"]["attributes"][
             "Topics"
         ] = source.attributes["topics"]
         func.spec.config["spec.triggers.kafka"]["attributes"][
@@ -275,7 +278,11 @@ def add_source_trigger(source, function):
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")
         if sasl_user and sasl_pass:
-            func.sasl(sasl_user, sasl_pass)
+            func.spec.config["spec.triggers.kafka"]["attributes"]["sasl"] = {
+                "Enable": True,
+                "User": sasl_user,
+                "Password": sasl_pass,
+            }
         replicas = 1 if not partitions else len(partitions)
         func.spec.min_replicas = replicas
         func.spec.max_replicas = replicas

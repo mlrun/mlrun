@@ -128,7 +128,7 @@ myst_enable_extensions = [
     "replacements",
     "linkify",
     "substitution",
-    "myst_nb"
+    "myst_nb",
 ]
 myst_url_schemes = ("http", "https", "mailto")
 panels_add_bootstrap_css = False

@@ -94,6 +94,10 @@ default_config = {
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
+    # default priority class to be applied to functions running on k8s cluster
+    "default_function_priority_class_name": "",
+    # valid options for priority classes - separated by a comma
+    "valid_function_priority_class_names": "",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -251,7 +255,7 @@ default_config = {
         # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
-        "auto_mount_type": "auto",
+        "auto_mount_type": "none",
         # Extra parameters to pass to the mount call (will be passed as kwargs). Parameters can be either:
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters
@@ -330,6 +334,12 @@ class Config:
             )
 
         return default_function_node_selector
+
+    @staticmethod
+    def get_valid_function_priority_class_names():
+        if not config.valid_function_priority_class_names:
+            return []
+        return list(set(config.valid_function_priority_class_names.split(",")))
 
     @staticmethod
     def get_storage_auto_mount_params():

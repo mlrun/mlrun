@@ -20,6 +20,7 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
+from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
@@ -53,6 +54,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        priority_class_name=None,
     ):
         super().__init__(
             command=command,
@@ -76,6 +78,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            priority_class_name=priority_class_name,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 
@@ -186,6 +189,14 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             update_in(
                 pod_template, "spec.affinity", self.spec._get_sanitized_affinity()
             )
+            if self.spec.priority_class_name and len(
+                mlconf.get_valid_function_priority_class_names()
+            ):
+                update_in(
+                    pod_template,
+                    "spec.priorityClassName",
+                    self.spec.priority_class_name,
+                )
 
         # configuration for workers only
         # update resources only for workers because the launcher

@@ -81,6 +81,9 @@ def list_schedules(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
     schedules = get_scheduler().list_schedules(
         db_session, project, name, kind, labels, include_last_run=include_last_run,
     )

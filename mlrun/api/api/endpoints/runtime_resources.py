@@ -262,6 +262,10 @@ def _get_runtime_resources_allowed_projects(
 ) -> typing.Tuple[
     typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
 ]:
+    if project != "*":
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        )
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
     grouped_by_project_runtime_resources_output = mlrun.api.crud.RuntimeResources().list_runtime_resources(
         project,

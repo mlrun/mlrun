@@ -1,9 +1,10 @@
 from mlrun.frameworks._common import MLRunInterface
+from mlrun.frameworks.sklearn.model_handler import SklearnModelHandler
 import pandas as pd
-from mlrun.mlutils.plots import eval_model_v2
-import pickle
-import joblib
+from mlrun.frameworks._common.plots import eval_model_v2
+from cloudpickle import dumps
 
+# wrapping sklearn models
 class SklearnMLRunInterface(MLRunInterface):
     """
     MLRun model is for enabling additional features supported by MLRun in keras. With MLRun model one can apply horovod
@@ -19,6 +20,7 @@ class SklearnMLRunInterface(MLRunInterface):
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
         :param model: The model to wrap.
+        :param context: The model to wrap.
         :param data:
         :return: The wrapped model.
         """
@@ -36,11 +38,9 @@ class SklearnMLRunInterface(MLRunInterface):
 
                 # Original fit method
                 setattr(model, "fit", fit_method)
-
                 # Post fit
                 if data.get("X_test") is not None:
                     post_fit(*args, **kwargs)
-
             return wrapper
 
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
@@ -53,11 +53,12 @@ class SklearnMLRunInterface(MLRunInterface):
             model_parameters = {key: str(item) for key, item in model.get_params().items()}
 
             # Log model
-            # context.log_model("model",
-            #                   # body=dumps(model),
-            #                   parameters=model_parameters,
-            #                   artifact_path=context.artifact_subpath("models"),
-            #                   # extra_data=eval_metrics,
-            #                   model_file="model.pkl",
-            #                   metrics=context.results,
-            #                   labels={"class": str(model.__class__)})
+            # SklearnModelHandler().log(context, eval_metrics, model_parameters)
+            context.log_model("model",
+                              body=dumps(model),
+                              parameters=model_parameters,
+                              artifact_path=context.artifact_subpath("models"),
+                              extra_data=eval_metrics,
+                              model_file=f"{str(type(model).__name__)}.pkl",
+                              metrics=context.results,
+                              labels={"class": str(model.__class__)})

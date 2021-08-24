@@ -255,9 +255,6 @@ def add_source_trigger(source, function):
             initial_offset=source.attributes["initial_offset"],
         )
         func = function.add_trigger("kafka", trigger)
-        func.spec.config["spec.triggers.kafka"]["attributes"][
-            "Topic"
-        ] = source.attributes["topics"][0]
         sasl_user = source.attributes.get("sasl_user")
         sasl_pass = source.attributes.get("sasl_pass")
         if sasl_user and sasl_pass:

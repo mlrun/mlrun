@@ -376,9 +376,9 @@ class KafkaSource(OnlineSource):
         **kwargs,
     ):
         if isinstance(topics, str):
-            topics = list(topics)
+            topics = [topics]
         if isinstance(brokers, str):
-            brokers = list(brokers)
+            brokers = [brokers]
         attrs = {
             "brokers": brokers,
             "topics": topics,

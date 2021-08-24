@@ -77,10 +77,15 @@ However, when you use multiple labels a logical `and` is performed on the labels
    <br>
    <br/>
    When complete press **Run now** or **Schedule for later**.  
+<br>
 
-**Assign an MLRun job to a node using the SDK:**
+**Assign an MLRun job to a node using the SDK**
+
 You can use node selection using the SDK by adding the key:value pairs in your Jupyter notebook. 
 For On demand use the following function:
+<br><br>
 ```func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': 'non-preemptible'})```
+<br><br>
 For Spot instances use the following function:
+<br><br>
 ```func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': 'preemptible'})``` 

@@ -88,7 +88,8 @@ class MPIResourceSpec(KubeResourceSpec):
 
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = "mpijob"
-    _is_nested = True  # hyper-param loop will use the same CRD/containers (vs CRD per iteration)
+    # nested i.e. hyper-param loop will use the same CRD/containers (vs CRD per iteration)
+    _is_nested = True
 
     @property
     def spec(self) -> MPIResourceSpec:

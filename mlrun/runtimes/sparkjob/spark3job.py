@@ -22,7 +22,7 @@ class Spark3Defaults(AbstractSparkDefaults):
             "local:///spark/v3io-libs/v3io-hcfs_2.12.jar",
             "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
             "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
-            "local:///igz/java/libs/scala-library-2.12.2.jar",
+            "local:///igz/java/libs/scala-library-2.12.14.jar",
         ],
         "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
     }

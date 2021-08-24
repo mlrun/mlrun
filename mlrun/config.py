@@ -94,6 +94,10 @@ default_config = {
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
+    # default priority class to be applied to functions running on k8s cluster
+    "default_function_priority_class_name": "",
+    # valid options for priority classes - separated by a comma
+    "valid_function_priority_class_names": "",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -330,6 +334,12 @@ class Config:
             )
 
         return default_function_node_selector
+
+    @staticmethod
+    def get_valid_function_priority_class_names():
+        if not config.valid_function_priority_class_names:
+            return []
+        return list(set(config.valid_function_priority_class_names.split(",")))
 
     @staticmethod
     def get_storage_auto_mount_params():

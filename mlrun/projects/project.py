@@ -56,11 +56,11 @@ class ProjectError(Exception):
 
 def init_repo(context, url, init_git):
     repo = None
-    if not path.isdir(context):
-        raise ValueError(
-            f"context {context} is not an existing dir path, "
-            "make sure you create the context directory first"
-        )
+    context_path = pathlib.Path(context)
+    if not context_path.exists():
+        context_path.mkdir(parents=True)
+    elif not context_path.is_dir():
+        raise ValueError(f"context {context} is not a dir path")
     try:
         repo = Repo(context)
         url = get_repo_url(repo)
@@ -1036,7 +1036,9 @@ class MlrunProject(ModelObj):
         target_path=None,
     ):
         am = self._get_artifact_manager()
-        artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = (
+            artifact_path or self.spec.artifact_path or mlrun.mlconf.artifact_path
+        )
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             artifact_path, self.metadata.name
         )
@@ -1122,7 +1124,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             ds,
             local_path=local_path,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             target_path=target_path,
             tag=tag,
             upload=upload,
@@ -1215,7 +1217,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             model,
             local_path=model_dir,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             tag=tag,
             upload=upload,
             labels=labels,
@@ -1968,8 +1970,9 @@ def _init_function_from_dict(f, project):
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
+        # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
-            name, filename=url, image=image, kind=kind or "job", handler=handler
+            name, filename=url, image=image, kind=kind, handler=handler
         )
     elif url.endswith(".py"):
         if not image:

@@ -341,7 +341,7 @@ class KubeResource(BaseRuntime):
         if affinity:
             self.spec.affinity = affinity
 
-    def with_priority_class(self, name: str = None):
+    def with_priority_class(self, name: typing.Optional[str] = None):
         """
         Enables to control the priority of the pod
         If not passed - will default to mlrun.mlconf.default_function_priority_class_name

@@ -1,4 +1,3 @@
-import copy
 import http
 import importlib
 import json

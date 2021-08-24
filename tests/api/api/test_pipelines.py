@@ -1,3 +1,4 @@
+import copy
 import http
 import importlib
 import json
@@ -60,7 +61,7 @@ def test_list_pipelines_formats(
         mlrun.api.schemas.PipelinesFormat.metadata_only,
         mlrun.api.schemas.PipelinesFormat.name_only,
     ]:
-        runs = _generate_run_mocks()
+        runs = _generate_list_runs_mocks()
         expected_runs = [run.to_dict() for run in runs]
         expected_runs = mlrun.api.crud.Pipelines()._format_runs(
             db, expected_runs, format_
@@ -84,14 +85,14 @@ def test_get_pipeline_formats(
         mlrun.api.schemas.PipelinesFormat.summary,
         mlrun.api.schemas.PipelinesFormat.name_only,
     ]:
-        # Unlike kfp's list_runs, in get_run the workflow manifest includes the status
-        runs = _generate_run_mocks(workflow_manifest_with_status=True)
-        run = runs[0]
-        expected_run = run.to_dict()
-        expected_run = mlrun.api.crud.Pipelines()._format_run(db, expected_run, format_)
-        _mock_get_run(kfp_client_mock, run)
+        api_run_detail = _generate_get_run_mock()
+        _mock_get_run(kfp_client_mock, api_run_detail)
         response = client.get(
-            f"/api/projects/*/pipelines/{run.id}", params={"format": format_},
+            f"/api/projects/*/pipelines/{api_run_detail.run.id}",
+            params={"format": format_},
+        )
+        expected_run = mlrun.api.crud.Pipelines()._format_run(
+            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -102,7 +103,7 @@ def test_list_pipelines_specific_project(
     kfp_client_mock: kfp.Client,
 ) -> None:
     project = "project-name"
-    runs = _generate_run_mocks()
+    runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
     mlrun.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
@@ -170,7 +171,63 @@ def test_create_pipeline_legacy(
     assert response_body["id"] == "some-run-id"
 
 
-def _generate_run_mocks(workflow_manifest_with_status=False):
+def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetail:
+    workflow_manifest = _generate_workflow_manifest()
+    workflow_manifest_with_status = _generate_workflow_manifest(with_status=True)
+    return kfp_server_api.models.api_run_detail.ApiRunDetail(
+        run=kfp_server_api.models.api_run.ApiRun(
+            id="id1",
+            name="run1",
+            description="desc1",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id1", workflow_manifest=workflow_manifest,
+            ),
+        ),
+        pipeline_runtime=kfp_server_api.models.api_pipeline_runtime.ApiPipelineRuntime(
+            workflow_manifest=workflow_manifest_with_status
+        ),
+    )
+
+
+def _generate_list_runs_mocks():
+    workflow_manifest = _generate_workflow_manifest()
+    return [
+        kfp_server_api.models.api_run.ApiRun(
+            id="id1",
+            name="run1",
+            description="desc1",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id1", workflow_manifest=workflow_manifest,
+            ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id2",
+            name="run2",
+            description="desc2",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id2", workflow_manifest=workflow_manifest,
+            ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id3",
+            name="run3",
+            description="desc3",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id3", workflow_manifest=workflow_manifest,
+            ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id4",
+            name="run4",
+            description="desc4",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id4", workflow_manifest=workflow_manifest,
+            ),
+        ),
+    ]
+
+
+def _generate_workflow_manifest(with_status=False):
     workflow_manifest = {
         "metadata": {
             "name": "minimal-pipeline-rmtvd",
@@ -262,64 +319,28 @@ def _generate_run_mocks(workflow_manifest_with_status=False):
             "ttlSecondsAfterFinished": 14400,
         },
     }
-    if workflow_manifest_with_status:
-        workflow_manifest["status"] = (
-            {
-                "phase": "Succeeded",
-                "startedAt": "2021-08-23T00:01:31Z",
-                "finishedAt": "2021-08-23T00:02:06Z",
-                "nodes": {
-                    "minimal-pipeline-rmtvd": {
-                        "id": "minimal-pipeline-rmtvd",
-                        "name": "minimal-pipeline-rmtvd",
-                        "displayName": "minimal-pipeline-rmtvd",
-                        "type": "DAG",
-                        "templateName": "minimal-pipeline",
-                        "phase": "Succeeded",
-                        "startedAt": "2021-08-23T00:01:31Z",
-                        "finishedAt": "2021-08-23T00:02:06Z",
-                        "inputs": {"parameters": [{"name": "fail", "value": "False"}]},
-                        "children": [],
-                        "outboundNodes": [],
-                    }
-                },
+    if with_status:
+        workflow_manifest["status"] = {
+            "phase": "Succeeded",
+            "startedAt": "2021-08-23T00:01:31Z",
+            "finishedAt": "2021-08-23T00:02:06Z",
+            "nodes": {
+                "minimal-pipeline-rmtvd": {
+                    "id": "minimal-pipeline-rmtvd",
+                    "name": "minimal-pipeline-rmtvd",
+                    "displayName": "minimal-pipeline-rmtvd",
+                    "type": "DAG",
+                    "templateName": "minimal-pipeline",
+                    "phase": "Succeeded",
+                    "startedAt": "2021-08-23T00:01:31Z",
+                    "finishedAt": "2021-08-23T00:02:06Z",
+                    "inputs": {"parameters": [{"name": "fail", "value": "False"}]},
+                    "children": [],
+                    "outboundNodes": [],
+                }
             },
-        )
-    workflow_manifest_json_string = json.dumps(workflow_manifest)
-    return [
-        kfp_server_api.models.api_run.ApiRun(
-            id="id1",
-            name="run1",
-            description="desc1",
-            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id1", workflow_manifest=workflow_manifest_json_string,
-            ),
-        ),
-        kfp_server_api.models.api_run.ApiRun(
-            id="id2",
-            name="run2",
-            description="desc2",
-            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id2", workflow_manifest=workflow_manifest_json_string,
-            ),
-        ),
-        kfp_server_api.models.api_run.ApiRun(
-            id="id3",
-            name="run3",
-            description="desc3",
-            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id3", workflow_manifest=workflow_manifest_json_string,
-            ),
-        ),
-        kfp_server_api.models.api_run.ApiRun(
-            id="id4",
-            name="run4",
-            description="desc4",
-            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id4", workflow_manifest=workflow_manifest_json_string,
-            ),
-        ),
-    ]
+        }
+    return json.dumps(workflow_manifest)
 
 
 def _mock_pipelines_creation(kfp_client_mock: kfp.Client):
@@ -381,10 +402,11 @@ def _mock_list_runs(
 
 
 def _mock_get_run(
-    kfp_client_mock: kfp.Client, run,
+    kfp_client_mock: kfp.Client,
+    api_run_detail: kfp_server_api.models.api_run_detail.ApiRunDetail,
 ):
     def get_run_mock(*args, **kwargs):
-        return kfp_server_api.models.api_run_detail.ApiRunDetail(run=run)
+        return api_run_detail
 
     kfp_client_mock.get_run = get_run_mock
 

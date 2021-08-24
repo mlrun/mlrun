@@ -45,60 +45,53 @@ from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from .utils import generate_resources
 
-igz_deps = {
-    "jars": [
-        "/spark/v3io-libs/v3io-hcfs_2.11.jar",
-        "/spark/v3io-libs/v3io-spark2-streaming_2.11.jar",
-        "/spark/v3io-libs/v3io-spark2-object-dataframe_2.11.jar",
-        "/igz/java/libs/scala-library-2.11.12.jar",
-    ],
-    "files": ["/igz/java/libs/v3io-pyspark.zip"],
-}
+
+class AbstractSparkDefaults:
+    service_account = "sparkapp"
+    sparkjob_template = {
+        "apiVersion": "sparkoperator.k8s.io/v1beta2",
+        "kind": "SparkApplication",
+        "metadata": {"name": "", "namespace": "default-tenant"},
+        "spec": {
+            "mode": "cluster",
+            "image": "",
+            "imagePullPolicy": "IfNotPresent",
+            "mainApplicationFile": "",
+            "sparkVersion": "2.4.5",
+            "restartPolicy": {
+                "type": "OnFailure",
+                "onFailureRetries": 3,
+                "onFailureRetryInterval": 10,
+                "onSubmissionFailureRetries": 5,
+                "onSubmissionFailureRetryInterval": 20,
+            },
+            "deps": {},
+            "volumes": [],
+            "driver": {
+                "cores": 1,
+                "coreLimit": "1200m",
+                "memory": "512m",
+                "labels": {},
+                "volumeMounts": [],
+                "env": [],
+            },
+            "executor": {
+                "cores": 0,
+                "instances": 0,
+                "memory": "",
+                "labels": {},
+                "volumeMounts": [],
+                "env": [],
+            },
+            "nodeSelector": {},
+        },
+    }
+
 
 allowed_types = ["Python", "Scala", "Java", "R"]
 
-_sparkjob_template = {
-    "apiVersion": "sparkoperator.k8s.io/v1beta2",
-    "kind": "SparkApplication",
-    "metadata": {"name": "", "namespace": "default-tenant"},
-    "spec": {
-        "mode": "cluster",
-        "image": "",
-        "imagePullPolicy": "IfNotPresent",
-        "mainApplicationFile": "",
-        "sparkVersion": "2.4.5",
-        "restartPolicy": {
-            "type": "OnFailure",
-            "onFailureRetries": 3,
-            "onFailureRetryInterval": 10,
-            "onSubmissionFailureRetries": 5,
-            "onSubmissionFailureRetryInterval": 20,
-        },
-        "deps": {},
-        "volumes": [],
-        "serviceAccount": "sparkapp",
-        "driver": {
-            "cores": 1,
-            "coreLimit": "1200m",
-            "memory": "512m",
-            "labels": {},
-            "volumeMounts": [],
-            "env": [],
-        },
-        "executor": {
-            "cores": 0,
-            "instances": 0,
-            "memory": "",
-            "labels": {},
-            "volumeMounts": [],
-            "env": [],
-        },
-        "nodeSelector": {},
-    },
-}
 
-
-class SparkJobSpec(KubeResourceSpec):
+class AbstractSparkJobSpec(KubeResourceSpec):
     def __init__(
         self,
         command=None,
@@ -162,12 +155,12 @@ class SparkJobSpec(KubeResourceSpec):
         self.python_version = python_version
         self.spark_version = spark_version
         self.restart_policy = restart_policy or {}
-        self.deps = deps
+        self.deps = deps or {}
         self.main_class = main_class
         self.use_default_image = use_default_image
 
 
-class SparkRuntime(KubejobRuntime):
+class AbstractSparkRuntime(KubejobRuntime):
     group = "sparkoperator.k8s.io"
     version = "v1beta2"
     apiVersion = group + "/" + version
@@ -273,7 +266,7 @@ class SparkRuntime(KubejobRuntime):
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
-        job = deepcopy(_sparkjob_template)
+        job = deepcopy(self._defaults.sparkjob_template)
         meta = self._get_meta(runobj, True)
         pod_labels = deepcopy(meta.labels)
         pod_labels["mlrun/job"] = meta.name
@@ -283,8 +276,11 @@ class SparkRuntime(KubejobRuntime):
             update_in(job, "spec.pythonVersion", self.spec.python_version or "3")
         if self.spec.main_class:
             update_in(job, "spec.mainClass", self.spec.main_class)
-        if self.spec.spark_version:
-            update_in(job, "spec.sparkVersion", self.spec.spark_version)
+        update_in(
+            job,
+            "spec.sparkVersion",
+            self.spec.spark_version or self._defaults.spark_version,
+        )
 
         if self.spec.restart_policy:
             verify_and_update_in(
@@ -313,12 +309,6 @@ class SparkRuntime(KubejobRuntime):
                 "spec.restartPolicy.onSubmissionFailureRetryInterval",
                 self.spec.restart_policy["submission_retry_interval"],
                 int,
-            )
-        if self.spec.priority_class_name:
-            update_in(
-                job,
-                "spec.batchSchedulerOptions.priorityClassName",
-                self.spec.priority_class_name,
             )
 
         update_in(job, "metadata", meta.to_dict())
@@ -425,6 +415,8 @@ class SparkRuntime(KubejobRuntime):
                         job, "spec.driver.gpu.quantity", gpu_quantity, int,
                     )
 
+        self._enrich_job(job)
+
         if self.spec.command:
             if "://" not in self.spec.command:
                 self.spec.command = "local://" + self.spec.command
@@ -435,22 +427,25 @@ class SparkRuntime(KubejobRuntime):
 
         return None
 
+    def _enrich_job(self, job):
+        raise NotImplementedError()
+
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
-                SparkRuntime.group,
-                SparkRuntime.version,
+                AbstractSparkRuntime.group,
+                AbstractSparkRuntime.version,
                 namespace=namespace,
-                plural=SparkRuntime.plural,
+                plural=AbstractSparkRuntime.plural,
                 body=job,
             )
             name = get_in(resp, "metadata.name", "unknown")
             logger.info(f"SparkJob {name} created")
             return resp
         except ApiException as exc:
-            crd = f"{SparkRuntime.group}/{SparkRuntime.version}/{SparkRuntime.plural}"
+            crd = f"{AbstractSparkRuntime.group}/{AbstractSparkRuntime.version}/{AbstractSparkRuntime.plural}"
             logger.error(f"Exception when creating SparkJob ({crd}): {exc}")
             raise RunError(f"Exception when creating SparkJob: {exc}")
 
@@ -459,17 +454,17 @@ class SparkRuntime(KubejobRuntime):
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
-                SparkRuntime.group,
-                SparkRuntime.version,
+                AbstractSparkRuntime.group,
+                AbstractSparkRuntime.version,
                 namespace,
-                SparkRuntime.plural,
+                AbstractSparkRuntime.plural,
                 name,
             )
         except ApiException as exc:
             print(f"Exception when reading SparkJob: {exc}")
         return resp
 
-    def _update_igz_jars(self, deps=igz_deps):
+    def _update_igz_jars(self, deps):
         if not self.spec.deps:
             self.spec.deps = {}
         if "jars" in deps:
@@ -482,7 +477,7 @@ class SparkRuntime(KubejobRuntime):
             self.spec.deps["files"] += deps["files"]
 
     def with_igz_spark(self):
-        self._update_igz_jars()
+        self._update_igz_jars(deps=self._defaults.igz_deps)
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
@@ -605,12 +600,16 @@ class SparkRuntime(KubejobRuntime):
         return super().is_deployed
 
     @property
-    def spec(self) -> SparkJobSpec:
-        return self._spec
+    def spec(self) -> AbstractSparkJobSpec:
+        raise NotImplementedError()
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, "spec", SparkJobSpec)
+        raise NotImplementedError()
+
+    @property
+    def _defaults(self) -> AbstractSparkDefaults:
+        raise NotImplementedError()
 
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
@@ -671,4 +670,8 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:
-        return SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural
+        return (
+            AbstractSparkRuntime.group,
+            AbstractSparkRuntime.version,
+            AbstractSparkRuntime.plural,
+        )

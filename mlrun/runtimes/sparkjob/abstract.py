@@ -29,10 +29,10 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.utils.regex import sparkjob_name
 
-from ..execution import MLClientCtx
-from ..model import RunObject
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
-from ..utils import (
+from ...execution import MLClientCtx
+from ...model import RunObject
+from ...platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ...utils import (
     get_in,
     logger,
     update_in,
@@ -40,10 +40,10 @@ from ..utils import (
     verify_field_regex,
     verify_list_and_update_in,
 )
-from .base import RunError
-from .kubejob import KubejobRuntime
-from .pod import KubeResourceSpec
-from .utils import generate_resources
+from ..base import RunError
+from ..kubejob import KubejobRuntime
+from ..pod import KubeResourceSpec
+from ..utils import generate_resources
 
 
 class AbstractSparkDefaults:

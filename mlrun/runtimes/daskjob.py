@@ -83,6 +83,7 @@ class DaskSpec(KubeResourceSpec):
         affinity=None,
         scheduler_resources=None,
         worker_resources=None,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -105,6 +106,7 @@ class DaskSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            priority_class_name=priority_class_name,
         )
         self.args = args
 

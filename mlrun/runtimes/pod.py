@@ -59,6 +59,7 @@ class KubeResourceSpec(FunctionSpec):
         node_selector=None,
         affinity=None,
         mount_applied=False,
+        priority_class_name=None,
     ):
         super().__init__(
             command=command,
@@ -88,6 +89,9 @@ class KubeResourceSpec(FunctionSpec):
             node_selector or mlrun.mlconf.get_default_function_node_selector()
         )
         self._affinity = affinity
+        self.priority_class_name = (
+            priority_class_name or mlrun.mlconf.default_function_priority_class_name
+        )
 
     @property
     def volumes(self) -> list:
@@ -337,6 +341,34 @@ class KubeResource(BaseRuntime):
         if affinity:
             self.spec.affinity = affinity
 
+    def with_priority_class(
+        self, name: str = mlconf.default_function_priority_class_name
+    ):
+        """
+        Enables to control the priority of the pod
+        If not passed - will default to mlrun.mlconf.default_function_priority_class_name
+
+        :param name:       The name of the priority class
+        """
+        valid_priority_class_names = self.list_valid_and_default_priority_class_names()[
+            "valid_function_priority_class_names"
+        ]
+        if name not in valid_priority_class_names:
+            message = "Priority class name not in available priority class names"
+            logger.warning(
+                message,
+                priority_class_name=name,
+                valid_priority_class_names=valid_priority_class_names,
+            )
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
+        self.spec.priority_class_name = name
+
+    def list_valid_and_default_priority_class_names(self):
+        return {
+            "default_function_priority_class_name": mlconf.default_function_priority_class_name,
+            "valid_function_priority_class_names": mlconf.get_valid_function_priority_class_names(),
+        }
+
     def _verify_and_set_limits(
         self,
         resources_field_name,
@@ -520,4 +552,7 @@ def kube_resource_spec_to_pod_spec(
         node_name=kube_resource_spec.node_name,
         node_selector=kube_resource_spec.node_selector,
         affinity=kube_resource_spec.affinity,
+        priority_class_name=kube_resource_spec.priority_class_name
+        if len(mlconf.get_valid_function_priority_class_names())
+        else None,
     )

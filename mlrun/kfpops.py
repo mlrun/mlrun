@@ -636,7 +636,7 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):
-    workflow = run.get("pipeline_spec", {}).get("workflow_manifest")
+    workflow = run.get("pipeline_runtime", {}).get("workflow_manifest")
     if not workflow:
         return None, project, None
     workflow = json.loads(workflow)

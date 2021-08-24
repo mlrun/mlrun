@@ -34,6 +34,13 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination, sorting, or custom filter"
             )
+        if format_ == mlrun.api.schemas.PipelinesFormat.summary:
+            # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
+            # manifest status that includes the nodes section we use to generate the DAG.
+            # (There is a workflow manifest under the run's pipeline_spec field, but it doesn't include the status)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Summary format is not supported for list pipelines, use get instead"
+            )
         kfp_client = kfp.Client(namespace=namespace)
         if project != "*":
             run_dicts = []

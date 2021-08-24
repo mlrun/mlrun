@@ -255,6 +255,14 @@ class HTTPRunDB(RunDBInterface):
             config.nuclio_version = config.nuclio_version or server_cfg.get(
                 "nuclio_version"
             )
+            config.default_function_priority_class_name = (
+                config.default_function_priority_class_name
+                or server_cfg.get("default_function_priority_class_name")
+            )
+            config.valid_function_priority_class_names = (
+                config.valid_function_priority_class_names
+                or server_cfg.get("valid_function_priority_class_names")
+            )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -997,7 +1005,12 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("POST", path, error_message)
 
     def remote_builder(
-        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+        self,
+        func,
+        with_mlrun,
+        mlrun_version_specifier=None,
+        skip_deployed=False,
+        builder_env=None,
     ):
         """ Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1009,6 +1022,7 @@ class HTTPRunDB(RunDBInterface):
             image that already has MLRun in it.
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         """
 
         try:
@@ -1019,6 +1033,8 @@ class HTTPRunDB(RunDBInterface):
             }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
+            if builder_env:
+                req["builder_env"] = builder_env
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
             logger.error(f"error submitting build task: {err}")

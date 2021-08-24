@@ -125,6 +125,7 @@ class NuclioSpec(KubeResourceSpec):
         node_selector=None,
         affinity=None,
         mount_applied=False,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -147,6 +148,7 @@ class NuclioSpec(KubeResourceSpec):
             node_selector=node_selector,
             affinity=affinity,
             mount_applied=mount_applied,
+            priority_class_name=priority_class_name,
         )
 
         self.base_spec = base_spec or ""
@@ -546,6 +548,12 @@ class RemoteRuntime(KubeResource):
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
         super().with_node_selection(node_name, node_selector, affinity)
+
+    @min_nuclio_versions("1.6.18")
+    def with_priority_class(
+        self, name: str = mlconf.default_function_priority_class_name
+    ):
+        super().with_priority_class(name)
 
     def _get_state(
         self,
@@ -963,12 +971,21 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
-    if function.spec.node_selector:
-        spec.set_config("spec.nodeSelector", function.spec.node_selector)
-    if function.spec.node_name:
-        spec.set_config("spec.nodeName", function.spec.node_name)
-    if function.spec.affinity:
-        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    # don't send node selections if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
+        if function.spec.node_selector:
+            spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        if function.spec.node_name:
+            spec.set_config("spec.nodeName", function.spec.node_name)
+        if function.spec.affinity:
+            spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    # don't send default or any priority class name if nuclio is not compatible
+    if (
+        function.spec.priority_class_name
+        and validate_nuclio_version_compatibility("1.6.18")
+        and len(mlconf.get_valid_function_priority_class_names())
+    ):
+        spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

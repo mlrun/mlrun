@@ -18,7 +18,6 @@ import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
-from mlrun.api.crud.model_endpoints import ModelEndpoints
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
@@ -131,6 +130,9 @@ def list_functions(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
     )
@@ -182,6 +184,7 @@ async def build_function(
         with_mlrun,
         skip_deployed,
         mlrun_version_specifier,
+        data.get("builder_env"),
     )
     return {
         "data": fn.to_dict(),
@@ -394,6 +397,7 @@ def _build_function(
     with_mlrun,
     skip_deployed,
     mlrun_version_specifier,
+    builder_env=None,
 ):
     fn = None
     ready = None
@@ -426,7 +430,7 @@ def _build_function(
                             )
 
                         _create_model_monitoring_stream(project=fn.metadata.project)
-                        ModelEndpoints.deploy_monitoring_functions(
+                        mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             model_monitoring_access_key=model_monitoring_access_key,
                             db_session=db_session,
@@ -445,7 +449,11 @@ def _build_function(
             ready = False
         else:
             ready = build_runtime(
-                fn, with_mlrun, mlrun_version_specifier, skip_deployed
+                fn,
+                with_mlrun,
+                mlrun_version_specifier,
+                skip_deployed,
+                builder_env=builder_env,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())

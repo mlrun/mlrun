@@ -46,9 +46,10 @@ class TestMLRunSystem:
         # it in mlconf.
         mlconf.dbpath = self._test_env["MLRUN_DBPATH"]
 
-        set_environment(
-            artifact_path="/User/data", project=self.project_name,
-        )
+        if not self._skip_set_environment():
+            set_environment(
+                artifact_path="/User/data", project=self.project_name,
+            )
 
         self.custom_setup()
 
@@ -84,6 +85,10 @@ class TestMLRunSystem:
 
     def custom_teardown(self):
         pass
+
+    @staticmethod
+    def _skip_set_environment():
+        return False
 
     @classmethod
     def skip_test_if_env_not_configured(cls, test):

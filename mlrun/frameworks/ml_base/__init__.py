@@ -19,6 +19,5 @@ def apply_mlrun(
         context = mlrun.get_or_create_ctx(MLBaseMLRunInterface.DEFAULT_CONTEXT_NAME)
         
     # Add MLRun's interface to the model:
-    data = kwargs
-    MLBaseMLRunInterface.add_interface(model, context, data)
+    MLBaseMLRunInterface.add_interface(model, context, kwargs)
     return model

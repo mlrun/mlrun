@@ -166,6 +166,12 @@ async def build_function(
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
     await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+        auth_info=auth_verifier.auth_info,
+    )
+    await run_in_threadpool(
         mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.get("metadata", {}).get("project", mlrun.mlconf.default_project),

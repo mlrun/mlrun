@@ -33,7 +33,7 @@ def pipe_test():
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestFeatureStore(TestMLRunSystem):
+class TestProject(TestMLRunSystem):
     def custom_setup(self):
         pass
 

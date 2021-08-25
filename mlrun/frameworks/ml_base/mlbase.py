@@ -3,7 +3,6 @@ import pandas as pd
 from mlrun.frameworks._common.plots import eval_model_v2
 from cloudpickle import dumps
 
-# wrapping sklearn models
 class MLBaseMLRunInterface(MLRunInterface):
     """
     MLRun model is for enabling additional features supported by MLRun in keras. With MLRun model one can apply horovod

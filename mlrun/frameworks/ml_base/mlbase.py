@@ -9,9 +9,6 @@ class MLBaseMLRunInterface(MLRunInterface):
     and use auto logging with ease.
     """
 
-    # MLRun's context default name:
-    DEFAULT_CONTEXT_NAME = "mlrun-sklearn"
-
     @classmethod
     def add_interface(cls, model, context, data, *args, **kwargs):
         """

@@ -120,16 +120,16 @@ def get_feature_set(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    tag, uid = parse_reference(reference)
+    feature_set = mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session, project, name, tag, uid
+    )
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
-    )
-    tag, uid = parse_reference(reference)
-    feature_set = mlrun.api.crud.FeatureStore().get_feature_set(
-        db_session, project, name, tag, uid
     )
     return feature_set
 
@@ -428,16 +428,16 @@ def get_feature_vector(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    tag, uid = parse_reference(reference)
+    feature_vector = mlrun.api.crud.FeatureStore().get_feature_vector(
+        db_session, project, name, tag, uid
+    )
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
-    )
-    tag, uid = parse_reference(reference)
-    feature_vector = mlrun.api.crud.FeatureStore().get_feature_vector(
-        db_session, project, name, tag, uid
     )
     _verify_feature_vector_features_permissions(
         auth_verifier.auth_info, project, feature_vector.dict()

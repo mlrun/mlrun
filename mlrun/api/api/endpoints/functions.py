@@ -86,15 +86,15 @@ def get_function(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    func = mlrun.api.crud.Functions().get_function(
+        db_session, name, project, tag, hash_key
+    )
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
-    )
-    func = mlrun.api.crud.Functions().get_function(
-        db_session, name, project, tag, hash_key
     )
     return {
         "func": func,

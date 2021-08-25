@@ -107,6 +107,9 @@ def get_schedule(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    schedule = get_scheduler().get_schedule(
+        db_session, project, name, include_last_run=include_last_run,
+    )
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
         project,
@@ -114,9 +117,7 @@ def get_schedule(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    return get_scheduler().get_schedule(
-        db_session, project, name, include_last_run=include_last_run,
-    )
+    return schedule
 
 
 @router.post("/projects/{project}/schedules/{name}/invoke")

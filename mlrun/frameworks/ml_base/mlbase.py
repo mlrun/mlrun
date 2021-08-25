@@ -1,5 +1,4 @@
 from mlrun.frameworks._common import MLRunInterface
-from mlrun.frameworks.sklearn.model_handler import SklearnModelHandler
 import pandas as pd
 from mlrun.frameworks._common.plots import eval_model_v2
 from cloudpickle import dumps
@@ -61,4 +60,3 @@ class MLBaseMLRunInterface(MLRunInterface):
                               model_file=f"{str(type(model).__name__)}.pkl",
                               metrics=context.results,
                               labels={"class": str(model.__class__)})
-

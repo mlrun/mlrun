@@ -47,7 +47,7 @@ class KubejobRuntime(KubeResource):
             db = self._get_db()
             try:
                 db.get_builder_status(self, logs=False)
-            except RunDBError:
+            except Exception:
                 pass
 
         if self.spec.image:

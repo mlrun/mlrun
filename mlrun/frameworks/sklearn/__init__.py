@@ -1,5 +1,5 @@
 import mlrun
-from mlrun.frameworks.sklearn.mlrun_interface import SklearnMLRunInterface
+from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 from mlrun.frameworks.sklearn.model_handler import SklearnModelHandler
 
 def apply_mlrun(
@@ -16,9 +16,9 @@ def apply_mlrun(
     :return: The model with MLRun's interface.
     """
     if context is None:
-        context = mlrun.get_or_create_ctx(SklearnMLRunInterface.DEFAULT_CONTEXT_NAME)
+        context = mlrun.get_or_create_ctx(MLBaseMLRunInterface.DEFAULT_CONTEXT_NAME)
         
     # Add MLRun's interface to the model:
     data = kwargs
-    SklearnMLRunInterface.add_interface(model, context, data)
+    MLBaseMLRunInterface.add_interface(model, context, data)
     return model

@@ -1982,7 +1982,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
                         raise mlrun.errors.MLRunConflictError(
-                            f"Conflict - {cls} already exists"
+                            f"Conflict - {cls} already exists: {obj.get_identifier_string()}"
                         ) from err
                     except mlrun.errors.MLRunConflictError as exc:
                         raise mlrun.utils.helpers.FatalFailureException(

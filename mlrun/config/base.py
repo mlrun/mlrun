@@ -20,16 +20,15 @@ import yaml
 class ConfigBase(object):
 
     _missing = object()
+    dynamic_attributes = []
 
     def __init__(self, cfg=None):
         cfg = {} if cfg is None else cfg
 
         # Can't use self._cfg = cfg → infinite recursion
         super().__setattr__("_cfg", cfg)
-        # print('new', self._cfg)
 
     def __getattr__(self, attr):
-        # print('getting from', self._cfg)
         val = self._cfg.get(attr, self._missing)
         if val is self._missing:
             raise AttributeError(attr)
@@ -39,9 +38,10 @@ class ConfigBase(object):
         return val
 
     def __setattr__(self, attr, value):
-        # print('setting', self._cfg)
+        if attr in self.dynamic_attributes:
+            super().__setattr__(attr, value)
         if isinstance(value, typing.Mapping):
-            return self._cfg[attr].update(value)
+            self._cfg[attr].update(value)
         else:
             self._cfg[attr] = value
 

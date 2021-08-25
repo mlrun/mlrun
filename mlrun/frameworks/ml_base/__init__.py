@@ -1,5 +1,4 @@
 import mlrun
-from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 
 def apply_mlrun(
         model,
@@ -14,7 +13,7 @@ def apply_mlrun(
     :return: The model with MLRun's interface.
     """
     if context is None:
-        context = mlrun.get_or_create_ctx(MLBaseMLRunInterface.DEFAULT_CONTEXT_NAME)
+        context = mlrun.get_or_create_ctx('mlrun_context')
 
     # Add MLRun's interface to the model:
     MLBaseMLRunInterface.add_interface(model, context, kwargs)

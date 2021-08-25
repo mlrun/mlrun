@@ -16,7 +16,7 @@ def apply_mlrun(
     :return: The model with MLRun's interface.
     """
     if context is None:
-        context = mlrun.get_or_create_ctx(XGBMLRunInterface.DEFAULT_CONTEXT_NAME)
+        context = mlrun.get_or_create_ctx('mlrun_xgb')
         
     # Add MLRun's interface to the model:
     XGBMLRunInterface.add_interface(model, context, kwargs)

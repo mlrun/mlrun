@@ -150,13 +150,6 @@ def get_endpoint(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ) -> ModelEndpoint:
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
-    )
     endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
         auth_info=auth_verifier.auth_info,
         project=project,
@@ -165,5 +158,12 @@ def get_endpoint(
         start=start,
         end=end,
         feature_analysis=feature_analysis,
+    )
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
     )
     return endpoint

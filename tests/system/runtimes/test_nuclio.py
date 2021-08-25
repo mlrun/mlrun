@@ -1,5 +1,3 @@
-import pathlib
-
 import mlrun
 import tests.system.base
 

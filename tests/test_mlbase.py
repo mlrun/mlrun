@@ -4,7 +4,8 @@ from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 from sklearn.linear_model import LogisticRegression
-from mlrun.frameworks.sklearn import apply_mlrun
+from mlrun.frameworks.sklearn import apply_mlrun as apply_mlrun_sklearn
+from mlrun.frameworks.xgboost import apply_mlrun as apply_mlrun_xgb
 from mlrun import new_function
 
 def get_dataset(classification=True):
@@ -22,7 +23,7 @@ def get_dataset(classification=True):
 def run_mlbase_sklearn_classification(context):
     model = LogisticRegression()
     X_train, X_test, y_train, y_test = get_dataset()
-    model = apply_mlrun(model, context, X_train=X_train,
+    model = apply_mlrun_sklearn(model, context, X_train=X_train,
                         y_train=y_train, X_test=X_test, y_test=y_test)
     model.fit(X_train,y_train.values.reshape(-1,))
 
@@ -30,7 +31,7 @@ def run_mlbase_sklearn_classification(context):
 def run_mlbase_xgboost_regression(context):
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)
-    model = apply_mlrun(model, context, X_train=X_train,
+    model = apply_mlrun_xgb(model, context, X_train=X_train,
                         y_train=y_train, X_test=X_test, y_test=y_test)
     model.fit(X_train,y_train.values.reshape(-1,))
 

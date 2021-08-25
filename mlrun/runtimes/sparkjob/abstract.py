@@ -45,7 +45,6 @@ from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import generate_resources
 
-
 _service_account = "sparkapp"
 _sparkjob_template = {
     "apiVersion": "sparkoperator.k8s.io/v1beta2",

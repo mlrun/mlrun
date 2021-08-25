@@ -52,7 +52,9 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
             ),
-            spark_operator_version=self._get_config_value_if_not_default("spark_operator_version"),
+            spark_operator_version=self._get_config_value_if_not_default(
+                "spark_operator_version"
+            ),
         )
 
     def _get_config_value_if_not_default(self, config_key):

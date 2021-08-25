@@ -13,20 +13,7 @@
 # limitations under the License.
 
 from ...utils import update_in, verify_and_update_in
-from .abstract import AbstractSparkDefaults, AbstractSparkJobSpec, AbstractSparkRuntime
-
-
-class Spark3Defaults(AbstractSparkDefaults):
-    igz_deps = {
-        "jars": [
-            "local:///spark/v3io-libs/v3io-hcfs_2.12.jar",
-            "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
-            "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
-            "local:///igz/java/libs/scala-library-2.12.14.jar",
-        ],
-        "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
-    }
-    spark_version = "3.1.2"
+from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
 
 class Spark3JobSpec(AbstractSparkJobSpec):
@@ -136,9 +123,23 @@ class Spark3Runtime(AbstractSparkRuntime):
                     "spec.dynamicAllocation.maxExecutors",
                     self.spec.dynamic_allocation["maxExecutors"],
                 )
-        update_in(job, "spec.driver.serviceAccount", self._defaults.service_account)
-        update_in(job, "spec.executor.serviceAccount", self._defaults.service_account)
+        update_in(job, "spec.driver.serviceAccount", "sparkapp")
+        update_in(job, "spec.executor.serviceAccount", "sparkapp")
         return
+
+    def _get_spark_version(self):
+        return "3.1.2"
+
+    def _get_igz_deps(self):
+        return {
+            "jars": [
+                "local:///spark/v3io-libs/v3io-hcfs_2.12.jar",
+                "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
+                "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
+                "local:///igz/java/libs/scala-library-2.12.14.jar",
+            ],
+            "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
+        }
 
     @property
     def spec(self) -> Spark3JobSpec:
@@ -147,7 +148,3 @@ class Spark3Runtime(AbstractSparkRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
-
-    @property
-    def _defaults(self) -> Spark3Defaults:
-        return Spark3Defaults

@@ -46,46 +46,45 @@ from ..pod import KubeResourceSpec
 from ..utils import generate_resources
 
 
-class AbstractSparkDefaults:
-    service_account = "sparkapp"
-    sparkjob_template = {
-        "apiVersion": "sparkoperator.k8s.io/v1beta2",
-        "kind": "SparkApplication",
-        "metadata": {"name": "", "namespace": "default-tenant"},
-        "spec": {
-            "mode": "cluster",
-            "image": "",
-            "imagePullPolicy": "IfNotPresent",
-            "mainApplicationFile": "",
-            "sparkVersion": "2.4.5",
-            "restartPolicy": {
-                "type": "OnFailure",
-                "onFailureRetries": 3,
-                "onFailureRetryInterval": 10,
-                "onSubmissionFailureRetries": 5,
-                "onSubmissionFailureRetryInterval": 20,
-            },
-            "deps": {},
-            "volumes": [],
-            "driver": {
-                "cores": 1,
-                "coreLimit": "1200m",
-                "memory": "512m",
-                "labels": {},
-                "volumeMounts": [],
-                "env": [],
-            },
-            "executor": {
-                "cores": 0,
-                "instances": 0,
-                "memory": "",
-                "labels": {},
-                "volumeMounts": [],
-                "env": [],
-            },
-            "nodeSelector": {},
+_service_account = "sparkapp"
+_sparkjob_template = {
+    "apiVersion": "sparkoperator.k8s.io/v1beta2",
+    "kind": "SparkApplication",
+    "metadata": {"name": "", "namespace": "default-tenant"},
+    "spec": {
+        "mode": "cluster",
+        "image": "",
+        "imagePullPolicy": "IfNotPresent",
+        "mainApplicationFile": "",
+        "sparkVersion": "2.4.5",
+        "restartPolicy": {
+            "type": "OnFailure",
+            "onFailureRetries": 3,
+            "onFailureRetryInterval": 10,
+            "onSubmissionFailureRetries": 5,
+            "onSubmissionFailureRetryInterval": 20,
         },
-    }
+        "deps": {},
+        "volumes": [],
+        "driver": {
+            "cores": 1,
+            "coreLimit": "1200m",
+            "memory": "512m",
+            "labels": {},
+            "volumeMounts": [],
+            "env": [],
+        },
+        "executor": {
+            "cores": 0,
+            "instances": 0,
+            "memory": "",
+            "labels": {},
+            "volumeMounts": [],
+            "env": [],
+        },
+        "nodeSelector": {},
+    },
+}
 
 
 allowed_types = ["Python", "Scala", "Java", "R"]
@@ -261,12 +260,18 @@ class AbstractSparkRuntime(KubejobRuntime):
                 "Sparkjob must contain driver requests"
             )
 
+    def _get_spark_version(self):
+        raise NotImplementedError()
+
+    def _get_igz_deps(self):
+        raise NotImplementedError()
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
-        job = deepcopy(self._defaults.sparkjob_template)
+        job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runobj, True)
         pod_labels = deepcopy(meta.labels)
         pod_labels["mlrun/job"] = meta.name
@@ -279,7 +284,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         update_in(
             job,
             "spec.sparkVersion",
-            self.spec.spark_version or self._defaults.spark_version,
+            self.spec.spark_version or self._get_spark_version(),
         )
 
         if self.spec.restart_policy:
@@ -477,7 +482,7 @@ class AbstractSparkRuntime(KubejobRuntime):
             self.spec.deps["files"] += deps["files"]
 
     def with_igz_spark(self):
-        self._update_igz_jars(deps=self._defaults.igz_deps)
+        self._update_igz_jars(deps=self._get_igz_deps())
         self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
@@ -605,10 +610,6 @@ class AbstractSparkRuntime(KubejobRuntime):
 
     @spec.setter
     def spec(self, spec):
-        raise NotImplementedError()
-
-    @property
-    def _defaults(self) -> AbstractSparkDefaults:
         raise NotImplementedError()
 
 

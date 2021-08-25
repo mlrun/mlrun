@@ -22,7 +22,6 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             artifact_path=config.artifact_path,
             spark_app_image=config.spark_app_image,
             spark_app_image_tag=config.spark_app_image_tag,
-            spark_operator_version=config.spark_operator_version,
             kfp_image=config.kfp_image,
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
@@ -53,6 +52,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
             ),
+            spark_operator_version=self._get_config_value_if_not_default("spark_operator_version"),
         )
 
     def _get_config_value_if_not_default(self, config_key):

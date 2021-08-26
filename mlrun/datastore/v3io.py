@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import time
+import re
 from copy import deepcopy
 from datetime import datetime
 
 import fsspec
 import v3io.dataplane
+from mlrun.config import config
 
 import mlrun
 
@@ -147,8 +149,16 @@ class V3ioStore(DataStore):
             path = [path]
         maxdepth = maxdepth if not maxdepth else maxdepth - 1
         to_rm = set()
-        path = [fs._strip_protocol(p) for p in path]
         for p in path:
+            p = fs._strip_protocol(p)
+            exists = fs.exists(p)
+            if not exists:
+                host = self.get_v3io_api_host()
+                start_index = p.find(host)
+                start_index = 0 if start_index == -1 else start_index + len(host)
+                p = p[start_index:]
+                exists = fs.exists(p)
+
             if recursive:
                 find_out = fs.find(p, maxdepth=maxdepth, withdirs=True, detail=True)
                 rec = set(
@@ -160,8 +170,24 @@ class V3ioStore(DataStore):
                     )
                 )
                 to_rm |= rec
-            if p not in to_rm and (recursive is False or fs.exists(p)):
+            if p not in to_rm and (recursive is False or exists):
                 p = p + ("/" if fs.isdir(p) else "")
                 to_rm.add(p)
         for p in reversed(list(sorted(to_rm))):
             fs.rm_file(p)
+
+    @staticmethod
+    def get_v3io_api_host():
+        """Return only the host out of v3io_api
+
+        Takes the parameter from config and strip it from it's protocol and port
+        returning only the host name.
+        """
+        api = None
+        if config.v3io_api:
+            api = config.v3io_api
+            if api.startswith('http'):
+                api = re.sub(r'https?://', '', api)
+            if ':' in api:
+                api = api[:api.find(':')]
+        return api

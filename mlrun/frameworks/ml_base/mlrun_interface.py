@@ -5,8 +5,7 @@ from cloudpickle import dumps
 
 class MLBaseMLRunInterface(MLRunInterface):
     """
-    MLRun model is for enabling additional features supported by MLRun in keras. With MLRun model one can apply horovod
-    and use auto logging with ease.
+    Wraps the original .fit() method of the passed model enabling auto-logging.
     """
 
     @classmethod
@@ -15,8 +14,9 @@ class MLBaseMLRunInterface(MLRunInterface):
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
         :param model: The model to wrap.
-        :param context: The model to wrap.
-        :param data:
+        :param context: MLRun context to work with. If no context is given it will be retrieved via
+                        'mlrun.get_or_create_ctx(None)'
+        :param data: The train_test_split X_train, X_test, y_train, y_test.
         :return: The wrapped model.
         """
 

@@ -1,7 +1,6 @@
 import numpy as np
 from cloudpickle import load
 from mlrun.serving.v2_serving import V2ModelServer
-from sklearn.base import is_classifier, is_regressor
 
 class SklearnModelServer(V2ModelServer):
     """

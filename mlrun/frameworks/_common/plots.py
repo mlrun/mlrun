@@ -14,7 +14,7 @@ from sklearn.preprocessing import LabelBinarizer
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score
-
+from sklearn.base import is_classifier, is_regressor
 from mlrun.artifacts import PlotArtifact
 
 def gcf_clear(plt):
@@ -405,7 +405,6 @@ def eval_model_v2(
         plots_artifact_path: str = "",
         pred_params: dict = {},
         cmap="Blues",
-        is_classification=True,
         is_xgb=False,
 ):
     """generate predictions and validation stats
@@ -423,7 +422,6 @@ def eval_model_v2(
     :param pcurve_names:        label for each calibration curve
     :param pred_params:         (None) dict of predict function parameters
     :param cmap:                ('Blues') matplotlib color map
-    :param is_classification:   model type (classification/regression)
     :param is_xgb
     """
 
@@ -457,7 +455,6 @@ def eval_model_v2(
 
     if isinstance(ypred.flat[0], np.floating):
         accuracy = mean_absolute_error(ytest, ypred)
-        is_classification = False
 
     else:
         accuracy = float(metrics.accuracy_score(ytest, ypred))
@@ -489,7 +486,7 @@ def eval_model_v2(
             extra_data["probability calibration"] = calibration
 
     # CONFUSION MATRIX
-    if is_classification:
+    if is_classifier(model):
         cm = sklearn_confusion_matrix(ytest, ypred, normalize="all")
         df = pd.DataFrame(data=cm)
         extra_data["confusion matrix table.csv"] = df_blob(df)
@@ -564,7 +561,7 @@ def eval_model_v2(
         extra_data["feature importances table.csv"] = df_blob(fi_tbl)
 
     # AUC - ROC - PR CURVES
-    if is_multiclass and is_classification:
+    if is_multiclass and is_classifier(model):
         lb = LabelBinarizer()
         ytest_b = lb.fit_transform(ytest)
 
@@ -595,7 +592,7 @@ def eval_model_v2(
         rs = metrics.recall_score(ytest, ypred, average="macro")
         context.log_results({"f1-score": f1, "precision_score": ps, "recall_score": rs})
 
-    elif is_classification:
+    elif is_classifier(model):
         yprob_pos = yprob[:, 1]
         extra_data["precision_recall_bin"] = context.log_artifact(
             precision_recall_bin(model, xtest, ytest, yprob_pos),
@@ -623,12 +620,11 @@ def eval_model_v2(
             }
         )
 
-    elif is_classification is False:
+    elif is_regressor(model):
         r_squared = r2_score(ytest, ypred)
         rmse = mean_squared_error(ytest, ypred, squared=False)
         mse = mean_squared_error(ytest, ypred, squared=True)
         mae = mean_absolute_error(ytest, ypred)
-        print(rmse,mse,mae)
         context.log_results(
             {
                 "R2": r_squared,

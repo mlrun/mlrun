@@ -2,7 +2,6 @@ import os
 import shutil
 import tarfile
 import tempfile
-import uuid
 import zipfile
 from os import path, remove
 from urllib.parse import urlparse
@@ -20,8 +19,7 @@ def _prep_dir(source, target_dir, suffix, secrets, clone):
     if clone and path.exists(target_dir) and path.isdir(target_dir):
         shutil.rmtree(target_dir)
 
-    new_uuid = uuid.uuid4()
-    temp_file = os.path.join(tempfile.gettempdir(), f"{new_uuid}{suffix}")
+    temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
     mlrun.get_dataitem(source, secrets).download(temp_file)
     return temp_file
 

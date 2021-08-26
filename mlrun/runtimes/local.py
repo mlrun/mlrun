@@ -21,7 +21,6 @@ import socket
 import sys
 import tempfile
 import traceback
-import uuid
 from contextlib import redirect_stdout
 from copy import copy
 from io import StringIO
@@ -137,8 +136,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         handler = runobj.spec.handler
         self._force_handler(handler)
-        new_uuid = uuid.uuid4()
-        tmp = os.path.join(tempfile.gettempdir(), f"{new_uuid}.json")
+        tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         environ["MLRUN_META_TMPFILE"] = tmp
         set_paths(self.spec.pythonpath)
 
@@ -218,8 +216,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
-        new_uuid = uuid.uuid4()
-        tmp = os.path.join(tempfile.gettempdir(), f"{new_uuid}.json")
+        tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         environ["MLRUN_META_TMPFILE"] = tmp
         if self.spec.rundb:
             environ["MLRUN_DBPATH"] = self.spec.rundb

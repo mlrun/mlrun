@@ -16,7 +16,6 @@ import http
 import os
 import tempfile
 import time
-import uuid
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -1228,8 +1227,7 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
-            new_uuid = uuid.uuid4()
-            pipe_file = path.join(tempfile.gettempdir(), f"{new_uuid}.yaml")
+            pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_meta(artifact_path, ttl, ops)
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf

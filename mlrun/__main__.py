@@ -820,19 +820,19 @@ def project(
                 sync=sync,
                 dirty=dirty,
             )
+            print(f"run id: {run_result.run_id}")
         except Exception as exc:
             print(traceback.format_exc())
             message = f"failed to run pipeline, {exc}"
             had_error = True
             print(message)
-        print(f"run id: {run_result.run_id}")
 
         if had_error:
             proj.notifiers.push(message)
         if had_error:
             exit(1)
 
-        if watch:
+        if watch and run_result:
             proj.get_run_status(run_result)
 
     elif sync:

@@ -1,9 +1,10 @@
 import os
 import shutil
 import tarfile
+import tempfile
+import uuid
 import zipfile
 from os import path, remove
-from tempfile import mktemp
 from urllib.parse import urlparse
 
 from git import Repo
@@ -18,9 +19,11 @@ def _prep_dir(source, target_dir, suffix, secrets, clone):
         raise ValueError("please specify a target (context) directory for clone")
     if clone and path.exists(target_dir) and path.isdir(target_dir):
         shutil.rmtree(target_dir)
-    tmpfile = mktemp(suffix)
-    mlrun.get_dataitem(source, secrets).download(tmpfile)
-    return tmpfile
+
+    new_uuid = uuid.uuid4()
+    temp_file = os.path.join(tempfile.gettempdir(), f"{new_uuid}{suffix}")
+    mlrun.get_dataitem(source, secrets).download(temp_file)
+    return temp_file
 
 
 def clone_zip(source, target_dir, secrets=None, clone=True):

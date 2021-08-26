@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
+import uuid
 from os import path
-from tempfile import mktemp
 from typing import List
 
 import yaml
@@ -231,13 +232,14 @@ def get_model(model_dir, suffix=""):
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
-    tmp = mktemp(suffix)
-    obj.download(tmp)
-    return tmp, model_spec, extra_dataitems
+    new_uuid = uuid.uuid4()
+    temp_path = path.join(tempfile.gettempdir(), f"{new_uuid}{suffix}")
+    obj.download(temp_path)
+    return temp_path, model_spec, extra_dataitems
 
 
-def _load_model_spec(specpath):
-    data = store_manager.object(url=specpath).get()
+def _load_model_spec(spec_path):
+    data = store_manager.object(url=spec_path).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 

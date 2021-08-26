@@ -16,13 +16,13 @@ import importlib.util as imputil
 import json
 import pathlib
 import socket
+import tempfile
 import time
 import uuid
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
-from tempfile import mktemp
 from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
@@ -260,10 +260,11 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
                 suffix = ".py"
                 if origin_filename:
                     suffix = f"-{pathlib.Path(origin_filename).stem}.py"
-                fpath = mktemp(suffix)
+                new_uuid = uuid.uuid4()
+                file_path = path.join(tempfile.gettempdir(), f"{new_uuid}{suffix}")
                 code = b64decode(code).decode("utf-8")
-                command = fpath
-                with open(fpath, "w") as fp:
+                command = file_path
+                with open(file_path, "w") as fp:
                     fp.write(code)
         elif command and not is_remote:
             command = path.join(workdir or "", command)
@@ -277,15 +278,17 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
         pass
 
     elif suffix == ".ipynb":
-        fpath = mktemp(".py")
-        code_to_function(name, filename=command, kind="local", code_output=fpath)
-        command = fpath
+        new_uuid = uuid.uuid4()
+        file_path = path.join(tempfile.gettempdir(), f"{new_uuid}.py")
+        code_to_function(name, filename=command, kind="local", code_output=file_path)
+        command = file_path
 
     elif suffix == ".py":
         if "://" in command:
-            fpath = mktemp(".py")
-            download_object(command, fpath, secrets)
-            command = fpath
+            new_uuid = uuid.uuid4()
+            file_path = path.join(tempfile.gettempdir(), f"{new_uuid}.py")
+            download_object(command, file_path, secrets)
+            command = file_path
 
     else:
         raise ValueError(f"unsupported suffix: {suffix}")
@@ -450,10 +453,11 @@ def import_function_to_dict(url, secrets=None):
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
         if code:
-            fpath = mktemp(".py")
+            new_uuid = uuid.uuid4()
+            file_path = path.join(tempfile.gettempdir(), f"{new_uuid}.py")
             code = b64decode(code).decode("utf-8")
-            update_in(runtime, "spec.command", fpath)
-            with open(fpath, "w") as fp:
+            update_in(runtime, "spec.command", file_path)
+            with open(file_path, "w") as fp:
                 fp.write(code)
         elif remote and cmd:
             if cmd.startswith("/"):

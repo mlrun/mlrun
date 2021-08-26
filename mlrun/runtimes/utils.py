@@ -246,15 +246,20 @@ def results_to_iter(results, runspec, execution):
 
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
-    execution.log_artifact(
-        TableArtifact(
-            "iteration_results",
-            body=csv_buffer.getvalue(),
-            header=header,
-            viewer="table",
-        ),
-        local_path="iteration_results.csv",
-    )
+    try:
+        # may fail due to lack of access credentials to the artifacts store
+        execution.log_artifact(
+            TableArtifact(
+                "iteration_results",
+                body=csv_buffer.getvalue(),
+                header=header,
+                viewer="table",
+            ),
+            local_path="iteration_results.csv",
+        )
+    except Exception:
+        pass
+
     if failed:
         execution.set_state(
             error=f"{failed} of {len(results)} tasks failed, check logs in db for details",

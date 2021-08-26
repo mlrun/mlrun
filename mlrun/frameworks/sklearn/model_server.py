@@ -25,5 +25,5 @@ class SklearnModelServer(V2ModelServer):
         :return: The model's prediction on the given input.
         """
         feats = np.asarray(body['inputs'])
-        result: np.ndarray = self.model.score(feats)
+        result: np.ndarray = self.model.predict(feats)
         return result.tolist()

@@ -13,7 +13,6 @@
 # limitations under the License.
 import sys
 import tempfile
-import uuid
 from base64 import b64encode
 from os import getenv, path, remove
 
@@ -204,11 +203,10 @@ class DataStore:
                 # support the storage_options parameter.
                 return reader(fs.open(url), **kwargs)
 
-        new_uuid = uuid.uuid4()
-        temp_path = path.join(tempfile.gettempdir(), str(new_uuid))
-        self.download(self._join(subpath), temp_path)
-        df = reader(temp_path, **kwargs)
-        remove(temp_path)
+        temp_file = tempfile.TemporaryFile(delete=False)
+        self.download(self._join(subpath), temp_file.name)
+        df = reader(temp_file.name, **kwargs)
+        remove(temp_file.name)
         return df
 
     def to_dict(self):
@@ -359,9 +357,9 @@ class DataItem:
             return self._local_path
 
         dot = self._path.rfind(".")
-        new_uuid = uuid.uuid4()
         suffix = "" if dot == -1 else self._path[dot:]
-        self._local_path = path.join(tempfile.gettempdir(), f"{new_uuid}{suffix}")
+        temp_file = tempfile.TemporaryFile(suffix=suffix, delete=False)
+        self._local_path = temp_file.name
         logger.info(f"downloading {self.url} to local temp file")
         self.download(self._local_path)
         return self._local_path

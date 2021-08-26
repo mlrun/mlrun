@@ -16,7 +16,6 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
-import uuid
 
 from kfp.compiler import compiler
 
@@ -65,11 +64,9 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 "workflow must have code or path properties"
             )
         if self.code:
-            new_uuid = uuid.uuid4()
-            workflow_path = os.path.join(tempfile.gettempdir(), f"{new_uuid}.py")
-            with open(workflow_path, "w") as wf:
-                wf.write(self.code)
-            self._tmp_path = workflow_path
+            with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as workflow_fh:
+                workflow_fh.write(self.code)
+                self._tmp_path = workflow_path = workflow_fh.name
         else:
             workflow_path = self.path or ""
             if context and not workflow_path.startswith("/"):

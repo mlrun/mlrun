@@ -260,12 +260,13 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
                 suffix = ".py"
                 if origin_filename:
                     suffix = f"-{pathlib.Path(origin_filename).stem}.py"
-                new_uuid = uuid.uuid4()
-                file_path = path.join(tempfile.gettempdir(), f"{new_uuid}{suffix}")
-                code = b64decode(code).decode("utf-8")
-                command = file_path
-                with open(file_path, "w") as fp:
-                    fp.write(code)
+                with tempfile.NamedTemporaryFile(
+                    suffix=suffix, mode="w", delete=False
+                ) as temp_file:
+                    code = b64decode(code).decode("utf-8")
+                    command = temp_file.name
+                    temp_file.write(code)
+
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):
@@ -278,17 +279,17 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
         pass
 
     elif suffix == ".ipynb":
-        new_uuid = uuid.uuid4()
-        file_path = path.join(tempfile.gettempdir(), f"{new_uuid}.py")
-        code_to_function(name, filename=command, kind="local", code_output=file_path)
-        command = file_path
+        temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+        code_to_function(
+            name, filename=command, kind="local", code_output=temp_file.name
+        )
+        command = temp_file.name
 
     elif suffix == ".py":
         if "://" in command:
-            new_uuid = uuid.uuid4()
-            file_path = path.join(tempfile.gettempdir(), f"{new_uuid}.py")
-            download_object(command, file_path, secrets)
-            command = file_path
+            temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+            download_object(command, temp_file.name, secrets)
+            command = temp_file.name
 
     else:
         raise ValueError(f"unsupported suffix: {suffix}")
@@ -453,12 +454,12 @@ def import_function_to_dict(url, secrets=None):
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
         if code:
-            new_uuid = uuid.uuid4()
-            file_path = path.join(tempfile.gettempdir(), f"{new_uuid}.py")
-            code = b64decode(code).decode("utf-8")
-            update_in(runtime, "spec.command", file_path)
-            with open(file_path, "w") as fp:
-                fp.write(code)
+            with tempfile.NamedTemporaryFile(
+                suffix=".py", mode="w", delete=False
+            ) as temp_file:
+                code = b64decode(code).decode("utf-8")
+                update_in(runtime, "spec.command", temp_file.name)
+                temp_file.write(code)
         elif remote and cmd:
             if cmd.startswith("/"):
                 raise ValueError("exec path (spec.command) must be relative")

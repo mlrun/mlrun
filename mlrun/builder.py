@@ -14,7 +14,6 @@
 
 import tarfile
 import tempfile
-import uuid
 from base64 import b64decode, b64encode
 from os import path, remove
 from urllib.parse import urlparse
@@ -126,15 +125,15 @@ def make_kaniko_pod(
 
 
 def upload_tarball(source_dir, target, secrets=None):
-    new_uuid = uuid.uuid4()
-    temp_file = path.join(tempfile.gettempdir(), f"{new_uuid}.tar.gz")
-    with tarfile.open(temp_file, "w:gz") as tar:
+    temp_fh = tempfile.TemporaryFile(suffix=".tar.gz", delete=False)
+
+    with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
         tar.add(source_dir, arcname="")
 
     stores = store_manager.set(secrets)
     datastore, subpath = stores.get_or_create_store(target)
-    datastore.upload(subpath, temp_file)
-    remove(temp_file)
+    datastore.upload(subpath, temp_fh.name)
+    remove(temp_fh.name)
 
 
 def build_image(

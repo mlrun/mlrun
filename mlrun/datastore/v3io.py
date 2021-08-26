@@ -19,9 +19,9 @@ from datetime import datetime
 
 import fsspec
 import v3io.dataplane
-from mlrun.config import config
 
 import mlrun
+from mlrun.config import config
 
 from ..platforms.iguazio import split_path
 from .base import (

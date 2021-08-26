@@ -189,5 +189,5 @@ class V3ioStore(DataStore):
             if api.startswith("http"):
                 api = re.sub(r"https?://", "", api)
             if ":" in api:
-                api = api[:api.find(":")]
+                api = api[: api.find(":")]
         return api

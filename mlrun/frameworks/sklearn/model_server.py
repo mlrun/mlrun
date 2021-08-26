@@ -11,17 +11,15 @@ class SklearnModelServer(V2ModelServer):
 
     def load(self):
         """
-        Use the model handler to load the model.
+        Load and initialize the model and/or other elements"
         """
-        """load and initialize the model and/or other elements"""
         model_file, extra_data = self.get_model('.pkl')
         self.model = load(open(model_file, 'rb'))
 
     def predict(self, body: dict) -> list:
         """
-        Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
-        be read from the "inputs" key of the request.
-        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+        Predict the inputs through the model. The inferred data will be read from the "inputs" key of the request.
+        :param body: The request of the model. The input to the model will be read from the "inputs" key.
         :return: The model's prediction on the given input.
         """
         feats = np.asarray(body['inputs'])

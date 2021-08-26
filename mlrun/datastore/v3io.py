@@ -186,8 +186,8 @@ class V3ioStore(DataStore):
         api = None
         if config.v3io_api:
             api = config.v3io_api
-            if api.startswith('http'):
-                api = re.sub(r'https?://', '', api)
-            if ':' in api:
-                api = api[:api.find(':')]
+            if api.startswith("http"):
+                api = re.sub(r"https?://", "", api)
+            if ":" in api:
+                api = api[:api.find(":")]
         return api

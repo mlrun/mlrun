@@ -126,14 +126,15 @@ def get_project(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
+    project = get_project_member().get_project(
+        db_session, name, auth_verifier.auth_info.session
+    )
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
             name, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
         )
-    return get_project_member().get_project(
-        db_session, name, auth_verifier.auth_info.session
-    )
+    return project
 
 
 @router.delete(

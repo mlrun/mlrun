@@ -50,3 +50,17 @@ class TestKubeResource(TestRuntimeBase):
                 )
                 if not case.get("gpus"):
                     kube_resource.with_requests(case.get("memory"), case.get("cpu"))
+
+    def test_function_with_handler_function(self):
+        """
+        Some users write their code in a notebook, then do code_to_function, and then mistakenly give the function
+        itself to the handler kwarg, instead of giving the function name (string)
+        This test is here to verify that the failure is fast and clear
+        """
+        def some_func():
+            pass
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=r"Parameter default_handler must be a string. got <class 'function'>"):
+            mlrun.code_to_function("some-name",
+                                   filename=str(self.assets_path / "dummy_function.py"),
+                                   kind=mlrun.runtimes.RuntimeKinds.job,
+                                   handler=some_func)

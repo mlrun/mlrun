@@ -1,4 +1,5 @@
 """
+Description:
 __init__ function of sklearn-autologger. Will be extended and will contain multiple Sklearn-specific functions.
 """
 

@@ -58,6 +58,7 @@ def make_dockerfile(
 
 
 def make_kaniko_pod(
+    project: str,
     context,
     dest,
     dockerfile=None,
@@ -89,6 +90,7 @@ def make_kaniko_pod(
         config.httpdb.builder.kaniko_image,
         args=args,
         kind="build",
+        project=project,
     )
     kpod.env = builder_env
 
@@ -136,6 +138,7 @@ def upload_tarball(source_dir, target, secrets=None):
 
 
 def build_image(
+    project: str,
     dest,
     commands=None,
     source="",
@@ -223,6 +226,7 @@ def build_image(
     )
 
     kpod = make_kaniko_pod(
+        project,
         context,
         dest,
         dockertext=dock,
@@ -276,6 +280,7 @@ def build_runtime(
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
+    project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed:
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
@@ -308,6 +313,7 @@ def build_runtime(
         with_mlrun = False
 
     status = build_image(
+        project,
         build.image,
         base_image=base_image,
         commands=build.commands,

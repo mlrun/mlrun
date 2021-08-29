@@ -1078,9 +1078,7 @@ class TestFeatureStore(TestMLRunSystem):
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
 
-        source = ParquetSource(
-            "myparquet", schedule=cron_trigger, path=path
-        )
+        source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
 
         feature_set = fs.FeatureSet(
             name="overwrite", entities=[fs.Entity("first_name")], timestamp_key="time",

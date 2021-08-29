@@ -269,8 +269,7 @@ def generate_function_image_name(function) -> str:
     project = function.metadata.project or config.default_project
     tag = function.metadata.tag or "latest"
     _, repository = helpers.get_parsed_docker_registry()
-    if not repository:
-        repository = "mlrun"
+    repository = helpers.get_docker_repository_or_default(repository)
     return fill_function_image_name_template(
         ".", repository, project, function.metadata.name, tag
     )

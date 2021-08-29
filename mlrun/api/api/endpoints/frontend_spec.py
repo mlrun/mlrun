@@ -29,6 +29,7 @@ def get_frontend_spec(
         )
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
+    repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
     function_deployment_target_image_template = mlrun.runtimes.utils.fill_function_image_name_template(
         f"{registry}/", repository, "{project}", "{name}", "{tag}",
     )

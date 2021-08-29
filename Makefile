@@ -493,7 +493,9 @@ test-system: ## Run mlrun system tests
 		--capture=no \
 		--disable-warnings \
 		-rf \
-		tests/system
+		tests/system/demos/horovod \
+		tests/system/projects \
+		tests/system/feature_store
 
 .PHONY: test-system-open-source
 test-system-open-source: ## Run mlrun system tests with opensource configuration

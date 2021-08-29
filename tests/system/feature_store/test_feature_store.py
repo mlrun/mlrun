@@ -1091,6 +1091,7 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(
             feature_set,
             source,
+            overwrite=True,
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
@@ -1098,11 +1099,9 @@ class TestFeatureStore(TestMLRunSystem):
         features = ["overwrite.*"]
         vec = fs.FeatureVector("svec", features)
 
-        svc = fs.get_online_feature_service(vec)
-
-        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
-        assert resp[0]["data"] == 10
-        assert resp[1]["data"] == 2000
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 2)
 
         sleep(30)
 

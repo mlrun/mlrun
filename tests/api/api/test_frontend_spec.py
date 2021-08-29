@@ -18,6 +18,7 @@ def test_get_frontend_spec(
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
         unittest.mock.Mock()
     )
+    mlrun.mlconf.httpdb.builder.docker_registry = "quay.io/some-repo"
     response = client.get("/api/frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
@@ -32,6 +33,19 @@ def test_get_frontend_spec(
         frontend_spec.feature_flags.project_membership
         == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     )
+    assert (
+            frontend_spec.default_function_base_image
+            == mlrun.mlconf.default_base_image
+    )
+    assert (
+            frontend_spec.default_function_base_image
+            == mlrun.mlconf.default_base_image
+    )
+    # fields UI expects to be in the template
+    assert mlrun.mlconf.httpdb.builder.docker_registry in frontend_spec.function_deployment_target_image_template
+    for expected_template_field in ["project", "name", "tag"]:
+        bla = f"{{{expected_template_field}}}"
+        assert bla in frontend_spec.function_deployment_target_image_template
 
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(

@@ -67,11 +67,14 @@ class PyTorchModelHandler(ModelHandler):
 
         # Store the model's class name:
         if model is not None:
+            # Check if no value was provided:
             if model_class is None:
                 # Take it from the model provided:
                 model_class = type(model).__name__
             # Parse the class name and store it:
-            self._model_class_name = model_class if isinstance(model_class, str) else model_class.__name__
+            self._model_class_name = (
+                model_class if isinstance(model_class, str) else model_class.__name__
+            )
         else:
             # Store the given value and edit later in one of the 'collect_files_...' methods:
             self._model_class_name = model_class

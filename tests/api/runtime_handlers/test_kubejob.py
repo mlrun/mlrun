@@ -30,17 +30,27 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         job_pod_name = "my-training-j7dtf"
 
         # initializing them here to save space in tests
-        self.pending_job_pod = self._generate_pod(job_pod_name, job_labels, PodPhases.pending)
-        self.running_job_pod = self._generate_pod(job_pod_name, job_labels, PodPhases.running)
-        self.completed_job_pod = self._generate_pod(job_pod_name, job_labels, PodPhases.succeeded)
-        self.failed_job_pod = self._generate_pod(job_pod_name, job_labels, PodPhases.failed)
+        self.pending_job_pod = self._generate_pod(
+            job_pod_name, job_labels, PodPhases.pending
+        )
+        self.running_job_pod = self._generate_pod(
+            job_pod_name, job_labels, PodPhases.running
+        )
+        self.completed_job_pod = self._generate_pod(
+            job_pod_name, job_labels, PodPhases.succeeded
+        )
+        self.failed_job_pod = self._generate_pod(
+            job_pod_name, job_labels, PodPhases.failed
+        )
 
         builder_legacy_labels = {
             "mlrun/class": "build",
             "mlrun/task-name": "mlrun-build-hedi-simple-func-legacy",
         }
         builder_legacy_pod_name = "mlrun-build-hedi-simple-legacy-func-8qwrd"
-        self.completed_legacy_builder_pod = self._generate_pod(builder_legacy_pod_name, builder_legacy_labels, PodPhases.succeeded)
+        self.completed_legacy_builder_pod = self._generate_pod(
+            builder_legacy_pod_name, builder_legacy_labels, PodPhases.succeeded
+        )
 
     def _get_class_name(self):
         return "job"
@@ -61,7 +71,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 RuntimeKinds.job, expected_pods=pods, group_by=group_by,
             )
 
-    def test_list_resources_grouped_by_project_with_non_project_resources(self, db: Session, client: TestClient):
+    def test_list_resources_grouped_by_project_with_non_project_resources(
+        self, db: Session, client: TestClient
+    ):
         pods = self._mock_list_resources_pods(self.completed_legacy_builder_pod)
         resources = self._assert_runtime_handler_list_resources(
             RuntimeKinds.job,
@@ -87,7 +99,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
         self._assert_delete_namespaced_pods(
-            [self.completed_job_pod.metadata.name], self.completed_job_pod.metadata.namespace
+            [self.completed_job_pod.metadata.name],
+            self.completed_job_pod.metadata.namespace,
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler, len(list_namespaced_pods_calls)
@@ -140,7 +153,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
         self._assert_delete_namespaced_pods(
-            [self.running_job_pod.metadata.name], self.running_job_pod.metadata.namespace
+            [self.running_job_pod.metadata.name],
+            self.running_job_pod.metadata.namespace,
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler, len(list_namespaced_pods_calls)
@@ -296,7 +310,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         # Mocking pod that is in terminal state (extra one for the log collection)
-        self._mock_list_namespaced_pods([[self.completed_job_pod], [self.completed_job_pod]])
+        self._mock_list_namespaced_pods(
+            [[self.completed_job_pod], [self.completed_job_pod]]
+        )
 
         # Mocking read log calls
         log = self._mock_read_namespaced_pod_log()
@@ -338,7 +354,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, log, self.completed_job_pod.metadata.name,
         )
 
-    def _mock_list_resources_pods(self, pod = None):
+    def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod
         mocked_responses = self._mock_list_namespaced_pods([[pod]])
         return mocked_responses[0].items

@@ -427,7 +427,7 @@ class BasePod:
         args=None,
         namespace="",
         kind="job",
-        project = None
+        project=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -439,7 +439,11 @@ class BasePod:
         self._mounts = []
         self.env = None
         self.project = project or mlrun.mlconf.default_project
-        self._labels = {"mlrun/task-name": task_name, "mlrun/class": kind, "mlrun/project": self.project}
+        self._labels = {
+            "mlrun/task-name": task_name,
+            "mlrun/class": kind,
+            "mlrun/project": self.project,
+        }
         self._annotations = {}
         self._init_container = None
 

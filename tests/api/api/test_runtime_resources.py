@@ -323,7 +323,7 @@ def test_delete_runtime_resources_opa_filtering(
 
 
 def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
-        db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     (
         project_1,
@@ -487,6 +487,7 @@ def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestC
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
+
 def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
     no_project = ""
     project_1 = "project-1"
@@ -530,7 +531,6 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
         no_project_builder_name,
         grouped_by_project_runtime_resources_output,
     )
-
 
 
 def _generate_grouped_by_project_runtime_resources_output():

@@ -213,7 +213,9 @@ def _delete_runtime_resources(
             allowed_projects
         )
         if label_selector:
-            computed_label_selector = ",".join([label_selector, permissions_label_selector])
+            computed_label_selector = ",".join(
+                [label_selector, permissions_label_selector]
+            )
         else:
             computed_label_selector = permissions_label_selector
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(

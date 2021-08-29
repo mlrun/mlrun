@@ -323,7 +323,8 @@ class PyTorchMLRunInterface:
         """
         Run prediction on the given data. Batched data can be predicted as well.
 
-        :param inputs:     The inputs to infer through the model and get its predictions. Supporting batched prediction.
+        :param inputs:     The inputs to infer through the model and get its predictions. The list should contain only
+                           torch.Tensor items.
         :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
         :param batch_size: Batch size to use for prediction. If equals to -1, the entire inputs will be inferred at once
                            (batch size will be equal to the amount of inputs). Defaulted to -1.
@@ -336,7 +337,7 @@ class PyTorchMLRunInterface:
 
         # Initialize a data loader for the given inputs:
         data_loader = DataLoader(
-            TensorDataset(torch.tensor(inputs)),
+            TensorDataset(torch.stack(inputs)),
             batch_size=batch_size if batch_size != -1 else len(inputs),
         )
 

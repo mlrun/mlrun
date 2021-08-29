@@ -1,6 +1,6 @@
 ""
 Description:
-__init__ function of Xgboost-autologger. Will be extended and will contain multiple Xgboost-specific functions.
+__init__ function of Xgboost-autologger. Will be extended and contain multiple Xgboost-specific functions.
 """
 
 import mlrun

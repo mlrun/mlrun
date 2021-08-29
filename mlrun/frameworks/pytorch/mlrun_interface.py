@@ -8,7 +8,7 @@ from tabulate import tabulate
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
@@ -317,27 +317,40 @@ class PyTorchMLRunInterface:
                 )
             )
 
-    def predict(self, inputs: List[Tensor], use_cuda: bool = True) -> list:
+    def predict(
+        self, inputs: List[Tensor], use_cuda: bool = True, batch_size: int = -1
+    ) -> list:
         """
         Run prediction on the given data. Batched data can be predicted as well.
 
-        :param inputs:   The inputs to infer through the model and get its predictions. Supporting batched prediction.
-        :param use_cuda: Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
+        :param inputs:     The inputs to infer through the model and get its predictions. Supporting batched prediction.
+        :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
+        :param batch_size: Batch size to use for prediction. If equals to -1, the entire inputs will be inferred at once
+                           (batch size will be equal to the amount of inputs). Defaulted to -1.
 
         :return: The model's predictions (outputs) list.
         """
         # Move the model to cuda if needed:
-        if use_cuda:
+        if use_cuda and torch.cuda.is_available():
             self._objects_to_cuda()
+
+        # Initialize a data loader for the given inputs:
+        data_loader = DataLoader(
+            TensorDataset(torch.tensor(inputs)),
+            batch_size=batch_size if batch_size != -1 else len(inputs),
+        )
 
         # Start the inference:
         predictions = []
-        for x in inputs:
+        for x in data_loader:
             # Move the input tensor to cuda if needed:
             if use_cuda and torch.cuda.is_available():
                 x = self._tensor_to_cuda(tensor=x)
             # Get the model's prediction:
-            predictions.append(self._model(x))
+            y = self._model(x)
+            # Store the predictions one by one:
+            for prediction in y.tolist():
+                predictions.append(prediction)
 
         return predictions
 

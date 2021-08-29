@@ -286,10 +286,21 @@ def build_runtime(
     if skip_deployed and runtime.is_deployed:
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
+    mlrun_images = [
+        "mlrun/mlrun",
+        "mlrun/ml-base",
+        "mlrun/ml-models",
+        "mlrun/ml-models-gpu",
+    ]
+    # if the base is one of mlrun images - no need to install mlrun
+    if any(image in build.base_image for image in mlrun_images):
+        with_mlrun = False
     if not build.source and not build.commands and not build.extra and not with_mlrun:
+        if runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "noting to build and image is not specified, "
+                "nothing to build and image is not specified, "
                 "please set the function image or build args"
             )
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
@@ -311,8 +322,6 @@ def build_runtime(
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
     base_image = enrich_image_url(build.base_image or config.default_base_image)
-    if not build.base_image:
-        with_mlrun = False
 
     status = build_image(
         project,

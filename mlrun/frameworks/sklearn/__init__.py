@@ -1,7 +1,9 @@
 import mlrun
-from mlrun.frameworks.sklearn.mlrun_interface import SklearnMLRunInterface
+from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 from mlrun.frameworks._common.pkl_model_server import PklModelServer
 
+SklearnModelServer = PklModelServer
+        
 def apply_mlrun(
         model,
         context: mlrun.MLClientCtx = None,
@@ -16,9 +18,7 @@ def apply_mlrun(
     """
     if context is None:
         context = mlrun.get_or_create_ctx('mlrun_sklearn')
-     
-    SklearnModelServer = PklModelServer
          
     # Add MLRun's interface to the model:
-    SklearnMLRunInterface.add_interface(model, context, kwargs)
+    MLBaseMLRunInterface.add_interface(model, context, kwargs)
     return model

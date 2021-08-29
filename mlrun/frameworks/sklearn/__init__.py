@@ -1,6 +1,6 @@
 """
 Description:
-__init__ function of sklearn-autologger. Will be extended and will contain multiple Sklearn-specific functions.
+__init__ function of sklearn-autologger. Will be extended and contain multiple Sklearn-specific functions.
 """
 
 import mlrun

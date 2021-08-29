@@ -268,7 +268,6 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
             )
-        print("type is " + str(type(mlrun_context)))
         featureset, source, targets, infer_options, overwrite = context_to_ingestion_params(
             mlrun_context
         )
@@ -303,14 +302,11 @@ def ingest(
     namespace = namespace or get_caller_globals()
 
     purge_targets = targets or featureset.spec.targets or get_default_targets()
-    print("overwrite is " + str(overwrite))
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:
-            print("setting to fasle")
             overwrite = False
         else:
-            print("setting to true")
             overwrite = True
 
     if overwrite:

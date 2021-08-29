@@ -33,16 +33,13 @@ def test_get_frontend_spec(
         frontend_spec.feature_flags.project_membership
         == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     )
-    assert (
-            frontend_spec.default_function_base_image
-            == mlrun.mlconf.default_base_image
-    )
-    assert (
-            frontend_spec.default_function_base_image
-            == mlrun.mlconf.default_base_image
-    )
+    assert frontend_spec.default_function_base_image == mlrun.mlconf.default_base_image
+    assert frontend_spec.default_function_base_image == mlrun.mlconf.default_base_image
     # fields UI expects to be in the template
-    assert mlrun.mlconf.httpdb.builder.docker_registry in frontend_spec.function_deployment_target_image_template
+    assert (
+        mlrun.mlconf.httpdb.builder.docker_registry
+        in frontend_spec.function_deployment_target_image_template
+    )
     for expected_template_field in ["project", "name", "tag"]:
         bla = f"{{{expected_template_field}}}"
         assert bla in frontend_spec.function_deployment_target_image_template

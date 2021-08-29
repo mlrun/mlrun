@@ -268,9 +268,13 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
             )
-        featureset, source, targets, infer_options, overwrite = context_to_ingestion_params(
-            mlrun_context
-        )
+        (
+            featureset,
+            source,
+            targets,
+            infer_options,
+            overwrite,
+        ) = context_to_ingestion_params(mlrun_context)
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
@@ -628,7 +632,7 @@ def set_task_params(
     targets: List[DataTargetBase] = None,
     parameters: dict = None,
     infer_options: InferOptions = InferOptions.Null,
-    overwrite = None,
+    overwrite=None,
 ):
     """convert ingestion parameters to dict, return source + params dict"""
     source = source or featureset.spec.source

@@ -343,7 +343,9 @@ class PyTorchMLRunInterface:
 
         # Start the inference:
         predictions = []
-        for x in data_loader:
+        for data in data_loader:
+            # Read the batched input:
+            x = data[0]
             # Move the input tensor to cuda if needed:
             if use_cuda and torch.cuda.is_available():
                 x = self._tensor_to_cuda(tensor=x)

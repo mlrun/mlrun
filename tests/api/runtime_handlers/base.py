@@ -176,6 +176,8 @@ class TestRuntimeHandlerBase:
             runtime_handler=runtime_handler,
         )
 
+        return resources
+
     def _assert_list_resources_grouped_by_job_response(
         self,
         resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -203,7 +205,7 @@ class TestRuntimeHandlerBase:
         def _extract_project_and_kind_from_runtime_resources_labels(
             labels: dict,
         ) -> typing.Tuple[str, str]:
-            project = labels["mlrun/project"]
+            project = labels.get("mlrun/project", "")
             class_ = labels["mlrun/class"]
             kind = runtime_handler._resolve_kind_from_class(class_)
             return project, kind

@@ -265,13 +265,20 @@ def results_to_iter(results, runspec, execution):
     execution.commit()
 
 
-def generate_function_image_name(function):
+def generate_function_image_name(function) -> str:
     project = function.metadata.project or config.default_project
     tag = function.metadata.tag or "latest"
     _, repository = helpers.get_parsed_docker_registry()
-    if not repository:
-        repository = "mlrun"
-    return f".{repository}/func-{project}-{function.metadata.name}:{tag}"
+    repository = helpers.get_docker_repository_or_default(repository)
+    return fill_function_image_name_template(
+        ".", repository, project, function.metadata.name, tag
+    )
+
+
+def fill_function_image_name_template(
+    registry: str, repository: str, project: str, name: str, tag: str,
+) -> str:
+    return f"{registry}{repository}/func-{project}-{name}:{tag}"
 
 
 def set_named_item(obj, item):

@@ -151,12 +151,13 @@ class KubejobRuntime(KubeResource):
                 skip_deployed,
                 builder_env=builder_env,
             )
-            logger.info(
-                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
-            )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
+            if not ready:
+                logger.info(
+                    f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+                )
             if watch and not ready:
                 state = self._build_watch(watch)
                 ready = state == "ready"
@@ -316,6 +317,14 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
+    @staticmethod
+    def _expect_pods_without_uid() -> bool:
+        """
+        builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
+        don't have the uid in their labels
+        """
+        return True
+
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
         return True

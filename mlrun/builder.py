@@ -183,7 +183,7 @@ def build_image(
 
     if with_mlrun:
         commands = commands or []
-        commands.append(_resolve_mlrun_install_command(mlrun_version_specifier))
+        commands.append(resolve_mlrun_install_command(mlrun_version_specifier))
 
     if not inline_code and not source and not commands:
         logger.info("skipping build, nothing to add")
@@ -254,7 +254,7 @@ def build_image(
         return f"build:{pod}"
 
 
-def _resolve_mlrun_install_command(mlrun_version_specifier):
+def resolve_mlrun_install_command(mlrun_version_specifier=None):
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier

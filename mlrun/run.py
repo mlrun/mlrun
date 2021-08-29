@@ -16,13 +16,13 @@ import importlib.util as imputil
 import json
 import pathlib
 import socket
+import tempfile
 import time
 import uuid
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
-from tempfile import mktemp
 from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
@@ -260,11 +260,13 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
                 suffix = ".py"
                 if origin_filename:
                     suffix = f"-{pathlib.Path(origin_filename).stem}.py"
-                fpath = mktemp(suffix)
-                code = b64decode(code).decode("utf-8")
-                command = fpath
-                with open(fpath, "w") as fp:
-                    fp.write(code)
+                with tempfile.NamedTemporaryFile(
+                    suffix=suffix, mode="w", delete=False
+                ) as temp_file:
+                    code = b64decode(code).decode("utf-8")
+                    command = temp_file.name
+                    temp_file.write(code)
+
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):
@@ -277,15 +279,17 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
         pass
 
     elif suffix == ".ipynb":
-        fpath = mktemp(".py")
-        code_to_function(name, filename=command, kind="local", code_output=fpath)
-        command = fpath
+        temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+        code_to_function(
+            name, filename=command, kind="local", code_output=temp_file.name
+        )
+        command = temp_file.name
 
     elif suffix == ".py":
         if "://" in command:
-            fpath = mktemp(".py")
-            download_object(command, fpath, secrets)
-            command = fpath
+            temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+            download_object(command, temp_file.name, secrets)
+            command = temp_file.name
 
     else:
         raise ValueError(f"unsupported suffix: {suffix}")
@@ -450,11 +454,12 @@ def import_function_to_dict(url, secrets=None):
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
         if code:
-            fpath = mktemp(".py")
-            code = b64decode(code).decode("utf-8")
-            update_in(runtime, "spec.command", fpath)
-            with open(fpath, "w") as fp:
-                fp.write(code)
+            with tempfile.NamedTemporaryFile(
+                suffix=".py", mode="w", delete=False
+            ) as temp_file:
+                code = b64decode(code).decode("utf-8")
+                update_in(runtime, "spec.command", temp_file.name)
+                temp_file.write(code)
         elif remote and cmd:
             if cmd.startswith("/"):
                 raise ValueError("exec path (spec.command) must be relative")

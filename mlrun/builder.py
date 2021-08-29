@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import tarfile
+import tempfile
 from base64 import b64decode, b64encode
-from os import path, remove
-from tempfile import mktemp
+from os import path
 from urllib.parse import urlparse
 
 import mlrun.api.schemas
@@ -127,14 +127,14 @@ def make_kaniko_pod(
 
 
 def upload_tarball(source_dir, target, secrets=None):
-    tmpfile = mktemp(".tar.gz")
-    with tarfile.open(tmpfile, "w:gz") as tar:
-        tar.add(source_dir, arcname="")
 
-    stores = store_manager.set(secrets)
-    datastore, subpath = stores.get_or_create_store(target)
-    datastore.upload(subpath, tmpfile)
-    remove(tmpfile)
+    # will delete the temp file
+    with tempfile.TemporaryFile(suffix=".tar.gz") as temp_fh:
+        with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
+            tar.add(source_dir, arcname="")
+        stores = store_manager.set(secrets)
+        datastore, subpath = stores.get_or_create_store(target)
+        datastore.upload(subpath, temp_fh.name)
 
 
 def build_image(

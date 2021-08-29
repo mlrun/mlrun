@@ -19,6 +19,7 @@ import os
 import shlex
 import socket
 import sys
+import tempfile
 import traceback
 from contextlib import redirect_stdout
 from copy import copy
@@ -27,7 +28,6 @@ from os import environ, remove
 from pathlib import Path
 from subprocess import PIPE, Popen
 from sys import executable
-from tempfile import mktemp
 
 from distributed import Client, as_completed
 from nuclio import Event
@@ -136,7 +136,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         handler = runobj.spec.handler
         self._force_handler(handler)
-        tmp = mktemp(".json")
+        tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         environ["MLRUN_META_TMPFILE"] = tmp
         set_paths(self.spec.pythonpath)
 
@@ -216,7 +216,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
-        tmp = mktemp(".json")
+        tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         environ["MLRUN_META_TMPFILE"] = tmp
         if self.spec.rundb:
             environ["MLRUN_DBPATH"] = self.spec.rundb

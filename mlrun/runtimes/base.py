@@ -1751,7 +1751,7 @@ class BaseRuntimeHandler(ABC):
         resource: mlrun.api.schemas.RuntimeResource,
     ):
         if "mlrun/class" in resource.labels:
-            project = resource.labels.get("mlrun/project", config.default_project)
+            project = resource.labels.get("mlrun/project", "")
             mlrun_class = resource.labels["mlrun/class"]
             kind = self._resolve_kind_from_class(mlrun_class)
             self._add_resource_to_grouped_by_field_resources_response(

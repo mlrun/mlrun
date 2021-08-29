@@ -107,7 +107,7 @@ class FunctionSpec(ModelObj):
 
         self._build = None
         self.build = build
-        self.default_handler = default_handler
+        self._default_handler = default_handler
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
         self.mount_applied = mount_applied
@@ -119,6 +119,14 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    @property
+    def default_handler(self) -> str:
+        return self._default_handler
+
+    @default_handler.setter
+    def default_handler(self, default_handler):
+        self._default_handler = self._verify_str(default_handler, "default_handler")
 
 
 class BaseRuntime(ModelObj):

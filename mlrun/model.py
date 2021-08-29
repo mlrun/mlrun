@@ -23,6 +23,7 @@ from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
+import mlrun.errors
 
 from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
@@ -46,6 +47,15 @@ class ModelObj:
             raise ValueError(f"parameter {name} must be a dict or object")
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
+        return param
+
+    @staticmethod
+    def _verify_str(param, name):
+        if (
+                param is not None
+                and not isinstance(param, str)
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Parameter {name} must be a string. got {type(param)}")
         return param
 
     def to_dict(self, fields=None, exclude=None):

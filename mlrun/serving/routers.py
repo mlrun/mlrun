@@ -788,7 +788,7 @@ class FeatureEnricher:
         return feature_vectors
 
 
-class EnrichmentModelRouter:
+class EnrichmentModelRouter(ModelRouter):
     """model router with feature enrichment and imputing"""
 
     def __init__(
@@ -821,6 +821,7 @@ class EnrichmentModelRouter:
 
 
 class EnrichmentVotingEnsemble(VotingEnsemble):
+    """model ensemble with feature enrichment and imputing"""
     def __init__(
         self,
         context,

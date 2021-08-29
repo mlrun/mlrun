@@ -71,6 +71,8 @@ def _generate_random_name():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
+    project_name = "fs-system-test-project"
+
     def custom_setup(self):
         pass
 

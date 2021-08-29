@@ -3,7 +3,7 @@ from cloudpickle import load
 from mlrun.serving.v2_serving import V2ModelServer
 from sklearn.base import is_classifier, is_regressor
 
-class SklearnModelServer(V2ModelServer):
+class PklModelServer(V2ModelServer):
     """
     Model serving class, inheriting the V2ModelServer class for being initialized automatically by the model
     server and be able to run locally as part of a nuclio serverless function, or as part of a real-time pipeline.

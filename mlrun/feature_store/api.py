@@ -268,7 +268,7 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
             )
-        print("type is " + type(mlrun_context))
+        print("type is " + str(type(mlrun_context)))
         featureset, source, targets, infer_options, overwrite = context_to_ingestion_params(
             mlrun_context
         )

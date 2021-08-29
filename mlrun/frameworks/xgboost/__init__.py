@@ -1,3 +1,8 @@
+""
+Description:
+__init__ function of Xgboost-autologger. Will be extended and will contain multiple Xgboost-specific functions.
+"""
+
 import mlrun
 from mlrun.frameworks.xgboost.mlrun_interface import MLBaseMLRunInterface
 from mlrun.frameworks._common.pkl_model_server import PklModelServer

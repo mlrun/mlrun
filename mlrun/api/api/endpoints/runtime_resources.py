@@ -1,3 +1,4 @@
+import copy
 import http
 import typing
 
@@ -197,6 +198,7 @@ def _delete_runtime_resources(
     (
         allowed_projects,
         grouped_by_project_runtime_resources_output,
+        is_non_project_runtime_resource_exists,
     ) = _get_runtime_resources_allowed_projects(
         project,
         auth_info,
@@ -211,16 +213,26 @@ def _delete_runtime_resources(
             allowed_projects
         )
         if label_selector:
-            label_selector = ",".join([label_selector, permissions_label_selector])
+            computed_label_selector = ",".join(
+                [label_selector, permissions_label_selector]
+            )
         else:
-            label_selector = permissions_label_selector
+            computed_label_selector = permissions_label_selector
+        mlrun.api.crud.RuntimeResources().delete_runtime_resources(
+            db_session, kind, object_id, computed_label_selector, force, grace_period,
+        )
+    if is_non_project_runtime_resource_exists:
+        # delete one more time, without adding the allowed projects selector
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(
             db_session, kind, object_id, label_selector, force, grace_period,
         )
     if return_body:
+        filtered_projects = copy.deepcopy(allowed_projects)
+        if is_non_project_runtime_resource_exists:
+            filtered_projects.append("")
         return mlrun.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
             grouped_by_project_runtime_resources_output,
-            allowed_projects,
+            filtered_projects,
             mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
         )
     else:
@@ -244,6 +256,7 @@ def _list_runtime_resources(
     (
         allowed_projects,
         grouped_by_project_runtime_resources_output,
+        _,
     ) = _get_runtime_resources_allowed_projects(
         project, auth_info, label_selector, kind_filter, object_id
     )
@@ -260,7 +273,7 @@ def _get_runtime_resources_allowed_projects(
     object_id: typing.Optional[str] = None,
     action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
 ) -> typing.Tuple[
-    typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, bool
 ]:
     if project != "*":
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
@@ -275,10 +288,14 @@ def _get_runtime_resources_allowed_projects(
         mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
     )
     projects = []
+    is_non_project_runtime_resource_exists = False
     for (
         project,
         kind_runtime_resources_map,
     ) in grouped_by_project_runtime_resources_output.items():
+        if not project:
+            is_non_project_runtime_resource_exists = True
+            continue
         projects.append(project)
     allowed_projects = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
@@ -290,6 +307,7 @@ def _get_runtime_resources_allowed_projects(
     return (
         allowed_projects,
         grouped_by_project_runtime_resources_output,
+        is_non_project_runtime_resource_exists,
     )
 
 

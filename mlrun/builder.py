@@ -297,7 +297,9 @@ def build_runtime(
         with_mlrun = False
     if not build.source and not build.commands and not build.extra and not with_mlrun:
         if runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "nothing to build and image is not specified, "

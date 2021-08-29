@@ -125,7 +125,6 @@ class MLRunLoggingCallback(LoggingCallback):
         self._logger.log_run(
             model_handler=PyTorchModelHandler(
                 model_name=type(model).__name__,
-                model_class=type(model),
                 custom_objects_map=self._custom_objects_map,
                 custom_objects_directory=self._custom_objects_directory,
                 model=model,

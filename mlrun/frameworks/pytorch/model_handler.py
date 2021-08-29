@@ -65,12 +65,15 @@ class PyTorchModelHandler(ModelHandler):
         # Will hold the model's weights .pt file:
         self._weights_file = None  # type: str
 
-        # Store the model's class name: (will be
+        # Store the model's class name:
         if model is not None:
-            # Take it from the model provided:
-            self._model_class_name = type(model_class).__name__
+            if model_class is None:
+                # Take it from the model provided:
+                model_class = type(model).__name__
+            # Parse the class name and store it:
+            self._model_class_name = model_class if isinstance(model_class, str) else model_class.__name__
         else:
-            # Store the given value and edit later in one of the collect_files methods:
+            # Store the given value and edit later in one of the 'collect_files_...' methods:
             self._model_class_name = model_class
 
         # Setup the base handler class:

@@ -57,10 +57,17 @@ class TestKubeResource(TestRuntimeBase):
         itself to the handler kwarg, instead of giving the function name (string)
         This test is here to verify that the failure is fast and clear
         """
+
         def some_func():
             pass
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=r"Parameter default_handler must be a string. got <class 'function'>"):
-            mlrun.code_to_function("some-name",
-                                   filename=str(self.assets_path / "dummy_function.py"),
-                                   kind=mlrun.runtimes.RuntimeKinds.job,
-                                   handler=some_func)
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Parameter default_handler must be a string. got <class 'function'>",
+        ):
+            mlrun.code_to_function(
+                "some-name",
+                filename=str(self.assets_path / "dummy_function.py"),
+                kind=mlrun.runtimes.RuntimeKinds.job,
+                handler=some_func,
+            )

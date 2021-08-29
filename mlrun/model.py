@@ -51,11 +51,10 @@ class ModelObj:
 
     @staticmethod
     def _verify_str(param, name):
-        if (
-                param is not None
-                and not isinstance(param, str)
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Parameter {name} must be a string. got {type(param)}")
+        if param is not None and not isinstance(param, str):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Parameter {name} must be a string. got {type(param)}"
+            )
         return param
 
     def to_dict(self, fields=None, exclude=None):

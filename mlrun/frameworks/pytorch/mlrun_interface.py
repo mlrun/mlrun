@@ -8,7 +8,7 @@ from tabulate import tabulate
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader, Dataset, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 

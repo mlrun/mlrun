@@ -3,8 +3,8 @@ from typing import Any, Dict, List, Type, Union
 from torch.nn import Module
 
 import mlrun
-from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 from mlrun.frameworks.pytorch.mlrun_interface import PyTorchMLRunInterface
+from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 from mlrun.serving.v2_serving import V2ModelServer
 
 
@@ -23,6 +23,7 @@ class PyTorchModelServer(V2ModelServer):
         model: Module = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
+        use_cuda: bool = True,
         protocol: str = None,
         **class_args,
     ):
@@ -58,6 +59,8 @@ class PyTorchModelServer(V2ModelServer):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
+        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+                                         True.
         :param protocol:                 -
         :param class_args:               -
         """
@@ -69,6 +72,7 @@ class PyTorchModelServer(V2ModelServer):
             protocol=protocol,
             **class_args,
         )
+        self._use_cuda = use_cuda
         self._model_handler = PyTorchModelHandler(
             context=self.context,
             model_name=name,
@@ -78,6 +82,7 @@ class PyTorchModelServer(V2ModelServer):
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
         )
+        self._pytorch_interface = None  # type: PyTorchMLRunInterface
 
     def load(self):
         """
@@ -85,6 +90,9 @@ class PyTorchModelServer(V2ModelServer):
         """
         self._model_handler.load()
         self.model = self._model_handler.model
+        self._pytorch_interface = PyTorchMLRunInterface(
+            model=self._model_handler.model, context=self.context
+        )
 
     def predict(self, request: Dict[str, Any]) -> list:
         """
@@ -96,13 +104,14 @@ class PyTorchModelServer(V2ModelServer):
         :return: The model's prediction on the given input.
         """
         # Get the inputs:
-        images = request["inputs"]
+        inputs = request["inputs"]
 
-        # Initialize the interface and predict:
-        interface = PyTorchMLRunInterface(model=self.model)
-        predicted_probability = interface.predict(images)
+        # Predict:
+        predictions = self._pytorch_interface.predict(
+            inputs=inputs, use_cuda=self._use_cuda
+        )
 
-        return predicted_probability.tolist()
+        return predictions
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

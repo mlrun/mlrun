@@ -98,12 +98,10 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 # Add auto log callbacks if they were added:
                 kwargs["callbacks"] = kwargs["callbacks"] + model._callbacks
                 # Setup default values if needed:
-                if "verbose" not in kwargs:
-                    kwargs["verbose"] = 1
-                if "steps_per_epoch" not in kwargs:
-                    kwargs["steps_per_epoch"] = None
-                if "validation_steps" not in kwargs:
-                    kwargs["validation_steps"] = None
+                kwargs["verbose"] = kwargs.get("verbose", 1)
+                kwargs["steps_per_epoch"] = kwargs.get("steps_per_epoch", None)
+                kwargs["validation_steps"] = kwargs.get("validation_steps", None)
+                kwargs["validation_data"] = kwargs.get("validation_data", None)
                 # Call the pre fit method:
                 (
                     callbacks,
@@ -183,9 +181,6 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                     context=context, auto_log=True, **tensorboard_callback_kwargs
                 )
             )
-
-    # TODO: Add device to use method, something like use_cuda: Union[bool, List[int]] where if True it wil use all the
-    #       GPUs it finds and if given as a list it will use only the gpus in the list. If False CPU will be used.
 
     # TODO: Add horovod callbacks configurations. If not set (None), use the defaults.
     def use_horovod(self):
@@ -274,24 +269,33 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         """
         Method to call before calling 'fit' to setup the run and inputs for using horovod.
 
-        :param callbacks:        Callbacks to use in the run. The callbacks will be split among the ranks so only
-                                 certain callbacks (mainly logging and checkpoints) will be in rank 0.
-        :param verbose:          Whether or not to print the progress of training. If '1' or '2' only rank 0 will be
-                                 applied with the verbose.
-        :param steps_per_epoch:  Amount of training steps to run in each epoch. The steps will be divided by the size of
-                                 ranks (horovod workers).
-        :param validation_steps: Amount of validation steps to run in each epoch. The steps will be divided by the size
-                                 of ranks (horovod workers).
+        :param callbacks:              Callbacks to use in the run. The callbacks will be split among the ranks so only
+                                       certain callbacks (mainly logging and checkpoints) will be in rank 0.
+        :param verbose:                Whether or not to print the progress of training. If '1' or '2' only rank 0 will
+                                       be applied with the verbose.
+        :param steps_per_epoch:        Amount of training steps to run in each epoch. The steps will be divided by the
+                                       size of ranks (horovod workers).
+        :param validation_steps:       Amount of validation steps to run in each epoch. The steps will be divided by the
+                                       size of ranks (horovod workers).
 
         :return: The updated parameters according to the used rank:
                  [0] = Callbacks list.
                  [1] = Verbose
                  [2] = Steps per epoch or None if not given.
                  [3] = Validation steps or None if not given.
+
+        :raise ValueError: If horovod is being used but the 'steps_per_epoch' parameter were not given.
         """
         # Check if needed to run with horovod:
         if self._hvd is None:
             return callbacks, verbose, steps_per_epoch, validation_steps
+
+        # Validate steps provided for horovod:
+        if steps_per_epoch is None:
+            raise ValueError(
+                "When using Horovod, the parameter 'steps_per_epoch' must be provided to the 'fit' method in order to "
+                "split the steps between the workers."
+            )
 
         # Setup the callbacks:
         metric_average_callback = self._hvd.callbacks.MetricAverageCallback()
@@ -315,9 +319,8 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         if self._hvd.rank() != 0:
             verbose = 0
 
-        # Adjust the number of steps per epoch based on the number of GPUs (if given):
-        if steps_per_epoch is not None:
-            steps_per_epoch = steps_per_epoch // self._hvd.size()
+        # Adjust the number of steps per epoch based on the number of GPUs:
+        steps_per_epoch = steps_per_epoch // self._hvd.size()
         if validation_steps is not None:
             validation_steps = validation_steps // self._hvd.size()
 

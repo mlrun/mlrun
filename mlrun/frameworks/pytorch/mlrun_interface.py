@@ -317,14 +317,29 @@ class PyTorchMLRunInterface:
                 )
             )
 
-    def predict(self):
+    def predict(self, inputs: List[Tensor], use_cuda: bool = True) -> list:
         """
         Run prediction on the given data. Batched data can be predicted as well.
 
-        :return: The model's prediction output.
+        :param inputs:   The inputs to infer through the model and get its predictions. Supporting batched prediction.
+        :param use_cuda: Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
+
+        :return: The model's predictions (outputs) list.
         """
-        # TODO: Implement it in order to make the serving work.
-        raise NotImplementedError
+        # Move the model to cuda if needed:
+        if use_cuda:
+            self._objects_to_cuda()
+
+        # Start the inference:
+        predictions = []
+        for x in inputs:
+            # Move the input tensor to cuda if needed:
+            if use_cuda and torch.cuda.is_available():
+                x = self._tensor_to_cuda(tensor=x)
+            # Get the model's prediction:
+            predictions.append(self._model(x))
+
+        return predictions
 
     def _parse_and_store(
         self,

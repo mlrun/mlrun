@@ -183,7 +183,9 @@ def build_image(
 
     if with_mlrun:
         commands = commands or []
-        commands.append(resolve_mlrun_install_command(mlrun_version_specifier))
+        mlrun_command = resolve_mlrun_install_command(mlrun_version_specifier)
+        if mlrun_command not in commands:
+            commands.append(mlrun_command)
 
     if not inline_code and not source and not commands:
         logger.info("skipping build, nothing to add")

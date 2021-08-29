@@ -1,3 +1,7 @@
+'''
+__init__ function of sklearn-autologger. Will be extended and will contain multiple Sklearn-specific functions.
+'''
+
 import mlrun
 from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 from mlrun.frameworks._common.pkl_model_server import PklModelServer

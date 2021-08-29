@@ -294,7 +294,7 @@ def build_runtime(
             "mlrun/ml-models-gpu",
         ]
         # if the base is one of mlrun images - no need to install mlrun
-        if any(image in build.base_image for image in mlrun_images):
+        if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
     if not build.source and not build.commands and not build.extra and not with_mlrun:
         if runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():

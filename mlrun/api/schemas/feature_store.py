@@ -77,6 +77,10 @@ class FeatureSetsOutput(BaseModel):
     feature_sets: List[FeatureSet]
 
 
+class FeatureSetsTagsOutput(BaseModel):
+    tags: List[str] = []
+
+
 class FeatureSetDigestSpec(BaseModel):
     entities: List[Entity]
     features: List[Feature]
@@ -122,6 +126,10 @@ class FeatureVectorRecord(ObjectRecord):
 
 class FeatureVectorsOutput(BaseModel):
     feature_vectors: List[FeatureVector]
+
+
+class FeatureVectorsTagsOutput(BaseModel):
+    tags: List[str] = []
 
 
 class DataSource(BaseModel):

@@ -2,6 +2,7 @@ import copy
 import datetime
 import os
 import typing
+import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -71,6 +73,21 @@ def test_create_project_failure_already_exists(
     # create again
     response = client.post("/api/projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CONFLICT.value
+
+
+def test_get_non_existing_project(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """
+    At first we were doing auth before get - which caused get on non existing project to return unauthorized instead of
+    not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
+    """
+    project = "does-not-exist"
+    mlrun.api.utils.clients.opa.Client().query_project_permissions = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunUnauthorizedError("bla")
+    )
+    response = client.get(f"/api/projects/{project}")
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
 def test_delete_project_with_resources(

@@ -1,6 +1,10 @@
 import pathlib
+import re
 import shutil
 import sys
+import traceback
+from subprocess import PIPE, run
+from sys import executable, stderr
 
 import pytest
 from kfp import dsl
@@ -18,6 +22,17 @@ projects_dir = f"{out_path}/proj"
 funcs = mlrun.projects.pipeline_context.functions
 
 
+def exec_project(args, cwd=None):
+    cmd = [executable, "-m", "mlrun", "project"] + args
+    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
+    if out.returncode != 0:
+        print(out.stderr.decode("utf-8"), file=stderr)
+        print(out.stdout.decode("utf-8"), file=stderr)
+        print(traceback.format_exc())
+        raise Exception(out.stderr.decode("utf-8"))
+    return out.stdout.decode("utf-8")
+
+
 # pipeline for inline test (run pipeline from handler)
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
@@ -33,7 +48,7 @@ def pipe_test():
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestFeatureStore(TestMLRunSystem):
+class TestProject(TestMLRunSystem):
     def custom_setup(self):
         pass
 
@@ -115,8 +130,44 @@ class TestFeatureStore(TestMLRunSystem):
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
 
-    def test_inline_pipeline(self):
+    def test_run_cli(self):
+        # load project from git
         name = "pipe4"
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # clone a project to local dir
+        args = [
+            "-n",
+            name,
+            "-u",
+            "git://github.com/mlrun/project-demo.git",
+            project_dir,
+        ]
+        out = exec_project(args, projects_dir)
+        print(out)
+
+        # load the project from local dir and change a workflow
+        project2 = mlrun.load_project(project_dir)
+        project2.spec.workflows = {}
+        project2.set_workflow("kf", "./kflow.py")
+        project2.save()
+        print(project2.to_yaml())
+
+        # exec the workflow
+        args = ["-n", name, "-r", "kf", "-w", project_dir]
+        out = exec_project(args, projects_dir)
+        m = re.search(" Pipeline run id=(.+),", out)
+        assert m, "pipeline id is not in output"
+
+        run_id = m.group(1).strip()
+        db = mlrun.get_run_db()
+        pipeline = db.get_pipeline(run_id, project=name)
+        state = pipeline["run"]["status"]
+        assert state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+    def test_inline_pipeline(self):
+        name = "pipe5"
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
         project = self._create_project(name, True)

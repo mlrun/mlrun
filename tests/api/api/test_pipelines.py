@@ -58,10 +58,9 @@ def test_list_pipelines_formats(
     for format_ in [
         mlrun.api.schemas.PipelinesFormat.full,
         mlrun.api.schemas.PipelinesFormat.metadata_only,
-        mlrun.api.schemas.PipelinesFormat.summary,
         mlrun.api.schemas.PipelinesFormat.name_only,
     ]:
-        runs = _generate_run_mocks()
+        runs = _generate_list_runs_mocks()
         expected_runs = [run.to_dict() for run in runs]
         expected_runs = mlrun.api.crud.Pipelines()._format_runs(
             db, expected_runs, format_
@@ -85,15 +84,46 @@ def test_get_pipeline_formats(
         mlrun.api.schemas.PipelinesFormat.summary,
         mlrun.api.schemas.PipelinesFormat.name_only,
     ]:
-        runs = _generate_run_mocks()
-        run = runs[0]
-        expected_run = run.to_dict()
-        expected_run = mlrun.api.crud.Pipelines()._format_run(db, expected_run, format_)
-        _mock_get_run(kfp_client_mock, run)
+        api_run_detail = _generate_get_run_mock()
+        _mock_get_run(kfp_client_mock, api_run_detail)
         response = client.get(
-            f"/api/projects/*/pipelines/{run.id}", params={"format": format_},
+            f"/api/projects/*/pipelines/{api_run_detail.run.id}",
+            params={"format": format_},
+        )
+        expected_run = mlrun.api.crud.Pipelines()._format_run(
+            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
         )
         _assert_get_pipeline_response(expected_run, response)
+
+
+def test_get_pipeline_specific_project(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+) -> None:
+    for format_ in [
+        mlrun.api.schemas.PipelinesFormat.full,
+        mlrun.api.schemas.PipelinesFormat.metadata_only,
+        mlrun.api.schemas.PipelinesFormat.summary,
+        mlrun.api.schemas.PipelinesFormat.name_only,
+    ]:
+        project = "project-name"
+        api_run_detail = _generate_get_run_mock()
+        _mock_get_run(kfp_client_mock, api_run_detail)
+        mlrun.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+            return_value=project
+        )
+        response = client.get(
+            f"/api/projects/{project}/pipelines/{api_run_detail.run.id}",
+            params={"format": format_},
+        )
+        expected_run = mlrun.api.crud.Pipelines()._format_run(
+            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+        )
+        _assert_get_pipeline_response(expected_run, response)
+
+        # revert mock setting (it's global function, without reloading it the mock will persist to following tests)
+        importlib.reload(mlrun.api.crud)
 
 
 def test_list_pipelines_specific_project(
@@ -102,7 +132,7 @@ def test_list_pipelines_specific_project(
     kfp_client_mock: kfp.Client,
 ) -> None:
     project = "project-name"
-    runs = _generate_run_mocks()
+    runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
     mlrun.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
@@ -170,120 +200,26 @@ def test_create_pipeline_legacy(
     assert response_body["id"] == "some-run-id"
 
 
-def _generate_run_mocks():
-    workflow_manifest = json.dumps(
-        {
-            "metadata": {
-                "name": "minimal-pipeline-rmtvd",
-                "namespace": "default-tenant",
-                "creationTimestamp": "2021-08-23T00:01:31Z",
-                "labels": {
-                    "pipeline/runid": "c74810e9-a5ae-4ad4-bb1f-efd38e529c0f",
-                    "pipelines.kubeflow.org/kfp_sdk_version": "1.0.1",
-                    "workflows.argoproj.io/completed": "true",
-                    "workflows.argoproj.io/phase": "Succeeded",
-                },
-                "annotations": {
-                    "pipelines.kubeflow.org/kfp_sdk_version": "1.0.1",
-                    "pipelines.kubeflow.org/pipeline_compilation_time": "2021-08-23T00:01:30.667929",
-                    "pipelines.kubeflow.org/pipeline_spec": '{"description": "demonstrating mlrun usage", "inputs": [{"'
-                    'default": "False", "name": "fail", "optional": true, "type": "Boolean"}], "name": "minimal pipelin'
-                    'e"}',
-                    "pipelines.kubeflow.org/run_name": "my-pipeline 2021-08-23 00-01-30",
-                },
-            },
-            "spec": {
-                "templates": [
-                    {
-                        "name": "hedi-simple-func-do-something",
-                        "inputs": {"parameters": [{"name": "fail"}]},
-                        "outputs": {
-                            "artifacts": [
-                                {
-                                    "name": "mlpipeline-ui-metadata",
-                                    "path": "/mlpipeline-ui-metadata.json",
-                                    "optional": True,
-                                }
-                            ]
-                        },
-                        "metadata": {
-                            "annotations": {
-                                "mlrun/function-uri": "default/hedi-simple-func@a5b181289c7ee40f7fba2a31ed73ff65043dfd2"
-                                "7",
-                                "mlrun/pipeline-step-type": "run",
-                                "mlrun/project": "default",
-                                "sidecar.istio.io/inject": "false",
-                            },
-                            "labels": {"pipelines.kubeflow.org/cache_enabled": "true"},
-                        },
-                        "container": {
-                            "name": "",
-                            "image": "datanode-registry.iguazio-platform.app.vmdev27.lab.iguazeng.com:80/quay.io/mlrun/"
-                            "mlrun:0.7.0-rc5",
-                            "command": [
-                                "python",
-                                "-m",
-                                "mlrun",
-                                "run",
-                                "--kfp",
-                                "--from-env",
-                                "--workflow",
-                                "c74810e9-a5ae-4ad4-bb1f-efd38e529c0f",
-                                "--name",
-                                "hedi-simple-func-do_something",
-                                "-f",
-                                "db://default/hedi-simple-func@a5b181289c7ee40f7fba2a31ed73ff65043dfd27",
-                                "-p",
-                                "fail={{inputs.parameters.fail}}",
-                                "--label",
-                                "v3io_user=iguazio",
-                                "--label",
-                                "owner=iguazio",
-                                "-o",
-                                "run_id",
-                                "--handler",
-                                "do_something",
-                                "",
-                            ],
-                            "env": [
-                                {
-                                    "name": "MLRUN_NAMESPACE",
-                                    "valueFrom": {
-                                        "fieldRef": {"fieldPath": "metadata.namespace"}
-                                    },
-                                }
-                            ],
-                            "resources": {},
-                        },
-                    }
-                ],
-                "entrypoint": "minimal-pipeline",
-                "arguments": {"parameters": [{"name": "fail", "value": "False"}]},
-                "serviceAccountName": "pipeline-runner",
-                "ttlSecondsAfterFinished": 14400,
-            },
-            "status": {
-                "phase": "Succeeded",
-                "startedAt": "2021-08-23T00:01:31Z",
-                "finishedAt": "2021-08-23T00:02:06Z",
-                "nodes": {
-                    "minimal-pipeline-rmtvd": {
-                        "id": "minimal-pipeline-rmtvd",
-                        "name": "minimal-pipeline-rmtvd",
-                        "displayName": "minimal-pipeline-rmtvd",
-                        "type": "DAG",
-                        "templateName": "minimal-pipeline",
-                        "phase": "Succeeded",
-                        "startedAt": "2021-08-23T00:01:31Z",
-                        "finishedAt": "2021-08-23T00:02:06Z",
-                        "inputs": {"parameters": [{"name": "fail", "value": "False"}]},
-                        "children": [],
-                        "outboundNodes": [],
-                    }
-                },
-            },
-        }
+def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetail:
+    workflow_manifest = _generate_workflow_manifest()
+    workflow_manifest_with_status = _generate_workflow_manifest(with_status=True)
+    return kfp_server_api.models.api_run_detail.ApiRunDetail(
+        run=kfp_server_api.models.api_run.ApiRun(
+            id="id1",
+            name="run1",
+            description="desc1",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id1", workflow_manifest=workflow_manifest,
+            ),
+        ),
+        pipeline_runtime=kfp_server_api.models.api_pipeline_runtime.ApiPipelineRuntime(
+            workflow_manifest=workflow_manifest_with_status
+        ),
     )
+
+
+def _generate_list_runs_mocks():
+    workflow_manifest = _generate_workflow_manifest()
     return [
         kfp_server_api.models.api_run.ApiRun(
             id="id1",
@@ -318,6 +254,122 @@ def _generate_run_mocks():
             ),
         ),
     ]
+
+
+def _generate_workflow_manifest(with_status=False):
+    workflow_manifest = {
+        "metadata": {
+            "name": "minimal-pipeline-rmtvd",
+            "namespace": "default-tenant",
+            "creationTimestamp": "2021-08-23T00:01:31Z",
+            "labels": {
+                "pipeline/runid": "c74810e9-a5ae-4ad4-bb1f-efd38e529c0f",
+                "pipelines.kubeflow.org/kfp_sdk_version": "1.0.1",
+                "workflows.argoproj.io/completed": "true",
+                "workflows.argoproj.io/phase": "Succeeded",
+            },
+            "annotations": {
+                "pipelines.kubeflow.org/kfp_sdk_version": "1.0.1",
+                "pipelines.kubeflow.org/pipeline_compilation_time": "2021-08-23T00:01:30.667929",
+                "pipelines.kubeflow.org/pipeline_spec": '{"description": "demonstrating mlrun usage", "inputs": [{"'
+                'default": "False", "name": "fail", "optional": true, "type": "Boolean"}], "name": "minimal pipelin'
+                'e"}',
+                "pipelines.kubeflow.org/run_name": "my-pipeline 2021-08-23 00-01-30",
+            },
+        },
+        "spec": {
+            "templates": [
+                {
+                    "name": "hedi-simple-func-do-something",
+                    "inputs": {"parameters": [{"name": "fail"}]},
+                    "outputs": {
+                        "artifacts": [
+                            {
+                                "name": "mlpipeline-ui-metadata",
+                                "path": "/mlpipeline-ui-metadata.json",
+                                "optional": True,
+                            }
+                        ]
+                    },
+                    "metadata": {
+                        "annotations": {
+                            "mlrun/function-uri": "default/hedi-simple-func@a5b181289c7ee40f7fba2a31ed73ff65043dfd2"
+                            "7",
+                            "mlrun/pipeline-step-type": "run",
+                            "mlrun/project": "default",
+                            "sidecar.istio.io/inject": "false",
+                        },
+                        "labels": {"pipelines.kubeflow.org/cache_enabled": "true"},
+                    },
+                    "container": {
+                        "name": "",
+                        "image": "datanode-registry.iguazio-platform.app.vmdev27.lab.iguazeng.com:80/quay.io/mlrun/"
+                        "mlrun:0.7.0-rc5",
+                        "command": [
+                            "python",
+                            "-m",
+                            "mlrun",
+                            "run",
+                            "--kfp",
+                            "--from-env",
+                            "--workflow",
+                            "c74810e9-a5ae-4ad4-bb1f-efd38e529c0f",
+                            "--name",
+                            "hedi-simple-func-do_something",
+                            "-f",
+                            "db://default/hedi-simple-func@a5b181289c7ee40f7fba2a31ed73ff65043dfd27",
+                            "-p",
+                            "fail={{inputs.parameters.fail}}",
+                            "--label",
+                            "v3io_user=iguazio",
+                            "--label",
+                            "owner=iguazio",
+                            "-o",
+                            "run_id",
+                            "--handler",
+                            "do_something",
+                            "",
+                        ],
+                        "env": [
+                            {
+                                "name": "MLRUN_NAMESPACE",
+                                "valueFrom": {
+                                    "fieldRef": {"fieldPath": "metadata.namespace"}
+                                },
+                            }
+                        ],
+                        "resources": {},
+                    },
+                }
+            ],
+            "entrypoint": "minimal-pipeline",
+            "arguments": {"parameters": [{"name": "fail", "value": "False"}]},
+            "serviceAccountName": "pipeline-runner",
+            "ttlSecondsAfterFinished": 14400,
+        },
+    }
+    if with_status:
+        workflow_manifest["status"] = {
+            "phase": "Succeeded",
+            "startedAt": "2021-08-23T00:01:31Z",
+            "finishedAt": "2021-08-23T00:02:06Z",
+            "nodes": {
+                "minimal-pipeline-rmtvd": {
+                    "id": "minimal-pipeline-rmtvd",
+                    "name": "minimal-pipeline-rmtvd",
+                    "displayName": "minimal-pipeline-rmtvd",
+                    "type": "DAG",
+                    "templateName": "minimal-pipeline",
+                    "phase": "Succeeded",
+                    "startedAt": "2021-08-23T00:01:31Z",
+                    "finishedAt": "2021-08-23T00:02:06Z",
+                    "inputs": {"parameters": [{"name": "fail", "value": "False"}]},
+                    "children": [],
+                    "outboundNodes": [],
+                }
+            },
+        }
+    return json.dumps(workflow_manifest)
 
 
 def _mock_pipelines_creation(kfp_client_mock: kfp.Client):
@@ -379,10 +431,11 @@ def _mock_list_runs(
 
 
 def _mock_get_run(
-    kfp_client_mock: kfp.Client, run,
+    kfp_client_mock: kfp.Client,
+    api_run_detail: kfp_server_api.models.api_run_detail.ApiRunDetail,
 ):
     def get_run_mock(*args, **kwargs):
-        return kfp_server_api.models.api_run_detail.ApiRunDetail(run=run)
+        return api_run_detail
 
     kfp_client_mock.get_run = get_run_mock
 

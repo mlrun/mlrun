@@ -15,7 +15,7 @@ import abc
 import builtins
 import importlib.util as imputil
 import os
-from tempfile import mktemp
+import tempfile
 
 from kfp.compiler import compiler
 
@@ -64,10 +64,9 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 "workflow must have code or path properties"
             )
         if self.code:
-            workflow_path = mktemp(".py")
-            with open(workflow_path, "w") as wf:
-                wf.write(self.code)
-            self._tmp_path = workflow_path
+            with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as workflow_fh:
+                workflow_fh.write(self.code)
+                self._tmp_path = workflow_path = workflow_fh.name
         else:
             workflow_path = self.path or ""
             if context and not workflow_path.startswith("/"):

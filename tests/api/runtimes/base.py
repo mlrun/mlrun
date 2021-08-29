@@ -469,6 +469,7 @@ class TestRuntimeBase:
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
+        expected_priority_class_name=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
@@ -540,6 +541,9 @@ class TestRuntimeBase:
                 )
                 == {}
             )
+
+        if expected_priority_class_name:
+            assert pod.spec.priority_class_name == expected_priority_class_name
 
         assert pod.spec.containers[0].image == self.image_name
 

@@ -317,6 +317,14 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
+    def _expect_pods_without_uid() -> bool:
+        """
+        builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
+        don't have the uid in their labels
+        """
+        return True
+
+    @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
         return True
 

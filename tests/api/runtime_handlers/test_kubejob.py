@@ -112,6 +112,32 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, log, self.completed_job_pod.metadata.name,
         )
 
+    def test_delete_resources_completed_builder_pod(
+        self, db: Session, client: TestClient
+    ):
+        """
+        Test mainly used to verify that we're not spamming errors in logs in this specific scenario
+        """
+        list_namespaced_pods_calls = [
+            [self.completed_legacy_builder_pod],
+            # additional time for the get_logger_pods
+            [self.completed_legacy_builder_pod],
+            # additional time for wait for pods deletion - simulate pod not removed yet
+            [self.completed_legacy_builder_pod],
+            # additional time for wait for pods deletion - simulate pod gone
+            [],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_delete_namespaced_pods()
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
+        self._assert_delete_namespaced_pods(
+            [self.completed_legacy_builder_pod.metadata.name],
+            self.completed_legacy_builder_pod.metadata.namespace,
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, len(list_namespaced_pods_calls)
+        )
+
     def test_delete_resources_running_pod(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.running_job_pod],

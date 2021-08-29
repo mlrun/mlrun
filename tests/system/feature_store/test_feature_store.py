@@ -1057,6 +1057,55 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
 
+    def test_bla(self):
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
+
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource(
+            "myparquet", schedule=cron_trigger, path=path
+        )
+
+        feature_set = fs.FeatureSet(
+            name="overwrite", entities=[fs.Entity("first_name")], timestamp_key="time",
+        )
+
+        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=targets,
+        )
+        sleep(60)
+        features = ["overwrite.*"]
+        vec = fs.FeatureVector("svec", features)
+
+        svc = fs.get_online_feature_service(vec)
+
+        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 2000
+
+        sleep(30)
+
     @pytest.mark.parametrize(
         "fixed_window_type",
         [FixedWindowType.CurrentOpenWindow, FixedWindowType.LastClosedWindow],

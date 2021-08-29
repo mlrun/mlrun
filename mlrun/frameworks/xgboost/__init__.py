@@ -1,5 +1,6 @@
 import mlrun
 from mlrun.frameworks.xgboost.mlrun_interface import XGBMLRunInterface
+from mlrun.frameworks._common.pkl_model_server import PklModelServer
 
 def apply_mlrun(
         model,
@@ -15,6 +16,8 @@ def apply_mlrun(
     """
     if context is None:
         context = mlrun.get_or_create_ctx('mlrun_xgb')
+
+    XGBModelServer = PklModelServer(context, 'xgb_model')
 
     # Add MLRun's interface to the model:
     XGBMLRunInterface.add_interface(model, context, kwargs)

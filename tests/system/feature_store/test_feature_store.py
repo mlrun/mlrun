@@ -71,6 +71,8 @@ def _generate_random_name():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
+    project_name = "fs-system-test-project"
+
     def custom_setup(self):
         pass
 
@@ -1056,6 +1058,52 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    def test_overwrite_single_file(self):
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
+
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
+
+        feature_set = fs.FeatureSet(
+            name="overwrite", entities=[fs.Entity("first_name")], timestamp_key="time",
+        )
+
+        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
+
+        fs.ingest(
+            feature_set,
+            source,
+            overwrite=True,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=targets,
+        )
+        sleep(60)
+        features = ["overwrite.*"]
+        vec = fs.FeatureVector("svec", features)
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 2)
+
+        sleep(30)
 
     @pytest.mark.parametrize(
         "fixed_window_type",

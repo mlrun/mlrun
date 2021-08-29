@@ -98,6 +98,16 @@ default_config = {
     "default_function_priority_class_name": "",
     # valid options for priority classes - separated by a comma
     "valid_function_priority_class_names": "",
+    "function_defaults": {
+        "image_by_kind": {
+            "job": "mlrun/mlrun",
+            "serving": "mlrun/mlrun",
+            "nuclio": "mlrun/mlrun",
+            "remote": "mlrun/mlrun",
+            "dask": "mlrun/ml-base",
+            "mpijob": "mlrun/ml-models",
+        }
+    },
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),

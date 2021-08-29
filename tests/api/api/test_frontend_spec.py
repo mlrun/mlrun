@@ -33,8 +33,8 @@ def test_get_frontend_spec(
         frontend_spec.feature_flags.project_membership
         == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     )
-    assert frontend_spec.default_function_base_image == mlrun.mlconf.default_base_image
-    assert frontend_spec.default_function_base_image == mlrun.mlconf.default_base_image
+    assert frontend_spec.default_function_image_by_kind is not None
+    assert frontend_spec.function_deployment_mlrun_command is not None
     # fields UI expects to be in the template
     assert (
         mlrun.mlconf.httpdb.builder.docker_registry

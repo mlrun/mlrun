@@ -38,7 +38,7 @@ def get_frontend_spec(
         feature_flags=feature_flags,
         default_function_priority_class_name=config.default_function_priority_class_name,
         valid_function_priority_class_names=config.get_valid_function_priority_class_names(),
-        default_function_base_image=config.default_base_image,
+        default_function_image_by_kind=mlrun.mlconf.function_defaults.image_by_kind.to_dict(),
         function_deployment_target_image_template=function_deployment_target_image_template,
         function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
     )

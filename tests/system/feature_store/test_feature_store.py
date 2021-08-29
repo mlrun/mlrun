@@ -72,6 +72,7 @@ def _generate_random_name():
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
     project_name = "fs-system-test-project"
+
     def custom_setup(self):
         pass
 

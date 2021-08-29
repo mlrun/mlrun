@@ -50,6 +50,7 @@ def pipe_test():
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
+
     def custom_setup(self):
         pass
 

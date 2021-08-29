@@ -64,7 +64,9 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 "workflow must have code or path properties"
             )
         if self.code:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as workflow_fh:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False
+            ) as workflow_fh:
                 workflow_fh.write(self.code)
                 self._tmp_path = workflow_path = workflow_fh.name
         else:

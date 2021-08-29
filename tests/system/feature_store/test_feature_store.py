@@ -1057,7 +1057,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
 
-    def test_bla(self):
+    def test_overwrite_single_file(self):
         data = pd.DataFrame(
             {
                 "time": [

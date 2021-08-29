@@ -17,17 +17,25 @@ class PklModelServer(V2ModelServer):
         model_file, extra_data = self.get_model('.pkl')
         self.model = load(open(model_file, 'rb'))
 
+        
     def predict(self, body: dict) -> list:
         """
-        Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
-        be read from the "inputs" key of the request.
-        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+        Infer the inputs through the model using MLRun's interface and return its output. The inferred data will
+        be read from the "body" key of the request.
+        :param request: The request of the model. The input to the model will be read from the "body" key.
         :return: The model's prediction on the given input.
         """
         feats = np.asarray(body['inputs'])
-
+        
+        # For Sklearn and XGB classifiers
         if is_classifier(self.model):
             result: np.ndarray = self.model.predict(feats)
+                
+        # For Sklearn and XGB regressors  
         elif is_regressor(self.model):
             result: np.ndarray = self.model.score(feats)
+        
+        # For non-Sklearn and XGB models
+        else:
+            result: np.ndarray = self.model.predict(feats)
         return result.tolist()

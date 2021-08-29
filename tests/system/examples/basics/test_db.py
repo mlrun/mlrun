@@ -62,15 +62,3 @@ class TestDB(TestMLRunSystem):
                     artifact_exists = True
                     break
             assert artifact_exists
-
-        runtimes = self._run_db.list_runtime_resources()
-        assert len(runtimes.dict()) == len(
-            mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
-        )
-        for runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-            runtime_exists = False
-            for runtime in runtimes:
-                if runtime.kind == runtime_kind:
-                    runtime_exists = True
-                    break
-            assert runtime_exists

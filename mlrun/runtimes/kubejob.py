@@ -151,12 +151,13 @@ class KubejobRuntime(KubeResource):
                 skip_deployed,
                 builder_env=builder_env,
             )
-            logger.info(
-                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
-            )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
+            if not ready:
+                logger.info(
+                    f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+                )
             if watch and not ready:
                 state = self._build_watch(watch)
                 ready = state == "ready"

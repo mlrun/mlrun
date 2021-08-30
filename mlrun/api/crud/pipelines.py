@@ -89,15 +89,8 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             if api_run_detail.run:
                 run = api_run_detail.to_dict()["run"]
                 if project and project != "*":
-                    # we need to resolve the project from the returned run for the project enforcement here, so we
-                    # can't really get back only the names here
-                    computed_format = (
-                        mlrun.api.schemas.PipelinesFormat.metadata_only
-                        if format_ == mlrun.api.schemas.PipelinesFormat.name_only
-                        else format_
-                    )
-                    run_for_project = self._format_run(db_session, run, computed_format)
-                    if run_for_project["project"] != project:
+                    run_project = self.resolve_project_from_pipeline(run)
+                    if run_project != project:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )

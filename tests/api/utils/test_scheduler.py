@@ -322,7 +322,10 @@ async def test_create_schedule_failure_already_exists(
         cron_trigger,
     )
 
-    with pytest.raises(mlrun.errors.MLRunConflictError) as excinfo:
+    with pytest.raises(
+        mlrun.errors.MLRunConflictError,
+        match=rf"Conflict - Schedule already exists: {project}/{schedule_name}",
+    ):
         scheduler.create_schedule(
             db,
             mlrun.api.schemas.AuthInfo(),
@@ -332,7 +335,6 @@ async def test_create_schedule_failure_already_exists(
             do_nothing,
             cron_trigger,
         )
-    assert "Conflict - Schedule already exists" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

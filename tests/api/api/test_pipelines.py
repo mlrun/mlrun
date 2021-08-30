@@ -96,6 +96,36 @@ def test_get_pipeline_formats(
         _assert_get_pipeline_response(expected_run, response)
 
 
+def test_get_pipeline_specific_project(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+) -> None:
+    for format_ in [
+        mlrun.api.schemas.PipelinesFormat.full,
+        mlrun.api.schemas.PipelinesFormat.metadata_only,
+        mlrun.api.schemas.PipelinesFormat.summary,
+        mlrun.api.schemas.PipelinesFormat.name_only,
+    ]:
+        project = "project-name"
+        api_run_detail = _generate_get_run_mock()
+        _mock_get_run(kfp_client_mock, api_run_detail)
+        mlrun.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+            return_value=project
+        )
+        response = client.get(
+            f"/api/projects/{project}/pipelines/{api_run_detail.run.id}",
+            params={"format": format_},
+        )
+        expected_run = mlrun.api.crud.Pipelines()._format_run(
+            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+        )
+        _assert_get_pipeline_response(expected_run, response)
+
+        # revert mock setting (it's global function, without reloading it the mock will persist to following tests)
+        importlib.reload(mlrun.api.crud)
+
+
 def test_list_pipelines_specific_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,

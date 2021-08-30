@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
+    _list_tags_and_assert,
     _patch_object,
     _test_partition_by_for_feature_store_objects,
 )
@@ -508,6 +509,19 @@ def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> N
         client, "feature_sets", project_name, f"name={name}&tag=tag2", 1
     )["feature_sets"]
     assert response[0]["metadata"]["extra_metadata"] == 200
+
+
+def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
+    project_name = "some-project"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+
+    tags = ["tag-1", "tag-2", "tag-3", "tag-4"]
+    for tag in tags:
+        _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
+    _list_tags_and_assert(
+        client, "feature_sets", project_name, tags,
+    )
 
 
 def test_feature_set_create_without_labels(db: Session, client: TestClient) -> None:

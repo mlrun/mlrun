@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import sys
+import tempfile
 from base64 import b64encode
 from os import getenv, path, remove
-from tempfile import mktemp
 
 import dask.dataframe as dd
 import fsspec
@@ -203,10 +203,10 @@ class DataStore:
                 # support the storage_options parameter.
                 return reader(fs.open(url), **kwargs)
 
-        tmp = mktemp()
-        self.download(self._join(subpath), tmp)
-        df = reader(tmp, **kwargs)
-        remove(tmp)
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
+        self.download(self._join(subpath), temp_file.name)
+        df = reader(temp_file.name, **kwargs)
+        remove(temp_file.name)
         return df
 
     def to_dict(self):
@@ -357,8 +357,10 @@ class DataItem:
             return self._local_path
 
         dot = self._path.rfind(".")
-        self._local_path = mktemp() if dot == -1 else mktemp(self._path[dot:])
-        logger.info(f"downloading {self.url} to local tmp")
+        suffix = "" if dot == -1 else self._path[dot:]
+        temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        self._local_path = temp_file.name
+        logger.info(f"downloading {self.url} to local temp file")
         self.download(self._local_path)
         return self._local_path
 

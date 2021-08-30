@@ -7,13 +7,14 @@ class PklModelServer(V2ModelServer):
     """
     Model serving class, inheriting the V2ModelServer class for being initialized automatically by the model
     server and be able to run locally as part of a nuclio serverless function, or as part of a real-time pipeline.
+    Used to server pickle-based saved models such as sklearn, xgboost and more.
     """
 
     def load(self):
         """
         Use the model handler to load the model.
         """
-        """load and initialize the model and/or other elements"""
+        # Load and initialize the model and/or other elements
         model_file, extra_data = self.get_model('.pkl')
         self.model = load(open(model_file, 'rb'))
 
@@ -27,15 +28,10 @@ class PklModelServer(V2ModelServer):
         """
         feats = np.asarray(body['inputs'])
         
-        # For Sklearn and XGB classifiers
-        if is_classifier(self.model):
-            result: np.ndarray = self.model.predict(feats)
-                
         # For Sklearn and XGB regressors  
         elif is_regressor(self.model):
             result: np.ndarray = self.model.score(feats)
         
-        # For non-Sklearn and XGB models
         else:
             result: np.ndarray = self.model.predict(feats)
         return result.tolist()

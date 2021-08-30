@@ -8,7 +8,7 @@ from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 from mlrun.frameworks._common.pkl_model_server import PickleModelServer
 
 # Temporary placeholder, SklearnModelServer may deviate from PklModelServer in upcoming versions.
-SklearnModelServer = PklModelServer
+SklearnModelServer = PickleModelServer
         
 def apply_mlrun(
         model,

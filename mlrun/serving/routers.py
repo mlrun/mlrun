@@ -822,6 +822,7 @@ class EnrichmentModelRouter(ModelRouter):
 
 class EnrichmentVotingEnsemble(VotingEnsemble):
     """model ensemble with feature enrichment and imputing"""
+
     def __init__(
         self,
         context,

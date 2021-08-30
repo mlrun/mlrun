@@ -33,6 +33,7 @@ class MLBaseMLRunInterface(MLRunInterface):
 
                 # Original fit method
                 setattr(model, "fit", fit_method)
+                
                 # Post fit
                 if data.get("X_test") is not None:
                     post_fit(*args, **kwargs)

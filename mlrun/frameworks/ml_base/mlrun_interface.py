@@ -5,7 +5,6 @@ from cloudpickle import dumps
 
 class MLBaseMLRunInterface(MLRunInterface):
     """
-    Base run interface for ML frameworks (sklearn, xgb, ..)
     Wraps the original .fit() method of the passed model enabling auto-logging.
     """
 
@@ -25,7 +24,7 @@ class MLBaseMLRunInterface(MLRunInterface):
         def fit_wrapper(fit_method, **kwargs):
             def wrapper(*args, **kwargs):
                 context.log_dataset('train_set',
-                                    df=pd.concat([data['X_train'], data['y_train']], axis=1),
+                                    df=pd.concat([args[0], args[1]], axis=1),
                                     format='csv', index=False,
                                     artifact_path=context.artifact_subpath('data'))
 

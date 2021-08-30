@@ -30,8 +30,8 @@ class PklModelServer(V2ModelServer):
         
         # For Sklearn and XGB regressors  
         if is_regressor(self.model):
-            result: np.ndarray = self.model.score(feats)
+            result = self.model.score(feats)
         
         else:
-            result: np.ndarray = self.model.predict(feats)
+            result = self.model.predict(feats)
         return result.tolist()

@@ -269,6 +269,8 @@ class KubeResource(BaseRuntime):
                 for ev in spec["env"]:
                     if ev["name"].startswith("V3IO_"):
                         ev["value"] = ""
+            # Reset this, since mounts and env variables were cleared.
+            spec["disable_auto_mount"] = False
         return struct
 
     def apply(self, modify):

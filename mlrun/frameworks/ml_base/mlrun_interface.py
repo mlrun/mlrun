@@ -9,14 +9,14 @@ class MLBaseMLRunInterface(MLRunInterface):
     """
 
     @classmethod
-    def add_interface(cls, model, context, data, *args, **kwargs):
+    def add_interface(cls, model, context, data=None, *args, **kwargs):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
         :param model: The model to wrap.
         :param context: MLRun context to work with. If no context is given it will be retrieved via
                         'mlrun.get_or_create_ctx(None)'
-        :param data: The train_test_split X_train, X_test, y_train, y_test.
+        :param data: Optional: The X_test, y_test passed as kwargs previously.
         :return: The wrapped model.
         """
 

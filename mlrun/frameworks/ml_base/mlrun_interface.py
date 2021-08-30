@@ -6,6 +6,7 @@ from cloudpickle import dumps
 class MLBaseMLRunInterface(MLRunInterface):
     """
     Wraps the original .fit() method of the passed model enabling auto-logging.
+    Base run interface for ML frameworks (sklearn, xgb, ..)
     """
 
     @classmethod

@@ -942,7 +942,10 @@ def resolve_function_http_trigger(function_spec):
 
 
 def compile_function_config(function: RemoteRuntime):
-    function.set_config("metadata.labels.mlrun/class", function.kind)
+    labels = function.metadata.labels or {}
+    labels.update({"mlrun/class": function.kind})
+    for key, value in labels.items():
+        function.set_config(f"metadata.labels.{key}", value)
 
     # Add vault configurations to function's pod spec, if vault secret source was added.
     # Needs to be here, since it adds env params, which are handled in the next lines.

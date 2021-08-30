@@ -41,6 +41,7 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
@@ -1691,6 +1692,17 @@ class MlrunProject(ModelObj):
             project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
+
+    def set_model_monitoring_credentials(self, access_key: str):
+        """ Set the credentials that will be used by the project's model monitoring
+        infrastructure functions.
+        The supplied credentials must have data access
+
+        :param access_key: Model Monitoring access key for managing user permissions.
+        """
+        set_project_model_monitoring_credentials(
+            access_key=access_key, project=self.metadata.name
+        )
 
 
 class MlrunProjectLegacy(ModelObj):

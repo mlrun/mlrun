@@ -203,7 +203,7 @@ class DataStore:
                 # support the storage_options parameter.
                 return reader(fs.open(url), **kwargs)
 
-        temp_file = tempfile.TemporaryFile(delete=False)
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
         self.download(self._join(subpath), temp_file.name)
         df = reader(temp_file.name, **kwargs)
         remove(temp_file.name)
@@ -358,7 +358,7 @@ class DataItem:
 
         dot = self._path.rfind(".")
         suffix = "" if dot == -1 else self._path[dot:]
-        temp_file = tempfile.TemporaryFile(suffix=suffix, delete=False)
+        temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
         self._local_path = temp_file.name
         logger.info(f"downloading {self.url} to local temp file")
         self.download(self._local_path)

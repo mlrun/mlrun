@@ -148,15 +148,16 @@ def run_local(
     :return: run object
     """
 
+    function_name = name
     if command and isinstance(command, str):
         sp = command.split()
         command = sp[0]
         if len(sp) > 1:
             args = args or []
             args = sp[1:] + args
-        name = name or pathlib.Path(command).stem
+        function_name = function_name or pathlib.Path(command).stem
 
-    meta = BaseMetadata(name, project=project, tag=tag)
+    meta = BaseMetadata(function_name, project=project, tag=tag)
     command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:

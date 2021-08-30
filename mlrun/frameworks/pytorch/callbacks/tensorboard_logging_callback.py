@@ -202,7 +202,7 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param weight: The weight to write its image.
         :param step:   The iteration / epoch the weight's image state belongs to.
         """
-        pass
+        raise NotImplementedError
 
 
 class TensorboardLoggingCallback(LoggingCallback):
@@ -278,7 +278,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         HyperparametersKeys.CUSTOM. For example, to track the 'lr' attribute of
                                         an optimizer and a custom parameter, one should pass:
                                         {
-                                            "learning rate": (HyperparametersKeys.OPTIMIZER, ["param_groups", 0, "lr"]),
+                                            "lr": (HyperparametersKeys.OPTIMIZER, ["param_groups", 0, "lr"]),
                                             "custom parameter": (HyperparametersKeys.CUSTOM, get_custom_parameter)
                                         }
         :param static_hyperparameters:  If needed to track a hyperparameter one time per run it should be passed here.

@@ -17,6 +17,10 @@ def apply_mlrun(
     """
     Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
     features.
+    
+    Usage Example: model = apply_mlrun_xgb(model, context, X_train=X_train,
+                        y_train=y_train, X_test=X_test, y_test=y_test)
+    
     :param model:       The model to wrap.
     :param context:     MLRun context to work with. If no context is given it will be retrieved via
                         'mlrun.get_or_create_ctx(None)'

@@ -29,7 +29,7 @@ class PklModelServer(V2ModelServer):
         feats = np.asarray(body['inputs'])
         
         # For Sklearn and XGB regressors  
-        elif is_regressor(self.model):
+        if is_regressor(self.model):
             result: np.ndarray = self.model.score(feats)
         
         else:

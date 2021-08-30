@@ -90,7 +90,7 @@ def featureset_initializer(server):
 
     context = server.context
     cache = server.resource_cache
-    featureset, source, targets, _ = context_to_ingestion_params(context)
+    featureset, source, targets, _, _ = context_to_ingestion_params(context)
     graph = featureset.spec.graph.copy()
     _add_data_steps(
         graph, cache, featureset, targets=targets, source=source,

@@ -437,6 +437,7 @@ class ProjectSpec(ModelObj):
         load_source_on_run=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
+        disable_auto_mount=False,
     ):
         self.repo = None
 
@@ -465,6 +466,7 @@ class ProjectSpec(ModelObj):
         self._function_objects = {}
         self._function_definitions = {}
         self.functions = functions or []
+        self.disable_auto_mount = disable_auto_mount
 
     @property
     def source(self) -> str:

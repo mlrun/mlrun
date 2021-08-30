@@ -5,7 +5,7 @@ __init__ function of Xgboost-autologger. Will be extended and contain multiple X
 
 import mlrun
 from mlrun.frameworks.xgboost.mlrun_interface import MLBaseMLRunInterface
-from mlrun.frameworks._common.pkl_model_server import PklModelServer
+from mlrun.frameworks._common.pkl_model_server import PickleModelServer
 
 # Temporary placeholder, XGBModelServer may deviate from PklModelServer in upcoming versions.
 XGBModelServer = PklModelServer

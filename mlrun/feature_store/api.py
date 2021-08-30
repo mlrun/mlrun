@@ -255,7 +255,7 @@ def ingest(
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
-            featureset, source, targets, run_config.parameters, infer_options
+            featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
         return run_ingestion_job(
@@ -268,9 +268,13 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
             )
-        featureset, source, targets, infer_options = context_to_ingestion_params(
-            mlrun_context
-        )
+        (
+            featureset,
+            source,
+            targets,
+            infer_options,
+            overwrite,
+        ) = context_to_ingestion_params(mlrun_context)
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
@@ -628,11 +632,13 @@ def set_task_params(
     targets: List[DataTargetBase] = None,
     parameters: dict = None,
     infer_options: InferOptions = InferOptions.Null,
+    overwrite=None,
 ):
     """convert ingestion parameters to dict, return source + params dict"""
     source = source or featureset.spec.source
     parameters = parameters or {}
     parameters["infer_options"] = infer_options
+    parameters["overwrite"] = overwrite
     parameters["featureset"] = featureset.uri
     if source:
         parameters["source"] = source.to_dict()

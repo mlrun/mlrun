@@ -1257,6 +1257,10 @@ class BaseRuntimeHandler(ABC):
         """
         return False
 
+    @staticmethod
+    def _expect_pods_without_uid() -> bool:
+        return False
+
     def _list_pods(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.list_pods(namespace, selector=label_selector)
@@ -1552,11 +1556,14 @@ class BaseRuntimeHandler(ABC):
 
         # if cannot resolve related run nothing to do
         if not uid:
-            logger.warning(
-                "Could not resolve run uid from runtime resource. Skipping pre-deletion actions",
-                runtime_resource=runtime_resource,
-            )
-            raise ValueError("Could not resolve run uid from runtime resource")
+            if not self._expect_pods_without_uid():
+                logger.warning(
+                    "Could not resolve run uid from runtime resource. Skipping pre-deletion actions",
+                    runtime_resource=runtime_resource,
+                )
+                raise ValueError("Could not resolve run uid from runtime resource")
+            else:
+                return
 
         logger.info(
             "Performing pre-deletion actions before cleaning up runtime resources",
@@ -1749,7 +1756,7 @@ class BaseRuntimeHandler(ABC):
         resource: mlrun.api.schemas.RuntimeResource,
     ):
         if "mlrun/class" in resource.labels:
-            project = resource.labels.get("mlrun/project", config.default_project)
+            project = resource.labels.get("mlrun/project", "")
             mlrun_class = resource.labels["mlrun/class"]
             kind = self._resolve_kind_from_class(mlrun_class)
             self._add_resource_to_grouped_by_field_resources_response(

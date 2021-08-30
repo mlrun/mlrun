@@ -90,7 +90,7 @@ def featureset_initializer(server):
 
     context = server.context
     cache = server.resource_cache
-    featureset, source, targets, _ = context_to_ingestion_params(context)
+    featureset, source, targets, _, _ = context_to_ingestion_params(context)
     graph = featureset.spec.graph.copy()
     _add_data_steps(
         graph, cache, featureset, targets=targets, source=source,
@@ -126,12 +126,13 @@ def context_to_ingestion_params(context):
         source = get_source_from_dict(source)
     elif featureset.spec.source.to_dict():
         source = get_source_from_dict(featureset.spec.source.to_dict())
+    overwrite = context.get_param("overwrite", None)
 
     targets = context.get_param("targets", None)
     if not targets:
         targets = featureset.spec.targets
     targets = [get_target_driver(target, featureset) for target in targets]
-    return featureset, source, targets, infer_options
+    return featureset, source, targets, infer_options, overwrite
 
 
 def _add_data_steps(

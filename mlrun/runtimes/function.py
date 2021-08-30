@@ -548,9 +548,7 @@ class RemoteRuntime(KubeResource):
         super().with_node_selection(node_name, node_selector, affinity)
 
     @min_nuclio_versions("1.6.18")
-    def with_priority_class(
-        self, name: str = mlconf.default_function_priority_class_name
-    ):
+    def with_priority_class(self, name: typing.Optional[str] = None):
         super().with_priority_class(name)
 
     def _get_state(
@@ -942,7 +940,10 @@ def resolve_function_http_trigger(function_spec):
 
 
 def compile_function_config(function: RemoteRuntime):
-    function.set_config("metadata.labels.mlrun/class", function.kind)
+    labels = function.metadata.labels or {}
+    labels.update({"mlrun/class": function.kind})
+    for key, value in labels.items():
+        function.set_config(f"metadata.labels.{key}", value)
 
     # Add vault configurations to function's pod spec, if vault secret source was added.
     # Needs to be here, since it adds env params, which are handled in the next lines.

@@ -101,6 +101,7 @@ def get_artifact(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    data = mlrun.api.crud.Artifacts().get_artifact(db_session, key, tag, iter, project)
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -108,7 +109,6 @@ def get_artifact(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    data = mlrun.api.crud.Artifacts().get_artifact(db_session, key, tag, iter, project)
     return {
         "data": data,
     }

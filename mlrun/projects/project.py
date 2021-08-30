@@ -46,6 +46,7 @@ from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    enrich_function_object,
     get_db_function,
     get_workflow_engine,
 )
@@ -1337,10 +1338,11 @@ class MlrunProject(ModelObj):
         )
         return self.get_function(key, sync)
 
-    def get_function(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
+    def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param sync:  will reload/reinit the function
+        :param enrich: add project info/config/source info to the function object
 
         :returns: function object
         """
@@ -1352,6 +1354,8 @@ class MlrunProject(ModelObj):
         else:
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
+        if enrich:
+            return enrich_function_object(self, function)
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:

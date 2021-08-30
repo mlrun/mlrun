@@ -19,14 +19,14 @@ class PklModelServer(V2ModelServer):
         self.model = load(open(model_file, 'rb'))
 
         
-    def predict(self, body: dict) -> list:
+    def predict(self, request: dict) -> list:
         """
         Infer the inputs through the model using MLRun's interface and return its output. The inferred data will
-        be read from the "body" key of the request.
-        :param request: The request of the model. The input to the model will be read from the "body" key.
+        be read from the "request" key of the request.
+        :param request: The request of the model. The input to the model will be read from the "request" key.
         :return: The model's prediction on the given input.
         """
-        feats = np.asarray(body['inputs'])
+        feats = np.asarray(request['inputs'])
         
         # For Sklearn and XGB regressors  
         if is_regressor(self.model):

@@ -14,6 +14,7 @@
 
 import copy
 import typing
+
 import yaml
 
 from .loader import ConfigLoader
@@ -74,6 +75,3 @@ class ConfigBase(object):
 
     def to_dict(self):
         return copy.copy(self._cfg)
-
-
-

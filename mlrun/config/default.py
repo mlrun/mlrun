@@ -14,7 +14,6 @@
 
 from os.path import expanduser
 
-
 default_config = {
     "namespace": "",  # default kubernetes namespace
     "dbpath": "",  # db/api url

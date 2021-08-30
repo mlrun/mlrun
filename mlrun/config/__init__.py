@@ -21,7 +21,7 @@ Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
-from .default import default_config
-from .dynamic import config
-from .loader import env_prefix, env_file_key
-from .static import static_config
+from .default import default_config  # noqa
+from .dynamic import config  # noqa
+from .loader import env_file_key, env_prefix  # noqa
+from .static import static_config  # noqa

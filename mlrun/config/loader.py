@@ -16,6 +16,7 @@ import copy
 import json
 import os
 import threading
+
 import yaml
 
 from .default import default_config
@@ -113,7 +114,9 @@ class ConfigLoader:
             config.get("httpdb", {}).get("dsn")
             == "sqlite:///mlrun.sqlite3?check_same_thread=false"
         ):
-            config["httpdb"]["dsn"] = "sqlite:////mlrun/db/mlrun.db?check_same_thread=false"
+            config["httpdb"][
+                "dsn"
+            ] = "sqlite:////mlrun/db/mlrun.db?check_same_thread=false"
 
         # "disabled" is the helm chart default value, we don't want that value to be set cause when this value is set we
         # use it in calls to the Nuclio package, and when the Nuclio package receives a value it simply uses it, and

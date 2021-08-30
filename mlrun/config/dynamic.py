@@ -44,9 +44,7 @@ class Config(ConfigBase):
     def get_build_args(self):
         build_args = {}
         if self.httpdb.builder.build_args:
-            build_args_json = base64.b64decode(
-                self.httpdb.builder.build_args
-            ).decode()
+            build_args_json = base64.b64decode(self.httpdb.builder.build_args).decode()
             build_args = json.loads(build_args_json)
 
         return build_args

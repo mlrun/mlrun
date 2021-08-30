@@ -8,7 +8,7 @@ from mlrun.frameworks.xgboost.mlrun_interface import MLBaseMLRunInterface
 from mlrun.frameworks._common.pkl_model_server import PickleModelServer
 
 # Temporary placeholder, XGBModelServer may deviate from PklModelServer in upcoming versions.
-XGBModelServer = PklModelServer
+XGBModelServer = PickleModelServer
         
 def apply_mlrun(
         model,

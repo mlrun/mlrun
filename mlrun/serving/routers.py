@@ -711,7 +711,7 @@ class FeatureEnricher:
     """
 
     def __init__(
-        self, feature_vector_uri, impute_policy: dict = {}, index_keys: list = None,
+        self, feature_vector_uri, impute_policy: dict = {}, index_keys: list = None
     ):
         self.feature_vector_uri = feature_vector_uri
         self.impute_policy = impute_policy
@@ -733,6 +733,17 @@ class FeatureEnricher:
         self._feature_keys = list(vector.status.features.keys())
         if vector.status.label_column in self._feature_keys:
             self._feature_keys.remove(vector.status.label_column)
+
+        if "*" in self.impute_policy:
+            value = self.impute_policy["*"]
+            del self.impute_policy["*"]
+
+            for name in self._feature_keys:
+                if name not in self.impute_policy:
+                    if isinstance(value, str) and value.startswith("$"):
+                        self._impute_values[name] = feature_stats.loc[name, value[1:]]
+                    else:
+                        self._impute_values[name] = value
 
         for name, value in self.impute_policy.items():
             if name not in self._feature_keys:
@@ -769,23 +780,18 @@ class FeatureEnricher:
         feature_vectors = self._feature_service.get(inputs)
 
         # Impute NaN or inf's values from feature vector stats and policy
-        if self._impute_values:
-            new_vectors = []
-            for fv in feature_vectors:
-                new_vector = []
-                for name in self._feature_keys:
-                    v = fv[name]
-                    print(
-                        name, ":", type(v) == float, np.isinf(v), np.isnan(v), v is None
-                    )
-                    if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
-                        new_vector.append(self._impute_values.get(name, v))
-                    else:
-                        new_vector.append(v)
-                new_vectors.append(new_vector)
-            feature_vectors = new_vectors
+        new_vectors = []
+        for fv in feature_vectors:
+            new_vector = []
+            for name in self._feature_keys:
+                v = fv[name]
+                if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
+                    new_vector.append(self._impute_values.get(name, v))
+                else:
+                    new_vector.append(v)
+            new_vectors.append(new_vector)
 
-        return feature_vectors
+        return new_vectors
 
 
 class EnrichmentModelRouter(ModelRouter):
@@ -816,6 +822,8 @@ class EnrichmentModelRouter(ModelRouter):
 
     def preprocess(self, event):
         """Turn an entity identifier (source) to a Feature Vector"""
+        if isinstance(event.body, (str, bytes)):
+            event.body = json.loads(event.body)
         event.body["inputs"] = self._enricher.enrich(event.body["inputs"])
         return event
 
@@ -860,5 +868,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
 
     def preprocess(self, event):
         """Turn an entity identifier (source) to a Feature Vector"""
+        if isinstance(event.body, (str, bytes)):
+            event.body = json.loads(event.body)
         event.body["inputs"] = self._enricher.enrich(event.body["inputs"])
         return event

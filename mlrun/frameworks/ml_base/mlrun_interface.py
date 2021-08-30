@@ -36,12 +36,12 @@ class MLBaseMLRunInterface(MLRunInterface):
                 
                 # Post fit
                 if data.get("X_test") is not None:
-                    post_fit(*args, **kwargs)
+                    _post_fit(*args, **kwargs)
             return wrapper
 
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
-        def post_fit(*args, **kwargs):
+        def _post_fit(*args, **kwargs):
             # Evaluate model results and get the evaluation metrics
             eval_metrics = eval_model_v2(context, data['X_test'], data['y_test'], model)
 

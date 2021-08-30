@@ -24,6 +24,7 @@ from mlrun.utils import new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
+from ..runtimes.pod import AutoMountType
 
 
 def get_workflow_engine(engine_kind):
@@ -200,9 +201,14 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
-    f.try_auto_mount_based_on_config()
+
     if decorator:
         decorator(f)
+
+    if AutoMountType.is_auto_modifier(decorator) or project.spec.disable_auto_mount:
+        f.spec.disable_auto_mount = True
+    f.try_auto_mount_based_on_config()
+
     return f
 
 

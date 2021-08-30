@@ -347,12 +347,12 @@ class AbstractSparkRuntime(KubejobRuntime):
         if self.spec.spark_conf:
             job["spec"]["sparkConf"] = {}
             for k, v in self.spec.spark_conf.items():
-                job["spec"]["sparkConf"][f'"{k}"'] = f'"{v}"'
+                job["spec"]["sparkConf"][f"{k}"] = f"{v}"
 
         if self.spec.hadoop_conf:
             job["spec"]["hadoopConf"] = {}
             for k, v in self.spec.hadoop_conf.items():
-                job["spec"]["hadoopConf"][f'"{k}"'] = f'"{v}"'
+                job["spec"]["hadoopConf"][f"{k}"] = f"{v}"
 
         if "limits" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["limits"]:

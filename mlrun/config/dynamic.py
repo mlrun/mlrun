@@ -18,7 +18,7 @@ import json
 import urllib.parse
 
 from .base import ConfigBase
-from .loader import load_config
+from .loader import ConfigLoader
 
 
 class Config(ConfigBase):
@@ -90,9 +90,6 @@ class Config(ConfigBase):
             )
 
         return auto_mount_params
-
-    def reload(self):
-        self.__init__(load_config())
 
     @property
     def version(self):
@@ -186,4 +183,4 @@ class Config(ConfigBase):
         self._iguazio_api_url = value
 
 
-config = Config(load_config())
+config = Config(ConfigLoader.load_config())

@@ -16,6 +16,8 @@ import copy
 import typing
 import yaml
 
+from .loader import ConfigLoader
+
 
 class ConfigBase(object):
 
@@ -59,6 +61,9 @@ class ConfigBase(object):
                     getattr(self, key).update(value)
                 else:
                     setattr(self, key, value)
+
+    def reload(self):
+        self.__init__(ConfigLoader.reload_config())
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)

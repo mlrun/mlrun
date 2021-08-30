@@ -22,6 +22,6 @@ mapped to config.httpdb.port. Values should be in JSON format.
 """
 
 from .default import default_config
-from .static import static_config
-from .loader import env_prefix, env_file_key
 from .dynamic import config
+from .loader import env_prefix, env_file_key
+from .static import static_config

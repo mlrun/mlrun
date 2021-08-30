@@ -13,6 +13,6 @@
 # limitations under the License.
 
 from .base import ConfigBase
-from .loader import load_config
+from .loader import ConfigLoader
 
-static_config = ConfigBase.from_dict(load_config())
+static_config = ConfigBase(ConfigLoader.load_config())

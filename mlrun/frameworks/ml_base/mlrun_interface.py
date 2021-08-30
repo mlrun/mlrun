@@ -28,7 +28,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                                     format='csv', index=False,
                                     artifact_path=context.artifact_subpath('data'))
 
-                # Call the original fit method
+                # Set the 'fit' method back to the original to enable pickling
                 fit_method(*args, **kwargs)
 
                 # Original fit method

@@ -247,6 +247,10 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
+            config.spark_history_server_path = (
+                config.spark_history_server_path
+                or server_cfg.get("spark_history_server_path")
+            )
             config.httpdb.builder.docker_registry = (
                 config.httpdb.builder.docker_registry
                 or server_cfg.get("docker_registry")

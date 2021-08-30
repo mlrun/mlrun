@@ -489,6 +489,9 @@ class AbstractSparkRuntime(KubejobRuntime):
                 v3io_config_configmap="spark-operator-v3io-config",
             )
         )
+        if config.spark_history_server_path:
+            self.spec.spark_conf["spark.eventLog.enabled"] = "true"
+            self.spec.spark_conf["spark.eventLog.dir"] = "file:///v3io/users/shs"
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         raise NotImplementedError(

@@ -8,6 +8,7 @@ from mlrun.frameworks.sklearn import apply_mlrun as apply_mlrun_sklearn
 from mlrun.frameworks.xgboost import apply_mlrun as apply_mlrun_xgb
 from mlrun import new_function
 
+
 def get_dataset(classification=True):
     if classification:
         iris = load_iris()

@@ -9,31 +9,35 @@ class MLBaseMLRunInterface(MLRunInterface):
     """
 
     @classmethod
-    def add_interface(cls, model, context, data=None, *args, **kwargs):
+    def add_interface(cls, model, context, data={}, *args, **kwargs):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
+        :name:
         :param model: The model to wrap.
         :param context: MLRun context to work with. If no context is given it will be retrieved via
                         'mlrun.get_or_create_ctx(None)'
-        :param data: Optional: The X_test, y_test passed as kwargs previously.
+        :param data: The train_test_split X_train, X_test, y_train, y_test.
         :return: The wrapped model.
         """
 
         # Wrap the fit method:
         def fit_wrapper(fit_method, **kwargs):
             def wrapper(*args, **kwargs):
-                context.log_dataset('train_set',
-                                    df=pd.concat([args[0], args[1]], axis=1),
-                                    format='csv', index=False,
-                                    artifact_path=context.artifact_subpath('data'))
 
-                # Set the 'fit' method back to the original to enable pickling
+                train_set = pd.concat([args[0], args[1]], axis=1)
+                context.log_dataset('train_set',
+                                    df=train_set,
+                                    format='csv', index=False,
+                                    artifact_path=context.artifact_subpath('data'),
+                                    labels={"class": str(model.__class__)},
+                                    )
+
+                # Call the original fit method
                 fit_method(*args, **kwargs)
 
                 # Original fit method
                 setattr(model, "fit", fit_method)
-                
                 # Post fit
                 if data.get("X_test") is not None:
                     _post_fit(*args, **kwargs)
@@ -47,13 +51,27 @@ class MLBaseMLRunInterface(MLRunInterface):
 
             # Model Parameters
             model_parameters = {key: str(item) for key, item in model.get_params().items()}
+            test_set = pd.concat([data['X_test'], data['y_test']], axis=1)
+            context.log_dataset(
+                "test_set",
+                df=test_set,
+                format="parquet",
+                index=False,
+                labels={"data-type": "held-out"},
+                artifact_path=context.artifact_subpath("data"),
+            )
 
             # Log model
+            context.set_label("class", str(model.__class__))
             context.log_model("model",
+                              db_key='model',
                               body=dumps(model),
+                              training_set=test_set,
                               parameters=model_parameters,
                               artifact_path=context.artifact_subpath("models"),
                               extra_data=eval_metrics,
-                              model_file=f"{str(type(model).__name__)}.pkl",
+                              framework=f"{str(model.__module__).split('.')[0]}",
+                              algorithm=str(model.__class__),
+                              model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
-                              labels={"class": str(model.__class__)})
+                              )

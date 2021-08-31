@@ -30,7 +30,7 @@ def run_mlbase_sklearn_classification(context):
 def run_mlbase_xgboost_regression(context):
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)
-    model = apply_mlrun_xgb(model, context, X_test=X_test, y_test=y_test)
+    model = apply_mlrun_xgb(model, context)
     model.fit(X_train, y_train)
 
 
@@ -42,6 +42,5 @@ def test_run_mlbase_sklearn_classification():
 
 def test_run_mlbase_xgboost_regression():
     xgb_run = new_function().run(handler=run_mlbase_xgboost_regression)
-    assert (xgb_run.artifact('model').meta.to_dict()['metrics']['accuracy']) > 0
-    assert 'confusion matrix' not in (xgb_run.artifact('model').meta.to_dict()['extra_data'])
-    assert (xgb_run.artifact('model').meta.to_dict()['model_file']) == 'XGBRegressor.pkl'
+    assert xgb_run.artifact('train_set').meta.to_dict()['target_path'] == 'data/train_set.csv'
+    assert (len(xgb_run.artifact('train_set').meta.to_dict()['schema']['fields'])) == 16

@@ -41,10 +41,12 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    enrich_function_object,
     get_db_function,
     get_workflow_engine,
 )
@@ -436,6 +438,7 @@ class ProjectSpec(ModelObj):
         load_source_on_run=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
+        disable_auto_mount=False,
     ):
         self.repo = None
 
@@ -464,6 +467,7 @@ class ProjectSpec(ModelObj):
         self._function_objects = {}
         self._function_definitions = {}
         self.functions = functions or []
+        self.disable_auto_mount = disable_auto_mount
 
     @property
     def source(self) -> str:
@@ -1334,10 +1338,11 @@ class MlrunProject(ModelObj):
         )
         return self.get_function(key, sync)
 
-    def get_function(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
+    def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param sync:  will reload/reinit the function
+        :param enrich: add project info/config/source info to the function object
 
         :returns: function object
         """
@@ -1349,6 +1354,8 @@ class MlrunProject(ModelObj):
         else:
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
+        if enrich:
+            return enrich_function_object(self, function)
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
@@ -1691,6 +1698,17 @@ class MlrunProject(ModelObj):
             project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
+
+    def set_model_monitoring_credentials(self, access_key: str):
+        """ Set the credentials that will be used by the project's model monitoring
+        infrastructure functions.
+        The supplied credentials must have data access
+
+        :param access_key: Model Monitoring access key for managing user permissions.
+        """
+        set_project_model_monitoring_credentials(
+            access_key=access_key, project=self.metadata.name
+        )
 
 
 class MlrunProjectLegacy(ModelObj):

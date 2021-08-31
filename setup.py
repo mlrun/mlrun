@@ -152,6 +152,8 @@ setup(
         "mlrun.frameworks.pytorch.callbacks",
         "mlrun.frameworks.keras",
         "mlrun.frameworks.keras.callbacks",
+        "mlrun.frameworks.sklearn.callbacks",
+        "mlrun.frameworks.xgboost.callbacks",
     ],
     install_requires=install_requires,
     extras_require=extras_require,

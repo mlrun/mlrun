@@ -1,4 +1,4 @@
-""
+"""
 Description:
 __init__ function of Xgboost-autologger. Will be extended and contain multiple Xgboost-specific functions.
 """

@@ -101,6 +101,7 @@ def upgrade():
             nullable=True,
         ),
         sa.ForeignKeyConstraint(["obj_id"], ["feature_sets.id"],),
+        sa.ForeignKeyConstraint(["obj_name"], ["feature_sets.name"], ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "project", "name", "obj_name", name="_feature_sets_tags_uc"

@@ -105,6 +105,14 @@ def test_export_project_dir_doesnt_exist():
     project.export(filepath=project_file_path)
 
 
+def test_new_project_context_doesnt_exist():
+    project_name = "project-name"
+    project_dir_path = (
+        pathlib.Path(tests.conftest.results) / "new-dir" / "another-new-dir"
+    )
+    mlrun.projects.project.new_project(project_name, project_dir_path)
+
+
 def test_create_project_with_invalid_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):

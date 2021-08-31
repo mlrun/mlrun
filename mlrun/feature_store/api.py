@@ -255,7 +255,7 @@ def ingest(
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
-            featureset, source, targets, run_config.parameters, infer_options
+            featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
         return run_ingestion_job(
@@ -268,14 +268,19 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
             )
-        featureset, source, targets, infer_options = context_to_ingestion_params(
-            mlrun_context
-        )
+        (
+            featureset,
+            source,
+            targets,
+            infer_options,
+            overwrite,
+        ) = context_to_ingestion_params(mlrun_context)
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
             )
 
+        filter_time_string = ""
         if source.schedule:
             featureset.reload(update_spec=False)
             min_time = datetime.max
@@ -288,8 +293,14 @@ def ingest(
                 source.start_time = min_time
                 time_zone = min_time.tzinfo
                 source.end_time = datetime.now(tz=time_zone)
+                filter_time_string = (
+                    f"Source.start_time for the job is{str(source.start_time)}. "
+                    f"Source.end_time is {str(source.end_time)}"
+                )
 
-        mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
+        mlrun_context.logger.info(
+            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+        )
         return_df = False
 
     namespace = namespace or get_caller_globals()
@@ -621,11 +632,13 @@ def set_task_params(
     targets: List[DataTargetBase] = None,
     parameters: dict = None,
     infer_options: InferOptions = InferOptions.Null,
+    overwrite=None,
 ):
     """convert ingestion parameters to dict, return source + params dict"""
     source = source or featureset.spec.source
     parameters = parameters or {}
     parameters["infer_options"] = infer_options
+    parameters["overwrite"] = overwrite
     parameters["featureset"] = featureset.uri
     if source:
         parameters["source"] = source.to_dict()

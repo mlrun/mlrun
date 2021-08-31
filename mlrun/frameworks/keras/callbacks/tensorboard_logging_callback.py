@@ -199,7 +199,7 @@ class _KerasTensorboardLogger(TensorboardLogger):
         :param weight: The weight to write its image.
         :param step:   The iteration / epoch the weight's image state belongs to.
         """
-        pass
+        raise NotImplementedError
 
 
 class TensorboardLoggingCallback(LoggingCallback):
@@ -289,8 +289,8 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         'batch' for per single batch, or as an integer specifying per how many
                                         iterations to update. Notice that writing to tensorboard too frequently may
                                         cause the training to be slower. Defaulted to 'epoch'.
-        :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
-                                        hyperparameters.
+        :param auto_log:                Whether or not to enable auto logging for logging the context parameters and
+                                        trying to track common static and dynamic hyperparameters such as learning rate.
 
         :raise ValueError: In case both 'context' and 'tensorboard_directory' parameters were not given or the
                            'update_frequency' was incorrect.

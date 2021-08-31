@@ -16,13 +16,13 @@ import importlib.util as imputil
 import json
 import pathlib
 import socket
+import tempfile
 import time
 import uuid
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
-from tempfile import mktemp
 from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
@@ -148,15 +148,16 @@ def run_local(
     :return: run object
     """
 
+    function_name = name
     if command and isinstance(command, str):
         sp = command.split()
         command = sp[0]
         if len(sp) > 1:
             args = args or []
             args = sp[1:] + args
-        name = name or pathlib.Path(command).stem
+        function_name = function_name or pathlib.Path(command).stem
 
-    meta = BaseMetadata(name, project=project, tag=tag)
+    meta = BaseMetadata(function_name, project=project, tag=tag)
     command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
@@ -260,11 +261,13 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
                 suffix = ".py"
                 if origin_filename:
                     suffix = f"-{pathlib.Path(origin_filename).stem}.py"
-                fpath = mktemp(suffix)
-                code = b64decode(code).decode("utf-8")
-                command = fpath
-                with open(fpath, "w") as fp:
-                    fp.write(code)
+                with tempfile.NamedTemporaryFile(
+                    suffix=suffix, mode="w", delete=False
+                ) as temp_file:
+                    code = b64decode(code).decode("utf-8")
+                    command = temp_file.name
+                    temp_file.write(code)
+
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):
@@ -277,15 +280,17 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
         pass
 
     elif suffix == ".ipynb":
-        fpath = mktemp(".py")
-        code_to_function(name, filename=command, kind="local", code_output=fpath)
-        command = fpath
+        temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+        code_to_function(
+            name, filename=command, kind="local", code_output=temp_file.name
+        )
+        command = temp_file.name
 
     elif suffix == ".py":
         if "://" in command:
-            fpath = mktemp(".py")
-            download_object(command, fpath, secrets)
-            command = fpath
+            temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+            download_object(command, temp_file.name, secrets)
+            command = temp_file.name
 
     else:
         raise ValueError(f"unsupported suffix: {suffix}")
@@ -450,11 +455,12 @@ def import_function_to_dict(url, secrets=None):
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
         if code:
-            fpath = mktemp(".py")
-            code = b64decode(code).decode("utf-8")
-            update_in(runtime, "spec.command", fpath)
-            with open(fpath, "w") as fp:
-                fp.write(code)
+            with tempfile.NamedTemporaryFile(
+                suffix=".py", mode="w", delete=False
+            ) as temp_file:
+                code = b64decode(code).decode("utf-8")
+                update_in(runtime, "spec.command", temp_file.name)
+                temp_file.write(code)
         elif remote and cmd:
             if cmd.startswith("/"):
                 raise ValueError("exec path (spec.command) must be relative")
@@ -1002,7 +1008,7 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
-            resp = format_summary_from_kfp_run(resp)
+            resp = format_summary_from_kfp_run(resp["run"])
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
@@ -1066,7 +1072,7 @@ def get_pipeline(
                 not format_
                 or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
             ):
-                resp = format_summary_from_kfp_run(resp)
+                resp = format_summary_from_kfp_run(resp["run"])
 
     show_kfp_run(resp)
     return resp

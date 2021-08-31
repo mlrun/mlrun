@@ -51,6 +51,7 @@ class MPIResourceSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        priority_class_name=None,
     ):
         super().__init__(
             command=command,
@@ -73,6 +74,7 @@ class MPIResourceSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            priority_class_name=priority_class_name,
         )
         self.mpi_args = mpi_args or [
             "-x",
@@ -86,7 +88,8 @@ class MPIResourceSpec(KubeResourceSpec):
 
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = "mpijob"
-    _is_nested = False
+    # nested i.e. hyper-param loop will use the same CRD/containers (vs CRD per iteration)
+    _is_nested = True
 
     @property
     def spec(self) -> MPIResourceSpec:

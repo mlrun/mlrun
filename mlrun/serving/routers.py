@@ -729,6 +729,7 @@ class FeatureEnricher:
         vector = self._feature_service.vector
         feature_stats = vector.get_stats_table()
         self._impute_values = {}
+        self.index_keys = self.index_keys or vector.status.index_keys
 
         self._feature_keys = list(vector.status.features.keys())
         if vector.status.label_column in self._feature_keys:

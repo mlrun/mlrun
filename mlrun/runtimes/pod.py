@@ -58,7 +58,7 @@ class KubeResourceSpec(FunctionSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
-        mount_applied=False,
+        disable_auto_mount=False,
         priority_class_name=None,
     ):
         super().__init__(
@@ -72,7 +72,7 @@ class KubeResourceSpec(FunctionSpec):
             workdir=workdir,
             default_handler=default_handler,
             pythonpath=pythonpath,
-            mount_applied=mount_applied,
+            disable_auto_mount=disable_auto_mount,
         )
         self._volumes = {}
         self._volume_mounts = {}
@@ -207,6 +207,16 @@ class AutoMountType(str, Enum):
             mlrun.auto_mount.__name__,
         ]
 
+    @classmethod
+    def is_auto_modifier(cls, modifier):
+        # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is
+        # a nested function returned from the modifier function (such as 'v3io_cred.<locals>._use_v3io_cred')
+        modifier_name = modifier.__qualname__
+        return any(
+            modifier_name.startswith(mount_modifier)
+            for mount_modifier in AutoMountType.all_mount_modifiers()
+        )
+
     @staticmethod
     def _get_auto_modifier():
         # If we're running on Iguazio - use v3io_cred
@@ -259,6 +269,8 @@ class KubeResource(BaseRuntime):
                 for ev in spec["env"]:
                     if ev["name"].startswith("V3IO_"):
                         ev["value"] = ""
+            # Reset this, since mounts and env variables were cleared.
+            spec["disable_auto_mount"] = False
         return struct
 
     def apply(self, modify):
@@ -526,14 +538,18 @@ class KubeResource(BaseRuntime):
         )
 
     def try_auto_mount_based_on_config(self):
-        if self.spec.mount_applied:
-            logger.debug("Mount already applied - not performing auto-mount")
+        if self.spec.disable_auto_mount:
+            logger.debug(
+                "Mount already applied or auto-mount manually disabled - not performing auto-mount"
+            )
             return
 
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         modifier = auto_mount_type.get_modifier()
         if not modifier:
-            logger.debug("Auto mount disabled due to user selection")
+            logger.debug(
+                "Auto mount disabled due to user selection (auto_mount_type=none)"
+            )
             return
 
         mount_params_dict = mlconf.get_storage_auto_mount_params()

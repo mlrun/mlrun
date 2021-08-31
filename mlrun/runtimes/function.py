@@ -124,7 +124,7 @@ class NuclioSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
-        mount_applied=False,
+        disable_auto_mount=False,
         priority_class_name=None,
     ):
 
@@ -147,7 +147,7 @@ class NuclioSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
-            mount_applied=mount_applied,
+            disable_auto_mount=disable_auto_mount,
             priority_class_name=priority_class_name,
         )
 
@@ -451,7 +451,6 @@ class RemoteRuntime(KubeResource):
         tag="",
         verbose=False,
         auth_info: AuthInfo = None,
-        disable_auto_mount=False,
     ):
         # todo: verify that the function name is normalized
 
@@ -465,9 +464,8 @@ class RemoteRuntime(KubeResource):
 
         save_record = False
         if not dashboard:
-            if not disable_auto_mount:
-                # Attempt auto-mounting, before sending to remote build
-                self.try_auto_mount_based_on_config()
+            # Attempt auto-mounting, before sending to remote build
+            self.try_auto_mount_based_on_config()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)

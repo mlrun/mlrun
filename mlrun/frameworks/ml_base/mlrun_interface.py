@@ -9,7 +9,7 @@ class MLBaseMLRunInterface(MLRunInterface):
     """
 
     @classmethod
-    def add_interface(cls, model, context, data={}, *args, **kwargs):
+    def add_interface(cls, model, context, model_name, data={}, *args, **kwargs):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
@@ -52,6 +52,8 @@ class MLBaseMLRunInterface(MLRunInterface):
             # Model Parameters
             model_parameters = {key: str(item) for key, item in model.get_params().items()}
             test_set = pd.concat([data['X_test'], data['y_test']], axis=1)
+
+            # Log test dataset
             context.log_dataset(
                 "test_set",
                 df=test_set,
@@ -61,10 +63,10 @@ class MLBaseMLRunInterface(MLRunInterface):
                 artifact_path=context.artifact_subpath("data"),
             )
 
-            # Log model
+            # Log trained model
             context.set_label("class", str(model.__class__))
-            context.log_model("model",
-                              db_key='model',
+            context.log_model(model_name or "model",
+                              db_key=model_name,
                               body=dumps(model),
                               training_set=test_set,
                               parameters=model_parameters,

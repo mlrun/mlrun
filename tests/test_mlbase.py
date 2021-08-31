@@ -23,7 +23,7 @@ def get_dataset(classification=True):
 def run_mlbase_sklearn_classification(context):
     model = LogisticRegression()
     X_train, X_test, y_train, y_test = get_dataset()
-    model = apply_mlrun_sklearn(model, context, X_test=X_test, y_test=y_test)
+    model = apply_mlrun_sklearn(model, context, model_name='my_model_name', X_test=X_test, y_test=y_test)
     model.fit(X_train, y_train)
 
 
@@ -36,8 +36,8 @@ def run_mlbase_xgboost_regression(context):
 
 def test_run_mlbase_sklearn_classification():
     sklearn_run = new_function().run(handler=run_mlbase_sklearn_classification)
-    assert (sklearn_run.artifact('model').meta.to_dict()['metrics']['accuracy']) > 0
-    assert (sklearn_run.artifact('model').meta.to_dict()['model_file']) == 'LogisticRegression.pkl'
+    assert (sklearn_run.artifact('my_model_name').meta.to_dict()['metrics']['accuracy']) > 0
+    assert (sklearn_run.artifact('my_model_name').meta.to_dict()['model_file']) == 'LogisticRegression.pkl'
 
 
 def test_run_mlbase_xgboost_regression():

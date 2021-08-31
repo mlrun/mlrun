@@ -166,7 +166,7 @@ def _submit_run(
         fn, task = _generate_function_and_task_from_submit_run_body(
             db_session, auth_info, data
         )
-        if fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes():
+        if fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes() and not mlrun.mlconf.httpdb.jobs.allow_local_run:
             raise mlrun.errors.MLRunInvalidArgumentError("Local runtimes can not be run through API (not locally)")
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)

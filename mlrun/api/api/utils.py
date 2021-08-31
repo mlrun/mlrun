@@ -140,7 +140,10 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
 
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
-    if function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes():
+    if (
+        function.kind
+        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+    ):
         if auth_info and auth_info.session:
             auth_env_vars = {
                 "MLRUN_AUTH_SESSION": auth_info.session,

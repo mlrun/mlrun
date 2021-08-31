@@ -94,6 +94,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(str(self.assets_path), name=name)
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
 
     def test_run_git_load(self):
         # load project from git
@@ -111,6 +112,7 @@ class TestProject(TestMLRunSystem):
         run = project2.run("main", artifact_path=f"v3io:///projects/{name}")
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
 
     def test_run_git_build(self):
         name = "pipe3"
@@ -131,6 +133,7 @@ class TestProject(TestMLRunSystem):
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
 
     def test_run_cli(self):
         # load project from git
@@ -157,7 +160,16 @@ class TestProject(TestMLRunSystem):
         print(project2.to_yaml())
 
         # exec the workflow
-        args = ["-n", name, "-r", "kf", "-w", project_dir]
+        args = [
+            "-n",
+            name,
+            "-r",
+            "kf",
+            "-w",
+            "-p",
+            f"v3io:///projects/{name}",
+            project_dir,
+        ]
         out = exec_project(args, projects_dir)
         m = re.search(" Pipeline run id=(.+),", out)
         assert m, "pipeline id is not in output"
@@ -167,6 +179,7 @@ class TestProject(TestMLRunSystem):
         pipeline = db.get_pipeline(run_id, project=name)
         state = pipeline["run"]["status"]
         assert state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
 
     def test_inline_pipeline(self):
         name = "pipe5"
@@ -178,6 +191,7 @@ class TestProject(TestMLRunSystem):
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
 
     def test_get_or_create(self):
         # create project and save to DB
@@ -192,3 +206,4 @@ class TestProject(TestMLRunSystem):
         shutil.rmtree(project_dir, ignore_errors=True)
         project = mlrun.get_or_create_project(name, project_dir)
         assert project.spec.description == "mytest", "failed to get project"
+        self._delete_test_project(name)

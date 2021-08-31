@@ -103,7 +103,7 @@ class FunctionsDict:
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
-            function = self.project.func(key)
+            function = self.project.get_function(key)
         except Exception as e:
             if not default:
                 raise e
@@ -205,7 +205,9 @@ def enrich_function_object(
     if decorator:
         decorator(f)
 
-    if AutoMountType.is_auto_modifier(decorator) or project.spec.disable_auto_mount:
+    if (
+        decorator and AutoMountType.is_auto_modifier(decorator)
+    ) or project.spec.disable_auto_mount:
         f.spec.disable_auto_mount = True
     f.try_auto_mount_based_on_config()
 

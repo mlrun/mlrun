@@ -170,7 +170,8 @@ def _submit_run(
             db_session, auth_info, data
         )
         if (
-            fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+            not fn.kind
+            or fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
             and not mlrun.mlconf.httpdb.jobs.allow_local_run
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

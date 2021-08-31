@@ -63,7 +63,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                 artifact_path=context.artifact_subpath("data"),
             )
 
-            # Log trained model
+            # Log fitted model
             context.set_label("class", str(model.__class__))
             context.log_model(model_name or "model",
                               db_key=model_name,

@@ -31,6 +31,9 @@ MLRUN_DOCKER_CACHE_FROM_TAG ?=
 MLRUN_GIT_ORG ?= mlrun
 MLRUN_RELEASE_BRANCH ?= master
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
+MLRUN_CUDA_VERSION = 11.0
+MLRUN_TENSORFLOW_VERSION = 2.4.1
+MLRUN_HOROVOD_VERSION = 0.22.1
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -224,6 +227,8 @@ models: models-core ## Build models docker image
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) \
+		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) .
 
@@ -278,6 +283,9 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
+		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
+		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
 

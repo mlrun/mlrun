@@ -151,6 +151,7 @@ class SparkJobSpec(KubeResourceSpec):
             workdir=workdir,
             build=build,
             node_selector=node_selector,
+            priority_class_name=None,
         )
 
         self.driver_resources = driver_resources or {}
@@ -192,6 +193,11 @@ class SparkRuntime(KubejobRuntime):
 
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
+
+    def with_priority_class(
+        self, name: str = config.default_function_priority_class_name
+    ):
+        raise NotImplementedError("Not supported in spark 2 operator")
 
     def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
@@ -307,6 +313,12 @@ class SparkRuntime(KubejobRuntime):
                 "spec.restartPolicy.onSubmissionFailureRetryInterval",
                 self.spec.restart_policy["submission_retry_interval"],
                 int,
+            )
+        if self.spec.priority_class_name:
+            update_in(
+                job,
+                "spec.batchSchedulerOptions.priorityClassName",
+                self.spec.priority_class_name,
             )
 
         update_in(job, "metadata", meta.to_dict())
@@ -627,7 +639,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         uid: str,
         crd_object,
         run: Dict = None,
-        leader_session: Optional[str] = None,
     ):
         app_state = (
             crd_object.get("status", {}).get("applicationState", {}).get("state")
@@ -655,8 +666,8 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class=spark"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["spark"]
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

@@ -25,6 +25,7 @@ class AuthorizationAction(str, enum.Enum):
 
 
 class AuthorizationResourceTypes(str, enum.Enum):
+    project = "project"
     log = "log"
     runtime_resource = "runtime-resource"
     function = "function"
@@ -39,11 +40,14 @@ class AuthorizationResourceTypes(str, enum.Enum):
     run = "run"
     model_endpoint = "model-endpoint"
     pipeline = "pipeline"
+    marketplace_source = "marketplace-source"
 
     def to_resource_string(
         self, project_name: str, resource_name: str,
     ):
         return {
+            # project is the resource itself, so no need for both resource_name and project_name
+            AuthorizationResourceTypes.project: "/projects/{project_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
             AuthorizationResourceTypes.background_task: "/projects/{project_name}/background-tasks/{resource_name}",
@@ -55,10 +59,12 @@ class AuthorizationResourceTypes(str, enum.Enum):
             AuthorizationResourceTypes.schedule: "/projects/{project_name}/schedules/{resource_name}",
             AuthorizationResourceTypes.secret: "/projects/{project_name}/secrets/{resource_name}",
             AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
-            # runtime resource doesn't have a get (one) object endpoint, it doesn't have an identifier
-            AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources/",
+            # runtime resource doesn't have an identifier, we don't need any auth granularity behind project level
+            AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
+            # Marketplace sources are not project-scoped, and auth is globally on the sources endpoint.
+            AuthorizationResourceTypes.marketplace_source: "/marketplace/sources",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

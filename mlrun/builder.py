@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import tarfile
+import tempfile
 from base64 import b64decode, b64encode
-from os import path, remove
-from tempfile import mktemp
+from os import path
 from urllib.parse import urlparse
 
 import mlrun.api.schemas
@@ -45,7 +45,7 @@ def make_dockerfile(
     if src_dir:
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
-        dock += "ADD {src_dir} {workdir}\n"
+        dock += f"ADD {src_dir} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -58,6 +58,7 @@ def make_dockerfile(
 
 
 def make_kaniko_pod(
+    project: str,
     context,
     dest,
     dockerfile=None,
@@ -68,6 +69,7 @@ def make_kaniko_pod(
     secret_name=None,
     name="",
     verbose=False,
+    builder_env=None,
 ):
 
     if not dockertext and not dockerfile:
@@ -88,7 +90,9 @@ def make_kaniko_pod(
         config.httpdb.builder.kaniko_image,
         args=args,
         kind="build",
+        project=project,
     )
+    kpod.env = builder_env
 
     if secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
@@ -123,17 +127,18 @@ def make_kaniko_pod(
 
 
 def upload_tarball(source_dir, target, secrets=None):
-    tmpfile = mktemp(".tar.gz")
-    with tarfile.open(tmpfile, "w:gz") as tar:
-        tar.add(source_dir, arcname="")
 
-    stores = store_manager.set(secrets)
-    datastore, subpath = stores.get_or_create_store(target)
-    datastore.upload(subpath, tmpfile)
-    remove(tmpfile)
+    # will delete the temp file
+    with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
+        with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
+            tar.add(source_dir, arcname="")
+        stores = store_manager.set(secrets)
+        datastore, subpath = stores.get_or_create_store(target)
+        datastore.upload(subpath, temp_fh.name)
 
 
 def build_image(
+    project: str,
     dest,
     commands=None,
     source="",
@@ -151,6 +156,7 @@ def build_image(
     name="",
     extra=None,
     verbose=False,
+    builder_env=None,
 ):
 
     if registry:
@@ -177,7 +183,9 @@ def build_image(
 
     if with_mlrun:
         commands = commands or []
-        commands.append(_resolve_mlrun_install_command(mlrun_version_specifier))
+        mlrun_command = resolve_mlrun_install_command(mlrun_version_specifier)
+        if mlrun_command not in commands:
+            commands.append(mlrun_command)
 
     if not inline_code and not source and not commands:
         logger.info("skipping build, nothing to add")
@@ -197,8 +205,14 @@ def build_image(
     elif source and "://" in source and not v3io:
         context = source
     elif source:
+        parsed_url = urlparse(source)
         if v3io:
-            source = urlparse(source).path
+            source = parsed_url.path
+        elif source.startswith("git://"):
+            # if the user provided branch (w/o refs/..) we add the "refs/.."
+            fragment = parsed_url.fragment or ""
+            if not fragment.startswith("refs/"):
+                source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
         to_mount = True
         if source.endswith(".tar.gz"):
             source, src_dir = path.split(source)
@@ -214,6 +228,7 @@ def build_image(
     )
 
     kpod = make_kaniko_pod(
+        project,
         context,
         dest,
         dockertext=dock,
@@ -223,6 +238,7 @@ def build_image(
         secret_name=secret_name,
         name=name,
         verbose=verbose,
+        builder_env=builder_env,
     )
 
     if to_mount:
@@ -240,7 +256,7 @@ def build_image(
         return f"build:{pod}"
 
 
-def _resolve_mlrun_install_command(mlrun_version_specifier):
+def resolve_mlrun_install_command(mlrun_version_specifier=None):
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
@@ -257,17 +273,37 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
 
 
 def build_runtime(
-    runtime, with_mlrun, mlrun_version_specifier, skip_deployed, interactive=False
+    runtime,
+    with_mlrun,
+    mlrun_version_specifier,
+    skip_deployed,
+    interactive=False,
+    builder_env=None,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
+    project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed:
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
+    if build.base_image:
+        mlrun_images = [
+            "mlrun/mlrun",
+            "mlrun/ml-base",
+            "mlrun/ml-models",
+            "mlrun/ml-models-gpu",
+        ]
+        # if the base is one of mlrun images - no need to install mlrun
+        if any([image in build.base_image for image in mlrun_images]):
+            with_mlrun = False
     if not build.source and not build.commands and not build.extra and not with_mlrun:
+        if runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "noting to build and image is not specified, "
+                "nothing to build and image is not specified, "
                 "please set the function image or build args"
             )
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
@@ -289,10 +325,9 @@ def build_runtime(
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
     base_image = enrich_image_url(build.base_image or config.default_base_image)
-    if not build.base_image:
-        with_mlrun = False
 
     status = build_image(
+        project,
         build.image,
         base_image=base_image,
         commands=build.commands,
@@ -306,6 +341,7 @@ def build_runtime(
         mlrun_version_specifier=mlrun_version_specifier,
         extra=build.extra,
         verbose=runtime.verbose,
+        builder_env=builder_env,
     )
     runtime.status.build_pod = None
     if status == "skipped":

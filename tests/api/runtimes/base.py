@@ -29,6 +29,12 @@ class TestRuntimeBase:
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
         get_k8s().namespace = self.namespace
+
+        # set auto-mount to work as if this is an Iguazio system (otherwise it may try to mount PVC)
+        mlconf.igz_version = "1.1.1"
+        mlconf.storage.auto_mount_type = "auto"
+        mlconf.storage.auto_mount_params = ""
+
         self._logger = logger
         self.project = "test-project"
         self.name = "test-function"
@@ -354,7 +360,9 @@ class TestRuntimeBase:
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[0]
 
-    def _assert_v3io_mount_configured(self, v3io_user, v3io_access_key):
+    def _assert_v3io_mount_or_creds_configured(
+        self, v3io_user, v3io_access_key, cred_only=False
+    ):
         args = self._get_pod_creation_args()
         pod_spec = args.spec
         container_spec = pod_spec.containers[0]
@@ -368,6 +376,11 @@ class TestRuntimeBase:
                 "V3IO_ACCESS_KEY": v3io_access_key,
             },
         )
+
+        if cred_only:
+            assert len(pod_spec.volumes) == 0
+            assert len(container_spec.volume_mounts) == 0
+            return
 
         expected_volume = {
             "flexVolume": {
@@ -456,6 +469,7 @@ class TestRuntimeBase:
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
+        expected_priority_class_name=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
@@ -527,6 +541,9 @@ class TestRuntimeBase:
                 )
                 == {}
             )
+
+        if expected_priority_class_name:
+            assert pod.spec.priority_class_name == expected_priority_class_name
 
         assert pod.spec.containers[0].image == self.image_name
 

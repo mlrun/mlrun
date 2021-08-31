@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
+import typing
 from subprocess import run
 
 from mlrun.config import config
@@ -46,6 +47,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        priority_class_name=None,
     ):
         super().__init__(
             command=command,
@@ -68,6 +70,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            priority_class_name=priority_class_name,
         )
         self.provider = provider
 
@@ -173,8 +176,8 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class=remote-spark"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["remote-spark"]
 
 
 def igz_spark_pre_hook():

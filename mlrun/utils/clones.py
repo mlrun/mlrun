@@ -1,9 +1,9 @@
 import os
 import shutil
 import tarfile
+import tempfile
 import zipfile
 from os import path, remove
-from tempfile import mktemp
 from urllib.parse import urlparse
 
 from git import Repo
@@ -18,9 +18,10 @@ def _prep_dir(source, target_dir, suffix, secrets, clone):
         raise ValueError("please specify a target (context) directory for clone")
     if clone and path.exists(target_dir) and path.isdir(target_dir):
         shutil.rmtree(target_dir)
-    tmpfile = mktemp(suffix)
-    mlrun.get_dataitem(source, secrets).download(tmpfile)
-    return tmpfile
+
+    temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
+    mlrun.get_dataitem(source, secrets).download(temp_file)
+    return temp_file
 
 
 def clone_zip(source, target_dir, secrets=None, clone=True):
@@ -105,7 +106,7 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
         clone_git(source, target_dir, secrets, clone)
     else:
         if path.exists(source) and path.isdir(source):
-            if workdir:
+            if workdir and workdir != source:
                 raise ValueError("cannot specify both source and workdir")
             return path.realpath(source)
         raise ValueError(f"unsupported source format/path {source}")

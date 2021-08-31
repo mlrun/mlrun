@@ -92,7 +92,8 @@ try:
     import IPython
 
     ipy = IPython.get_ipython()
-    if ipy:
+    # if its IPython terminal ignore (cant show html)
+    if ipy and "Terminal" not in str(type(ipy)):
         is_ipython = True
 except ImportError:
     pass
@@ -114,7 +115,9 @@ class run_keys:
     secrets = "secret_sources"
 
 
-def verify_field_regex(field_name, field_value, patterns):
+def verify_field_regex(
+    field_name, field_value, patterns, raise_on_failure: bool = True
+) -> bool:
     logger.debug(
         "Validating field against patterns",
         field_name=field_name,
@@ -124,15 +127,20 @@ def verify_field_regex(field_name, field_value, patterns):
 
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
-            logger.warn(
+            log_func = logger.warn if raise_on_failure else logger.debug
+            log_func(
                 "Field is malformed. Does not match required pattern",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
             )
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
-            )
+            if raise_on_failure:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
+                )
+            else:
+                return False
+    return True
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
@@ -580,6 +588,12 @@ def enrich_image_url(image_url: str) -> str:
     return image_url
 
 
+def get_docker_repository_or_default(repository: str) -> str:
+    if not repository:
+        repository = "mlrun"
+    return repository
+
+
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry
@@ -741,10 +755,12 @@ class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
         self._html = ""
+        self._with_print = False
         self._secrets = secrets or {}
         self.with_ipython = with_ipython
         if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
+        self.print(skip_ipython=True)
 
     def push_start_message(self, project, commit_id=None, id=None):
         message = f"Pipeline started in project {project}"
@@ -765,13 +781,21 @@ class RunNotifications:
             message = message + f", check progress in {url}"
         self.push(message, html=html)
 
-    def push_run_results(self, runs):
+    def push_run_results(self, runs, push_all=False):
+        """push a structured table with run results to notification targets
+
+        :param runs:  list if run objects (RunObject)
+        :param push_all: push all notifications (including already notified runs)
+        """
         had_errors = 0
         runs_list = []
         for r in runs:
-            if r.status.state == "error":
-                had_errors += 1
-            runs_list.append(r.to_dict())
+            notified = getattr(r, "_notified", False)
+            if not notified or push_all:
+                if r.status.state == "error":
+                    had_errors += 1
+                runs_list.append(r.to_dict())
+                r._notified = True
 
         text = "pipeline run finished"
         if had_errors:
@@ -806,7 +830,7 @@ class RunNotifications:
         self._html = html
         return html
 
-    def print(self):
+    def print(self, skip_ipython=None):
         def _print(message, runs, html=None):
             if not runs:
                 print(message)
@@ -834,7 +858,11 @@ class RunNotifications:
                 + tabulate(table, headers=["status", "name", "uid", "results"])
             )
 
-        self._hooks.append(_print)
+        if not self._with_print and not (
+            skip_ipython and self.with_ipython and is_ipython
+        ):
+            self._hooks.append(_print)
+            self._with_print = True
         return self
 
     def slack(self, webhook=""):

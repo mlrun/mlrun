@@ -14,16 +14,11 @@ from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.utils.clients.iguazio
 from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
     _validate_query_parameters,
-)
-from mlrun.api.crud.model_endpoints import (
-    ENDPOINTS,
-    EVENTS,
-    ModelEndpoints,
-    write_endpoint_to_kv,
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
@@ -48,7 +43,15 @@ def test_grafana_proxy_model_endpoints_check_connection(
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     mlrun.api.utils.clients.iguazio.Client().verify_request_session = unittest.mock.Mock(
-        return_value=(None, "some-session", None, [], ["data"])
+        return_value=(
+            mlrun.api.schemas.AuthInfo(
+                username=None,
+                session="some-session",
+                data_session="some-session",
+                user_id=None,
+                user_group_ids=[],
+            )
+        )
     )
     response = client.get(url="/api/grafana-proxy/model-endpoints",)
     assert response.status_code == 200
@@ -61,7 +64,9 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
-        write_endpoint_to_kv(_get_access_key(), endpoint)
+        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(
+            _get_access_key(), endpoint
+        )
 
     response = client.post(
         url="/api/grafana-proxy/model-endpoints/query",
@@ -324,12 +329,12 @@ def _get_access_key() -> Optional[str]:
 def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=ENDPOINTS
+            project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().ENDPOINTS
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=EVENTS
+            project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
@@ -375,7 +380,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
 )
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=EVENTS
+        project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -391,7 +396,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     for endpoint in endpoints:
-        ModelEndpoints.create_or_patch(_get_access_key(), endpoint)
+        mlrun.api.crud.ModelEndpoints().create_or_patch(_get_access_key(), endpoint)
 
         total = 0
 

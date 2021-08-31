@@ -34,13 +34,9 @@ from .base import RunDBError, RunDBInterface
 
 class SQLDB(RunDBInterface):
     def __init__(
-        self,
-        dsn,
-        session=None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        self, dsn, session=None,
     ):
         self.session = session
-        self.auth_info = auth_info
         self.dsn = dsn
         self.db = None
 
@@ -75,13 +71,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().update_run,
-            self.session,
-            project,
-            uid,
-            iter,
-            updates,
-            self.auth_info,
+            mlrun.api.crud.Runs().update_run, self.session, project, uid, iter, updates,
         )
 
     def abort_run(self, uid, project="", iter=0):
@@ -265,22 +255,6 @@ class SQLDB(RunDBInterface):
 
     def list_schedules(self):
         return self._transform_db_error(self.db.list_schedules, self.session)
-
-    def tag_objects(self, objs, project: str, name: str):
-        return self._transform_db_error(
-            self.db.tag_objects, self.session, objs, project, name
-        )
-
-    def del_tag(self, project: str, name: str):
-        return self._transform_db_error(self.db.del_tag, self.session, project, name)
-
-    def find_tagged(self, project: str, name: str):
-        return self._transform_db_error(
-            self.db.find_tagged, self.session, project, name
-        )
-
-    def list_tags(self, project: str):
-        return self._transform_db_error(self.db.list_tags, self.session, project)
 
     def store_project(
         self, name: str, project: mlrun.api.schemas.Project,

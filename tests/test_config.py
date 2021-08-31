@@ -28,13 +28,13 @@ ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 @pytest.fixture
 def config():
     old = mlconf.config
-    mlconf.config = mlconf.Config.from_dict(mlconf.default_config)
-    mlconf._loaded = False
+    mlconf.config = mlconf.dynamic.Config.from_dict(mlconf.default_config)
+    mlconf.loader.ConfigLoader.loaded = False
 
     yield mlconf.config
 
     mlconf.config = old
-    mlconf._loaded = False
+    mlconf.loader.ConfigLoader.loaded = False
 
 
 @contextmanager
@@ -151,7 +151,7 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
         "version": "some-version",
         "remote_host": remote_host,
     }
-    requests_mock.get(f"{api_url}/api/healthz", json=response_body)
+    requests_mock.get(f"{api_url}/api/client-spec", json=response_body)
     assert "" == mlconf.config.remote_host
     mlconf.config.dbpath = api_url
     assert remote_host == mlconf.config.remote_host

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import time
+import typing
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -46,7 +47,7 @@ class KubejobRuntime(KubeResource):
             db = self._get_db()
             try:
                 db.get_builder_status(self, logs=False)
-            except RunDBError:
+            except Exception:
                 pass
 
         if self.spec.image:
@@ -115,6 +116,7 @@ class KubejobRuntime(KubeResource):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
     ):
         """deploy function, build container with dependencies
 
@@ -122,6 +124,8 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param skip_deployed: skip the build if we already have an image for the function
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
         """
 
         build = self.spec.build
@@ -141,14 +145,19 @@ class KubejobRuntime(KubeResource):
         if self._is_remote_api():
             db = self._get_db()
             data = db.remote_builder(
-                self, with_mlrun, mlrun_version_specifier, skip_deployed
-            )
-            logger.info(
-                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+                self,
+                with_mlrun,
+                mlrun_version_specifier,
+                skip_deployed,
+                builder_env=builder_env,
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
+            if not ready:
+                logger.info(
+                    f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+                )
             if watch and not ready:
                 state = self._build_watch(watch)
                 ready = state == "ready"
@@ -225,6 +234,9 @@ class KubejobRuntime(KubeResource):
     ):
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
+        # mark that the function/image is built as part of the pipeline so other places
+        # which use the function will grab the updated image/status
+        self._build_in_pipeline = True
         return build_op(
             name,
             self,
@@ -306,6 +318,14 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
+    def _expect_pods_without_uid() -> bool:
+        """
+        builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
+        don't have the uid in their labels
+        """
+        return True
+
+    @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
         return True
 
@@ -314,5 +334,5 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class in (build, job)"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["build", "job"]

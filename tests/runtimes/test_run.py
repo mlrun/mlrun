@@ -29,6 +29,8 @@ def test_new_function_from_runtime():
             "description": "",
             "build": {"commands": []},
             "affinity": None,
+            "mount_applied": False,
+            "priority_class_name": "",
         },
         "verbose": False,
     }
@@ -63,6 +65,8 @@ def test_new_function_args_without_command():
             "description": "",
             "build": {"commands": []},
             "affinity": None,
+            "mount_applied": False,
+            "priority_class_name": "",
         },
         "verbose": False,
     }

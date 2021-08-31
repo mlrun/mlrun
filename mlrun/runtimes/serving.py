@@ -107,6 +107,7 @@ class ServingSpec(NuclioSpec):
         track_models=None,
         secret_sources=None,
         default_content_type=None,
+        mount_applied=False,
     ):
 
         super().__init__(
@@ -132,6 +133,7 @@ class ServingSpec(NuclioSpec):
             service_account=service_account,
             readiness_timeout=readiness_timeout,
             build=build,
+            mount_applied=mount_applied,
         )
 
         self.models = models or {}
@@ -417,13 +419,16 @@ class ServingRuntime(RemoteRuntime):
                     k8s_secrets, project=self.metadata.project
                 )
 
-    def deploy(self, dashboard="", project="", tag="", verbose=False):
+    def deploy(
+        self, dashboard="", project="", tag="", verbose=False, disable_auto_mount=False
+    ):
         """deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
+        :param disable_auto_mount: Avoid applying auto-mount to function prior to deployment (default is False)
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -449,7 +454,13 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
-        return super().deploy(dashboard, project, tag, verbose=verbose)
+        return super().deploy(
+            dashboard,
+            project,
+            tag,
+            verbose=verbose,
+            disable_auto_mount=disable_auto_mount,
+        )
 
     def _get_runtime_env(self):
         env = super()._get_runtime_env()

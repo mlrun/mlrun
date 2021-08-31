@@ -2,6 +2,7 @@ import copy
 import datetime
 import os
 import typing
+import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -71,6 +73,21 @@ def test_create_project_failure_already_exists(
     # create again
     response = client.post("/api/projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CONFLICT.value
+
+
+def test_get_non_existing_project(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """
+    At first we were doing auth before get - which caused get on non existing project to return unauthorized instead of
+    not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
+    """
+    project = "does-not-exist"
+    mlrun.api.utils.clients.opa.Client().query_project_permissions = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunUnauthorizedError("bla")
+    )
+    response = client.get(f"/api/projects/{project}")
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
 def test_delete_project_with_resources(
@@ -374,12 +391,16 @@ def test_projects_crud(
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
-    for index, project in enumerate(projects_output.projects):
-        _assert_project(
-            expected[index],
-            project,
-            extra_exclude={"spec": {"description", "desired_state"}},
-        )
+    for project in projects_output.projects:
+        for _project in expected:
+            if _project.metadata.name == project.metadata.name:
+                _assert_project(
+                    _project,
+                    project,
+                    extra_exclude={"spec": {"description", "desired_state"}},
+                )
+            expected.remove(_project)
+            break
 
     # patch project 1 to have the labels as well
     labels_1 = copy.deepcopy(labels_2)
@@ -753,7 +774,12 @@ def _list_project_names_and_assert(
     params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
     response = client.get("/api/projects", params=params,)
-    assert expected_names == response.json()["projects"]
+    assert (
+        deepdiff.DeepDiff(
+            expected_names, response.json()["projects"], ignore_order=True,
+        )
+        == {}
+    )
 
 
 def _assert_project_response(

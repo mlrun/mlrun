@@ -86,6 +86,7 @@ default_config = {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:////mlrun/db/mlrun.db?check_same_thread=false",
+        "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",

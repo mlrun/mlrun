@@ -1153,6 +1153,7 @@ class MlrunProject(ModelObj):
         training_set=None,
         label_column=None,
         extra_data=None,
+        **kwargs,
     ):
         """log a model artifact and optionally upload it to datastore
 
@@ -1210,6 +1211,7 @@ class MlrunProject(ModelObj):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            **kwargs,
         )
         if training_set is not None:
             model.infer_from_df(training_set, label_column)

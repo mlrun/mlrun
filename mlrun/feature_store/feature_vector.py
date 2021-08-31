@@ -112,8 +112,8 @@ class FeatureVectorStatus(ModelObj):
         label_column=None,
         stats=None,
         preview=None,
-        index_keys=None,
         run_uri=None,
+        index_keys=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None

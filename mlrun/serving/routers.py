@@ -748,7 +748,7 @@ class FeatureEnricher:
 
         for name, value in self.impute_policy.items():
             if name not in self._feature_keys:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature {name} in impute_policy but not in feature vector"
                 )
             if isinstance(value, str) and value.startswith("$"):
@@ -765,12 +765,14 @@ class FeatureEnricher:
             or not isinstance(inputs, list)
             or not isinstance(inputs[0], (list, dict))
         ):
-            raise ValueError("model inputs must be a list or list or list of dict")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "model inputs must be a list of list or list of dict"
+            )
 
         # if list, convert to dict (with the index_keys as the dict keys)
         if isinstance(inputs[0], list):
             if not self.index_keys or len(inputs[0]) != len(self.index_keys):
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "input list must be in the same size of the index_keys list"
                 )
             index_range = range(len(self.index_keys))

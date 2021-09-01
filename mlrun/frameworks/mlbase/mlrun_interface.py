@@ -72,7 +72,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                 
                 # Add computed metrics to test-set dict
                 test_set_metrics['extra_data']= eval_metrics
-                test_set_metrics['label_column'] = y_test.columns.to_list()
 
             # Log fitted model and metrics
             context.log_model(model_name or "model",

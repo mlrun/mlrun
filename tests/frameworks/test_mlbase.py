@@ -33,24 +33,17 @@ def run_mlbase_sklearn_classification(context):
 def run_mlbase_xgboost_regression(context):
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)
-    model = apply_mlrun_xgb(model, context)
+    model = apply_mlrun_xgb(model, context, X_test=X_test, y_test=y_test)
     model.fit(X_train, y_train)
 
 
 def test_run_mlbase_sklearn_classification():
     sklearn_run = new_function().run(handler=run_mlbase_sklearn_classification)
-    assert (
-        sklearn_run.artifact("my_model_name").meta.to_dict()["metrics"]["accuracy"]
-    ) > 0
-    assert (
-        sklearn_run.artifact("my_model_name").meta.to_dict()["model_file"]
-    ) == "LogisticRegression.pkl"
+    model = sklearn_run.artifact("my_model_name").meta
+    assert model.metrics["accuracy"] > 0, "wrong accuracy"
+    assert model.model_file == "LogisticRegression.pkl"
 
 
 def test_run_mlbase_xgboost_regression():
     xgb_run = new_function().run(handler=run_mlbase_xgboost_regression)
-    assert (
-        xgb_run.artifact("train_set").meta.to_dict()["target_path"]
-        == "data/train_set.csv"
-    )
-    assert (len(xgb_run.artifact("train_set").meta.to_dict()["schema"]["fields"])) == 16
+    assert xgb_run.artifact("test_set").meta, "test set not generated"

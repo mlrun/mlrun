@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-import xgboost as xgb
 from sklearn.datasets import load_boston, load_iris
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
@@ -32,6 +31,8 @@ def run_mlbase_sklearn_classification(context):
 
 
 def run_mlbase_xgboost_regression(context):
+    import xgboost as xgb
+
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)
     model = apply_mlrun_xgb(model, context, X_test=X_test, y_test=y_test)

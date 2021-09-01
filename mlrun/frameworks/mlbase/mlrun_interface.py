@@ -1,7 +1,8 @@
 import pandas as pd
-from mlrun.frameworks._common.plots import eval_model_v2
-from mlrun.frameworks._common import MLRunInterface
 from cloudpickle import dumps
+
+from mlrun.frameworks._common import MLRunInterface
+from mlrun.frameworks._common.plots import eval_model_v2
 
 
 class MLBaseMLRunInterface(MLRunInterface):

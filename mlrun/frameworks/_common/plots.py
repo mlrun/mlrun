@@ -2,19 +2,18 @@ from itertools import cycle
 from typing import List
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
-import numpy as np
 from scikitplot.metrics import plot_calibration_curve
 from scipy import interp
 from sklearn import metrics
+from sklearn.base import is_classifier, is_regressor
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import confusion_matrix as sklearn_confusion_matrix
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import LabelBinarizer
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import r2_score
-from sklearn.base import is_classifier, is_regressor
+
 from mlrun.artifacts import PlotArtifact
 
 

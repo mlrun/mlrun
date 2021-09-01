@@ -1,7 +1,8 @@
 import numpy as np
 from cloudpickle import load
-from mlrun.serving.v2_serving import V2ModelServer
 from sklearn.base import is_regressor
+
+from mlrun.serving.v2_serving import V2ModelServer
 
 
 class PickleModelServer(V2ModelServer):

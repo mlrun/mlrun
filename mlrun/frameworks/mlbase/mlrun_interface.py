@@ -45,6 +45,8 @@ class MLBaseMLRunInterface(MLRunInterface):
 
         def _post_fit(*args, **kwargs):
             
+            context.set_label("class", str(model.__class__.__name__))
+            
             if data.get("X_test") is not None:
                 # Identify splits and build test set
                 X_test = data['X_test']
@@ -67,8 +69,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                     labels={"data-type": "held-out"},
                     artifact_path=context.artifact_subpath("data"),
                 )
-                
-                context.set_label("class", str(model.__class__.__name__))
                 
                 # Log fitted model and metrics
                 context.log_model(model_name or "model",

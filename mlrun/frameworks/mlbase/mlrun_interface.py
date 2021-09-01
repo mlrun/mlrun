@@ -24,8 +24,10 @@ class MLBaseMLRunInterface(MLRunInterface):
         # Wrap the fit method:
         def fit_wrapper(fit_method, **kwargs):
             def wrapper(*args, **kwargs):
-
-                train_set = pd.concat([args[0], args[1]], axis=1)
+                X_train = args[0]
+                y_train = args[1][args[1].columns.item()]
+                
+                train_set = pd.concat([X_train, y_train], axis=1)
                 context.log_dataset('train_set',
                                     df=train_set,
                                     format='csv', index=False,
@@ -63,17 +65,18 @@ class MLBaseMLRunInterface(MLRunInterface):
                 artifact_path=context.artifact_subpath("data"),
             )
 
+            print(data['y_test'].columns.to_list())
             # Log fitted model
             context.set_label("class", str(model.__class__))
             context.log_model(model_name or "model",
                               db_key=model_name,
                               body=dumps(model),
                               training_set=test_set,
-                              label_column = data['y_test'].columns.to_list(),
                               artifact_path=context.artifact_subpath("models"),
                               extra_data=eval_metrics,
                               framework=f"{str(model.__module__).split('.')[0]}",
                               algorithm=f"{str(model.__class__)}",
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
+                              label_column = data['y_test'].columns.to_list(),
                               )

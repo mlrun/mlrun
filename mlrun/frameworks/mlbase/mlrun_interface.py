@@ -38,7 +38,7 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-            # Dict of metrics that will be filled if X/y test passed
+            # Dict of metrics that will be filled if X/y-test passed
             test_set_metrics = {}
             
             context.set_label("class", str(model.__class__.__name__))

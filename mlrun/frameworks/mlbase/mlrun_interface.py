@@ -69,11 +69,11 @@ class MLBaseMLRunInterface(MLRunInterface):
                               db_key=model_name,
                               body=dumps(model),
                               training_set=data['X_test'],
+                              label_column = data['y_test'].columns.to_list(),
                               artifact_path=context.artifact_subpath("models"),
                               extra_data=eval_metrics,
                               framework=f"{str(model.__module__).split('.')[0]}",
                               algorithm=f"{str(model.__class__)}",
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
-                              label_column = data['y_test'].columns.to_list(),
                               )

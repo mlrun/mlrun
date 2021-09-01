@@ -641,7 +641,11 @@ def pr_comment(
             with open(environ["GITHUB_EVENT_PATH"]) as fp:
                 data = fp.read()
                 event = json.loads(data)
-                issue = event["pull_request"].get("number")
+                if "issue" not in event:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"issue not found in github actions event\ndata={data}"
+                    )
+                issue = event["issue"].get("number")
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {token}",

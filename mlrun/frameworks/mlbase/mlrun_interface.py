@@ -13,11 +13,11 @@ class MLBaseMLRunInterface(MLRunInterface):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
-        :name:
-        :param model: The model to wrap.
-        :param context: MLRun context to work with. If no context is given it will be retrieved via
-                        'mlrun.get_or_create_ctx(None)'
-        :param data: The train_test_split X_train, X_test, y_train, y_test.
+        :param model:       The model to wrap.
+        :param context:     MLRun context to work with. If no context is given it will be retrieved via
+                            'mlrun.get_or_create_ctx(None)'
+        :param model_name:  name under whcih the model will be saved within the databse.
+        :param data:        The train_test_split X_train, X_test, y_train, y_test.
         :return: The wrapped model.
         """
 
@@ -44,7 +44,6 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-            
             test_set_metrics = {}
             context.set_label("class", str(model.__class__.__name__))
             
@@ -52,7 +51,6 @@ class MLBaseMLRunInterface(MLRunInterface):
             model_parameters = {key: str(item) for key, item in model.get_params().items()}
 
             if data.get("X_test") is not None:
-                
                 # Identify splits and build test set
                 X_test = data['X_test']
                 y_test = data['y_test']

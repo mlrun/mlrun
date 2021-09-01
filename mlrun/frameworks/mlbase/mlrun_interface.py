@@ -15,6 +15,7 @@ class MLBaseMLRunInterface(MLRunInterface):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
+
         :param model:       The model to wrap.
         :param context:     MLRun context to work with. If no context is given it will be retrieved via
                             'mlrun.get_or_create_ctx(None)'
@@ -51,7 +52,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             train_set = pd.concat([X_train, y_train], axis=1)
             train_set.reset_index(drop=True, inplace=True)
 
-            if data.get("X_test") is not None and data.get("y_test") is not None:
+            if data.get("X_test") and data.get("y_test"):
                 # Identify splits and build test set
                 X_test = data["X_test"]
                 y_test = data["y_test"]
@@ -61,15 +62,16 @@ class MLBaseMLRunInterface(MLRunInterface):
                 # Evaluate model results and get the evaluation metrics
                 eval_metrics = eval_model_v2(context, X_test, y_test, model)
 
-                # Log test dataset
-                context.log_dataset(
-                    "test_set",
-                    df=test_set,
-                    format="parquet",
-                    index=False,
-                    labels={"data-type": "held-out"},
-                    artifact_path=context.artifact_subpath("data"),
-                )
+                if data.get("generate_test_set"):
+                    # Log test dataset
+                    context.log_dataset(
+                        "test_set",
+                        df=test_set,
+                        format="parquet",
+                        index=False,
+                        labels={"data-type": "held-out"},
+                        artifact_path=context.artifact_subpath("data"),
+                    )
 
             # Log fitted model and metrics
             context.log_model(

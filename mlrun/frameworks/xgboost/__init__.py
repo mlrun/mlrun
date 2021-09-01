@@ -17,6 +17,7 @@ def apply_mlrun(
     X_test=None,
     y_test=None,
     model_name=None,
+    generate_test_set=True,
     **kwargs
 ):
     """
@@ -35,6 +36,7 @@ def apply_mlrun(
     :param X_test:      X test data (for accuracy and plots generation)
     :param y_test:      y test data (for accuracy and plots generation)
     :param model_name:  model artifact name
+    :param generate_test_set:  will generate a test_set dataset artifact
 
     :return: The model with MLRun's interface.
     """
@@ -43,6 +45,7 @@ def apply_mlrun(
 
     kwargs["X_test"] = X_test
     kwargs["y_test"] = y_test
+    kwargs["generate_test_set"] = generate_test_set
     # Add MLRun's interface to the model:
     MLBaseMLRunInterface.add_interface(model, context, model_name, kwargs)
     return model

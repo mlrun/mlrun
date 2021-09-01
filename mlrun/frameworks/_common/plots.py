@@ -460,7 +460,7 @@ def eval_model_v2(
 
     context.log_results(
         {"accuracy": accuracy, "test-error": np.sum(ytest != ypred) / ytest.shape[0]}
-     )
+    )
 
     # PROBABILITIES
     if hasattr(model, "predict_proba"):

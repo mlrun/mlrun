@@ -1,10 +1,11 @@
 import pandas as pd
-from sklearn.datasets import load_iris
+
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
+from sklearn.datasets import load_boston, load_iris
 from sklearn.linear_model import LogisticRegression
-from mlrun.frameworks.sklearn import apply_mlrun as apply_mlrun_sklearn
+
 from mlrun import new_function
+from mlrun.frameworks.sklearn import apply_mlrun as apply_mlrun_sklearn
 
 
 def get_dataset(classification=True):

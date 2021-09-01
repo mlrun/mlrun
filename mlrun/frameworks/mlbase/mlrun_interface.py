@@ -44,11 +44,11 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-            test_set_metrics = {}
-            context.set_label("class", str(model.__class__.__name__))
             
-            # Model Parameters
-            model_parameters = {key: str(item) for key, item in model.get_params().items()}
+            # Dict of metrics that will be filled if X/y test passed
+            test_set_metrics = {}
+            
+            context.set_label("class", str(model.__class__.__name__))
 
             if data.get("X_test") is not None:
                 # Identify splits and build test set

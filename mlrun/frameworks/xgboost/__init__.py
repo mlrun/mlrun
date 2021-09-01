@@ -11,11 +11,7 @@ from mlrun.frameworks._common.pkl_model_server import PickleModelServer
 XGBModelServer = PickleModelServer
 
 
-def apply_mlrun(
-        model,
-        context: mlrun.MLClientCtx = None,
-        model_name=None,
-        **kwargs):
+def apply_mlrun(model, context: mlrun.MLClientCtx = None, model_name=None, **kwargs):
     """
     Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
     features.
@@ -37,7 +33,7 @@ def apply_mlrun(
     :return: The model with MLRun's interface.
     """
     if context is None:
-        context = mlrun.get_or_create_ctx('mlrun_xgb')
+        context = mlrun.get_or_create_ctx("mlrun_xgb")
 
     # Add MLRun's interface to the model:
     MLBaseMLRunInterface.add_interface(model, context, model_name, kwargs)

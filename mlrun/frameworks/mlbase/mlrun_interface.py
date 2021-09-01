@@ -49,7 +49,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             train_set = pd.concat([X_train, y_train], axis=1)
             train_set.reset_index(drop=True, inplace=True)
 
-            if data.get("X_test") is not None:
+            if data.get("X_test") is not None and data.get("y_test") is not None :
                     
                 # Identify splits and build test set
                 X_test = data['X_test']

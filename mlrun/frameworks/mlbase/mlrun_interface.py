@@ -44,7 +44,7 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-            
+            test_set_metrics = {}
             context.set_label("class", str(model.__class__.__name__))
             
             if data.get("X_test") is not None and data.get("y_test") is not None:
@@ -69,8 +69,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                     labels={"data-type": "held-out"},
                     artifact_path=context.artifact_subpath("data"),
                 )
-                
-                test_set_metrics = {}
+             
                 test_set_metrics['training_set']= test_set
                 test_set_metrics['extra_data']= eval_metrics
                 test_set_metrics['label_column'] = y_test.columns.to_list()

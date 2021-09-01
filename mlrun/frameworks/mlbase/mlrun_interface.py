@@ -75,5 +75,5 @@ class MLBaseMLRunInterface(MLRunInterface):
                               algorithm=str(model.__class__.__name__),
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
-                              label_column = data['y_test'],
+                              label_column = data['y_test'].columns.to_list(),
                               )

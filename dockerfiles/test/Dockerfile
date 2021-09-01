@@ -46,7 +46,6 @@ WORKDIR /mlrun
 COPY ./requirements.txt ./
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
-COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-requirements.txt
 COPY ./dev-requirements.txt ./
 COPY ./docs/requirements.txt ./docs-requirements.txt
 
@@ -54,7 +53,6 @@ RUN pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
     -r mlrun-api-requirements.txt \
-    -r mlrun-requirements.txt \
     -r dev-requirements.txt \
     -r docs-requirements.txt
 

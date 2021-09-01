@@ -459,11 +459,8 @@ def eval_model_v2(
         accuracy = float(metrics.accuracy_score(ytest, ypred))
 
     context.log_results(
-        {
-            "accuracy": accuracy,
-            "test-error": np.sum(ytest != ypred) / ytest.shape[0],
-        }
-    )
+        {"accuracy": accuracy, "test-error": np.sum(ytest != ypred) / ytest.shape[0],}
+     )
 
     # PROBABILITIES
     if hasattr(model, "predict_proba"):

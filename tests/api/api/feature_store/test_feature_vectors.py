@@ -396,7 +396,13 @@ def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
     tags = ["tag-1", "tag-2", "tag-3", "tag-4"]
     for feature_vector in [feature_vector_1, feature_vector_2]:
         for tag in tags:
-            _store_feature_vector(client, project_name, feature_vector["metadata"]["name"], tag, feature_vector)
+            _store_feature_vector(
+                client,
+                project_name,
+                feature_vector["metadata"]["name"],
+                tag,
+                feature_vector,
+            )
     _list_tags_and_assert(
         client, "feature_vectors", project_name, tags,
     )

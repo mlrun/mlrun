@@ -521,7 +521,9 @@ def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
     tags = ["tag-1", "tag-2", "tag-3", "tag-4"]
     for feature_set in [feature_set_1, feature_set_2]:
         for tag in tags:
-            _store_and_assert_feature_set(client, project_name, feature_set["metadata"]["name"], tag, feature_set)
+            _store_and_assert_feature_set(
+                client, project_name, feature_set["metadata"]["name"], tag, feature_set
+            )
     _list_tags_and_assert(
         client, "feature_sets", project_name, tags,
     )

@@ -17,6 +17,7 @@ from sklearn.metrics import r2_score
 from sklearn.base import is_classifier, is_regressor
 from mlrun.artifacts import PlotArtifact
 
+
 def gcf_clear(plt):
     """Utility to clear matplotlib figure
     Run this inside every plot method before calling any matplotlib

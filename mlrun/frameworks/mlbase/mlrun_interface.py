@@ -64,7 +64,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             )
 
             # Log fitted model
-            context.set_label("class", str(model.__class__))
+            context.set_label("class", str(model.__class__.__name__))
             context.log_model(model_name or "model",
                               db_key=model_name,
                               body=dumps(model),

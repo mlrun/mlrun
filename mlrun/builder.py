@@ -303,8 +303,8 @@ def build_runtime(
             ]
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "nothing to build and image is not specified, "
-                "please set the function image or build args"
+                "The deployment was not successful because no image was specified or there are missing build parameters"
+                " (commands/source)"
             )
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True

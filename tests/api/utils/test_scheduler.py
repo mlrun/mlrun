@@ -30,6 +30,7 @@ from mlrun.utils import logger
 async def scheduler(db: Session) -> typing.Generator:
     logger.info("Creating scheduler")
     config.httpdb.scheduling.min_allowed_interval = "0"
+    config.httpdb.jobs.allow_local_run = True
     scheduler = Scheduler()
     await scheduler.start(db)
     mlrun.api.utils.singletons.project_member.initialize_project_member()

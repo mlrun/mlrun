@@ -77,16 +77,15 @@ class MLBaseMLRunInterface(MLRunInterface):
                 test_set_metrics['extra_data']= eval_metrics
                 test_set_metrics['label_column'] = y_test.columns.to_list()
 
-            else:
-                # Log fitted model and metrics
-                context.log_model(model_name or "model",
-                                  db_key=model_name,
-                                  body=dumps(model),
-                                  artifact_path=context.artifact_subpath("models"),
-                                  framework=f"{str(model.__module__).split('.')[0]}",
-                                  algorithm=f"{str(model.__class__.__name__)}",
-                                  model_file=f"{str(model.__class__.__name__)}.pkl",
-                                  metrics=context.results,
-                                  format="pkl",
-                                  **test_set_metrics
-                                  )
+            # Log fitted model and metrics
+            context.log_model(model_name or "model",
+                              db_key=model_name,
+                              body=dumps(model),
+                              artifact_path=context.artifact_subpath("models"),
+                              framework=f"{str(model.__module__).split('.')[0]}",
+                              algorithm=f"{str(model.__class__.__name__)}",
+                              model_file=f"{str(model.__class__.__name__)}.pkl",
+                              metrics=context.results,
+                              format="pkl",
+                              **test_set_metrics
+                              )

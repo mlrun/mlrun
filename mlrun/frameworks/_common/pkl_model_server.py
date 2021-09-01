@@ -15,8 +15,8 @@ class PickleModelServer(V2ModelServer):
         Use the model handler to load the model.
         """
         """load and initialize the model and/or other elements"""
-        model_file, extra_data = self.get_model('.pkl')
-        self.model = load(open(model_file, 'rb'))
+        model_file, extra_data = self.get_model(".pkl")
+        self.model = load(open(model_file, "rb"))
 
     def predict(self, body: dict) -> list:
         """
@@ -25,7 +25,7 @@ class PickleModelServer(V2ModelServer):
         :param request: The request of the model. The input to the model will be read from the "inputs" key.
         :return: The model's prediction on the given input.
         """
-        feats = np.asarray(body['inputs'])
+        feats = np.asarray(body["inputs"])
 
         if is_regressor(self.model):
             result: np.ndarray = self.model.score(feats)

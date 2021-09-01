@@ -2,19 +2,20 @@ import mlrun
 from .pipelines import pipeline_context
 
 
+def _is_kfp():
+    return pipeline_context.workflow
+
+
 def run_function(
     function_uri,
     handler=None,
     name: str = "",
     params: dict = None,
-    hyperparams=None,
-    selector="",
+    hyper_params=None,
     hyper_param_options: mlrun.model.HyperParamOptions = None,
     inputs: dict = None,
     outputs: dict = None,
     workdir: str = "",
-    artifact_path: str = "",
-    image: str = "",
     labels: dict = None,
     verbose=None,
 ):
@@ -35,24 +36,29 @@ def run_function(
 
     :return: KubeFlow containerOp
     """
-    function: mlrun.runtimes.BaseRuntime = pipeline_context.functiond[function_uri]
-    name = name or function.metadata.name
+    function = pipeline_context.functiond[function_uri]
+    task = mlrun.new_task(
+        name,
+        handler=handler,
+        params=params,
+        hyper_params=hyper_params,
+        hyper_param_options=hyper_param_options,
+    )
+    if _is_kfp():
+        function.as_step()
+
     return function.run(
         handler=handler,
         name=name,
         params=params,
-        hyperparams=hyperparams,
+        hyperparams=hyper_params,
         hyper_param_options=hyper_param_options,
         inputs=inputs,
         workdir=workdir,
-        artifact_path=artifact_path,
         labels=labels,
         verbose=verbose,
         local=True,
     )
-
-
-
 
 
 def as_step(

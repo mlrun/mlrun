@@ -55,7 +55,6 @@ class MLBaseMLRunInterface(MLRunInterface):
             # Identify and build test set
             X_test = data['X_test']
             y_test = data['y_test']
-            y_test = y_test[y_test.columns.item()]
             test_set = pd.concat([X_test, y_test], axis=1)
             
             # Model Parameters

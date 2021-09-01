@@ -22,7 +22,7 @@ def get_dataset(classification=True):
 
 
 def run_mlbase_sklearn_classification(context):
-    model = LogisticRegression(solver='liblinear')
+    model = LogisticRegression(solver="liblinear")
     X_train, X_test, y_train, y_test = get_dataset()
     model = apply_mlrun_sklearn(
         model, context, model_name="my_model_name", X_test=X_test, y_test=y_test

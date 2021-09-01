@@ -32,6 +32,7 @@ def run_mlbase_sklearn_classification(context):
 
 def run_mlbase_xgboost_regression(context):
     import xgboost as xgb
+
     from mlrun.frameworks.xgboost import apply_mlrun as apply_mlrun_xgb
 
     model = xgb.XGBRegressor()

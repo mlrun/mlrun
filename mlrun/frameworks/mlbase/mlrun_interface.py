@@ -29,6 +29,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                 X_train = args[0]
                 y_train = args[1]
                 train_set = pd.concat([X_train, y_train], axis=1)
+                train_set.reset_index(drop=True, inplace=True)
                 
                 context.log_dataset('train_set',
                                     df=train_set,
@@ -55,6 +56,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             X_test = data['X_test']
             y_test = data['y_test']
             test_set = pd.concat([X_test, y_test], axis=1)
+            test_set.reset_index(drop=True, inplace=True)
             
             # Model Parameters
             model_parameters = {key: str(item) for key, item in model.get_params().items()}

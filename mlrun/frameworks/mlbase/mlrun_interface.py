@@ -52,8 +52,8 @@ class MLBaseMLRunInterface(MLRunInterface):
 
             if data.get("X_test") is not None and data.get("y_test") is not None:
                 # Identify splits and build test set
-                X_test = data['X_test']
-                y_test = data['y_test']
+                X_test = data["X_test"]
+                y_test = data["y_test"]
                 test_set = pd.concat([X_test, y_test], axis=1)
                 test_set.reset_index(drop=True, inplace=True)
 
@@ -71,16 +71,17 @@ class MLBaseMLRunInterface(MLRunInterface):
                 )
 
             # Log fitted model and metrics
-            context.log_model(model_name or "model",
-                              db_key=model_name,
-                              body=dumps(model),
-                              artifact_path=context.artifact_subpath("models"),
-                              framework=f"{str(model.__module__).split('.')[0]}",
-                              algorithm=str(model.__class__.__name__),
-                              model_file=f"{str(model.__class__.__name__)}.pkl",
-                              metrics=context.results,
-                              format="pkl",
-                              training_set=train_set,
-                              label_column=y_train.columns.to_list(),
-                              extra_data=eval_metrics,
-                              )
+            context.log_model(
+                model_name or "model",
+                db_key=model_name,
+                body=dumps(model),
+                artifact_path=context.artifact_subpath("models"),
+                framework=f"{str(model.__module__).split('.')[0]}",
+                algorithm=str(model.__class__.__name__),
+                model_file=f"{str(model.__class__.__name__)}.pkl",
+                metrics=context.results,
+                format="pkl",
+                training_set=train_set,
+                label_column=y_train.columns.to_list(),
+                extra_data=eval_metrics,
+            )

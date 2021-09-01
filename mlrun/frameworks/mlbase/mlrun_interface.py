@@ -39,7 +39,7 @@ class MLBaseMLRunInterface(MLRunInterface):
 
         def _post_fit(*args, **kwargs):
             # Dict of metrics that will be filled if X/y-test passed
-            test_set_metrics = {}
+            eval_metrics = None
             
             context.set_label("class", str(model.__class__.__name__))
             
@@ -69,9 +69,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                     labels={"data-type": "held-out"},
                     artifact_path=context.artifact_subpath("data"),
                 )
-                
-                # Add computed metrics to test-set dict
-                test_set_metrics['extra_data']= eval_metrics
 
             # Log fitted model and metrics
             context.log_model(model_name or "model",
@@ -85,5 +82,5 @@ class MLBaseMLRunInterface(MLRunInterface):
                               training_set = train_set,
                               format="pkl",
                               label_column = y_test.columns.to_list(),
-                              **test_set_metrics
+                              extra_data=eval_metrics,
                               )

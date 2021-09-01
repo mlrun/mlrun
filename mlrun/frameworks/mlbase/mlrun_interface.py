@@ -27,8 +27,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                 X_train = args[0]
                 y_train = args[1][args[1].columns.item()]
                 
-                print(y_train)
-                
                 train_set = pd.concat([X_train, y_train], axis=1)
                 context.log_dataset('train_set',
                                     df=train_set,
@@ -50,12 +48,17 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-            # Evaluate model results and get the evaluation metrics
-            eval_metrics = eval_model_v2(context, data['X_test'], data['y_test'], model)
-
+            # Identify
+            X_test = data['X_test']
+            y_test = data['y_test'][data['y_test'].columns.item()]
+                
+            test_set = pd.concat([X_test, y_test], axis=1)
+            
             # Model Parameters
             model_parameters = {key: str(item) for key, item in model.get_params().items()}
-            test_set = pd.concat([data['X_test'], data['y_test']], axis=1)
+            
+            # Evaluate model results and get the evaluation metrics
+            eval_metrics = eval_model_v2(context, data['X_test'], data['y_test'], model)
 
             # Log test dataset
             context.log_dataset(

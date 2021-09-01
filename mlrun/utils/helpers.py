@@ -623,6 +623,15 @@ def pr_comment(
     server=None,
     gitlab=False,
 ):
+    """push comment message to Git system PR/issue
+
+    :param message:  test message
+    :param repo:     repo name (org/repo)
+    :param issue:    pull-request/issue number
+    :param token:    git system security token
+    :param server:   url of the git system
+    :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
+    """
     if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
         gitlab = True
     token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
@@ -631,12 +640,15 @@ def pr_comment(
         server = server or "gitlab.com"
         headers = {"PRIVATE-TOKEN": token}
         repo = repo or environ.get("CI_PROJECT_ID")
+        # auto detect GitLab pr id from the environment
         issue = issue or environ.get("CI_MERGE_REQUEST_IID")
         repo = repo.replace("/", "%2F")
         url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
     else:
         server = server or "api.github.com"
         repo = repo or environ.get("GITHUB_REPOSITORY")
+        # auto detect pr number if not specified, in github the pr id is identified as an issue id
+        # we try and read the pr (issue) id from the github actions event file/object
         if not issue and "GITHUB_EVENT_PATH" in environ:
             with open(environ["GITHUB_EVENT_PATH"]) as fp:
                 data = fp.read()

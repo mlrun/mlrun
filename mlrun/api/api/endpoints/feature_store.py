@@ -233,12 +233,12 @@ def list_feature_sets_tags(
         lambda feature_set_name: (project, feature_set_name,),
         auth_verifier.auth_info,
     )
-    tags = [
+    tags = {
         tag_tuple[2]
         for tag_tuple in tag_tuples
         if tag_tuple[1] in allowed_feature_set_names
-    ]
-    return mlrun.api.schemas.FeatureSetsTagsOutput(tags=tags)
+    }
+    return mlrun.api.schemas.FeatureSetsTagsOutput(tags=list(tags))
 
 
 def _has_v3io_path(data_source, data_targets, feature_set):
@@ -559,12 +559,12 @@ def list_feature_vectors_tags(
         lambda feature_vector_name: (project, feature_vector_name,),
         auth_verifier.auth_info,
     )
-    tags = [
+    tags = {
         tag_tuple[2]
         for tag_tuple in tag_tuples
         if tag_tuple[1] in allowed_feature_vector_names
-    ]
-    return mlrun.api.schemas.FeatureVectorsTagsOutput(tags=tags)
+    }
+    return mlrun.api.schemas.FeatureVectorsTagsOutput(tags=list(tags))
 
 
 @router.put(

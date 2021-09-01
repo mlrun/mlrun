@@ -1010,7 +1010,8 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-        sleep(60)
+        # ingest starts every round minute.
+        sleep(60 - now.second + 10)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)

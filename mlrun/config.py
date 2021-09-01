@@ -122,6 +122,10 @@ default_config = {
         "db_type": "sqldb",
         "max_workers": "",
         "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "jobs": {
+            # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
+            "allow_local_run": False,
+        },
         "authentication": {
             "mode": "none",  # one of none, basic, bearer, iguazio
             "basic": {"username": "", "password": ""},

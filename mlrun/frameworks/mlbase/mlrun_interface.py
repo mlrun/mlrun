@@ -17,7 +17,9 @@ class MLBaseMLRunInterface(MLRunInterface):
         :param context:     MLRun context to work with. If no context is given it will be retrieved via
                             'mlrun.get_or_create_ctx(None)'
         :param model_name:  name under whcih the model will be saved within the databse.
-        :param data:        The train_test_split X_train, X_test, y_train, y_test.
+        :param data:        Optional: The train_test_split X_train, X_test, y_train, y_test can be passed,
+                                      or the test data X_test, y_test can be passed.
+        
         :return: The wrapped model.
         """
 

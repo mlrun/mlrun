@@ -38,9 +38,8 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-            # Dict of metrics that will be filled if X/y-test passed
+
             eval_metrics = None
-            
             context.set_label("class", str(model.__class__.__name__))
             
             # Identify splits and build test set  
@@ -79,8 +78,8 @@ class MLBaseMLRunInterface(MLRunInterface):
                               algorithm=f"{str(model.__class__.__name__)}",
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
-                              training_set = train_set,
                               format="pkl",
-                              label_column = y_test.columns.to_list(),
+                              training_set = train_set,
+                              label_column = y_train.columns.to_list(),
                               extra_data=eval_metrics,
                               )

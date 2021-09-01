@@ -5,8 +5,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 
 from mlrun import new_function
-from mlrun.frameworks.sklearn import apply_mlrun as apply_mlrun_sklearn
-from mlrun.frameworks.xgboost import apply_mlrun as apply_mlrun_xgb
 
 
 def get_dataset(classification=True):
@@ -22,6 +20,8 @@ def get_dataset(classification=True):
 
 
 def run_mlbase_sklearn_classification(context):
+    from mlrun.frameworks.sklearn import apply_mlrun as apply_mlrun_sklearn
+
     model = LogisticRegression(solver="liblinear")
     X_train, X_test, y_train, y_test = get_dataset()
     model = apply_mlrun_sklearn(
@@ -32,6 +32,7 @@ def run_mlbase_sklearn_classification(context):
 
 def run_mlbase_xgboost_regression(context):
     import xgboost as xgb
+    from mlrun.frameworks.xgboost import apply_mlrun as apply_mlrun_xgb
 
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)

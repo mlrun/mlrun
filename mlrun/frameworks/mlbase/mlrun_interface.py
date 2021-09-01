@@ -47,7 +47,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             
             context.set_label("class", str(model.__class__.__name__))
             
-            if data.get("X_test") is not None:
+            if data.get("X_test") is not None and data.get("y_test") is not None:
                 # Identify splits and build test set
                 X_test = data['X_test']
                 y_test = data['y_test']

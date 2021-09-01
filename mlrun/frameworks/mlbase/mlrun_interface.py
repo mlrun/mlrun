@@ -68,7 +68,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             context.log_model(model_name or "model",
                               db_key=model_name,
                               body=dumps(model),
-                              training_set=data['X_test'],
+                              training_set=test_set,
                               label_column = data['y_test'].columns.to_list(),
                               artifact_path=context.artifact_subpath("models"),
                               extra_data=eval_metrics,

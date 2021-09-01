@@ -3,6 +3,7 @@ from mlrun.frameworks._common.plots import eval_model_v2
 from mlrun.frameworks._common import MLRunInterface
 from cloudpickle import dumps
 
+
 class MLBaseMLRunInterface(MLRunInterface):
     """
     Wraps the original .fit() method of the passed model enabling auto-logging.
@@ -19,45 +20,43 @@ class MLBaseMLRunInterface(MLRunInterface):
         :param model_name:  name under whcih the model will be saved within the databse.
         :param data:        Optional: The train_test_split X_train, X_test, y_train, y_test can be passed,
                                       or the test data X_test, y_test can be passed.
-        
+
         :return: The wrapped model.
         """
 
         # Wrap the fit method:
         def fit_wrapper(fit_method, **kwargs):
             def wrapper(*args, **kwargs):
-
                 # Call the original fit method
                 fit_method(*args, **kwargs)
 
                 # Original fit method
                 setattr(model, "fit", fit_method)
-                
+
                 # Post fit
                 _post_fit(*args, **kwargs)
+
             return wrapper
 
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-
             eval_metrics = None
             context.set_label("class", str(model.__class__.__name__))
-            
-            # Identify splits and build test set  
+
+            # Identify splits and build test set
             X_train = args[0]
             y_train = args[1]
             train_set = pd.concat([X_train, y_train], axis=1)
             train_set.reset_index(drop=True, inplace=True)
 
-            if data.get("X_test") is not None and data.get("y_test") is not None :
-                    
+            if data.get("X_test") is not None and data.get("y_test") is not None:
                 # Identify splits and build test set
                 X_test = data['X_test']
                 y_test = data['y_test']
                 test_set = pd.concat([X_test, y_test], axis=1)
                 test_set.reset_index(drop=True, inplace=True)
-           
+
                 # Evaluate model results and get the evaluation metrics
                 eval_metrics = eval_model_v2(context, X_test, y_test, model)
 
@@ -81,7 +80,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
                               format="pkl",
-                              training_set = train_set,
-                              label_column = y_train.columns.to_list(),
+                              training_set=train_set,
+                              label_column=y_train.columns.to_list(),
                               extra_data=eval_metrics,
                               )

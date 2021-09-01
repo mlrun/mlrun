@@ -459,7 +459,7 @@ def eval_model_v2(
         accuracy = float(metrics.accuracy_score(ytest, ypred))
 
     context.log_results(
-        {"accuracy": accuracy, "test-error": np.sum(ytest != ypred) / ytest.shape[0],}
+        {"accuracy": accuracy, "test-error": np.sum(ytest != ypred) / ytest.shape[0]}
      )
 
     # PROBABILITIES
@@ -541,7 +541,7 @@ def eval_model_v2(
             ax.plot(learning_curves_df["valid_error"], label="valid")
             learning = context.log_artifact(
                 PlotArtifact(
-                    "learning-curve", body=plt.gcf(), title="Learning Curve - erreur"
+                    "learning-curve", body=plt.gcf(), title="Learning Curve - error"
                 ),
                 artifact_path=plots_path,
                 db_key=False,

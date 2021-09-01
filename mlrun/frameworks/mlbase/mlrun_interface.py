@@ -24,10 +24,12 @@ class MLBaseMLRunInterface(MLRunInterface):
         # Wrap the fit method:
         def fit_wrapper(fit_method, **kwargs):
             def wrapper(*args, **kwargs):
-                X_train = args[0]
-                y_train = args[1][args[1].columns.item()]
                 
+                # Identify and build training set
+                X_train = args[0]
+                y_train = args[1]
                 train_set = pd.concat([X_train, y_train], axis=1)
+                
                 context.log_dataset('train_set',
                                     df=train_set,
                                     format='csv', index=False,
@@ -48,17 +50,17 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
-            # Identify
+            
+            # Identify and build test set
             X_test = data['X_test']
-            y_test = data['y_test'][data['y_test'].columns.item()]
-                
+            y_test = data['y_test']
             test_set = pd.concat([X_test, y_test], axis=1)
             
             # Model Parameters
             model_parameters = {key: str(item) for key, item in model.get_params().items()}
             
             # Evaluate model results and get the evaluation metrics
-            eval_metrics = eval_model_v2(context, data['X_test'], data['y_test'], model)
+            eval_metrics = eval_model_v2(context, X_test, y_test, model)
 
             # Log test dataset
             context.log_dataset(

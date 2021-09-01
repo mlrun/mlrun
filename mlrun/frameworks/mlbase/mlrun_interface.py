@@ -72,7 +72,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                               artifact_path=context.artifact_subpath("models"),
                               extra_data=eval_metrics,
                               framework=f"{str(model.__module__).split('.')[0]}",
-                              algorithm=f"{str(model.__class__)}",
+                              algorithm=str(model.__class__.__name__),
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
                               label_column = data['y_test'].values.reshape(-1,),

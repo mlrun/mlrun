@@ -42,14 +42,14 @@ class MLBaseMLRunInterface(MLRunInterface):
             test_set_metrics = {}
             
             context.set_label("class", str(model.__class__.__name__))
+            
+            # Identify splits and build test set  
+            X_train = args[0]
+            y_train = args[1]
+            train_set = pd.concat([X_train, y_train], axis=1)
+            train_set.reset_index(drop=True, inplace=True)
 
             if data.get("X_test") is not None:
-             
-                # Identify splits and build test set  
-                X_train = args[0]
-                y_train = args[1]
-                train_set = pd.concat([X_train, y_train], axis=1)
-                train_set.reset_index(drop=True, inplace=True)
                     
                 # Identify splits and build test set
                 X_test = data['X_test']
@@ -71,7 +71,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                 )
                 
                 # Add computed metrics to test-set dict
-                test_set_metrics['training_set']= train_set
                 test_set_metrics['extra_data']= eval_metrics
                 test_set_metrics['label_column'] = y_test.columns.to_list()
 
@@ -84,6 +83,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                               algorithm=f"{str(model.__class__.__name__)}",
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
+                              training_set = train_set,
                               format="pkl",
                               **test_set_metrics
                               )

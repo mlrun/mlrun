@@ -20,10 +20,8 @@ def run_function(
 ):
     """Run a local or remote task.
 
-    :param runspec:         run template object or dict (see RunTemplate)
     :param handler:         name of the function handler
     :param name:            execution name
-    :param project:         project name
     :param params:          input parameters (dict)
     :param hyperparams:     hyper parameters
     :param selector:        selection criteria for hyper params
@@ -33,9 +31,7 @@ def run_function(
     :param workdir:         default input artifacts path
     :param image:           container image to use
     :param labels:          labels to tag the job/run with ({key:val, ..})
-    :param use_db:          save function spec in the db (vs the workflow file)
     :param verbose:         add verbose prints/logs
-    :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
 
     :return: KubeFlow containerOp
     """

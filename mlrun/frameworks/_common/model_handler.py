@@ -10,6 +10,9 @@ from typing import Any, Dict, List, TypeVar, Union
 import mlrun
 from mlrun.artifacts import Artifact, ModelArtifact
 
+if False:
+    import onnx
+
 # Define a generic model type for the handler to have:
 Model = TypeVar("Model")
 
@@ -20,6 +23,8 @@ class ModelHandler(ABC):
     """
 
     # Constant artifact names:
+    _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
+    _WEIGHTS_FILE_ARTIFACT_NAME = "{}_weights_file"
     _CUSTOM_OBJECTS_MAP_ARTIFACT_NAME = "{}_custom_objects_map.json"
     _CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME = "{}_custom_objects.zip"
 
@@ -126,6 +131,18 @@ class ModelHandler(ABC):
         """
         self._context = context
 
+    def _get_model_file_artifact_name(self) -> str:
+        return self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_weights_file_artifact_name(self) -> str:
+        return self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_custom_objects_map_artifact_name(self) -> str:
+        return self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_custom_objects_directory_artifact_name(self) -> str:
+        return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
+
     @abstractmethod
     def save(
         self, output_path: str = None, *args, **kwargs
@@ -169,10 +186,10 @@ class ModelHandler(ABC):
     @abstractmethod
     def log(
         self,
-        labels: Dict[str, Union[str, int, float]],
-        parameters: Dict[str, Union[str, int, float]],
-        extra_data: Dict[str, Any],
-        artifacts: Dict[str, Artifact],
+        labels: Dict[str, Union[str, int, float]] = None,
+        parameters: Dict[str, Union[str, int, float]] = None,
+        extra_data: Dict[str, Any] = None,
+        artifacts: Dict[str, Artifact] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -193,6 +210,15 @@ class ModelHandler(ABC):
             raise ValueError(
                 "Cannot log model if a context was not provided during initialization."
             )
+
+    @abstractmethod
+    def to_onnx(self, *args, **kwargs) -> onnx.ModelProto:
+        """
+        Convert the model in this handler to an ONNX model.
+
+        :return: The converted ONNX model (onnx.ModelProto).
+        """
+        pass
 
     @abstractmethod
     def _collect_files_from_store_object(self):

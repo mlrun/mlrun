@@ -88,7 +88,12 @@ extras_require = {
     # <12.7.0 from adlfs 0.6.3
     "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
-    # mlrun.frameworks requirements per framework:  # TODO: should be added in a later PR
+    # mlrun.frameworks requirements per framework:
+    "tensorflow": ["tensorflow==2.4.1", "bokeh~=2.3", "tf2onnx~=1.9"],
+    "pytorch": ["torch~=1.8", "bokeh~=2.3"],
+    # "sklearn": ["scikit-learn~=0.23.0", "skl2onnx~=1.9"],  TODO: Alex should implement it next.
+    # "xgboost": ["xgboost~=1.1", "onnxmltools~=1.9"],  TODO: Alex should implement it next.
+    "onnx": ["onnxruntime~=1.8.1"],
     "bokeh": ["bokeh~=2.3"],
 }
 extras_require["complete"] = sorted(

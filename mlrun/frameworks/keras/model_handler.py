@@ -3,6 +3,7 @@ import shutil
 import zipfile
 from typing import Any, Dict, List, Union
 
+import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import Model
@@ -10,6 +11,12 @@ from tensorflow.keras import Model
 import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.frameworks._common import ModelHandler
+
+if False:
+    import onnx
+
+# Declare a type of a tensor signature for ONNX conversion:
+TensorSignature = Union[tf.TensorSpec, np.ndarray]
 
 
 class KerasModelHandler(ModelHandler):
@@ -26,10 +33,6 @@ class KerasModelHandler(ModelHandler):
         H5 = "H5"
         JSON_ARCHITECTURE_H5_WEIGHTS = "json_H5"
 
-    # Constant artifact names:
-    _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
-    _WEIGHTS_FILE_ARTIFACT_NAME = "{}_weights_file"
-
     def __init__(
         self,
         model_name: str,
@@ -38,7 +41,7 @@ class KerasModelHandler(ModelHandler):
         context: mlrun.MLClientCtx = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
-        model_format: str = ModelFormats.H5,
+        model_format: str = ModelFormats.SAVED_MODEL,
         save_traces: bool = False,
     ):
         """
@@ -80,8 +83,7 @@ class KerasModelHandler(ModelHandler):
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to
-                                         'ModelFormats.JSON_ARCHITECTURE_H5'.
+                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
         :param save_traces:              Whether or not to use functions saving (only available for the 'SavedModel'
                                          format) for loading the model later without the custom objects dictionary. Only
                                          from tensorflow version >= 2.4.0. Using this setting will increase the model
@@ -137,10 +139,11 @@ class KerasModelHandler(ModelHandler):
         self, output_path: str = None, *args, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
-        Save the handled model at the given output path.
+        Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
+        logged and returned as artifacts.
 
-        :param output_path:  The full path to the directory to save the handled model at. If not given, the context
-                             stored will be used to save the model in the defaulted artifacts location.
+        :param output_path: The full path to the directory to save the handled model at. If not given, the context
+                            stored will be used to save the model in the defaulted artifacts location.
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
         """
@@ -189,7 +192,7 @@ class KerasModelHandler(ModelHandler):
         self._model_file = model_file
         if self._context is not None:
             artifacts[
-                self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
+                self._get_model_file_artifact_name()
             ] = self._context.log_artifact(
                 model_file,
                 local_path=model_file,
@@ -200,7 +203,7 @@ class KerasModelHandler(ModelHandler):
             self._weights_file = weights_file
             if self._context is not None:
                 artifacts[
-                    self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
+                    self._get_weights_file_artifact_name()
                 ] = self._context.log_artifact(
                     weights_file,
                     local_path=weights_file,
@@ -254,10 +257,10 @@ class KerasModelHandler(ModelHandler):
 
     def log(
         self,
-        labels: Dict[str, Union[str, int, float]],
-        parameters: Dict[str, Union[str, int, float]],
-        extra_data: Dict[str, Any],
-        artifacts: Dict[str, Artifact],
+        labels: Dict[str, Union[str, int, float]] = None,
+        parameters: Dict[str, Union[str, int, float]] = None,
+        extra_data: Dict[str, Any] = None,
+        artifacts: Dict[str, Artifact] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -276,6 +279,12 @@ class KerasModelHandler(ModelHandler):
             extra_data=extra_data,
             artifacts=artifacts,
         )
+
+        # Set default values:
+        labels = {} if labels is None else labels
+        parameters = {} if parameters is None else parameters
+        extra_data = {} if extra_data is None else extra_data
+        artifacts = {} if artifacts is None else artifacts
 
         # Save the model:
         model_artifacts = self.save()
@@ -305,6 +314,72 @@ class KerasModelHandler(ModelHandler):
             },
         )
 
+    def to_onnx(
+        self,
+        input_signature: Union[List[TensorSignature], TensorSignature] = None,
+        output_path: str = None,
+        log: bool = None,
+    ) -> onnx.ModelProto:
+        """
+        Convert the model in this handler to an ONNX model.
+
+        :param input_signature: An numpy.ndarray or tensorflow.TensorSpec that describe the input port (shape and data
+                                type). If the model has multiple inputs, a list is expected in the order of the input
+                                ports.
+        :param output_path:     In order to save the ONNX model, pass here the output directory. The model file will be
+                                named with the model name in this handler. Defaulted to None (not saving).
+        :param log:             In order to log the ONNX model, pass True. If None, the model will be logged if this
+                                handler has a MLRun context set. Defaulted to None.
+
+        :return: The converted ONNX model (onnx.ModelProto).
+
+        :raise ModuleNotFoundError: If the onnx modules are missing in the interpreter.
+        """
+        # Import onnx related modules:
+        try:
+            import tf2onnx
+            from mlrun.frameworks.onnx import ONNXModelHandler
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "To convert to ONNX the 'tf2onnx' package must be installed. "
+                "Please run 'pip install mlrun[tensorflow]' to install MLRun's Tensorflow package."
+            )
+
+        # Set the input signature:
+        if input_signature is None:
+            # Try to get the input signature if its not provided:
+            try:
+                input_signature = [
+                    input_layer.type_spec for input_layer in self._model.inputs
+                ]
+            except Exception as e:
+                raise RuntimeError(
+                    "Tried to figure out the model's input signature to convert it to ONNX but failed with the "
+                    "following message: {}".format(e)
+                )
+        elif not isinstance(input_signature, list):
+            # Wrap it in a list:
+            input_signature = [input_signature]
+
+        # Set the output path:
+        if output_path is not None:
+            output_path = os.path.join(output_path, "{}.onnx".format(self._model_name))
+
+        # Set the logging flag:
+        log = self._context is not None if log is None else log
+
+        # Convert to ONNX:
+        model_proto, external_tensor_storage = tf2onnx.convert.from_keras(
+            model=self._model, input_signature=input_signature, output_path=output_path
+        )
+
+        # Log as a model object if needed:
+        if log:
+            onnx_handler = ONNXModelHandler(
+                model_name=self.model_name, model=model_proto, context=self._context
+            )
+            onnx_handler.log()
+
     def _collect_files_from_store_object(self):
         """
         If the model path given is of a store object, collect the needed model files into this handler for later loading
@@ -322,15 +397,12 @@ class KerasModelHandler(ModelHandler):
         self._save_traces = self._model_artifact.labels["save-traces"]
 
         # Read the custom objects:
-        if (
-            self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
-            in self._extra_data
-        ):
+        if self._get_custom_objects_map_artifact_name() in self._extra_data:
             self._custom_objects_map = self._extra_data[
-                self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+                self._get_custom_objects_map_artifact_name()
             ].local()
             self._custom_objects_directory = self._extra_data[
-                self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
+                self._get_custom_objects_directory_artifact_name()
             ].local()
         else:
             self._custom_objects_map = None
@@ -351,7 +423,7 @@ class KerasModelHandler(ModelHandler):
         ):
             # Get the weights file:
             self._weights_file = self._extra_data[
-                self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
+                self._get_weights_file_artifact_name()
             ].local()
 
     def _collect_files_from_local_path(self):

@@ -46,16 +46,10 @@ class MLRunLogger(Logger):
         """
         super(MLRunLogger, self).__init__(context=context)
 
-        # Store the context:
-        self._log_model_labels = (
-            log_model_labels if log_model_labels is not None else {}
-        )
-        self._log_model_parameters = (
-            log_model_parameters if log_model_parameters is not None else {}
-        )
-        self._log_model_extra_data = (
-            log_model_extra_data if log_model_extra_data is not None else {}
-        )
+        # Store the attributes to log along the model:
+        self._log_model_labels = log_model_labels
+        self._log_model_parameters = log_model_parameters
+        self._log_model_extra_data = log_model_extra_data
 
         # Prepare the artifacts collection:
         self._artifacts = {}  # type: Dict[str, Artifact]

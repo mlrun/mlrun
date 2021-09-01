@@ -8,6 +8,9 @@ import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.frameworks._common import ModelHandler
 
+if False:
+    import onnx
+
 
 class PyTorchModelHandler(ModelHandler):
     """
@@ -95,8 +98,8 @@ class PyTorchModelHandler(ModelHandler):
         """
         Save the handled model at the given output path.
 
-        :param output_path:  The full path to the directory to save the handled model at. If not given, the context
-                             stored will be used to save the model in the defaulted location.
+        :param output_path: The full path to the directory to save the handled model at. If not given, the context
+                            stored will be used to save the model in the defaulted location.
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
 
@@ -118,7 +121,7 @@ class PyTorchModelHandler(ModelHandler):
         artifacts = None
         if self._context is not None:
             artifacts = {
-                "weights_file": self._context.log_artifact(
+                self._get_weights_file_artifact_name(): self._context.log_artifact(
                     weights_file,
                     local_path=weights_file,
                     artifact_path=output_path,
@@ -161,10 +164,10 @@ class PyTorchModelHandler(ModelHandler):
 
     def log(
         self,
-        labels: Dict[str, Union[str, int, float]],
-        parameters: Dict[str, Union[str, int, float]],
-        extra_data: Dict[str, Any],
-        artifacts: Dict[str, Artifact],
+        labels: Dict[str, Union[str, int, float]] = None,
+        parameters: Dict[str, Union[str, int, float]] = None,
+        extra_data: Dict[str, Any] = None,
+        artifacts: Dict[str, Artifact] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -183,6 +186,12 @@ class PyTorchModelHandler(ModelHandler):
             extra_data=extra_data,
             artifacts=artifacts,
         )
+
+        # Set default values:
+        labels = {} if labels is None else labels
+        parameters = {} if parameters is None else parameters
+        extra_data = {} if extra_data is None else extra_data
+        artifacts = {} if artifacts is None else artifacts
 
         # Save the model:
         model_artifacts = self.save()
@@ -208,6 +217,14 @@ class PyTorchModelHandler(ModelHandler):
             },
         )
 
+    def to_onnx(self, *args, **kwargs) -> onnx.ModelProto:
+        """
+        Convert the model in this handler to an ONNX model.
+
+        :return: The converted ONNX model (onnx.ModelProto).
+        """
+        pass
+
     def _collect_files_from_store_object(self):
         """
         If the model path given is of a store object, collect the needed model files into this handler for later loading
@@ -225,10 +242,10 @@ class PyTorchModelHandler(ModelHandler):
 
         # Read the custom objects:
         self._custom_objects_map = self._extra_data[
-            self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+            self._get_custom_objects_map_artifact_name()
         ].local()
         self._custom_objects_directory = self._extra_data[
-            self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
+            self._get_custom_objects_directory_artifact_name()
         ].local()
 
     def _collect_files_from_local_path(self):

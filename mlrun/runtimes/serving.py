@@ -107,7 +107,7 @@ class ServingSpec(NuclioSpec):
         track_models=None,
         secret_sources=None,
         default_content_type=None,
-        mount_applied=False,
+        disable_auto_mount=False,
     ):
 
         super().__init__(
@@ -133,7 +133,7 @@ class ServingSpec(NuclioSpec):
             service_account=service_account,
             readiness_timeout=readiness_timeout,
             build=build,
-            mount_applied=mount_applied,
+            disable_auto_mount=disable_auto_mount,
         )
 
         self.models = models or {}
@@ -419,7 +419,9 @@ class ServingRuntime(RemoteRuntime):
                     k8s_secrets, project=self.metadata.project
                 )
 
-    def deploy(self, dashboard="", project="", tag="", verbose=False):
+    def deploy(
+        self, dashboard="", project="", tag="", verbose=False,
+    ):
         """deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
@@ -451,7 +453,7 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
-        return super().deploy(dashboard, project, tag, verbose=verbose)
+        return super().deploy(dashboard, project, tag, verbose=verbose,)
 
     def _get_runtime_env(self):
         env = super()._get_runtime_env()

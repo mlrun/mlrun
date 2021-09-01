@@ -19,7 +19,8 @@ def get_background_task(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    # Since there's no not-found option on get_background_task - we authorize before getting (unlike other get endpoint)
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.background_task,
         project,
         name,

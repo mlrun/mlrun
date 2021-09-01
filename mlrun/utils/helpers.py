@@ -588,6 +588,12 @@ def enrich_image_url(image_url: str) -> str:
     return image_url
 
 
+def get_docker_repository_or_default(repository: str) -> str:
+    if not repository:
+        repository = "mlrun"
+    return repository
+
+
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry

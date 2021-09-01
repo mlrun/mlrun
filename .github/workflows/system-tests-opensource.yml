@@ -151,6 +151,7 @@ jobs:
         minikube kubectl -- create namespace ${NAMESPACE}
 
     - name: Override MLRun Registry ConfigMap
+      # TODO: remove auto mount when it's enabled by default
       run: |
         cat <<EOF | minikube kubectl -- apply -f -
         apiVersion: v1
@@ -161,6 +162,7 @@ jobs:
         data:
           MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER: mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}
           MLRUN_IMAGES_REGISTRY: ${{ steps.computed_params.outputs.mlrun_docker_registry }}
+          MLRUN_STORAGE__AUTO_MOUNT_TYPE: v3io_credentials
         EOF
 
     - name: Install MLRun Kit helm chart

@@ -151,6 +151,7 @@ class SparkJobSpec(KubeResourceSpec):
             workdir=workdir,
             build=build,
             node_selector=node_selector,
+            priority_class_name=None,
         )
 
         self.driver_resources = driver_resources or {}
@@ -192,6 +193,11 @@ class SparkRuntime(KubejobRuntime):
 
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
+
+    def with_priority_class(
+        self, name: str = config.default_function_priority_class_name
+    ):
+        raise NotImplementedError("Not supported in spark 2 operator")
 
     def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
@@ -307,6 +313,12 @@ class SparkRuntime(KubejobRuntime):
                 "spec.restartPolicy.onSubmissionFailureRetryInterval",
                 self.spec.restart_policy["submission_retry_interval"],
                 int,
+            )
+        if self.spec.priority_class_name:
+            update_in(
+                job,
+                "spec.batchSchedulerOptions.priorityClassName",
+                self.spec.priority_class_name,
             )
 
         update_in(job, "metadata", meta.to_dict())

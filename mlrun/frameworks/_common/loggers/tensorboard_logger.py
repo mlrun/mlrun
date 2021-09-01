@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict, List, TypeVar, Union
 import yaml
 
 import mlrun
-from mlrun import MLClientCtx
 from mlrun.config import config
 from mlrun.frameworks._common.loggers.logger import Logger, TrackableType
 
@@ -54,7 +53,7 @@ class TensorboardLogger(Logger):
     def __init__(
         self,
         statistics_functions: List[Callable[[Weight], Union[float, Weight]]],
-        context: MLClientCtx = None,
+        context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
         update_frequency: Union[int, str] = "epoch",
@@ -200,7 +199,7 @@ class TensorboardLogger(Logger):
         """
         Write the current epoch training results with respect to the update frequency.
 
-        :param ignore_update_frequency: If the updaye frequency should be ignored, meaning the training results will be
+        :param ignore_update_frequency: If the update frequency should be ignored, meaning the training results will be
                                         written to tensorboard regardless the iteration. Should be happening at the end
                                         of every epoch.
 
@@ -239,7 +238,7 @@ class TensorboardLogger(Logger):
         """
         Write the current epoch validation (evaluation) results with respect to the update frequency.
 
-        :param ignore_update_frequency: If the updaye frequency should be ignored, meaning the training results will be
+        :param ignore_update_frequency: If the update frequency should be ignored, meaning the training results will be
                                         written to tensorboard regardless the iteration. Should be happening at the end
                                         of every epoch.
 
@@ -515,7 +514,7 @@ class TensorboardLogger(Logger):
         :return: The generated text.
         """
         text = "####Epoch {} summary:".format(self._epochs)
-        if self._context is not None and self._context._children[-1] is not None:
+        if self._context is not None:
             for property_name, property_value in self._extract_properties_from_context(
                 context=self._context
             ).items():
@@ -595,7 +594,7 @@ class TensorboardLogger(Logger):
 
     @staticmethod
     def _generate_context_link(
-        context: MLClientCtx, link_text: str = "view in MLRun"
+        context: mlrun.MLClientCtx, link_text: str = "view in MLRun"
     ) -> str:
         """
         Generate a hyperlink from the provided context to view in the MLRun web.
@@ -614,7 +613,7 @@ class TensorboardLogger(Logger):
         )
 
     @staticmethod
-    def _extract_properties_from_context(context: MLClientCtx) -> Dict[str, Any]:
+    def _extract_properties_from_context(context: mlrun.MLClientCtx) -> Dict[str, Any]:
         """
         Extract the properties of the run this context belongs to.
 

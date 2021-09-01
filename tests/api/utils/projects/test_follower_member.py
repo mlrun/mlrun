@@ -230,6 +230,13 @@ def test_list_project(
         state=mlrun.api.schemas.ProjectState.archived,
     )
 
+    # list specific names only
+    _assert_list_projects(
+        projects_follower,
+        [archived_project, labeled_project],
+        names=[archived_project.metadata.name, labeled_project.metadata.name],
+    )
+
     # list labeled - key existence
     _assert_list_projects(
         projects_follower,

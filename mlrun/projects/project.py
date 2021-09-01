@@ -16,7 +16,7 @@ import pathlib
 import shutil
 import typing
 import warnings
-from os import environ, path
+from os import environ, makedirs, path
 
 import yaml
 from git import Repo
@@ -41,10 +41,12 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    enrich_function_object,
     get_db_function,
     get_workflow_engine,
 )
@@ -56,8 +58,11 @@ class ProjectError(Exception):
 
 def init_repo(context, url, init_git):
     repo = None
-    if not path.isdir(context):
-        raise ValueError(f"context {context} is not an existing dir path")
+    context_path = pathlib.Path(context)
+    if not context_path.exists():
+        context_path.mkdir(parents=True)
+    elif not context_path.is_dir():
+        raise ValueError(f"context {context} is not a dir path")
     try:
         repo = Repo(context)
         url = get_repo_url(repo)
@@ -199,6 +204,8 @@ def load_project(
         else:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
+            if not path.isdir(context):
+                makedirs(context)
             project.spec.subpath = subpath or project.spec.subpath
             from_db = True
 
@@ -431,6 +438,7 @@ class ProjectSpec(ModelObj):
         load_source_on_run=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
+        disable_auto_mount=False,
     ):
         self.repo = None
 
@@ -459,6 +467,7 @@ class ProjectSpec(ModelObj):
         self._function_objects = {}
         self._function_definitions = {}
         self.functions = functions or []
+        self.disable_auto_mount = disable_auto_mount
 
     @property
     def source(self) -> str:
@@ -1031,7 +1040,9 @@ class MlrunProject(ModelObj):
         target_path=None,
     ):
         am = self._get_artifact_manager()
-        artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = (
+            artifact_path or self.spec.artifact_path or mlrun.mlconf.artifact_path
+        )
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             artifact_path, self.metadata.name
         )
@@ -1117,7 +1128,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             ds,
             local_path=local_path,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             target_path=target_path,
             tag=tag,
             upload=upload,
@@ -1146,6 +1157,7 @@ class MlrunProject(ModelObj):
         training_set=None,
         label_column=None,
         extra_data=None,
+        **kwargs,
     ):
         """log a model artifact and optionally upload it to datastore
 
@@ -1203,6 +1215,7 @@ class MlrunProject(ModelObj):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            **kwargs,
         )
         if training_set is not None:
             model.infer_from_df(training_set, label_column)
@@ -1210,7 +1223,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             model,
             local_path=model_dir,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             tag=tag,
             upload=upload,
             labels=labels,
@@ -1327,10 +1340,11 @@ class MlrunProject(ModelObj):
         )
         return self.get_function(key, sync)
 
-    def get_function(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
+    def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param sync:  will reload/reinit the function
+        :param enrich: add project info/config/source info to the function object
 
         :returns: function object
         """
@@ -1342,6 +1356,8 @@ class MlrunProject(ModelObj):
         else:
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
+        if enrich:
+            return enrich_function_object(self, function)
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
@@ -1517,6 +1533,7 @@ class MlrunProject(ModelObj):
         workflow_path=None,
         arguments=None,
         artifact_path=None,
+        workflow_handler=None,
         namespace=None,
         sync=False,
         watch=False,
@@ -1534,11 +1551,14 @@ class MlrunProject(ModelObj):
         :param artifact_path:
                           target path/url for workflow artifacts, the string
                           '{{workflow.uid}}' will be replaced by workflow id
+        :param workflow_handler:
+                          workflow function handler (for running workflow function directly)
         :param namespace: kubernetes namespace if other than default
         :param sync:      force functions sync before run
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
+        :param engine:    workflow engine running the workflow. Only supported value is 'kfp' (also used if None)
 
         :returns: run id
         """
@@ -1560,13 +1580,13 @@ class MlrunProject(ModelObj):
         if not self.spec._function_objects:
             raise ValueError("no functions in the project")
 
-        if not name and not workflow_path:
+        if not name and not workflow_path and not workflow_handler:
             if self.spec.workflows:
                 name = list(self.spec._workflows.keys())[0]
             else:
                 raise ValueError("workflow name or path must be specified")
 
-        if workflow_path:
+        if workflow_path or workflow_handler:
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
             workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
@@ -1580,6 +1600,7 @@ class MlrunProject(ModelObj):
             self,
             workflow_spec,
             name,
+            workflow_handler=workflow_handler,
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
@@ -1672,13 +1693,24 @@ class MlrunProject(ModelObj):
     def export(self, filepath=None):
         """save the project object into a file (default to project.yaml)"""
         filepath = filepath or path.join(
-            self.spec.context, self.spec.subpath, "project.yaml"
+            self.spec.context, self.spec.subpath or "", "project.yaml"
         )
         project_dir = pathlib.Path(filepath).parent
         if not project_dir.exists():
             project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
+
+    def set_model_monitoring_credentials(self, access_key: str):
+        """ Set the credentials that will be used by the project's model monitoring
+        infrastructure functions.
+        The supplied credentials must have data access
+
+        :param access_key: Model Monitoring access key for managing user permissions.
+        """
+        set_project_model_monitoring_credentials(
+            access_key=access_key, project=self.metadata.name
+        )
 
 
 class MlrunProjectLegacy(ModelObj):
@@ -1939,9 +1971,6 @@ def _init_function_from_dict(f, project):
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
 
-    if with_repo and not project.spec.source:
-        raise ValueError("project source must be specified when cloning context")
-
     in_context = False
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
@@ -1961,8 +1990,9 @@ def _init_function_from_dict(f, project):
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
+        # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
-            name, filename=url, image=image, kind=kind or "job", handler=handler
+            name, filename=url, image=image, kind=kind, handler=handler
         )
     elif url.endswith(".py"):
         if not image:

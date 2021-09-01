@@ -8,7 +8,7 @@ from tabulate import tabulate
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
@@ -274,9 +274,8 @@ class PyTorchMLRunInterface:
 
     def add_auto_logging_callbacks(
         self,
-        custom_objects: Dict[Union[str, List[str]], str] = None,
         add_mlrun_logger: bool = True,
-        mlrun_callback__kwargs: Dict[str, Any] = None,
+        mlrun_callback_kwargs: Dict[str, Any] = None,
         add_tensorboard_logger: bool = True,
         tensorboard_callback_kwargs: Dict[str, Any] = None,
     ):
@@ -285,27 +284,18 @@ class PyTorchMLRunInterface:
         MLRun and Tensorboard, see 'pytorch.callbacks.MLRunLoggingCallback' and
         'pytorch.callbacks.TensorboardLoggingCallback'.
 
-        :param custom_objects:              Custom objects the model is using. Expecting a dictionary with the classes
-                                            names to import as keys (if multiple classes needed to be imported from the
-                                            same py file a list can be given) and the python file from where to import
-                                            them as their values. The model class itself must be specified in order to
-                                            properly save it for later being loaded with a handler. For example:
-                                            {
-                                                "class_name": "/path/to/model.py",
-                                                ["layer1", "layer2"]: "/path/to/custom_layers.py"
-                                            }
         :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
-        :param mlrun_callback__kwargs:      Key word arguments for the MLRun callback. For further information see the
-                                            documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
-                                            'custom_objects' and 'auto_log' parameters are already given here.
+        :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
+                                            documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
+                                            and 'auto_log' parameters are already given here.
         :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
         :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                             the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                             'context' and 'auto_log' parameters are already given here.
         """
         # Set the dictionaries defaults:
-        mlrun_callback__kwargs = (
-            {} if mlrun_callback__kwargs is None else mlrun_callback__kwargs
+        mlrun_callback_kwargs = (
+            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
         )
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
@@ -316,10 +306,7 @@ class PyTorchMLRunInterface:
             # Add the MLRun logging callback:
             self._callbacks.append(
                 MLRunLoggingCallback(
-                    context=self._context,
-                    custom_objects=custom_objects,
-                    auto_log=True,
-                    **mlrun_callback__kwargs
+                    context=self._context, auto_log=True, **mlrun_callback_kwargs
                 )
             )
         if add_tensorboard_logger:
@@ -329,6 +316,46 @@ class PyTorchMLRunInterface:
                     context=self._context, auto_log=True, **tensorboard_callback_kwargs
                 )
             )
+
+    def predict(
+        self, inputs: List[Tensor], use_cuda: bool = True, batch_size: int = -1
+    ) -> list:
+        """
+        Run prediction on the given data. Batched data can be predicted as well.
+
+        :param inputs:     The inputs to infer through the model and get its predictions. The list should contain only
+                           torch.Tensor items.
+        :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
+        :param batch_size: Batch size to use for prediction. If equals to -1, the entire inputs will be inferred at once
+                           (batch size will be equal to the amount of inputs). Defaulted to -1.
+
+        :return: The model's predictions (outputs) list.
+        """
+        # Move the model to cuda if needed:
+        if use_cuda and torch.cuda.is_available():
+            self._objects_to_cuda()
+
+        # Initialize a data loader for the given inputs:
+        data_loader = DataLoader(
+            TensorDataset(torch.stack(inputs)),
+            batch_size=batch_size if batch_size != -1 else len(inputs),
+        )
+
+        # Start the inference:
+        predictions = []
+        for data in data_loader:
+            # Read the batched input:
+            x = data[0]
+            # Move the input tensor to cuda if needed:
+            if use_cuda and torch.cuda.is_available():
+                x = self._tensor_to_cuda(tensor=x)
+            # Get the model's prediction:
+            y = self._model(x)
+            # Store the predictions one by one:
+            for prediction in y.tolist():
+                predictions.append(prediction)
+
+        return predictions
 
     def _parse_and_store(
         self,
@@ -372,7 +399,7 @@ class PyTorchMLRunInterface:
         :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
                                          None, meaning it will be read from context if available and if not - False.
 
-        :raise ValueError: In case on of the given parameters is invalid.
+        :raise ValueError: In case one of the given parameters is invalid.
         """
         # Parse and validate input:
         # # Metric functions:

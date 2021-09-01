@@ -166,6 +166,22 @@ class RunDBMock:
     ):
         return "ready", last_log_timestamp
 
+    def assert_no_mount_or_creds_configured(self):
+        env_list = self._function["spec"]["env"]
+        env_params = [item["name"] for item in env_list]
+        for env_variable in [
+            "V3IO_USERNAME",
+            "V3IO_ACCESS_KEY",
+            "V3IO_FRAMESD",
+            "V3IO_API",
+        ]:
+            assert env_variable not in env_params
+
+        volume_mounts = self._function["spec"]["volume_mounts"]
+        volumes = self._function["spec"]["volumes"]
+        assert len(volumes) == 0
+        assert len(volume_mounts) == 0
+
     def assert_v3io_mount_or_creds_configured(
         self, v3io_user, v3io_access_key, cred_only=False
     ):

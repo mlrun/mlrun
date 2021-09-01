@@ -113,6 +113,7 @@ class FeatureVectorStatus(ModelObj):
         stats=None,
         preview=None,
         run_uri=None,
+        index_keys=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -121,6 +122,7 @@ class FeatureVectorStatus(ModelObj):
         self.label_column = label_column
         self.targets = targets
         self.stats = stats or {}
+        self.index_keys = index_keys
         self.preview = preview or []
         self.features: List[Feature] = features or []
         self.run_uri = run_uri
@@ -267,6 +269,7 @@ class FeatureVector(ModelObj):
         """
         processed_features = {}  # dict of name to (featureset, feature object)
         feature_set_objects = {}
+        index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
         if offline and self.spec.label_feature:
@@ -312,6 +315,9 @@ class FeatureVector(ModelObj):
 
         for feature_set_name, fields in feature_set_fields.items():
             feature_set = feature_set_objects[feature_set_name]
+            for key in feature_set.spec.entities.keys():
+                if key not in index_keys:
+                    index_keys.append(key)
             for name, alias in fields:
                 field_name = alias or name
                 if name in feature_set.status.stats:
@@ -319,6 +325,7 @@ class FeatureVector(ModelObj):
                 if name in feature_set.spec.features.keys():
                     self.status.features[field_name] = feature_set.spec.features[name]
 
+        self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
 
     def verify_feature_vector_permissions(self, action: mlrun.api.schemas.AuthorizationAction):

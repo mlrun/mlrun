@@ -61,7 +61,7 @@ def test_list_runtimes_resources_group_by_job(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
@@ -108,7 +108,7 @@ def test_list_runtimes_resources_no_group_by(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get("/api/projects/*/runtime-resources",)
@@ -158,7 +158,7 @@ def test_list_runtime_resources_no_resources(
         return_value={}
     )
 
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=[]
     )
     response = client.get("/api/projects/*/runtime-resources",)
@@ -217,7 +217,7 @@ def test_list_runtime_resources_filter_by_kind(
             grouped_by_project_runtime_resources_output,
         )
     )
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
@@ -265,7 +265,7 @@ def test_delete_runtime_resources_nothing_allowed(
         return_value=grouped_by_project_runtime_resources_output
     )
 
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=[]
     )
     _assert_empty_responses_in_delete_endpoints(client)
@@ -279,7 +279,7 @@ def test_delete_runtime_resources_no_resources(
     )
 
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     _assert_empty_responses_in_delete_endpoints(client)
@@ -304,7 +304,7 @@ def test_delete_runtime_resources_opa_filtering(
     )
 
     allowed_projects = [project_1, project_2]
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources(
@@ -314,6 +314,41 @@ def test_delete_runtime_resources_opa_filtering(
     body = response.json()
     expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
         allowed_projects, grouped_by_project_runtime_resources_output
+    )
+    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+    # legacy endpoint
+    response = client.delete("/api/runtimes",)
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+
+def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    (
+        project_1,
+        project_1_job_name,
+        no_project_builder_name,
+        grouped_by_project_runtime_resources_output,
+    ) = _generate_grouped_by_project_runtime_resources_with_legacy_builder_output()
+
+    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
+        return_value=grouped_by_project_runtime_resources_output
+    )
+
+    allowed_projects = []
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+        return_value=allowed_projects
+    )
+    # no projects are allowed, but there is a non project runtime resource (the legacy builder pod)
+    # therefore delete resources will be called, but without filter on project in the label selector
+    _mock_runtime_handlers_delete_resources(
+        mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
+    )
+    response = client.delete("/api/projects/*/runtime-resources",)
+    body = response.json()
+    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+        [""], grouped_by_project_runtime_resources_output
     )
     assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
 
@@ -345,7 +380,7 @@ def test_delete_runtime_resources_with_kind(
     )
 
     allowed_projects = [project_1, project_3]
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources([kind], allowed_projects)
@@ -391,7 +426,7 @@ def test_delete_runtime_resources_with_object_id(
     )
 
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     _mock_runtime_handlers_delete_resources([kind], [project_1])
@@ -420,12 +455,13 @@ def _mock_runtime_handlers_delete_resources(
         force: bool = False,
         grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
     ):
-        assert (
-            mlrun.api.api.endpoints.runtime_resources._generate_label_selector_for_allowed_projects(
-                allowed_projects
+        if allowed_projects:
+            assert (
+                mlrun.api.api.endpoints.runtime_resources._generate_label_selector_for_allowed_projects(
+                    allowed_projects
+                )
+                in label_selector
             )
-            in label_selector
-        )
 
     for kind in kinds:
         runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
@@ -450,6 +486,51 @@ def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestC
         f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+
+def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
+    no_project = ""
+    project_1 = "project-1"
+    project_1_job_name = "project-1-job-name"
+    no_project_builder_name = "builder-name"
+    grouped_by_project_runtime_resources_output = {
+        project_1: {
+            mlrun.runtimes.RuntimeKinds.job: mlrun.api.schemas.RuntimeResources(
+                pod_resources=[
+                    mlrun.api.schemas.RuntimeResource(
+                        name=project_1_job_name,
+                        labels={
+                            "mlrun/project": project_1,
+                            # using name as uid to make assertions easier later
+                            "mlrun/uid": project_1_job_name,
+                            "mlrun/class": mlrun.runtimes.RuntimeKinds.job,
+                        },
+                    )
+                ],
+                crd_resources=[],
+            )
+        },
+        no_project: {
+            mlrun.runtimes.RuntimeKinds.job: mlrun.api.schemas.RuntimeResources(
+                pod_resources=[
+                    mlrun.api.schemas.RuntimeResource(
+                        name=no_project_builder_name,
+                        labels={
+                            "mlrun/class": "build",
+                            "mlrun/task-name": "some-task-name",
+                        },
+                    )
+                ],
+                crd_resources=[],
+            ),
+        },
+    }
+    return (
+        project_1,
+        project_1_job_name,
+        no_project_builder_name,
+        grouped_by_project_runtime_resources_output,
+    )
 
 
 def _generate_grouped_by_project_runtime_resources_output():
@@ -552,7 +633,7 @@ def _mock_opa_filter_and_assert_list_response(
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     opa_filter_response,
 ):
-    mlrun.api.utils.clients.opa.Client().filter_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=opa_filter_response
     )
     response = client.get(

@@ -46,15 +46,27 @@ class TestMLRunSystem:
         # it in mlconf.
         mlconf.dbpath = self._test_env["MLRUN_DBPATH"]
 
-        set_environment(
-            artifact_path="/User/data", project=self.project_name,
-        )
+        if not self._skip_set_environment():
+            set_environment(
+                artifact_path="/User/data", project=self.project_name,
+            )
 
         self.custom_setup()
 
         self._logger.info(
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
+
+    @staticmethod
+    def _should_clean_resources():
+        return os.environ.get("MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES") != "false"
+
+    def _delete_test_project(self, name=None):
+        if self._should_clean_resources():
+            self._run_db.delete_project(
+                name or self.project_name,
+                deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascading,
+            )
 
     def teardown_method(self, method):
         self._logger.info(
@@ -64,16 +76,13 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        if os.environ.get("MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES") != "false":
+        if self._should_clean_resources():
             fsets = self._run_db.list_feature_sets()
             if fsets:
                 for fset in fsets:
                     fset.purge_targets()
-            self._run_db.delete_project(
-                self.project_name,
-                deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascading,
-            )
 
+        self._delete_test_project()
         self._teardown_env()
         self._logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
@@ -84,6 +93,10 @@ class TestMLRunSystem:
 
     def custom_teardown(self):
         pass
+
+    @staticmethod
+    def _skip_set_environment():
+        return False
 
     @classmethod
     def skip_test_if_env_not_configured(cls, test):

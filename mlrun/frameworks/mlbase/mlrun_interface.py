@@ -85,5 +85,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                               metrics=context.results,
                               training_set = train_set,
                               format="pkl",
+                              label_column = y_test.columns.to_list(),
                               **test_set_metrics
                               )

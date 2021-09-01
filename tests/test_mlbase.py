@@ -4,7 +4,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 from sklearn.linear_model import LogisticRegression
 from mlrun.frameworks.sklearn import apply_mlrun as apply_mlrun_sklearn
-from mlrun.frameworks.xgboost import apply_mlrun as apply_mlrun_xgb
 from mlrun import new_function
 
 

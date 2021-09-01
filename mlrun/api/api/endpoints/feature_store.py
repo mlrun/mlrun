@@ -312,7 +312,7 @@ def ingest_feature_set(
         db_session, project, name, tag, uid
     )
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
-    if feature_set.spec.function:
+    if feature_set.spec.function and feature_set.spec.function.function_object:
         function = feature_set.spec.function.function_object
         mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.function,

@@ -23,7 +23,12 @@ def apply_mlrun(
                         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
                         model = apply_mlrun_xgb(model, context, X_test=X_test, y_test=y_test)
                         model.fit(X_train, y_train)
-   
+                        
+    examples::          model = LogisticRegression()
+                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+                        model = apply_mlrun_xgb(model, context)
+                        model.fit(X_train, y_train)
+                        
     :param model:       The model to wrap.
     
     :param context:     MLRun context to work with. If no context is given it will be retrieved via

@@ -28,7 +28,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                 # Identify and build training set
                 X_train = args[0]
                 y_train = args[1]
-                y_train = y_train[y_train.columns.item()].values
+                y_train = y_train[y_train.columns.item()]
                 train_set = pd.concat([X_train, y_train], axis=1)
                 
                 context.log_dataset('train_set',
@@ -55,6 +55,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             # Identify and build test set
             X_test = data['X_test']
             y_test = data['y_test']
+            y_test = y_test[y_test.columns.item()]
             test_set = pd.concat([X_test, y_test], axis=1)
             
             # Model Parameters

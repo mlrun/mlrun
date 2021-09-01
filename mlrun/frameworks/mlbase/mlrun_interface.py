@@ -24,12 +24,6 @@ class MLBaseMLRunInterface(MLRunInterface):
         # Wrap the fit method:
         def fit_wrapper(fit_method, **kwargs):
             def wrapper(*args, **kwargs):
-                
-                # Identify splits and build training set
-                X_train = args[0]
-                y_train = args[1]
-                train_set = pd.concat([X_train, y_train], axis=1)
-                train_set.reset_index(drop=True, inplace=True)
 
                 # Call the original fit method
                 fit_method(*args, **kwargs)

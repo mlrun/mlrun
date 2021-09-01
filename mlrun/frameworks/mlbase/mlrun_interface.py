@@ -44,6 +44,14 @@ class MLBaseMLRunInterface(MLRunInterface):
             context.set_label("class", str(model.__class__.__name__))
 
             if data.get("X_test") is not None:
+             
+                # Identify splits and build test set  
+                X_train = args[0]
+                y_train = args[1]
+                train_set = pd.concat([X_train, y_train], axis=1)
+                train_set.reset_index(drop=True, inplace=True)
+                    
+                    
                 # Identify splits and build test set
                 X_test = data['X_test']
                 y_test = data['y_test']
@@ -64,7 +72,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                 )
                 
                 # Add computed metrics to test-set dict
-                test_set_metrics['training_set']= test_set
+                test_set_metrics['training_set']= train_set
                 test_set_metrics['extra_data']= eval_metrics
                 test_set_metrics['label_column'] = y_test.columns.to_list()
 

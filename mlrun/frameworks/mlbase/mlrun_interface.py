@@ -27,6 +27,8 @@ class MLBaseMLRunInterface(MLRunInterface):
                 X_train = args[0]
                 y_train = args[1][args[1].columns.item()]
                 
+                print(y_train)
+                
                 train_set = pd.concat([X_train, y_train], axis=1)
                 context.log_dataset('train_set',
                                     df=train_set,

@@ -86,5 +86,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                               algorithm=f"{str(model.__class__.__name__)}",
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
+                              format='pkl'
                               label_column = y_test.columns.to_list(),
                               )

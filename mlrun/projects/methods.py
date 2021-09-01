@@ -2,9 +2,10 @@ import mlrun
 from .pipelines import pipeline_context
 
 
-def _is_kfp():
-    return pipeline_context.workflow
-
+def _get_engine():
+    if not pipeline_context.workflow:
+        raise ValueError("not running inside a workflow")
+    return pipeline_context.workflow.engine
 
 def run_function(
     function_uri,
@@ -44,7 +45,9 @@ def run_function(
         hyper_params=hyper_params,
         hyper_param_options=hyper_param_options,
     )
-    if _is_kfp():
+
+    engine = _get_engine()
+    if engine == "kfp":
         function.as_step()
 
     return function.run(

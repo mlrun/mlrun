@@ -16,6 +16,7 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
+import uuid
 
 from kfp.compiler import compiler
 
@@ -355,6 +356,42 @@ class _KFPRunner(_PipelineRunner):
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
             return resp["run"].get("status", "")
+        return ""
+
+
+class _LocalRunner(_PipelineRunner):
+    """local pipelines runner"""
+
+    engine = "local"
+
+    @classmethod
+    def run(
+        cls,
+        project,
+        workflow_spec: WorkflowSpec,
+        name=None,
+        workflow_handler=None,
+        secrets=None,
+        artifact_path=None,
+        namespace=None,
+    ) -> _PipelineRunStatus:
+        pipeline_context.set(project, workflow_spec)
+        if not workflow_handler or not callable(workflow_handler):
+            workflow_file = workflow_spec.get_source_file(project.spec.context)
+            workflow_handler = create_pipeline(
+                project,
+                workflow_file,
+                pipeline_context.functions,
+                secrets,
+                handler=workflow_handler,
+            )
+        else:
+            builtins.funcs = pipeline_context.functions
+
+        workflow_handler(**workflow_spec.args)
+        return _PipelineRunStatus(uuid.uuid4().hex, cls, project=project, workflow=workflow_spec)
+
+    def get_state(self, run_id, project=None):
         return ""
 
 

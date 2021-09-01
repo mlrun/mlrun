@@ -33,7 +33,7 @@ def version():
         # pip install git+https://github.com/mlrun/mlrun@development)
         # it won't have a version file, so adding some sane default
         logger.warning("Failed resolving version. Ignoring and using unstable")
-        return "unstable"
+        return "0.7.0"
 
 
 def is_ignored(line):

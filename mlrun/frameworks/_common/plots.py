@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import numpy as np
 from scikitplot.metrics import plot_calibration_curve
 from scipy import interp
 from sklearn import metrics
@@ -63,7 +64,7 @@ def feature_importances(model, header):
 
 
 def plot_importance(
-        context, model, key: str = "feature-importances", plots_dest: str = "plots"
+    context, model, key: str = "feature-importances", plots_dest: str = "plots"
 ):
     """Display estimated feature importances
     Only works for models with attribute 'feature_importances_`
@@ -333,17 +334,17 @@ def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
 
 
 def plot_roc(
-        context,
-        y_labels,
-        y_probs,
-        key="roc",
-        plots_dir: str = "plots",
-        fmt="png",
-        fpr_label: str = "false positive rate",
-        tpr_label: str = "true positive rate",
-        title: str = "roc curve",
-        legend_loc: str = "best",
-        clear: bool = True,
+    context,
+    y_labels,
+    y_probs,
+    key="roc",
+    plots_dir: str = "plots",
+    fmt="png",
+    fpr_label: str = "false positive rate",
+    tpr_label: str = "true positive rate",
+    title: str = "roc curve",
+    legend_loc: str = "best",
+    clear: bool = True,
 ):
     """plot roc curves
 
@@ -397,16 +398,16 @@ def plot_roc(
 
 # move to the individual framework
 def eval_model_v2(
-        context,
-        xtest,
-        ytest,
-        model,
-        pcurve_bins: int = 10,
-        pcurve_names: List[str] = ["my classifier"],
-        plots_artifact_path: str = "",
-        pred_params: dict = {},
-        cmap="Blues",
-        is_xgb=False,
+    context,
+    xtest,
+    ytest,
+    model,
+    pcurve_bins: int = 10,
+    pcurve_names: List[str] = ["my classifier"],
+    plots_artifact_path: str = "",
+    pred_params: dict = {},
+    cmap="Blues",
+    is_xgb=False,
 ):
     """generate predictions and validation stats
 
@@ -426,9 +427,7 @@ def eval_model_v2(
     :param is_xgb
     """
 
-    import numpy as np
-
-    if hasattr(model, 'get_xgb_params'):
+    if hasattr(model, "get_xgb_params"):
         is_xgb = True
 
     def df_blob(df):

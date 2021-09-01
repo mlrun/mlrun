@@ -77,7 +77,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                               body=dumps(model),
                               artifact_path=context.artifact_subpath("models"),
                               framework=f"{str(model.__module__).split('.')[0]}",
-                              algorithm=f"{str(model.__class__.__name__)}",
+                              algorithm=str(model.__class__.__name__),
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
                               format="pkl",

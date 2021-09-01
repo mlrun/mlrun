@@ -63,7 +63,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                 artifact_path=context.artifact_subpath("data"),
             )
 
-            print('jehehe', data['y_test'].columns.to_list())
             # Log fitted model
             context.set_label("class", str(model.__class__))
             context.log_model(model_name or "model",
@@ -76,5 +75,4 @@ class MLBaseMLRunInterface(MLRunInterface):
                               algorithm=f"{str(model.__class__)}",
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
-                              label_column = data['y_test'].columns.to_list(),
                               )

@@ -73,7 +73,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             )
 
             # Log fitted model
-            context.set_label("class", str(model.__class__))
+            context.set_label("class", str(model.__class__.__name__))
             context.log_model(model_name or "model",
                               db_key=model_name,
                               body=dumps(model),
@@ -81,7 +81,7 @@ class MLBaseMLRunInterface(MLRunInterface):
                               artifact_path=context.artifact_subpath("models"),
                               extra_data=eval_metrics,
                               framework=f"{str(model.__module__).split('.')[0]}",
-                              algorithm=f"{str(model.__class__)}",
+                              algorithm=f"{str(model.__class__.__name__)}",
                               model_file=f"{str(model.__class__.__name__)}.pkl",
                               metrics=context.results,
                               label_column = y_test.columns.to_list(),

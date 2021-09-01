@@ -51,7 +51,7 @@ class MLBaseMLRunInterface(MLRunInterface):
             # Model Parameters
             model_parameters = {key: str(item) for key, item in model.get_params().items()}
 
-            if data.get("X_test") and data.get("y_test"):
+            if data.get("X_test") is not None:
                 
                 # Identify splits and build test set
                 X_test = data['X_test']

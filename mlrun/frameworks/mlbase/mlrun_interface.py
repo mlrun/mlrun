@@ -44,19 +44,21 @@ class MLBaseMLRunInterface(MLRunInterface):
         setattr(model, "fit", fit_wrapper(model.fit, **kwargs))
 
         def _post_fit(*args, **kwargs):
+            
             test_set_metrics = {}
             context.set_label("class", str(model.__class__.__name__))
             
-            if data.get("X_test") is not None and data.get("y_test") is not None:
+            # Model Parameters
+            model_parameters = {key: str(item) for key, item in model.get_params().items()}
+
+            if data.get("X_test") and data.get("y_test"):
+                
                 # Identify splits and build test set
                 X_test = data['X_test']
                 y_test = data['y_test']
                 test_set = pd.concat([X_test, y_test], axis=1)
                 test_set.reset_index(drop=True, inplace=True)
-            
-                # Model Parameters
-                model_parameters = {key: str(item) for key, item in model.get_params().items()}
-
+           
                 # Evaluate model results and get the evaluation metrics
                 eval_metrics = eval_model_v2(context, X_test, y_test, model)
 
@@ -69,7 +71,8 @@ class MLBaseMLRunInterface(MLRunInterface):
                     labels={"data-type": "held-out"},
                     artifact_path=context.artifact_subpath("data"),
                 )
-             
+                
+                # Add computed metrics to test-set dict
                 test_set_metrics['training_set']= test_set
                 test_set_metrics['extra_data']= eval_metrics
                 test_set_metrics['label_column'] = y_test.columns.to_list()

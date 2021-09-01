@@ -144,7 +144,10 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
 
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
-    if function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes():
+    if (
+        function.kind
+        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+    ):
         if auth_info and auth_info.session:
             auth_env_vars = {
                 "MLRUN_AUTH_SESSION": auth_info.session,
@@ -186,6 +189,14 @@ def _submit_run(
         fn, task = _generate_function_and_task_from_submit_run_body(
             db_session, auth_info, data
         )
+        if (
+            not fn.kind
+            or fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+            and not mlrun.mlconf.httpdb.jobs.allow_local_run
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Local runtimes can not be run through API (not locally)"
+            )
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)

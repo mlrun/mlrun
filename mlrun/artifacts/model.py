@@ -67,9 +67,10 @@ class ModelArtifact(Artifact):
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
+        **kwargs,
     ):
 
-        super().__init__(key, body, format=format, target_path=target_path)
+        super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         self._inputs: ObjectList = None
         self._outputs: ObjectList = None
 

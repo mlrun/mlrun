@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 
 from mlrun import new_function
 
+skip_tests = True
+
 
 def get_dataset(classification=True):
     if classification:
@@ -41,7 +43,7 @@ def run_mlbase_xgboost_regression(context):
     model.fit(X_train, y_train)
 
 
-@pytest.mark.skipif("TBD", reason="missing packages")
+@pytest.mark.skipif(skip_tests, reason="missing packages")
 def test_run_mlbase_sklearn_classification():
     sklearn_run = new_function().run(handler=run_mlbase_sklearn_classification)
     model = sklearn_run.artifact("my_model_name").meta
@@ -49,7 +51,7 @@ def test_run_mlbase_sklearn_classification():
     assert model.model_file == "LogisticRegression.pkl"
 
 
-@pytest.mark.skipif("TBD", reason="missing packages")
+@pytest.mark.skipif(skip_tests, reason="missing packages")
 def test_run_mlbase_xgboost_regression():
     xgb_run = new_function().run(handler=run_mlbase_xgboost_regression)
     assert xgb_run.artifact("test_set").meta, "test set not generated"

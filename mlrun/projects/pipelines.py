@@ -16,12 +16,13 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
+import traceback
 import uuid
 
 from kfp.compiler import compiler
 
 import mlrun
-from mlrun.utils import new_pipe_meta, parse_versioned_object_uri
+from mlrun.utils import new_pipe_meta, parse_versioned_object_uri, logger
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -388,8 +389,18 @@ class _LocalRunner(_PipelineRunner):
         else:
             builtins.funcs = pipeline_context.functions
 
-        workflow_handler(**workflow_spec.args)
-        return _PipelineRunStatus(uuid.uuid4().hex, cls, project=project, workflow=workflow_spec)
+        workflow_id = uuid.uuid4().hex
+        project.notifiers.push_start_message(project.metadata.name)
+        try:
+            workflow_handler(**workflow_spec.args)
+        except Exception as e:
+            trace = traceback.format_exc()
+            logger.error(trace)
+            project.notifiers.push(f"Pipeline run failed!, error: {e}\n{trace}")
+
+        mlrun.run.wait_for_runs_completion(runs.values())
+        project.notifiers.push_run_results(runs.values())
+        return _PipelineRunStatus(workflow_id, cls, project=project, workflow=workflow_spec)
 
     def get_state(self, run_id, project=None):
         return ""

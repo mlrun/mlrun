@@ -10,8 +10,6 @@ from typing import Any, Dict, List, TypeVar, Union
 import mlrun
 from mlrun.artifacts import Artifact, ModelArtifact
 
-if False:
-    import onnx
 
 # Define a generic model type for the handler to have:
 Model = TypeVar("Model")
@@ -106,6 +104,15 @@ class ModelHandler(ABC):
                 self._collect_files_from_local_path()
 
     @property
+    def model_name(self) -> str:
+        """
+        Get the handled model's name.
+
+        :return: The handled model's name.
+        """
+        return self._model_name
+
+    @property
     def model(self) -> Model:
         """
         Get the handled model. Will return None in case the model is not initialized.
@@ -115,13 +122,13 @@ class ModelHandler(ABC):
         return self._model
 
     @property
-    def model_name(self) -> str:
+    def model_file(self) -> str:
         """
-        Get the handled model's name.
+        Get the model file path given to / located by this handler.
 
-        :return: The handled model's name.
+        :return: The model file path.
         """
-        return self._model_name
+        return self._model_file
 
     def set_context(self, context: mlrun.MLClientCtx):
         """
@@ -132,15 +139,35 @@ class ModelHandler(ABC):
         self._context = context
 
     def _get_model_file_artifact_name(self) -> str:
+        """
+        Get the standard name for the model file artifact.
+
+        :return: The model file artifact name.
+        """
         return self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
 
     def _get_weights_file_artifact_name(self) -> str:
+        """
+        Get the standard name for the weights file artifact.
+
+        :return: The weights file artifact name.
+        """
         return self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
 
     def _get_custom_objects_map_artifact_name(self) -> str:
+        """
+        Get the standard name for the custom objects map json artifact.
+
+        :return: The custom objects map json artifact name.
+        """
         return self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
 
     def _get_custom_objects_directory_artifact_name(self) -> str:
+        """
+        Get the standard name for the custom objects directory zip artifact.
+
+        :return: The custom objects directory zip artifact name.
+        """
         return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
 
     @abstractmethod
@@ -212,7 +239,7 @@ class ModelHandler(ABC):
             )
 
     @abstractmethod
-    def to_onnx(self, *args, **kwargs) -> onnx.ModelProto:
+    def to_onnx(self, *args, **kwargs) -> 'onnx.ModelProto':
         """
         Convert the model in this handler to an ONNX model.
 

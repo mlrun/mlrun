@@ -1,7 +1,7 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple, Union
 
 import onnx
-import onnxruntime as ort
+import onnxruntime
 
 import mlrun
 from mlrun.frameworks.onnx.model_handler import ONNXModelHandler
@@ -20,18 +20,36 @@ class ONNXModelServer(V2ModelServer):
         name: str,
         model_path: str = None,
         model: onnx.ModelProto = None,
+        execution_providers: List[Union[str, Tuple[str, Dict[str, Any]]]] = None,
         protocol: str = None,
         **class_args,
     ):
         """
         Initialize a serving class for an onnx.ModelProto model.
 
-        :param context:    The mlrun context to work with.
-        :param name:       The model name to be served.
-        :param model_path: Path to the model directory to load. Can be passed as a store model object.
-        :param model:      The model to use.
-        :param protocol:   -
-        :param class_args: -
+        :param context:             The mlrun context to work with.
+        :param name:                The model name to be served.
+        :param model_path:          Path to the model directory to load. Can be passed as a store model object.
+        :param model:               The model to use.
+        :param execution_providers: List of the execution providers. The first provider in the list will be the most
+                                    preferred. For example, a CUDA execution provider with configurations and a CPU
+                                    execution provider:
+                                    [
+                                        (
+                                            'CUDAExecutionProvider',
+                                            {
+                                                'device_id': 0,
+                                                'arena_extend_strategy': 'kNextPowerOfTwo',
+                                                'gpu_mem_limit': 2 * 1024 * 1024 * 1024,
+                                                'cudnn_conv_algo_search': 'EXHAUSTIVE',
+                                                'do_copy_in_default_stream': True,
+                                            }
+                                        ),
+                                        'CPUExecutionProvider'
+                                    ]
+                                    Defaulted to None - will prefer CUDA Execution Provider over CPU Execution Provider.
+        :param protocol:            -
+        :param class_args:          -
         """
         super(ONNXModelServer, self).__init__(
             context=context,
@@ -42,18 +60,39 @@ class ONNXModelServer(V2ModelServer):
             **class_args,
         )
         self._model_handler = ONNXModelHandler(
-            model_name=name,
-            model_path=model_path,
-            model=model,
-            context=self.context,
+            model_name=name, model_path=model_path, model=model, context=self.context,
         )
+
+        # Set the execution providers (default will prefer CUDA Execution Provider over CPU Execution Provider):
+        self._execution_providers = (
+            ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if execution_providers is None
+            else execution_providers
+        )
+
+        # Prepare inference parameters:
+        self._inference_session = None  # type: onnxruntime.InferenceSession
+        self._input_layers = None  # type: List[str]
+        self._output_layers = None  # type: List[str]
 
     def load(self):
         """
-        Use the model handler to load the model.
+        Use the model handler to get the model file path and initialize an ONNX run time inference session.
         """
-        self._model_handler.load()
-        self.model = self._model_handler.model
+        # initialize the model.onnx
+        self._inference_session = onnxruntime.InferenceSession(
+            self._model_handler.model_file, providers=self._execution_providers
+        )
+
+        # Get the input layers names:
+        self._input_layers = [
+            input_layer.name for input_layer in self._inference_session.get_inputs()
+        ]
+
+        # Get the outputs layers names:
+        self._output_layers = [
+            output_layer.name for output_layer in self._inference_session.get_outputs()
+        ]
 
     def predict(self, request: Dict[str, Any]) -> list:
         """
@@ -64,11 +103,16 @@ class ONNXModelServer(V2ModelServer):
 
         :return: The ONNXRunTime session returned output on the given inputs.
         """
-        images = request["inputs"]
+        # Read the inputs from the request:
+        inputs = request["inputs"]
 
-        # TODO: Implement a session of ort
-        predicted_probability = None
-        return predicted_probability
+        # Infer the inputs through the model:
+        outputs = self._inference_session.run(
+            self._output_layers,
+            {input_layer: data for input_layer, data in zip(self._input_layers, inputs)},
+        )
+
+        return outputs
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

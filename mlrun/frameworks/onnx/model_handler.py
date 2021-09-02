@@ -1,7 +1,8 @@
 import os
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, List
 
 import onnx
+import onnxoptimizer
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -86,6 +87,11 @@ class ONNXModelHandler(ModelHandler):
         Load the specified model in this handler.
         """
         super(ONNXModelHandler, self).load()
+
+        # Check that the model is well formed:
+        onnx.checker.check_model(self._model_file)
+
+        # Load the ONNX model:
         self._model = onnx.load(self._model_file)
 
     def log(
@@ -136,6 +142,29 @@ class ONNXModelHandler(ModelHandler):
                 **extra_data,
             },
         )
+
+    def optimize(self, optimizations: List[str] = None, fixed_point: bool = False):
+        """
+        Use ONNX optimizer to optimize the ONNX model. The optimizations supported can be seen by calling
+        'onnxoptimizer.get_available_passes()'
+
+        :param optimizations: List of possible optimizations. If None, all of the optimizations will be used. Defaulted
+                              to None.
+        :param fixed_point:   Optimize the weights using fixed point. Defaulted to False.
+        """
+        # Set the ONNX optimizations list:
+        onnx_optimizations = onnxoptimizer.get_available_passes()
+        if optimizations is None:
+            # Set to all optimizations:
+            optimizations = onnx_optimizations
+        else:
+            # Validate the optimizations:
+            for optimization in optimizations:
+                if optimization not in onnx_optimizations:
+                    raise ValueError("The optimization '{}' is not supported by onnxoptimizer.".format(optimization))
+
+        # Optimize the model:
+        self._model = onnxoptimizer.optimize(self._model, passes=optimizations, fixed_point=fixed_point)
 
     def to_onnx(self, *args, **kwargs) -> onnx.ModelProto:
         """

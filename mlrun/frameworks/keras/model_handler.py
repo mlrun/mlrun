@@ -12,8 +12,6 @@ import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.frameworks._common import ModelHandler
 
-if False:
-    import onnx
 
 # Declare a type of a tensor signature for ONNX conversion:
 TensorSignature = Union[tf.TensorSpec, np.ndarray]
@@ -319,7 +317,7 @@ class KerasModelHandler(ModelHandler):
         input_signature: Union[List[TensorSignature], TensorSignature] = None,
         output_path: str = None,
         log: bool = None,
-    ) -> onnx.ModelProto:
+    ) -> 'onnx.ModelProto':
         """
         Convert the model in this handler to an ONNX model.
 

@@ -8,9 +8,6 @@ import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.frameworks._common import ModelHandler
 
-if False:
-    import onnx
-
 
 class PyTorchModelHandler(ModelHandler):
     """
@@ -217,13 +214,35 @@ class PyTorchModelHandler(ModelHandler):
             },
         )
 
-    def to_onnx(self, *args, **kwargs) -> onnx.ModelProto:
+    def to_onnx(
+        self,
+        input_sample: Union[torch.Tensor, Dict[str, torch.Tensor]] = None,
+        input_layers_names: List[str] = None,
+        output_layers_names: List[str] = None,
+        output_path: str = None,
+        log: bool = None,
+    ) -> 'onnx.ModelProto':
         """
         Convert the model in this handler to an ONNX model.
 
+        :param input_sample: A torch.Tensor with the shape and data type of the expected input to the model. It is
+                             optional but recommended.
+        :param input_layers_names:
+        :param output_layers_names:
+        :param output_path:
+        :param log:
+        :param optimize:
+
         :return: The converted ONNX model (onnx.ModelProto).
         """
-        pass
+        # TODO: Finish log and output path
+        torch.onnx.export(
+            self._model,
+            input_sample,
+            "{}.onnx".format(self._model_name),
+            input_names=input_layers_names,
+            output_names=output_layers_names,
+        )
 
     def _collect_files_from_store_object(self):
         """

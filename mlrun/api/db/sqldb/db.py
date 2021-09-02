@@ -582,7 +582,6 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         self, session, project
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
-
         :return: a list of Tuple of (project, artifact.key, tag)
         """
         query = (
@@ -1423,6 +1422,17 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             )
         return schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
+    def list_feature_sets_tags(
+        self, session, project: str,
+    ):
+        query = (
+            session.query(FeatureSet.name, FeatureSet.Tag.name)
+            .filter(FeatureSet.Tag.project == project)
+            .join(FeatureSet, FeatureSet.Tag.obj_id == FeatureSet.id)
+            .distinct()
+        )
+        return [(project, row[0], row[1]) for row in query]
+
     @staticmethod
     def _update_feature_set_features(
         feature_set: FeatureSet, feature_dicts: List[dict], replace=False
@@ -1781,6 +1791,17 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             )
         return schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
 
+    def list_feature_vectors_tags(
+        self, session, project: str,
+    ):
+        query = (
+            session.query(FeatureVector.name, FeatureVector.Tag.name)
+            .filter(FeatureVector.Tag.project == project)
+            .join(FeatureVector, FeatureVector.Tag.obj_id == FeatureVector.id)
+            .distinct()
+        )
+        return [(project, row[0], row[1]) for row in query]
+
     def store_feature_vector(
         self,
         session,
@@ -1982,7 +2003,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
                         raise mlrun.errors.MLRunConflictError(
-                            f"Conflict - {cls} already exists"
+                            f"Conflict - {cls} already exists: {obj.get_identifier_string()}"
                         ) from err
                     except mlrun.errors.MLRunConflictError as exc:
                         raise mlrun.utils.helpers.FatalFailureException(

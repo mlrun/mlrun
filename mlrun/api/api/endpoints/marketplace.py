@@ -84,13 +84,14 @@ def get_source(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    marketplace_source = get_db().get_marketplace_source(db_session, source_name)
     mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_verifier.auth_info,
     )
 
-    return get_db().get_marketplace_source(db_session, source_name)
+    return marketplace_source
 
 
 @router.put(
@@ -127,13 +128,13 @@ def get_catalog(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    ordered_source = get_db().get_marketplace_source(db_session, source_name)
     mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_verifier.auth_info,
     )
 
-    ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return mlrun.api.crud.Marketplace().get_source_catalog(
         ordered_source.source, channel, version, tag, force_refresh
     )
@@ -153,13 +154,13 @@ def get_item(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    ordered_source = get_db().get_marketplace_source(db_session, source_name)
     mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_verifier.auth_info,
     )
 
-    ordered_source = get_db().get_marketplace_source(db_session, source_name)
     return mlrun.api.crud.Marketplace().get_item(
         ordered_source.source, item_name, channel, version, tag, force_refresh
     )
@@ -172,15 +173,14 @@ def get_object(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_verifier: AuthVerifierDep = Depends(AuthVerifierDep),
 ):
+    ordered_source = get_db().get_marketplace_source(db_session, source_name)
+    object_data = mlrun.api.crud.Marketplace().get_item_object_using_source_credentials(
+        ordered_source.source, url
+    )
     mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_verifier.auth_info,
-    )
-
-    ordered_source = get_db().get_marketplace_source(db_session, source_name)
-    object_data = mlrun.api.crud.Marketplace().get_item_object_using_source_credentials(
-        ordered_source.source, url
     )
 
     if url.endswith("/"):

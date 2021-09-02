@@ -24,6 +24,24 @@ def _list_and_assert_objects(
     return response_body
 
 
+def _list_tags_and_assert(client: TestClient, entity_name, project, expected_tags):
+    entity_url_name = entity_name.replace("_", "-")
+    url = f"/api/projects/{project}/{entity_url_name}/*/tags"
+    response = client.get(url)
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    assert (
+        DeepDiff(
+            response_body["tags"],
+            expected_tags,
+            ignore_order=True,
+            report_repetition=True,
+        )
+        == {}
+    )
+
+
 def _patch_object(
     client: TestClient,
     project_name,

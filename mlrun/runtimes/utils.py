@@ -246,15 +246,20 @@ def results_to_iter(results, runspec, execution):
 
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
-    execution.log_artifact(
-        TableArtifact(
-            "iteration_results",
-            body=csv_buffer.getvalue(),
-            header=header,
-            viewer="table",
-        ),
-        local_path="iteration_results.csv",
-    )
+    try:
+        # may fail due to lack of access credentials to the artifacts store
+        execution.log_artifact(
+            TableArtifact(
+                "iteration_results",
+                body=csv_buffer.getvalue(),
+                header=header,
+                viewer="table",
+            ),
+            local_path="iteration_results.csv",
+        )
+    except Exception:
+        pass
+
     if failed:
         execution.set_state(
             error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
@@ -265,13 +270,20 @@ def results_to_iter(results, runspec, execution):
     execution.commit()
 
 
-def generate_function_image_name(function):
+def generate_function_image_name(function) -> str:
     project = function.metadata.project or config.default_project
     tag = function.metadata.tag or "latest"
     _, repository = helpers.get_parsed_docker_registry()
-    if not repository:
-        repository = "mlrun"
-    return f".{repository}/func-{project}-{function.metadata.name}:{tag}"
+    repository = helpers.get_docker_repository_or_default(repository)
+    return fill_function_image_name_template(
+        ".", repository, project, function.metadata.name, tag
+    )
+
+
+def fill_function_image_name_template(
+    registry: str, repository: str, project: str, name: str, tag: str,
+) -> str:
+    return f"{registry}{repository}/func-{project}-{name}:{tag}"
 
 
 def set_named_item(obj, item):
@@ -294,14 +306,8 @@ def apply_kfp(modify, cop, runtime):
     # Have to do it here to avoid circular dependencies
     from .pod import AutoMountType
 
-    # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is
-    # a nested function returned from the modifier function (such as 'v3io_cred.<locals>._use_v3io_cred')
-    modifier_name = modify.__qualname__
-    if any(
-        modifier_name.startswith(mount_modifier)
-        for mount_modifier in AutoMountType.all_mount_modifiers()
-    ):
-        runtime.spec.mount_applied = True
+    if AutoMountType.is_auto_modifier(modify):
+        runtime.spec.disable_auto_mount = True
 
     api = client.ApiClient()
     for k, v in cop.pod_labels.items():

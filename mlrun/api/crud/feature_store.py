@@ -69,6 +69,16 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             db_session, mlrun.api.schemas.FeatureSet, project, name, tag, uid
         )
 
+    def list_feature_sets_tags(
+        self, db_session: sqlalchemy.orm.Session, project: str,
+    ) -> typing.List[typing.Tuple[str, str, str]]:
+        """
+        :return: a list of Tuple of (project, feature_set.name, tag)
+        """
+        return self._list_object_type_tags(
+            db_session, mlrun.api.schemas.FeatureSet, project
+        )
+
     def list_feature_sets(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -193,6 +203,16 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> mlrun.api.schemas.FeatureVector:
         return self._get_object(
             db_session, mlrun.api.schemas.FeatureVector, project, name, tag, uid,
+        )
+
+    def list_feature_vectors_tags(
+        self, db_session: sqlalchemy.orm.Session, project: str,
+    ) -> typing.List[typing.Tuple[str, str, str]]:
+        """
+        :return: a list of Tuple of (project, feature_vector.name, tag)
+        """
+        return self._list_object_type_tags(
+            db_session, mlrun.api.schemas.FeatureVector, project
         )
 
     def list_feature_vectors(
@@ -332,6 +352,26 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         elif object_schema.__name__ == mlrun.api.schemas.FeatureVector.__name__:
             return mlrun.api.utils.singletons.db.get_db().get_feature_vector(
                 db_session, project, name, tag, uid
+            )
+        else:
+            raise NotImplementedError(
+                f"Provided object type is not supported. object_type={object_schema.__class__.__name__}"
+            )
+
+    def _list_object_type_tags(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        object_schema: typing.ClassVar,
+        project: str,
+    ) -> typing.List[typing.Tuple[str, str, str]]:
+        project = project or mlrun.mlconf.default_project
+        if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
+            return mlrun.api.utils.singletons.db.get_db().list_feature_sets_tags(
+                db_session, project
+            )
+        elif object_schema.__name__ == mlrun.api.schemas.FeatureVector.__name__:
+            return mlrun.api.utils.singletons.db.get_db().list_feature_vectors_tags(
+                db_session, project
             )
         else:
             raise NotImplementedError(

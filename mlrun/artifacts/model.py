@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 from os import path
-from tempfile import mktemp
 from typing import List
 
 import yaml
@@ -67,9 +67,10 @@ class ModelArtifact(Artifact):
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
+        **kwargs,
     ):
 
-        super().__init__(key, body, format=format, target_path=target_path)
+        super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         self._inputs: ObjectList = None
         self._outputs: ObjectList = None
 
@@ -231,13 +232,13 @@ def get_model(model_dir, suffix=""):
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
-    tmp = mktemp(suffix)
-    obj.download(tmp)
-    return tmp, model_spec, extra_dataitems
+    temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
+    obj.download(temp_path)
+    return temp_path, model_spec, extra_dataitems
 
 
-def _load_model_spec(specpath):
-    data = store_manager.object(url=specpath).get()
+def _load_model_spec(spec_path):
+    data = store_manager.object(url=spec_path).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 

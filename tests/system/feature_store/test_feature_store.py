@@ -474,6 +474,18 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
 
+        # start time > timestamp in source
+        source = ParquetSource(
+            "myparquet",
+            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
+            start_time=datetime(2022, 12, 1, 17, 33, 15),
+            end_time="2022-12-01 17:33:16",
+        )
+
+        resp = fs.ingest(measurements, source, return_df=True,)
+        assert len(resp) == 0
+
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
     @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])

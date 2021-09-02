@@ -117,9 +117,9 @@ def get_offline_features(
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
     """
-    feature_vector = _features_to_vector(feature_vector)
-
     feature_vector.verify_feature_vector_permissions(mlrun.api.schemas.AuthorizationAction.update)
+
+    feature_vector = _features_to_vector(feature_vector)
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
@@ -323,8 +323,6 @@ def ingest(
         purge_target_names = [
             t if isinstance(t, str) else t.name for t in purge_targets
         ]
-        featureset.verify_feature_set_permissions(mlrun.api.schemas.AuthorizationAction.delete)
-
         featureset.purge_targets(target_names=purge_target_names, silent=True)
     else:
         for target in purge_targets:

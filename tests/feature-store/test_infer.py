@@ -6,6 +6,7 @@ from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store.api import infer_from_static_df
 from tests.conftest import tests_root_directory
+from mlrun.feature_store import Entity
 
 this_dir = f"{tests_root_directory}/feature-store/"
 
@@ -99,3 +100,61 @@ def test_backwards_compatibility_step_vs_state():
     assert (
         deepdiff.DeepDiff(from_dict_feature_set.to_dict(), quotes_set.to_dict()) == {}
     )
+
+
+def test_bla():
+    data = pd.DataFrame(
+        {
+            "time_stamp": [
+                pd.Timestamp("2021-06-09 09:30:06.008"),
+                pd.Timestamp("2021-06-09 10:29:07.009"),
+                pd.Timestamp("2021-06-09 09:29:08.010"),
+            ],
+            "data": [10, 20, 30],
+            "string": ["ab", "cd", "ef"],
+        }
+    )
+    data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+    import unittest.mock
+    import mlrun.api.utils.clients.opa
+
+    mlrun.api.utils.clients.opa.Client().query_resources_permissions = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunAccessDeniedError('')
+    )
+
+    try:
+        fs.preview(
+            data_set1,
+            data,
+            entity_columns=[Entity("string")],
+            timestamp_key="time_stamp")
+        assert False
+    except mlrun.errors.MLRunAccessDeniedError:
+        pass
+
+    try:
+        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        assert False
+    except mlrun.errors.MLRunAccessDeniedError:
+        pass
+
+    features = ["fs1.*"]
+    feature_vector = fs.FeatureVector("test", features)
+    try:
+        fs.get_offline_features(feature_vector, entity_timestamp_column="time_stamp")
+        assert False
+    except mlrun.errors.MLRunAccessDeniedError:
+        pass
+
+    try:
+        fs.get_online_feature_service(feature_vector)
+        assert False
+    except mlrun.errors.MLRunAccessDeniedError:
+        pass
+
+    try:
+        data_set1.purge_targets()
+        assert False
+    except mlrun.errors.MLRunAccessDeniedError:
+        pass
+

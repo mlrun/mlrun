@@ -29,15 +29,20 @@ from ..run import run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 
 
-def get_workflow_engine(engine_kind):
+def get_workflow_engine(engine_kind, local=False):
+    if local:
+        if engine_kind == "kfp":
+            logger.warning(
+                f"running kubeflow pipeline locally, note some ops may not run locally!"
+            )
+        return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
         return _KFPRunner
-    elif engine_kind == "local":
+    if engine_kind == "local":
         return _LocalRunner
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Provided workflow engine is not supported. engine_kind={engine_kind}"
-        )
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"Provided workflow engine is not supported. engine_kind={engine_kind}"
+    )
 
 
 class WorkflowSpec(mlrun.model.ModelObj):
@@ -158,11 +163,13 @@ class _PipelineContext:
         self.project = project
         self.workflow = workflow
         self.functions.project = project
+        self.runs_map = {}
 
-    def clear(self):
-        self.project = None
+    def clear(self, with_project=False):
+        if with_project:
+            self.project = None
+            self.functions.project = None
         self.workflow = None
-        self.functions.project = None
         self.runs_map = {}
         self.workflow_id = None
 
@@ -349,6 +356,7 @@ class _KFPRunner(_PipelineRunner):
         project.notifiers.push_start_message(
             project.metadata.name, project.get_param("commit_id", None), id
         )
+        pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
@@ -410,7 +418,9 @@ class _LocalRunner(_PipelineRunner):
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)
-            project.notifiers.push(f"Pipeline run failed!, error: {e}\n{trace}")
+            project.notifiers.push(
+                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
+            )
 
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_run_results(pipeline_context.runs_map.values())

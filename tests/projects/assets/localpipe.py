@@ -1,4 +1,4 @@
-from mlrun.projects import run_function
+import mlrun
 
 
 def func1(context, p1=1):
@@ -10,10 +10,13 @@ def func2(context, x=0):
 
 
 def my_pipe(param1=0):
-    run1 = run_function("tstfunc", handler="func1", params={"p1": param1})
+    run1 = mlrun.run_function("tstfunc", handler="func1", params={"p1": param1})
     print(run1.to_yaml())
 
-    run2 = run_function(
+    run2 = mlrun.run_function(
         "tstfunc", handler="func2", params={"x": run1.outputs["accuracy"]}
     )
     print(run2.to_yaml())
+
+    # hack to return run result to the test for assertions
+    mlrun.projects.pipeline_context._test_result = run2

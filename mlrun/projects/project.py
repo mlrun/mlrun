@@ -49,6 +49,7 @@ from .pipelines import (
     enrich_function_object,
     get_db_function,
     get_workflow_engine,
+    pipeline_context,
 )
 
 
@@ -148,6 +149,7 @@ def new_project(
     if description:
         project.spec.description = description
     mlrun.mlconf.default_project = project.metadata.name
+    pipeline_context.set(project)
     return project
 
 
@@ -224,6 +226,7 @@ def load_project(
         project.spec.branch = repo.active_branch.name
     project.register_artifacts()
     mlrun.mlconf.default_project = project.metadata.name
+    pipeline_context.set(project)
     return project
 
 
@@ -1598,7 +1601,7 @@ class MlrunProject(ModelObj):
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path
-        workflow_engine = get_workflow_engine(engine or workflow_spec.engine)
+        workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
         run = workflow_engine.run(
             self,
             workflow_spec,

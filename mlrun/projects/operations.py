@@ -1,51 +1,73 @@
+from typing import Union
+
 import mlrun
 from mlrun.utils import logger
 
-from .pipelines import pipeline_context
+from .pipelines import pipeline_context, enrich_function_object
 
 
-def _get_engine():
-    if not pipeline_context.workflow:
-        if pipeline_context.project:
-            # if advanced user wants to run outside of a pipeline, and he set the pipeline_context
-            logger.warn(
-                "not running inside a workflow, recommended to use project.run()"
-            )
-            return "local"
-        else:
+def _get_engine_and_function(function):
+    is_function_object = not isinstance(function, str)
+    if not is_function_object:
+        if not pipeline_context.project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "not running inside a workflow, use project.run()"
+                "function name (str) can only be used in a project context, you must create, "
+                "load or get a project first or provide function object instead of its name"
             )
+        function = pipeline_context.functions[function]
+    elif pipeline_context.project:
+        function = enrich_function_object(pipeline_context.project, function)
 
-    return pipeline_context.workflow.engine
+    if not pipeline_context.workflow:
+        return "local", function
+
+    return pipeline_context.workflow.engine, function
 
 
 def run_function(
-    function_name,
-    handler=None,
+    function: Union[str, mlrun.runtimes.BaseRuntime],
+    handler: str = None,
     name: str = "",
     params: dict = None,
-    hyperparams=None,
+    hyperparams: dict = None,
     hyper_param_options: mlrun.model.HyperParamOptions = None,
     inputs: dict = None,
     outputs: dict = None,
     workdir: str = "",
     labels: dict = None,
-    base_task=None,
-    watch=True,
-    local=True,
-    verbose=None,
+    base_task: mlrun.RunTemplate = None,
+    watch: bool = True,
+    local: bool = False,
+    verbose: bool = None,
 ):
     """Run a local or remote task as part of a local/kubeflow pipeline
 
-    example::
+    example (use with function object)::
+
+        function = mlrun.import_function("hub://sklearn_classifier")
+        run1 = run_function(function, params={"data": url})
+
+    example (use with project)::
+
+        # create a project with two functions (local and from marketplace)
+        project = mlrun.new_project(project_name, "./proj)
+        proj.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
+        proj.set_function("hub://sklearn_classifier", "train")
+
+        # run functions (refer to them by name)
+        run1 = run_function("myfunc", params={"x": 7})
+        run2 = run_function("train", params={"data": run1.outputs["data"]})
+
+    example (use in pipeline)::
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
             run1 = run_function("loaddata", params={"url": url})
             run2 = run_function("train", params={"data": run1.outputs["data"]})
 
-    :param function_name    name of the function (in the project)
+        project.run("mypipe", workflow_handler=my_pipe, arguments={"param1": 7})
+
+    :param function:        name of the function (in the project) or function object
     :param handler:         name of the function handler
     :param name:            execution name
     :param params:          input parameters (dict)
@@ -63,8 +85,7 @@ def run_function(
 
     :return: KubeFlow containerOp
     """
-    engine = _get_engine()
-    function = pipeline_context.functions[function_name]
+    engine, function = _get_engine_and_function(function)
     task = mlrun.new_task(
         name,
         handler=handler,
@@ -95,9 +116,9 @@ def run_function(
 
 
 def build_function(
-    function_name,
-    with_mlrun=True,
-    skip_deployed=False,
+    function: Union[str, mlrun.runtimes.BaseRuntime],
+    with_mlrun: bool = True,
+    skip_deployed: bool = False,
     image=None,
     base_image=None,
     commands: list = None,
@@ -107,7 +128,7 @@ def build_function(
 ):
     """deploy ML function, build container with its dependencies
 
-    :param function_name    name of the function (in the project)
+    :param function:        name of the function (in the project) or function object
     :param with_mlrun:      add the current mlrun package to the container build
     :param skip_deployed:   skip the build if we already have an image for the function
     :param image:           target image name/path
@@ -118,8 +139,7 @@ def build_function(
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     """
-    engine = _get_engine()
-    function = pipeline_context.functions[function_name]
+    engine, function = _get_engine_and_function(function)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "cannot build use deploy_function()"
@@ -147,18 +167,23 @@ def build_function(
 
 
 def deploy_function(
-    function_name, dashboard="", models=None, env=None, tag=None, verbose=None,
+    function: Union[str, mlrun.runtimes.BaseRuntime],
+    dashboard: str = "",
+    models: list = None,
+    env: dict = None,
+    tag: str = None,
+    verbose: bool = None,
 ):
     """deploy real-time (nuclio based) functions
 
+    :param function:   name of the function (in the project) or function object
     :param dashboard:  url of the remore Nuclio dashboard (when not local)
     :param models:     list of model items
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
     """
-    engine = _get_engine()
-    function = pipeline_context.functions[function_name]
+    engine, function = _get_engine_and_function(function)
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "deploy is used with real-time functions, for other kinds use build_function()"

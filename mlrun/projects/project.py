@@ -1540,6 +1540,7 @@ class MlrunProject(ModelObj):
         dirty=False,
         ttl=None,
         engine=None,
+        local=False,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1559,6 +1560,7 @@ class MlrunProject(ModelObj):
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
         :param engine:    workflow engine running the workflow. Only supported value is 'kfp' (also used if None)
+        :param local:     run local pipeline with local functions (set local=True in function.run())
 
         :returns: run id
         """
@@ -1592,6 +1594,7 @@ class MlrunProject(ModelObj):
             workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
+        workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path
@@ -1606,9 +1609,6 @@ class MlrunProject(ModelObj):
             namespace=namespace,
         )
         workflow_spec.clear_tmp()
-        self.notifiers.push_start_message(
-            self.metadata.name, self.get_param("commit_id", None), run.run_id
-        )
         if watch and workflow_engine.engine == "kfp":
             self.get_run_status(run)
         return run

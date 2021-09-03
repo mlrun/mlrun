@@ -32,7 +32,8 @@ from ..runtimes.pod import AutoMountType
 def get_workflow_engine(engine_kind):
     if not engine_kind or engine_kind == "kfp":
         return _KFPRunner
-    # todo: add engines
+    elif engine_kind == "local":
+        return _LocalRunner
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Provided workflow engine is not supported. engine_kind={engine_kind}"
@@ -59,6 +60,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.name = name
         self.handler = handler
         self.ttl = ttl
+        self.run_local = False
         self._tmp_path = None
 
     def get_source_file(self, context=""):
@@ -117,7 +119,7 @@ class FunctionsDict:
     def get(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         return self.load_or_set_function(key, default)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> mlrun.runtimes.BaseRuntime:
         return self.load_or_set_function(key)
 
     def __setitem__(self, key, val):
@@ -150,11 +152,20 @@ class _PipelineContext:
         self.workflow = None
         self.functions = FunctionsDict(None)
         self.workflow_id = None
+        self.run_local = None
+        self.runs_map = {}
 
     def set(self, project, workflow=None):
         self.project = project
         self.workflow = workflow
         self.functions.project = project
+
+    def clear(self):
+        self.project = None
+        self.workflow = None
+        self.functions.project = None
+        self.runs_map = {}
+        self.workflow_id = None
 
     def is_initialized(self, raise_exception=False):
         if self.project:
@@ -336,6 +347,9 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             ttl=workflow_spec.ttl,
         )
+        project.notifiers.push_start_message(
+            project.metadata.name, project.get_param("commit_id", None), id
+        )
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
@@ -390,7 +404,8 @@ class _LocalRunner(_PipelineRunner):
             builtins.funcs = pipeline_context.functions
 
         workflow_id = uuid.uuid4().hex
-        project.notifiers.push_start_message(project.metadata.name)
+        pipeline_context.workflow_id = workflow_id
+        project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
         try:
             workflow_handler(**workflow_spec.args)
         except Exception as e:
@@ -398,8 +413,9 @@ class _LocalRunner(_PipelineRunner):
             logger.error(trace)
             project.notifiers.push(f"Pipeline run failed!, error: {e}\n{trace}")
 
-        mlrun.run.wait_for_runs_completion(runs.values())
-        project.notifiers.push_run_results(runs.values())
+        mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
+        project.notifiers.push_run_results(pipeline_context.runs_map.values())
+        pipeline_context.clear()
         return _PipelineRunStatus(workflow_id, cls, project=project, workflow=workflow_spec)
 
     def get_state(self, run_id, project=None):

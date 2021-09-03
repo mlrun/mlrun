@@ -21,6 +21,9 @@ __all__ = [
     "ProjectMetadata",
     "ProjectSpec",
     "ProjectStatus",
+    "run_function",
+    "build_function",
+    "deploy_function"
 ]
 
 from .pipelines import pipeline_context  # noqa
@@ -33,3 +36,4 @@ from .project import (
     load_project,
     new_project,
 )
+from .operations import run_function, build_function, deploy_function

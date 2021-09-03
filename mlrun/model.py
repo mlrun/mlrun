@@ -941,7 +941,7 @@ def new_task(
     artifact_path=None,
     secrets=None,
     base=None,
-):
+) -> RunTemplate:
     """Creates a new task
 
     :param name:            task name

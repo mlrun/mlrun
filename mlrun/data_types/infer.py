@@ -79,6 +79,8 @@ def get_df_stats(df, options, num_bins=None):
     """get per column data stats from dataframe"""
 
     results_dict = {}
+    if df.empty:
+        return results_dict
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.name:
         df = df.reset_index()

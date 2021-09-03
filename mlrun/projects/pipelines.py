@@ -24,6 +24,7 @@ from mlrun.utils import new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
+from ..runtimes.pod import AutoMountType
 
 
 def get_workflow_engine(engine_kind):
@@ -64,7 +65,9 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 "workflow must have code or path properties"
             )
         if self.code:
-            with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as workflow_fh:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False
+            ) as workflow_fh:
                 workflow_fh.write(self.code)
                 self._tmp_path = workflow_path = workflow_fh.name
         else:
@@ -100,7 +103,7 @@ class FunctionsDict:
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
-            function = self.project.func(key)
+            function = self.project.get_function(key)
         except Exception as e:
             if not default:
                 raise e
@@ -198,9 +201,16 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
-    f.try_auto_mount_based_on_config()
+
     if decorator:
         decorator(f)
+
+    if (
+        decorator and AutoMountType.is_auto_modifier(decorator)
+    ) or project.spec.disable_auto_mount:
+        f.spec.disable_auto_mount = True
+    f.try_auto_mount_based_on_config()
+
     return f
 
 

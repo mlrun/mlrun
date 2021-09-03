@@ -129,7 +129,7 @@ def make_kaniko_pod(
 def upload_tarball(source_dir, target, secrets=None):
 
     # will delete the temp file
-    with tempfile.TemporaryFile(suffix=".tar.gz") as temp_fh:
+    with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
             tar.add(source_dir, arcname="")
         stores = store_manager.set(secrets)
@@ -303,8 +303,8 @@ def build_runtime(
             ]
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "nothing to build and image is not specified, "
-                "please set the function image or build args"
+                "The deployment was not successful because no image was specified or there are missing build parameters"
+                " (commands/source)"
             )
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True

@@ -152,7 +152,6 @@ class _PipelineContext:
         self.workflow = None
         self.functions = FunctionsDict(None)
         self.workflow_id = None
-        self.run_local = None
         self.runs_map = {}
 
     def set(self, project, workflow=None):

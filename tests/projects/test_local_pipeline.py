@@ -1,23 +1,11 @@
-import os
 import pathlib
 import sys
 
 import mlrun
-from mlrun.projects import run_function
 from tests.conftest import out_path
 
 project_dir = f"{out_path}/project_dir"
 data_url = "https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv"
-
-
-def my_pipe(param1=0):
-    run1 = run_function("tstfunc", handler="func1", params={"p1": param1})
-    print(run1.to_yaml())
-
-    run2 = run_function(
-        "tstfunc", handler="func2", params={"x": run1.outputs["accuracy"]}
-    )
-    print(run2.to_yaml())
 
 
 class TestNewProject:
@@ -43,7 +31,8 @@ class TestNewProject:
         project = self._create_project("localpipe1")
         project.run(
             "p1",
-            workflow_handler=my_pipe,
+            workflow_path=str(f'{self.assets_path / "localpipe.py"}'),
+            workflow_handler="my_pipe",
             arguments={"param1": 7},
             engine="local",
             local=True,

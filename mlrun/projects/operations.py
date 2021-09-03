@@ -1,5 +1,4 @@
 import mlrun
-from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import logger
 
 from .pipelines import pipeline_context

@@ -22,7 +22,7 @@ import uuid
 from kfp.compiler import compiler
 
 import mlrun
-from mlrun.utils import new_pipe_meta, parse_versioned_object_uri, logger
+from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -416,7 +416,9 @@ class _LocalRunner(_PipelineRunner):
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_run_results(pipeline_context.runs_map.values())
         pipeline_context.clear()
-        return _PipelineRunStatus(workflow_id, cls, project=project, workflow=workflow_spec)
+        return _PipelineRunStatus(
+            workflow_id, cls, project=project, workflow=workflow_spec
+        )
 
     def get_state(self, run_id, project=None):
         return ""

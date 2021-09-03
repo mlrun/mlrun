@@ -23,9 +23,10 @@ __all__ = [
     "ProjectStatus",
     "run_function",
     "build_function",
-    "deploy_function"
+    "deploy_function",
 ]
 
+from .operations import build_function, deploy_function, run_function
 from .pipelines import pipeline_context  # noqa
 from .project import (
     MlrunProject,
@@ -36,4 +37,3 @@ from .project import (
     load_project,
     new_project,
 )
-from .operations import run_function, build_function, deploy_function

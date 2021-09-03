@@ -1,12 +1,23 @@
-from mlrun.runtimes import RuntimeKinds
-
 import mlrun
+from mlrun.runtimes import RuntimeKinds
+from mlrun.utils import logger
+
 from .pipelines import pipeline_context
 
 
 def _get_engine():
     if not pipeline_context.workflow:
-        raise ValueError("not running inside a workflow")
+        if pipeline_context.project:
+            # if advanced user wants to run outside of a pipeline, and he set the pipeline_context
+            logger.warn(
+                "not running inside a workflow, recommended to use project.run()"
+            )
+            return "local"
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "not running inside a workflow, use project.run()"
+            )
+
     return pipeline_context.workflow.engine
 
 
@@ -21,7 +32,7 @@ def run_function(
     outputs: dict = None,
     workdir: str = "",
     labels: dict = None,
-    base_task = None,
+    base_task=None,
     watch=True,
     local=True,
     verbose=None,
@@ -53,6 +64,7 @@ def run_function(
 
     :return: KubeFlow containerOp
     """
+    engine = _get_engine()
     function = pipeline_context.functions[function_name]
     task = mlrun.new_task(
         name,
@@ -65,13 +77,9 @@ def run_function(
     )
     task.spec.verbose = task.spec.verbose or verbose
 
-    engine = _get_engine()
     if engine == "kfp":
         return function.as_step(
-            runspec=task,
-            workdir=workdir,
-            outputs=outputs,
-            labels=labels
+            runspec=task, workdir=workdir, outputs=outputs, labels=labels
         )
     else:
         if pipeline_context.workflow:
@@ -79,11 +87,7 @@ def run_function(
         task.metadata.labels = task.metadata.labels or labels or {}
         task.metadata.labels["workflow"] = pipeline_context.workflow_id
         run = function.run(
-            runspec=task,
-            workdir=workdir,
-            verbose=verbose,
-            watch=watch,
-            local=local,
+            runspec=task, workdir=workdir, verbose=verbose, watch=watch, local=local,
         )
         if run:
             run._notified = False
@@ -92,15 +96,15 @@ def run_function(
 
 
 def build_function(
-        function_name,
-        with_mlrun=True,
-        skip_deployed=False,
-        image=None,
-        base_image=None,
-        commands: list = None,
-        secret_name="",
-        mlrun_version_specifier=None,
-        builder_env: dict = None,
+    function_name,
+    with_mlrun=True,
+    skip_deployed=False,
+    image=None,
+    base_image=None,
+    commands: list = None,
+    secret_name="",
+    mlrun_version_specifier=None,
+    builder_env: dict = None,
 ):
     """deploy ML function, build container with its dependencies
 
@@ -115,39 +119,36 @@ def build_function(
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     """
+    engine = _get_engine()
     function = pipeline_context.functions[function_name]
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "cannot build use deploy_function()"
         )
-    engine = _get_engine()
     if engine == "kfp":
         function.deploy_step(
             image=image,
             base_image=base_image,
-            commands = commands,
-            secret_name = secret_name,
-            with_mlrun = with_mlrun,
-            skip_deployed = skip_deployed,
+            commands=commands,
+            secret_name=secret_name,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
         )
     else:
-        function.build_config(image=image, base_image=base_image, commands=commands, secret=secret_name)
+        function.build_config(
+            image=image, base_image=base_image, commands=commands, secret=secret_name
+        )
         function.deploy(
             watch=True,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
             mlrun_version_specifier=mlrun_version_specifier,
-            builder_env = builder_env,
+            builder_env=builder_env,
         )
 
 
 def deploy_function(
-        function_name,
-        dashboard="",
-        models=None,
-        env=None,
-        tag=None,
-        verbose=None,
+    function_name, dashboard="", models=None, env=None, tag=None, verbose=None,
 ):
     """deploy real-time (nuclio based) functions
 
@@ -157,26 +158,17 @@ def deploy_function(
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
     """
+    engine = _get_engine()
     function = pipeline_context.functions[function_name]
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "deploy is used with real-time functions, for other kinds use build_function()"
         )
-    engine = _get_engine()
     if engine == "kfp":
         function.deploy_step(
-            dashboard=dashboard,
-            models=models,
-            env=env,
-            tag=tag,
-            verbose=verbose
+            dashboard=dashboard, models=models, env=env, tag=tag, verbose=verbose
         )
     else:
         if env:
             function.set_envs(env)
-        function.deploy(
-            dashboard=dashboard,
-            tag=tag,
-            verbose=verbose
-        )
-
+        function.deploy(dashboard=dashboard, tag=tag, verbose=verbose)

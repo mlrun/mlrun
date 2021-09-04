@@ -19,11 +19,10 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 import getpass
 from os import environ, path
 
-from errors import MLRunInvalidArgumentError
-
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
+from .errors import MLRunInvalidArgumentError
 from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (

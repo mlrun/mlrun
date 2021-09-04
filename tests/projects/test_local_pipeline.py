@@ -35,7 +35,7 @@ class TestNewProject:
             handler="func1",
             kind="job",
         )
-        run_result = mlrun.run_function(function, params={"p1": 5})
+        run_result = mlrun.run_function(function, params={"p1": 5}, local=True)
         print(run_result.to_yaml())
         assert run_result.state() == "completed", "run didnt complete"
         # expect y = param1 * 2 = 10
@@ -44,9 +44,14 @@ class TestNewProject:
     def test_run_project(self):
         mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("localpipe1")
-        run1 = mlrun.run_function("tstfunc", handler="func1", params={"p1": 3})
+        run1 = mlrun.run_function(
+            "tstfunc", handler="func1", params={"p1": 3}, local=True
+        )
         run2 = mlrun.run_function(
-            "tstfunc", handler="func2", params={"x": run1.outputs["accuracy"]}
+            "tstfunc",
+            handler="func2",
+            params={"x": run1.outputs["accuracy"]},
+            local=True,
         )
         assert run2.state() == "completed", "run didnt complete"
         # expect y = (param1 * 2) + 1 = 7

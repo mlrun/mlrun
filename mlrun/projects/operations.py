@@ -1,5 +1,7 @@
 from typing import Union
 
+import kfp
+
 import mlrun
 
 from .pipelines import enrich_function_object, pipeline_context
@@ -34,11 +36,11 @@ def run_function(
     outputs: dict = None,
     workdir: str = "",
     labels: dict = None,
-    base_task: mlrun.RunTemplate = None,
+    base_task: mlrun.model.RunTemplate = None,
     watch: bool = True,
     local: bool = False,
     verbose: bool = None,
-):
+) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
     example (use with function object)::
@@ -82,7 +84,7 @@ def run_function(
     :param local:           run the function locally vs on the runtime/cluster
     :param verbose:         add verbose prints/logs
 
-    :return: KubeFlow containerOp
+    :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function)
     task = mlrun.new_task(

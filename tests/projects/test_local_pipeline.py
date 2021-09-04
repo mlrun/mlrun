@@ -29,8 +29,12 @@ class TestNewProject:
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)
-        function = mlrun.code_to_function("test1", filename=str(f'{self.assets_path / "localpipe.py"}'),
-                                          handler="func1", kind="job")
+        function = mlrun.code_to_function(
+            "test1",
+            filename=str(f'{self.assets_path / "localpipe.py"}'),
+            handler="func1",
+            kind="job",
+        )
         run_result = mlrun.run_function(function, params={"p1": 5})
         print(run_result.to_yaml())
         assert run_result.state() == "completed", "run didnt complete"
@@ -39,7 +43,7 @@ class TestNewProject:
 
     def test_run_project(self):
         mlrun.projects.pipeline_context.clear(with_project=True)
-        project = self._create_project("localpipe1")
+        self._create_project("localpipe1")
         run1 = mlrun.run_function("tstfunc", handler="func1", params={"p1": 3})
         run2 = mlrun.run_function(
             "tstfunc", handler="func2", params={"x": run1.outputs["accuracy"]}

@@ -34,12 +34,12 @@ from .platforms import (
 )
 from .projects import (
     ProjectMetadata,
+    build_function,
+    deploy_function,
     get_or_create_project,
     load_project,
     new_project,
     run_function,
-    build_function,
-    deploy_function,
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (

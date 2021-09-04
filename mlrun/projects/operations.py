@@ -1,9 +1,8 @@
 from typing import Union
 
 import mlrun
-from mlrun.utils import logger
 
-from .pipelines import pipeline_context, enrich_function_object
+from .pipelines import enrich_function_object, pipeline_context
 
 
 def _get_engine_and_function(function):

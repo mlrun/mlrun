@@ -33,7 +33,7 @@ def get_workflow_engine(engine_kind, local=False):
     if local:
         if engine_kind == "kfp":
             logger.warning(
-                f"running kubeflow pipeline locally, note some ops may not run locally!"
+                "running kubeflow pipeline locally, note some ops may not run locally!"
             )
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":

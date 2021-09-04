@@ -964,7 +964,7 @@ class MlrunProject(ModelObj):
                 for schema in args_schema
             ]
             workflow["args_schema"] = args_schema
-        workflow["engine"] = engine or "kfp"
+        workflow["engine"] = engine
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -1591,7 +1591,7 @@ class MlrunProject(ModelObj):
             else:
                 raise ValueError("workflow name or path must be specified")
 
-        if workflow_path or workflow_handler:
+        if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
             workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
@@ -1602,6 +1602,8 @@ class MlrunProject(ModelObj):
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
+        workflow_spec.engine = workflow_engine.engine
+
         run = workflow_engine.run(
             self,
             workflow_spec,

@@ -157,6 +157,7 @@ class _PipelineContext:
         self.workflow = None
         self.functions = FunctionsDict(None)
         self.workflow_id = None
+        self.workflow_artifact_path = None
         self.runs_map = {}
 
     def set(self, project, workflow=None):
@@ -172,6 +173,7 @@ class _PipelineContext:
         self.workflow = None
         self.runs_map = {}
         self.workflow_id = None
+        self.workflow_artifact_path = None
 
     def is_initialized(self, raise_exception=False):
         if self.project:
@@ -296,8 +298,9 @@ class _PipelineRunner(abc.ABC):
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         return ""
 
+    @staticmethod
     @abc.abstractmethod
-    def get_state(self, run_id, project=None):
+    def get_state(run_id, project=None):
         return ""
 
 
@@ -373,7 +376,8 @@ class _KFPRunner(_PipelineRunner):
             status = run_info["run"].get("status")
         return status
 
-    def get_state(self, run_id, project=None):
+    @staticmethod
+    def get_state(run_id, project=None):
         project_name = project.metadata.name if project else ""
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
@@ -412,24 +416,28 @@ class _LocalRunner(_PipelineRunner):
 
         workflow_id = uuid.uuid4().hex
         pipeline_context.workflow_id = workflow_id
+        pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
         try:
             workflow_handler(**workflow_spec.args)
+            state = mlrun.run.RunStatuses.succeeded
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
                 f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
             )
+            state = mlrun.run.RunStatuses.failed
 
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_run_results(pipeline_context.runs_map.values())
         pipeline_context.clear()
         return _PipelineRunStatus(
-            workflow_id, cls, project=project, workflow=workflow_spec
+            workflow_id, cls, project=project, workflow=workflow_spec, state=state
         )
 
-    def get_state(self, run_id, project=None):
+    @staticmethod
+    def get_state(run_id, project=None):
         return ""
 
 

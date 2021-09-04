@@ -19,6 +19,8 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 import getpass
 from os import environ, path
 
+from errors import MLRunInvalidArgumentError
+
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -39,6 +41,7 @@ from .projects import (
     get_or_create_project,
     load_project,
     new_project,
+    pipeline_context,
     run_function,
 )
 from .projects.project import _add_username_to_project_name_if_needed
@@ -138,3 +141,11 @@ def set_environment(
             )
         mlconf.artifact_path = artifact_path
     return mlconf.default_project, mlconf.artifact_path
+
+
+def get_current_project(silent=False):
+    if not pipeline_context.project and not silent:
+        raise MLRunInvalidArgumentError(
+            "current project is not initialized, use new, get or load project methods first"
+        )
+    return pipeline_context.project

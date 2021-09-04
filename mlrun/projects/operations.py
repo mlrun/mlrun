@@ -1,4 +1,4 @@
-from typing import Union
+from typing import List, Union
 
 import kfp
 
@@ -33,7 +33,7 @@ def run_function(
     hyperparams: dict = None,
     hyper_param_options: mlrun.model.HyperParamOptions = None,
     inputs: dict = None,
-    outputs: dict = None,
+    outputs: List[str] = None,
     workdir: str = "",
     labels: dict = None,
     base_task: mlrun.model.RunTemplate = None,
@@ -107,13 +107,32 @@ def run_function(
             local = local or pipeline_context.workflow.run_local
         task.metadata.labels = task.metadata.labels or labels or {}
         task.metadata.labels["workflow"] = pipeline_context.workflow_id
-        run = function.run(
-            runspec=task, workdir=workdir, verbose=verbose, watch=watch, local=local,
+        run_result = function.run(
+            runspec=task,
+            workdir=workdir,
+            verbose=verbose,
+            watch=watch,
+            local=local,
+            artifact_path=pipeline_context.workflow_artifact_path,
         )
-        if run:
-            run._notified = False
-            pipeline_context.runs_map[run.uid()] = run
-        return run
+        if run_result:
+            run_result._notified = False
+            pipeline_context.runs_map[run_result.uid()] = run_result
+            run_result.after = (
+                lambda x: run_result
+            )  # emulate KFP op, .after() will be ignored
+        return run_result
+
+
+class BuildStatus:
+    """returned status from build operation"""
+
+    def __init__(self, ready, outputs={}):
+        self.ready = ready
+        self.outputs = outputs
+
+    def __repr__(self):
+        return f"BuildStatus(ready={self.ready}, outputs={self.outputs})"
 
 
 def build_function(
@@ -146,7 +165,7 @@ def build_function(
             "cannot build use deploy_function()"
         )
     if engine == "kfp":
-        function.deploy_step(
+        return function.deploy_step(
             image=image,
             base_image=base_image,
             commands=commands,
@@ -158,13 +177,26 @@ def build_function(
         function.build_config(
             image=image, base_image=base_image, commands=commands, secret=secret_name
         )
-        function.deploy(
+        ready = function.deploy(
             watch=True,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
         )
+        # return object with the same outputs as the KFP op (allow using the same pipeline)
+        return BuildStatus(ready, {"image": function.spec.image})
+
+
+class DeployStatus:
+    """returned status from deploy operation"""
+
+    def __init__(self, state, outputs={}):
+        self.state = state
+        self.outputs = outputs
+
+    def __repr__(self):
+        return f"DeployStatus(state={self.state}, outputs={self.outputs})"
 
 
 def deploy_function(
@@ -190,10 +222,18 @@ def deploy_function(
             "deploy is used with real-time functions, for other kinds use build_function()"
         )
     if engine == "kfp":
-        function.deploy_step(
+        return function.deploy_step(
             dashboard=dashboard, models=models, env=env, tag=tag, verbose=verbose
         )
     else:
         if env:
             function.set_envs(env)
-        function.deploy(dashboard=dashboard, tag=tag, verbose=verbose)
+        if models:
+            for model_args in models:
+                function.add_model(**model_args)
+        address = function.deploy(dashboard=dashboard, tag=tag, verbose=verbose)
+        # return object with the same outputs as the KFP op (allow using the same pipeline)
+        return DeployStatus(
+            state=function.status.state,
+            outputs={"endpoint": address, "name": function.status.nuclio_name},
+        )

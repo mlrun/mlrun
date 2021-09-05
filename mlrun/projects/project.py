@@ -46,6 +46,7 @@ from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    enrich_function_object,
     get_db_function,
     get_workflow_engine,
 )
@@ -437,6 +438,7 @@ class ProjectSpec(ModelObj):
         load_source_on_run=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
+        disable_auto_mount=False,
     ):
         self.repo = None
 
@@ -465,6 +467,7 @@ class ProjectSpec(ModelObj):
         self._function_objects = {}
         self._function_definitions = {}
         self.functions = functions or []
+        self.disable_auto_mount = disable_auto_mount
 
     @property
     def source(self) -> str:
@@ -1154,6 +1157,7 @@ class MlrunProject(ModelObj):
         training_set=None,
         label_column=None,
         extra_data=None,
+        **kwargs,
     ):
         """log a model artifact and optionally upload it to datastore
 
@@ -1211,6 +1215,7 @@ class MlrunProject(ModelObj):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            **kwargs,
         )
         if training_set is not None:
             model.infer_from_df(training_set, label_column)
@@ -1335,10 +1340,11 @@ class MlrunProject(ModelObj):
         )
         return self.get_function(key, sync)
 
-    def get_function(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
+    def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param sync:  will reload/reinit the function
+        :param enrich: add project info/config/source info to the function object
 
         :returns: function object
         """
@@ -1350,6 +1356,8 @@ class MlrunProject(ModelObj):
         else:
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
+        if enrich:
+            return enrich_function_object(self, function)
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:

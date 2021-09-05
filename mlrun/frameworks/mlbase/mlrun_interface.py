@@ -85,6 +85,6 @@ class MLBaseMLRunInterface(MLRunInterface):
                 metrics=context.results,
                 format="pkl",
                 training_set=train_set,
-                label_column=y_train.columns.to_list(),
+                label_column=y_train.name if isinstance(y_train, pd.Series) else y_train.columns.to_list(),
                 extra_data=eval_metrics,
             )

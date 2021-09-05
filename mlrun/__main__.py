@@ -770,7 +770,7 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(name, context, url, init_git=init_git, clone=clone)
+    proj = load_project(context, url, name, init_git=init_git, clone=clone)
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 

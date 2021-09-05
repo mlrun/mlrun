@@ -7,17 +7,18 @@ import mlrun
 from .pipelines import enrich_function_object, pipeline_context
 
 
-def _get_engine_and_function(function):
+def _get_engine_and_function(function, project=None):
     is_function_object = not isinstance(function, str)
+    project = project or pipeline_context.project
     if not is_function_object:
-        if not pipeline_context.project:
+        if not project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "function name (str) can only be used in a project context, you must create, "
                 "load or get a project first or provide function object instead of its name"
             )
         function = pipeline_context.functions[function]
-    elif pipeline_context.project:
-        function = enrich_function_object(pipeline_context.project, function)
+    elif project:
+        function = enrich_function_object(project, function)
 
     if not pipeline_context.workflow:
         return "local", function
@@ -40,6 +41,7 @@ def run_function(
     watch: bool = True,
     local: bool = False,
     verbose: bool = None,
+    project_object=None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -62,8 +64,8 @@ def run_function(
 
         # create a project with two functions (local and from marketplace)
         project = mlrun.new_project(project_name, "./proj)
-        proj.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-        proj.set_function("hub://sklearn_classifier", "train")
+        project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
+        project.set_function("hub://sklearn_classifier", "train")
 
         # run functions (refer to them by name)
         run1 = run_function("myfunc", params={"x": 7})
@@ -96,7 +98,7 @@ def run_function(
 
     :return: MLRun RunObject or KubeFlow containerOp
     """
-    engine, function = _get_engine_and_function(function)
+    engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
         name,
         handler=handler,
@@ -155,6 +157,7 @@ def build_function(
     secret_name="",
     mlrun_version_specifier=None,
     builder_env: dict = None,
+    project_object=None,
 ):
     """deploy ML function, build container with its dependencies
 
@@ -169,7 +172,7 @@ def build_function(
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     """
-    engine, function = _get_engine_and_function(function)
+    engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "cannot build use deploy_function()"
@@ -216,6 +219,7 @@ def deploy_function(
     env: dict = None,
     tag: str = None,
     verbose: bool = None,
+    project_object=None,
 ):
     """deploy real-time (nuclio based) functions
 
@@ -226,7 +230,7 @@ def deploy_function(
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
     """
-    engine, function = _get_engine_and_function(function)
+    engine, function = _get_engine_and_function(function, project_object)
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "deploy is used with real-time functions, for other kinds use build_function()"

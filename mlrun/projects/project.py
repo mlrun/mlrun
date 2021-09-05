@@ -18,6 +18,7 @@ import typing
 import warnings
 from os import environ, makedirs, path
 
+import kfp
 import yaml
 from git import Repo
 
@@ -42,6 +43,7 @@ from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
+from .operations import build_function, deploy_function, run_function
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
@@ -1715,6 +1717,139 @@ class MlrunProject(ModelObj):
         """
         set_project_model_monitoring_credentials(
             access_key=access_key, project=self.metadata.name
+        )
+
+    def run_function(
+        self,
+        function: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        handler: str = None,
+        name: str = "",
+        params: dict = None,
+        hyperparams: dict = None,
+        hyper_param_options: mlrun.model.HyperParamOptions = None,
+        inputs: dict = None,
+        outputs: typing.List[str] = None,
+        workdir: str = "",
+        labels: dict = None,
+        base_task: mlrun.model.RunTemplate = None,
+        watch: bool = True,
+        local: bool = False,
+        verbose: bool = None,
+    ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+        """Run a local or remote task as part of a local/kubeflow pipeline
+
+        example (use with project)::
+
+            # create a project with two functions (local and from marketplace)
+            project = mlrun.new_project(project_name, "./proj)
+            project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
+            project.set_function("hub://sklearn_classifier", "train")
+
+            # run functions (refer to them by name)
+            run1 = project.run_function("myfunc", params={"x": 7})
+            run2 = project.run_function("train", params={"data": run1.outputs["data"]})
+
+        :param function:        name of the function (in the project) or function object
+        :param handler:         name of the function handler
+        :param name:            execution name
+        :param params:          input parameters (dict)
+        :param hyperparams:     hyper parameters
+        :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
+                                see: :py:class:`~mlrun.model.HyperParamOptions`
+        :param inputs:          input objects (dict of key: path)
+        :param outputs:         list of outputs which can pass in the workflow
+        :param workdir:         default input artifacts path
+        :param labels:          labels to tag the job/run with ({key:val, ..})
+        :param base_task:       task object to use as base
+        :param watch:           watch/follow run log, True by default
+        :param local:           run the function locally vs on the runtime/cluster
+        :param verbose:         add verbose prints/logs
+
+        :return: MLRun RunObject or KubeFlow containerOp
+        """
+        return run_function(
+            function,
+            handler=handler,
+            name=name,
+            params=params,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            inputs=inputs,
+            outputs=outputs,
+            workdir=workdir,
+            labels=labels,
+            base_task=base_task,
+            watch=watch,
+            local=local,
+            verbose=verbose,
+            project_object=self,
+        )
+
+    def build_function(
+        self,
+        function: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        with_mlrun: bool = True,
+        skip_deployed: bool = False,
+        image=None,
+        base_image=None,
+        commands: list = None,
+        secret_name="",
+        mlrun_version_specifier=None,
+        builder_env: dict = None,
+    ):
+        """deploy ML function, build container with its dependencies
+
+        :param function:        name of the function (in the project) or function object
+        :param with_mlrun:      add the current mlrun package to the container build
+        :param skip_deployed:   skip the build if we already have an image for the function
+        :param image:           target image name/path
+        :param base_image:      base image name/path (commands and source code will be added to it)
+        :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        """
+        return build_function(
+            self,
+            function,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret_name=secret_name,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+            project_object=self,
+        )
+
+    def deploy_function(
+        self,
+        function: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        dashboard: str = "",
+        models: list = None,
+        env: dict = None,
+        tag: str = None,
+        verbose: bool = None,
+    ):
+        """deploy real-time (nuclio based) functions
+
+        :param function:   name of the function (in the project) or function object
+        :param dashboard:  url of the remore Nuclio dashboard (when not local)
+        :param models:     list of model items
+        :param env:        dict of extra environment variables
+        :param tag:        extra version tag
+        :param verbose     add verbose prints/logs
+        """
+        return deploy_function(
+            function,
+            dashboard=dashboard,
+            models=models,
+            env=env,
+            tag=tag,
+            verbose=verbose,
+            project_object=self,
         )
 
 

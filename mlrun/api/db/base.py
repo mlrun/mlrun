@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
 
@@ -325,6 +325,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_feature_sets_tags(
+        self, session, project: str,
+    ) -> List[Tuple[str, str, str]]:
+        """
+        :return: a list of Tuple of (project, feature_set.name, tag)
+        """
+        pass
+
+    @abstractmethod
     def patch_feature_set(
         self,
         session,
@@ -367,6 +376,15 @@ class DBInterface(ABC):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureVectorsOutput:
+        pass
+
+    @abstractmethod
+    def list_feature_vectors_tags(
+        self, session, project: str,
+    ) -> List[Tuple[str, str, str]]:
+        """
+        :return: a list of Tuple of (project, feature_vector.name, tag)
+        """
         pass
 
     @abstractmethod

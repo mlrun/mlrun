@@ -93,7 +93,7 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
-        mount_applied=False,
+        disable_auto_mount=False,
     ):
 
         self.command = command or ""
@@ -110,7 +110,7 @@ class FunctionSpec(ModelObj):
         self.default_handler = default_handler
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
-        self.mount_applied = mount_applied
+        self.disable_auto_mount = disable_auto_mount
 
     @property
     def build(self) -> ImageBuilder:
@@ -245,7 +245,6 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
-        disable_auto_mount=False,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -272,7 +271,6 @@ class BaseRuntime(ModelObj):
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
-        :param disable_auto_mount: Do not apply auto-mount prior to running (default is False)
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -281,7 +279,7 @@ class BaseRuntime(ModelObj):
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
         # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
-        if self._use_remote_api() and not disable_auto_mount:
+        if self._use_remote_api():
             self.try_auto_mount_based_on_config()
 
         if local:
@@ -1259,6 +1257,10 @@ class BaseRuntimeHandler(ABC):
         """
         return False
 
+    @staticmethod
+    def _expect_pods_without_uid() -> bool:
+        return False
+
     def _list_pods(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.list_pods(namespace, selector=label_selector)
@@ -1554,11 +1556,14 @@ class BaseRuntimeHandler(ABC):
 
         # if cannot resolve related run nothing to do
         if not uid:
-            logger.warning(
-                "Could not resolve run uid from runtime resource. Skipping pre-deletion actions",
-                runtime_resource=runtime_resource,
-            )
-            raise ValueError("Could not resolve run uid from runtime resource")
+            if not self._expect_pods_without_uid():
+                logger.warning(
+                    "Could not resolve run uid from runtime resource. Skipping pre-deletion actions",
+                    runtime_resource=runtime_resource,
+                )
+                raise ValueError("Could not resolve run uid from runtime resource")
+            else:
+                return
 
         logger.info(
             "Performing pre-deletion actions before cleaning up runtime resources",
@@ -1751,7 +1756,7 @@ class BaseRuntimeHandler(ABC):
         resource: mlrun.api.schemas.RuntimeResource,
     ):
         if "mlrun/class" in resource.labels:
-            project = resource.labels.get("mlrun/project", config.default_project)
+            project = resource.labels.get("mlrun/project", "")
             mlrun_class = resource.labels["mlrun/class"]
             kind = self._resolve_kind_from_class(mlrun_class)
             self._add_resource_to_grouped_by_field_resources_response(

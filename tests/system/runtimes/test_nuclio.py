@@ -25,3 +25,25 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying nuclio function")
         function.deploy()
+
+    def test_deploy_function_with_error_handler(self):
+        code_path = str(self.assets_path / "function-with-catcher.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function-with-catcher",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(name="step1", handler="inc")
+        graph.add_step(name="catcher", handler="catcher", full_event=True, after="")
+
+        graph.error_handler("catcher")
+
+        self._logger.debug("Deploying nuclio function")
+        function.deploy()

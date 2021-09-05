@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.project_member
+import mlrun.errors
 import mlrun.feature_store
 from mlrun import v3io_cred
 from mlrun.api import schemas
@@ -205,6 +206,41 @@ def list_feature_sets(
     return mlrun.api.schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
 
+@router.get(
+    "/projects/{project}/feature-sets/{name}/tags",
+    response_model=schemas.FeatureSetsTagsOutput,
+)
+def list_feature_sets_tags(
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    if name != "*":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Listing a specific feature set tags is not supported, set name to *"
+        )
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
+    tag_tuples = mlrun.api.crud.FeatureStore().list_feature_sets_tags(
+        db_session, project,
+    )
+    feature_set_name_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
+    allowed_feature_set_names = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        list(feature_set_name_to_tag.keys()),
+        lambda feature_set_name: (project, feature_set_name,),
+        auth_verifier.auth_info,
+    )
+    tags = {
+        tag_tuple[2]
+        for tag_tuple in tag_tuples
+        if tag_tuple[1] in allowed_feature_set_names
+    }
+    return mlrun.api.schemas.FeatureSetsTagsOutput(tags=list(tags))
+
+
 def _has_v3io_path(data_source, data_targets, feature_set):
     paths = []
 
@@ -276,7 +312,7 @@ def ingest_feature_set(
         db_session, project, name, tag, uid
     )
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
-    if feature_set.spec.function:
+    if feature_set.spec.function and feature_set.spec.function.function_object:
         function = feature_set.spec.function.function_object
         mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.function,
@@ -492,6 +528,43 @@ def list_feature_vectors(
             auth_verifier.auth_info, project, feature_vector.dict()
         )
     return mlrun.api.schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
+
+
+@router.get(
+    "/projects/{project}/feature-vectors/{name}/tags",
+    response_model=schemas.FeatureVectorsTagsOutput,
+)
+def list_feature_vectors_tags(
+    project: str,
+    name: str,
+    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    if name != "*":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Listing a specific feature vector tags is not supported, set name to *"
+        )
+    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    )
+    tag_tuples = mlrun.api.crud.FeatureStore().list_feature_vectors_tags(
+        db_session, project,
+    )
+    feature_vector_name_to_tag = {
+        tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples
+    }
+    allowed_feature_vector_names = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
+        list(feature_vector_name_to_tag.keys()),
+        lambda feature_vector_name: (project, feature_vector_name,),
+        auth_verifier.auth_info,
+    )
+    tags = {
+        tag_tuple[2]
+        for tag_tuple in tag_tuples
+        if tag_tuple[1] in allowed_feature_vector_names
+    }
+    return mlrun.api.schemas.FeatureVectorsTagsOutput(tags=list(tags))
 
 
 @router.put(

@@ -38,7 +38,6 @@ from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
-from .k8s_utils import get_k8s_helper
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,

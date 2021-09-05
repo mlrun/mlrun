@@ -402,14 +402,14 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
-        if not workflow_handler or not callable(workflow_handler):
+        if not (workflow_handler and callable(workflow_handler)):
             workflow_file = workflow_spec.get_source_file(project.spec.context)
             workflow_handler = create_pipeline(
                 project,
                 workflow_file,
                 pipeline_context.functions,
                 secrets,
-                handler=workflow_handler,
+                handler=workflow_handler or workflow_spec.handler,
             )
         else:
             builtins.funcs = pipeline_context.functions

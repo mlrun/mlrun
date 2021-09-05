@@ -83,7 +83,7 @@ class TestProject(TestMLRunSystem):
             doc="model package/algorithm",
         )
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])
-        proj.set_workflow("newflow", "./newflow.py")
+        proj.set_workflow("newflow", "./newflow.py", handler="newpipe")
         proj.save()
         return proj
 
@@ -218,7 +218,6 @@ class TestProject(TestMLRunSystem):
         print(project.to_yaml())
         run = project.run(
             "newflow",
-            workflow_handler="newpipe",
             engine=engine,
             artifact_path=f"v3io:///projects/{name}",
             watch=True,
@@ -248,8 +247,6 @@ class TestProject(TestMLRunSystem):
             name,
             "-r",
             "newflow",
-            "--handler",
-            "newpipe",
             "--engine",
             "local",
             "-w",

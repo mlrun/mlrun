@@ -162,7 +162,7 @@ def get_df_stats_spark(df, options, num_bins=20):
             except Exception:
                 pass
 
-    print(" BENB TEST dict: " + results_dict.__str__())
+    print("BENB TEST dict: " + results_dict.__str__())
 
     return results_dict
 

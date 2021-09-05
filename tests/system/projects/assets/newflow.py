@@ -34,9 +34,6 @@ def newpipe():
     ).after(builder)
     print(ingest.outputs)
 
-    # if in_kfp:
-    #     ingest.after(builder)
-
     # analyze our dataset
     run_function(
         "describe",

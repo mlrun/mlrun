@@ -430,7 +430,9 @@ class _LocalRunner(_PipelineRunner):
             state = mlrun.run.RunStatuses.failed
 
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
-        project.notifiers.push_run_results(pipeline_context.runs_map.values())
+        project.notifiers.push_run_results(
+            pipeline_context.runs_map.values(), state=state
+        )
         pipeline_context.clear()
         return _PipelineRunStatus(
             workflow_id, cls, project=project, workflow=workflow_spec, state=state

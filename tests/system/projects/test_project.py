@@ -211,8 +211,6 @@ class TestProject(TestMLRunSystem):
         self._delete_test_project(name)
 
     def _test_new_pipeline(self, name, engine):
-        print("hub:", mlrun.mlconf.hub_url)
-        mlrun.mlconf.hub_url = "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml"
         project = self._create_project(name)
         project.set_function(
             "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
@@ -233,3 +231,32 @@ class TestProject(TestMLRunSystem):
 
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
+
+    def test_local_cli(self):
+        # load project from git
+        name = "lclclipipe"
+        project = self._create_project(name)
+        project.set_function(
+            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+        )
+        project.save()
+        print(project.to_yaml())
+
+        # exec the workflow
+        args = [
+            "-n",
+            name,
+            "-r",
+            "newflow",
+            "--handler",
+            "newpipe",
+            "--engine",
+            "local",
+            "-w",
+            "-p",
+            f"v3io:///projects/{name}",
+            str(self.assets_path),
+        ]
+        out = exec_project(args, projects_dir)
+        print("OUT:\n", out)
+        assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"

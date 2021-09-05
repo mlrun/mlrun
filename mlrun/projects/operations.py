@@ -43,6 +43,16 @@ def run_function(
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
+    run_function() allow you to execute a function locally, on a remote cluster, or as part of an automated workflow
+    function can be specified as an object or by name (str), when the function is specified by name it is looked up
+    in the current project eliminating the need to redefine/edit functions.
+
+    when functions run as part of a workflow/pipeline (project.run()) some attributes can be set at the run level,
+    e.g. local=True will run all the functions locally, setting artifact_path will direct all outputs to the same path.
+    project runs provide additional notifications/reporting and exception handling.
+    inside a Kubeflow pipeline (KFP) run_function() generates KFP "ContainerOps" which are used to form a DAG
+    some behavior may differ between regular runs and deferred KFP runs.
+
     example (use with function object)::
 
         function = mlrun.import_function("hub://sklearn_classifier")
@@ -66,7 +76,7 @@ def run_function(
             run1 = run_function("loaddata", params={"url": url})
             run2 = run_function("train", params={"data": run1.outputs["data"]})
 
-        project.run("mypipe", workflow_handler=my_pipe, arguments={"param1": 7})
+        project.run(workflow_handler=my_pipe, arguments={"param1": 7})
 
     :param function:        name of the function (in the project) or function object
     :param handler:         name of the function handler

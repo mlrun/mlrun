@@ -135,7 +135,7 @@ def get_df_stats_spark(df, options, num_bins=20):
     describe_df = df.toPandas().describe(
         include="all", percentiles=[], datetime_is_numeric=True
     )
-
+    print("BENB TEST desc: " + describe_df)
     results_dict = {}
     for col, values in describe_df.items():
         stats_dict = {}
@@ -161,6 +161,8 @@ def get_df_stats_spark(df, options, num_bins=20):
                 )
             except Exception:
                 pass
+
+    print("BENB TEST dict: " + results_dict.__str__())
 
     return results_dict
 

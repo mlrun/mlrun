@@ -74,6 +74,11 @@ class MLBaseMLRunInterface(MLRunInterface):
                     )
 
             # Log fitted model and metrics
+            label_column = (
+                y_train.name
+                if isinstance(y_train, pd.Series)
+                else y_train.columns.to_list()
+            )
             context.log_model(
                 model_name or "model",
                 db_key=model_name,

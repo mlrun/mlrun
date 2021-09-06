@@ -303,6 +303,21 @@ class _PipelineRunner(abc.ABC):
     def get_state(run_id, project=None):
         return ""
 
+    @staticmethod
+    def _get_handler(workflow_handler, workflow_spec, project, secrets):
+        if not (workflow_handler and callable(workflow_handler)):
+            workflow_file = workflow_spec.get_source_file(project.spec.context)
+            workflow_handler = create_pipeline(
+                project,
+                workflow_file,
+                pipeline_context.functions,
+                secrets,
+                handler=workflow_handler or workflow_spec.handler,
+            )
+        else:
+            builtins.funcs = pipeline_context.functions
+        return workflow_handler
+
 
 class _KFPRunner(_PipelineRunner):
     """Kubeflow pipelines runner"""
@@ -334,17 +349,9 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
-        if not workflow_handler or not callable(workflow_handler):
-            workflow_file = workflow_spec.get_source_file(project.spec.context)
-            workflow_handler = create_pipeline(
-                project,
-                workflow_file,
-                pipeline_context.functions,
-                secrets,
-                handler=workflow_handler,
-            )
-        else:
-            builtins.funcs = pipeline_context.functions
+        workflow_handler = _PipelineRunner._get_handler(
+            workflow_handler, workflow_spec, project, secrets
+        )
 
         namespace = namespace or config.namespace
         id = run_pipeline(
@@ -402,17 +409,9 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
-        if not workflow_handler or not callable(workflow_handler):
-            workflow_file = workflow_spec.get_source_file(project.spec.context)
-            workflow_handler = create_pipeline(
-                project,
-                workflow_file,
-                pipeline_context.functions,
-                secrets,
-                handler=workflow_handler,
-            )
-        else:
-            builtins.funcs = pipeline_context.functions
+        workflow_handler = _PipelineRunner._get_handler(
+            workflow_handler, workflow_spec, project, secrets
+        )
 
         workflow_id = uuid.uuid4().hex
         pipeline_context.workflow_id = workflow_id

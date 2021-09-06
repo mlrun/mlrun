@@ -937,6 +937,7 @@ class MlrunProject(ModelObj):
         embed=False,
         engine=None,
         args_schema: typing.List[EntrypointParam] = None,
+        handler=None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -946,6 +947,7 @@ class MlrunProject(ModelObj):
         :param embed:         add the workflow code into the project.yaml
         :param engine:        workflow processing engine ("kfp" or "local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
+        :param handler:       workflow function handler
         :param args:          argument values (key=value, ..)
         """
         if not workflow_path:
@@ -960,6 +962,8 @@ class MlrunProject(ModelObj):
             workflow = {"name": name, "path": workflow_path}
         if args:
             workflow["args"] = args
+        if handler:
+            workflow["handler"] = handler
         if args_schema:
             args_schema = [
                 schema.to_dict() if hasattr(schema, "to_dict") else schema

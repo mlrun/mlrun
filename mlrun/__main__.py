@@ -829,7 +829,7 @@ def project(
                 engine=engine,
                 local=local,
             )
-            print(f"run id: {run_result.run_id}, state={run_result.state}")
+            print(f"run id: {run_result.run_id}")
         except Exception as exc:
             print(traceback.format_exc())
             message = f"failed to run pipeline, {exc}"

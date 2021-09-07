@@ -57,6 +57,7 @@ def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
             "tag": "latest",
         },
     }
+    original_build_function = mlrun.api.api.endpoints.functions._build_function
     for with_mlrun in [True, False]:
         request_body = {
             "function": function_dict,
@@ -72,3 +73,4 @@ def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
             mlrun.api.api.endpoints.functions._build_function.call_args[0][3]
             == with_mlrun
         )
+    mlrun.api.api.endpoints.functions._build_function = original_build_function

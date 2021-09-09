@@ -160,6 +160,12 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             image="mlrun/mlrun",
         )
 
+        # Try running without using with_secrets at all, using the auto-add feature
+        task = mlrun.new_task()
+        run = function.run(task, params={"secrets": list(secrets.keys())})
+        for key, value in secrets.items():
+            assert run.outputs[key] == value
+
         # Test running with an empty list of secrets
         task = mlrun.new_task().with_secrets("kubernetes", [])
         run = function.run(task, params={"secrets": list(secrets.keys())})
@@ -172,10 +178,11 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         for key, value in secrets.items():
             assert run.outputs[key] == value
 
-        # And without any secrets, using the auto-add feature
-        task = mlrun.new_task()
+        # Verify that when running with a partial list of secrets, only these secrets are available
+        task = mlrun.new_task().with_secrets("kubernetes", ["secret1"])
         run = function.run(task, params={"secrets": list(secrets.keys())})
-        for key, value in secrets.items():
+        expected = {"secret1": secrets["secret1"], "secret2": "None"}
+        for key, value in expected.items():
             assert run.outputs[key] == value
 
         # Cleanup secrets

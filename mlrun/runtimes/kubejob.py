@@ -267,6 +267,8 @@ class KubejobRuntime(KubeResource):
             self._add_project_k8s_secrets_to_spec(
                 self._secrets.get_k8s_secrets(), runobj
             )
+        else:
+            self._add_project_k8s_secrets_to_spec(None, runobj)
 
         pod_spec = func_to_pod(
             self.full_image_path(), self, extra_env, command, args, self.spec.workdir

@@ -416,6 +416,11 @@ class ServingRuntime(RemoteRuntime):
             self._add_project_k8s_secrets_to_spec(
                 self._secrets.get_k8s_secrets(), project=self.metadata.project
             )
+        else:
+            self._add_project_k8s_secrets_to_spec(
+                None, project=self.metadata.project
+            )
+
 
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,

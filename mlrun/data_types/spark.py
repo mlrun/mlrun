@@ -143,7 +143,11 @@ def get_df_stats_spark(df, options, num_bins=20):
                 if isinstance(val, (float, np.floating, np.float64)):
                     stats_dict[stat] = float(val)
                 elif isinstance(val, (int, np.integer, np.int64)):
-                    stats_dict[stat] = int(val)
+                    # boolean values are considered subclass of int
+                    if isinstance(val, bool):
+                        stats_dict[stat] = bool(val)
+                    else:
+                        stats_dict[stat] = int(val)
                 else:
                     stats_dict[stat] = str(val)
         results_dict[col] = stats_dict

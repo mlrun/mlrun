@@ -339,6 +339,24 @@ class TestFeatureStore(TestMLRunSystem):
         vecs = db.list_feature_vectors(self.project_name, name)
         assert not vecs, "Feature vector should be deleted"
 
+    def test_top_value_of_boolean_column(self):
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fs.FeatureSet("stocks_test", entities=[Entity("ticker", ValueType.STRING)])
+        fs.ingest(stocks_set, stocks)
+
+        vector = fs.FeatureVector("SjqevLXR", ["stocks_test.*"])
+        fs.get_offline_features(vector)
+
+        actual_stat = vector.get_stats_table().drop("hist", axis=1, errors="ignore")
+        actual_stat = actual_stat.sort_index().sort_index(axis=1)
+        assert isinstance(actual_stat["top"]["booly"], bool)
+
     def test_serverless_ingest(self):
         key = "patient_id"
         measurements = fs.FeatureSet(

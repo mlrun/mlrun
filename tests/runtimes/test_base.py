@@ -6,6 +6,7 @@ import pytest
 
 from mlrun.config import config as mlconf
 from mlrun.runtimes import KubejobRuntime
+from mlrun.runtimes.pod import AutoMountType
 
 
 class TestAutoMount:
@@ -39,7 +40,9 @@ class TestAutoMount:
 
     @pytest.mark.parametrize("cred_only", [True, False])
     def test_auto_mount_v3io(self, cred_only, rundb_mock):
-        mlconf.storage.auto_mount_type = "v3io_cred" if cred_only else "v3io_fuse"
+        mlconf.storage.auto_mount_type = (
+            "v3io_credentials" if cred_only else "v3io_fuse"
+        )
 
         runtime = self._generate_runtime()
         self._execute_run(runtime)
@@ -53,6 +56,12 @@ class TestAutoMount:
         runtime = self._generate_runtime(disable_auto_mount=True)
         self._execute_run(runtime)
         rundb_mock.assert_no_mount_or_creds_configured()
+
+    def test_auto_mount_invalid_value(self):
+        # When invalid value is used, auto mode will be used
+        mlconf.storage.auto_mount_type = "something_wrong"
+        auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
+        assert auto_mount_type == AutoMountType.auto
 
     def test_run_with_automount_pvc(self, rundb_mock):
         mlconf.storage.auto_mount_type = "pvc"

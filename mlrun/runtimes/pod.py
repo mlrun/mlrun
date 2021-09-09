@@ -190,6 +190,10 @@ class AutoMountType(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
+        logger.warning(
+            "Invalid or missing value for auto_mount_type - will use default",
+            value=value,
+        )
         return AutoMountType.default()
 
     @staticmethod

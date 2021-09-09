@@ -135,17 +135,17 @@ def get_df_stats_spark(df, options, num_bins=20):
     describe_df = df.toPandas().describe(
         include="all", percentiles=[], datetime_is_numeric=True
     )
-    print("BENB TEST desc: " + describe_df)
     results_dict = {}
     for col, values in describe_df.items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if isinstance(val, (float, np.floating, np.float64)):
-                stats_dict[stat] = float(val)
-            elif isinstance(val, (int, np.integer, np.int64)):
-                stats_dict[stat] = int(val)
-            else:
-                stats_dict[stat] = str(val)
+            if stat != "50%":
+                if isinstance(val, (float, np.floating, np.float64)):
+                    stats_dict[stat] = float(val)
+                elif isinstance(val, (int, np.integer, np.int64)):
+                    stats_dict[stat] = int(val)
+                else:
+                    stats_dict[stat] = str(val)
         results_dict[col] = stats_dict
 
         if InferOptions.get_common_options(
@@ -161,8 +161,6 @@ def get_df_stats_spark(df, options, num_bins=20):
                 )
             except Exception:
                 pass
-
-    print("BENB TEST dict: " + results_dict.__str__())
 
     return results_dict
 

@@ -64,6 +64,8 @@ default_config = {
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
+    "spark_history_server_path": "",  # spark logs directory for spark history server
+    "spark_operator_version": "spark-2",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()

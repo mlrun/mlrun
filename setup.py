@@ -162,6 +162,7 @@ setup(
         "mlrun.frameworks.pytorch.callbacks",
         "mlrun.frameworks.keras",
         "mlrun.frameworks.keras.callbacks",
+        "mlrun.frameworks.onnx",
         "mlrun.frameworks.mlbase",
         "mlrun.frameworks.sklearn",
         "mlrun.frameworks.xgboost",

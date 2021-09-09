@@ -23,6 +23,7 @@ import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
+from ..secrets import SecretsStore
 from ..utils import logger, normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec
 from .utils import (
@@ -492,7 +493,7 @@ class KubeResource(BaseRuntime):
         # If no secrets were passed or auto-adding all secrets, we need all existing keys
         if not secrets:
             secrets = {
-                key: self._secrets.k8s_env_variable_name_for_secret(key)
+                key: SecretsStore.k8s_env_variable_name_for_secret(key)
                 for key in existing_secret_keys
             }
 

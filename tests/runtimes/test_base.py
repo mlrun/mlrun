@@ -4,6 +4,7 @@ import os
 
 import pytest
 
+import mlrun.errors
 from mlrun.config import config as mlconf
 from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.pod import AutoMountType
@@ -58,8 +59,13 @@ class TestAutoMount:
         rundb_mock.assert_no_mount_or_creds_configured()
 
     def test_auto_mount_invalid_value(self):
-        # When invalid value is used, auto mode will be used
+        # When invalid value is used, we explode
         mlconf.storage.auto_mount_type = "something_wrong"
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
+
+        # When it's missing, we just use auto
+        mlconf.storage.auto_mount_type = None
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         assert auto_mount_type == AutoMountType.auto
 

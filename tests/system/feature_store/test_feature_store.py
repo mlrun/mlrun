@@ -347,7 +347,9 @@ class TestFeatureStore(TestMLRunSystem):
                 "booly": [True, False, True],
             }
         )
-        stocks_set = fs.FeatureSet("stocks_test", entities=[Entity("ticker", ValueType.STRING)])
+        stocks_set = fs.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
         fs.ingest(stocks_set, stocks)
 
         vector = fs.FeatureVector("SjqevLXR", ["stocks_test.*"])

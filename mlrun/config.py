@@ -236,6 +236,9 @@ default_config = {
             "secret_path": "~/.mlrun/azure_vault",
         },
         "kubernetes": {
+            # When this is True (the default), all project secrets will be automatically added to each job,
+            # unless user asks for a specific list of secrets.
+            "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },

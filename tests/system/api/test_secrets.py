@@ -172,5 +172,11 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         for key, value in secrets.items():
             assert run.outputs[key] == value
 
+        # And without any secrets, using the auto-add feature
+        task = mlrun.new_task()
+        run = function.run(task, params={"secrets": list(secrets.keys())})
+        for key, value in secrets.items():
+            assert run.outputs[key] == value
+
         # Cleanup secrets
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")

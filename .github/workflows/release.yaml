@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  push:
+    tags:
+      # we don't want to be triggered for RC releases (e.g. v0.6.0-rc9)
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  push-to-release-branch:
+    name: Push source to release branch
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        # we can't use the default token coming with the action cause GH prevents from create or updating workflows
+        # which might be part of the release contents
+        token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+    - name: Push to release branch
+      run: |
+        export tag=$(echo ${GITHUB_REF#refs/tags/})
+        git config user.name "mlrun-iguazio"
+        git config user.email "mlrun.iguazio@gmail.com"
+        MLRUN_GIT_ORG=${{ github.repository_owner }} MLRUN_VERSION=$tag make release

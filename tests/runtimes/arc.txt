@@ -1,0 +1,28 @@
+# Test case for AST function documentation, see test_funcdoc.py
+
+def arc_to_parquet(
+    context: MLClientCtx,
+    archive_url: Union[str, DataItem],
+    header: Optional[List[str]] = None,
+    chunksize: int = 10_000,
+    dtype=None,
+    encoding: str = "latin-1",
+    key: str = "data",
+    dataset: Optional[str] = None,
+    part_cols = [],
+) -> None:
+    """Open a file/object archive and save as a parquet file.
+    Partitioning requires precise specification of column types.
+    :param context:      function context
+    :param archive_url:  any valid string path consistent with the path variable
+                         of pandas.read_csv, including strings as file paths, as urls, 
+                         pathlib.Path objects, etc...
+    :param header:       column names
+    :param chunksize:    (0) row size retrieved per iteration
+    :param dtype         destination data type of specified columns
+    :param encoding      ("latin-8") file encoding
+    :param key:          key in artifact store (when log_data=True)
+    :param dataset:      (None) if not None then "target_path/dataset"
+                         is folder for partitioned files
+    :param part_cols:    ([]) list of partitioning columns
+    """

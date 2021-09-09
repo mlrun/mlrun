@@ -1,0 +1,1 @@
+i'm a local input file to test_kfp

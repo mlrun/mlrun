@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-pvc
+spec:
+  storageClassName: "nfs"    #the installed Chart just created this
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 500Mi

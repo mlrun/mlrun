@@ -1,0 +1,6 @@
+- nb: mlrun_db.ipynb
+- nb: mlrun_basics.ipynb
+  env:
+      MLRUN_DBPATH: /tmp/mlrun-db
+  pip:
+      - matplotlib

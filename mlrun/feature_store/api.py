@@ -117,9 +117,10 @@ def get_offline_features(
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
     """
-    feature_vector.verify_feature_vector_permissions(mlrun.api.schemas.AuthorizationAction.update)
 
     feature_vector = _features_to_vector(feature_vector)
+
+    feature_vector.verify_feature_vector_permissions(mlrun.api.schemas.AuthorizationAction.update)
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field

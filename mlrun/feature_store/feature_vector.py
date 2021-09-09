@@ -335,7 +335,7 @@ class FeatureVector(ModelObj):
         auth_info = mlrun.api.schemas.AuthInfo()
 
         fs_project_name = [project_name, self.metadata.name]
-        mlrun.api.utils.clients.opa.Client().query_resources_permissions(
+        mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
             fs_project_name,
             lambda feature_set_project_name_tuple: (

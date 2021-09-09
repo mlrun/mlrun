@@ -174,11 +174,16 @@ class ONNXModelHandler(ModelHandler):
         If the model path given is of a store object, collect the needed model files into this handler for later loading
         the model.
         """
+        # Get the artifact and model file along with its extra data:
         (
             self._model_file,
             self._model_artifact,
             self._extra_data,
         ) = mlrun.artifacts.get_model(self._model_path)
+
+        # Get the model file:
+        if self._model_file.endswith('.pkl'):
+            self._model_file = self._extra_data[self._get_model_file_artifact_name()].local()
 
     def _collect_files_from_local_path(self):
         """

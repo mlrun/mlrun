@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, TypeVar, Union
 
 import mlrun
+from mlrun.features import Feature
 from mlrun.artifacts import Artifact, ModelArtifact
 
 
@@ -90,11 +91,15 @@ class ModelHandler(ABC):
         # Local path to the model file:
         self._model_file = None  # type: str
 
-        # If the model path is of a model object, this will be the ModelArtifact object.
+        # If the model path is of a model object, this will be the 'ModelArtifact' object.
         self._model_artifact = None  # type: ModelArtifact
 
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
         self._extra_data = None  # type: Union[Dict[str, Artifact], Dict[str, str]]
+
+        # Setup additional properties:
+        self._inputs = None  # type: List[Feature]
+        self._outputs = None  # type: List[Feature]
 
         # Collect the relevant files of the model into the handler's parameters:
         if model_path is not None:
@@ -130,6 +135,26 @@ class ModelHandler(ABC):
         """
         return self._model_file
 
+    @abstractmethod
+    def set_inputs(self, from_sample=None, *args, **kwargs):
+        """
+        Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        """
+        pass
+
+    @abstractmethod
+    def set_outputs(self, from_sample=None, *args, **kwargs):
+        """
+        Set the outputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        """
+        pass
+
     def set_context(self, context: mlrun.MLClientCtx):
         """
         Set this handler MLRun context.
@@ -137,38 +162,6 @@ class ModelHandler(ABC):
         :param context: The context to set to.
         """
         self._context = context
-
-    def _get_model_file_artifact_name(self) -> str:
-        """
-        Get the standard name for the model file artifact.
-
-        :return: The model file artifact name.
-        """
-        return self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
-
-    def _get_weights_file_artifact_name(self) -> str:
-        """
-        Get the standard name for the weights file artifact.
-
-        :return: The weights file artifact name.
-        """
-        return self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
-
-    def _get_custom_objects_map_artifact_name(self) -> str:
-        """
-        Get the standard name for the custom objects map json artifact.
-
-        :return: The custom objects map json artifact name.
-        """
-        return self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
-
-    def _get_custom_objects_directory_artifact_name(self) -> str:
-        """
-        Get the standard name for the custom objects directory zip artifact.
-
-        :return: The custom objects directory zip artifact name.
-        """
-        return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
 
     @abstractmethod
     def save(
@@ -262,6 +255,38 @@ class ModelHandler(ABC):
         for later loading the model.
         """
         pass
+
+    def _get_model_file_artifact_name(self) -> str:
+        """
+        Get the standard name for the model file artifact.
+
+        :return: The model file artifact name.
+        """
+        return self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_weights_file_artifact_name(self) -> str:
+        """
+        Get the standard name for the weights file artifact.
+
+        :return: The weights file artifact name.
+        """
+        return self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_custom_objects_map_artifact_name(self) -> str:
+        """
+        Get the standard name for the custom objects map json artifact.
+
+        :return: The custom objects map json artifact name.
+        """
+        return self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_custom_objects_directory_artifact_name(self) -> str:
+        """
+        Get the standard name for the custom objects directory zip artifact.
+
+        :return: The custom objects directory zip artifact name.
+        """
+        return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
 
     def _import_custom_objects(self):
         """

@@ -157,11 +157,6 @@ class ONNXModelHandler(ModelHandler):
         if optimizations is None:
             # Set to all optimizations:
             optimizations = onnx_optimizations
-        else:
-            # Validate the optimizations:
-            for optimization in optimizations:
-                if optimization not in onnx_optimizations:
-                    raise ValueError("The optimization '{}' is not supported by onnxoptimizer.".format(optimization))
 
         # Optimize the model:
         self._model = onnxoptimizer.optimize(self._model, passes=optimizations, fixed_point=fixed_point)

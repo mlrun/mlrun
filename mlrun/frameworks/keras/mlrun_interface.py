@@ -1,7 +1,7 @@
 import importlib
 import os
 from abc import ABC
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union, Iterator, Generator
 
 import tensorflow as tf
 from tensorflow import keras
@@ -23,7 +23,7 @@ from mlrun.frameworks.keras.callbacks import (
 )
 
 
-class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
+class KerasMLRunInterface(MLRunInterface, ABC):
     """
     MLRun model is for enabling additional features supported by MLRun in keras. With MLRun model one can apply horovod
     and use auto logging with ease.
@@ -35,7 +35,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
     # Properties attributes to be inserted so the keras mlrun interface will be fully enabled:
     _PROPERTIES = {
         # Auto enabled callbacks list:
-        "_callbacks": [],
+        "_auto_log_callbacks": [],
         # Variable to hold the horovod module:
         "_hvd": None,
         # List of all the callbacks that should only be applied on rank 0 when using horovod:
@@ -57,10 +57,11 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         "note_rank_0_callback",
         "_pre_compile",
         "_pre_fit",
+        "_pre_evaluate",
     ]  # type: List[str]
 
     @classmethod
-    def add_interface(cls, model: keras.Model, *args, **kwargs):
+    def add_interface(cls, model: keras.Model):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
@@ -90,13 +91,24 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         setattr(model, "compile", compile_wrapper(model.compile))
 
         # Wrap the fit method:
-        def fit_wrapper(fit_method):
+        def fit_wrapper(fit_method, evaluate_method):
             def wrapper(*args, **kwargs):
+                # Unwrap the evaluation method as fit will use it:
+                setattr(model, "evaluate", evaluate_method)
+                # Get IO samples:
+                x, y = cls._get_dataset_arguments(args=args, kwargs=kwargs)
+                input_sample, output_sample = cls._get_io_samples(x=x, y=y)
                 # Setup the callbacks list:
                 if "callbacks" not in kwargs or kwargs["callbacks"] is None:
                     kwargs["callbacks"] = []
                 # Add auto log callbacks if they were added:
-                kwargs["callbacks"] = kwargs["callbacks"] + model._callbacks
+                kwargs["callbacks"] = kwargs["callbacks"] + model._auto_log_callbacks
+                # Add IO samples to the MLRun logging callback:
+                for callback in kwargs["callbacks"]:
+                    if isinstance(callback, MLRunLoggingCallback):
+                        callback.set_input_sample(sample=input_sample)
+                        callback.set_output_sample(sample=output_sample)
+                        break
                 # Setup default values if needed:
                 kwargs["verbose"] = kwargs.get("verbose", 1)
                 kwargs["steps_per_epoch"] = kwargs.get("steps_per_epoch", None)
@@ -120,11 +132,38 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 kwargs["steps_per_epoch"] = steps_per_epoch
                 kwargs["validation_steps"] = validation_steps
                 # Call the original fit method:
-                return fit_method(*args, **kwargs)
+                result = fit_method(*args, **kwargs)
+                # Wrap the evaluation method again:
+                setattr(model, "evaluate", evaluate_wrapper(evaluate_method))
+                return result
 
             return wrapper
 
-        setattr(model, "fit", fit_wrapper(model.fit))
+        setattr(model, "fit", fit_wrapper(model.fit, model.evaluate))
+
+        # Wrap the evaluate method:
+        def evaluate_wrapper(evaluate_method):
+            def wrapper(*args, **kwargs):
+                # Setup the callbacks list:
+                if "callbacks" not in kwargs or kwargs["callbacks"] is None:
+                    kwargs["callbacks"] = []
+                # Add auto log callbacks if they were added:
+                kwargs["callbacks"] = kwargs["callbacks"] + model._auto_log_callbacks
+                # Setup default values if needed:
+                kwargs["steps"] = kwargs.get("steps", None)
+                # Call the pre evaluate method:
+                (callbacks, steps) = model._pre_evaluate(
+                    callbacks=kwargs["callbacks"], steps=kwargs["steps"],
+                )
+                # Assign parameters:
+                kwargs["callbacks"] = callbacks
+                kwargs["steps"] = steps
+                # Call the original fit method:
+                return evaluate_method(*args, **kwargs)
+
+            return wrapper
+
+        setattr(model, "evaluate", evaluate_wrapper(model.evaluate))
 
     def auto_log(
         self,
@@ -169,14 +208,14 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         # Add the loggers:
         if add_mlrun_logger:
             # Add the MLRun logging callback:
-            self._callbacks.append(
+            self._auto_log_callbacks.append(
                 MLRunLoggingCallback(
                     context=context, auto_log=True, **mlrun_callback_kwargs
                 )
             )
         if add_tensorboard_logger:
             # Add the Tensorboard logging callback:
-            self._callbacks.append(
+            self._auto_log_callbacks.append(
                 TensorboardLoggingCallback(
                     context=context, auto_log=True, **tensorboard_callback_kwargs
                 )
@@ -269,14 +308,14 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         """
         Method to call before calling 'fit' to setup the run and inputs for using horovod.
 
-        :param callbacks:              Callbacks to use in the run. The callbacks will be split among the ranks so only
-                                       certain callbacks (mainly logging and checkpoints) will be in rank 0.
-        :param verbose:                Whether or not to print the progress of training. If '1' or '2' only rank 0 will
-                                       be applied with the verbose.
-        :param steps_per_epoch:        Amount of training steps to run in each epoch. The steps will be divided by the
-                                       size of ranks (horovod workers).
-        :param validation_steps:       Amount of validation steps to run in each epoch. The steps will be divided by the
-                                       size of ranks (horovod workers).
+        :param callbacks:        Callbacks to use in the run. The callbacks will be split among the ranks so only
+                                 certain callbacks (mainly logging and checkpoints) will be in rank 0.
+        :param verbose:          Whether or not to print the progress of training. If '1' or '2' only rank 0 will be
+                                 applied with the verbose.
+        :param steps_per_epoch:  Amount of training steps to run in each epoch. The steps will be divided by the size of
+                                 ranks (horovod workers).
+        :param validation_steps: Amount of validation steps to run in each epoch. The steps will be divided by the size
+                                 of ranks (horovod workers).
 
         :return: The updated parameters according to the used rank:
                  [0] = Callbacks list.
@@ -319,9 +358,101 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         if self._hvd.rank() != 0:
             verbose = 0
 
-        # Adjust the number of steps per epoch based on the number of GPUs:
+        # Adjust the number of steps per epoch based on the number of workers:
         steps_per_epoch = steps_per_epoch // self._hvd.size()
         if validation_steps is not None:
             validation_steps = validation_steps // self._hvd.size()
 
         return callbacks, verbose, steps_per_epoch, validation_steps
+
+    def _pre_evaluate(
+        self, callbacks: List[Callback], steps: Union[int, None],
+    ) -> Tuple[List[Callback], Union[int, None]]:
+        """
+        Method to call before calling 'evaluate' to setup the run and inputs for using horovod.
+
+        :param callbacks: Callbacks to use in the run. The callbacks will be split among the ranks so only certain
+                          callbacks (mainly logging and checkpoints) will be in rank 0.
+        :param steps:     Amount of evaluation steps to run in each epoch. The steps will be divided by the size of
+                          ranks (horovod workers).
+
+        :return: The updated parameters according to the used rank:
+                 [0] = Callbacks list.
+                 [1] = Steps.
+
+        :raise ValueError: If horovod is being used but the 'steps' parameter were not given.
+        """
+        # Remove the 'auto_log' callback 'TensorboardLoggingCallback' (only relevant for training):
+        callbacks = [
+            callback
+            for callback in callbacks
+            if type(callback).__name__ != TensorboardLoggingCallback.__name__
+        ]
+
+        # Check if needed to run with horovod:
+        if self._hvd is None:
+            return callbacks, steps
+
+        # Validate steps provided for horovod:
+        if steps is None:
+            raise ValueError(
+                "When using Horovod, the parameter 'steps' must be provided to the 'evaluate' method in order to "
+                "split the steps between the workers."
+            )
+
+        # Setup the callbacks:
+        metric_average_callback = self._hvd.callbacks.MetricAverageCallback()
+        metric_average_callback._supports_tf_logs = True
+        horovod_callbacks = [
+            self._hvd.callbacks.BroadcastGlobalVariablesCallback(0),
+            metric_average_callback,
+        ]
+        if self._hvd.rank() != 0:
+            callbacks = [
+                callback
+                for callback in callbacks
+                if type(callback).__name__ not in self._RANK_0_ONLY_CALLBACKS
+            ]
+        callbacks = horovod_callbacks + callbacks
+
+        # Adjust the number of steps per epoch based on the number of workers:
+        steps = steps // self._hvd.size()
+
+        return callbacks, steps
+
+    @staticmethod
+    def _get_dataset_arguments(args, kwargs):
+        if 'x' in kwargs:
+            x = kwargs["x"]
+        else:
+            x = args[0]
+
+        if isinstance(x, tf.data.Dataset) or isinstance(x, keras.utils.Sequence):
+            y = None
+        else:
+            if 'y' in kwargs:
+                y = kwargs["y"]
+            else:
+                y = args[1]
+
+        return x, y
+
+    @staticmethod
+    def _get_io_samples(x, y):
+        # TODO: Need extra testing
+        if y is None:
+            if hasattr(x, 'element_spec'):
+                input_sample = x.element_spec[0]
+                output_sample = x.element_spec[1]
+            elif isinstance(x, keras.utils.Sequence):
+                input_sample, output_sample = x[0]
+            elif isinstance(x, Iterator):
+                input_sample, output_sample = next(x)
+            elif isinstance(x, Generator):
+                input_sample, output_sample = next(x)
+            else:
+                raise ValueError("Unsupported dataset type: '{}'".format(type(x)))
+        else:
+            input_sample = x[0]
+            output_sample = y[0]
+        return input_sample, output_sample

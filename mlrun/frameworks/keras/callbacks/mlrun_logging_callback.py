@@ -33,8 +33,10 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
-        model_format: str = KerasModelHandler.ModelFormats.H5,
+        model_format: str = KerasModelHandler.ModelFormats.SAVED_MODEL,
         save_traces: bool = False,
+        input_sample: KerasModelHandler.IOSample = None,
+        output_sample: KerasModelHandler.IOSample = None,
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
@@ -79,6 +81,12 @@ class MLRunLoggingCallback(LoggingCallback):
                                          format) for loading the model later without the custom objects dictionary. Only
                                          from tensorflow version >= 2.4.0. Using this setting will increase the model
                                          saving size.
+        :param input_sample:             Input sample to the model for logging additional data regarding the input ports
+                                         of the model. In addition, ONNX conversion will use the logged information
+                                         later.
+        :param output_sample:            Output sample of the model for logging additional data regarding the output
+                                         ports of the model. In addition, ONNX conversion will use the logged
+                                         information later.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -125,6 +133,14 @@ class MLRunLoggingCallback(LoggingCallback):
         self._custom_objects_directory = custom_objects_directory
         self._model_format = model_format
         self._save_traces = save_traces
+        self._input_sample = input_sample
+        self._output_sample = output_sample
+
+    def set_input_sample(self, sample: KerasModelHandler.IOSample):
+        self._input_sample = sample
+
+    def set_output_sample(self, sample: KerasModelHandler.IOSample):
+        self._output_sample = sample
 
     def on_train_end(self, logs: dict = None):
         """
@@ -133,16 +149,23 @@ class MLRunLoggingCallback(LoggingCallback):
         :param logs: Currently the output of the last call to `on_epoch_end()` is passed to this argument for this
                      method but that may change in the future.
         """
-        self._logger.log_run(
-            model_handler=KerasModelHandler(
-                model_name=self.model.name,
-                model=self.model,
-                custom_objects_map=self._custom_objects_map,
-                custom_objects_directory=self._custom_objects_directory,
-                model_format=self._model_format,
-                save_traces=self._save_traces,
-            )
+        # Create the model handler:
+        model_handler = KerasModelHandler(
+            model_name=self.model.name,
+            model=self.model,
+            custom_objects_map=self._custom_objects_map,
+            custom_objects_directory=self._custom_objects_directory,
+            model_format=self._model_format,
+            save_traces=self._save_traces,
         )
+
+        # Set the input and output information if available:
+        if self._input_sample is not None and self._output_sample is not None:
+            model_handler.set_inputs(from_sample=self._input_sample)
+            model_handler.set_outputs(from_sample=self._output_sample)
+
+        # Log the model:
+        self._logger.log_run(model_handler=model_handler)
 
     def on_epoch_end(self, epoch: int, logs: dict = None):
         """

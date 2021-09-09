@@ -1,7 +1,7 @@
 import os
 import shutil
 import zipfile
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
@@ -9,18 +9,20 @@ from tensorflow import keras
 from tensorflow.keras import Model
 
 import mlrun
+from mlrun.features import Feature
 from mlrun.artifacts import Artifact
 from mlrun.frameworks._common import ModelHandler
-
-
-# Declare a type of a tensor signature for ONNX conversion:
-TensorSignature = Union[tf.TensorSpec, np.ndarray]
 
 
 class KerasModelHandler(ModelHandler):
     """
     Class for handling a tensorflow.keras model, enabling loading and saving it during runs.
     """
+
+    # Declare a type of a tensor signature for ONNX conversion:
+    TensorSignature = Union[tf.TensorSpec, np.ndarray]
+    # Declare a type of an input sample:
+    IOSample = Union[tf.Tensor, tf.TensorSpec, np.ndarray]
 
     class ModelFormats:
         """
@@ -131,6 +133,67 @@ class KerasModelHandler(ModelHandler):
             custom_objects_directory=custom_objects_directory,
             context=context,
         )
+
+    def set_inputs(
+        self,
+        from_sample: Union[IOSample, List[IOSample], Tuple[IOSample]] = None,
+        names: List[str] = None,
+        data_types: List[tf.DType] = None,
+        shapes: List[List[int]] = None,
+    ):
+        """
+        Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        :param names:       List of names for each input layer.
+        :param data_types:  List of data types for each input layer.
+        :param shapes:      List of tensor shapes for each input layer.
+        """
+        # Initialize the inputs list:
+        self._inputs = []
+
+        # Check if needed to read from a given sample:
+        if from_sample is not None:
+            # If there is only one input, wrap in a list:
+            if not(isinstance(from_sample, list) or isinstance(from_sample, tuple)):
+                from_sample = [from_sample]
+            # Go through the inputs and read them:
+            for sample in from_sample:
+                self._inputs.append(self._read_sample(sample=sample))
+            return
+
+        # TODO: Read from given lists
+
+    def set_outputs(
+        self,
+        from_sample: Union[IOSample, List[IOSample], Tuple[IOSample]] = None,
+        names: List[str] = None,
+        data_types: List[tf.DType] = None,
+        shapes: List[List[int]] = None,
+    ):
+        """
+        Set the outputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        :param names:       List of names for each output layer.
+        :param data_types:  List of data types for each output layer.
+        :param shapes:      List of tensor shapes for each output layer.
+        """
+        # Initialize the inputs list:
+        self._outputs = []
+
+        if from_sample is not None:
+            # If there is only one input, wrap in a list:
+            if not (isinstance(from_sample, list) or isinstance(from_sample, tuple)):
+                from_sample = [from_sample]
+            # Go through the inputs and read them:
+            for sample in from_sample:
+                self._outputs.append(self._read_sample(sample=sample))
+            return
+
+        # TODO: Read from given lists
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     def save(
@@ -296,6 +359,8 @@ class KerasModelHandler(ModelHandler):
         self._context.log_model(
             self._model.name,
             model_file=self._model_file,
+            inputs=self._inputs,
+            outputs=self._outputs,
             framework="tensorflow.keras",
             labels={
                 "model-format": self._model_format,
@@ -315,15 +380,18 @@ class KerasModelHandler(ModelHandler):
     def to_onnx(
         self,
         input_signature: Union[List[TensorSignature], TensorSignature] = None,
+        optimize: bool = True,
         output_path: str = None,
         log: bool = None,
-    ) -> 'onnx.ModelProto':
+    ) -> "onnx.ModelProto":
         """
         Convert the model in this handler to an ONNX model.
 
         :param input_signature: An numpy.ndarray or tensorflow.TensorSpec that describe the input port (shape and data
                                 type). If the model has multiple inputs, a list is expected in the order of the input
-                                ports.
+                                ports. If not provided, the method will try to extract the input signature of the model.
+        :param optimize:        Whether or not to optimize the ONNX model using 'onnxoptimizer' before saving the model.
+                                Defaulted to True.
         :param output_path:     In order to save the ONNX model, pass here the output directory. The model file will be
                                 named with the model name in this handler. Defaulted to None (not saving).
         :param log:             In order to log the ONNX model, pass True. If None, the model will be logged if this
@@ -339,7 +407,7 @@ class KerasModelHandler(ModelHandler):
             from mlrun.frameworks.onnx import ONNXModelHandler
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
-                "To convert to ONNX the 'tf2onnx' package must be installed. "
+                "ONNX conversion requires additional packages to be installed. "
                 "Please run 'pip install mlrun[tensorflow]' to install MLRun's Tensorflow package."
             )
 
@@ -371,11 +439,20 @@ class KerasModelHandler(ModelHandler):
             model=self._model, input_signature=input_signature, output_path=output_path
         )
 
+        # Create a handler for the model:
+        onnx_handler = ONNXModelHandler(
+            model_name=self.model_name, model=model_proto, context=self._context
+        )
+
+        # Optimize the model if needed:
+        if optimize:
+            onnx_handler.optimize()
+            # Save if logging is not required, as logging will save as well:
+            if not log:
+                onnx_handler.save(output_path=output_path)
+
         # Log as a model object if needed:
         if log:
-            onnx_handler = ONNXModelHandler(
-                model_name=self.model_name, model=model_proto, context=self._context
-            )
             onnx_handler.log()
 
     def _collect_files_from_store_object(self):
@@ -393,6 +470,10 @@ class KerasModelHandler(ModelHandler):
         # Read the settings:
         self._model_format = self._model_artifact.labels["model-format"]
         self._save_traces = self._model_artifact.labels["save-traces"]
+
+        # Read the IO information:
+        self._inputs = self._model_artifact.inputs
+        self._outputs = self._model_artifact.outputs
 
         # Read the custom objects:
         if self._get_custom_objects_map_artifact_name() in self._extra_data:
@@ -480,3 +561,36 @@ class KerasModelHandler(ModelHandler):
                     "The model weights file '{}' is missing in the given 'model_path': "
                     "'{}'".format(self._weights_file, self._model_path)
                 )
+
+    @staticmethod
+    def _read_sample(sample: IOSample) -> Feature:
+        """
+        Read the sample into a MLRun Feature.
+
+        :param sample: The sample to read.
+
+        :return: The created Feature.
+
+        :raise ValueError: In case the given sample type cannot be read.
+        """
+        if isinstance(sample, np.ndarray):
+            # From 'np.ndarray':
+            return Feature(
+                value_type=sample.dtype.name,
+                dims=sample.shape
+            )
+        elif isinstance(sample, tf.Tensor):
+            # From 'tf.Tensor':
+            return Feature(
+                value_type=sample.dtype.name,
+                dims=list(sample.shape)
+            )
+        elif isinstance(sample, tf.TensorSpec):
+            # From 'tf.TensorSpec':
+            return Feature(
+                value_type=sample.dtype.name,
+                dims=list(sample.shape)
+            )
+
+        # Unsupported type:
+        raise ValueError("The sample type given '{}' is not supported.".format(type(sample)))

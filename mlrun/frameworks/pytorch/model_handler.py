@@ -89,6 +89,44 @@ class PyTorchModelHandler(ModelHandler):
             context=context,
         )
 
+    def set_inputs(
+        self,
+        from_sample: torch.Tensor = None,
+        names: List[str] = None,
+        data_types: List[torch.dtype] = None,
+        shapes: List[List[int]] = None,
+    ):
+        """
+        Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        :param names:       List of names for each input layer.
+        :param data_types:  List of data types for each input layer.
+        :param shapes:      List of tensor shapes for each input layer.
+        """
+        # TODO: Finish this
+        pass
+
+    def set_outputs(
+        self,
+        from_sample: torch.Tensor = None,
+        names: List[str] = None,
+        data_types: List[torch.dtype] = None,
+        shapes: List[List[int]] = None,
+    ):
+        """
+        Set the outputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        :param names:       List of names for each output layer.
+        :param data_types:  List of data types for each output layer.
+        :param shapes:      List of tensor shapes for each output layer.
+        """
+        # TODO: Finish this
+        pass
+
     def save(
         self, output_path: str = None, *args, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
@@ -219,30 +257,73 @@ class PyTorchModelHandler(ModelHandler):
         input_sample: Union[torch.Tensor, Dict[str, torch.Tensor]] = None,
         input_layers_names: List[str] = None,
         output_layers_names: List[str] = None,
+        optimize: bool = True,
         output_path: str = None,
         log: bool = None,
-    ) -> 'onnx.ModelProto':
+    ) -> "onnx.ModelProto":
         """
-        Convert the model in this handler to an ONNX model.
+        Convert the model in this handler to an ONNX model. The layer names are optional, they do not change the
+        semantics of the model, it is only for readability.
 
-        :param input_sample: A torch.Tensor with the shape and data type of the expected input to the model. It is
-                             optional but recommended.
-        :param input_layers_names:
-        :param output_layers_names:
-        :param output_path:
-        :param log:
-        :param optimize:
+        :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. It
+                                    is optional but recommended.
+        :param input_layers_names:  List of names to assign to the input nodes of the graph in order. All of the other
+                                    parameters (inner layers) can be set as well by passing additional names in the
+                                    list. The order is by the order of the parameters in the model.
+        :param output_layers_names: List of names to assign to the input nodes of the graph in order.
+        :param optimize:            Whether or not to optimize the ONNX model using 'onnxoptimizer' before saving the
+                                    model. Defaulted to True.
+        :param output_path:         In order to save the ONNX model, pass here the output directory. The model file will
+                                    be named with the model name in this handler. Defaulted to None (not saving).
+        :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
+                                    handler has a MLRun context set. Defaulted to None.
 
         :return: The converted ONNX model (onnx.ModelProto).
         """
-        # TODO: Finish log and output path
+        # Import onnx related modules:
+        try:
+            from mlrun.frameworks.onnx import ONNXModelHandler
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "ONNX conversion requires additional packages to be installed. "
+                "Please run 'pip install mlrun[pytorch]' to install MLRun's PyTorch package."
+            )
+
+        # Set the input signature:
+        # TODO: Finish PyTorch to_onnx input signature parsing
+
+        # Set the output path:
+        if output_path is not None:
+            output_path = os.path.join(output_path, "{}.onnx".format(self._model_name))
+
+        # Set the logging flag:
+        log = self._context is not None if log is None else log
+
+        # Convert to ONNX:
         torch.onnx.export(
             self._model,
             input_sample,
-            "{}.onnx".format(self._model_name),
+            output_path,
             input_names=input_layers_names,
             output_names=output_layers_names,
         )
+
+        # Create a handler for the model:
+        onnx_handler = ONNXModelHandler(
+            model_name=self.model_name, model_path=output_path, context=self._context
+        )
+        onnx_handler.load()
+
+        # Optimize the model if needed:
+        if optimize:
+            onnx_handler.optimize()
+            # Save if logging is not required, as logging will save as well:
+            if not log:
+                onnx_handler.save(output_path=output_path)
+
+        # Log as a model object if needed:
+        if log:
+            onnx_handler.log()
 
     def _collect_files_from_store_object(self):
         """

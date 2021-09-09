@@ -382,8 +382,8 @@ def list_features(
         mlrun.api.schemas.AuthorizationResourceTypes.feature,
         features.features,
         lambda feature_list_output: (
-            feature_list_output.feature.name,
             feature_list_output.feature_set_digest.metadata.project,
+            feature_list_output.feature.name,
         ),
         auth_verifier.auth_info,
     )
@@ -409,8 +409,8 @@ def list_entities(
         mlrun.api.schemas.AuthorizationResourceTypes.entity,
         entities.entities,
         lambda entity_list_output: (
-            entity_list_output.entity.name,
             entity_list_output.feature_set_digest.metadata.project,
+            entity_list_output.entity.name,
         ),
         auth_verifier.auth_info,
     )

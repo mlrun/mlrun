@@ -467,6 +467,10 @@ class KerasModelHandler(ModelHandler):
             self._extra_data,
         ) = mlrun.artifacts.get_model(self._model_path)
 
+        # Get the model file:
+        if self._model_file.endswith('.pkl'):
+            self._model_file = self._extra_data[self._get_model_file_artifact_name()].local()
+
         # Read the settings:
         self._model_format = self._model_artifact.labels["model-format"]
         self._save_traces = self._model_artifact.labels["save-traces"]
@@ -494,7 +498,7 @@ class KerasModelHandler(ModelHandler):
             with zipfile.ZipFile(self._model_file, "r") as zip_file:
                 zip_file.extractall(os.path.dirname(self._model_file))
             # Set the model file to the unzipped directory:
-            self._model_file = self._model_file.split(".")[0]
+            self._model_file = os.path.join(os.path.dirname(self._model_file), self._model_name)
         # # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Get the weights file:
         elif (
             self._model_format

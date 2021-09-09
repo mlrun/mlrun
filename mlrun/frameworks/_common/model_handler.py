@@ -135,7 +135,6 @@ class ModelHandler(ABC):
         """
         return self._model_file
 
-    @abstractmethod
     def set_inputs(self, from_sample=None, *args, **kwargs):
         """
         Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
@@ -145,7 +144,6 @@ class ModelHandler(ABC):
         """
         pass
 
-    @abstractmethod
     def set_outputs(self, from_sample=None, *args, **kwargs):
         """
         Set the outputs property of this model to be logged along with it. The method 'to_onnx' can use this property as

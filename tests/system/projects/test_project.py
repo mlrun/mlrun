@@ -70,9 +70,10 @@ class TestProject(TestMLRunSystem):
             handler="prep_data",
             with_repo=with_repo,
         )
+        proj.set_function("hub://describe")
         proj.set_function("hub://sklearn_classifier", "train")
         proj.set_function("hub://test_classifier", "test")
-        proj.set_function("hub://v2_model_server", "serve")
+        proj.set_function("hub://v2_model_server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
         proj.spec.params = {"label_column": "label"}
         arg = EntrypointParam(
@@ -82,6 +83,7 @@ class TestProject(TestMLRunSystem):
             doc="model package/algorithm",
         )
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])
+        proj.set_workflow("newflow", "./newflow.py", handler="newpipe")
         proj.save()
         return proj
 
@@ -207,3 +209,51 @@ class TestProject(TestMLRunSystem):
         project = mlrun.get_or_create_project(name, project_dir)
         assert project.spec.description == "mytest", "failed to get project"
         self._delete_test_project(name)
+
+    def _test_new_pipeline(self, name, engine):
+        project = self._create_project(name)
+        project.set_function(
+            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+        )
+        print(project.to_yaml())
+        run = project.run(
+            "newflow",
+            engine=engine,
+            artifact_path=f"v3io:///projects/{name}",
+            watch=True,
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
+
+    def test_local_pipeline(self):
+        self._test_new_pipeline("lclpipe", engine="local")
+
+    def test_kfp_pipeline(self):
+        self._test_new_pipeline("kfppipe", engine="kfp")
+
+    def test_local_cli(self):
+        # load project from git
+        name = "lclclipipe"
+        project = self._create_project(name)
+        project.set_function(
+            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+        )
+        project.save()
+        print(project.to_yaml())
+
+        # exec the workflow
+        args = [
+            "-n",
+            name,
+            "-r",
+            "newflow",
+            "--engine",
+            "local",
+            "-w",
+            "-p",
+            f"v3io:///projects/{name}",
+            str(self.assets_path),
+        ]
+        out = exec_project(args, projects_dir)
+        print("OUT:\n", out)
+        assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"

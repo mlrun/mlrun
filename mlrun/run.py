@@ -38,7 +38,6 @@ from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
-from .k8s_utils import get_k8s_helper
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,
@@ -1008,7 +1007,7 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
-            resp = format_summary_from_kfp_run(resp["run"])
+            resp = format_summary_from_kfp_run(resp)
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
@@ -1037,6 +1036,7 @@ def get_pipeline(
         str, mlrun.api.schemas.PipelinesFormat
     ] = mlrun.api.schemas.PipelinesFormat.summary,
     project: str = None,
+    remote: bool = True,
 ):
     """Get Pipeline status
 
@@ -1046,11 +1046,11 @@ def get_pipeline(
             - ``summary`` (default value) - Return summary of the object data.
             - ``full`` - Return full pipeline object.
     :param project:    the project of the pipeline run
+    :param remote:     read kfp data from mlrun service (default=True)
 
     :return: kfp run dict
     """
     namespace = namespace or mlconf.namespace
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     if remote:
         mldb = get_run_db()
         if mldb.kind != "http":
@@ -1072,7 +1072,7 @@ def get_pipeline(
                 not format_
                 or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
             ):
-                resp = format_summary_from_kfp_run(resp["run"])
+                resp = format_summary_from_kfp_run(resp)
 
     show_kfp_run(resp)
     return resp

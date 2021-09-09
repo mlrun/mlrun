@@ -47,9 +47,7 @@ class TestMLRunSystem:
         mlconf.dbpath = self._test_env["MLRUN_DBPATH"]
 
         if not self._skip_set_environment():
-            set_environment(
-                artifact_path="/User/data", project=self.project_name,
-            )
+            set_environment(project=self.project_name)
 
         self.custom_setup()
 

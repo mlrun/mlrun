@@ -56,15 +56,21 @@ _v3iofs = None
 spark_transform_handler = "transform"
 
 
-def _features_to_vector(features):
+def _features_to_vector_and_check_permissions(features):
     if isinstance(features, str):
         vector = get_feature_vector_by_uri(features)
+        vector.verify_feature_vector_permissions(
+            mlrun.api.schemas.AuthorizationAction.read
+        )
     elif isinstance(features, FeatureVector):
         vector = features
         if not vector.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature vector name must be specified"
             )
+        vector.verify_feature_vector_permissions(
+            mlrun.api.schemas.AuthorizationAction.update
+        )
         vector.save()
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -118,9 +124,7 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     """
 
-    feature_vector = _features_to_vector(feature_vector)
-
-    feature_vector.verify_feature_vector_permissions(mlrun.api.schemas.AuthorizationAction.update)
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
@@ -170,9 +174,7 @@ def get_online_feature_service(
     :param run_config:        function and/or run configuration for remote jobs/services
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
-    feature_vector.verify_feature_vector_permissions(mlrun.api.schemas.AuthorizationAction.read)
-
-    feature_vector = _features_to_vector(feature_vector)
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
     graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
     service = OnlineVectorService(feature_vector, graph, index_columns)
 
@@ -255,7 +257,11 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-    featureset.verify_feature_set_permissions(mlrun.api.schemas.AuthorizationAction.update)
+
+    if featureset:
+        featureset.verify_feature_set_permissions(
+            mlrun.api.schemas.AuthorizationAction.update
+        )
 
     if run_config:
         # remote job execution
@@ -281,6 +287,10 @@ def ingest(
             infer_options,
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
+
+        featureset.verify_feature_set_permissions(
+            mlrun.api.schemas.AuthorizationAction.update
+        )
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
@@ -425,7 +435,9 @@ def preview(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
-    featureset.verify_feature_set_permissions(mlrun.api.schemas.AuthorizationAction.update)
+    featureset.verify_feature_set_permissions(
+        mlrun.api.schemas.AuthorizationAction.update
+    )
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

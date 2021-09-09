@@ -354,7 +354,9 @@ class FeatureSet(ModelObj):
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status """
 
-        self.verify_feature_set_permissions(mlrun.api.schemas.AuthorizationAction.delete)
+        self.verify_feature_set_permissions(
+            mlrun.api.schemas.AuthorizationAction.delete
+        )
 
         try:
             self.reload(update_spec=False)
@@ -414,7 +416,9 @@ class FeatureSet(ModelObj):
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
-    def verify_feature_set_permissions(self, action: mlrun.api.schemas.AuthorizationAction):
+    def verify_feature_set_permissions(
+        self, action: mlrun.api.schemas.AuthorizationAction
+    ):
         project_name = self._metadata.project or mlconf.default_project
         auth_info = mlrun.api.schemas.AuthInfo()
 

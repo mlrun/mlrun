@@ -328,7 +328,9 @@ class FeatureVector(ModelObj):
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
 
-    def verify_feature_vector_permissions(self, action: mlrun.api.schemas.AuthorizationAction):
+    def verify_feature_vector_permissions(
+        self, action: mlrun.api.schemas.AuthorizationAction
+    ):
         from ..config import config as mlconf
 
         project_name = self._metadata.project or mlconf.default_project

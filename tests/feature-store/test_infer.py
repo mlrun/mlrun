@@ -1,12 +1,15 @@
+import unittest.mock
+
 import deepdiff
 import pandas as pd
 
+import mlrun.api.utils.clients.opa
 import mlrun.feature_store as fs
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.feature_store import Entity
 from mlrun.feature_store.api import infer_from_static_df
 from tests.conftest import tests_root_directory
-from mlrun.feature_store import Entity
 
 this_dir = f"{tests_root_directory}/feature-store/"
 
@@ -102,7 +105,7 @@ def test_backwards_compatibility_step_vs_state():
     )
 
 
-def test_bla():
+def test_check_permissions():
     data = pd.DataFrame(
         {
             "time_stamp": [
@@ -115,11 +118,9 @@ def test_bla():
         }
     )
     data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
-    import unittest.mock
-    import mlrun.api.utils.clients.opa
 
-    mlrun.api.utils.clients.opa.Client().query_resources_permissions = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunAccessDeniedError('')
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunAccessDeniedError("")
     )
 
     try:
@@ -127,7 +128,8 @@ def test_bla():
             data_set1,
             data,
             entity_columns=[Entity("string")],
-            timestamp_key="time_stamp")
+            timestamp_key="time_stamp",
+        )
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
@@ -157,4 +159,3 @@ def test_bla():
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
-

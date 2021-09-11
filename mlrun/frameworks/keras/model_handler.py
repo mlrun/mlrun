@@ -448,7 +448,7 @@ class KerasModelHandler(ModelHandler):
         if optimize:
             onnx_handler.optimize()
             # Save if logging is not required, as logging will save as well:
-            if not log:
+            if not log and output_path is not None:
                 onnx_handler.save(output_path=output_path)
 
         # Log as a model object if needed:

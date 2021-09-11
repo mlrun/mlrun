@@ -153,7 +153,7 @@ class ONNXModelHandler(ModelHandler):
         :param fixed_point:   Optimize the weights using fixed point. Defaulted to False.
         """
         # Set the ONNX optimizations list:
-        onnx_optimizations = onnxoptimizer.get_available_passes()
+        onnx_optimizations = onnxoptimizer.get_fuse_and_elimination_passes()
         if optimizations is None:
             # Set to all optimizations:
             optimizations = onnx_optimizations

@@ -2344,10 +2344,10 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "model": model,
                 "function": function,
-                "labels": labels,
+                "label": labels or [],
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
             },
             headers={"X-V3io-Session-Key": access_key},
         )
@@ -2389,7 +2389,7 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
             headers={"X-V3io-Session-Key": access_key},

@@ -14,15 +14,15 @@ where:<br>
 for example,
   `MLRUN_VERSION=0.7.0 make docker-images`
 this will generate the following images:
-  * `mlrun/mlrun-api:0.7.0`
-  * `mlrun/mlrun:0.7.0`
-  * `mlrun/jupyter:0.7.0`
-  * `mlrun/ml-base:0.7.0`
-  * `mlrun/ml-base:0.7.0-py36`
-  * `mlrun/ml-models:0.7.0`
-  * `mlrun/ml-models:0.7.0-py36`
-  * `mlrun/ml-models-gpu:0.7.0` 
-  * `mlrun/ml-models-gpu:0.7.0-py36`
+  * `mlrun/mlrun-api:0.7.1`
+  * `mlrun/mlrun:0.7.1`
+  * `mlrun/jupyter:0.7.1`
+  * `mlrun/ml-base:0.7.1`
+  * `mlrun/ml-base:0.7.1-py36`
+  * `mlrun/ml-models:0.7.1`
+  * `mlrun/ml-models:0.7.1-py36`
+  * `mlrun/ml-models-gpu:0.7.1` 
+  * `mlrun/ml-models-gpu:0.7.1-py36`
 
 (For compatibility with some packages requiring py36, there is also an `ml-xxx` series of
 images tagged with the `-py36` suffix, e.g. `0.7.0-py36`)

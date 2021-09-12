@@ -190,6 +190,10 @@ class AutoMountType(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
+        if value:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid value for auto_mount_type - '{value}'"
+            )
         return AutoMountType.default()
 
     @staticmethod

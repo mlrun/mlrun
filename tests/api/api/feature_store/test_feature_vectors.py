@@ -388,12 +388,21 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
 
 def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
     project_name = "some-project"
-    name = "feature_vector1"
-    feature_vector = _generate_feature_vector(name)
+    name = "feature_vector-1"
+    name_2 = "feature_vector-2"
+    feature_vector_1 = _generate_feature_vector(name)
+    feature_vector_2 = _generate_feature_vector(name_2)
 
     tags = ["tag-1", "tag-2", "tag-3", "tag-4"]
-    for tag in tags:
-        _store_feature_vector(client, project_name, name, tag, feature_vector)
+    for feature_vector in [feature_vector_1, feature_vector_2]:
+        for tag in tags:
+            _store_feature_vector(
+                client,
+                project_name,
+                feature_vector["metadata"]["name"],
+                tag,
+                feature_vector,
+            )
     _list_tags_and_assert(
         client, "feature_vectors", project_name, tags,
     )

@@ -741,6 +741,9 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--git-issue", type=int, default=None, help="git issue number for git comments"
 )
+@click.option("--handler", default=None, help="workflow function handler name")
+@click.option("--engine", default=None, help="workflow engine (kfp/local)")
+@click.option("--local", is_flag=True, help="try to run workflow functions locally")
 def project(
     context,
     name,
@@ -759,6 +762,9 @@ def project(
     dirty,
     git_repo,
     git_issue,
+    handler,
+    engine,
+    local,
 ):
     """load and/or run a project"""
     if db:
@@ -819,6 +825,9 @@ def project(
                 namespace=namespace,
                 sync=sync,
                 dirty=dirty,
+                workflow_handler=handler,
+                engine=engine,
+                local=local,
             )
             print(f"run id: {run_result.run_id}")
         except Exception as exc:
@@ -832,7 +841,7 @@ def project(
         if had_error:
             exit(1)
 
-        if watch and run_result:
+        if watch and run_result and run_result.workflow.engine == "kfp":
             proj.get_run_status(run_result)
 
     elif sync:

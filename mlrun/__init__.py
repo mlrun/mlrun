@@ -22,6 +22,7 @@ from os import environ, path
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
+from .errors import MLRunInvalidArgumentError
 from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
@@ -32,7 +33,16 @@ from .platforms import (
     mount_v3io_legacy,
     v3io_cred,
 )
-from .projects import ProjectMetadata, get_or_create_project, load_project, new_project
+from .projects import (
+    ProjectMetadata,
+    build_function,
+    deploy_function,
+    get_or_create_project,
+    load_project,
+    new_project,
+    pipeline_context,
+    run_function,
+)
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
     code_to_function,
@@ -130,3 +140,11 @@ def set_environment(
             )
         mlconf.artifact_path = artifact_path
     return mlconf.default_project, mlconf.artifact_path
+
+
+def get_current_project(silent=False):
+    if not pipeline_context.project and not silent:
+        raise MLRunInvalidArgumentError(
+            "current project is not initialized, use new, get or load project methods first"
+        )
+    return pipeline_context.project

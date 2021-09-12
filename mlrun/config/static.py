@@ -12,28 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Don't remove this, used by sphinx documentation
-__all__ = [
-    "load_project",
-    "new_project",
-    "get_or_create_project",
-    "MlrunProject",
-    "ProjectMetadata",
-    "ProjectSpec",
-    "ProjectStatus",
-    "run_function",
-    "build_function",
-    "deploy_function",
-]
+from .base import ConfigBase
+from .loader import ConfigLoader
 
-from .operations import build_function, deploy_function, run_function  # noqa
-from .pipelines import pipeline_context  # noqa
-from .project import (
-    MlrunProject,
-    ProjectMetadata,
-    ProjectSpec,
-    ProjectStatus,
-    get_or_create_project,
-    load_project,
-    new_project,
-)
+static_config = ConfigBase(ConfigLoader.load_config())

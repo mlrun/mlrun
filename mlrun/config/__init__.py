@@ -11,29 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Configuration system.
 
-# Don't remove this, used by sphinx documentation
-__all__ = [
-    "load_project",
-    "new_project",
-    "get_or_create_project",
-    "MlrunProject",
-    "ProjectMetadata",
-    "ProjectSpec",
-    "ProjectStatus",
-    "run_function",
-    "build_function",
-    "deploy_function",
-]
+Configuration can be in either a configuration file specified by
+MLRUN_CONFIG_FILE environment variable or by environment variables.
 
-from .operations import build_function, deploy_function, run_function  # noqa
-from .pipelines import pipeline_context  # noqa
-from .project import (
-    MlrunProject,
-    ProjectMetadata,
-    ProjectSpec,
-    ProjectStatus,
-    get_or_create_project,
-    load_project,
-    new_project,
-)
+Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
+mapped to config.httpdb.port. Values should be in JSON format.
+"""
+
+from .default import default_config  # noqa
+from .dynamic import config  # noqa
+from .loader import env_file_key, env_prefix  # noqa
+from .static import static_config  # noqa

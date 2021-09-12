@@ -128,6 +128,7 @@ setup(
         "mlrun",
         "mlrun.runtimes",
         "mlrun.runtimes.mpijob",
+        "mlrun.runtimes.sparkjob",
         "mlrun.serving",
         "mlrun.db",
         "mlrun.mlutils",

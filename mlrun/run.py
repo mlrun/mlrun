@@ -50,7 +50,8 @@ from .runtimes import (
     RemoteSparkRuntime,
     RuntimeKinds,
     ServingRuntime,
-    SparkRuntime,
+    Spark2Runtime,
+    Spark3Runtime,
     get_runtime_class,
 )
 from .runtimes.funcdoc import update_function_entry_points
@@ -643,7 +644,8 @@ def code_to_function(
     DaskCluster,
     KubejobRuntime,
     LocalRuntime,
-    SparkRuntime,
+    Spark2Runtime,
+    Spark3Runtime,
     RemoteSparkRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.

@@ -9,12 +9,12 @@ from tensorflow import keras
 from tensorflow.keras import Model
 
 import mlrun
-from mlrun.features import Feature
 from mlrun.artifacts import Artifact
+from mlrun.features import Feature
 from mlrun.frameworks._common import ModelHandler
 
 
-class KerasModelHandler(ModelHandler):
+class TFKerasModelHandler(ModelHandler):
     """
     Class for handling a tensorflow.keras model, enabling loading and saving it during runs.
     """
@@ -26,7 +26,7 @@ class KerasModelHandler(ModelHandler):
 
     class ModelFormats:
         """
-        Model formats to pass to the 'KerasModelHandler' for loading and saving keras models.
+        Model formats to pass to the 'TFKerasModelHandler' for loading and saving keras models.
         """
 
         SAVED_MODEL = "SavedModel"
@@ -96,13 +96,13 @@ class KerasModelHandler(ModelHandler):
         """
         # Validate given format:
         if model_format not in [
-            KerasModelHandler.ModelFormats.SAVED_MODEL,
-            KerasModelHandler.ModelFormats.H5,
-            KerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS,
+            TFKerasModelHandler.ModelFormats.SAVED_MODEL,
+            TFKerasModelHandler.ModelFormats.H5,
+            TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS,
         ]:
             raise ValueError(
                 "Unrecognized model format: '{}'. Please use one of the class members of "
-                "'KerasModelHandler.ModelFormats'".format(model_format)
+                "'TFKerasModelHandler.ModelFormats'".format(model_format)
             )
 
         # Validate 'save_traces':
@@ -112,7 +112,7 @@ class KerasModelHandler(ModelHandler):
                     "The 'save_traces' parameter can be true only for tensorflow versions >= 2.4. Current "
                     "version is {}".format(tf.__version__)
                 )
-            if model_format != KerasModelHandler.ModelFormats.SAVED_MODEL:
+            if model_format != TFKerasModelHandler.ModelFormats.SAVED_MODEL:
                 raise ValueError(
                     "The 'save_traces' parameter is valid only for the 'SavedModel' format."
                 )
@@ -125,7 +125,7 @@ class KerasModelHandler(ModelHandler):
         self._weights_file = None  # type: str
 
         # Setup the base handler class:
-        super(KerasModelHandler, self).__init__(
+        super(TFKerasModelHandler, self).__init__(
             model_name=model_name,
             model_path=model_path,
             model=model,
@@ -156,7 +156,7 @@ class KerasModelHandler(ModelHandler):
         # Check if needed to read from a given sample:
         if from_sample is not None:
             # If there is only one input, wrap in a list:
-            if not(isinstance(from_sample, list) or isinstance(from_sample, tuple)):
+            if not (isinstance(from_sample, list) or isinstance(from_sample, tuple)):
                 from_sample = [from_sample]
             # Go through the inputs and read them:
             for sample in from_sample:
@@ -208,7 +208,7 @@ class KerasModelHandler(ModelHandler):
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
         """
-        super(KerasModelHandler, self).save(output_path=output_path)
+        super(TFKerasModelHandler, self).save(output_path=output_path)
 
         # Setup the returning model artifacts list:
         artifacts = {}  # type: Dict[str, Artifact]
@@ -220,12 +220,12 @@ class KerasModelHandler(ModelHandler):
             output_path = os.path.join(self._context.artifact_path, self._model_name)
 
         # ModelFormats.H5 - Save as a h5 file:
-        if self._model_format == KerasModelHandler.ModelFormats.H5:
+        if self._model_format == TFKerasModelHandler.ModelFormats.H5:
             model_file = "{}.h5".format(self._model_name)
             self._model.save(model_file)
 
         # ModelFormats.SAVED_MODEL - Save as a SavedModel directory and zip its file:
-        elif self._model_format == KerasModelHandler.ModelFormats.SAVED_MODEL:
+        elif self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
             # Save it in a SavedModel format directory:
             if self._save_traces is True:
                 # Save traces can only be used in versions >= 2.4, so only if its true we use it in the call:
@@ -291,16 +291,16 @@ class KerasModelHandler(ModelHandler):
                 "Loading a model using checkpoint is not yet implemented."
             )
 
-        super(KerasModelHandler, self).load()
+        super(TFKerasModelHandler, self).load()
 
         # ModelFormats.H5 - Load from a .h5 file:
-        if self._model_format == KerasModelHandler.ModelFormats.H5:
+        if self._model_format == TFKerasModelHandler.ModelFormats.H5:
             self._model = keras.models.load_model(
                 self._model_file, custom_objects=self._custom_objects
             )
 
         # ModelFormats.SAVED_MODEL - Load from a SavedModel directory:
-        elif self._model_format == KerasModelHandler.ModelFormats.SAVED_MODEL:
+        elif self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
             self._model = keras.models.load_model(
                 self._model_file, custom_objects=self._custom_objects
             )
@@ -334,7 +334,7 @@ class KerasModelHandler(ModelHandler):
         :raise RuntimeError: In case there is no model in this handler.
         :raise ValueError:   In case a context is missing.
         """
-        super(KerasModelHandler, self).log(
+        super(TFKerasModelHandler, self).log(
             labels=labels,
             parameters=parameters,
             extra_data=extra_data,
@@ -404,6 +404,7 @@ class KerasModelHandler(ModelHandler):
         # Import onnx related modules:
         try:
             import tf2onnx
+
             from mlrun.frameworks.onnx import ONNXModelHandler
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
@@ -468,8 +469,10 @@ class KerasModelHandler(ModelHandler):
         ) = mlrun.artifacts.get_model(self._model_path)
 
         # Get the model file:
-        if self._model_file.endswith('.pkl'):
-            self._model_file = self._extra_data[self._get_model_file_artifact_name()].local()
+        if self._model_file.endswith(".pkl"):
+            self._model_file = self._extra_data[
+                self._get_model_file_artifact_name()
+            ].local()
 
         # Read the settings:
         self._model_format = self._model_artifact.labels["model-format"]
@@ -493,16 +496,18 @@ class KerasModelHandler(ModelHandler):
 
         # Read additional files according to the model format used:
         # # ModelFormats.SAVED_MODEL - Unzip the SavedModel archive:
-        if self._model_format == KerasModelHandler.ModelFormats.SAVED_MODEL:
+        if self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
             # Unzip the SavedModel directory:
             with zipfile.ZipFile(self._model_file, "r") as zip_file:
                 zip_file.extractall(os.path.dirname(self._model_file))
             # Set the model file to the unzipped directory:
-            self._model_file = os.path.join(os.path.dirname(self._model_file), self._model_name)
+            self._model_file = os.path.join(
+                os.path.dirname(self._model_file), self._model_name
+            )
         # # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Get the weights file:
         elif (
             self._model_format
-            == KerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
+            == TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
         ):
             # Get the weights file:
             self._weights_file = self._extra_data[
@@ -515,7 +520,7 @@ class KerasModelHandler(ModelHandler):
         for later loading the model.
         """
         # ModelFormats.H5 - Get the h5 model file:
-        if self._model_format == KerasModelHandler.ModelFormats.H5:
+        if self._model_format == TFKerasModelHandler.ModelFormats.H5:
             self._model_file = os.path.join(
                 self._model_path, "{}.h5".format(self._model_name)
             )
@@ -526,7 +531,7 @@ class KerasModelHandler(ModelHandler):
                 )
 
         # ModelFormats.SAVED_MODEL - Get the zip file and extract it, or simply locate the directory:
-        elif self._model_format == KerasModelHandler.ModelFormats.SAVED_MODEL:
+        elif self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
             self._model_file = os.path.join(
                 self._model_path, "{}.zip".format(self._model_name)
             )
@@ -579,22 +584,15 @@ class KerasModelHandler(ModelHandler):
         """
         if isinstance(sample, np.ndarray):
             # From 'np.ndarray':
-            return Feature(
-                value_type=sample.dtype.name,
-                dims=sample.shape
-            )
+            return Feature(value_type=sample.dtype.name, dims=sample.shape)
         elif isinstance(sample, tf.Tensor):
             # From 'tf.Tensor':
-            return Feature(
-                value_type=sample.dtype.name,
-                dims=list(sample.shape)
-            )
+            return Feature(value_type=sample.dtype.name, dims=list(sample.shape))
         elif isinstance(sample, tf.TensorSpec):
             # From 'tf.TensorSpec':
-            return Feature(
-                value_type=sample.dtype.name,
-                dims=list(sample.shape)
-            )
+            return Feature(value_type=sample.dtype.name, dims=list(sample.shape))
 
         # Unsupported type:
-        raise ValueError("The sample type given '{}' is not supported.".format(type(sample)))
+        raise ValueError(
+            "The sample type given '{}' is not supported.".format(type(sample))
+        )

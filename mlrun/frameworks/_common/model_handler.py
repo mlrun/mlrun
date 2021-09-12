@@ -8,9 +8,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, TypeVar, Union
 
 import mlrun
-from mlrun.features import Feature
 from mlrun.artifacts import Artifact, ModelArtifact
-
+from mlrun.features import Feature
 
 # Define a generic model type for the handler to have:
 Model = TypeVar("Model")
@@ -230,7 +229,7 @@ class ModelHandler(ABC):
             )
 
     @abstractmethod
-    def to_onnx(self, *args, **kwargs) -> 'onnx.ModelProto':
+    def to_onnx(self, *args, **kwargs) -> "onnx.ModelProto":
         """
         Convert the model in this handler to an ONNX model.
 

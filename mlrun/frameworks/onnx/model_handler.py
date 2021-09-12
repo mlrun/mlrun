@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Union, List
+from typing import Any, Dict, List, Union
 
 import onnx
 import onnxoptimizer
@@ -136,11 +136,7 @@ class ONNXModelHandler(ModelHandler):
             labels=labels,
             parameters=parameters,
             metrics=self._context.results,
-            extra_data={
-                **model_artifacts,
-                **artifacts,
-                **extra_data,
-            },
+            extra_data={**model_artifacts, **artifacts, **extra_data},
         )
 
     def optimize(self, optimizations: List[str] = None, fixed_point: bool = False):
@@ -159,7 +155,9 @@ class ONNXModelHandler(ModelHandler):
             optimizations = onnx_optimizations
 
         # Optimize the model:
-        self._model = onnxoptimizer.optimize(self._model, passes=optimizations, fixed_point=fixed_point)
+        self._model = onnxoptimizer.optimize(
+            self._model, passes=optimizations, fixed_point=fixed_point
+        )
 
     def to_onnx(self, *args, **kwargs) -> onnx.ModelProto:
         """
@@ -182,8 +180,10 @@ class ONNXModelHandler(ModelHandler):
         ) = mlrun.artifacts.get_model(self._model_path)
 
         # Get the model file:
-        if self._model_file.endswith('.pkl'):
-            self._model_file = self._extra_data[self._get_model_file_artifact_name()].local()
+        if self._model_file.endswith(".pkl"):
+            self._model_file = self._extra_data[
+                self._get_model_file_artifact_name()
+            ].local()
 
     def _collect_files_from_local_path(self):
         """

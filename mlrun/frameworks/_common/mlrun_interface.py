@@ -2,6 +2,7 @@ import copy
 from abc import ABC, abstractmethod
 from types import MethodType
 from typing import Any, Dict, List, Type
+
 from mlrun.frameworks._common.model_handler import Model
 
 

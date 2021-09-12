@@ -1,7 +1,7 @@
 import importlib
 import os
 from abc import ABC
-from typing import Any, Dict, List, Tuple, Union, Iterator, Generator
+from typing import Any, Dict, Generator, Iterator, List, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -17,13 +17,13 @@ from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 from mlrun.frameworks._common import MLRunInterface
-from mlrun.frameworks.keras.callbacks import (
+from mlrun.frameworks.tf_keras.callbacks import (
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
 )
 
 
-class KerasMLRunInterface(MLRunInterface, ABC):
+class TFKerasMLRunInterface(MLRunInterface, ABC):
     """
     MLRun model is for enabling additional features supported by MLRun in keras. With MLRun model one can apply horovod
     and use auto logging with ease.
@@ -68,7 +68,7 @@ class KerasMLRunInterface(MLRunInterface, ABC):
 
         :param model: The model to wrap.
         """
-        super(KerasMLRunInterface, cls).add_interface(model=model)
+        super(TFKerasMLRunInterface, cls).add_interface(model=model)
 
         # Wrap the compile method:
         def compile_wrapper(compile_method):
@@ -195,7 +195,9 @@ class KerasMLRunInterface(MLRunInterface, ABC):
 
         # Get default context in case it was not given:
         if context is None:
-            context = mlrun.get_or_create_ctx(KerasMLRunInterface.DEFAULT_CONTEXT_NAME)
+            context = mlrun.get_or_create_ctx(
+                TFKerasMLRunInterface.DEFAULT_CONTEXT_NAME
+            )
 
         # Set the dictionaries defaults:
         mlrun_callback_kwargs = (
@@ -422,7 +424,7 @@ class KerasMLRunInterface(MLRunInterface, ABC):
 
     @staticmethod
     def _get_dataset_arguments(args, kwargs):
-        if 'x' in kwargs:
+        if "x" in kwargs:
             x = kwargs["x"]
         else:
             x = args[0]
@@ -430,7 +432,7 @@ class KerasMLRunInterface(MLRunInterface, ABC):
         if isinstance(x, tf.data.Dataset) or isinstance(x, keras.utils.Sequence):
             y = None
         else:
-            if 'y' in kwargs:
+            if "y" in kwargs:
                 y = kwargs["y"]
             else:
                 y = args[1]
@@ -441,7 +443,7 @@ class KerasMLRunInterface(MLRunInterface, ABC):
     def _get_io_samples(x, y):
         # TODO: Need extra testing
         if y is None:
-            if hasattr(x, 'element_spec'):
+            if hasattr(x, "element_spec"):
                 input_sample = x.element_spec[0]
                 output_sample = x.element_spec[1]
             elif isinstance(x, keras.utils.Sequence):

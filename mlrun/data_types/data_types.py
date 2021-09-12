@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this module is WIP
-from typing import Union, Dict, TypeVar
 from enum import Enum
+
+# this module is WIP
+from typing import Dict, TypeVar, Union
+
 import pyarrow
 from pyarrow.lib import TimestampType
 

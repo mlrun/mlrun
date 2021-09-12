@@ -11,10 +11,10 @@ from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
 from mlrun.frameworks._common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.keras.callbacks.logging_callback import LoggingCallback
+from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
 
 
-class _KerasTensorboardLogger(TensorboardLogger):
+class _TFKerasTensorboardLogger(TensorboardLogger):
     """
     The keras framework implementation of the 'TensorboardLogger'.
     """
@@ -48,7 +48,7 @@ class _KerasTensorboardLogger(TensorboardLogger):
                                       update. Notice that writing to tensorboard too frequently may cause the training
                                       to be slower. Defaulted to 'epoch'.
         """
-        super(_KerasTensorboardLogger, self).__init__(
+        super(_TFKerasTensorboardLogger, self).__init__(
             statistics_functions=statistics_functions,
             context=context,
             tensorboard_directory=tensorboard_directory,
@@ -310,7 +310,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
         # Replace the logger with a TensorboardLogger:
         del self._logger
-        self._logger = _KerasTensorboardLogger(
+        self._logger = _TFKerasTensorboardLogger(
             statistics_functions=(
                 statistics_functions
                 if statistics_functions is not None

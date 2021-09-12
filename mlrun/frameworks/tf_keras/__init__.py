@@ -4,10 +4,10 @@ from typing import Any, Dict, List, Union
 from tensorflow import keras
 
 import mlrun
-import mlrun.frameworks.keras.callbacks
-from mlrun.frameworks.keras.mlrun_interface import KerasMLRunInterface
-from mlrun.frameworks.keras.model_handler import KerasModelHandler
-from mlrun.frameworks.keras.model_server import KerasModelServer
+import mlrun.frameworks.tf_keras.callbacks
+from mlrun.frameworks.tf_keras.mlrun_interface import TFKerasMLRunInterface
+from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
+from mlrun.frameworks.tf_keras.model_server import TFKerasModelServer
 
 
 def apply_mlrun(
@@ -62,7 +62,7 @@ def apply_mlrun(
     # Get parameters defaults:
     # # Context:
     if context is None:
-        context = mlrun.get_or_create_ctx(KerasMLRunInterface.DEFAULT_CONTEXT_NAME)
+        context = mlrun.get_or_create_ctx(TFKerasMLRunInterface.DEFAULT_CONTEXT_NAME)
     # # Use horovod:
     if use_horovod is None:
         use_horovod = (
@@ -70,7 +70,7 @@ def apply_mlrun(
         )
 
     # Add MLRun's interface to the model:
-    KerasMLRunInterface.add_interface(model=model)
+    TFKerasMLRunInterface.add_interface(model=model)
 
     # Initialize horovod if needed:
     if use_horovod is True:

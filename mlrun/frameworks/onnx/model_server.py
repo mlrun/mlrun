@@ -108,8 +108,11 @@ class ONNXModelServer(V2ModelServer):
 
         # Infer the inputs through the model:
         outputs = self._inference_session.run(
-            self._output_layers,
-            {input_layer: data for input_layer, data in zip(self._input_layers, inputs)},
+            output_names=self._output_layers,
+            input_feed={
+                input_layer: data
+                for input_layer, data in zip(self._input_layers, inputs)
+            },
         )
 
         return outputs

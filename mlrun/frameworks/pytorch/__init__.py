@@ -209,8 +209,7 @@ def evaluate(
         )
         # Add the logging callbacks with the provided parameters:
         interface.add_auto_logging_callbacks(
-            mlrun_callback_kwargs=mlrun_callback_kwargs,
-            add_tensorboard_logger=False
+            mlrun_callback_kwargs=mlrun_callback_kwargs, add_tensorboard_logger=False
         )
 
     # Evaluate:

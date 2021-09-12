@@ -3,8 +3,8 @@ from typing import Callable, Dict, List, Union
 import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.frameworks._common.loggers import MLRunLogger, TrackableType
-from mlrun.frameworks.keras.callbacks.logging_callback import LoggingCallback
-from mlrun.frameworks.keras.model_handler import KerasModelHandler
+from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
+from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
 
 
 class MLRunLoggingCallback(LoggingCallback):
@@ -33,10 +33,10 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
-        model_format: str = KerasModelHandler.ModelFormats.SAVED_MODEL,
+        model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
         save_traces: bool = False,
-        input_sample: KerasModelHandler.IOSample = None,
-        output_sample: KerasModelHandler.IOSample = None,
+        input_sample: TFKerasModelHandler.IOSample = None,
+        output_sample: TFKerasModelHandler.IOSample = None,
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
@@ -128,7 +128,7 @@ class MLRunLoggingCallback(LoggingCallback):
             log_model_extra_data=log_model_extra_data,
         )
 
-        # Store the additional KerasModelHandler parameters for logging the model later:
+        # Store the additional TFKerasModelHandler parameters for logging the model later:
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
         self._model_format = model_format
@@ -136,10 +136,10 @@ class MLRunLoggingCallback(LoggingCallback):
         self._input_sample = input_sample
         self._output_sample = output_sample
 
-    def set_input_sample(self, sample: KerasModelHandler.IOSample):
+    def set_input_sample(self, sample: TFKerasModelHandler.IOSample):
         self._input_sample = sample
 
-    def set_output_sample(self, sample: KerasModelHandler.IOSample):
+    def set_output_sample(self, sample: TFKerasModelHandler.IOSample):
         self._output_sample = sample
 
     def on_train_end(self, logs: dict = None):
@@ -150,7 +150,7 @@ class MLRunLoggingCallback(LoggingCallback):
                      method but that may change in the future.
         """
         # Create the model handler:
-        model_handler = KerasModelHandler(
+        model_handler = TFKerasModelHandler(
             model_name=self.model.name,
             model=self.model,
             custom_objects_map=self._custom_objects_map,

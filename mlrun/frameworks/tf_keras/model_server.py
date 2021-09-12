@@ -3,11 +3,11 @@ from typing import Any, Dict, List, Union
 from tensorflow import keras
 
 import mlrun
-from mlrun.frameworks.keras.model_handler import KerasModelHandler
+from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
 from mlrun.serving.v2_serving import V2ModelServer
 
 
-class KerasModelServer(V2ModelServer):
+class TFKerasModelServer(V2ModelServer):
     """
     Tensorflow.keras Model serving class, inheriting the V2ModelServer class for being initialized automatically by the
     model server and be able to run locally as part of a nuclio serverless function, or as part of a real-time pipeline.
@@ -22,7 +22,7 @@ class KerasModelServer(V2ModelServer):
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         protocol: str = None,
-        model_format: str = KerasModelHandler.ModelFormats.H5,
+        model_format: str = TFKerasModelHandler.ModelFormats.H5,
         **class_args,
     ):
         """
@@ -55,10 +55,10 @@ class KerasModelServer(V2ModelServer):
                                          model.
         :param protocol:                 -
         :param model_format:             The format used to save the model. One of the members of the
-                                         KerasModelHandler.ModelFormats class.
+                                         TFKerasModelHandler.ModelFormats class.
         :param class_args:               -
         """
-        super(KerasModelServer, self).__init__(
+        super(TFKerasModelServer, self).__init__(
             context=context,
             name=name,
             model_path=model_path,
@@ -66,7 +66,7 @@ class KerasModelServer(V2ModelServer):
             protocol=protocol,
             **class_args,
         )
-        self._model_handler = KerasModelHandler(
+        self._model_handler = TFKerasModelHandler(
             model_name=name,
             model_path=model_path,
             model=model,

@@ -13,6 +13,8 @@ class ClientSpec(pydantic.BaseModel):
     artifact_path: typing.Optional[str]
     spark_app_image: typing.Optional[str]
     spark_app_image_tag: typing.Optional[str]
+    spark_history_server_path: typing.Optional[str]
+    spark_operator_version: typing.Optional[str]
     kfp_image: typing.Optional[str]
     dask_kfp_image: typing.Optional[str]
     api_url: typing.Optional[str]

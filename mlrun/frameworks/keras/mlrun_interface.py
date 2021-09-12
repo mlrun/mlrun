@@ -66,8 +66,6 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         parameters and methods.
 
         :param model: The model to wrap.
-
-        :return: The wrapped model.
         """
         super(KerasMLRunInterface, cls).add_interface(model=model)
 
@@ -85,7 +83,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                         "experimental_run_tf_function"
                     ] = experimental_run_tf_function
                 # Call the original compile method:
-                compile_method(*args, **kwargs)
+                return compile_method(*args, **kwargs)
 
             return wrapper
 
@@ -100,12 +98,10 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 # Add auto log callbacks if they were added:
                 kwargs["callbacks"] = kwargs["callbacks"] + model._callbacks
                 # Setup default values if needed:
-                if "verbose" not in kwargs:
-                    kwargs["verbose"] = 1
-                if "steps_per_epoch" not in kwargs:
-                    kwargs["steps_per_epoch"] = None
-                if "validation_steps" not in kwargs:
-                    kwargs["validation_steps"] = None
+                kwargs["verbose"] = kwargs.get("verbose", 1)
+                kwargs["steps_per_epoch"] = kwargs.get("steps_per_epoch", None)
+                kwargs["validation_steps"] = kwargs.get("validation_steps", None)
+                kwargs["validation_data"] = kwargs.get("validation_data", None)
                 # Call the pre fit method:
                 (
                     callbacks,
@@ -124,7 +120,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 kwargs["steps_per_epoch"] = steps_per_epoch
                 kwargs["validation_steps"] = validation_steps
                 # Call the original fit method:
-                fit_method(*args, **kwargs)
+                return fit_method(*args, **kwargs)
 
             return wrapper
 
@@ -134,7 +130,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         self,
         context: mlrun.MLClientCtx = None,
         add_mlrun_logger: bool = True,
-        mlrun_callback__kwargs: Dict[str, Any] = None,
+        mlrun_callback_kwargs: Dict[str, Any] = None,
         add_tensorboard_logger: bool = True,
         tensorboard_callback_kwargs: Dict[str, Any] = None,
     ):
@@ -146,7 +142,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
 
         :param context:                     The MLRun context to log with.
         :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
-        :param mlrun_callback__kwargs:      Key word arguments for the MLRun callback. For further information see the
+        :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
                                             documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
                                             and 'auto_log' parameters are already given here.
         :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
@@ -163,8 +159,8 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
             context = mlrun.get_or_create_ctx(KerasMLRunInterface.DEFAULT_CONTEXT_NAME)
 
         # Set the dictionaries defaults:
-        mlrun_callback__kwargs = (
-            {} if mlrun_callback__kwargs is None else mlrun_callback__kwargs
+        mlrun_callback_kwargs = (
+            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
         )
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
@@ -175,7 +171,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
             # Add the MLRun logging callback:
             self._callbacks.append(
                 MLRunLoggingCallback(
-                    context=context, auto_log=True, **mlrun_callback__kwargs
+                    context=context, auto_log=True, **mlrun_callback_kwargs
                 )
             )
         if add_tensorboard_logger:
@@ -186,6 +182,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
                 )
             )
 
+    # TODO: Add horovod callbacks configurations. If not set (None), use the defaults.
     def use_horovod(self):
         """
         Setup the model or wrapped model to run with horovod.
@@ -225,23 +222,30 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         # Validate the optimizer input:
         if isinstance(optimizer, str):
             raise ValueError(
-                "When using horovod, the compile mehotd is expecting an initialized optimizer "
-                "instance and not a string."
+                "When using horovod, the compile method is expecting an initialized optimizer instance and not a "
+                "string."
             )
 
         # Setup the device to run on GPU if available:
-        if tf.config.experimental.list_physical_devices("GPU"):
+        if (
+            tf.config.experimental.list_physical_devices("GPU")
+            and os.environ.get("CUDA_VISIBLE_DEVICES", "None") != "-1"
+        ):
             # Pin each GPU to a single process:
             gpus = tf.config.experimental.list_physical_devices("GPU")
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
             if gpus:
                 tf.config.experimental.set_visible_devices(
                     gpus[self._hvd.local_rank()], "GPU"
                 )
+                print(
+                    "Horovod worker #{} is using GPU #{}".format(
+                        self._hvd.rank(), self._hvd.local_rank()
+                    )
+                )
         else:
             # No GPUs were found, or 'use_cuda' was false:
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            print("Horovod worker #{} is using CPU".format(self._hvd.rank()))
 
         # Adjust learning rate based on the number of GPUs:
         optimizer.lr = optimizer.lr * self._hvd.size()
@@ -250,7 +254,7 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         optimizer = self._hvd.DistributedOptimizer(optimizer)
 
         # Compile the model with `experimental_run_tf_function=False` to ensure Tensorflow uses the distributed
-        # optimizer to compute gradients:
+        # optimizer to compute the gradients:
         experimental_run_tf_function = False
 
         return optimizer, experimental_run_tf_function
@@ -265,24 +269,33 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         """
         Method to call before calling 'fit' to setup the run and inputs for using horovod.
 
-        :param callbacks:        Callbacks to use in the run. The callbacks will be split among the ranks so only
-                                 certain callbacks (mainly logging and checkpoints) will be in rank 0.
-        :param verbose:          Whether or not to print the progress of training. If '1' or '2' only rank 0 will be
-                                 applied with the verbose.
-        :param steps_per_epoch:  Amount of training steps to run in each epoch. The steps will be divided by the size of
-                                 ranks (horovod workers).
-        :param validation_steps: Amount of validation steps to run in each epoch. The steps will be divided by the size
-                                 of ranks (horovod workers).
+        :param callbacks:              Callbacks to use in the run. The callbacks will be split among the ranks so only
+                                       certain callbacks (mainly logging and checkpoints) will be in rank 0.
+        :param verbose:                Whether or not to print the progress of training. If '1' or '2' only rank 0 will
+                                       be applied with the verbose.
+        :param steps_per_epoch:        Amount of training steps to run in each epoch. The steps will be divided by the
+                                       size of ranks (horovod workers).
+        :param validation_steps:       Amount of validation steps to run in each epoch. The steps will be divided by the
+                                       size of ranks (horovod workers).
 
         :return: The updated parameters according to the used rank:
                  [0] = Callbacks list.
                  [1] = Verbose
                  [2] = Steps per epoch or None if not given.
                  [3] = Validation steps or None if not given.
+
+        :raise ValueError: If horovod is being used but the 'steps_per_epoch' parameter were not given.
         """
         # Check if needed to run with horovod:
         if self._hvd is None:
             return callbacks, verbose, steps_per_epoch, validation_steps
+
+        # Validate steps provided for horovod:
+        if steps_per_epoch is None:
+            raise ValueError(
+                "When using Horovod, the parameter 'steps_per_epoch' must be provided to the 'fit' method in order to "
+                "split the steps between the workers."
+            )
 
         # Setup the callbacks:
         metric_average_callback = self._hvd.callbacks.MetricAverageCallback()
@@ -306,9 +319,8 @@ class KerasMLRunInterface(MLRunInterface, keras.Model, ABC):
         if self._hvd.rank() != 0:
             verbose = 0
 
-        # Adjust the number of steps per epoch based on the number of GPUs (if given):
-        if steps_per_epoch is not None:
-            steps_per_epoch = steps_per_epoch // self._hvd.size()
+        # Adjust the number of steps per epoch based on the number of GPUs:
+        steps_per_epoch = steps_per_epoch // self._hvd.size()
         if validation_steps is not None:
             validation_steps = validation_steps // self._hvd.size()
 

@@ -21,8 +21,12 @@ __all__ = [
     "ProjectMetadata",
     "ProjectSpec",
     "ProjectStatus",
+    "run_function",
+    "build_function",
+    "deploy_function",
 ]
 
+from .operations import build_function, deploy_function, run_function  # noqa
 from .pipelines import pipeline_context  # noqa
 from .project import (
     MlrunProject,

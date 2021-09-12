@@ -513,12 +513,17 @@ def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> N
 
 def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
     project_name = "some-project"
-    name = "feature_set1"
-    feature_set = _generate_feature_set(name)
+    name = "feature_set-1"
+    name_2 = "feature_set-2"
+    feature_set_1 = _generate_feature_set(name)
+    feature_set_2 = _generate_feature_set(name_2)
 
     tags = ["tag-1", "tag-2", "tag-3", "tag-4"]
-    for tag in tags:
-        _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
+    for feature_set in [feature_set_1, feature_set_2]:
+        for tag in tags:
+            _store_and_assert_feature_set(
+                client, project_name, feature_set["metadata"]["name"], tag, feature_set
+            )
     _list_tags_and_assert(
         client, "feature_sets", project_name, tags,
     )

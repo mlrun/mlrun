@@ -16,25 +16,33 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
+import traceback
+import uuid
 
 from kfp.compiler import compiler
 
 import mlrun
-from mlrun.utils import new_pipe_meta, parse_versioned_object_uri
+from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 
 
-def get_workflow_engine(engine_kind):
+def get_workflow_engine(engine_kind, local=False):
+    if local:
+        if engine_kind == "kfp":
+            logger.warning(
+                "running kubeflow pipeline locally, note some ops may not run locally!"
+            )
+        return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
         return _KFPRunner
-    # todo: add engines
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Provided workflow engine is not supported. engine_kind={engine_kind}"
-        )
+    if engine_kind == "local":
+        return _LocalRunner
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"Provided workflow engine is not supported. engine_kind={engine_kind}"
+    )
 
 
 class WorkflowSpec(mlrun.model.ModelObj):
@@ -57,6 +65,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.name = name
         self.handler = handler
         self.ttl = ttl
+        self.run_local = False
         self._tmp_path = None
 
     def get_source_file(self, context=""):
@@ -115,7 +124,7 @@ class FunctionsDict:
     def get(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         return self.load_or_set_function(key, default)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> mlrun.runtimes.BaseRuntime:
         return self.load_or_set_function(key)
 
     def __setitem__(self, key, val):
@@ -148,11 +157,23 @@ class _PipelineContext:
         self.workflow = None
         self.functions = FunctionsDict(None)
         self.workflow_id = None
+        self.workflow_artifact_path = None
+        self.runs_map = {}
 
     def set(self, project, workflow=None):
         self.project = project
         self.workflow = workflow
         self.functions.project = project
+        self.runs_map = {}
+
+    def clear(self, with_project=False):
+        if with_project:
+            self.project = None
+            self.functions.project = None
+        self.workflow = None
+        self.runs_map = {}
+        self.workflow_id = None
+        self.workflow_artifact_path = None
 
     def is_initialized(self, raise_exception=False):
         if self.project:
@@ -277,9 +298,25 @@ class _PipelineRunner(abc.ABC):
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         return ""
 
+    @staticmethod
     @abc.abstractmethod
-    def get_state(self, run_id, project=None):
+    def get_state(run_id, project=None):
         return ""
+
+    @staticmethod
+    def _get_handler(workflow_handler, workflow_spec, project, secrets):
+        if not (workflow_handler and callable(workflow_handler)):
+            workflow_file = workflow_spec.get_source_file(project.spec.context)
+            workflow_handler = create_pipeline(
+                project,
+                workflow_file,
+                pipeline_context.functions,
+                secrets,
+                handler=workflow_handler or workflow_spec.handler,
+            )
+        else:
+            builtins.funcs = pipeline_context.functions
+        return workflow_handler
 
 
 class _KFPRunner(_PipelineRunner):
@@ -312,17 +349,9 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
-        if not workflow_handler or not callable(workflow_handler):
-            workflow_file = workflow_spec.get_source_file(project.spec.context)
-            workflow_handler = create_pipeline(
-                project,
-                workflow_file,
-                pipeline_context.functions,
-                secrets,
-                handler=workflow_handler,
-            )
-        else:
-            builtins.funcs = pipeline_context.functions
+        workflow_handler = _PipelineRunner._get_handler(
+            workflow_handler, workflow_spec, project, secrets
+        )
 
         namespace = namespace or config.namespace
         id = run_pipeline(
@@ -334,6 +363,10 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             ttl=workflow_spec.ttl,
         )
+        project.notifiers.push_start_message(
+            project.metadata.name, project.get_param("commit_id", None), id
+        )
+        pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
@@ -350,11 +383,62 @@ class _KFPRunner(_PipelineRunner):
             status = run_info["run"].get("status")
         return status
 
-    def get_state(self, run_id, project=None):
+    @staticmethod
+    def get_state(run_id, project=None):
         project_name = project.metadata.name if project else ""
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
             return resp["run"].get("status", "")
+        return ""
+
+
+class _LocalRunner(_PipelineRunner):
+    """local pipelines runner"""
+
+    engine = "local"
+
+    @classmethod
+    def run(
+        cls,
+        project,
+        workflow_spec: WorkflowSpec,
+        name=None,
+        workflow_handler=None,
+        secrets=None,
+        artifact_path=None,
+        namespace=None,
+    ) -> _PipelineRunStatus:
+        pipeline_context.set(project, workflow_spec)
+        workflow_handler = _PipelineRunner._get_handler(
+            workflow_handler, workflow_spec, project, secrets
+        )
+
+        workflow_id = uuid.uuid4().hex
+        pipeline_context.workflow_id = workflow_id
+        pipeline_context.workflow_artifact_path = artifact_path
+        project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
+        try:
+            workflow_handler(**workflow_spec.args)
+            state = mlrun.run.RunStatuses.succeeded
+        except Exception as e:
+            trace = traceback.format_exc()
+            logger.error(trace)
+            project.notifiers.push(
+                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
+            )
+            state = mlrun.run.RunStatuses.failed
+
+        mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
+        project.notifiers.push_run_results(
+            pipeline_context.runs_map.values(), state=state
+        )
+        pipeline_context.clear()
+        return _PipelineRunStatus(
+            workflow_id, cls, project=project, workflow=workflow_spec, state=state
+        )
+
+    @staticmethod
+    def get_state(run_id, project=None):
         return ""
 
 

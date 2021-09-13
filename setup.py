@@ -135,6 +135,7 @@ setup(
         "mlrun.platforms",
         "mlrun.projects",
         "mlrun.artifacts",
+        "mlrun.config",
         "mlrun.utils",
         "mlrun.utils.version",
         "mlrun.datastore",

@@ -176,8 +176,8 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         """
         Initialize the defaulted logging callbacks by MLRun. Given the context, the method will setup a list of
         callbacks with the most common settings for logging a training session in tensorflow.keras. For further
-        information regarding the logging callbacks, see 'mlrun.frameworks.keras.callbacks.MLRunLoggingCallback' and
-        'mlrun.frameworks.keras.callbacks.TensorboardLoggingCallback'.
+        information regarding the logging callbacks, see 'mlrun.frameworks.tf_keras.callbacks.MLRunLoggingCallback' and
+        'mlrun.frameworks.tf_keras.callbacks.TensorboardLoggingCallback'.
 
         :param context:                     The MLRun context to log with.
         :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.

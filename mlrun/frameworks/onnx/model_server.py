@@ -79,9 +79,12 @@ class ONNXModelServer(V2ModelServer):
         """
         Use the model handler to get the model file path and initialize an ONNX run time inference session.
         """
-        # initialize the model.onnx
+        # Load the model:
+        self._model_handler.load()
+
+        # initialize the onnx run time session:
         self._inference_session = onnxruntime.InferenceSession(
-            self._model_handler.model_file, providers=self._execution_providers
+            onnx._serialize(self._model_handler.model), providers=self._execution_providers
         )
 
         # Get the input layers names:

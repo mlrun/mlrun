@@ -30,7 +30,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     """
 
     # MLRun's context default name:
-    DEFAULT_CONTEXT_NAME = "mlrun-keras"
+    DEFAULT_CONTEXT_NAME = "mlrun-tf-keras"
 
     # Properties attributes to be inserted so the keras mlrun interface will be fully enabled:
     _PROPERTIES = {

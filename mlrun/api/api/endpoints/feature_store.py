@@ -330,7 +330,7 @@ def ingest_feature_set(
             for data_target in ingest_parameters.targets
         ]
 
-    run_config = RunConfig()
+    run_config = RunConfig(owner=username)
 
     # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and
     # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are

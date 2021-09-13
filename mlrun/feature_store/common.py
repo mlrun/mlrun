@@ -130,6 +130,7 @@ class RunConfig:
         handler=None,
         parameters=None,
         watch=None,
+        owner=None,
     ):
         self._function = None
         self._modifiers = []
@@ -142,6 +143,7 @@ class RunConfig:
         self.handler = handler
         self.parameters = parameters or {}
         self.watch = True if watch is None else watch
+        self.owner = owner
 
     @property
     def function(self):

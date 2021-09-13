@@ -1009,7 +1009,9 @@ class FlowStep(BaseStep):
             # add error handler hooks
             if (step.on_error or self.on_error) and step.async_object:
                 error_step = self._steps[step.on_error or self.on_error]
-                step.async_object.set_recovery_step(error_step.async_object)
+                # never set a step as its own error handler
+                if step != error_step:
+                    step.async_object.set_recovery_step(error_step.async_object)
 
         self._controller = source.run()
 
@@ -1067,6 +1069,8 @@ class FlowStep(BaseStep):
             event.body = {"id": event.id}
             return event
 
+        if len(self._start_steps) == 0:
+            return event
         next_obj = self._start_steps[0]
         while next_obj:
             try:

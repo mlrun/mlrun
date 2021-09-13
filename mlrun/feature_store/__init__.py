@@ -31,6 +31,7 @@ __all__ = [
     "RunConfig",
     "OfflineVectorResponse",
     "OnlineVectorService",
+    "FixedWindowType",
 ]
 
 
@@ -49,4 +50,9 @@ from .api import (
 )
 from .common import RunConfig
 from .feature_set import FeatureSet
-from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService
+from .feature_vector import (
+    FeatureVector,
+    FixedWindowType,
+    OfflineVectorResponse,
+    OnlineVectorService,
+)

@@ -233,3 +233,31 @@ my_func = code_to_function("func", kind="remote-spark")
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
 fstore.ingest(feature_set, source, targets, run_config=fstore.RunConfig(), spark_context=spark_service_name)
 ```
+
+### Spark execution engine and S3
+
+For Spark to work with S3, it requires several properties to be set. The following example writes a
+feature set to S3 in the parquet format:
+```python
+target = ParquetTarget(
+    path="s3:///my-s3-bucket/some/path",
+    partitioned=False,
+)
+
+conf = (
+    SparkConf()
+    .set("spark.hadoop.fs.s3a.path.style.access", True)
+    .set("spark.hadoop.fs.s3a.access.key", AWS_ACCESS_KEY)
+    .set("spark.hadoop.fs.s3a.secret.key", AWS_SECRET_KEY)
+    .set("spark.hadoop.fs.s3a.endpoint", "s3.us-east-2.amazonaws.com")
+    .set("spark.hadoop.fs.s3a.region", "us-east-2")
+    .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    .set("com.amazonaws.services.s3.enableV4", True)
+)
+
+spark = (
+    SparkSession.builder.config(conf=conf).appName("S3 app").getOrCreate()
+)
+
+fs.ingest(fset, source, targets=[target], spark_context=spark)
+```

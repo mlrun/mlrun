@@ -21,6 +21,8 @@ from tests.api.runtimes.base import TestRuntimeBase
 class TestKubejobRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()
+        # auto-mount is looking at this to check if we're running on Iguazio
+        mlconf.igz_version = "some_version"
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
@@ -138,6 +140,35 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
+    def test_run_with_priority_class_name(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        medium_priority_class_name = "medium-priority"
+        mlrun.mlconf.valid_function_priority_class_names = medium_priority_class_name
+        runtime.with_priority_class(medium_priority_class_name)
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(
+            expected_priority_class_name=medium_priority_class_name
+        )
+
+        default_priority_class_name = "default-priority"
+        mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
+        mlrun.mlconf.valid_function_priority_class_names = ",".join(
+            [default_priority_class_name, medium_priority_class_name]
+        )
+        runtime = self._generate_runtime()
+
+        self._execute_run(runtime)
+        self._assert_pod_creation_config(
+            expected_priority_class_name=default_priority_class_name
+        )
+
+        runtime = self._generate_runtime()
+
+        mlrun.mlconf.valid_function_priority_class_names = ""
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            runtime.with_priority_class(medium_priority_class_name)
+
     def test_run_with_mounts(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -150,7 +181,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         self._execute_run(runtime)
         self._assert_pod_creation_config()
-        self._assert_v3io_mount_configured(v3io_user, v3io_access_key)
+        self._assert_v3io_mount_or_creds_configured(v3io_user, v3io_access_key)
 
         # Mount a PVC. Create a new runtime so we don't have both v3io and the PVC mounted
         runtime = self._generate_runtime()

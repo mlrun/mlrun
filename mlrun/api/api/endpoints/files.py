@@ -11,7 +11,6 @@ from mlrun.utils import logger
 router = fastapi.APIRouter()
 
 
-# curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @router.get("/files")
 def get_files(
     schema: str = "",
@@ -19,8 +18,8 @@ def get_files(
     user: str = "",
     size: int = 0,
     offset: int = 0,
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
     _, filename = objpath.split(objpath)
@@ -61,13 +60,12 @@ def get_files(
     )
 
 
-# curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
 @router.get("/filestat")
 def get_filestat(
     schema: str = "",
     path: str = "",
-    auth_verifier: mlrun.api.api.deps.AuthVerifier = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifier
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
     ),
     user: str = "",
 ):

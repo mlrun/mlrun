@@ -16,7 +16,7 @@ import asyncio
 import json
 import typing
 from datetime import datetime
-from os import environ, getenv
+from os import getenv
 from time import sleep
 
 import nuclio
@@ -37,7 +37,7 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path
+from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -124,6 +124,8 @@ class NuclioSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        disable_auto_mount=False,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -145,6 +147,8 @@ class NuclioSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            disable_auto_mount=disable_auto_mount,
+            priority_class_name=priority_class_name,
         )
 
         self.base_spec = base_spec or ""
@@ -350,11 +354,10 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_v3io(self, local="", remote=""):
-        for key in ["V3IO_FRAMESD", "V3IO_USERNAME", "V3IO_ACCESS_KEY", "V3IO_API"]:
-            if key in environ:
-                self.set_env(key, environ[key])
         if local and remote:
             self.apply(mount_v3io(remote=remote, mount_path=local))
+        else:
+            self.apply(v3io_cred())
         return self
 
     def with_http(
@@ -461,6 +464,8 @@ class RemoteRuntime(KubeResource):
 
         save_record = False
         if not dashboard:
+            # Attempt auto-mounting, before sending to remote build
+            self.try_auto_mount_based_on_config()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
@@ -541,6 +546,10 @@ class RemoteRuntime(KubeResource):
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
         super().with_node_selection(node_name, node_selector, affinity)
+
+    @min_nuclio_versions("1.6.18")
+    def with_priority_class(self, name: typing.Optional[str] = None):
+        super().with_priority_class(name)
 
     def _get_state(
         self,
@@ -931,7 +940,10 @@ def resolve_function_http_trigger(function_spec):
 
 
 def compile_function_config(function: RemoteRuntime):
-    function.set_config("metadata.labels.mlrun/class", function.kind)
+    labels = function.metadata.labels or {}
+    labels.update({"mlrun/class": function.kind})
+    for key, value in labels.items():
+        function.set_config(f"metadata.labels.{key}", value)
 
     # Add vault configurations to function's pod spec, if vault secret source was added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
@@ -958,12 +970,21 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
-    if function.spec.node_selector:
-        spec.set_config("spec.nodeSelector", function.spec.node_selector)
-    if function.spec.node_name:
-        spec.set_config("spec.nodeName", function.spec.node_name)
-    if function.spec.affinity:
-        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    # don't send node selections if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
+        if function.spec.node_selector:
+            spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        if function.spec.node_name:
+            spec.set_config("spec.nodeName", function.spec.node_name)
+        if function.spec.affinity:
+            spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    # don't send default or any priority class name if nuclio is not compatible
+    if (
+        function.spec.priority_class_name
+        and validate_nuclio_version_compatibility("1.6.18")
+        and len(mlconf.get_valid_function_priority_class_names())
+    ):
+        spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

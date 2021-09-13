@@ -1,8 +1,10 @@
 import os
+import pathlib
 import random
 import string
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from time import sleep
 
 import fsspec
 import pandas as pd
@@ -13,8 +15,15 @@ from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
+import tests.conftest
+from mlrun.config import config
 from mlrun.data_types.data_types import ValueType
-from mlrun.datastore.sources import CSVSource, DataFrameSource, ParquetSource
+from mlrun.datastore.sources import (
+    CSVSource,
+    DataFrameSource,
+    ParquetSource,
+    StreamSource,
+)
 from mlrun.datastore.targets import (
     CSVTarget,
     NoSqlTarget,
@@ -25,6 +34,7 @@ from mlrun.datastore.targets import (
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
+from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
@@ -62,6 +72,8 @@ def _generate_random_name():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
+    project_name = "fs-system-test-project"
+
     def custom_setup(self):
         pass
 
@@ -196,6 +208,91 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
 
+    def test_get_offline_features_with_or_without_indexes(self):
+        # ingest test data
+        par_target = ParquetTarget(
+            **{
+                "path": "v3io:///bigdata/system-test-project/parquet/",
+                "name": "stocks-parquet",
+            }
+        )
+        targets = [par_target]
+        stocks_for_parquet = trades.copy()
+        stocks_for_parquet["another_time"] = [
+            pd.Timestamp("2021-03-28 13:30:00.023"),
+            pd.Timestamp("2021-03-28 13:30:00.038"),
+            pd.Timestamp("2021-03-28 13:30:00.048"),
+            pd.Timestamp("2021-03-28 13:30:00.048"),
+            pd.Timestamp("2021-03-28 13:30:00.048"),
+        ]
+        stocks_for_parquet.to_parquet(
+            "v3io:///bigdata/system-test-project/stocks_test.parquet"
+        )
+        stocks_for_parquet.set_index("ticker", inplace=True)
+        stocks_set = fs.FeatureSet(
+            "stocks_parquet_test",
+            "stocks set",
+            [Entity("ticker", ValueType.STRING)],
+            timestamp_key="time",
+        )
+
+        df = fs.ingest(stocks_set, stocks_for_parquet, targets)
+        assert len(df) == len(stocks_for_parquet), "dataframe size doesnt match"
+
+        # test get offline features with different parameters
+        vector = fs.FeatureVector("offline-vec", ["stocks_parquet_test.*"])
+
+        # with_indexes = False, entity_timestamp_column = None
+        default_df = fs.get_offline_features(vector).to_dataframe()
+        assert isinstance(
+            default_df.index, pd.core.indexes.range.RangeIndex
+        ), "index column is not of default type"
+        assert default_df.index.name is None, "index column is not of default type"
+        assert "time" not in default_df.columns, "'time' column shouldn't be present"
+        assert (
+            "ticker" not in default_df.columns
+        ), "'ticker' column shouldn't be present"
+
+        # with_indexes = False, entity_timestamp_column = "time"
+        df_no_time = fs.get_offline_features(
+            vector, entity_timestamp_column="time"
+        ).to_dataframe()
+        assert isinstance(
+            df_no_time.index, pd.core.indexes.range.RangeIndex
+        ), "index column is not of default type"
+        assert df_no_time.index.name is None, "index column is not of default type"
+        assert "time" not in df_no_time.columns, "'time' column should not be present"
+        assert (
+            "ticker" not in df_no_time.columns
+        ), "'ticker' column shouldn't be present"
+        assert (
+            "another_time" in df_no_time.columns
+        ), "'another_time' column should be present"
+
+        # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
+        df_with_time = fs.get_offline_features(
+            vector, entity_timestamp_column="another_time"
+        ).to_dataframe()
+        assert isinstance(
+            df_with_time.index, pd.core.indexes.range.RangeIndex
+        ), "index column is not of default type"
+        assert df_with_time.index.name is None, "index column is not of default type"
+        assert (
+            "ticker" not in df_with_time.columns
+        ), "'ticker' column shouldn't be present"
+        assert "time" in df_with_time.columns, "'time' column should be present"
+        assert (
+            "another_time" not in df_with_time.columns
+        ), "'another_time' column should not be present"
+
+        vector.spec.with_indexes = True
+        df_with_index = fs.get_offline_features(vector).to_dataframe()
+        assert not isinstance(
+            df_with_index.index, pd.core.indexes.range.RangeIndex
+        ), "index column is of default type"
+        assert df_with_index.index.name == "ticker"
+        assert "time" in df_with_index.columns, "'time' column should be present"
+
     def test_feature_set_db(self):
         name = "stocks_test"
         stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
@@ -241,6 +338,26 @@ class TestFeatureStore(TestMLRunSystem):
         fs.delete_feature_vector(name, self.project_name)
         vecs = db.list_feature_vectors(self.project_name, name)
         assert not vecs, "Feature vector should be deleted"
+
+    def test_top_value_of_boolean_column(self):
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fs.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
+        fs.ingest(stocks_set, stocks)
+
+        vector = fs.FeatureVector("SjqevLXR", ["stocks_test.*"])
+        fs.get_offline_features(vector)
+
+        actual_stat = vector.get_stats_table().drop("hist", axis=1, errors="ignore")
+        actual_stat = actual_stat.sort_index().sort_index(axis=1)
+        assert isinstance(actual_stat["top"]["booly"], bool)
 
     def test_serverless_ingest(self):
         key = "patient_id"
@@ -377,6 +494,18 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
 
+        # start time > timestamp in source
+        source = ParquetSource(
+            "myparquet",
+            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
+            start_time=datetime(2022, 12, 1, 17, 33, 15),
+            end_time="2022-12-01 17:33:16",
+        )
+
+        resp = fs.ingest(measurements, source, return_df=True,)
+        assert len(resp) == 0
+
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
     @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
@@ -411,10 +540,10 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector, entity_timestamp_column="timestamp")
         resp2 = resp2.to_dataframe().to_dict()
 
-        resp1.pop("timestamp")
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
@@ -457,9 +586,8 @@ class TestFeatureStore(TestMLRunSystem):
         resp2 = resp.to_dataframe()
         assert len(resp2) == 10
         result_columns = list(resp2.columns)
-        orig_columns.remove("timestamp")
         orig_columns.remove("patient_id")
-        assert result_columns == orig_columns
+        assert result_columns.sort() == orig_columns.sort()
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -487,9 +615,13 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {"mykey1": "hello"}}
+        assert resp2.to_dict() == {
+            "my_string": {"mykey1": "hello"},
+            "my_time": {"mykey1": pd.Timestamp("2019-01-26 14:52:37")},
+        }
 
         measurements = fs.FeatureSet(
             name, entities=[Entity(key)], timestamp_key="my_time"
@@ -513,9 +645,16 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
+        vector.spec.with_indexes = True
         resp2 = fs.get_offline_features(vector)
         resp2 = resp2.to_dataframe()
-        assert resp2.to_dict() == {"my_string": {"mykey1": "hello", "mykey2": None}}
+        assert resp2.to_dict() == {
+            "my_string": {"mykey1": "hello", "mykey2": None},
+            "my_time": {
+                "mykey1": pd.Timestamp("2019-01-26 14:52:37"),
+                "mykey2": pd.Timestamp("2019-01-26 14:52:37"),
+            },
+        }
 
     def test_ordered_pandas_asof_merge(self):
         targets = [ParquetTarget(), NoSqlTarget()]
@@ -831,6 +970,218 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
+    def test_ingest_pandas_engine(self):
+        data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
+
+        data.set_index(["name"], inplace=True)
+        fset = fs.FeatureSet("pandass", entities=[fs.Entity("name")], engine="pandas")
+        fs.ingest(featureset=fset, source=data)
+
+        features = ["pandass.*"]
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        resp = svc.get([{"name": "ab"}])
+        assert resp[0] == {"data": 10}
+
+        svc.close()
+
+    @pytest.mark.parametrize("partitioned", [True, False])
+    def test_schedule_on_filtered_by_time(self, partitioned):
+        name = f"sched-time-{str(partitioned)}"
+
+        now = datetime.now() + timedelta(minutes=2)
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
+
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource(
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name, entities=[fs.Entity("first_name")], timestamp_key="time",
+        )
+
+        if partitioned:
+            targets = [
+                NoSqlTarget(),
+                ParquetTarget(
+                    name="tar1",
+                    path="v3io:///bigdata/fs1/",
+                    partitioned=True,
+                    partition_cols=["time"],
+                ),
+            ]
+        else:
+            targets = [
+                ParquetTarget(
+                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                ),
+                NoSqlTarget(),
+            ]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=targets,
+        )
+        # ingest starts every round minute.
+        sleep(60 - now.second + 10)
+
+        features = [f"{name}.*"]
+        vec = fs.FeatureVector("sched_test-vec", features)
+
+        svc = fs.get_online_feature_service(vec)
+
+        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 2000
+
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 12:00:00"),
+                    pd.Timestamp("2021-01-10 13:00:00"),
+                    now + pd.Timedelta(minutes=10),
+                    pd.Timestamp("2021-01-09 13:00:00"),
+                ],
+                "first_name": ["moshe", "dina", "katya", "uri"],
+                "data": [50, 10, 25, 30],
+            }
+        )
+        # writing down a remote source
+        fs.ingest(data_set, data, targets=[target2])
+
+        sleep(60)
+        resp = svc.get(
+            [
+                {"first_name": "yosi"},
+                {"first_name": "moshe"},
+                {"first_name": "katya"},
+                {"first_name": "dina"},
+                {"first_name": "uri"},
+            ]
+        )
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 50
+        assert resp[2] is None
+        assert resp[3]["data"] == 10
+        assert resp[4] is None
+
+        svc.close()
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 4)
+        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    def test_overwrite_single_file(self):
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
+
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
+
+        feature_set = fs.FeatureSet(
+            name="overwrite", entities=[fs.Entity("first_name")], timestamp_key="time",
+        )
+
+        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
+
+        fs.ingest(
+            feature_set,
+            source,
+            overwrite=True,
+            run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            targets=targets,
+        )
+        sleep(60)
+        features = ["overwrite.*"]
+        vec = fs.FeatureVector("svec", features)
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 2)
+
+        sleep(30)
+
+    @pytest.mark.parametrize(
+        "fixed_window_type",
+        [FixedWindowType.CurrentOpenWindow, FixedWindowType.LastClosedWindow],
+    )
+    def test_query_on_fixed_window(self, fixed_window_type):
+        current_time = pd.Timestamp.now()
+        data = pd.DataFrame(
+            {
+                "time": [
+                    current_time,
+                    current_time - pd.Timedelta(hours=current_time.hour + 2),
+                ],
+                "first_name": ["moshe", "moshe"],
+                "last_name": ["cohen", "cohen"],
+                "bid": [2000, 100],
+            },
+        )
+        name = f"measurements_{uuid.uuid4()}"
+
+        # write to kv
+        data_set = fs.FeatureSet(
+            name, timestamp_key="time", entities=[Entity("first_name")]
+        )
+
+        data_set.add_aggregation(
+            name="bids", column="bid", operations=["sum", "max"], windows="24h",
+        )
+
+        fs.ingest(data_set, data, return_df=True)
+
+        features = [f"{name}.bids_sum_24h", f"{name}.last_name"]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector, fixed_window_type=fixed_window_type)
+
+        resp = svc.get([{"first_name": "moshe"}])
+        if fixed_window_type == FixedWindowType.CurrentOpenWindow:
+            expected = {"bids_sum_24h": 2000.0, "last_name": "cohen"}
+        else:
+            expected = {"bids_sum_24h": 100.0, "last_name": "cohen"}
+        assert resp[0] == expected
+        svc.close()
+
     def test_split_graph(self):
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])
 
@@ -1063,6 +1414,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["fvec-parquet-fset.*"]
         fvec = fs.FeatureVector("fvec-parquet", features=features)
+        fvec.spec.with_indexes = True
 
         target = ParquetTarget()
         off1 = fs.get_offline_features(fvec, target=target)
@@ -1131,6 +1483,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["override-false.*"]
         fvec = fs.FeatureVector("override-false-vec", features=features)
+        fvec.spec.with_indexes = True
 
         off1 = fs.get_offline_features(fvec).to_dataframe()
         assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
@@ -1179,6 +1532,46 @@ class TestFeatureStore(TestMLRunSystem):
 
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
+
+    def test_purge_nosql(self):
+        def get_v3io_api_host():
+            """Return only the host out of v3io_api
+
+            Takes the parameter from config and strip it from it's protocol and port
+            returning only the host name.
+            """
+            api = None
+            if config.v3io_api:
+                api = config.v3io_api
+                if "//" in api:
+                    api = api[api.find("//") + 2 :]
+                if ":" in api:
+                    api = api[: api.find(":")]
+            return api
+
+        key = "patient_id"
+        fset = fs.FeatureSet(
+            name="nosqlpurge", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        targets = [
+            NoSqlTarget(
+                name="nosql", path="v3io:///bigdata/system-test-project/nosql-purge"
+            ),
+            NoSqlTarget(
+                name="fullpath",
+                path=f"v3io://webapi.{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
+            ),
+        ]
+
+        for tar in targets:
+            test_target = [tar]
+            fset.set_targets(
+                with_defaults=False, targets=test_target,
+            )
+            fs.ingest(fset, source)
+            verify_purge(fset, test_target)
 
     def test_ingest_dataframe_index(self):
         orig_df = pd.DataFrame([{"x", "y"}])
@@ -1248,10 +1641,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["rWQTKqbhje.*"]
         vector = fs.FeatureVector("WPAyrYux", features)
-        vector.spec.with_indexes = False
+        vector.spec.with_indexes = True
         resp = fs.get_offline_features(vector)
         off_df = resp.to_dataframe()
-        del orig_df["time_stamp"]
         if None in list(orig_df.index.names):
             orig_df.set_index(["temdojgz", "bikyseca", "nkxuonfx"], inplace=True)
         orig_df = orig_df.sort_values(
@@ -1269,6 +1661,85 @@ class TestFeatureStore(TestMLRunSystem):
             check_like=True,
             check_names=True,
         )
+
+    def test_stream_source(self):
+        # create feature set, ingest sample data and deploy nuclio function with stream source
+        myset = FeatureSet("fset2", entities=[Entity("ticker")])
+        fs.ingest(myset, quotes)
+        source = StreamSource(key_field="ticker", time_field="time")
+        filename = str(
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "api"
+            / "runtimes"
+            / "assets"
+            / "sample_function.py"
+        )
+
+        function = mlrun.code_to_function(
+            "ingest_transactions", kind="serving", filename=filename
+        )
+        function.spec.default_content_type = "application/json"
+        run_config = fs.RunConfig(function=function, local=False).apply(
+            mlrun.mount_v3io()
+        )
+        fs.deploy_ingestion_service(
+            featureset=myset, source=source, run_config=run_config
+        )
+        # push records to stream
+        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/fset2/v3ioStream"
+        events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
+        client = mlrun.platforms.V3ioStreamClient(stream_path, seek_to="EARLIEST")
+        events_pusher.push(
+            {
+                "ticker": "AAPL",
+                "time": "2021-08-15T10:58:37.415101",
+                "bid": 300,
+                "ask": 100,
+            }
+        )
+        # verify new records in stream
+        resp = client.get_records()
+        assert len(resp) != 0
+        # read from online service updated data
+        vector = fs.FeatureVector("my-vec", ["fset2.*"])
+        svc = fs.get_online_feature_service(vector)
+        sleep(5)
+        resp = svc.get([{"ticker": "AAPL"}])
+        svc.close()
+        assert resp[0]["bid"] == 300
+
+    def test_join_with_table(self):
+        table_url = "v3io:///bigdata/system-test-project/nosql/test_join_with_table"
+
+        df = pd.DataFrame({"name": ["ABC", "DEF"], "aug": ["1", "2"]})
+        fset = fs.FeatureSet(
+            name="test_join_with_table_fset", entities=[fs.Entity("name")]
+        )
+        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+
+        df = pd.DataFrame(
+            {
+                "key": ["mykey1", "mykey2", "mykey3"],
+                "foreignkey1": ["AB", "DE", "GH"],
+                "foreignkey2": ["C", "F", "I"],
+            }
+        )
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset.set_targets([], with_defaults=False)
+        fset.graph.to(
+            "storey.JoinWithTable",
+            table=table_url,
+            _key_extractor="(event['foreignkey1'] + event['foreignkey2'])",
+            attributes=["aug"],
+            inner_join=True,
+        )
+        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        assert df.to_dict() == {
+            "foreignkey1": {"mykey1": "AB", "mykey2": "DE"},
+            "foreignkey2": {"mykey1": "C", "mykey2": "F"},
+            "aug": {"mykey1": "1", "mykey2": "2"},
+        }
 
 
 def verify_purge(fset, targets):

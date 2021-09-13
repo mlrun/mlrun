@@ -118,7 +118,10 @@ class ONNXModelServer(V2ModelServer):
             },
         )
 
-        return outputs.tolist()
+        # Convert each output answer from numpy ndarray to list:
+        outputs = [output.tolist() for output in outputs]
+
+        return outputs
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

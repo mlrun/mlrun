@@ -118,7 +118,7 @@ class ONNXModelServer(V2ModelServer):
             },
         )
 
-        return outputs
+        return outputs.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

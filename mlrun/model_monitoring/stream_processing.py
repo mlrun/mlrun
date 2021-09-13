@@ -609,13 +609,13 @@ class MapFeatureNames(MapClass):
 
     def _infer_feature_names_from_data(self, event):
         for endpoint_id in self.feature_names:
-            if len(self.feature_names[endpoint_id]) == len(event[FEATURES]):
+            if len(self.feature_names[endpoint_id]) >= len(event[FEATURES]):
                 return self.feature_names[endpoint_id]
         return None
 
     def _infer_label_columns_from_data(self, event):
         for endpoint_id in self.label_columns:
-            if len(self.label_columns[endpoint_id]) == len(event[PREDICTION]):
+            if len(self.label_columns[endpoint_id]) >= len(event[PREDICTION]):
                 return self.label_columns[endpoint_id]
         return None
 

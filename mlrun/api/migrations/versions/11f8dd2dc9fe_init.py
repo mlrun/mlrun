@@ -249,7 +249,7 @@ def upgrade():
             nullable=True,
         ),
         sa.ForeignKeyConstraint(["obj_id"], ["functions.id"],),
-        sa.ForeignKeyConstraint(["obj_name"], ["functions.name"], ),
+        sa.ForeignKeyConstraint(["obj_name"], ["functions.name"],),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", "name", "obj_name", name="_functions_tags_uc"),
     )

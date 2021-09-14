@@ -207,6 +207,10 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     task.set_label("job-type", "feature-ingest").set_label(
         "feature-set", featureset.uri
     )
+    if run_config.owner:
+        task.set_label("owner", run_config.owner).set_label(
+            "v3io_user", run_config.owner
+        )
 
     # set run UID and save in the feature set status (linking the features et to the job)
     task.metadata.uid = uuid.uuid4().hex

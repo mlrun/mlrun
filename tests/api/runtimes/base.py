@@ -70,6 +70,7 @@ class TestRuntimeBase:
         # We want this mock for every test, ideally we would have simply put it in the setup_method
         # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
         # in order to be able to mock k8s stuff
+        get_k8s().get_project_secret_keys = unittest.mock.Mock(return_value=[])
         get_k8s().v1api = unittest.mock.Mock()
         get_k8s().crdapi = unittest.mock.Mock()
         get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(

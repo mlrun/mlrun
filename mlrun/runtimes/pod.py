@@ -23,6 +23,7 @@ import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
+from ..secrets import SecretsStore
 from ..utils import logger, normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec
 from .utils import (
@@ -473,6 +474,14 @@ class KubeResource(BaseRuntime):
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
 
     def _add_project_k8s_secrets_to_spec(self, secrets, runobj=None, project=None):
+        # the secrets param may be an empty dictionary (asking for all secrets of that project) -
+        # it's a different case than None (not asking for project secrets at all).
+        if (
+            secrets is None
+            and not mlconf.secret_stores.kubernetes.auto_add_project_secrets
+        ):
+            return
+
         project_name = project or runobj.metadata.project
         if project_name is None:
             logger.warning("No project provided. Cannot add k8s secrets")
@@ -483,10 +492,10 @@ class KubeResource(BaseRuntime):
             self._get_k8s().get_project_secret_keys(project_name) or {}
         )
 
-        # If no secrets were passed, we need all existing keys
+        # If no secrets were passed or auto-adding all secrets, we need all existing keys
         if not secrets:
             secrets = {
-                key: self._secrets.k8s_env_variable_name_for_secret(key)
+                key: SecretsStore.k8s_env_variable_name_for_secret(key)
                 for key in existing_secret_keys
             }
 

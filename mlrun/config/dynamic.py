@@ -63,9 +63,16 @@ class Config(ConfigBase):
 
     @staticmethod
     def get_valid_function_priority_class_names():
+        valid_function_priority_class_names = []
         if not config.valid_function_priority_class_names:
-            return []
-        return list(set(config.valid_function_priority_class_names.split(",")))
+            return valid_function_priority_class_names
+
+        for priority_class_name in config.valid_function_priority_class_names.split(
+            ","
+        ):
+            if priority_class_name not in valid_function_priority_class_names:
+                valid_function_priority_class_names.append(priority_class_name)
+        return valid_function_priority_class_names
 
     def get_storage_auto_mount_params(self):
         auto_mount_params = {}

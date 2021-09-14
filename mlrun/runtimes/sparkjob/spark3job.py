@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import typing
+
 from ...utils import update_in, verify_and_update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
@@ -133,7 +134,9 @@ class Spark3Runtime(AbstractSparkRuntime):
         if self.spec.driver_node_selector:
             update_in(job, "spec.driver.nodeSelector", self.spec.driver_node_selector)
         if self.spec.executor_node_selector:
-            update_in(job, "spec.executor.nodeSelector", self.spec.executorr_node_selector)
+            update_in(
+                job, "spec.executor.nodeSelector", self.spec.executor_node_selector
+            )
         return
 
     def _get_spark_version(self):
@@ -159,8 +162,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
 
     def with_driver_node_selection(
-            self,
-            node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        self, node_selector: typing.Optional[typing.Dict[str, str]] = None,
     ):
         """
         Enables to control on which k8s node the spark driver will run
@@ -171,8 +173,7 @@ class Spark3Runtime(AbstractSparkRuntime):
             self.spec.driver_node_selector = node_selector
 
     def with_executor_node_selection(
-            self,
-            node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        self, node_selector: typing.Optional[typing.Dict[str, str]] = None,
     ):
         """
         Enables to control on which k8s node the spark executor will run
@@ -182,7 +183,9 @@ class Spark3Runtime(AbstractSparkRuntime):
         if node_selector:
             self.spec.executor_node_selector = node_selector
 
-    def with_dynamic_allocation(self, min_executors=None, max_executors=None, initial_executors=None):
+    def with_dynamic_allocation(
+        self, min_executors=None, max_executors=None, initial_executors=None
+    ):
         """
         Allows to configure spark's dynamic allocation
 
@@ -190,10 +193,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         :param max_executors:     Max. number of executors
         :param initial_executors: Initial number of executors
         """
-        self.spec.dynamic_allocation['enabled'] = True
+        self.spec.dynamic_allocation["enabled"] = True
         if min_executors:
-            self.spec.dynamic_allocation['minExecutors'] = min_executors
+            self.spec.dynamic_allocation["minExecutors"] = min_executors
         if max_executors:
-            self.spec.dynamic_allocation['maxExecutors'] = max_executors
+            self.spec.dynamic_allocation["maxExecutors"] = max_executors
         if initial_executors:
-            self.spec.dynamic_allocation['initialExecutors'] = initial_executors
+            self.spec.dynamic_allocation["initialExecutors"] = initial_executors

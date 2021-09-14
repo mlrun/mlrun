@@ -380,7 +380,7 @@ class KubeResource(BaseRuntime):
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()
 
-    def get_default_priority_class_names(self):
+    def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
 
     def _verify_and_set_limits(

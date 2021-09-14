@@ -186,11 +186,6 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
-    def with_priority_class(
-        self, name: str = config.default_function_priority_class_name
-    ):
-        raise NotImplementedError("Not supported in spark 2 operator")
-
     def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
             resources=self.spec.driver_resources["requests"]

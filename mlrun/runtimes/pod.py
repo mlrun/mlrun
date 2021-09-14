@@ -366,9 +366,7 @@ class KubeResource(BaseRuntime):
         """
         if name is None:
             name = mlconf.default_function_priority_class_name
-        valid_priority_class_names = self.list_valid_and_default_priority_class_names()[
-            "valid_function_priority_class_names"
-        ]
+        valid_priority_class_names = self.list_valid_priority_class_names()
         if name not in valid_priority_class_names:
             message = "Priority class name not in available priority class names"
             logger.warning(
@@ -379,11 +377,11 @@ class KubeResource(BaseRuntime):
             raise mlrun.errors.MLRunInvalidArgumentError(message)
         self.spec.priority_class_name = name
 
-    def list_valid_and_default_priority_class_names(self):
-        return {
-            "default_function_priority_class_name": mlconf.default_function_priority_class_name,
-            "valid_function_priority_class_names": mlconf.get_valid_function_priority_class_names(),
-        }
+    def list_valid_priority_class_names(self):
+        return mlconf.get_valid_function_priority_class_names()
+
+    def get_default_priority_class_name(self):
+        return mlconf.default_function_priority_class_name
 
     def _verify_and_set_limits(
         self,

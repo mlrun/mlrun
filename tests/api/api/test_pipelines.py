@@ -1,4 +1,5 @@
 import http
+import mlrun.api.utils.clients.opa
 import importlib
 import json
 import unittest.mock
@@ -94,6 +95,27 @@ def test_get_pipeline_formats(
             db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
         )
         _assert_get_pipeline_response(expected_run, response)
+
+
+def test_get_pipeline_no_project_opa_validation(
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+        kfp_client_mock: kfp.Client,
+) -> None:
+    format_ = mlrun.api.schemas.PipelinesFormat.summary,
+    project = "project-name"
+    mlrun.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+        return_value=project
+    )
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions = unittest.mock.Mock()
+    api_run_detail = _generate_get_run_mock()
+    _mock_get_run(kfp_client_mock, api_run_detail)
+    response = client.get(
+        f"/api/projects/*/pipelines/{api_run_detail.run.id}",
+        params={"format": format_},
+    )
+    assert mlrun.api.utils.clients.opa.Client().query_project_resource_permissions.call_args[0][1] == project
+    assert response.json()["run"]["project"] == project
 
 
 def test_get_pipeline_specific_project(

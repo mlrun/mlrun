@@ -67,6 +67,7 @@ class Config(ConfigBase):
         if not config.valid_function_priority_class_names:
             return valid_function_priority_class_names
 
+        # Manually ensure we have only unique values because we want to keep the order and using a set would lose it
         for priority_class_name in config.valid_function_priority_class_names.split(
             ","
         ):

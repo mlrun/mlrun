@@ -58,9 +58,9 @@ _sparkjob_template = {
         "sparkVersion": "2.4.5",
         "restartPolicy": {
             "type": "OnFailure",
-            "onFailureRetries": 3,
+            "onFailureRetries": 0,
             "onFailureRetryInterval": 10,
-            "onSubmissionFailureRetries": 5,
+            "onSubmissionFailureRetries": 3,
             "onSubmissionFailureRetryInterval": 20,
         },
         "deps": {},
@@ -557,9 +557,9 @@ class AbstractSparkRuntime(KubejobRuntime):
     def with_restart_policy(
         self,
         restart_type="OnFailure",
-        retries=3,
+        retries=0,
         retry_interval=10,
-        submission_retries=5,
+        submission_retries=3,
         submission_retry_interval=20,
     ):
         """set restart policy

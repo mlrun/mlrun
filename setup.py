@@ -88,7 +88,7 @@ extras_require = {
     # <12.7.0 from adlfs 0.6.3
     "azure-blob-storage": [
         "azure-storage-blob~=12.0, <12.7.0",
-        "adlfs~=0.7.1, <=2021.8.1",
+        "adlfs>=0.7.1, <=2021.8.1",
     ],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     # mlrun.frameworks requirements per framework:  # TODO: should be added in a later PR

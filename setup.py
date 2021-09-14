@@ -83,10 +83,10 @@ extras_require = {
         "boto3~=1.9, <1.17.50",
         "botocore>=1.20.49,<1.20.50",
         "aiobotocore<=1.3.1",
-        "s3fs>=0.5.0, <=0.6.0",
+        "s3fs>=0.5.0, <=2021.8.1",
     ],
     # <12.7.0 from adlfs 0.6.3
-    "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1"],
+    "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1, <=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     # mlrun.frameworks requirements per framework:  # TODO: should be added in a later PR
     "bokeh": ["bokeh~=2.3"],

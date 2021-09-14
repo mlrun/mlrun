@@ -25,7 +25,6 @@ import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
-from mlrun.utils.helpers import logger
 
 _cached_control_session = None
 
@@ -387,6 +386,9 @@ class OutputStream:
         self._container, self._stream_path = split_path(stream_path)
 
         if create:
+
+            # this import creates an import loop via the utils module, so putting it in execution path
+            from mlrun.utils.helpers import logger
 
             logger.debug(
                 "Creating output stream",

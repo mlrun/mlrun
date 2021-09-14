@@ -82,7 +82,8 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def _generate_runtime(self, kind="nuclio"):
+    def _generate_runtime(self, kind="nuclio", labels=None):
+
         runtime = code_to_function(
             name=self.name,
             project=self.project,
@@ -91,12 +92,19 @@ class TestNuclioRuntime(TestRuntimeBase):
             kind=kind,
             image=self.image_name,
             description="test function",
+            labels=labels,
         )
         return runtime
 
     def _assert_deploy_called_basic_config(
-        self, expected_class="remote", call_count=1, expected_params=[]
+        self,
+        expected_class="remote",
+        call_count=1,
+        expected_params=[],
+        expected_labels=None,
     ):
+        if expected_labels is None:
+            expected_labels = {}
         deploy_mock = nuclio.deploy.deploy_config
         assert deploy_mock.call_count == call_count
 
@@ -117,7 +125,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             deploy_config = args[0]
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
-            expected_labels = {"mlrun/class": expected_class}
+            expected_labels.update({"mlrun/class": expected_class})
             assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
 
             build_info = deploy_config["spec"]["build"]
@@ -307,6 +315,16 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config()
 
+    def test_deploy_function_with_labels(self, db: Session, client: TestClient):
+        labels = {
+            "key": "value",
+            "key-2": "value-2",
+        }
+        function = self._generate_runtime("nuclio", labels)
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_labels=labels)
+
     def test_deploy_with_triggers(self, db: Session, client: TestClient):
         function = self._generate_runtime("nuclio")
 
@@ -402,6 +420,63 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_node_selector=node_selector,
             expected_affinity=affinity,
         )
+
+    def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
+
+        mlconf.nuclio_version = "1.5.20"
+        default_priority_class_name = "default-priority"
+        mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
+        mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
+        function = self._generate_runtime("nuclio")
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config()
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert "priorityClassName" not in deploy_spec
+
+        mlconf.nuclio_version = "1.6.18"
+        mlrun.mlconf.valid_function_priority_class_names = ""
+        function = self._generate_runtime("nuclio")
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=2)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert "priorityClassName" not in deploy_spec
+
+        mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
+        function = self._generate_runtime("nuclio")
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=3)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["priorityClassName"] == default_priority_class_name
+
+        function = self._generate_runtime()
+        medium_priority_class_name = "medium-priority"
+        mlrun.mlconf.valid_function_priority_class_names = medium_priority_class_name
+        mlconf.nuclio_version = "1.5.20"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_priority_class(medium_priority_class_name)
+
+        mlconf.nuclio_version = "1.6.10"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_priority_class(medium_priority_class_name)
+
+        mlconf.nuclio_version = "1.6.18"
+        function.with_priority_class(medium_priority_class_name)
+
+        deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(call_count=4)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["priorityClassName"] == medium_priority_class_name
 
     def test_validate_nuclio_version_compatibility(self):
         # nuclio version we have

@@ -37,6 +37,7 @@ def list_pipelines(
     auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
         mlrun.api.api.deps.AuthVerifierDep
     ),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     if project != "*":
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
@@ -47,13 +48,14 @@ def list_pipelines(
     total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
-        # "*", so we can't really get back only the names here
+        # "*"), so we can't really get back only the names here
         computed_format = (
             mlrun.api.schemas.PipelinesFormat.metadata_only
             if format_ == mlrun.api.schemas.PipelinesFormat.name_only
             else format_
         )
         total_size, next_page_token, runs = mlrun.api.crud.Pipelines().list_pipelines(
+            db_session,
             project,
             namespace,
             sort_by,
@@ -224,26 +226,17 @@ def get_pipeline(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if project != "*":
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
-            project,
-            run_id,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_verifier.auth_info,
-        )
-    else:
-        # In some flows the user may use SDK functions that won't require them to specify the pipeline's project (for
-        # backwards compatibility reasons), so the client will just send * in the project, in that case we use the
-        # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
-        # we don't use the return value from this function since the user may have asked for a different format than
-        # summary which is the one used inside
-        _get_pipeline_without_project(
-            db_session, auth_verifier.auth_info, run_id, namespace
-        )
-    return mlrun.api.crud.Pipelines().get_pipeline(
+    pipeline = mlrun.api.crud.Pipelines().get_pipeline(
         db_session, run_id, project, namespace, format_
     )
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+        project,
+        run_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_verifier.auth_info,
+    )
+    return pipeline
 
 
 def _get_pipeline_without_project(

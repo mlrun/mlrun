@@ -40,10 +40,12 @@ from .feature_store import (
     FeatureSetRecord,
     FeatureSetsOutput,
     FeatureSetSpec,
+    FeatureSetsTagsOutput,
     FeaturesOutput,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,
+    FeatureVectorsTagsOutput,
 )
 from .frontend_spec import FeatureFlags, FrontendSpec, ProjectMembershipFeatureFlag
 from .function import FunctionState

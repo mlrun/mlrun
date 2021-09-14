@@ -127,7 +127,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
 
         # Negative test - try to list_secrets for k8s secrets (not implemented)
-        with pytest.raises(mlrun.errors.MLRunBadRequestError):
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
             self._run_db.list_project_secrets(self.project_name, provider="kubernetes")
 
         # Negative test - try to create_secret with invalid key

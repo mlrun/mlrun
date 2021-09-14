@@ -18,7 +18,6 @@ import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
-from mlrun.api.crud.model_endpoints import ModelEndpoints
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
@@ -87,15 +86,15 @@ def get_function(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    func = mlrun.api.crud.Functions().get_function(
+        db_session, name, project, tag, hash_key
+    )
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
-    )
-    func = mlrun.api.crud.Functions().get_function(
-        db_session, name, project, tag, hash_key
     )
     return {
         "func": func,
@@ -167,6 +166,12 @@ async def build_function(
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
     await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+        auth_info=auth_verifier.auth_info,
+    )
+    await run_in_threadpool(
         mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
@@ -174,7 +179,10 @@ async def build_function(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
-    with_mlrun = strtobool(data.get("with_mlrun", "on"))
+    if isinstance(data.get("with_mlrun"), bool):
+        with_mlrun = data.get("with_mlrun")
+    else:
+        with_mlrun = strtobool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
     fn, ready = await run_in_threadpool(
@@ -431,7 +439,7 @@ def _build_function(
                             )
 
                         _create_model_monitoring_stream(project=fn.metadata.project)
-                        ModelEndpoints.deploy_monitoring_functions(
+                        mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             model_monitoring_access_key=model_monitoring_access_key,
                             db_session=db_session,

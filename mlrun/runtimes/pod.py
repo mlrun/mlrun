@@ -58,7 +58,8 @@ class KubeResourceSpec(FunctionSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
-        mount_applied=False,
+        disable_auto_mount=False,
+        priority_class_name=None,
     ):
         super().__init__(
             command=command,
@@ -71,7 +72,7 @@ class KubeResourceSpec(FunctionSpec):
             workdir=workdir,
             default_handler=default_handler,
             pythonpath=pythonpath,
-            mount_applied=mount_applied,
+            disable_auto_mount=disable_auto_mount,
         )
         self._volumes = {}
         self._volume_mounts = {}
@@ -88,6 +89,9 @@ class KubeResourceSpec(FunctionSpec):
             node_selector or mlrun.mlconf.get_default_function_node_selector()
         )
         self._affinity = affinity
+        self.priority_class_name = (
+            priority_class_name or mlrun.mlconf.default_function_priority_class_name
+        )
 
     @property
     def volumes(self) -> list:
@@ -186,6 +190,10 @@ class AutoMountType(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
+        if value:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid value for auto_mount_type - '{value}'"
+            )
         return AutoMountType.default()
 
     @staticmethod
@@ -202,6 +210,16 @@ class AutoMountType(str, Enum):
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
         ]
+
+    @classmethod
+    def is_auto_modifier(cls, modifier):
+        # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is
+        # a nested function returned from the modifier function (such as 'v3io_cred.<locals>._use_v3io_cred')
+        modifier_name = modifier.__qualname__
+        return any(
+            modifier_name.startswith(mount_modifier)
+            for mount_modifier in AutoMountType.all_mount_modifiers()
+        )
 
     @staticmethod
     def _get_auto_modifier():
@@ -255,6 +273,8 @@ class KubeResource(BaseRuntime):
                 for ev in spec["env"]:
                     if ev["name"].startswith("V3IO_"):
                         ev["value"] = ""
+            # Reset this, since mounts and env variables were cleared.
+            spec["disable_auto_mount"] = False
         return struct
 
     def apply(self, modify):
@@ -336,6 +356,34 @@ class KubeResource(BaseRuntime):
             self.spec.node_selector = node_selector
         if affinity:
             self.spec.affinity = affinity
+
+    def with_priority_class(self, name: typing.Optional[str] = None):
+        """
+        Enables to control the priority of the pod
+        If not passed - will default to mlrun.mlconf.default_function_priority_class_name
+
+        :param name:       The name of the priority class
+        """
+        if name is None:
+            name = mlconf.default_function_priority_class_name
+        valid_priority_class_names = self.list_valid_and_default_priority_class_names()[
+            "valid_function_priority_class_names"
+        ]
+        if name not in valid_priority_class_names:
+            message = "Priority class name not in available priority class names"
+            logger.warning(
+                message,
+                priority_class_name=name,
+                valid_priority_class_names=valid_priority_class_names,
+            )
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
+        self.spec.priority_class_name = name
+
+    def list_valid_and_default_priority_class_names(self):
+        return {
+            "default_function_priority_class_name": mlconf.default_function_priority_class_name,
+            "valid_function_priority_class_names": mlconf.get_valid_function_priority_class_names(),
+        }
 
     def _verify_and_set_limits(
         self,
@@ -494,14 +542,18 @@ class KubeResource(BaseRuntime):
         )
 
     def try_auto_mount_based_on_config(self):
-        if self.spec.mount_applied:
-            logger.debug("Mount already applied - not performing auto-mount")
+        if self.spec.disable_auto_mount:
+            logger.debug(
+                "Mount already applied or auto-mount manually disabled - not performing auto-mount"
+            )
             return
 
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         modifier = auto_mount_type.get_modifier()
         if not modifier:
-            logger.debug("Auto mount disabled due to user selection")
+            logger.debug(
+                "Auto mount disabled due to user selection (auto_mount_type=none)"
+            )
             return
 
         mount_params_dict = mlconf.get_storage_auto_mount_params()
@@ -520,4 +572,7 @@ def kube_resource_spec_to_pod_spec(
         node_name=kube_resource_spec.node_name,
         node_selector=kube_resource_spec.node_selector,
         affinity=kube_resource_spec.affinity,
+        priority_class_name=kube_resource_spec.priority_class_name
+        if len(mlconf.get_valid_function_priority_class_names())
+        else None,
     )

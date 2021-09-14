@@ -18,6 +18,7 @@ import typing
 import warnings
 from os import environ, makedirs, path
 
+import kfp
 import yaml
 from git import Repo
 
@@ -41,12 +42,16 @@ from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import RunNotifications, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.model_monitoring import set_project_model_monitoring_credentials
+from .operations import build_function, deploy_function, run_function
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    enrich_function_object,
     get_db_function,
     get_workflow_engine,
+    pipeline_context,
 )
 
 
@@ -56,11 +61,11 @@ class ProjectError(Exception):
 
 def init_repo(context, url, init_git):
     repo = None
-    if not path.isdir(context):
-        raise ValueError(
-            f"context {context} is not an existing dir path, "
-            "make sure you create the context directory first"
-        )
+    context_path = pathlib.Path(context)
+    if not context_path.exists():
+        context_path.mkdir(parents=True)
+    elif not context_path.is_dir():
+        raise ValueError(f"context {context} is not a dir path")
     try:
         repo = Repo(context)
         url = get_repo_url(repo)
@@ -146,6 +151,7 @@ def new_project(
     if description:
         project.spec.description = description
     mlrun.mlconf.default_project = project.metadata.name
+    pipeline_context.set(project)
     return project
 
 
@@ -222,6 +228,7 @@ def load_project(
         project.spec.branch = repo.active_branch.name
     project.register_artifacts()
     mlrun.mlconf.default_project = project.metadata.name
+    pipeline_context.set(project)
     return project
 
 
@@ -436,6 +443,7 @@ class ProjectSpec(ModelObj):
         load_source_on_run=None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
+        disable_auto_mount=False,
     ):
         self.repo = None
 
@@ -464,6 +472,7 @@ class ProjectSpec(ModelObj):
         self._function_objects = {}
         self._function_definitions = {}
         self.functions = functions or []
+        self.disable_auto_mount = disable_auto_mount
 
     @property
     def source(self) -> str:
@@ -928,6 +937,7 @@ class MlrunProject(ModelObj):
         embed=False,
         engine=None,
         args_schema: typing.List[EntrypointParam] = None,
+        handler=None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -937,6 +947,7 @@ class MlrunProject(ModelObj):
         :param embed:         add the workflow code into the project.yaml
         :param engine:        workflow processing engine ("kfp" or "local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
+        :param handler:       workflow function handler
         :param args:          argument values (key=value, ..)
         """
         if not workflow_path:
@@ -951,13 +962,15 @@ class MlrunProject(ModelObj):
             workflow = {"name": name, "path": workflow_path}
         if args:
             workflow["args"] = args
+        if handler:
+            workflow["handler"] = handler
         if args_schema:
             args_schema = [
                 schema.to_dict() if hasattr(schema, "to_dict") else schema
                 for schema in args_schema
             ]
             workflow["args_schema"] = args_schema
-        workflow["engine"] = engine or "kfp"
+        workflow["engine"] = engine
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -1036,7 +1049,9 @@ class MlrunProject(ModelObj):
         target_path=None,
     ):
         am = self._get_artifact_manager()
-        artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = (
+            artifact_path or self.spec.artifact_path or mlrun.mlconf.artifact_path
+        )
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             artifact_path, self.metadata.name
         )
@@ -1122,7 +1137,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             ds,
             local_path=local_path,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             target_path=target_path,
             tag=tag,
             upload=upload,
@@ -1151,6 +1166,7 @@ class MlrunProject(ModelObj):
         training_set=None,
         label_column=None,
         extra_data=None,
+        **kwargs,
     ):
         """log a model artifact and optionally upload it to datastore
 
@@ -1208,6 +1224,7 @@ class MlrunProject(ModelObj):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            **kwargs,
         )
         if training_set is not None:
             model.infer_from_df(training_set, label_column)
@@ -1215,7 +1232,7 @@ class MlrunProject(ModelObj):
         item = self.log_artifact(
             model,
             local_path=model_dir,
-            artifact_path=artifact_path or self.spec.artifact_path,
+            artifact_path=artifact_path,
             tag=tag,
             upload=upload,
             labels=labels,
@@ -1332,10 +1349,11 @@ class MlrunProject(ModelObj):
         )
         return self.get_function(key, sync)
 
-    def get_function(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
+    def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param sync:  will reload/reinit the function
+        :param enrich: add project info/config/source info to the function object
 
         :returns: function object
         """
@@ -1347,6 +1365,8 @@ class MlrunProject(ModelObj):
         else:
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
+        if enrich:
+            return enrich_function_object(self, function)
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
@@ -1529,6 +1549,7 @@ class MlrunProject(ModelObj):
         dirty=False,
         ttl=None,
         engine=None,
+        local=False,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1548,6 +1569,7 @@ class MlrunProject(ModelObj):
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
         :param engine:    workflow engine running the workflow. Only supported value is 'kfp' (also used if None)
+        :param local:     run local pipeline with local functions (set local=True in function.run())
 
         :returns: run id
         """
@@ -1575,16 +1597,19 @@ class MlrunProject(ModelObj):
             else:
                 raise ValueError("workflow name or path must be specified")
 
-        if workflow_path or workflow_handler:
+        if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
             workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
+        workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self.spec.artifact_path
-        workflow_engine = get_workflow_engine(engine or workflow_spec.engine)
+        workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
+        workflow_spec.engine = workflow_engine.engine
+
         run = workflow_engine.run(
             self,
             workflow_spec,
@@ -1595,9 +1620,6 @@ class MlrunProject(ModelObj):
             namespace=namespace,
         )
         workflow_spec.clear_tmp()
-        self.notifiers.push_start_message(
-            self.metadata.name, self.get_param("commit_id", None), run.run_id
-        )
         if watch and workflow_engine.engine == "kfp":
             self.get_run_status(run)
         return run
@@ -1689,6 +1711,150 @@ class MlrunProject(ModelObj):
             project_dir.mkdir(parents=True)
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
+
+    def set_model_monitoring_credentials(self, access_key: str):
+        """ Set the credentials that will be used by the project's model monitoring
+        infrastructure functions.
+        The supplied credentials must have data access
+
+        :param access_key: Model Monitoring access key for managing user permissions.
+        """
+        set_project_model_monitoring_credentials(
+            access_key=access_key, project=self.metadata.name
+        )
+
+    def run_function(
+        self,
+        function: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        handler: str = None,
+        name: str = "",
+        params: dict = None,
+        hyperparams: dict = None,
+        hyper_param_options: mlrun.model.HyperParamOptions = None,
+        inputs: dict = None,
+        outputs: typing.List[str] = None,
+        workdir: str = "",
+        labels: dict = None,
+        base_task: mlrun.model.RunTemplate = None,
+        watch: bool = True,
+        local: bool = False,
+        verbose: bool = None,
+    ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+        """Run a local or remote task as part of a local/kubeflow pipeline
+
+        example (use with project)::
+
+            # create a project with two functions (local and from marketplace)
+            project = mlrun.new_project(project_name, "./proj)
+            project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
+            project.set_function("hub://sklearn_classifier", "train")
+
+            # run functions (refer to them by name)
+            run1 = project.run_function("myfunc", params={"x": 7})
+            run2 = project.run_function("train", params={"data": run1.outputs["data"]})
+
+        :param function:        name of the function (in the project) or function object
+        :param handler:         name of the function handler
+        :param name:            execution name
+        :param params:          input parameters (dict)
+        :param hyperparams:     hyper parameters
+        :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
+                                see: :py:class:`~mlrun.model.HyperParamOptions`
+        :param inputs:          input objects (dict of key: path)
+        :param outputs:         list of outputs which can pass in the workflow
+        :param workdir:         default input artifacts path
+        :param labels:          labels to tag the job/run with ({key:val, ..})
+        :param base_task:       task object to use as base
+        :param watch:           watch/follow run log, True by default
+        :param local:           run the function locally vs on the runtime/cluster
+        :param verbose:         add verbose prints/logs
+
+        :return: MLRun RunObject or KubeFlow containerOp
+        """
+        return run_function(
+            function,
+            handler=handler,
+            name=name,
+            params=params,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            inputs=inputs,
+            outputs=outputs,
+            workdir=workdir,
+            labels=labels,
+            base_task=base_task,
+            watch=watch,
+            local=local,
+            verbose=verbose,
+            project_object=self,
+        )
+
+    def build_function(
+        self,
+        function: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        with_mlrun: bool = True,
+        skip_deployed: bool = False,
+        image=None,
+        base_image=None,
+        commands: list = None,
+        secret_name="",
+        mlrun_version_specifier=None,
+        builder_env: dict = None,
+    ):
+        """deploy ML function, build container with its dependencies
+
+        :param function:        name of the function (in the project) or function object
+        :param with_mlrun:      add the current mlrun package to the container build
+        :param skip_deployed:   skip the build if we already have an image for the function
+        :param image:           target image name/path
+        :param base_image:      base image name/path (commands and source code will be added to it)
+        :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        """
+        return build_function(
+            self,
+            function,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret_name=secret_name,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+            project_object=self,
+        )
+
+    def deploy_function(
+        self,
+        function: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        dashboard: str = "",
+        models: list = None,
+        env: dict = None,
+        tag: str = None,
+        verbose: bool = None,
+    ):
+        """deploy real-time (nuclio based) functions
+
+        :param function:   name of the function (in the project) or function object
+        :param dashboard:  url of the remore Nuclio dashboard (when not local)
+        :param models:     list of model items
+        :param env:        dict of extra environment variables
+        :param tag:        extra version tag
+        :param verbose     add verbose prints/logs
+        """
+        return deploy_function(
+            function,
+            dashboard=dashboard,
+            models=models,
+            env=env,
+            tag=tag,
+            verbose=verbose,
+            project_object=self,
+        )
 
 
 class MlrunProjectLegacy(ModelObj):
@@ -1968,8 +2134,9 @@ def _init_function_from_dict(f, project):
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
+        # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
-            name, filename=url, image=image, kind=kind or "job", handler=handler
+            name, filename=url, image=image, kind=kind, handler=handler
         )
     elif url.endswith(".py"):
         if not image:

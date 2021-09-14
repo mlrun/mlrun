@@ -124,7 +124,8 @@ class NuclioSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
-        mount_applied=False,
+        disable_auto_mount=False,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -146,7 +147,8 @@ class NuclioSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
-            mount_applied=mount_applied,
+            disable_auto_mount=disable_auto_mount,
+            priority_class_name=priority_class_name,
         )
 
         self.base_spec = base_spec or ""
@@ -449,7 +451,6 @@ class RemoteRuntime(KubeResource):
         tag="",
         verbose=False,
         auth_info: AuthInfo = None,
-        disable_auto_mount=False,
     ):
         # todo: verify that the function name is normalized
 
@@ -463,9 +464,8 @@ class RemoteRuntime(KubeResource):
 
         save_record = False
         if not dashboard:
-            if not disable_auto_mount:
-                # Attempt auto-mounting, before sending to remote build
-                self.try_auto_mount_based_on_config()
+            # Attempt auto-mounting, before sending to remote build
+            self.try_auto_mount_based_on_config()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
@@ -546,6 +546,10 @@ class RemoteRuntime(KubeResource):
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
         super().with_node_selection(node_name, node_selector, affinity)
+
+    @min_nuclio_versions("1.6.18")
+    def with_priority_class(self, name: typing.Optional[str] = None):
+        super().with_priority_class(name)
 
     def _get_state(
         self,
@@ -936,7 +940,10 @@ def resolve_function_http_trigger(function_spec):
 
 
 def compile_function_config(function: RemoteRuntime):
-    function.set_config("metadata.labels.mlrun/class", function.kind)
+    labels = function.metadata.labels or {}
+    labels.update({"mlrun/class": function.kind})
+    for key, value in labels.items():
+        function.set_config(f"metadata.labels.{key}", value)
 
     # Add vault configurations to function's pod spec, if vault secret source was added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
@@ -963,12 +970,21 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
-    if function.spec.node_selector:
-        spec.set_config("spec.nodeSelector", function.spec.node_selector)
-    if function.spec.node_name:
-        spec.set_config("spec.nodeName", function.spec.node_name)
-    if function.spec.affinity:
-        spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    # don't send node selections if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
+        if function.spec.node_selector:
+            spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        if function.spec.node_name:
+            spec.set_config("spec.nodeName", function.spec.node_name)
+        if function.spec.affinity:
+            spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+    # don't send default or any priority class name if nuclio is not compatible
+    if (
+        function.spec.priority_class_name
+        and validate_nuclio_version_compatibility("1.6.18")
+        and len(mlconf.get_valid_function_priority_class_names())
+    ):
+        spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
 
     if function.spec.replicas:
         spec.set_config("spec.minReplicas", function.spec.replicas)

@@ -22,6 +22,7 @@ from os import environ, path
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
+from .errors import MLRunInvalidArgumentError
 from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
@@ -32,7 +33,16 @@ from .platforms import (
     mount_v3io_legacy,
     v3io_cred,
 )
-from .projects import ProjectMetadata, get_or_create_project, load_project, new_project
+from .projects import (
+    ProjectMetadata,
+    build_function,
+    deploy_function,
+    get_or_create_project,
+    load_project,
+    new_project,
+    pipeline_context,
+    run_function,
+)
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
     code_to_function,
@@ -113,6 +123,10 @@ def set_environment(
         ProjectMetadata.validate_project_name(project)
 
     mlconf.default_project = project or mlconf.default_project
+    # We want to ensure the project exists, and verify we're authorized to work on it
+    # if it doesn't exist this will create it (and obviously if we created it, we're authorized to work on it)
+    # if it does exist - this will get it, which will fail if we're not authorized to work on it
+    get_or_create_project(mlconf.default_project, "./")
 
     if not mlconf.artifact_path and not artifact_path:
         raise ValueError("please specify a valid artifact_path")
@@ -126,3 +140,11 @@ def set_environment(
             )
         mlconf.artifact_path = artifact_path
     return mlconf.default_project, mlconf.artifact_path
+
+
+def get_current_project(silent=False):
+    if not pipeline_context.project and not silent:
+        raise MLRunInvalidArgumentError(
+            "current project is not initialized, use new, get or load project methods first"
+        )
+    return pipeline_context.project

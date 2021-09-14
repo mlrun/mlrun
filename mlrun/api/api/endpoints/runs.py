@@ -91,6 +91,7 @@ def get_run(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    data = mlrun.api.crud.Runs().get_run(db_session, uid, iter, project)
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
@@ -98,7 +99,6 @@ def get_run(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_verifier.auth_info,
     )
-    data = mlrun.api.crud.Runs().get_run(db_session, uid, iter, project)
     return {
         "data": data,
     }

@@ -247,6 +247,10 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
+            config.spark_history_server_path = (
+                config.spark_history_server_path
+                or server_cfg.get("spark_history_server_path")
+            )
             config.httpdb.builder.docker_registry = (
                 config.httpdb.builder.docker_registry
                 or server_cfg.get("docker_registry")
@@ -254,6 +258,14 @@ class HTTPRunDB(RunDBInterface):
             config.httpdb.api_url = config.httpdb.api_url or server_cfg.get("api_url")
             config.nuclio_version = config.nuclio_version or server_cfg.get(
                 "nuclio_version"
+            )
+            config.default_function_priority_class_name = (
+                config.default_function_priority_class_name
+                or server_cfg.get("default_function_priority_class_name")
+            )
+            config.valid_function_priority_class_names = (
+                config.valid_function_priority_class_names
+                or server_cfg.get("valid_function_priority_class_names")
             )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
@@ -280,6 +292,10 @@ class HTTPRunDB(RunDBInterface):
             )
             config.storage.auto_mount_params = (
                 server_cfg.get("auto_mount_params") or config.storage.auto_mount_params
+            )
+            config.spark_operator_version = (
+                server_cfg.get("spark_operator_version")
+                or config.spark_operator_version
             )
 
         except Exception:
@@ -1219,7 +1235,7 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
-            pipe_file = tempfile.mktemp(suffix=".yaml")
+            pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_meta(artifact_path, ttl, ops)
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf
@@ -2328,10 +2344,10 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "model": model,
                 "function": function,
-                "labels": labels,
+                "label": labels or [],
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
             },
             headers={"X-V3io-Session-Key": access_key},
         )
@@ -2373,7 +2389,7 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
             headers={"X-V3io-Session-Key": access_key},

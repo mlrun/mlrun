@@ -33,7 +33,11 @@ access_key = "12345"
 @pytest.fixture()
 def pod_create_mock():
     create_pod_orig_function = get_k8s().create_pod
+    _get_project_secrets_raw_data_orig_function = (
+        get_k8s()._get_project_secrets_raw_data
+    )
     get_k8s().create_pod = unittest.mock.Mock(return_value=("pod-name", "namespace"))
+    get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
 
     update_run_state_orig_function = (
         mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
@@ -62,6 +66,9 @@ def pod_create_mock():
 
     # Have to revert the mocks, otherwise other tests are failing
     get_k8s().create_pod = create_pod_orig_function
+    get_k8s()._get_project_secrets_raw_data = (
+        _get_project_secrets_raw_data_orig_function
+    )
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
         update_run_state_orig_function
     )

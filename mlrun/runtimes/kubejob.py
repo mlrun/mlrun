@@ -264,11 +264,11 @@ class KubejobRuntime(KubeResource):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
-            k8s_secrets = self._secrets.get_k8s_secrets()
-            # the get_k8s_secrets function may return an empty dictionary - it's a different case than returning None
-            # (asking for all secrets of that project)
-            if k8s_secrets is not None:
-                self._add_project_k8s_secrets_to_spec(k8s_secrets, runobj)
+            self._add_project_k8s_secrets_to_spec(
+                self._secrets.get_k8s_secrets(), runobj
+            )
+        else:
+            self._add_project_k8s_secrets_to_spec(None, runobj)
 
         pod_spec = func_to_pod(
             self.full_image_path(), self, extra_env, command, args, self.spec.workdir

@@ -16,6 +16,7 @@ from storey import MapClass
 import mlrun
 import mlrun.feature_store as fs
 import tests.conftest
+from mlrun.config import config
 from mlrun.data_types.data_types import ValueType
 from mlrun.datastore.sources import (
     CSVSource,
@@ -338,6 +339,26 @@ class TestFeatureStore(TestMLRunSystem):
         vecs = db.list_feature_vectors(self.project_name, name)
         assert not vecs, "Feature vector should be deleted"
 
+    def test_top_value_of_boolean_column(self):
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fs.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
+        fs.ingest(stocks_set, stocks)
+
+        vector = fs.FeatureVector("SjqevLXR", ["stocks_test.*"])
+        fs.get_offline_features(vector)
+
+        actual_stat = vector.get_stats_table().drop("hist", axis=1, errors="ignore")
+        actual_stat = actual_stat.sort_index().sort_index(axis=1)
+        assert isinstance(actual_stat["top"]["booly"], bool)
+
     def test_serverless_ingest(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
@@ -472,6 +493,18 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp = fs.ingest(measurements, source, return_df=True,)
         assert len(resp) == 10
+
+        # start time > timestamp in source
+        source = ParquetSource(
+            "myparquet",
+            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
+            start_time=datetime(2022, 12, 1, 17, 33, 15),
+            end_time="2022-12-01 17:33:16",
+        )
+
+        resp = fs.ingest(measurements, source, return_df=True,)
+        assert len(resp) == 0
 
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
@@ -1499,6 +1532,46 @@ class TestFeatureStore(TestMLRunSystem):
 
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
+
+    def test_purge_nosql(self):
+        def get_v3io_api_host():
+            """Return only the host out of v3io_api
+
+            Takes the parameter from config and strip it from it's protocol and port
+            returning only the host name.
+            """
+            api = None
+            if config.v3io_api:
+                api = config.v3io_api
+                if "//" in api:
+                    api = api[api.find("//") + 2 :]
+                if ":" in api:
+                    api = api[: api.find(":")]
+            return api
+
+        key = "patient_id"
+        fset = fs.FeatureSet(
+            name="nosqlpurge", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        targets = [
+            NoSqlTarget(
+                name="nosql", path="v3io:///bigdata/system-test-project/nosql-purge"
+            ),
+            NoSqlTarget(
+                name="fullpath",
+                path=f"v3io://webapi.{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
+            ),
+        ]
+
+        for tar in targets:
+            test_target = [tar]
+            fset.set_targets(
+                with_defaults=False, targets=test_target,
+            )
+            fs.ingest(fset, source)
+            verify_purge(fset, test_target)
 
     def test_ingest_dataframe_index(self):
         orig_df = pd.DataFrame([{"x", "y"}])

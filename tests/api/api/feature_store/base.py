@@ -31,7 +31,15 @@ def _list_tags_and_assert(client: TestClient, entity_name, project, expected_tag
     assert response.status_code == HTTPStatus.OK.value
     response_body = response.json()
 
-    assert DeepDiff(response_body["tags"], expected_tags, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            response_body["tags"],
+            expected_tags,
+            ignore_order=True,
+            report_repetition=True,
+        )
+        == {}
+    )
 
 
 def _patch_object(

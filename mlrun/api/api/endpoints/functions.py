@@ -179,7 +179,10 @@ async def build_function(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_verifier.auth_info,
     )
-    with_mlrun = strtobool(data.get("with_mlrun", "on"))
+    if isinstance(data.get("with_mlrun"), bool):
+        with_mlrun = data.get("with_mlrun")
+    else:
+        with_mlrun = strtobool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
     fn, ready = await run_in_threadpool(

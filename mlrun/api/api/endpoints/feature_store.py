@@ -233,12 +233,12 @@ def list_feature_sets_tags(
         lambda feature_set_name: (project, feature_set_name,),
         auth_verifier.auth_info,
     )
-    tags = [
+    tags = {
         tag_tuple[2]
         for tag_tuple in tag_tuples
         if tag_tuple[1] in allowed_feature_set_names
-    ]
-    return mlrun.api.schemas.FeatureSetsTagsOutput(tags=tags)
+    }
+    return mlrun.api.schemas.FeatureSetsTagsOutput(tags=list(tags))
 
 
 def _has_v3io_path(data_source, data_targets, feature_set):
@@ -312,7 +312,7 @@ def ingest_feature_set(
         db_session, project, name, tag, uid
     )
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
-    if feature_set.spec.function:
+    if feature_set.spec.function and feature_set.spec.function.function_object:
         function = feature_set.spec.function.function_object
         mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.function,
@@ -330,7 +330,7 @@ def ingest_feature_set(
             for data_target in ingest_parameters.targets
         ]
 
-    run_config = RunConfig()
+    run_config = RunConfig(owner=username)
 
     # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and
     # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are
@@ -382,8 +382,8 @@ def list_features(
         mlrun.api.schemas.AuthorizationResourceTypes.feature,
         features.features,
         lambda feature_list_output: (
-            feature_list_output.feature.name,
             feature_list_output.feature_set_digest.metadata.project,
+            feature_list_output.feature.name,
         ),
         auth_verifier.auth_info,
     )
@@ -409,8 +409,8 @@ def list_entities(
         mlrun.api.schemas.AuthorizationResourceTypes.entity,
         entities.entities,
         lambda entity_list_output: (
-            entity_list_output.entity.name,
             entity_list_output.feature_set_digest.metadata.project,
+            entity_list_output.entity.name,
         ),
         auth_verifier.auth_info,
     )
@@ -559,12 +559,12 @@ def list_feature_vectors_tags(
         lambda feature_vector_name: (project, feature_vector_name,),
         auth_verifier.auth_info,
     )
-    tags = [
+    tags = {
         tag_tuple[2]
         for tag_tuple in tag_tuples
         if tag_tuple[1] in allowed_feature_vector_names
-    ]
-    return mlrun.api.schemas.FeatureVectorsTagsOutput(tags=tags)
+    }
+    return mlrun.api.schemas.FeatureVectorsTagsOutput(tags=list(tags))
 
 
 @router.put(

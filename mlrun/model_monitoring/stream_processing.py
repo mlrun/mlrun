@@ -173,6 +173,7 @@ class EventStreamProcessor:
                     kv_container=self.kv_container,
                     kv_path=self.kv_path,
                     access_key=self.v3io_access_key,
+                    infer_columns_from_data=True,
                 ),
                 # Branch 1: Aggregate events, count averages and update TSDB and KV
                 [
@@ -200,7 +201,7 @@ class EventStreamProcessor:
                         table=Table("notable", NoopDriver()),
                     ),
                     SampleWindow(
-                        self.sample_window
+                        self.sample_window, key=ENDPOINT_ID,
                     ),  # Add required gap between event to apply sampling
                     Map(self.compute_predictions_per_second),
                     # Branch 1.1: Updated KV
@@ -590,13 +591,33 @@ class UnpackValues(MapClass):
 
 
 class MapFeatureNames(MapClass):
-    def __init__(self, kv_container: str, kv_path: str, access_key: str, **kwargs):
+    def __init__(
+        self,
+        kv_container: str,
+        kv_path: str,
+        access_key: str,
+        infer_columns_from_data: bool = False,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.kv_container = kv_container
         self.kv_path = kv_path
         self.access_key = access_key
+        self._infer_columns_from_data = infer_columns_from_data
         self.feature_names = {}
         self.label_columns = {}
+
+    def _infer_feature_names_from_data(self, event):
+        for endpoint_id in self.feature_names:
+            if len(self.feature_names[endpoint_id]) >= len(event[FEATURES]):
+                return self.feature_names[endpoint_id]
+        return None
+
+    def _infer_label_columns_from_data(self, event):
+        for endpoint_id in self.label_columns:
+            if len(self.label_columns[endpoint_id]) >= len(event[PREDICTION]):
+                return self.label_columns[endpoint_id]
+        return None
 
     def do(self, event: Dict):
         endpoint_id = event[ENDPOINT_ID]
@@ -614,6 +635,9 @@ class MapFeatureNames(MapClass):
             label_columns = endpoint_record.get(LABEL_COLUMNS)
             label_columns = json.loads(label_columns) if label_columns else None
 
+            if not feature_names and self._infer_columns_from_data:
+                feature_names = self._infer_feature_names_from_data(event)
+
             if not feature_names:
                 logger.warn(
                     "Feature names are not initialized, they will be automatically generated",
@@ -628,6 +652,9 @@ class MapFeatureNames(MapClass):
                     attributes={FEATURE_NAMES: json.dumps(feature_names)},
                     raise_for_status=RaiseForStatus.always,
                 )
+
+            if not label_columns and self._infer_columns_from_data:
+                label_columns = self._infer_label_columns_from_data(event)
 
             if not label_columns:
                 logger.warn(

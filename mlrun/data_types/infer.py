@@ -79,6 +79,8 @@ def get_df_stats(df, options, num_bins=None):
     """get per column data stats from dataframe"""
 
     results_dict = {}
+    if df.empty:
+        return results_dict
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.name:
         df = df.reset_index()
@@ -91,7 +93,11 @@ def get_df_stats(df, options, num_bins=None):
                 if isinstance(val, (float, np.floating, np.float64)):
                     stats_dict[stat] = float(val)
                 elif isinstance(val, (int, np.integer, np.int64)):
-                    stats_dict[stat] = int(val)
+                    # boolean values are considered subclass of int
+                    if isinstance(val, bool):
+                        stats_dict[stat] = bool(val)
+                    else:
+                        stats_dict[stat] = int(val)
                 else:
                     stats_dict[stat] = str(val)
 

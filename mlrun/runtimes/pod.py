@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import os
 import typing
 import uuid
@@ -548,7 +549,7 @@ class KubeResource(BaseRuntime):
             {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
         )
 
-    def try_auto_mount_based_on_config(self):
+    def try_auto_mount_based_on_config(self, override_params=None):
         if self.spec.disable_auto_mount:
             logger.debug(
                 "Mount already applied or auto-mount manually disabled - not performing auto-mount"
@@ -564,6 +565,11 @@ class KubeResource(BaseRuntime):
             return
 
         mount_params_dict = mlconf.get_storage_auto_mount_params()
+        override_params = override_params or {}
+        for key, value in override_params.items():
+            mount_params_dict[key] = value
+
+        mount_params_dict = _filter_modifier_params(modifier, mount_params_dict)
 
         self.apply(modifier(**mount_params_dict))
 
@@ -583,3 +589,25 @@ def kube_resource_spec_to_pod_spec(
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
     )
+
+
+def _filter_modifier_params(modifier, params):
+    # Make sure we only pass parameters that are accepted by the modifier.
+    modifier_params = inspect.signature(modifier).parameters
+
+    # If kwargs are supported by the modifier, we don't filter.
+    if any(param.kind == param.VAR_KEYWORD for param in modifier_params.values()):
+        return params
+
+    param_names = modifier_params.keys()
+    filtered_params = {}
+    for key, value in params.items():
+        if key in param_names:
+            filtered_params[key] = value
+        else:
+            logger.warning(
+                "Auto mount parameter not supported by modifier, filtered out",
+                modifier=modifier.__name__,
+                param=key,
+            )
+    return filtered_params

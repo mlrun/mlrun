@@ -71,10 +71,12 @@ class TestAutoMount:
 
     def test_run_with_automount_pvc(self, rundb_mock):
         mlconf.storage.auto_mount_type = "pvc"
+        # Verify that extra parameters get filtered out
         pvc_params = {
             "pvc_name": "test_pvc",
             "volume_name": "test_volume",
             "volume_mount_path": "/mnt/test/path",
+            "invalid_param": "blublu",
         }
 
         # Try with a simple string

@@ -14,6 +14,8 @@
 
 import typing
 
+from kubernetes import client
+
 from ...utils import update_in, verify_and_update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
@@ -162,24 +164,55 @@ class Spark3Runtime(AbstractSparkRuntime):
         self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
 
     def with_driver_node_selection(
-        self, node_selector: typing.Optional[typing.Dict[str, str]] = None,
-    ):
-        """
-        Enables to control on which k8s node the spark driver will run
-
-        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
-        """
-        if node_selector:
-            self.spec.driver_node_selector = node_selector
-
-    def with_executor_node_selection(
-        self, node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
     ):
         """
         Enables to control on which k8s node the spark executor will run
 
+        :param node_name:       The name of the k8s node
         :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param affinity:        Expands the types of constraints you can express - see
+                                https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+                                for details
         """
+        if node_name:
+            raise NotImplementedError(
+                "Setting node name is not supported for spark runtime"
+            )
+        if affinity:
+            raise NotImplementedError(
+                "Setting affinity is not supported for spark runtime"
+            )
+
+        if node_selector:
+            self.spec.driver_node_selector = node_selector
+
+    def with_executor_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+    ):
+        """
+        Enables to control on which k8s node the spark executor will run
+
+        :param node_name:       The name of the k8s node
+        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param affinity:        Expands the types of constraints you can express - see
+                                https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+                                for details
+        """
+        if node_name:
+            raise NotImplementedError(
+                "Setting node name is not supported for spark runtime"
+            )
+        if affinity:
+            raise NotImplementedError(
+                "Setting affinity is not supported for spark runtime"
+            )
         if node_selector:
             self.spec.executor_node_selector = node_selector
 

@@ -411,6 +411,39 @@ class GraphContext:
             return self._server._secrets.get(key)
         return None
 
+    def get_remote_endpoint(self, name, external=False):
+        """return the remote nuclio/serving function http(s) endpoint given its name
+
+        """
+        if "://" in name:
+            return name
+        project, uri, tag, _ = mlrun.utils.parse_versioned_object_uri(
+            self._server.function_uri
+        )
+        if name.startswith("."):
+            name = f"{uri}-{name[1:]}"
+        else:
+            project, name, tag, _ = mlrun.utils.parse_versioned_object_uri(uri, project)
+        (
+            state,
+            fullname,
+            _,
+            _,
+            _,
+            function_status,
+        ) = mlrun.runtimes.function.get_nuclio_deploy_status(name, project, tag)
+
+        if state in ["error", "unhealthy"]:
+            raise ValueError(
+                f"Nuclio function {fullname} is in error state, cannot be accessed"
+            )
+
+        key = "externalInvocationUrls" if external else "internalInvocationUrls"
+        urls = function_status.get(key)
+        if not urls:
+            raise ValueError(f"cannot read {key} for nuclio function {fullname}")
+        return urls[0]
+
 
 def format_error(server, context, source, event, message, args):
     return {

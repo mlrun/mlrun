@@ -5,6 +5,8 @@ import storey
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun
+
 http_adapter = HTTPAdapter(
     max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
 )
@@ -15,17 +17,42 @@ class RemoteState(storey.SendToHttp):
     """
 
     def __init__(
-        self, url, subpath=None, method=None, headers=None, return_json=True, **kwargs
+        self,
+        url: str,
+        subpath: str = None,
+        method: str = None,
+        headers: dict = None,
+        url_expression: str = None,
+        return_json: bool = True,
+        **kwargs,
     ):
         """class for calling remote endpoints
 
+        sync and async graph step implementation for request/resp to remote service (class shortcut = "$remote")
+        url can be an http(s) url (e.g. "https://myservice/path") or an mlrun function uri ([project/]name).
+        alternatively the url_expression can be specified to build the url from the event (e.g. "event['url']").
+
+        example pipeline::
+
+            flow = function.set_topology("flow", engine="async")
+            flow.to(name="step1", handler="func1").\
+                 to("$remote", "remote_echo", url="https://myservice/path", method="POST").\
+                 to(name="laststep", handler="func2").respond()
+
+
         :param url:     http(s) url or function [project/]name to call
         :param subpath: path (which follows the url), use `$path` to use the event.path
-        :param method:  HTTP method (GET, POST, ..)
+        :param method:  HTTP method (GET, POST, ..), default to POST
         :param headers: dictionary with http header values
+        :param url_expression: an expression for getting the url from the event, e.g. "event['url']"
         :param return_json: indicate the returned value is json, and convert it to a py object
         """
+        if url and url_expression:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot set both url and url_from_event"
+            )
         self.url = url
+        self.url_expression = url_expression
         self.headers = headers
         self.method = method
         self.return_json = return_json
@@ -35,12 +62,19 @@ class RemoteState(storey.SendToHttp):
         self._append_event_path = False
         self._endpoint = ""
         self._session = None
+        self._url_function_handler = None
 
     def post_init(self, mode="sync"):
-        self._append_event_path = self.subpath == "$path"
-        self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
-        if self.subpath and not self._append_event_path:
-            self._endpoint = self._endpoint + "/" + self.subpath.lstrip("/")
+        if self.url_expression:
+            # init lambda function for calculating url from event
+            self._url_function_handler = eval(
+                "lambda event: " + self.url_expression, {}, {}
+            )
+        else:
+            self._append_event_path = self.subpath == "$path"
+            self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
+            if self.subpath and not self._append_event_path:
+                self._endpoint = self._endpoint + "/" + self.subpath.lstrip("/")
 
     async def _process_event(self, event):
         method, url, headers, body = self._gen_request(event)
@@ -87,9 +121,12 @@ class RemoteState(storey.SendToHttp):
                 body = json.dumps(event.body)
                 headers["Content-Type"] = "application/json"
 
-        url = self._endpoint
-        if self._append_event_path:
-            url = url + "/" + event.path.lstrip("/")
+        if self._url_function_handler:
+            url = self._url_function_handler(event.body)
+        else:
+            url = self._endpoint
+            if self._append_event_path:
+                url = url + "/" + event.path.lstrip("/")
         return method, url, headers, body
 
     def _get_data(self, data, headers):

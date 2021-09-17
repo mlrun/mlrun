@@ -355,6 +355,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.project = self.metadata.project
             function_object.metadata.tag = self.metadata.tag
 
+            function_object.metadata.labels = function_object.metadata.labels or {}
             function_object.metadata.labels["parent-function"] = self._function_uri()
             if function_object.spec.graph.is_empty():
                 # copy the current graph only if the child doesnt have a graph of his own

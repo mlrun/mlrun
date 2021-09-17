@@ -6,7 +6,7 @@ to build all images run this command from the root directory of the mlrun reposi
     MLRUN_VERSION=X MLRUN_DOCKER_REPO=X MLRUN_DOCKER_REGISTRY=X make docker-images
 
 where:<br>
-* `MLRUN_VERSION` this is used as the tag of the image and also has the version injected into the code (e.g. `latest` or `0.7.0` or `0.6.5-rc6`, defaults to `unstable`)
+* `MLRUN_VERSION` this is used as the tag of the image and also as the version injected into the code (e.g. `latest` or `0.7.0` or `0.6.5-rc6`, defaults to `unstable`)
 * `MLRUN_DOCKER_REPO` is the docker repository (defaults to `mlrun`)
 * `MLRUN_DOCKER_REGISTRY` is the docker registry (e.g. `quay.io/`, `gcr.io/`, defaults to empty (docker hub))
 

@@ -331,9 +331,9 @@ class TaskStep(BaseStep):
         if not self._class_object:
             if self.class_name == "$remote":
 
-                from mlrun.serving.remote import RemoteState
+                from mlrun.serving.remote import RemoteStep
 
-                self._class_object = RemoteState
+                self._class_object = RemoteStep
             else:
                 self._class_object = get_class(
                     self.class_name or self._default_class, namespace

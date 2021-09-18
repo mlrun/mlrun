@@ -61,14 +61,14 @@ def test_remote_step(httpserver, engine):
 
 
 def test_remote_class(httpserver):
-    from mlrun.serving.remote import RemoteState
+    from mlrun.serving.remote import RemoteStep
 
     httpserver.expect_request("/cat", method="GET").respond_with_json({"cat": "ok"})
 
     function = mlrun.new_function("test2", kind="serving")
     flow = function.set_topology("flow", engine="sync")
     flow.to(name="s1", handler="echo").to(
-        RemoteState(name="remote_echo", url=httpserver.url_for("/cat"), method="GET")
+        RemoteStep(name="remote_echo", url=httpserver.url_for("/cat"), method="GET")
     ).to(name="s3", handler="echo").respond()
 
     server = function.to_mock_server()

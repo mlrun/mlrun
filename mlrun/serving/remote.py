@@ -3,7 +3,7 @@ import json
 import requests
 import storey
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util.retry import Retry
 
 import mlrun
 
@@ -12,7 +12,7 @@ http_adapter = HTTPAdapter(
 )
 
 
-class RemoteState(storey.SendToHttp):
+class RemoteStep(storey.SendToHttp):
     """class for calling remote endpoints
     """
 
@@ -49,7 +49,7 @@ class RemoteState(storey.SendToHttp):
         """
         if url and url_expression:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot set both url and url_from_event"
+                "cannot set both url and url_expression"
             )
         self.url = url
         self.url_expression = url_expression
@@ -77,7 +77,8 @@ class RemoteState(storey.SendToHttp):
                 self._endpoint = self._endpoint + "/" + self.subpath.lstrip("/")
 
     async def _process_event(self, event):
-        method, url, headers, body = self._gen_request(event)
+        # async implementation (with storey)
+        method, url, headers, body = self._generate_request(event)
         return await self._client_session.request(
             method, url, headers=headers, data=body, ssl=False
         )
@@ -91,25 +92,26 @@ class RemoteState(storey.SendToHttp):
             await self._do_downstream(new_event)
 
     def do_event(self, event):
+        # sync implementation (without storey)
         if not self._session:
             self._session = requests.Session()
             self._session.mount("http://", http_adapter)
             self._session.mount("https://", http_adapter)
 
-        method, url, headers, body = self._gen_request(event)
+        method, url, headers, body = self._generate_request(event)
         try:
             resp = self._session.request(
                 method, url, verify=False, headers=headers, data=body
             )
         except OSError as err:
-            raise OSError(f"error: cannot run function at url {url}, {err}")
+            raise OSError(f"error: cannot invoke url: {url}, {err}")
         if not resp.ok:
-            raise RuntimeError(f"bad function response {resp.text}")
+            raise RuntimeError(f"bad http response {resp.text}")
 
         event.body = self._get_data(resp.content, resp.headers)
         return event
 
-    def _gen_request(self, event):
+    def _generate_request(self, event):
         method = self.method or event.method or "POST"
         headers = self.headers or event.headers or {}
 
@@ -150,7 +152,7 @@ class RemoteState(storey.SendToHttp):
             ]
         }
         return {
-            "class_name": "$remote",
-            "name": self.name or "RemoteStep",
+            "class_name": f"{__name__}.{self.__class__.__name__}",
+            "name": self.name or self.__class__.__name__,
             "class_args": args,
         }

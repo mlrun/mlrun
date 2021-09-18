@@ -173,7 +173,9 @@ jobs:
 
     - name: Output some logs in case of failure
       if: ${{ failure() }}
+      # add set -x to print commands before executing to make logs reading easier
       run: |
+        set -x
         minikube logs
         kubectl --namespace ${NAMESPACE} get pvc
         kubectl --namespace ${NAMESPACE} get pv
@@ -182,6 +184,7 @@ jobs:
         kubectl --namespace ${NAMESPACE} describe pods
         kubectl --namespace ${NAMESPACE} get all
         kubectl --namespace ${NAMESPACE} get all -o yaml
+        set +x
 
     - name: Prepare system tests env
       run: |

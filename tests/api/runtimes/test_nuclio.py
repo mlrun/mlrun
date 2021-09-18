@@ -107,12 +107,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_labels = {}
         deploy_mock = nuclio.deploy.deploy_config
         assert deploy_mock.call_count == call_count
-        print(f"\n>>>expected_params:\n{expected_params}")
 
         call_args_list = deploy_mock.call_args_list
         for single_call_args in call_args_list:
             args, kwargs = single_call_args
-            print(f"\n>>>args:\n{args}\n{kwargs}")
             parent_function = None
             if expected_params:
                 current_parameters = expected_params.pop(0)
@@ -129,12 +127,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             deploy_config = args[0]
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
-            expected_labels.update({"mlrun/class": expected_class})
+            labels_for_diff = expected_labels.copy()
+            labels_for_diff.update({"mlrun/class": expected_class})
             if parent_function:
-                expected_labels.update({"mlrun/parent-function": parent_function})
-            print(f"\n>>>function_metadata:\n{function_metadata}")
-            print(f"\n>>>expected_labels:\n{expected_labels}")
-            assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
+                labels_for_diff.update({"mlrun/parent-function": parent_function})
+            assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}
 
             build_info = deploy_config["spec"]["build"]
 

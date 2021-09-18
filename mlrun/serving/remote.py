@@ -36,7 +36,7 @@ class RemoteState(storey.SendToHttp):
 
             flow = function.set_topology("flow", engine="async")
             flow.to(name="step1", handler="func1").\
-                 to("$remote", "remote_echo", url="https://myservice/path", method="POST").\
+                 to(RemoteState(name="remote_echo", url="https://myservice/path", method="POST")).\
                  to(name="laststep", handler="func2").respond()
 
 

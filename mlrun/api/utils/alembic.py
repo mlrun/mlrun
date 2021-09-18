@@ -97,7 +97,9 @@ class AlembicUtil(object):
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
         backup_path = db_dir_path / f"{current_version}.db"
 
-        logger.debug("Backing up DB file", db_file_path=db_file_path, backup_path=backup_path)
+        logger.debug(
+            "Backing up DB file", db_file_path=db_file_path, backup_path=backup_path
+        )
         shutil.copy2(db_file_path, backup_path)
 
     @staticmethod

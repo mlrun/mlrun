@@ -163,7 +163,6 @@ jobs:
             install mlrun-kit \
             --debug \
             --wait \
-            --timeout 10m \
             --set global.registry.url=localhost:5000 \
             --set global.externalHostAddress=$(minikube ip) \
             --set mlrun.api.image.repository=${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api \
@@ -171,6 +170,18 @@ jobs:
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
             v3io-stable/mlrun-kit
+
+    - name: Output some logs in case of failure
+      if: ${{ failure() }}
+      run: |
+        minikube logs
+        kubectl --namespace ${NAMESPACE} get pvc
+        kubectl --namespace ${NAMESPACE} get pv
+        kubectl --namespace ${NAMESPACE} get pods
+        kubectl --namespace ${NAMESPACE} get pods -o yaml
+        kubectl --namespace ${NAMESPACE} describe pods
+        kubectl --namespace ${NAMESPACE} get all
+        kubectl --namespace ${NAMESPACE} get all -o yaml
 
     - name: Prepare system tests env
       run: |

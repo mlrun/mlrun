@@ -414,6 +414,8 @@ class GraphContext:
     def get_remote_endpoint(self, name, external=False):
         """return the remote nuclio/serving function http(s) endpoint given its name
 
+        :param name: the function name/uri in the form [project/]function-name[:tag]
+        :param external: return the external url (returns the in cluster url by default)
         """
         if "://" in name:
             return name
@@ -423,7 +425,9 @@ class GraphContext:
         if name.startswith("."):
             name = f"{uri}-{name[1:]}"
         else:
-            project, name, tag, _ = mlrun.utils.parse_versioned_object_uri(uri, project)
+            project, name, tag, _ = mlrun.utils.parse_versioned_object_uri(
+                name, project
+            )
         (
             state,
             fullname,
@@ -442,7 +446,7 @@ class GraphContext:
         urls = function_status.get(key)
         if not urls:
             raise ValueError(f"cannot read {key} for nuclio function {fullname}")
-        return urls[0]
+        return f"http://{urls[0]}"
 
 
 def format_error(server, context, source, event, message, args):

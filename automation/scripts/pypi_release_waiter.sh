@@ -2,6 +2,7 @@
 set -e
 
 version=$1
+version=${version#"v"}
 echo "Waiting for version to be released on Pypi. version:$version"
 while true ; do
   latest_version="$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"

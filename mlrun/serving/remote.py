@@ -35,9 +35,9 @@ class RemoteStep(storey.SendToHttp):
         example pipeline::
 
             flow = function.set_topology("flow", engine="async")
-            flow.to(name="step1", handler="func1").\
-                 to(RemoteState(name="remote_echo", url="https://myservice/path", method="POST")).\
-                 to(name="laststep", handler="func2").respond()
+            flow.to(name="step1", handler="func1")\
+                .to(RemoteStep(name="remote_echo", url="https://myservice/path", method="POST"))\
+                .to(name="laststep", handler="func2").respond()
 
 
         :param url:     http(s) url or function [project/]name to call

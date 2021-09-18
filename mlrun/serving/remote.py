@@ -140,7 +140,14 @@ class RemoteState(storey.SendToHttp):
     def to_dict(self):
         args = {
             key: getattr(self, key)
-            for key in ["url", "subpath", "method", "headers", "return_json"]
+            for key in [
+                "url",
+                "subpath",
+                "method",
+                "headers",
+                "return_json",
+                "url_expression",
+            ]
         }
         return {
             "class_name": "$remote",

@@ -26,7 +26,7 @@ tests_map = [
 
 
 def _new_server(url, engine, method="POST", **kwargs):
-    function = mlrun.new_function("test", kind="serving")
+    function = mlrun.new_function("test1", kind="serving")
     flow = function.set_topology("flow", engine=engine)
     flow.to(name="s1", handler="echo").to(
         "$remote", "remote_echo", url=url, method=method, **kwargs
@@ -58,3 +58,20 @@ def test_remote_step(httpserver, engine):
     resp = server.test(body={"myurl": httpserver.url_for("/foo")})
     server.wait_for_completion()
     assert resp == {"foo": "ok"}
+
+
+def test_remote_class(httpserver):
+    from mlrun.serving.remote import RemoteState
+
+    httpserver.expect_request("/cat", method="GET").respond_with_json({"cat": "ok"})
+
+    function = mlrun.new_function("test2", kind="serving")
+    flow = function.set_topology("flow", engine="sync")
+    flow.to(name="s1", handler="echo").to(
+        RemoteState(name="remote_echo", url=httpserver.url_for("/cat"), method="GET")
+    ).to(name="s3", handler="echo").respond()
+
+    server = function.to_mock_server()
+    resp = server.test(body={"x": 5})
+    server.wait_for_completion()
+    assert resp == {"cat": "ok"}

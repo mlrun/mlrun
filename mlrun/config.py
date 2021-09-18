@@ -123,7 +123,12 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
-        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "db": {
+            "commit_retry_timeout": 30,
+            "commit_retry_interval": 3,
+            # Whether to perform data migrations on initialization. enabled or disabled
+            "data_migrations_mode": "enabled",
+        },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
             "allow_local_run": False,

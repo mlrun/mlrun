@@ -39,6 +39,8 @@ def test_requirement_specifiers_inconsistencies():
     requirements_file_paths = list(
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
+    venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
+    requirements_file_paths = list(filter(lambda path: str(venv_path) not in str(path), requirements_file_paths))
 
     requirement_specifiers = []
     for requirements_file_path in requirements_file_paths:

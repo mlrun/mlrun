@@ -329,7 +329,6 @@ class ServingRuntime(RemoteRuntime):
         )
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)
-        func.set_env("SERVING_CURRENT_FUNCTION", function_reference.name)
         return func
 
     def _add_ref_triggers(self):
@@ -350,13 +349,21 @@ class ServingRuntime(RemoteRuntime):
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
             function_object = function_ref.function_object
+            if not function_object:
+                function_object = function_ref.to_function(self.kind)
             function_object.metadata.name = function_ref.fullname(self)
             function_object.metadata.project = self.metadata.project
             function_object.metadata.tag = self.metadata.tag
-            function_object.spec.graph = self.spec.graph
-            # todo: may want to copy parent volumes to child functions
-            function_object.apply(mlrun.v3io_cred())
-            function_ref.db_uri = function_object._function_uri()
+
+            function_object.metadata.labels = function_object.metadata.labels or {}
+            function_object.metadata.labels[
+                "mlrun/parent-function"
+            ] = self._function_uri()
+            if not function_object.spec.graph:
+                # copy the current graph only if the child doesnt have a graph of his own
+                function_object.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
+                function_object.spec.graph = self.spec.graph
+
             function_object.verbose = self.verbose
             function_object.spec.secret_sources = self.spec.secret_sources
             function_object.deploy()
@@ -480,13 +487,14 @@ class ServingRuntime(RemoteRuntime):
         return env
 
     def to_mock_server(
-        self, namespace=None, current_function="*", **kwargs
+        self, namespace=None, current_function="*", track_models=False, **kwargs
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
         :param namespace: classes search namespace, use globals() for current notebook
         :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
+        :param track_models: allow model tracking (disabled by default in the mock server)
         """
 
         server = create_graph_server(
@@ -496,7 +504,7 @@ class ServingRuntime(RemoteRuntime):
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
-            track_models=self.spec.track_models,
+            track_models=track_models and self.spec.track_models,
             function_uri=self._function_uri(),
             secret_sources=self.spec.secret_sources,
             default_content_type=self.spec.default_content_type,

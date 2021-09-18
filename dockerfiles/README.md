@@ -14,7 +14,9 @@ The images are:
   ./models/requirements.txt).
 * `mlrun/ml-models-gpu` - Same as `mlrun/ml-models` but for GPUs
 * `mlrun/jupyter` - An image with [Jupyter](https://jupyter.org/) giving a playground to use MLRun in the open source.
-  Built on top of `jupyter/scipy-notebook`, comes with MLRun pre-installed along with several demos and examples.
+  Built on top of [`jupyter/scipy-notebook`](
+  https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook), comes with MLRun 
+  pre-installed along with several demos and examples.
 * `mlrun/mlrun-api` - The image used for running the MLRun API
 * `mlrun/mlrun-ui` - The image used for running the MLRun UI
 

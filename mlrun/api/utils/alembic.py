@@ -7,6 +7,7 @@ import alembic.command
 import alembic.config
 
 from mlrun import mlconf
+from mlrun.utils import logger
 
 
 class AlembicUtil(object):
@@ -41,6 +42,7 @@ class AlembicUtil(object):
         current_revision = self._get_current_revision()
         if current_revision:
             self._backup_revision(db_file_path, current_revision)
+        logger.debug("Performing schema migrations")
         alembic.command.upgrade(self._alembic_config, "head")
 
     @staticmethod
@@ -95,6 +97,7 @@ class AlembicUtil(object):
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
         backup_path = db_dir_path / f"{current_version}.db"
 
+        logger.debug("Backing up DB file", db_file_path=db_file_path, backup_path=backup_path)
         shutil.copy2(db_file_path, backup_path)
 
     @staticmethod

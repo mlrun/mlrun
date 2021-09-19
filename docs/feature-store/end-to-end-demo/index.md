@@ -2,9 +2,9 @@
 
 This demo shows the usage of MLRun and the feature store. The demo will showcase:
 
-- [**Data ingestion & preparation**](./1-data-ingestion.ipynb)
-- [**Model training & testing**](./2-model-training.ipynb)
-- [**Model serving**](./3-model-serving.ipynb)
+- [**Data ingestion & preparation**](./01-ingest-datasources.ipynb)
+- [**Model training & testing**](./02-create-training-model.ipynb)
+- [**Model serving**](./03-deploy-serving-model.ipynb)
 
 Fraud prevention specifically is a challenge as it requires processing raw transaction and events in real-time and being able to
 quickly respond and block transactions before they occur. Consider, for example, a case where you would like to evaluate the
@@ -12,6 +12,7 @@ average transaction amount. When training the model, it is common to take a Data
 when dealing with real-time/online scenarios, this average has to be calculated incrementally.
 
 In this demo we will learn how to **Ingest** different data sources to our **Feature Store**. Specifically, we will consider 2 types of data:  
+
 - **Transactions**: Monetary activity between 2 parties to transfer funds.
 - **Events**: Activity that done by the party, such as login or password change.
 
@@ -21,12 +22,11 @@ We will walk through creation of ingestion pipeline for each data source with al
 
 Following the ingestion, we will create a feature vector, select the most relevant features and create a final model. We will then deploy the model and showcase the feature vector and model serving.
 
-
 ```{toctree}
 :maxdepth: 1
 
-1-data-ingestion
-2-model-training
-3-model-serving
+01-ingest-datasources
+02-create-training-model
+03-deploy-serving-model
 
 ```

@@ -538,9 +538,11 @@ class TFKerasModelHandler(ModelHandler):
             if os.path.exists(self._model_file):
                 # Unzip it:
                 with zipfile.ZipFile(self._model_file, "r") as zip_file:
-                    zip_file.extractall(self._custom_objects_directory)
+                    zip_file.extractall(os.path.dirname(self._model_file))
                 # Set the model file to the unzipped directory:
-                self._model_file = self._model_file.rsplit(".", 1)[0]
+                self._model_file = os.path.join(
+                    os.path.dirname(self._model_file), self._model_name
+                )
             else:
                 # Look for the SavedModel directory:
                 self._model_file = os.path.join(self._model_path, self._model_name)

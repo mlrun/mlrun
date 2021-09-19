@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Tuple, Union
 
+import numpy as np
 import onnx
 import onnxruntime
 
@@ -84,7 +85,8 @@ class ONNXModelServer(V2ModelServer):
 
         # initialize the onnx run time session:
         self._inference_session = onnxruntime.InferenceSession(
-            onnx._serialize(self._model_handler.model), providers=self._execution_providers
+            onnx._serialize(self._model_handler.model),
+            providers=self._execution_providers,
         )
 
         # Get the input layers names:
@@ -97,12 +99,12 @@ class ONNXModelServer(V2ModelServer):
             output_layer.name for output_layer in self._inference_session.get_outputs()
         ]
 
-    def predict(self, request: Dict[str, Any]) -> list:
+    def predict(self, request: Dict[str, Any]) -> np.ndarray:
         """
         Infer the inputs through the model using ONNXRunTime and return its output. The inferred data will be
         read from the "inputs" key of the request.
 
-        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+        :param request: The request to the model. The input to the model will be read from the "inputs" key.
 
         :return: The ONNXRunTime session returned output on the given inputs.
         """
@@ -110,18 +112,13 @@ class ONNXModelServer(V2ModelServer):
         inputs = request["inputs"]
 
         # Infer the inputs through the model:
-        outputs = self._inference_session.run(
+        return self._inference_session.run(
             output_names=self._output_layers,
             input_feed={
                 input_layer: data
                 for input_layer, data in zip(self._input_layers, inputs)
             },
         )
-
-        # Convert each output answer from numpy ndarray to list:
-        outputs = [output.tolist() for output in outputs]
-
-        return outputs
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

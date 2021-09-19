@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Union
 
+import numpy as np
 from tensorflow import keras
 
 import mlrun
@@ -83,18 +84,17 @@ class TFKerasModelServer(V2ModelServer):
         self._model_handler.load()
         self.model = self._model_handler.model
 
-    def predict(self, request: Dict[str, Any]) -> list:
+    def predict(self, request: Dict[str, Any]) -> np.ndarray:
         """
         Infer the inputs through the model using 'keras.Model.predict' and return its output. The inferred data will be
         read from the "inputs" key of the request.
 
-        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+        :param request: The request to the model. The input to the model will be read from the "inputs" key.
 
         :return: The 'keras.Model.predict' returned output on the given inputs.
         """
-        images = request["inputs"]
-        predicted_probability = self.model.predict(images)
-        return predicted_probability.tolist()
+        inputs = request["inputs"]
+        return self.model.predict(inputs)
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

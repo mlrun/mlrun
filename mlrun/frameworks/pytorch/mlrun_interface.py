@@ -369,6 +369,7 @@ class PyTorchMLRunInterface:
             # Get the model's prediction:
             y = self._model(x)
             # Store the predictions one by one:
+            # TODO: Remove tolist() call
             for prediction in y.tolist():
                 predictions.append(prediction)
 
@@ -518,7 +519,9 @@ class PyTorchMLRunInterface:
             self._model = self._model.cuda()
 
         # Loss:
-        if self._loss_function is not None and not self._is_module_in_cuda(module=self._loss_function):
+        if self._loss_function is not None and not self._is_module_in_cuda(
+            module=self._loss_function
+        ):
             self._loss_function = self._loss_function.cuda()
 
         # Optimizer:
@@ -558,7 +561,11 @@ class PyTorchMLRunInterface:
                 # Set the torch environment to use a specific GPU according to the horovod worker's local rank:
                 torch.cuda.set_device(self._hvd.local_rank())
                 # Log horovod worker device:
-                print("Horovod worker #{} is using GPU:{}".format(self._hvd.rank(), self._hvd.local_rank()))
+                print(
+                    "Horovod worker #{} is using GPU:{}".format(
+                        self._hvd.rank(), self._hvd.local_rank()
+                    )
+                )
                 # Register the required multiprocessing arguments:
                 mp_data_loader_kwargs["num_workers"] = 1
                 mp_data_loader_kwargs["pin_memory"] = True

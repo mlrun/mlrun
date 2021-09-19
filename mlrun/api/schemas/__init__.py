@@ -60,6 +60,7 @@ from .marketplace import (
 )
 from .model_endpoints import (
     Features,
+    ModelMonitoringStoreKinds,
     FeatureValues,
     GrafanaColumn,
     GrafanaDataPoint,

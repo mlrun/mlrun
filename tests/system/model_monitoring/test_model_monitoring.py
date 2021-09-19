@@ -14,7 +14,6 @@ from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
 import mlrun
-import mlrun.api.crud
 import mlrun.api.schemas
 from mlrun.api.schemas import (
     ModelEndpoint,
@@ -153,7 +152,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         db = mlrun.get_run_db()
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.crud.ModelEndpoints().EVENTS
+            project=self.project_name, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -343,7 +342,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.crud.ModelEndpoints().ENDPOINTS
+            project=self.project_name, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 

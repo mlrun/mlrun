@@ -38,9 +38,6 @@ from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 class ModelEndpoints:
 
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
-
     def create_or_patch(
         self,
         db_session: Session,
@@ -149,7 +146,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -210,7 +207,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -271,7 +268,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -409,7 +406,7 @@ class ModelEndpoints:
         function = client.kv.update if update else client.kv.put
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=endpoint.metadata.project, kind=self.ENDPOINTS
+            project=endpoint.metadata.project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -455,7 +452,7 @@ class ModelEndpoints:
             raise MLRunInvalidArgumentError("Metric names must be provided")
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.EVENTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 

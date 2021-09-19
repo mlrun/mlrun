@@ -46,6 +46,7 @@ class MLRunLoggingCallback(LoggingCallback):
         static_hyperparameters: Dict[
             str, Union[TrackableType, List[Union[str, int]]]
         ] = None,
+        is_evaluation: bool = False,
         auto_log: bool = False,
     ):
         """
@@ -109,6 +110,9 @@ class MLRunLoggingCallback(LoggingCallback):
                                          {
                                              "epochs": 7
                                          }
+        :param is_evaluation:            Whether or not to set the MLRun logger for evaluation mode. In evaluation mode
+                                         the model is updated with the new results rather than being saved as a new
+                                         artifact. Defaulted for training (False).
         :param auto_log:                 Whether or not to enable auto logging for logging the context parameters and
                                          trying to track common static and dynamic hyperparameters such as learning
                                          rate.
@@ -126,6 +130,7 @@ class MLRunLoggingCallback(LoggingCallback):
             log_model_labels=log_model_labels,
             log_model_parameters=log_model_parameters,
             log_model_extra_data=log_model_extra_data,
+            is_evaluation=is_evaluation,
         )
 
         # Store the additional TFKerasModelHandler parameters for logging the model later:
@@ -141,6 +146,12 @@ class MLRunLoggingCallback(LoggingCallback):
 
     def set_output_sample(self, sample: TFKerasModelHandler.IOSample):
         self._output_sample = sample
+
+    def mark_evaluation(self):
+        """
+        Mark the MLRun logger to be in evaluation mode.
+        """
+        self._logger.mark_evaluation()
 
     def on_train_end(self, logs: dict = None):
         """

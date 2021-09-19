@@ -34,6 +34,7 @@ class MLRunLogger(Logger):
         log_model_labels: Dict[str, TrackableType],
         log_model_parameters: Dict[str, TrackableType],
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]],
+        is_evaluation: bool,
     ):
         """
         Initialize the MLRun logging interface to work with the given context.
@@ -43,6 +44,9 @@ class MLRunLogger(Logger):
         :param log_model_labels:     Labels to log with the model.
         :param log_model_parameters: Parameters to log with the model.
         :param log_model_extra_data: Extra data to log with the model.
+        :param is_evaluation:        Whether or not to set the MLRun logger for evaluation mode. In evaluation mode
+                                     the model artifact will be updated at the end of evaluation rather than being saved
+                                     as a new model artifact (at the end of training).
         """
         super(MLRunLogger, self).__init__(context=context)
 
@@ -51,8 +55,20 @@ class MLRunLogger(Logger):
         self._log_model_parameters = log_model_parameters
         self._log_model_extra_data = log_model_extra_data
 
+        # Store the logging mode:
+        self._is_evaluation = is_evaluation
+
         # Prepare the artifacts collection:
         self._artifacts = {}  # type: Dict[str, Artifact]
+
+        # Whether or not to log a new model or update a current one:
+        self._update = False
+
+    def mark_evaluation(self):
+        """
+        Change this logger to log in evaluation mode (will update the model at the end of evaluation).
+        """
+        self._is_evaluation = True
 
     def log_epoch_to_context(
         self, epoch: int,
@@ -82,16 +98,25 @@ class MLRunLogger(Logger):
             self._context.log_result(static_parameter, value)
         for dynamic_parameter, values in self._dynamic_hyperparameters.items():
             self._context.log_result(dynamic_parameter, values[-1])
-        for metric, results in self._training_summaries.items():
-            self._context.log_result("training_{}".format(metric), results[-1])
+        if not self._is_evaluation:
+            for metric, results in self._training_summaries.items():
+                self._context.log_result("training_{}".format(metric), results[-1])
         for metric, results in self._validation_summaries.items():
-            self._context.log_result("validation_{}".format(metric), results[-1])
+            self._context.log_result(
+                "evaluation_{}".format(metric)
+                if self._is_evaluation
+                else "validation_{}".format(metric),
+                results[-1],
+            )
 
         # Log the epochs metrics results as chart artifacts:
-        for loop, metrics_dictionary in zip(
-            ["training", "validation"],
-            [self._training_results, self._validation_results],
-        ):
+        loops = ["evaluation"] if self._is_evaluation else ["training", "validation"]
+        metrics_dictionaries = (
+            [self._validation_results]
+            if self._is_evaluation
+            else [self._training_results, self._validation_results]
+        )
+        for loop, metrics_dictionary in zip(loops, metrics_dictionaries,):
             for metric_name in metrics_dictionary:
                 # Create the bokeh artifact:
                 artifact = self._generate_metric_results_artifact(
@@ -114,15 +139,17 @@ class MLRunLogger(Logger):
 
     def log_run(self, model_handler: ModelHandler):
         """
-        Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs and saving the
-        model. The run log information will be the following:
+        Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs. If 'update' is
+        False, the collected logs will be updated to the model inside the given handler, otherwise the model will be
+        saved and logged as a new artifact. The run log information will be the following:
 
         * Plot artifacts:
 
           * A chart for each of the metrics epochs results summaries across all the run (training and validation).
           * A chart for each of the dynamic hyperparameters epochs values across all the run.
 
-        * Model artifact: The model will be saved and logged with all the collected artifacts of this logger.
+        * Model artifact (only in training mode): The model will be saved and logged with all the collected artifacts
+                                                  of this logger.
 
         :param model_handler: The model handler object holding the model to save and log.
         """
@@ -155,14 +182,22 @@ class MLRunLogger(Logger):
             # Collect it for later adding it to the model logging as extra data:
             self._artifacts[artifact.key.split(".")[0]] = artifact
 
-        # Log the model:
+        # Log or update:
         model_handler.set_context(context=self._context)
-        model_handler.log(
-            labels=self._log_model_labels,
-            parameters=self._log_model_parameters,
-            extra_data=self._log_model_extra_data,
-            artifacts=self._artifacts,
-        )
+        if self._is_evaluation:
+            model_handler.update(
+                labels=self._log_model_labels,
+                parameters=self._log_model_parameters,
+                extra_data=self._log_model_extra_data,
+                artifacts=self._artifacts,
+            )
+        else:
+            model_handler.log(
+                labels=self._log_model_labels,
+                parameters=self._log_model_parameters,
+                extra_data=self._log_model_extra_data,
+                artifacts=self._artifacts,
+            )
 
         # Commit:
         self._context.commit()
@@ -228,27 +263,32 @@ class MLRunLogger(Logger):
         )
 
         # Draw the results:
-        summary_figure.line(
-            x=list(np.arange(1, len(training_results) + 1)),
-            y=training_results,
-            legend_label="Training",
-        )
-        summary_figure.circle(
-            x=list(np.arange(1, len(training_results) + 1)),
-            y=training_results,
-            legend_label="Training",
-        )
+        if len(training_results) > 0:
+            summary_figure.line(
+                x=list(np.arange(1, len(training_results) + 1)),
+                y=training_results,
+                legend_label="Training",
+            )
+            summary_figure.circle(
+                x=list(np.arange(1, len(training_results) + 1)),
+                y=training_results,
+                legend_label="Training",
+            )
         if validation_results is not None:
             summary_figure.line(
                 x=list(np.arange(1, len(validation_results) + 1)),
                 y=validation_results,
-                legend_label="Validation",
+                legend_label="Validation"
+                if len(training_results) > 0
+                else "Evaluation",
                 color="orangered",
             )
             summary_figure.circle(
                 x=list(np.arange(1, len(validation_results) + 1)),
                 y=validation_results,
-                legend_label="Validation",
+                legend_label="Validation"
+                if len(training_results) > 0
+                else "Evaluation",
                 color="orangered",
             )
 

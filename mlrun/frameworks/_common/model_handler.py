@@ -216,17 +216,54 @@ class ModelHandler(ABC):
         :param extra_data: Extra data to log with the model.
         :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise RuntimeError: In case there is no model in this handler.
-        :raise ValueError:   In case a context is missing.
+        :raise ValueError: In case a context is missing or there is no model in this handler.
         """
         if self._model is None:
-            raise RuntimeError(
+            raise ValueError(
                 "Model cannot be logged as it was not given in initialization or loaded during this run."
             )
         if self._context is None:
             raise ValueError(
                 "Cannot log model if a context was not provided during initialization."
             )
+
+    def update(
+        self,
+        labels: Dict[str, Union[str, int, float]] = None,
+        parameters: Dict[str, Union[str, int, float]] = None,
+        extra_data: Dict[str, Any] = None,
+        artifacts: Dict[str, Artifact] = None,
+    ):
+        """
+        Log the model held by this handler into the MLRun context provided.
+
+        :param labels:     Labels to update or add to the model.
+        :param parameters: Parameters to update or add to the model.
+        :param extra_data: Extra data to update or add to the model.
+        :param artifacts:  Artifacts to update or add to the model. Will be added to the extra data.
+
+        :raise ValueError: In case a context is missing or the model path in this handler is missing or not of a store
+                           object.
+        """
+        # Validate model path:
+        if self._model_path is None:
+            raise ValueError("Cannot update model if 'model_path' is not provided.")
+        elif not mlrun.datastore.is_store_uri(self._model_path):
+            raise ValueError(
+                "To update a model artifact the 'model_path' must be a store object."
+            )
+
+        # Update the model:
+        mlrun.artifacts.update_model(
+            model_artifact=self._model_path,
+            parameters=parameters,
+            extra_data={
+                **artifacts,
+                **extra_data,
+            },
+            labels=labels,
+            key_prefix="evaluation",
+        )
 
     @abstractmethod
     def to_onnx(self, *args, **kwargs) -> "onnx.ModelProto":

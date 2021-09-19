@@ -210,10 +210,9 @@ class PyTorchModelHandler(ModelHandler):
         :param labels:     Labels to log the model with.
         :param parameters: Parameters to log with the model.
         :param extra_data: Extra data to log with the model.
-        :param artifacts:  Artifacts to log the model with.
+        :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise RuntimeError: In case there is no model in this handler.
-        :raise ValueError:   In case a context is missing.
+        :raise ValueError: In case a context is missing or there is no model in this handler.
         """
         super(PyTorchModelHandler, self).log(
             labels=labels,

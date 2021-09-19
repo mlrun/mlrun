@@ -8,6 +8,8 @@ from v3io.dataplane import RaiseForStatus
 import mlrun.api.api.utils
 import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
+import mlrun.datastore.sources
+import mlrun.feature_store as fs
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
 from mlrun.api.schemas import (
     Features,
@@ -513,17 +515,16 @@ class ModelEndpoints:
         stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind="stream"
         )
-
-        fn.add_v3io_stream_trigger(
-            stream_path=stream_path, name="monitoring_stream_trigger"
-        )
+        source = mlrun.datastore.sources.StreamSource(path=stream_path, name="monitoring_stream_trigger")
+        run_config = fs.RunConfig(function=fn, local=False).apply(mlrun.mount_v3io())
 
         fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
         fn.set_env("MLRUN_AUTH_SESSION", model_monitoring_access_key)
         fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
 
-        fn.apply(mlrun.mount_v3io())
-        deploy_nuclio_function(fn, auth_info=auto_info)
+        fs.deploy_ingestion_service(featureset=quotes_set,
+                                        source=source,
+                                        run_config=run_config)
 
     @staticmethod
     def deploy_model_monitoring_batch_processing(

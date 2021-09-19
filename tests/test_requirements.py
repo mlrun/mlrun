@@ -80,8 +80,10 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.0.1"},
         "botocore": {">=1.20.49,<1.20.50"},
-        "aiobotocore": {"<=1.3.1"},
-        "s3fs": {">=0.5.0, <=0.6.0"},
+        "aiobotocore": {"~=1.4.0"},
+        "fsspec": {">=0.9.0, <=2021.8.1"},
+        "adlfs": {">=0.7.1, <=2021.8.1"},
+        "s3fs": {">=0.5.0, <=2021.8.1"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
         "black": {"<=19.10b0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers

@@ -328,26 +328,6 @@ class FeatureVector(ModelObj):
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
 
-    def verify_feature_vector_permissions(
-        self, action: mlrun.api.schemas.AuthorizationAction
-    ):
-        from ..config import config as mlconf
-
-        project_name = self._metadata.project or mlconf.default_project
-        auth_info = mlrun.api.schemas.AuthInfo()
-
-        fs_project_name = [project_name, self.metadata.name]
-        mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
-            fs_project_name,
-            lambda feature_set_project_name_tuple: (
-                fs_project_name[0],
-                fs_project_name[1],
-            ),
-            action,
-            auth_info,
-        )
-
 
 class OnlineVectorService:
     """get_online_feature_service response object"""

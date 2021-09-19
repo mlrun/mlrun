@@ -35,7 +35,12 @@ from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
-from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
+from .common import (
+    RunConfig,
+    get_feature_set_by_uri,
+    get_feature_vector_by_uri,
+    verify_feature_permissions,
+)
 from .feature_set import FeatureSet
 from .feature_vector import (
     FeatureVector,
@@ -59,18 +64,14 @@ spark_transform_handler = "transform"
 def _features_to_vector_and_check_permissions(features):
     if isinstance(features, str):
         vector = get_feature_vector_by_uri(features)
-        vector.verify_feature_vector_permissions(
-            mlrun.api.schemas.AuthorizationAction.read
-        )
     elif isinstance(features, FeatureVector):
         vector = features
         if not vector.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature vector name must be specified"
             )
-        vector.verify_feature_vector_permissions(
-            mlrun.api.schemas.AuthorizationAction.update
-        )
+        verify_feature_permissions(vector, mlrun.api.schemas.AuthorizationAction.update)
+
         vector.save()
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -258,13 +259,11 @@ def ingest(
             "feature set and source must be specified"
         )
 
-    if featureset:
-        featureset.verify_feature_set_permissions(
-            mlrun.api.schemas.AuthorizationAction.update
-        )
-
     if run_config:
         # remote job execution
+        verify_feature_permissions(
+            featureset, mlrun.api.schemas.AuthorizationAction.update
+        )
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
@@ -288,8 +287,8 @@ def ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
-        featureset.verify_feature_set_permissions(
-            mlrun.api.schemas.AuthorizationAction.update
+        verify_feature_permissions(
+            featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -435,9 +434,7 @@ def preview(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
-    featureset.verify_feature_set_permissions(
-        mlrun.api.schemas.AuthorizationAction.update
-    )
+    verify_feature_permissions(featureset, mlrun.api.schemas.AuthorizationAction.update)
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

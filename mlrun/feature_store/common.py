@@ -81,6 +81,19 @@ def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_feature_set_uri(uri, project)
+
+    fs_project_name = [project, name]
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        project,
+        lambda feature_set_project_name_tuple: (
+            fs_project_name[0],
+            fs_project_name[1],
+        ),
+        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.api.schemas.AuthInfo(),
+    )
+
     return db.get_feature_set(name, project, tag, uid)
 
 
@@ -99,7 +112,41 @@ def get_feature_vector_by_uri(uri, project=None):
         uri = new_uri
 
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
+    fs_project_name = [project, name]
+
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
+        project,
+        lambda feature_set_project_name_tuple: (
+            fs_project_name[0],
+            fs_project_name[1],
+        ),
+        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.api.schemas.AuthInfo(),
+    )
+
     return db.get_feature_vector(name, project, tag, uid)
+
+
+def verify_feature_permissions(resource, action: mlrun.api.schemas.AuthorizationAction):
+    if type(resource).__name__ == "FeatureSet":
+        t = mlrun.api.schemas.AuthorizationResourceTypes.feature_set
+    else:
+        t = mlrun.api.schemas.AuthorizationResourceTypes.feature_vector
+
+    project_name = resource._metadata.project or config.default_project
+
+    fs_project_name = [project_name, resource.metadata.name]
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
+        t,
+        fs_project_name,
+        lambda feature_set_project_name_tuple: (
+            fs_project_name[0],
+            fs_project_name[1],
+        ),
+        action,
+        mlrun.api.schemas.AuthInfo(),
+    )
 
 
 class RunConfig:

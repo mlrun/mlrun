@@ -110,10 +110,7 @@ def test_requirement_specifiers_convention():
         "dask-ml": {"~=1.4,<1.9.0"},
     }
 
-    for (
-            ignored_requirement_name,
-            ignored_specifiers,
-    ) in ignored_invalid_map.items():
+    for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():
         if ignored_requirement_name in invalid_requirement_specifiers_map:
             diff = deepdiff.DeepDiff(
                 invalid_requirement_specifiers_map[ignored_requirement_name],

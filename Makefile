@@ -500,7 +500,7 @@ test-system-open-source: ## Run mlrun system tests with opensource configuration
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
-		-rsf \
+		-rf \
 		-m "not enterprise" \
 		tests/system
 

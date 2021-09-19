@@ -15,10 +15,15 @@ from copy import copy
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
+import v3io
+from nuclio import KafkaTrigger
+from nuclio.config import split_path
+
 import mlrun
 
 from ..config import config
 from ..model import DataSource
+from ..platforms.iguazio import parse_v3io_path
 from ..utils import get_class
 from .utils import store_path_to_spark
 
@@ -314,9 +319,17 @@ class OnlineSource(BaseSourceDriver):
             full_event=True,
         )
 
+    def add_nuclio_trigger(self, function):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "This source type is not supported with ingestion service yet"
+        )
+
 
 class HttpSource(OnlineSource):
     kind = "http"
+
+    def add_nuclio_trigger(self, function):
+        return function
 
 
 class StreamSource(OnlineSource):
@@ -348,6 +361,27 @@ class StreamSource(OnlineSource):
             "retention_in_hours": retention_in_hours,
         }
         super().__init__(name, attributes=attrs, **kwargs)
+
+    def add_nuclio_trigger(self, function):
+        endpoint, stream_path = parse_v3io_path(self.path)
+        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
+        container, stream_path = split_path(stream_path)
+        res = v3io_client.create_stream(
+            container=container,
+            path=stream_path,
+            shard_count=self.attributes["shards"],
+            retention_period_hours=self.attributes["retention_in_hours"],
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+        )
+        res.raise_for_status([409, 204])
+        function.add_v3io_stream_trigger(
+            self.path,
+            self.name,
+            self.attributes["group"],
+            self.attributes["seek_to"],
+            self.attributes["shards"],
+        )
+        return function
 
 
 class KafkaSource(OnlineSource):
@@ -390,6 +424,25 @@ class KafkaSource(OnlineSource):
             attrs["sasl_user"] = sasl_user
             attrs["sasl_user"] = sasl_user
         super().__init__(attributes=attrs, **kwargs)
+
+    def add_nuclio_trigger(self, function):
+        partitions = self.attributes.get("partitions")
+        trigger = KafkaTrigger(
+            brokers=self.attributes["brokers"],
+            topics=self.attributes["topics"],
+            partitions=partitions,
+            consumer_group=self.attributes["group"],
+            initial_offset=self.attributes["initial_offset"],
+        )
+        func = function.add_trigger("kafka", trigger)
+        sasl_user = self.attributes.get("sasl_user")
+        sasl_pass = self.attributes.get("sasl_pass")
+        if sasl_user and sasl_pass:
+            trigger.sasl(sasl_user, sasl_pass)
+        replicas = 1 if not partitions else len(partitions)
+        func.spec.min_replicas = replicas
+        func.spec.max_replicas = replicas
+        return func
 
 
 # map of sources (exclude DF source which is not serializable)

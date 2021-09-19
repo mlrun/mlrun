@@ -18,6 +18,7 @@ from typing import List, Union
 import nuclio
 
 import mlrun
+import mlrun.api.schemas
 
 from ..model import ObjectList
 from ..secrets import SecretsStore
@@ -427,7 +428,12 @@ class ServingRuntime(RemoteRuntime):
             self._add_project_k8s_secrets_to_spec(None, project=self.metadata.project)
 
     def deploy(
-        self, dashboard="", project="", tag="", verbose=False,
+        self,
+        dashboard="",
+        project="",
+        tag="",
+        verbose=False,
+        auth_info: mlrun.api.schemas.AuthInfo = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -435,6 +441,8 @@ class ServingRuntime(RemoteRuntime):
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
+        :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
+                          dashboard
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -460,7 +468,7 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
-        return super().deploy(dashboard, project, tag, verbose=verbose,)
+        return super().deploy(dashboard, project, tag, verbose, auth_info)
 
     def _get_runtime_env(self):
         env = super()._get_runtime_env()

@@ -144,19 +144,6 @@ jobs:
         helm repo update
         minikube kubectl -- create namespace ${NAMESPACE}
 
-    - name: Override MLRun Registry ConfigMap
-      run: |
-        cat <<EOF | minikube kubectl -- apply -f -
-        apiVersion: v1
-        kind: ConfigMap
-        metadata:
-          name: mlrun-override-env
-          namespace: ${NAMESPACE}
-        data:
-          MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER: mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}
-          MLRUN_IMAGES_REGISTRY: ${{ steps.computed_params.outputs.mlrun_docker_registry }}
-        EOF
-
     - name: Install MLRun Kit helm chart
       run: |
         helm --namespace ${NAMESPACE} \
@@ -169,6 +156,10 @@ jobs:
             --set mlrun.api.image.tag=${{ steps.computed_params.outputs.mlrun_version }} \
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
+            --set api.extraEnv[0].name=MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER \
+            --set api.extraEnv[0].value="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}" \
+            --set api.extraEnv[1].name=MLRUN_IMAGES_REGISTRY \
+            --set api.extraEnv[1].value="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
             v3io-stable/mlrun-kit
 
     - name: Output some logs in case of failure

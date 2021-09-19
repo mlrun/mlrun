@@ -82,7 +82,7 @@ extras_require = {
     "s3": [
         "boto3~=1.9, <1.17.50",
         "botocore>=1.20.49,<1.20.50",
-        "aiobotocore<=1.3.1",
+        "aiobotocore~=1.4.0",
         "s3fs>=0.5.0, <=2021.8.1",
     ],
     # <12.7.0 from adlfs 0.6.3

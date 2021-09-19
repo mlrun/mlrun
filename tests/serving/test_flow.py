@@ -6,10 +6,32 @@ from mlrun.utils import logger
 
 from .demo_states import *  # noqa
 
+try:
+    import storey
+except Exception:
+    pass
+
 engines = [
     "sync",
     "async",
 ]
+
+
+def myfunc1(x, context=None):
+    assert isinstance(context, GraphContext), "didnt get a valid context"
+    return x * 2
+
+
+def myfunc2(x):
+    return x * 2
+
+
+class Mul(storey.MapClass):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def do(self, event):
+        return event * 2
 
 
 def test_basic_flow():
@@ -62,15 +84,6 @@ def test_handler(engine):
         server.wait_for_completion()
     # the json.dumps converts the 6 to "6" (string)
     assert resp == "6", f"got unexpected result {resp}"
-
-
-def myfunc1(x, context=None):
-    assert isinstance(context, GraphContext), "didnt get a valid context"
-    return x * 2
-
-
-def myfunc2(x):
-    return x * 2
 
 
 def test_handler_with_context():
@@ -146,3 +159,26 @@ def test_content_type():
     server = fn.to_mock_server()
     resp = server.test(body="[1,2]")
     assert resp == "list", "did not load json"
+
+
+path_control_tests = {"handler": (myfunc2, None), "class": (None, "Mul")}
+
+
+@pytest.mark.parametrize("test_type", path_control_tests.keys())
+@pytest.mark.parametrize("engine", engines)
+def test_path_control(engine, test_type):
+    function = mlrun.new_function("test", kind="serving")
+    flow = function.set_topology("flow", engine=engine)
+
+    handler, class_name = path_control_tests[test_type]
+
+    # function input will be event["x"] and result will be written to event["y"]["z"]
+    flow.to(
+        class_name, handler=handler, name="x2", input_path="x", result_path="y.z"
+    ).respond()
+
+    server = function.to_mock_server()
+    resp = server.test(body={"x": 5})
+    server.wait_for_completion()
+    # expect y.z = x * 2 = 10
+    assert resp == {"x": 5, "y": {"z": 10}}, "wrong resp"

@@ -22,10 +22,20 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             artifact_path=config.artifact_path,
             spark_app_image=config.spark_app_image,
             spark_app_image_tag=config.spark_app_image_tag,
+            spark_history_server_path=config.spark_history_server_path,
             kfp_image=config.kfp_image,
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=self._resolve_nuclio_version(),
+            # These don't have a default value, but we don't send them if they are not set to allow the client to know
+            # when to use server value and when to use client value (server only if set). Since their default value is
+            # empty and not set is also empty we can use the same _get_config_value_if_not_default
+            default_function_priority_class_name=self._get_config_value_if_not_default(
+                "default_function_priority_class_name"
+            ),
+            valid_function_priority_class_names=self._get_config_value_if_not_default(
+                "valid_function_priority_class_names"
+            ),
             # These have a default value, therefore we want to send them only if their value is not the default one
             # (otherwise clients don't know when to use server value and when to use client value)
             ui_projects_prefix=self._get_config_value_if_not_default(
@@ -42,6 +52,9 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             ),
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
+            ),
+            spark_operator_version=self._get_config_value_if_not_default(
+                "spark_operator_version"
             ),
         )
 

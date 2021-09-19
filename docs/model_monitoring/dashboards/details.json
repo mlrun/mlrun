@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 10,
-  "iteration": 1616587035346,
+  "id": 8,
+  "iteration": 1627466479152,
   "links": [
     {
       "icon": "external link",
@@ -207,7 +207,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=projects;\ntable=$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODEL\";\nfields=endpoint_id,model,function_uri,model_class,predictions_per_second,latency_avg_1h,first_request,last_request;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODEL\";\nfields=endpoint_id,model,function_uri,model_class,predictions_per_second,latency_avg_1h,first_request,last_request;",
           "type": "table"
         }
       ],
@@ -661,7 +661,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=projects;\ntable=$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODEL'  AND record_type=='endpoint_features';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODEL'  AND record_type=='endpoint_features';",
           "type": "timeserie"
         }
       ],
@@ -717,11 +717,7 @@
     "list": [
       {
         "allValue": null,
-        "current": {
-          "selected": false,
-          "text": "iris-demo-michaell",
-          "value": "iris-demo-michaell"
-        },
+        "current": {},
         "datasource": "mlrun-api",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
@@ -729,68 +725,7 @@
         "label": "Project",
         "multi": false,
         "name": "PROJECT",
-        "options": [
-          {
-            "selected": false,
-            "text": "default",
-            "value": "default"
-          },
-          {
-            "selected": false,
-            "text": "sheba-flow",
-            "value": "sheba-flow"
-          },
-          {
-            "selected": false,
-            "text": "sk-project-orz",
-            "value": "sk-project-orz"
-          },
-          {
-            "selected": false,
-            "text": "test",
-            "value": "test"
-          },
-          {
-            "selected": false,
-            "text": "network-operations",
-            "value": "network-operations"
-          },
-          {
-            "selected": false,
-            "text": "nlp-servers",
-            "value": "nlp-servers"
-          },
-          {
-            "selected": false,
-            "text": "iris",
-            "value": "iris"
-          },
-          {
-            "selected": false,
-            "text": "getting-started-tutorial-alonm",
-            "value": "getting-started-tutorial-alonm"
-          },
-          {
-            "selected": false,
-            "text": "projects",
-            "value": "projects"
-          },
-          {
-            "selected": false,
-            "text": "getting-started-tutorial-orz",
-            "value": "getting-started-tutorial-orz"
-          },
-          {
-            "selected": false,
-            "text": "fsdemo",
-            "value": "fsdemo"
-          },
-          {
-            "selected": true,
-            "text": "iris-demo-michaell",
-            "value": "iris-demo-michaell"
-          }
-        ],
+        "options": [],
         "query": "target_endpoint=list_projects",
         "refresh": 0,
         "regex": "",
@@ -804,20 +739,16 @@
       },
       {
         "allValue": null,
-        "current": {
-          "selected": false,
-          "text": "4e7c1e38d3fa4b6a88110cdddca8d1e2b69f487f",
-          "value": "4e7c1e38d3fa4b6a88110cdddca8d1e2b69f487f"
-        },
+        "current": {},
         "datasource": "iguazio",
-        "definition": "backend=kv;container=projects;table=$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
+        "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
         "hide": 0,
         "includeAll": false,
         "label": "Model",
         "multi": false,
         "name": "MODEL",
         "options": [],
-        "query": "backend=kv;container=projects;table=$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
+        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -838,5 +769,5 @@
   "timezone": "",
   "title": "Details",
   "uid": "AohIXhAMk",
-  "version": 4
+  "version": 3
 }

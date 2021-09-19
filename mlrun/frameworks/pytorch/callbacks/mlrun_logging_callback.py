@@ -31,10 +31,11 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
+        custom_objects_directory: str,
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
-        custom_objects: Dict[Union[str, List[str]], str] = None,
         dynamic_hyperparameters: Dict[
             str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
         ] = None,
@@ -46,44 +47,56 @@ class MLRunLoggingCallback(LoggingCallback):
         """
         Initialize an mlrun logging callback with the given hyperparameters and logging configurations.
 
-        :param context:                 MLRun context to log to. Its parameters will be logged automatically  if
-                                        'auto_log' is True.
-        :param log_model_labels:        Labels to log with the model.
-        :param log_model_parameters:    Parameters to log with the model.
-        :param log_model_extra_data:    Extra data to log with the model.
-        :param custom_objects:          Custom objects the model is using. Expecting a dictionary with the classes names
-                                        to import as keys (if multiple classes needed to be imported from the same py
-                                        file a list can be given) and the python file from where to import them as their
-                                        values. The model class itself must be specified in order to properly save it
-                                        for later being loaded with a handler. For example:
-                                        {
-                                            "class_name": "/path/to/model.py",
-                                            ["layer1", "layer2"]: "/path/to/custom_layers.py"
-                                        }
-        :param dynamic_hyperparameters: If needed to track a hyperparameter dynamically (sample it each epoch) it should
-                                        be passed here. The parameter expects a dictionary where the keys are the
-                                        hyperparameter chosen names and the values are tuples of object key and a list
-                                        with the key chain. A key chain is a list of keys and indices to know how to
-                                        access the needed hyperparameter. If the hyperparameter is not of accessible
-                                        from any of the HyperparametersKeys, a custom callable method can be passed in
-                                        the tuple instead of the key chain when providing the word
-                                        HyperparametersKeys.CUSTOM. For example, to track the 'lr' attribute of
-                                        an optimizer and a custom parameter, one should pass:
-                                        {
-                                            "learning rate": (HyperparametersKeys.OPTIMIZER, ["param_groups", 0, "lr"]),
-                                            "custom parameter": (HyperparametersKeys.CUSTOM, get_custom_parameter)
-                                        }
-        :param static_hyperparameters:  If needed to track a hyperparameter one time per run it should be passed here.
-                                        The parameter expects a dictionary where the keys are the
-                                        hyperparameter chosen names and the values are the hyperparameter static value
-                                        or a tuple of object key and a list with the key chain just like the dynamic
-                                        hyperparameter. For example, to track the 'epochs' of an experiment run, one
-                                        should pass:
-                                        {
-                                            "epochs": 7
-                                        }
-        :param auto_log:                Whether or not to enable auto logging for logging the context parameters and
-                                        trying to track common static and dynamic hyperparameters.
+        :param context:                  MLRun context to log to. Its parameters will be logged automatically  if
+                                         'auto_log' is True.
+        :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
+                                         is a path to a python file and its value is the custom object name to import
+                                         from it. If multiple objects needed to be imported from the same py file a list
+                                         can be given. The map can be passed as a path to a json file as well. For
+                                         example:
+                                         {
+                                             "/.../custom_optimizer.py": "optimizer",
+                                             "/.../custom_layers.py": ["layer1", "layer2"]
+                                         }
+                                         All the paths will be accessed from the given 'custom_objects_directory',
+                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
+                                         If the model path given is of a store object, the custom objects map will be
+                                         read from the logged custom object map artifact of the model.
+                                         Notice: The custom objects will be imported in the order they came in this
+                                         dictionary (or json). If a custom object is depended on another, make sure to
+                                         put it below the one it relies on.
+        :param custom_objects_directory: Path to the directory with all the python files required for the custom
+                                         objects. Can be passed as a zip file as well (will be extracted during the run
+                                         before loading the model). If the model path given is of a store object, the
+                                         custom objects files will be read from the logged custom object artifact of the
+                                         model.
+        :param log_model_labels:         Labels to log with the model.
+        :param log_model_parameters:     Parameters to log with the model.
+        :param log_model_extra_data:     Extra data to log with the model.
+        :param dynamic_hyperparameters:  If needed to track a hyperparameter dynamically (sample it each epoch) it
+                                         should be passed here. The parameter expects a dictionary where the keys are
+                                         the hyperparameter chosen names and the values are tuples of object key and a
+                                         list with the key chain. A key chain is a list of keys and indices to know how
+                                         to access the needed hyperparameter. If the hyperparameter is not of accessible
+                                         from any of the HyperparametersKeys, a custom callable method can be passed in
+                                         the tuple instead of the key chain when providing the word
+                                         HyperparametersKeys.CUSTOM. For example, to track the 'lr' attribute of
+                                         an optimizer and a custom parameter, one should pass:
+                                         {
+                                             "lr": (HyperparametersKeys.OPTIMIZER, ["param_groups", 0, "lr"]),
+                                             "custom parameter": (HyperparametersKeys.CUSTOM, get_custom_parameter)
+                                         }
+        :param static_hyperparameters:   If needed to track a hyperparameter one time per run it should be passed here.
+                                         The parameter expects a dictionary where the keys are the
+                                         hyperparameter chosen names and the values are the hyperparameter static value
+                                         or a tuple of object key and a list with the key chain just like the dynamic
+                                         hyperparameter. For example, to track the 'epochs' of an experiment run, one
+                                         should pass:
+                                         {
+                                             "epochs": 7
+                                         }
+        :param auto_log:                 Whether or not to enable auto logging for logging the context parameters and
+                                         trying to track common static and dynamic hyperparameters.
         """
         super(MLRunLoggingCallback, self).__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
@@ -100,8 +113,9 @@ class MLRunLoggingCallback(LoggingCallback):
             log_model_extra_data=log_model_extra_data,
         )
 
-        # Store the custom objects:
-        self._custom_objects = custom_objects
+        # Store the additional PyTorchModelHandler parameters for logging the model later:
+        self._custom_objects_map = custom_objects_map
+        self._custom_objects_directory = custom_objects_directory
 
     def on_run_end(self):
         """
@@ -110,8 +124,9 @@ class MLRunLoggingCallback(LoggingCallback):
         model = self._objects[self._ObjectKeys.MODEL]
         self._logger.log_run(
             model_handler=PyTorchModelHandler(
-                model_class=type(model),
-                custom_objects=self._custom_objects,
+                model_name=type(model).__name__,
+                custom_objects_map=self._custom_objects_map,
+                custom_objects_directory=self._custom_objects_directory,
                 model=model,
             )
         )

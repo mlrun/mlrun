@@ -129,6 +129,10 @@ def _generate_function_and_task_from_submit_run_body(
     # be able to communicate with the api
     ensure_function_has_auth_set(function, auth_info)
 
+    # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
+    # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
+    try_perform_auto_mount(function, auth_info)
+
     return function, task
 
 
@@ -140,7 +144,10 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
 
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
-    if function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes():
+    if (
+        function.kind
+        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+    ):
         if auth_info and auth_info.session:
             auth_env_vars = {
                 "MLRUN_AUTH_SESSION": auth_info.session,
@@ -148,6 +155,22 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
             for key, value in auth_env_vars.items():
                 if not function.is_env_exists(key):
                     function.set_env(key, value)
+
+
+def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
+    if (
+        function.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        or function.spec.disable_auto_mount
+    ):
+        return
+    # Retrieve v3io auth params from the caller auth info
+    override_params = {}
+    if auth_info.data_session:
+        override_params["access_key"] = auth_info.data_session
+    if auth_info.username:
+        override_params["user"] = auth_info.username
+
+    function.try_auto_mount_based_on_config(override_params)
 
 
 def _submit_run(
@@ -166,6 +189,14 @@ def _submit_run(
         fn, task = _generate_function_and_task_from_submit_run_body(
             db_session, auth_info, data
         )
+        if (
+            not fn.kind
+            or fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+            and not mlrun.mlconf.httpdb.jobs.allow_local_run
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Local runtimes can not be run through API (not locally)"
+            )
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)

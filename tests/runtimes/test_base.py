@@ -4,8 +4,10 @@ import os
 
 import pytest
 
+import mlrun.errors
 from mlrun.config import config as mlconf
 from mlrun.runtimes import KubejobRuntime
+from mlrun.runtimes.pod import AutoMountType
 
 
 class TestAutoMount:
@@ -23,9 +25,10 @@ class TestAutoMount:
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
-    def _generate_runtime(self):
+    def _generate_runtime(self, disable_auto_mount=False):
         runtime = KubejobRuntime()
         runtime.spec.image = self.image_name
+        runtime.spec.disable_auto_mount = disable_auto_mount
         return runtime
 
     def _execute_run(self, runtime):
@@ -38,7 +41,9 @@ class TestAutoMount:
 
     @pytest.mark.parametrize("cred_only", [True, False])
     def test_auto_mount_v3io(self, cred_only, rundb_mock):
-        mlconf.storage.auto_mount_type = "v3io_cred" if cred_only else "v3io_fuse"
+        mlconf.storage.auto_mount_type = (
+            "v3io_credentials" if cred_only else "v3io_fuse"
+        )
 
         runtime = self._generate_runtime()
         self._execute_run(runtime)
@@ -47,12 +52,31 @@ class TestAutoMount:
             self.v3io_user, self.v3io_access_key, cred_only=cred_only
         )
 
+        # Check that disable-auto-mount works. Need a fresh runtime, to reset its mount-applied indication.
+        rundb_mock.reset()
+        runtime = self._generate_runtime(disable_auto_mount=True)
+        self._execute_run(runtime)
+        rundb_mock.assert_no_mount_or_creds_configured()
+
+    def test_auto_mount_invalid_value(self):
+        # When invalid value is used, we explode
+        mlconf.storage.auto_mount_type = "something_wrong"
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
+
+        # When it's missing, we just use auto
+        mlconf.storage.auto_mount_type = None
+        auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
+        assert auto_mount_type == AutoMountType.auto
+
     def test_run_with_automount_pvc(self, rundb_mock):
         mlconf.storage.auto_mount_type = "pvc"
+        # Verify that extra parameters get filtered out
         pvc_params = {
             "pvc_name": "test_pvc",
             "volume_name": "test_volume",
             "volume_mount_path": "/mnt/test/path",
+            "invalid_param": "blublu",
         }
 
         # Try with a simple string
@@ -76,6 +100,12 @@ class TestAutoMount:
         self._execute_run(runtime)
 
         rundb_mock.assert_pvc_mount_configured(pvc_params)
+
+        # Try with disable-auto-mount
+        rundb_mock.reset()
+        runtime = self._generate_runtime(disable_auto_mount=True)
+        self._execute_run(runtime)
+        rundb_mock.assert_no_mount_or_creds_configured()
 
         # Try something that does not translate to a dictionary
         bad_params_str = base64.b64encode(

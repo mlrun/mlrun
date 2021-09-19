@@ -64,6 +64,8 @@ default_config = {
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
+    "spark_history_server_path": "",  # spark logs directory for spark history server
+    "spark_operator_version": "spark-2",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
@@ -94,6 +96,20 @@ default_config = {
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
+    # default priority class to be applied to functions running on k8s cluster
+    "default_function_priority_class_name": "",
+    # valid options for priority classes - separated by a comma
+    "valid_function_priority_class_names": "",
+    "function_defaults": {
+        "image_by_kind": {
+            "job": "mlrun/mlrun",
+            "serving": "mlrun/mlrun",
+            "nuclio": "mlrun/mlrun",
+            "remote": "mlrun/mlrun",
+            "dask": "mlrun/ml-base",
+            "mpijob": "mlrun/ml-models",
+        }
+    },
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -107,7 +123,16 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
-        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "db": {
+            "commit_retry_timeout": 30,
+            "commit_retry_interval": 3,
+            # Whether to perform data migrations on initialization. enabled or disabled
+            "data_migrations_mode": "enabled",
+        },
+        "jobs": {
+            # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
+            "allow_local_run": False,
+        },
         "authentication": {
             "mode": "none",  # one of none, basic, bearer, iguazio
             "basic": {"username": "", "password": ""},
@@ -139,6 +164,7 @@ default_config = {
                 "address": "",
                 "request_timeout": 10,
                 "permission_query_path": "",
+                "permission_filter_path": "",
                 "log_level": 0,
             },
         },
@@ -167,7 +193,7 @@ default_config = {
             # from leader because of some auth restriction, we will probably go back to it at some point since it's
             # better performance wise, so made it a mode
             # one of: cache, none
-            "follower_projects_store_mode": "none",
+            "follower_projects_store_mode": "cache",
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -190,10 +216,13 @@ default_config = {
         "v3io_framesd": "",
     },
     "model_endpoint_monitoring": {
+        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         "store_prefixes": {
-            "default": "v3io:///projects/{project}/model-endpoints/{kind}"
+            "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
+            "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
+        "batch_processing_function_branch": "master",
     },
     "secret_stores": {
         "vault": {
@@ -214,6 +243,9 @@ default_config = {
             "secret_path": "~/.mlrun/azure_vault",
         },
         "kubernetes": {
+            # When this is True (the default), all project secrets will be automatically added to each job,
+            # unless user asks for a specific list of secrets.
+            "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
@@ -225,7 +257,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": 300,
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -326,6 +358,20 @@ class Config:
             )
 
         return default_function_node_selector
+
+    @staticmethod
+    def get_valid_function_priority_class_names():
+        valid_function_priority_class_names = []
+        if not config.valid_function_priority_class_names:
+            return valid_function_priority_class_names
+
+        # Manually ensure we have only unique values because we want to keep the order and using a set would lose it
+        for priority_class_name in config.valid_function_priority_class_names.split(
+            ","
+        ):
+            if priority_class_name not in valid_function_priority_class_names:
+                valid_function_priority_class_names.append(priority_class_name)
+        return valid_function_priority_class_names
 
     @staticmethod
     def get_storage_auto_mount_params():

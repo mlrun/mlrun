@@ -14,7 +14,6 @@
 
 __all__ = ["TaskStep", "RouterStep", "RootFlowStep"]
 
-import json
 import os
 import pathlib
 import traceback
@@ -22,10 +21,6 @@ import warnings
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
-
-import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -335,7 +330,10 @@ class TaskStep(BaseStep):
 
         if not self._class_object:
             if self.class_name == "$remote":
-                self._class_object = RemoteHttpHandler
+
+                from mlrun.serving.remote import RemoteStep
+
+                self._class_object = RemoteStep
             else:
                 self._class_object = get_class(
                     self.class_name or self._default_class, namespace
@@ -373,11 +371,11 @@ class TaskStep(BaseStep):
                         f"handler ({handler}) specified but doesnt exist in class {self.class_name}"
                     )
             else:
-                if hasattr(self._object, "do"):
-                    handler = "do"
-                elif hasattr(self._object, "do_event"):
+                if hasattr(self._object, "do_event"):
                     handler = "do_event"
                     self.full_event = True
+                elif hasattr(self._object, "do"):
+                    handler = "do"
             if handler:
                 self._handler = getattr(self._object, handler, None)
 
@@ -1009,7 +1007,9 @@ class FlowStep(BaseStep):
             # add error handler hooks
             if (step.on_error or self.on_error) and step.async_object:
                 error_step = self._steps[step.on_error or self.on_error]
-                step.async_object.set_recovery_step(error_step.async_object)
+                # never set a step as its own error handler
+                if step != error_step:
+                    step.async_object.set_recovery_step(error_step.async_object)
 
         self._controller = source.run()
 
@@ -1020,12 +1020,16 @@ class FlowStep(BaseStep):
             if step.kind == StepKinds.queue:
                 for item in step.next or []:
                     next_step = self[item]
-                    if next_step.function:
-                        if next_step.function in links:
-                            raise GraphError(
-                                f"function ({next_step.function}) cannot read from multiple queues"
-                            )
-                        links[next_step.function] = step
+                    if not next_step.function:
+                        raise GraphError(
+                            f"child function name must be specified in steps ({next_step.name}) which follow a queue"
+                        )
+
+                    if next_step.function in links:
+                        raise GraphError(
+                            f"function ({next_step.function}) cannot read from multiple queues"
+                        )
+                    links[next_step.function] = step
         return links
 
     def init_queues(self):
@@ -1123,50 +1127,6 @@ class RootFlowStep(FlowStep):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"final_state": "final_step"}
         )
-
-
-http_adapter = HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-)
-
-
-class RemoteHttpHandler:
-    """class for calling remote endpoints"""
-
-    def __init__(self, url):
-        self.url = url
-        self.format = "json"
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
-        self._session.mount("https://", http_adapter)
-
-    def do_event(self, event):
-        kwargs = {}
-        kwargs["headers"] = event.headers or {}
-        method = event.method or "POST"
-        if method != "GET":
-            if isinstance(event.body, (str, bytes)):
-                kwargs["data"] = event.body
-            else:
-                kwargs["json"] = event.body
-
-        url = self.url.strip("/") + event.path
-        try:
-            resp = self._session.request(method, url, verify=False, **kwargs)
-        except OSError as err:
-            raise OSError(f"error: cannot run function at url {url}, {err}")
-        if not resp.ok:
-            raise RuntimeError(f"bad function response {resp.text}")
-
-        data = resp.content
-        if (
-            self.format == "json"
-            or resp.headers["content-type"] == "application/json"
-            and isinstance(data, (str, bytes))
-        ):
-            data = json.loads(data)
-        event.body = data
-        return event
 
 
 classes_map = {

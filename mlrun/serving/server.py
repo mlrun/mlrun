@@ -215,15 +215,24 @@ class GraphServer(ModelObj):
     def run(self, event, context=None, get_body=False, extra_args=None):
         server_context = self.context
         context = context or server_context
+        event.content_type = event.content_type or self.default_content_type or ""
+        if isinstance(event.body, (str, bytes)) and (
+            not event.content_type or event.content_type in ["json", "application/json"]
+        ):
+            # assume it is json and try to load
+            try:
+                body = json.loads(event.body)
+                event.body = body
+            except json.decoder.JSONDecodeError as exc:
+                if event.content_type in ["json", "application/json"]:
+                    # if its json type and didnt load, raise exception
+                    message = f"failed to json decode event, {exc}"
+                    context.logger.error(message)
+                    server_context.push_error(event, message, source="_handler")
+                    return context.Response(
+                        body=message, content_type="text/plain", status_code=400
+                    )
         try:
-            if not event.content_type and self.default_content_type:
-                event.content_type = self.default_content_type
-            if (
-                isinstance(event.body, (str, bytes))
-                and event.content_type
-                and event.content_type in ["json", "application/json"]
-            ):
-                event.body = json.loads(event.body)
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
             message = str(exc)
@@ -401,6 +410,43 @@ class GraphContext:
         if self._server and self._server._secrets:
             return self._server._secrets.get(key)
         return None
+
+    def get_remote_endpoint(self, name, external=False):
+        """return the remote nuclio/serving function http(s) endpoint given its name
+
+        :param name: the function name/uri in the form [project/]function-name[:tag]
+        :param external: return the external url (returns the in-cluster url by default)
+        """
+        if "://" in name:
+            return name
+        project, uri, tag, _ = mlrun.utils.parse_versioned_object_uri(
+            self._server.function_uri
+        )
+        if name.startswith("."):
+            name = f"{uri}-{name[1:]}"
+        else:
+            project, name, tag, _ = mlrun.utils.parse_versioned_object_uri(
+                name, project
+            )
+        (
+            state,
+            fullname,
+            _,
+            _,
+            _,
+            function_status,
+        ) = mlrun.runtimes.function.get_nuclio_deploy_status(name, project, tag)
+
+        if state in ["error", "unhealthy"]:
+            raise ValueError(
+                f"Nuclio function {fullname} is in error state, cannot be accessed"
+            )
+
+        key = "externalInvocationUrls" if external else "internalInvocationUrls"
+        urls = function_status.get(key)
+        if not urls:
+            raise ValueError(f"cannot read {key} for nuclio function {fullname}")
+        return f"http://{urls[0]}"
 
 
 def format_error(server, context, source, event, message, args):

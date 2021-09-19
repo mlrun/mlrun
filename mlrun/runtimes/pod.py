@@ -11,19 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import os
 import typing
 import uuid
-from copy import deepcopy
 from enum import Enum
 
-from kfp.dsl import ContainerOp
+from kfp.dsl import ContainerOp, _container_op
 from kubernetes import client
 
 import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
+from ..secrets import SecretsStore
 from ..utils import logger, normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec
 from .utils import (
@@ -59,7 +60,8 @@ class KubeResourceSpec(FunctionSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
-        mount_applied=False,
+        disable_auto_mount=False,
+        priority_class_name=None,
     ):
         super().__init__(
             command=command,
@@ -72,7 +74,7 @@ class KubeResourceSpec(FunctionSpec):
             workdir=workdir,
             default_handler=default_handler,
             pythonpath=pythonpath,
-            mount_applied=mount_applied,
+            disable_auto_mount=disable_auto_mount,
         )
         self._volumes = {}
         self._volume_mounts = {}
@@ -89,6 +91,9 @@ class KubeResourceSpec(FunctionSpec):
             node_selector or mlrun.mlconf.get_default_function_node_selector()
         )
         self._affinity = affinity
+        self.priority_class_name = (
+            priority_class_name or mlrun.mlconf.default_function_priority_class_name
+        )
 
     @property
     def volumes(self) -> list:
@@ -187,6 +192,10 @@ class AutoMountType(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
+        if value:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid value for auto_mount_type - '{value}'"
+            )
         return AutoMountType.default()
 
     @staticmethod
@@ -203,6 +212,16 @@ class AutoMountType(str, Enum):
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
         ]
+
+    @classmethod
+    def is_auto_modifier(cls, modifier):
+        # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is
+        # a nested function returned from the modifier function (such as 'v3io_cred.<locals>._use_v3io_cred')
+        modifier_name = modifier.__qualname__
+        return any(
+            modifier_name.startswith(mount_modifier)
+            for mount_modifier in AutoMountType.all_mount_modifiers()
+        )
 
     @staticmethod
     def _get_auto_modifier():
@@ -233,7 +252,6 @@ class KubeResource(BaseRuntime):
 
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
-        self._cop = ContainerOp("name", "image")
         self.verbose = False
 
     @property
@@ -257,10 +275,20 @@ class KubeResource(BaseRuntime):
                 for ev in spec["env"]:
                     if ev["name"].startswith("V3IO_"):
                         ev["value"] = ""
+            # Reset this, since mounts and env variables were cleared.
+            spec["disable_auto_mount"] = False
         return struct
 
     def apply(self, modify):
-        return apply_kfp(modify, self._cop, self)
+
+        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
+        # we remove the hook to suppress kubeflow op registration and return it after the apply()
+        old_op_handler = _container_op._register_op_handler
+        _container_op._register_op_handler = lambda x: self.metadata.name
+        cop = ContainerOp("name", "image")
+        _container_op._register_op_handler = old_op_handler
+
+        return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""
@@ -331,6 +359,32 @@ class KubeResource(BaseRuntime):
         if affinity:
             self.spec.affinity = affinity
 
+    def with_priority_class(self, name: typing.Optional[str] = None):
+        """
+        Enables to control the priority of the pod
+        If not passed - will default to mlrun.mlconf.default_function_priority_class_name
+
+        :param name:       The name of the priority class
+        """
+        if name is None:
+            name = mlconf.default_function_priority_class_name
+        valid_priority_class_names = self.list_valid_priority_class_names()
+        if name not in valid_priority_class_names:
+            message = "Priority class name not in available priority class names"
+            logger.warning(
+                message,
+                priority_class_name=name,
+                valid_priority_class_names=valid_priority_class_names,
+            )
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
+        self.spec.priority_class_name = name
+
+    def list_valid_priority_class_names(self):
+        return mlconf.get_valid_function_priority_class_names()
+
+    def get_default_priority_class_name(self):
+        return mlconf.default_function_priority_class_name
+
     def _verify_and_set_limits(
         self,
         resources_field_name,
@@ -398,13 +452,6 @@ class KubeResource(BaseRuntime):
             new_meta.generate_name = norm_name
         return new_meta
 
-    def copy(self):
-        self._cop = None
-        fn = deepcopy(self)
-        self._cop = ContainerOp("name", "image")
-        fn._cop = ContainerOp("name", "image")
-        return fn
-
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
             k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
@@ -428,6 +475,14 @@ class KubeResource(BaseRuntime):
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
 
     def _add_project_k8s_secrets_to_spec(self, secrets, runobj=None, project=None):
+        # the secrets param may be an empty dictionary (asking for all secrets of that project) -
+        # it's a different case than None (not asking for project secrets at all).
+        if (
+            secrets is None
+            and not mlconf.secret_stores.kubernetes.auto_add_project_secrets
+        ):
+            return
+
         project_name = project or runobj.metadata.project
         if project_name is None:
             logger.warning("No project provided. Cannot add k8s secrets")
@@ -438,10 +493,10 @@ class KubeResource(BaseRuntime):
             self._get_k8s().get_project_secret_keys(project_name) or {}
         )
 
-        # If no secrets were passed, we need all existing keys
+        # If no secrets were passed or auto-adding all secrets, we need all existing keys
         if not secrets:
             secrets = {
-                key: self._secrets.k8s_env_variable_name_for_secret(key)
+                key: SecretsStore.k8s_env_variable_name_for_secret(key)
                 for key in existing_secret_keys
             }
 
@@ -494,18 +549,27 @@ class KubeResource(BaseRuntime):
             {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
         )
 
-    def try_auto_mount_based_on_config(self):
-        if self.spec.mount_applied:
-            logger.debug("Mount already applied - not performing auto-mount")
+    def try_auto_mount_based_on_config(self, override_params=None):
+        if self.spec.disable_auto_mount:
+            logger.debug(
+                "Mount already applied or auto-mount manually disabled - not performing auto-mount"
+            )
             return
 
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         modifier = auto_mount_type.get_modifier()
         if not modifier:
-            logger.debug("Auto mount disabled due to user selection")
+            logger.debug(
+                "Auto mount disabled due to user selection (auto_mount_type=none)"
+            )
             return
 
         mount_params_dict = mlconf.get_storage_auto_mount_params()
+        override_params = override_params or {}
+        for key, value in override_params.items():
+            mount_params_dict[key] = value
+
+        mount_params_dict = _filter_modifier_params(modifier, mount_params_dict)
 
         self.apply(modifier(**mount_params_dict))
 
@@ -521,4 +585,29 @@ def kube_resource_spec_to_pod_spec(
         node_name=kube_resource_spec.node_name,
         node_selector=kube_resource_spec.node_selector,
         affinity=kube_resource_spec.affinity,
+        priority_class_name=kube_resource_spec.priority_class_name
+        if len(mlconf.get_valid_function_priority_class_names())
+        else None,
     )
+
+
+def _filter_modifier_params(modifier, params):
+    # Make sure we only pass parameters that are accepted by the modifier.
+    modifier_params = inspect.signature(modifier).parameters
+
+    # If kwargs are supported by the modifier, we don't filter.
+    if any(param.kind == param.VAR_KEYWORD for param in modifier_params.values()):
+        return params
+
+    param_names = modifier_params.keys()
+    filtered_params = {}
+    for key, value in params.items():
+        if key in param_names:
+            filtered_params[key] = value
+        else:
+            logger.warning(
+                "Auto mount parameter not supported by modifier, filtered out",
+                modifier=modifier.__name__,
+                param=key,
+            )
+    return filtered_params

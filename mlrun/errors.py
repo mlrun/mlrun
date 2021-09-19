@@ -67,6 +67,17 @@ def raise_for_status(response: requests.Response, message: str = None):
             raise MLRunHTTPError(error_message, response=response) from exc
 
 
+def raise_for_status_code(status_code: int, message: str = None):
+    """
+    Raise a specific MLRunSDK error depending on the given response status code.
+    If no specific error exists, raises an MLRunHTTPError
+    """
+    try:
+        raise STATUS_ERRORS[status_code](message)
+    except KeyError:
+        raise MLRunHTTPError(message)
+
+
 # Specific Errors
 class MLRunUnauthorizedError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.UNAUTHORIZED.value

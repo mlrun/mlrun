@@ -92,7 +92,8 @@ try:
     import IPython
 
     ipy = IPython.get_ipython()
-    if ipy:
+    # if its IPython terminal ignore (cant show html)
+    if ipy and "Terminal" not in str(type(ipy)):
         is_ipython = True
 except ImportError:
     pass
@@ -587,6 +588,12 @@ def enrich_image_url(image_url: str) -> str:
     return image_url
 
 
+def get_docker_repository_or_default(repository: str) -> str:
+    if not repository:
+        repository = "mlrun"
+    return repository
+
+
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry
@@ -616,6 +623,15 @@ def pr_comment(
     server=None,
     gitlab=False,
 ):
+    """push comment message to Git system PR/issue
+
+    :param message:  test message
+    :param repo:     repo name (org/repo)
+    :param issue:    pull-request/issue number
+    :param token:    git system security token
+    :param server:   url of the git system
+    :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
+    """
     if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
         gitlab = True
     token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
@@ -624,17 +640,24 @@ def pr_comment(
         server = server or "gitlab.com"
         headers = {"PRIVATE-TOKEN": token}
         repo = repo or environ.get("CI_PROJECT_ID")
+        # auto detect GitLab pr id from the environment
         issue = issue or environ.get("CI_MERGE_REQUEST_IID")
         repo = repo.replace("/", "%2F")
         url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
     else:
         server = server or "api.github.com"
         repo = repo or environ.get("GITHUB_REPOSITORY")
+        # auto detect pr number if not specified, in github the pr id is identified as an issue id
+        # we try and read the pr (issue) id from the github actions event file/object
         if not issue and "GITHUB_EVENT_PATH" in environ:
             with open(environ["GITHUB_EVENT_PATH"]) as fp:
                 data = fp.read()
                 event = json.loads(data)
-                issue = event["pull_request"].get("number")
+                if "issue" not in event:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"issue not found in github actions event\ndata={data}"
+                    )
+                issue = event["issue"].get("number")
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {token}",
@@ -748,10 +771,12 @@ class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
         self._html = ""
+        self._with_print = False
         self._secrets = secrets or {}
         self.with_ipython = with_ipython
         if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
+        self.print(skip_ipython=True)
 
     def push_start_message(self, project, commit_id=None, id=None):
         message = f"Pipeline started in project {project}"
@@ -772,17 +797,28 @@ class RunNotifications:
             message = message + f", check progress in {url}"
         self.push(message, html=html)
 
-    def push_run_results(self, runs):
+    def push_run_results(self, runs, push_all=False, state=None):
+        """push a structured table with run results to notification targets
+
+        :param runs:  list if run objects (RunObject)
+        :param push_all: push all notifications (including already notified runs)
+        :param state: final run state
+        """
         had_errors = 0
         runs_list = []
         for r in runs:
-            if r.status.state == "error":
-                had_errors += 1
-            runs_list.append(r.to_dict())
+            notified = getattr(r, "_notified", False)
+            if not notified or push_all:
+                if r.status.state == "error":
+                    had_errors += 1
+                runs_list.append(r.to_dict())
+                r._notified = True
 
         text = "pipeline run finished"
         if had_errors:
             text += f" with {had_errors} errors"
+        if state:
+            text += f", state={state}"
         self.push(text, runs_list)
 
     def push(self, message, runs=None, html=None):
@@ -813,7 +849,7 @@ class RunNotifications:
         self._html = html
         return html
 
-    def print(self):
+    def print(self, skip_ipython=None):
         def _print(message, runs, html=None):
             if not runs:
                 print(message)
@@ -841,7 +877,11 @@ class RunNotifications:
                 + tabulate(table, headers=["status", "name", "uid", "results"])
             )
 
-        self._hooks.append(_print)
+        if not self._with_print and not (
+            skip_ipython and self.with_ipython and is_ipython
+        ):
+            self._hooks.append(_print)
+            self._with_print = True
         return self
 
     def slack(self, webhook=""):

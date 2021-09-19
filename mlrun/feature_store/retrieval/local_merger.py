@@ -37,15 +37,24 @@ class LocalFeatureMerger:
         start_time=None,
         end_time=None,
     ):
+        if not drop_columns:
+            drop_columns = []
         index_columns = []
         drop_indexes = False if self.vector.spec.with_indexes else True
 
+        def append_drop_column(key):
+            if key and key not in drop_columns:
+                drop_columns.append(key)
+
         def append_index(key):
-            if drop_indexes and key and key not in index_columns:
-                index_columns.append(key)
+            if key:
+                if key not in index_columns:
+                    index_columns.append(key)
+                if drop_indexes:
+                    append_drop_column(key)
 
         if entity_timestamp_column and drop_indexes:
-            index_columns.append(entity_timestamp_column)
+            drop_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
         self.vector.save()
 
@@ -81,17 +90,14 @@ class LocalFeatureMerger:
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
             dfs.append(df)
-            append_index(feature_set.spec.timestamp_key)
+            if not entity_timestamp_column and drop_indexes:
+                append_drop_column(feature_set.spec.timestamp_key)
             for key in feature_set.spec.entities.keys():
                 append_index(key)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
-        if drop_columns or index_columns:
-            for field in drop_columns or []:
-                if field not in index_columns:
-                    index_columns.append(field)
 
-            self._result_df.drop(columns=index_columns, inplace=True, errors="ignore")
+        self._result_df.drop(columns=drop_columns, inplace=True, errors="ignore")
 
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(
@@ -110,6 +116,28 @@ class LocalFeatureMerger:
                 target_status = target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
+
+        # check if need to set indices
+        if drop_indexes:
+            self._result_df.reset_index(drop=True, inplace=True)
+        elif index_columns:
+
+            # in case of using spark engine the index will be of the default type 'RangeIndex' and it will be replaced,
+            # in other cases the index should already be set correctly.
+            if self._result_df.index is None or isinstance(
+                self._result_df.index, pd.core.indexes.range.RangeIndex
+            ):
+                index_columns_missing = []
+                for index in index_columns:
+                    if index not in self._result_df.columns:
+                        index_columns_missing.append(index)
+                if not index_columns_missing:
+                    self._result_df.set_index(index_columns, inplace=True)
+                else:
+                    logger.warn(
+                        f"Can't set index, not all index columns found: {index_columns_missing}. "
+                        f"It is possible that column was already indexed."
+                    )
         return OfflineVectorResponse(self)
 
     def merge(

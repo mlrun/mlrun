@@ -306,7 +306,8 @@ class LoggingCallback(Callback):
         # Setup the hyperparameters dictionaries:
         if self._auto_log:
             self._add_auto_hyperparameters()
-        # # Static hyperparameters:
+
+        # Static hyperparameters:
         for name, value in self._static_hyperparameters_keys.items():
             if isinstance(value, List):
                 # Its a parameter that needed to be extracted via key chain.
@@ -317,7 +318,8 @@ class LoggingCallback(Callback):
             else:
                 # Its a custom hyperparameter.
                 self._logger.log_static_hyperparameter(parameter_name=name, value=value)
-        # # Dynamic hyperparameters:
+
+        # Dynamic hyperparameters:
         for name, key_chain in self._dynamic_hyperparameters_keys.items():
             self._logger.log_dynamic_hyperparameter(
                 parameter_name=name,

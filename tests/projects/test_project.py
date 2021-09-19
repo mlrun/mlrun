@@ -14,14 +14,22 @@ import tests.conftest
 def test_sync_functions():
     project_name = "project-name"
     project = mlrun.new_project(project_name)
-    project.set_function("hub://describe")
+    project.set_function("hub://describe", "describe")
     project_function_object = project.spec._function_objects
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project(None, str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path))
     assert imported_project.spec._function_objects == {}
     imported_project.sync_functions()
     _assert_project_function_objects(imported_project, project_function_object)
+
+    fn = project.func("describe")
+    assert fn.metadata.name == "describe", "func did not return"
+
+    # test that functions can be fetched from the DB (w/o set_function)
+    mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+    fn = project.func("train")
+    assert fn.metadata.name == "train", "train func did not return"
 
 
 def test_create_project_from_file_with_legacy_structure():
@@ -53,7 +61,7 @@ def test_create_project_from_file_with_legacy_structure():
     legacy_project.artifacts = [artifact_dict]
     legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     legacy_project.save(str(legacy_project_file_path))
-    project = mlrun.load_project(None, str(legacy_project_file_path))
+    project = mlrun.load_project("./", str(legacy_project_file_path))
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description
@@ -93,8 +101,16 @@ def test_export_project_dir_doesnt_exist():
         / "another-new-dir"
         / "project.yaml"
     )
-    project = mlrun.projects.project.new_project(project_name, project_file_path)
-    project.export()
+    project = mlrun.projects.project.new_project(project_name)
+    project.export(filepath=project_file_path)
+
+
+def test_new_project_context_doesnt_exist():
+    project_name = "project-name"
+    project_dir_path = (
+        pathlib.Path(tests.conftest.results) / "new-dir" / "another-new-dir"
+    )
+    mlrun.projects.project.new_project(project_name, project_dir_path)
 
 
 def test_create_project_with_invalid_name():

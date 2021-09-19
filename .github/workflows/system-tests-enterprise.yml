@@ -64,7 +64,7 @@ jobs:
       if: ${{ github.event.inputs.test_code_from_action == 'true' }}
       id: git_action_info
       run: |
-        echo "::set-output name=mlrun_hash::$(git rev-parse --short $GITHUB_SHA)"
+        echo "::set-output name=mlrun_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
     - name: Extract git hash from action mlrun version
       if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
       id: git_action_ui_info
@@ -73,7 +73,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.git_info.outputs.branch }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-parse --short HEAD && \
+          git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
     - name: Extract git hashes from upstream and latest version
@@ -83,14 +83,14 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
-          git rev-parse --short HEAD && \
+          git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)"
         echo "::set-output name=ui_hash::$( \
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-parse --short HEAD && \
+          git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
         echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"

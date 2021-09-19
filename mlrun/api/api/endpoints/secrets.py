@@ -21,7 +21,7 @@ def store_project_secrets(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         secrets.provider,
@@ -42,7 +42,7 @@ def delete_project_secrets(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
@@ -63,7 +63,7 @@ def list_secret_keys(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
@@ -83,7 +83,7 @@ def list_secrets(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_resource_permissions(
+    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,

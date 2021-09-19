@@ -114,7 +114,8 @@ class Projects(
         format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return mlrun.api.utils.singletons.db.get_db().list_projects(
-            session, owner, format_, labels, state
+            session, owner, format_, labels, state, names
         )

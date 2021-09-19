@@ -125,11 +125,17 @@ def test_content_type():
     resp = server.test(body={"a": 1})
     assert resp == "dict", "invalid type"
     resp = server.test(body="[1,2]")
-    assert resp == "str", "invalid type"
+    assert resp == "list", "did not load json on no type"
     resp = server.test(body={"a": 1}, content_type="application/json")
-    assert resp == "dict", "invalid type"
+    assert resp == "dict", "invalid type, should keep dict"
     resp = server.test(body="[1,2]", content_type="application/json")
     assert resp == "list", "did not load json"
+    resp = server.test(body="[1,2]", content_type="application/text")
+    assert resp == "str", "did not keep as string"
+    resp = server.test(body="xx [1,2]")
+    assert resp == "str", "did not keep as string"
+    resp = server.test(body="xx [1,2]", content_type="application/json", silent=True)
+    assert resp.status_code == 400, "did not fail on bad json"
 
     # test the use of default content type
     fn = mlrun.new_function("tests", kind="serving")

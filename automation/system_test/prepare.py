@@ -309,6 +309,7 @@ class SystemTestPreparer:
             # Disable the scheduler minimum allowed interval to allow fast tests (default minimum is 10 minutes, which
             # will make our tests really long)
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
+            # Enabling it in system tests until we enable it by default in config
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"

@@ -21,6 +21,7 @@ from mlrun.utils import logger
 class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
     def list_pipelines(
         self,
+        db_session: sqlalchemy.orm.Session,
         project: str,
         namespace: str = mlrun.mlconf.namespace,
         sort_by: str = "",
@@ -32,6 +33,13 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         if project != "*" and (page_token or page_size or sort_by or filter_):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination, sorting, or custom filter"
+            )
+        if format_ == mlrun.api.schemas.PipelinesFormat.summary:
+            # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
+            # manifest status that includes the nodes section we use to generate the DAG.
+            # (There is a workflow manifest under the run's pipeline_spec field, but it doesn't include the status)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Summary format is not supported for list pipelines, use get instead"
             )
         kfp_client = kfp.Client(namespace=namespace)
         if project != "*":
@@ -62,7 +70,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             runs = [run.to_dict() for run in response.runs or []]
             total_size = response.total_size
             next_page_token = response.next_page_token
-        runs = self._format_runs(runs, format_)
+        runs = self._format_runs(db_session, runs, format_)
 
         return total_size, next_page_token, runs
 
@@ -75,26 +83,25 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary,
     ):
         kfp_client = kfp.Client(namespace=namespace)
+        run = None
         try:
-            run = kfp_client.get_run(run_id)
-            if run:
-                run = run.to_dict()
-                if format_ == mlrun.api.schemas.PipelinesFormat.summary:
-                    run = mlrun.kfpops.format_summary_from_kfp_run(
-                        run, project=project, session=db_session
-                    )
-                elif format_ == mlrun.api.schemas.PipelinesFormat.full:
-                    pass
-                else:
-                    raise NotImplementedError(
-                        f"Provided format is not supported. format={format_}"
-                    )
+            api_run_detail = kfp_client.get_run(run_id)
+            if api_run_detail.run:
+                run = api_run_detail.to_dict()["run"]
+                if project and project != "*":
+                    run_project = self.resolve_project_from_pipeline(run)
+                    if run_project != project:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Pipeline run with id {run_id} is not of project {project}"
+                        )
+                run = self._format_run(
+                    db_session, run, format_, api_run_detail.to_dict()
+                )
 
         except Exception as exc:
-            mlrun.api.api.utils.log_and_raise(
-                http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-                reason=f"get kfp error: {exc}",
-            )
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed getting kfp run: {exc}"
+            ) from exc
 
         return run
 
@@ -153,40 +160,52 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
     def _format_runs(
         self,
+        db_session: sqlalchemy.orm.Session,
         runs: typing.List[dict],
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
+        formatted_runs = []
         for run in runs:
-            run["project"] = self.resolve_project_from_pipeline(run)
+            formatted_runs.append(self._format_run(db_session, run, format_))
+        return formatted_runs
+
+    def _format_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run: dict,
+        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+        api_run_detail: typing.Optional[dict] = None,
+    ) -> dict:
+        run["project"] = self.resolve_project_from_pipeline(run)
         if format_ == mlrun.api.schemas.PipelinesFormat.full:
-            return runs
+            return run
         elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
-            formatted_runs = []
-            for run in runs:
-                formatted_runs.append(
-                    {
-                        k: str(v)
-                        for k, v in run.items()
-                        if k
-                        in [
-                            "id",
-                            "name",
-                            "project",
-                            "status",
-                            "error",
-                            "created_at",
-                            "scheduled_at",
-                            "finished_at",
-                            "description",
-                        ]
-                    }
-                )
-            return formatted_runs
+            return {
+                k: str(v)
+                for k, v in run.items()
+                if k
+                in [
+                    "id",
+                    "name",
+                    "project",
+                    "status",
+                    "error",
+                    "created_at",
+                    "scheduled_at",
+                    "finished_at",
+                    "description",
+                ]
+            }
         elif format_ == mlrun.api.schemas.PipelinesFormat.name_only:
-            formatted_runs = []
-            for run in runs:
-                formatted_runs.append(run.get("name"))
-            return formatted_runs
+            return run.get("name")
+        elif format_ == mlrun.api.schemas.PipelinesFormat.summary:
+            if not api_run_detail:
+                raise mlrun.errors.MLRunRuntimeError(
+                    "The full kfp api_run_detail object is needed to generate the summary format"
+                )
+            return mlrun.kfpops.format_summary_from_kfp_run(
+                api_run_detail, run["project"], db_session
+            )
         else:
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"
@@ -244,6 +263,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         return None
 
     def resolve_project_from_pipeline(self, pipeline):
+
         workflow_manifest = json.loads(
             pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
         )

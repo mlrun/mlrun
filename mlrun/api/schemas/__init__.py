@@ -40,10 +40,12 @@ from .feature_store import (
     FeatureSetRecord,
     FeatureSetsOutput,
     FeatureSetSpec,
+    FeatureSetsTagsOutput,
     FeaturesOutput,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,
+    FeatureVectorsTagsOutput,
 )
 from .frontend_spec import FeatureFlags, FrontendSpec, ProjectMembershipFeatureFlag
 from .function import FunctionState
@@ -71,6 +73,7 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringStoreKinds,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination

@@ -143,6 +143,9 @@ with warnings.catch_warnings():
         body = Column(BLOB)
         labels = relationship(Label)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.key}/{self.uid}"
+
     class Function(Base, HasStruct):
         __tablename__ = "functions"
         __table_args__ = (
@@ -161,6 +164,9 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP)
         labels = relationship(Label)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}/{self.uid}"
+
     class Log(Base, BaseModel):
         __tablename__ = "logs"
 
@@ -169,6 +175,9 @@ with warnings.catch_warnings():
         project = Column(String)
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.uid}"
 
     class Run(Base, HasStruct):
         __tablename__ = "runs"
@@ -189,6 +198,9 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.uid}/{self.iteration}"
+
     class Schedule(Base, BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
@@ -208,6 +220,9 @@ with warnings.catch_warnings():
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
 
         @property
         def scheduled_object(self):
@@ -262,6 +277,9 @@ with warnings.catch_warnings():
 
         labels = relationship(Label, cascade="all, delete-orphan")
 
+        def get_identifier_string(self) -> str:
+            return f"{self.name}"
+
         @property
         def full_object(self):
             if self._full_object:
@@ -282,6 +300,9 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
     class Entity(Base, BaseModel):
         __tablename__ = "entities"
         id = Column(Integer, primary_key=True)
@@ -292,6 +313,9 @@ with warnings.catch_warnings():
 
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
 
     class FeatureSet(Base, BaseModel):
         __tablename__ = "feature_sets"
@@ -316,6 +340,9 @@ with warnings.catch_warnings():
 
         features = relationship(Feature, cascade="all, delete-orphan")
         entities = relationship(Entity, cascade="all, delete-orphan")
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}/{self.uid}"
 
         @property
         def full_object(self):
@@ -347,6 +374,9 @@ with warnings.catch_warnings():
 
         labels = relationship(Label, cascade="all, delete-orphan")
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}/{self.uid}"
+
         @property
         def full_object(self):
             if self._full_object:
@@ -367,6 +397,9 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
 
         _full_object = Column("object", JSON)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
 
         @property
         def full_object(self):

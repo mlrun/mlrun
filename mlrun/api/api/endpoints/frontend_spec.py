@@ -5,7 +5,11 @@ import fastapi
 import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.builder
 import mlrun.runtimes
+import mlrun.runtimes.utils
+import mlrun.utils.helpers
+from mlrun.config import config
 
 router = fastapi.APIRouter()
 
@@ -24,10 +28,22 @@ def get_frontend_spec(
             auth_verifier.auth_info.session
         )
     feature_flags = _resolve_feature_flags()
+    registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
+    repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
+    function_deployment_target_image_template = mlrun.runtimes.utils.fill_function_image_name_template(
+        f"{registry}/", repository, "{project}", "{name}", "{tag}",
+    )
     return mlrun.api.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,
         abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
         feature_flags=feature_flags,
+        default_function_priority_class_name=config.default_function_priority_class_name,
+        valid_function_priority_class_names=config.get_valid_function_priority_class_names(),
+        default_function_image_by_kind=mlrun.mlconf.function_defaults.image_by_kind.to_dict(),
+        function_deployment_target_image_template=function_deployment_target_image_template,
+        function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
+        auto_mount_type=config.storage.auto_mount_type,
+        auto_mount_params=config.get_storage_auto_mount_params(),
     )
 
 

@@ -70,6 +70,7 @@ class TestRuntimeBase:
         # We want this mock for every test, ideally we would have simply put it in the setup_method
         # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
         # in order to be able to mock k8s stuff
+        get_k8s().get_project_secret_keys = unittest.mock.Mock(return_value=[])
         get_k8s().v1api = unittest.mock.Mock()
         get_k8s().crdapi = unittest.mock.Mock()
         get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
@@ -469,6 +470,7 @@ class TestRuntimeBase:
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
+        expected_priority_class_name=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
@@ -540,6 +542,9 @@ class TestRuntimeBase:
                 )
                 == {}
             )
+
+        if expected_priority_class_name:
+            assert pod.spec.priority_class_name == expected_priority_class_name
 
         assert pod.spec.containers[0].image == self.image_name
 

@@ -15,6 +15,7 @@ from v3io_frames import frames_pb2 as fpb2
 
 import mlrun
 import mlrun.api.crud
+import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
@@ -329,12 +330,14 @@ def _get_access_key() -> Optional[str]:
 def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().ENDPOINTS
+            project=TEST_PROJECT,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
+            project=TEST_PROJECT,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
@@ -380,7 +383,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
 )
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=mlrun.api.crud.ModelEndpoints().EVENTS
+        project=TEST_PROJECT, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 

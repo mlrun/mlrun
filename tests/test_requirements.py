@@ -37,6 +37,14 @@ def test_extras_requirement_file_aligned():
 
 
 def test_requirement_specifiers_convention():
+    """
+    This test exists to verify we follow our convention for requirement specifiers which is:
+    If the package major is 0, it is considered unstable, and minor changes may include backwards incompatible changes.
+    Therefore we limit to patch changes only, the way to do it is to specify X.Y.Z with the ~= operator.
+    If the package major is 1 or above, it is considered stable, backwards incompatible changes can only occur together
+    with a major bump. Therefore we allow patch and minor changes, the way to do it is to specify X.Y with the ~=
+    operator
+    """
     requirement_specifiers_map = _generate_all_requirement_specifiers_map()
     print(requirement_specifiers_map)
 

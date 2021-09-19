@@ -152,7 +152,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         db = mlrun.get_run_db()
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
+            project=self.project_name,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -342,7 +343,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
+            project=self.project_name,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 

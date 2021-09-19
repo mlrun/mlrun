@@ -60,7 +60,6 @@ from .marketplace import (
 )
 from .model_endpoints import (
     Features,
-    ModelMonitoringStoreKinds,
     FeatureValues,
     GrafanaColumn,
     GrafanaDataPoint,
@@ -74,6 +73,7 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringStoreKinds,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination

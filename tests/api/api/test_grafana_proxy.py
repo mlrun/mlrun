@@ -330,12 +330,14 @@ def _get_access_key() -> Optional[str]:
 def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
+            project=TEST_PROJECT,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
+            project=TEST_PROJECT,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 

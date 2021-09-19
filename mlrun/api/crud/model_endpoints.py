@@ -37,7 +37,6 @@ from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 
 class ModelEndpoints:
-
     def create_or_patch(
         self,
         db_session: Session,
@@ -406,7 +405,8 @@ class ModelEndpoints:
         function = client.kv.update if update else client.kv.put
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=endpoint.metadata.project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
+            project=endpoint.metadata.project,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 

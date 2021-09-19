@@ -79,7 +79,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.0.1"},
-        "botocore": {">=1.20.49,<1.20.50"},
+        "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
         "fsspec": {">=0.9.0, <=2021.8.1"},
         "adlfs": {">=0.7.1, <=2021.8.1"},

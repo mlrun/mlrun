@@ -229,13 +229,23 @@ def get_pipeline(
     pipeline = mlrun.api.crud.Pipelines().get_pipeline(
         db_session, run_id, project, namespace, format_
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
-        project,
-        run_id,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
-    )
+    if project == "*":
+        # In some flows the user may use SDK functions that won't require them to specify the pipeline's project (for
+        # backwards compatibility reasons), so the client will just send * in the project, in that case we use the
+        # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
+        # we don't use the return value from this function since the user may have asked for a different format than
+        # summary which is the one used inside
+        _get_pipeline_without_project(
+            db_session, auth_verifier.auth_info, run_id, namespace
+        )
+    else:
+        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
+        )
     return pipeline
 
 

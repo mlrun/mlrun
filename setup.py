@@ -135,7 +135,6 @@ setup(
         "mlrun.api.utils.projects.remotes",
         "mlrun.api.utils.singletons",
         "mlrun.artifacts",
-        "mlrun.config",
         "mlrun.data_types",
         "mlrun.datastore",
         "mlrun.db",

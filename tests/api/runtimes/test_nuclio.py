@@ -111,10 +111,12 @@ class TestNuclioRuntime(TestRuntimeBase):
         call_args_list = deploy_mock.call_args_list
         for single_call_args in call_args_list:
             args, kwargs = single_call_args
+            parent_function = None
             if expected_params:
                 current_parameters = expected_params.pop(0)
                 expected_function_name = current_parameters["function_name"]
                 source_filename = current_parameters["file_name"]
+                parent_function = current_parameters.get("parent_function")
             else:
                 expected_function_name = f"{self.project}-{self.name}"
                 source_filename = self.code_filename
@@ -125,8 +127,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             deploy_config = args[0]
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
-            expected_labels.update({"mlrun/class": expected_class})
-            assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
+            labels_for_diff = expected_labels.copy()
+            labels_for_diff.update({"mlrun/class": expected_class})
+            if parent_function:
+                labels_for_diff.update({"mlrun/parent-function": parent_function})
+            assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}
 
             build_info = deploy_config["spec"]["build"]
 

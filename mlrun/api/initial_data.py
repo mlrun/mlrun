@@ -38,13 +38,14 @@ def init_data(from_scratch: bool = False) -> None:
 
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
-    # FileDB is not really a thing anymore, so using SQLDB directly
-    db = mlrun.api.db.sqldb.db.SQLDB("")
-    logger.info("Performing data migrations")
-    _fill_project_state(db, db_session)
-    _fix_artifact_tags_duplications(db, db_session)
-    _fix_datasets_large_previews(db, db_session)
-    _add_default_marketplace_source_if_needed(db, db_session)
+    if config.httpdb.db.data_migrations_mode == "enabled":
+        # FileDB is not really a thing anymore, so using SQLDB directly
+        db = mlrun.api.db.sqldb.db.SQLDB("")
+        logger.info("Performing data migrations")
+        _fill_project_state(db, db_session)
+        _fix_artifact_tags_duplications(db, db_session)
+        _fix_datasets_large_previews(db, db_session)
+        _add_default_marketplace_source_if_needed(db, db_session)
 
 
 def _fix_datasets_large_previews(

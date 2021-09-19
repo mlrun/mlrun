@@ -338,7 +338,7 @@ def grafana_incoming_features(
         return time_series
 
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=project, kind=mlrun.api.crud.ModelEndpoints().EVENTS
+        project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 

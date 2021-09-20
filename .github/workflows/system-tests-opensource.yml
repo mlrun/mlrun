@@ -162,6 +162,16 @@ jobs:
             --set api.extraEnv[1].value="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
             v3io-stable/mlrun-kit
 
+    - name: Prepare system tests env
+      run: |
+        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
+
+    - name: Run system tests
+      timeout-minutes: 15
+      run: |
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
+          make test-system-open-source
+
     - name: Output some logs in case of failure
       if: ${{ failure() }}
       # add set -x to print commands before executing to make logs reading easier
@@ -176,12 +186,3 @@ jobs:
         minikube kubectl -- --namespace ${NAMESPACE} get all
         minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
         set +x
-
-    - name: Prepare system tests env
-      run: |
-        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
-
-    - name: Run system tests
-      run: |
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-          make test-system-open-source

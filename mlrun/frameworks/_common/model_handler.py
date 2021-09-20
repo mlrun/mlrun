@@ -37,7 +37,8 @@ class ModelHandler(ABC):
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading. Note you must provide at least
-        one of 'model' and 'model_path'.
+        one of 'model' and 'model_path'. If a model is not given, the files in the model path will be collected
+        automatically to be ready for loading.
 
         :param model_name:               The model name for saving and logging the model.
         :param model_path:               Path to the directory with the model files. Can be passed as a model object
@@ -100,12 +101,9 @@ class ModelHandler(ABC):
         self._inputs = None  # type: List[Feature]
         self._outputs = None  # type: List[Feature]
 
-        # Collect the relevant files of the model into the handler's parameters:
-        if model_path is not None:
-            if mlrun.datastore.is_store_uri(self._model_path):
-                self._collect_files_from_store_object()
-            else:
-                self._collect_files_from_local_path()
+        # Collect the relevant files of the model into the handler (only in case the model was not provided):
+        if model is None:
+            self.collect_files()
 
     @property
     def model_name(self) -> str:
@@ -274,6 +272,20 @@ class ModelHandler(ABC):
         """
         pass
 
+    def collect_files(self):
+        """
+        Collect the files from the given model path.
+        """
+        # Validate model path is set:
+        if self._model_path is None:
+            raise ValueError("In order to collect the model's files a model path must be provided.")
+
+        # Collect by the path's type:
+        if mlrun.datastore.is_store_uri(self._model_path):
+            self._collect_files_from_store_object()
+        else:
+            self._collect_files_from_local_path()
+
     @abstractmethod
     def _collect_files_from_store_object(self):
         """
@@ -435,11 +447,9 @@ class ModelHandler(ABC):
 
         :raise ValueError: If both parameters were None or both parameters were provided.
         """
-        if (model_path is None and model is None) or (
-            model_path is not None and model is not None
-        ):
+        if model_path is None and model is None:
             raise ValueError(
-                "Only one of 'model' or 'model_path' must be provided to the model handler."
+                "At least one of 'model' or 'model_path' must be provided to the model handler."
             )
 
     @staticmethod

@@ -34,7 +34,6 @@ class MLRunLogger(Logger):
         log_model_labels: Dict[str, TrackableType],
         log_model_parameters: Dict[str, TrackableType],
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]],
-        is_evaluation: bool,
     ):
         """
         Initialize the MLRun logging interface to work with the given context.
@@ -44,9 +43,6 @@ class MLRunLogger(Logger):
         :param log_model_labels:     Labels to log with the model.
         :param log_model_parameters: Parameters to log with the model.
         :param log_model_extra_data: Extra data to log with the model.
-        :param is_evaluation:        Whether or not to set the MLRun logger for evaluation mode. In evaluation mode
-                                     the model artifact will be updated at the end of evaluation rather than being saved
-                                     as a new model artifact (at the end of training).
         """
         super(MLRunLogger, self).__init__(context=context)
 
@@ -55,20 +51,8 @@ class MLRunLogger(Logger):
         self._log_model_parameters = log_model_parameters
         self._log_model_extra_data = log_model_extra_data
 
-        # Store the logging mode:
-        self._is_evaluation = is_evaluation
-
         # Prepare the artifacts collection:
         self._artifacts = {}  # type: Dict[str, Artifact]
-
-        # Whether or not to log a new model or update a current one:
-        self._update = False
-
-    def mark_evaluation(self):
-        """
-        Change this logger to log in evaluation mode (will update the model at the end of evaluation).
-        """
-        self._is_evaluation = True
 
     def log_epoch_to_context(
         self, epoch: int,
@@ -96,24 +80,28 @@ class MLRunLogger(Logger):
         # Log the collected hyperparameters and values as results to the epoch's child context:
         for static_parameter, value in self._static_hyperparameters.items():
             self._context.log_result(static_parameter, value)
-        for dynamic_parameter, values in self._dynamic_hyperparameters.items():
-            self._context.log_result(dynamic_parameter, values[-1])
-        if not self._is_evaluation:
+        if self._mode == self.Mode.TRAINING:
+            for dynamic_parameter, values in self._dynamic_hyperparameters.items():
+                self._context.log_result(dynamic_parameter, values[-1])
             for metric, results in self._training_summaries.items():
                 self._context.log_result("training_{}".format(metric), results[-1])
         for metric, results in self._validation_summaries.items():
             self._context.log_result(
                 "evaluation_{}".format(metric)
-                if self._is_evaluation
+                if self._mode == self.Mode.EVALUATION
                 else "validation_{}".format(metric),
                 results[-1],
             )
 
         # Log the epochs metrics results as chart artifacts:
-        loops = ["evaluation"] if self._is_evaluation else ["training", "validation"]
+        loops = (
+            ["evaluation"]
+            if self._mode == self.Mode.EVALUATION
+            else ["training", "validation"]
+        )
         metrics_dictionaries = (
             [self._validation_results]
-            if self._is_evaluation
+            if self._mode == self.Mode.EVALUATION
             else [self._training_results, self._validation_results]
         )
         for loop, metrics_dictionary in zip(loops, metrics_dictionaries,):
@@ -153,38 +141,41 @@ class MLRunLogger(Logger):
 
         :param model_handler: The model handler object holding the model to save and log.
         """
-        # Create chart artifacts for summaries:
-        for metric_name in self._training_summaries:
-            # Create the bokeh artifact:
-            artifact = self._generate_summary_results_artifact(
-                name=metric_name,
-                training_results=self._training_summaries[metric_name],
-                validation_results=self._validation_summaries.get(metric_name, None),
-            )
-            # Log the artifact:
-            self._context.log_artifact(
-                artifact, local_path=artifact.key,
-            )
-            # Collect it for later adding it to the model logging as extra data:
-            self._artifacts[artifact.key.split(".")[0]] = artifact
-
-        # Create chart artifacts for dynamic hyperparameters:
-        for parameter_name in self._dynamic_hyperparameters:
-            # Create the chart artifact:
-            artifact = self._generate_dynamic_hyperparameter_values_artifact(
-                name=parameter_name,
-                values=self._dynamic_hyperparameters[parameter_name],
-            )
-            # Log the artifact:
-            self._context.log_artifact(
-                artifact, local_path=artifact.key,
-            )
-            # Collect it for later adding it to the model logging as extra data:
-            self._artifacts[artifact.key.split(".")[0]] = artifact
+        # If in training mode, log the summaries and hyperparameters:
+        if self._mode == self.Mode.TRAINING:
+            # Create chart artifacts for summaries:
+            for metric_name in self._training_summaries:
+                # Create the bokeh artifact:
+                artifact = self._generate_summary_results_artifact(
+                    name=metric_name,
+                    training_results=self._training_summaries[metric_name],
+                    validation_results=self._validation_summaries.get(
+                        metric_name, None
+                    ),
+                )
+                # Log the artifact:
+                self._context.log_artifact(
+                    artifact, local_path=artifact.key,
+                )
+                # Collect it for later adding it to the model logging as extra data:
+                self._artifacts[artifact.key.split(".")[0]] = artifact
+            # Create chart artifacts for dynamic hyperparameters:
+            for parameter_name in self._dynamic_hyperparameters:
+                # Create the chart artifact:
+                artifact = self._generate_dynamic_hyperparameter_values_artifact(
+                    name=parameter_name,
+                    values=self._dynamic_hyperparameters[parameter_name],
+                )
+                # Log the artifact:
+                self._context.log_artifact(
+                    artifact, local_path=artifact.key,
+                )
+                # Collect it for later adding it to the model logging as extra data:
+                self._artifacts[artifact.key.split(".")[0]] = artifact
 
         # Log or update:
         model_handler.set_context(context=self._context)
-        if self._is_evaluation:
+        if self._mode == self.Mode.EVALUATION:
             model_handler.update(
                 labels=self._log_model_labels,
                 parameters=self._log_model_parameters,
@@ -263,32 +254,27 @@ class MLRunLogger(Logger):
         )
 
         # Draw the results:
-        if len(training_results) > 0:
-            summary_figure.line(
-                x=list(np.arange(1, len(training_results) + 1)),
-                y=training_results,
-                legend_label="Training",
-            )
-            summary_figure.circle(
-                x=list(np.arange(1, len(training_results) + 1)),
-                y=training_results,
-                legend_label="Training",
-            )
+        summary_figure.line(
+            x=list(np.arange(1, len(training_results) + 1)),
+            y=training_results,
+            legend_label="Training",
+        )
+        summary_figure.circle(
+            x=list(np.arange(1, len(training_results) + 1)),
+            y=training_results,
+            legend_label="Training",
+        )
         if validation_results is not None:
             summary_figure.line(
                 x=list(np.arange(1, len(validation_results) + 1)),
                 y=validation_results,
-                legend_label="Validation"
-                if len(training_results) > 0
-                else "Evaluation",
+                legend_label="Validation",
                 color="orangered",
             )
             summary_figure.circle(
                 x=list(np.arange(1, len(validation_results) + 1)),
                 y=validation_results,
-                legend_label="Validation"
-                if len(training_results) > 0
-                else "Evaluation",
+                legend_label="Validation",
                 color="orangered",
             )
 

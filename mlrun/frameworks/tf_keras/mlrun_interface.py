@@ -391,12 +391,6 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             if not isinstance(callback, TensorboardLoggingCallback)
         ]
 
-        # Set the 'MLRunLoggingCallback' to evaluation mode:
-        for callback in callbacks:
-            if isinstance(callback, MLRunLoggingCallback):
-                callback.mark_evaluation()
-                break
-
         # Check if needed to run with horovod:
         if self._hvd is None:
             return callbacks, steps

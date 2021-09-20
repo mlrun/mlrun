@@ -279,6 +279,7 @@ class LoggingCallback(Callback):
         """
         if self._is_training is None:
             self._is_training = False
+            self._logger.set_mode(mode=Logger.Mode.EVALUATION)
 
     def on_validation_end(
         self, loss_value: MetricValueType, metric_values: List[float]

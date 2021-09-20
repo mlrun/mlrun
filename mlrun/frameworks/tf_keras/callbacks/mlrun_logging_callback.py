@@ -46,7 +46,6 @@ class MLRunLoggingCallback(LoggingCallback):
         static_hyperparameters: Dict[
             str, Union[TrackableType, List[Union[str, int]]]
         ] = None,
-        is_evaluation: bool = False,
         auto_log: bool = False,
     ):
         """
@@ -110,9 +109,6 @@ class MLRunLoggingCallback(LoggingCallback):
                                          {
                                              "epochs": 7
                                          }
-        :param is_evaluation:            Whether or not to set the MLRun logger for evaluation mode. In evaluation mode
-                                         the model is updated with the new results rather than being saved as a new
-                                         artifact. Defaulted for training (False).
         :param auto_log:                 Whether or not to enable auto logging for logging the context parameters and
                                          trying to track common static and dynamic hyperparameters such as learning
                                          rate.
@@ -130,7 +126,6 @@ class MLRunLoggingCallback(LoggingCallback):
             log_model_labels=log_model_labels,
             log_model_parameters=log_model_parameters,
             log_model_extra_data=log_model_extra_data,
-            is_evaluation=is_evaluation,
         )
 
         # Store the additional TFKerasModelHandler parameters for logging the model later:
@@ -147,18 +142,49 @@ class MLRunLoggingCallback(LoggingCallback):
     def set_output_sample(self, sample: TFKerasModelHandler.IOSample):
         self._output_sample = sample
 
-    def mark_evaluation(self):
-        """
-        Mark the MLRun logger to be in evaluation mode.
-        """
-        self._logger.mark_evaluation()
-
     def on_train_end(self, logs: dict = None):
         """
         Called at the end of training, logging the model and the summaries of this run.
 
         :param logs: Currently the output of the last call to `on_epoch_end()` is passed to this argument for this
                      method but that may change in the future.
+        """
+        self._end_run()
+
+    def on_test_end(self, logs: dict = None):
+        """
+        Called at the end of evaluation or validation. Will be called on each epoch according to the validation
+        per epoch configuration. The recent evaluation / validation results will be summarized and logged. If the logger
+        is in evaluation mode, the model artifact will be updated.
+
+        :param logs: Currently no data is passed to this argument for this method but that may change in the
+                     future.
+        """
+        super(MLRunLoggingCallback, self).on_test_end(logs=logs)
+
+        # Check if its part of evaluation. If so, end the run:
+        if self._logger.mode == MLRunLoggingCallback.Mode.EVALUATION:
+            self._logger.log_epoch_to_context(epoch=1)
+            self._end_run()
+
+    def on_epoch_end(self, epoch: int, logs: dict = None):
+        """
+        Called at the end of an epoch, logging the dynamic hyperparameters and results of this epoch via the stored
+        context.
+
+        :param epoch: Integer, index of epoch.
+        :param logs:  Dict, metric results for this training epoch, and for the validation epoch if validation is
+                      performed. Validation result keys are prefixed with `val_`. For training epoch, the values of the
+                      `Model`'s metrics are returned. Example : `{'loss': 0.2, 'acc': 0.7}`.
+        """
+        super(MLRunLoggingCallback, self).on_epoch_end(epoch=epoch)
+
+        # Log the current epoch's results:
+        self._logger.log_epoch_to_context(epoch=epoch)
+
+    def _end_run(self):
+        """
+        End the run, logging the collected artifacts.
         """
         # Create the model handler:
         model_handler = TFKerasModelHandler(
@@ -177,18 +203,3 @@ class MLRunLoggingCallback(LoggingCallback):
 
         # Log the model:
         self._logger.log_run(model_handler=model_handler)
-
-    def on_epoch_end(self, epoch: int, logs: dict = None):
-        """
-        Called at the end of an epoch, logging the dynamic hyperparameters and results of this epoch via the stored
-        context.
-
-        :param epoch: Integer, index of epoch.
-        :param logs:  Dict, metric results for this training epoch, and for the validation epoch if validation is
-                      performed. Validation result keys are prefixed with `val_`. For training epoch, the values of the
-                      `Model`'s metrics are returned. Example : `{'loss': 0.2, 'acc': 0.7}`.
-        """
-        super(MLRunLoggingCallback, self).on_epoch_end(epoch=epoch)
-
-        # Create child context to hold the current epoch's results:
-        self._logger.log_epoch_to_context(epoch=epoch)

@@ -42,7 +42,6 @@ class MLRunLoggingCallback(LoggingCallback):
         static_hyperparameters: Dict[
             str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
-        is_evaluation: bool = False,
         auto_log: bool = False,
     ):
         """
@@ -96,9 +95,6 @@ class MLRunLoggingCallback(LoggingCallback):
                                          {
                                              "epochs": 7
                                          }
-        :param is_evaluation:            Whether or not to set the MLRun logger for evaluation mode. In evaluation mode
-                                         the model is updated with the new results rather than being saved as a new
-                                         artifact. Defaulted for training (False).
         :param auto_log:                 Whether or not to enable auto logging for logging the context parameters and
                                          trying to track common static and dynamic hyperparameters.
         """
@@ -115,23 +111,21 @@ class MLRunLoggingCallback(LoggingCallback):
             log_model_labels=log_model_labels,
             log_model_parameters=log_model_parameters,
             log_model_extra_data=log_model_extra_data,
-            is_evaluation=is_evaluation,
         )
 
         # Store the additional PyTorchModelHandler parameters for logging the model later:
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
 
-    def mark_evaluation(self):
-        """
-        Mark the MLRun logger to be in evaluation mode.
-        """
-        self._logger.mark_evaluation()
-
     def on_run_end(self):
         """
         Before the run ends, this method will be called to log the model and the run summaries charts.
         """
+        # Check if the logger is in evaluation mode, if so, log the last epoch
+        if self._logger.mode == MLRunLogger.Mode.EVALUATION:
+            self._logger.log_epoch_to_context(epoch=1)
+
+        # End the run:
         model = self._objects[self._ObjectKeys.MODEL]
         self._logger.log_run(
             model_handler=PyTorchModelHandler(

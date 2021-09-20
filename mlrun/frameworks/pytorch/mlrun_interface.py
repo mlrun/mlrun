@@ -233,12 +233,6 @@ class PyTorchMLRunInterface:
 
         :return: The evaluation loss and metrics results in a list.
         """
-        # Set the 'MLRunLoggingCallback' to evaluation mode:
-        for callback in self._callbacks:
-            if isinstance(callback, MLRunLoggingCallback):
-                callback.mark_evaluation()
-                break
-
         # Load the input:
         self._parse_and_store(
             validation_set=dataset,

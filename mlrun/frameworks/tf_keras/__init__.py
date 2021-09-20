@@ -12,6 +12,7 @@ from mlrun.frameworks.tf_keras.model_server import TFKerasModelServer
 
 def apply_mlrun(
     model: keras.Model,
+    model_path: str = None,
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
@@ -25,6 +26,8 @@ def apply_mlrun(
     features.
 
     :param model:                       The model to wrap.
+    :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
+                                        update).
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
                                         is a path to a python file and its value is the custom object name to import
                                         from it. If multiple objects needed to be imported from the same py file a list
@@ -86,6 +89,7 @@ def apply_mlrun(
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         )
         # Add the custom objects to MLRun's callback kwargs dictionary:
+        mlrun_callback_kwargs["model_path"] = model_path
         mlrun_callback_kwargs["custom_objects_map"] = custom_objects_map
         mlrun_callback_kwargs["custom_objects_directory"] = custom_objects_directory
         # Add the logging callbacks with the provided parameters:

@@ -31,6 +31,7 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
+        model_path: str = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
@@ -53,6 +54,8 @@ class MLRunLoggingCallback(LoggingCallback):
 
         :param context:                  MLRun context to log to. Its parameters will be logged automatically  if
                                          'auto_log' is True.
+        :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
+                                         update).
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -129,6 +132,7 @@ class MLRunLoggingCallback(LoggingCallback):
         )
 
         # Store the additional TFKerasModelHandler parameters for logging the model later:
+        self._model_path = model_path
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
         self._model_format = model_format
@@ -189,6 +193,7 @@ class MLRunLoggingCallback(LoggingCallback):
         # Create the model handler:
         model_handler = TFKerasModelHandler(
             model_name=self.model.name,
+            model_path=self._model_path,
             model=self.model,
             custom_objects_map=self._custom_objects_map,
             custom_objects_directory=self._custom_objects_directory,

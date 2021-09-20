@@ -33,6 +33,7 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
         custom_objects_directory: str,
+        model_path: str = None,
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
@@ -70,6 +71,8 @@ class MLRunLoggingCallback(LoggingCallback):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
+        :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
+                                         update).
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -114,6 +117,7 @@ class MLRunLoggingCallback(LoggingCallback):
         )
 
         # Store the additional PyTorchModelHandler parameters for logging the model later:
+        self._model_path = model_path
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
 
@@ -130,6 +134,7 @@ class MLRunLoggingCallback(LoggingCallback):
         self._logger.log_run(
             model_handler=PyTorchModelHandler(
                 model_name=type(model).__name__,
+                model_path=self._model_path,
                 custom_objects_map=self._custom_objects_map,
                 custom_objects_directory=self._custom_objects_directory,
                 model=model,

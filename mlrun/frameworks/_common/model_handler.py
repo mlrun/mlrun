@@ -251,6 +251,12 @@ class ModelHandler(ABC):
                 "To update a model artifact the 'model_path' must be a store object."
             )
 
+        # Set default values:
+        labels = {} if labels is None else labels
+        parameters = {} if parameters is None else parameters
+        extra_data = {} if extra_data is None else extra_data
+        artifacts = {} if artifacts is None else artifacts
+
         # Update the model:
         mlrun.artifacts.update_model(
             model_artifact=self._model_path,
@@ -260,7 +266,6 @@ class ModelHandler(ABC):
                 **extra_data,
             },
             labels=labels,
-            key_prefix="evaluation",
         )
 
     @abstractmethod

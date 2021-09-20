@@ -6,7 +6,7 @@ from tensorflow import Tensor, Variable
 from tensorflow.keras.callbacks import Callback
 
 import mlrun
-from mlrun.frameworks._common.loggers import Logger, TrackableType
+from mlrun.frameworks._common.loggers import Logger, LoggerMode, TrackableType
 
 
 class LoggingCallback(Callback):
@@ -177,7 +177,7 @@ class LoggingCallback(Callback):
         # Check if needed to mark this run as evaluation:
         if self._is_training is None:
             self._is_training = False
-            self._logger.set_mode(mode=Logger.Mode.EVALUATION)
+            self._logger.set_mode(mode=LoggerMode.EVALUATION)
 
         # If this callback is part of evaluation and not training, need to check if the run was setup:
         if not self._is_training:

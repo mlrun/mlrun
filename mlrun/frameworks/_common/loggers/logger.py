@@ -6,14 +6,18 @@ import mlrun
 TrackableType = Union[str, bool, float, int]
 
 
+class LoggerMode(Enum):
+    """
+    The logger's mode, can be training or validation.
+    """
+    TRAINING = "Training"
+    EVALUATION = "Evaluation"
+
+
 class Logger:
     """
     Logger for tracking hyperparamters and metrics results during training / evaluation of some framework.
     """
-
-    class Mode(Enum):
-        TRAINING = "Training"
-        EVALUATION = "Evaluation"
 
     def __init__(self, context: mlrun.MLClientCtx = None):
         """
@@ -25,7 +29,7 @@ class Logger:
         self._context = context
 
         # Setup the logger's mode (defaulted to Training):
-        self._mode = self.Mode.TRAINING
+        self._mode = LoggerMode.TRAINING
 
         # Setup the results dictionaries - a dictionary of metrics for all the iteration results by their epochs:
         # [Metric: str] -> [Epoch: int] -> [Iteration: int] -> [value: float]
@@ -60,11 +64,11 @@ class Logger:
         return self._context
 
     @property
-    def mode(self) -> Mode:
+    def mode(self) -> LoggerMode:
         """
         Get the logger's mode.
 
-        :return: The logger's mode. One of Logger.Mode.
+        :return: The logger's mode. One of Logger.LoggerMode.
         """
         return self._mode
 
@@ -157,11 +161,11 @@ class Logger:
         """
         return self._validation_iterations
 
-    def set_mode(self, mode: Mode):
+    def set_mode(self, mode: LoggerMode):
         """
         Set the logger's mode.
 
-        :param mode: The mode to set. One of Logger.Mode.
+        :param mode: The mode to set. One of Logger.LoggerMode.
         """
         self._mode = mode
 

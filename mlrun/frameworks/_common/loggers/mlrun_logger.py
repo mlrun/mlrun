@@ -5,7 +5,7 @@ from bokeh.plotting import figure
 
 import mlrun
 from mlrun.artifacts import Artifact, BokehArtifact
-from mlrun.frameworks._common.loggers.logger import Logger
+from mlrun.frameworks._common.loggers.logger import Logger, LoggerMode
 from mlrun.frameworks._common.model_handler import ModelHandler
 
 # All trackable values types:
@@ -80,7 +80,7 @@ class MLRunLogger(Logger):
         # Log the collected hyperparameters and values as results to the epoch's child context:
         for static_parameter, value in self._static_hyperparameters.items():
             self._context.log_result(static_parameter, value)
-        if self._mode == self.Mode.TRAINING:
+        if self._mode == LoggerMode.TRAINING:
             for dynamic_parameter, values in self._dynamic_hyperparameters.items():
                 self._context.log_result(dynamic_parameter, values[-1])
             for metric, results in self._training_summaries.items():
@@ -88,7 +88,7 @@ class MLRunLogger(Logger):
         for metric, results in self._validation_summaries.items():
             self._context.log_result(
                 "evaluation_{}".format(metric)
-                if self._mode == self.Mode.EVALUATION
+                if self._mode == LoggerMode.EVALUATION
                 else "validation_{}".format(metric),
                 results[-1],
             )
@@ -96,12 +96,12 @@ class MLRunLogger(Logger):
         # Log the epochs metrics results as chart artifacts:
         loops = (
             ["evaluation"]
-            if self._mode == self.Mode.EVALUATION
+            if self._mode == LoggerMode.EVALUATION
             else ["training", "validation"]
         )
         metrics_dictionaries = (
             [self._validation_results]
-            if self._mode == self.Mode.EVALUATION
+            if self._mode == LoggerMode.EVALUATION
             else [self._training_results, self._validation_results]
         )
         for loop, metrics_dictionary in zip(loops, metrics_dictionaries,):
@@ -142,7 +142,7 @@ class MLRunLogger(Logger):
         :param model_handler: The model handler object holding the model to save and log.
         """
         # If in training mode, log the summaries and hyperparameters:
-        if self._mode == self.Mode.TRAINING:
+        if self._mode == LoggerMode.TRAINING:
             # Create chart artifacts for summaries:
             for metric_name in self._training_summaries:
                 # Create the bokeh artifact:
@@ -175,7 +175,7 @@ class MLRunLogger(Logger):
 
         # Log or update:
         model_handler.set_context(context=self._context)
-        if self._mode == self.Mode.EVALUATION:
+        if self._mode == LoggerMode.EVALUATION:
             model_handler.update(
                 labels=self._log_model_labels,
                 parameters=self._log_model_parameters,

@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Tuple, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import MLRunLogger, TrackableType
+from mlrun.frameworks._common.loggers import MLRunLogger, LoggerMode, TrackableType
 from mlrun.frameworks.pytorch.callbacks.logging_callback import LoggingCallback
 from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 
@@ -122,7 +122,7 @@ class MLRunLoggingCallback(LoggingCallback):
         Before the run ends, this method will be called to log the model and the run summaries charts.
         """
         # Check if the logger is in evaluation mode, if so, log the last epoch
-        if self._logger.mode == MLRunLogger.Mode.EVALUATION:
+        if self._logger.mode == LoggerMode.EVALUATION:
             self._logger.log_epoch_to_context(epoch=1)
 
         # End the run:

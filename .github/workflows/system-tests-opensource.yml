@@ -68,7 +68,7 @@ jobs:
       id: git_action_info
       run: |
         echo "::set-output name=mlrun_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
-    - name: Extract git hash from action mlrun version
+    - name: Extract UI git hash from action mlrun version
       if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
       id: git_action_ui_info
       run: |

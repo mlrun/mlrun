@@ -436,6 +436,7 @@ test: clean ## Run mlrun tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
@@ -458,6 +459,7 @@ test-integration: clean ## Run mlrun integration tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		-rf \
 		tests/integration \
 		tests/test_notebooks.py \
@@ -479,6 +481,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		-rf \
 		--test-alembic \
 		migrations/tests/*
@@ -492,6 +495,7 @@ test-system: ## Run mlrun system tests
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		-rf \
 		tests/system
 
@@ -500,6 +504,7 @@ test-system-open-source: ## Run mlrun system tests with opensource configuration
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		-rf \
 		-m "not enterprise" \
 		tests/system

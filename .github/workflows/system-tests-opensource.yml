@@ -180,9 +180,13 @@ jobs:
         minikube logs
         minikube kubectl -- --namespace ${NAMESPACE} get pvc
         minikube kubectl -- --namespace ${NAMESPACE} get pv
+        minikube kubectl -- --namespace ${NAMESPACE} get cm
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets
         minikube kubectl -- --namespace ${NAMESPACE} get pods
         minikube kubectl -- --namespace ${NAMESPACE} get pods -o yaml
         minikube kubectl -- --namespace ${NAMESPACE} describe pods
+        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
         minikube kubectl -- --namespace ${NAMESPACE} get all
         minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
         set +x

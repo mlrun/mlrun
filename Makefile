@@ -351,22 +351,6 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 	docker push $(MLRUN_JUPYTER_IMAGE_NAME)
 
 
-MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
-
-.PHONY: serving
-serving: update-version-file ## Build serving docker image
-	docker build \
-		--file dockerfiles/serving/Dockerfile \
-		--build-arg MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
-		--build-arg MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
-		--build-arg MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX) \
-		--tag $(MLRUN_SERVING_IMAGE_NAME) .
-
-.PHONY: push-serving
-push-serving: serving ## Push serving docker image
-	docker push $(MLRUN_SERVING_IMAGE_NAME)
-
-
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
 MLRUN_API_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)

@@ -218,13 +218,16 @@ class ModelEndpoints:
                 project, function, model, labels
             ),
             attribute_names=["endpoint_id"],
+            raise_for_status=RaiseForStatus.never,
         )
 
         endpoint_list = ModelEndpointList(endpoints=[])
-        while True:
-            item = cursor.next_item()
-            if item is None:
-                break
+        try:
+            items = cursor.all()
+        except Exception:
+            return endpoint_list
+
+        for item in items:
             endpoint_id = item["endpoint_id"]
             endpoint = self.get_endpoint(
                 auth_info=auth_info,

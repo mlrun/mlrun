@@ -107,7 +107,11 @@ class ServingSpec(NuclioSpec):
         track_models=None,
         secret_sources=None,
         default_content_type=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
         disable_auto_mount=False,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -133,7 +137,11 @@ class ServingSpec(NuclioSpec):
             service_account=service_account,
             readiness_timeout=readiness_timeout,
             build=build,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
             disable_auto_mount=disable_auto_mount,
+            priority_class_name=priority_class_name,
         )
 
         self.models = models or {}

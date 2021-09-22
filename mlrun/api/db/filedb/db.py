@@ -176,6 +176,9 @@ class FileDB(DBInterface):
     ) -> schemas.ProjectSummariesOutput:
         raise NotImplementedError()
 
+    def get_project_summary(self, session, name: str) -> schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")
+
     def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()
 

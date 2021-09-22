@@ -255,6 +255,29 @@ def list_project_summaries(
     )
 
 
+@router.get(
+    "/project-summaries/{name}", response_model=mlrun.api.schemas.ProjectSummary
+)
+def get_project_summary(
+    name: str,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
+    ),
+):
+    project_summary = get_project_member().get_project_summary(
+        db_session, name, auth_verifier.auth_info.session
+    )
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
+        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+            name, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+        )
+    return project_summary
+
+
 def _is_request_from_leader(
     projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole],
 ) -> bool:

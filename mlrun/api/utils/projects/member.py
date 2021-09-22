@@ -118,6 +118,15 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def get_project_summary(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.ProjectSummary:
+        pass
+
+    @abc.abstractmethod
     def list_project_summaries(
         self,
         db_session: sqlalchemy.orm.Session,

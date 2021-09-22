@@ -138,6 +138,14 @@ class Member(
             db_session, owner, labels, state, names
         )
 
+    def get_project_summary(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.ProjectSummary:
+        return self._leader_follower.get_project_summary(db_session, name)
+
     def get_project_owner(
         self, db_session: sqlalchemy.orm.Session, name: str,
     ) -> mlrun.api.schemas.ProjectOwner:

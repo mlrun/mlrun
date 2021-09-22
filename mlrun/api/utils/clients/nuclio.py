@@ -165,6 +165,11 @@ class Client(
     ) -> mlrun.api.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")
+
     def get_dashboard_version(self) -> str:
         response = self._send_request_to_api("GET", "versions")
         response_body = response.json()

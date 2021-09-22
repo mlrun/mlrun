@@ -310,6 +310,22 @@ class Member(
             project_summaries=project_summaries
         )
 
+    def get_project_summary(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.ProjectSummary:
+        # Call get project so we'll explode if project doesn't exists
+        self.get_project(db_session, name, leader_session)
+
+        # importing here to avoid circular import (db using project member using mlrun follower using db)
+        import mlrun.api.crud
+
+        return mlrun.api.crud.Projects().generate_projects_summaries(
+            db_session, [name]
+        )[0]
+
     def _list_projects(
         self,
         leader_session: typing.Optional[str] = None,

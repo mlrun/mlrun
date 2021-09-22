@@ -242,6 +242,10 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def get_project_summary(self, session, name: str) -> schemas.ProjectSummary:
+        pass
+
+    @abstractmethod
     def create_project(self, session, project: schemas.Project):
         pass
 

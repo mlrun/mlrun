@@ -875,6 +875,13 @@ class SQLDB(DBInterface):
         project_summaries = self.generate_projects_summaries(session, project_names)
         return schemas.ProjectSummariesOutput(project_summaries=project_summaries)
 
+    def get_project_summary(
+        self, session: Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        # Call get project so we'll explode if project doesn't exists
+        self.get_project(session, name)
+        return self.generate_projects_summaries(session, [name])[0]
+
     def _get_project_resources_counters(self, session: Session):
         now = datetime.now()
         if (

@@ -93,3 +93,8 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
+
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")

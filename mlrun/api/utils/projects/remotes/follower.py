@@ -69,3 +69,9 @@ class Member(abc.ABC):
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectSummariesOutput:
         pass
+
+    @abc.abstractmethod
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        pass

@@ -137,6 +137,17 @@ class Projects(
         )
         return project_summaries
 
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        project_summary = mlrun.api.utils.singletons.db.get_db().get_project_summary(
+            session, name
+        )
+        self._add_pipeline_running_count_to_project_summaries(
+            session, [project_summary]
+        )
+        return project_summary
+
     def generate_projects_summaries(
         self, session: sqlalchemy.orm.Session, projects: typing.List[str]
     ) -> typing.List[mlrun.api.schemas.ProjectSummary]:

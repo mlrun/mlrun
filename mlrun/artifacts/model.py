@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 from os import path
-from tempfile import mktemp
 from typing import List
 
 import yaml
@@ -23,6 +23,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
+from ..utils import StorePrefix
 from .base import Artifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
@@ -48,6 +49,7 @@ class ModelArtifact(Artifact):
         "feature_stats",
     ]
     kind = "model"
+    _store_prefix = StorePrefix.Model
 
     def __init__(
         self,
@@ -65,9 +67,10 @@ class ModelArtifact(Artifact):
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
+        **kwargs,
     ):
 
-        super().__init__(key, body, format=format, target_path=target_path)
+        super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         self._inputs: ObjectList = None
         self._outputs: ObjectList = None
 
@@ -102,7 +105,13 @@ class ModelArtifact(Artifact):
         self._outputs = ObjectList.from_list(Feature, outputs)
 
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
-        """infer inputs, outputs, and stats from provided df (training set)"""
+        """infer inputs, outputs, and stats from provided df (training set)
+
+        :param df:      dataframe to infer from
+        :param label_columns: name of the label (target) column
+        :param with_stats:    infer statistics (min, max, .. histogram)
+        :param num_bins:      number of bins for histogram
+        """
         subset = df
         inferer = get_infer_interface(subset)
         if label_columns:
@@ -223,13 +232,13 @@ def get_model(model_dir, suffix=""):
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
-    tmp = mktemp(suffix)
-    obj.download(tmp)
-    return tmp, model_spec, extra_dataitems
+    temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
+    obj.download(temp_path)
+    return temp_path, model_spec, extra_dataitems
 
 
-def _load_model_spec(specpath):
-    data = store_manager.object(url=specpath).get()
+def _load_model_spec(spec_path):
+    data = store_manager.object(url=spec_path).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 

@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 import unittest
 
@@ -64,12 +66,10 @@ class TestDaskRuntime(TestRuntimeBase):
         # https://docs.mlrun.org/en/latest/runtimes/dask-mlrun.html#set-up-the-environment
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
+        os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key
+        mlconf.default_project = self.project
+        mlconf.artifact_path = self.artifact_path
 
-        mlrun.set_environment(
-            project=self.project,
-            access_key=self.v3io_access_key,
-            artifact_path=self.artifact_path,
-        )
         dask_cluster = mlrun.new_function(
             self.name, project=self.project, kind="dask", image=self.image_name
         )
@@ -121,7 +121,9 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
         )
-        self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key
+        )
         self._assert_scheduler_pod_args()
 
     def test_dask_runtime_with_resources(self, db: Session, client: TestClient):
@@ -156,7 +158,9 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
         )
-        self._assert_v3io_mount_configured(self.v3io_user, self.v3io_access_key)
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key
+        )
         self._assert_pods_resources(
             expected_requests,
             expected_worker_limits,
@@ -187,4 +191,57 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_node_name=node_name,
             expected_node_selector=node_selector,
             expected_affinity=affinity,
+        )
+
+    def test_dask_with_priority_class_name(self, db: Session, client: TestClient):
+        default_priority_class_name = "default-priority"
+        mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
+        mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_priority_class_name=default_priority_class_name,
+        )
+
+        runtime = self._generate_runtime()
+        medium_priority_class_name = "medium-priority"
+        mlrun.mlconf.valid_function_priority_class_names = ",".join(
+            [default_priority_class_name, medium_priority_class_name]
+        )
+        runtime.with_priority_class(medium_priority_class_name)
+
+        _ = runtime.client
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_priority_class_name=medium_priority_class_name,
+        )
+
+    def test_dask_with_default_node_selector(self, db: Session, client: TestClient):
+        node_selector = {
+            "label-a": "val1",
+            "label-2": "val2",
+        }
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_node_selector=node_selector,
         )

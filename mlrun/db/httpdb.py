@@ -16,6 +16,7 @@ import http
 import os
 import tempfile
 import time
+import warnings
 from datetime import datetime
 from os import path, remove
 from typing import Dict, List, Optional, Union
@@ -24,7 +25,7 @@ import kfp
 import requests
 import semver
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util.retry import Retry
 
 import mlrun
 import mlrun.projects
@@ -35,6 +36,7 @@ from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
+from ..runtimes import BaseRuntime
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
 
@@ -53,7 +55,14 @@ def bool2str(val):
 
 
 http_adapter = HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    max_retries=Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        # we want to retry but not to raise since we do want that last response (to parse details on the
+        # error from response body) we'll handle raising ourselves
+        raise_on_status=False,
+    ),
 )
 
 
@@ -167,27 +176,30 @@ class HTTPRunDB(RunDBInterface):
             self.session.mount("https://", http_adapter)
 
         try:
-            resp = self.session.request(
+            response = self.session.request(
                 method, url, timeout=timeout, verify=False, **kw
             )
-        except requests.RequestException as err:
-            error = error or f"{method} {url}, error: {err}"
-            raise RunDBError(error) from err
+        except requests.RequestException as exc:
+            error = f"{str(exc)}: {error}" if error else str(exc)
+            raise mlrun.errors.MLRunRuntimeError(error) from exc
 
-        if not resp.ok:
-            if resp.content:
+        if not response.ok:
+            if response.content:
                 try:
-                    data = resp.json()
-                    reason = data.get("detail", {}).get("reason", "")
+                    data = response.json()
+                    error_details = data.get("detail", {})
+                    if not error_details:
+                        logger.warning("Failed parsing error response body", data=data)
                 except Exception:
-                    reason = ""
-            if reason:
-                error = error or f"{method} {url}, error: {reason}"
-                mlrun.errors.raise_for_status(resp, error)
+                    error_details = ""
+                if error_details:
+                    error_details = f"details: {error_details}"
+                    error = f"{error} {error_details}" if error else error_details
+                    mlrun.errors.raise_for_status(response, error)
 
-            mlrun.errors.raise_for_status(resp)
+            mlrun.errors.raise_for_status(response, error)
 
-        return resp
+        return response
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
@@ -205,7 +217,7 @@ class HTTPRunDB(RunDBInterface):
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
             return
-        resp = self.api_call("GET", "healthz", timeout=5)
+        resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
@@ -235,11 +247,26 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
+            config.spark_history_server_path = (
+                config.spark_history_server_path
+                or server_cfg.get("spark_history_server_path")
+            )
             config.httpdb.builder.docker_registry = (
                 config.httpdb.builder.docker_registry
                 or server_cfg.get("docker_registry")
             )
             config.httpdb.api_url = config.httpdb.api_url or server_cfg.get("api_url")
+            config.nuclio_version = config.nuclio_version or server_cfg.get(
+                "nuclio_version"
+            )
+            config.default_function_priority_class_name = (
+                config.default_function_priority_class_name
+                or server_cfg.get("default_function_priority_class_name")
+            )
+            config.valid_function_priority_class_names = (
+                config.valid_function_priority_class_names
+                or server_cfg.get("valid_function_priority_class_names")
+            )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -255,6 +282,22 @@ class HTTPRunDB(RunDBInterface):
                 else config.scrape_metrics
             )
             config.hub_url = server_cfg.get("hub_url") or config.hub_url
+            config.default_function_node_selector = (
+                server_cfg.get("default_function_node_selector")
+                or config.default_function_node_selector
+            )
+            config.igz_version = server_cfg.get("igz_version") or config.igz_version
+            config.storage.auto_mount_type = (
+                server_cfg.get("auto_mount_type") or config.storage.auto_mount_type
+            )
+            config.storage.auto_mount_params = (
+                server_cfg.get("auto_mount_params") or config.storage.auto_mount_params
+            )
+            config.spark_operator_version = (
+                server_cfg.get("spark_operator_version")
+                or config.spark_operator_version
+            )
+
         except Exception:
             pass
         return self
@@ -406,7 +449,7 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
         last_update_time_to: datetime = None,
-    ):
+    ) -> RunList:
         """ Retrieve a list of runs, filtered by various options.
         Example::
 
@@ -531,7 +574,7 @@ class HTTPRunDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
-    ):
+    ) -> ArtifactList:
         """ List artifacts filtered by various parameters.
 
         Examples::
@@ -591,15 +634,15 @@ class HTTPRunDB(RunDBInterface):
         error = "del artifacts"
         self.api_call("DELETE", "artifacts", error, params=params)
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(self, project=None) -> List[str]:
         """ Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
         response = self.api_call(
-            "GET", f"/projects/{project}/artifact-tags", error_message
+            "GET", f"projects/{project}/artifact-tags", error_message
         )
-        return response.json()
+        return response.json()["tags"]
 
     def store_function(self, function, name, project="", tag=None, versioned=False):
         """ Store a function object. Function is identified by its name and tag, and can be versioned."""
@@ -654,42 +697,150 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", "funcs", error, params=params)
         return resp.json()["funcs"]
 
-    def list_runtimes(self, label_selector: str = None) -> List:
+    def list_runtime_resources(
+        self,
+        project: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        kind: Optional[str] = None,
+        object_id: Optional[str] = None,
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
         """ List current runtime resources, which are usually (but not limited to) Kubernetes pods or CRDs.
-        Function applies for runs of type ``['dask', 'job', 'spark', 'mpijob']``, and will return per runtime
-        kind a list of the resources (which may have already completed their execution).
+        Function applies for runs of type ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``, and will return per
+        runtime kind a list of the runtime resources (which may have already completed their execution).
 
+        :param project: Get only runtime resources of a specific project, by default None, which will return only the
+        projects you're authorized to see.
         :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
             to their labels.
+        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param object_id: The identifier of the mlrun object to query its runtime resources. for most function runtimes,
+        runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the runtime
+        resources are per Function, for which the identifier is the Function's name.
+        :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
+        if isinstance(group_by, mlrun.api.schemas.ListRuntimeResourcesGroupByField):
+            group_by = group_by.value
+        params = {
+            "label_selector": label_selector,
+            "group-by": group_by,
+            "kind": kind,
+            "object-id": object_id,
+        }
+        project_path = project if project else "*"
+        error = "Failed listing runtime resources"
+        response = self.api_call(
+            "GET", f"projects/{project_path}/runtime-resources", error, params=params
+        )
+        if group_by is None:
+            structured_list = [
+                mlrun.api.schemas.KindRuntimeResources(**kind_runtime_resources)
+                for kind_runtime_resources in response.json()
+            ]
+            return structured_list
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+            structured_dict = {}
+            for project, job_runtime_resources_map in response.json().items():
+                for job_id, runtime_resources in job_runtime_resources_map.items():
+                    structured_dict.setdefault(project, {})[
+                        job_id
+                    ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
+            return structured_dict
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            structured_dict = {}
+            for project, kind_runtime_resources_map in response.json().items():
+                for kind, runtime_resources in kind_runtime_resources_map.items():
+                    structured_dict.setdefault(project, {})[
+                        kind
+                    ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
+            return structured_dict
+        else:
+            raise NotImplementedError(
+                f"Provided group by field is not supported. group_by={group_by}"
+            )
+
+    def list_runtimes(self, label_selector: str = None) -> List:
+        """ Deprecated use :py:func:`~list_runtime_resources` instead
+        """
+        warnings.warn(
+            "This method is deprecated, use list_runtime_resources instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
         params = {"label_selector": label_selector}
         error = "list runtimes"
         resp = self.api_call("GET", "runtimes", error, params=params)
         return resp.json()
 
     def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
-        """ Return a list of runtime resources of a given kind, and potentially matching a specified label.
-        There may be multiple runtime resources returned from this function. This function is similar to the
-        :py:func:`~list_runtimes` function, only it focuses on a specific ``kind``, rather than list all runtimes
-        of all kinds which generate runtime pods.
-
-        Example::
-
-            project_pods = db.get_runtime('job', label_selector='mlrun/project=iris')['resources']['pod_resources']
-            for pod in project_pods:
-                print(pod["name"])
-
-        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'mpijob']``
-        :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
-            to their labels.
-
+        """ Deprecated use :py:func:`~list_runtime_resources` (with kind filter) instead
         """
-
+        warnings.warn(
+            "This method is deprecated, use list_runtime_resources (with kind filter) instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
         params = {"label_selector": label_selector}
         path = f"runtimes/{kind}"
         error = f"get runtime {kind}"
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()
+
+    def delete_runtime_resources(
+        self,
+        project: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        kind: Optional[str] = None,
+        object_id: Optional[str] = None,
+        force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
+    ) -> mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput:
+        """ Delete all runtime resources which are in terminal state.
+
+        :param project: Delete only runtime resources of a specific project, by default None, which will delete only
+        from the projects you're authorized to delete from.
+        :param label_selector: Delete only runtime resources matching the label selector.
+        :param kind: The kind of runtime to delete. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param object_id: The identifier of the mlrun object to delete its runtime resources. for most function
+        runtimes, runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the
+        runtime resources are per Function, for which the identifier is the Function's name.
+        :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
+        period didn't pass.
+        :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
+        the moment they moved to terminal state.
+
+        :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
+        that were removed.
+        """
+
+        params = {
+            "label-selector": label_selector,
+            "kind": kind,
+            "object-id": object_id,
+            "force": force,
+            "grace-period": grace_period,
+        }
+        error = "Failed deleting runtime resources"
+        project_path = project if project else "*"
+        response = self.api_call(
+            "DELETE",
+            f"projects/{project_path}/runtime-resources",
+            error,
+            params=params,
+        )
+        structured_dict = {}
+        for project, kind_runtime_resources_map in response.json().items():
+            for kind, runtime_resources in kind_runtime_resources_map.items():
+                structured_dict.setdefault(project, {})[
+                    kind
+                ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
+        return structured_dict
 
     def delete_runtimes(
         self,
@@ -697,15 +848,14 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        """ Delete all runtimes which are matching the specific label selector provided. This will delete runtimes
-        of all applicable kinds. For deleting runtimes of a specific kind, use the :py:func:`~delete_runtime` function.
-
-        :param label_selector: Delete runtimes with this label assigned.
-        :param force: Force deletion. This parameter is passed to the Kubernetes deletion API for force-delete of pods.
-        :param grace_period: Grace period for the deleted resources before they are evacuated. This is passed to the
-            Kubernetes deletion API.
+        """ Deprecated use :py:func:`~delete_runtime_resources` instead
         """
-
+        warnings.warn(
+            "This method is deprecated, use delete_runtime_resources instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
         params = {
             "label_selector": label_selector,
             "force": force,
@@ -721,7 +871,14 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        """ Delete runtimes of a specific kind. See :py:func:`~delete_runtimes` for more details."""
+        """ Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead
+        """
+        warnings.warn(
+            "This method is deprecated, use delete_runtime_resources (with kind filter) instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
 
         params = {
             "label_selector": label_selector,
@@ -740,11 +897,14 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        """ Delete a specific runtime object identified by its ID. The object ID can be retrieved from the
-        runtime query functions, and used to target a specific runtime to delete.
-        The parameters are the same as those used in :py:func:`~delete_runtimes`.
+        """ Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead
         """
-
+        warnings.warn(
+            "This method is deprecated, use delete_runtime_resources (with kind and object_id filter) instead"
+            "This will be removed in 0.9.0",
+            # TODO: Remove in 0.9.0
+            DeprecationWarning,
+        )
         params = {
             "label_selector": label_selector,
             "force": force,
@@ -853,7 +1013,12 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("POST", path, error_message)
 
     def remote_builder(
-        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+        self,
+        func,
+        with_mlrun,
+        mlrun_version_specifier=None,
+        skip_deployed=False,
+        builder_env=None,
     ):
         """ Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -865,6 +1030,7 @@ class HTTPRunDB(RunDBInterface):
             image that already has MLRun in it.
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         """
 
         try:
@@ -875,6 +1041,8 @@ class HTTPRunDB(RunDBInterface):
             }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
+            if builder_env:
+                req["builder_env"] = builder_env
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
             logger.error(f"error submitting build task: {err}")
@@ -887,7 +1055,12 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def get_builder_status(
-        self, func, offset=0, logs=True, last_log_timestamp=0, verbose=False
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
     ):
         """ Retrieve the status of a build operation currently in progress.
 
@@ -932,6 +1105,12 @@ class HTTPRunDB(RunDBInterface):
             if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 func.status.address = resp.headers.get("x-mlrun-address", "")
                 func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+                func.status.internal_invocation_urls = resp.headers.get(
+                    "x-mlrun-internal-invocation-urls", ""
+                ).split(",")
+                func.status.external_invocation_urls = resp.headers.get(
+                    "x-mlrun-external-invocation-urls", ""
+                ).split(",")
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")
@@ -977,15 +1156,17 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, kind, selector):
+    def remote_status(self, project, name, kind, selector):
         """ Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
+        :param project: The project of the function
+        :param name: The name of the function
         :param kind: The kind of the function, currently ``dask`` is supported.
         :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:
-            req = {"kind": kind, "selector": selector}
+            req = {"kind": kind, "selector": selector, "project": project, "name": name}
             resp = self.api_call("POST", "status/function", json=req)
         except OSError as err:
             logger.error(f"error starting function: {err}")
@@ -1028,6 +1209,7 @@ class HTTPRunDB(RunDBInterface):
 
     def submit_pipeline(
         self,
+        project,
         pipeline,
         arguments=None,
         experiment=None,
@@ -1039,6 +1221,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """ Submit a KFP pipeline for execution.
 
+        :param project: The project of the pipeline
         :param pipeline: Pipeline function or path to .yaml/.zip pipeline file.
         :param arguments: A dictionary of arguments to pass to the pipeline.
         :param experiment: A name to assign for the specific experiment.
@@ -1052,7 +1235,7 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
-            pipe_file = tempfile.mktemp(suffix=".yaml")
+            pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_meta(artifact_path, ttl, ops)
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf
@@ -1067,7 +1250,7 @@ class HTTPRunDB(RunDBInterface):
         if arguments:
             if not isinstance(arguments, dict):
                 raise ValueError("arguments must be dict type")
-            headers["pipeline-arguments"] = str(arguments)
+            headers[schemas.HeaderNames.pipeline_arguments] = str(arguments)
 
         if not path.isfile(pipe_file):
             raise OSError(f"file {pipe_file} doesnt exist")
@@ -1080,7 +1263,7 @@ class HTTPRunDB(RunDBInterface):
             params = {"namespace": namespace, "experiment": experiment, "run": run}
             resp = self.api_call(
                 "POST",
-                "submit_pipeline",
+                f"projects/{project}/pipelines",
                 params=params,
                 timeout=20,
                 body=data,
@@ -1106,8 +1289,8 @@ class HTTPRunDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.api.schemas.Format
-        ] = mlrun.api.schemas.Format.metadata_only,
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
         """ Retrieve a list of KFP pipelines. This function can be invoked to get all pipelines from all projects,
@@ -1132,7 +1315,7 @@ class HTTPRunDB(RunDBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination, sorting, or custom filter"
             )
-        if isinstance(format_, mlrun.api.schemas.Format):
+        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
             format_ = format_.value
         params = {
             "namespace": namespace,
@@ -1149,14 +1332,32 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.api.schemas.PipelinesOutput(**response.json())
 
-    def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 10,
+        format_: Union[
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.summary,
+        project: str = None,
+    ):
         """ Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
+        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
+            format_ = format_.value
         try:
-            query = ""
+            params = {}
             if namespace:
-                query = f"namespace={namespace}"
-            resp = self.api_call("GET", f"pipelines/{run_id}?{query}", timeout=timeout)
+                params["namespace"] = namespace
+            params["format"] = format_
+            project_path = project if project else "*"
+            resp = self.api_call(
+                "GET",
+                f"projects/{project_path}/pipelines/{run_id}",
+                params=params,
+                timeout=timeout,
+            )
         except OSError as err:
             logger.error(f"error cannot get pipeline: {err}")
             raise OSError(f"error: cannot get pipeline, {err}")
@@ -1656,7 +1857,9 @@ class HTTPRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.full,
+        format_: Union[
+            str, mlrun.api.schemas.ProjectsFormat
+        ] = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: Union[str, mlrun.api.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -1674,7 +1877,7 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(state, mlrun.api.schemas.ProjectState):
             state = state.value
-        if isinstance(format_, mlrun.api.schemas.Format):
+        if isinstance(format_, mlrun.api.schemas.ProjectsFormat):
             format_ = format_.value
         params = {
             "owner": owner,
@@ -1685,9 +1888,9 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
-        if format_ == mlrun.api.schemas.Format.name_only:
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             return response.json()["projects"]
-        elif format_ == mlrun.api.schemas.Format.full:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
             return [
                 mlrun.projects.MlrunProject.from_dict(project_dict)
                 for project_dict in response.json()["projects"]
@@ -1821,7 +2024,9 @@ class HTTPRunDB(RunDBInterface):
 
     def _wait_for_project_to_be_deleted(self, project_name: str):
         def _verify_project_deleted():
-            projects = self.list_projects(format_=mlrun.api.schemas.Format.name_only)
+            projects = self.list_projects(
+                format_=mlrun.api.schemas.ProjectsFormat.name_only
+            )
             if project_name in projects:
                 raise Exception("Project still exists")
 
@@ -2040,7 +2245,7 @@ class HTTPRunDB(RunDBInterface):
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -2070,7 +2275,7 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Session-Key": access_key},
         )
 
-    def delete_endpoint_record(
+    def delete_model_endpoint_record(
         self, project: str, endpoint_id: str, access_key: Optional[str] = None,
     ):
         """
@@ -2092,7 +2297,7 @@ class HTTPRunDB(RunDBInterface):
             method="DELETE", path=path, headers={"X-V3io-Session-Key": access_key},
         )
 
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -2139,16 +2344,16 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "model": model,
                 "function": function,
-                "labels": labels,
+                "label": labels or [],
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
             },
             headers={"X-V3io-Session-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -2184,12 +2389,201 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
             headers={"X-V3io-Session-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
+
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        """
+        Add a new marketplace source.
+
+        MLRun maintains an ordered list of marketplace sources ("sources"). Each source has its details registered and
+        its order within the list. When creating a new source, the special order ``-1`` can be used to mark this source
+        as last in the list. However, once the source is in the MLRun list, its order will always be ``>0``.
+
+        The global marketplace source always exists in the list, and is always the last source (``order = -1``).
+        It cannot be modified nor can it be moved to another order in the list.
+
+        The source object may contain credentials which are needed to access the datastore where the source is stored.
+        These credentials are not kept in the MLRun DB, but are stored inside a kubernetes secret object maintained by
+        MLRun. They are not returned through any API from MLRun.
+
+        Example::
+
+            import mlrun.api.schemas
+
+            # Add a private source as the last one (will be #1 in the list)
+            private_source = mlrun.api.schemas.IndexedMarketplaceSource(
+                order=-1,
+                source=mlrun.api.schemas.MarketplaceSource(
+                    metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="priv", description="a private source"),
+                    spec=mlrun.api.schemas.MarketplaceSourceSpec(path="/local/path/to/source", channel="development")
+                )
+            )
+            db.create_marketplace_source(private_source)
+
+            # Add another source as 1st in the list - will push previous one to be #2
+            another_source = mlrun.api.schemas.IndexedMarketplaceSource(
+                order=1,
+                source=mlrun.api.schemas.MarketplaceSource(
+                    metadata=mlrun.api.schemas.MarketplaceObjectMetadata(name="priv-2", description="another source"),
+                    spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                        path="/local/path/to/source/2",
+                        channel="development",
+                        credentials={...}
+                    )
+                )
+            )
+            db.create_marketplace_source(another_source)
+
+        :param source: The source and its order, of type
+            :py:class:`~mlrun.api.schemas.marketplace.IndexedMarketplaceSource`, or in dictionary form.
+        :returns: The source object as inserted into the database, with credentials stripped.
+        """
+        path = "marketplace/sources"
+        if isinstance(source, schemas.IndexedMarketplaceSource):
+            source = source.dict()
+        response = self.api_call(method="POST", path=path, json=source)
+        return schemas.IndexedMarketplaceSource(**response.json())
+
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        """
+        Create or replace a marketplace source.
+        For an example of the source format and explanation of the source order logic,
+        please see :py:func:`~create_marketplace_source`. This method can be used to modify the source itself or its
+        order in the list of sources.
+
+        :param source_name: Name of the source object to modify/create. It must match the ``source.metadata.name``
+            parameter in the source itself.
+        :param source: Source object to store in the database.
+        :returns: The source object as stored in the DB.
+        """
+        path = f"marketplace/sources/{source_name}"
+        if isinstance(source, schemas.IndexedMarketplaceSource):
+            source = source.dict()
+
+        response = self.api_call(method="PUT", path=path, json=source)
+        return schemas.IndexedMarketplaceSource(**response.json())
+
+    def list_marketplace_sources(self):
+        """
+        List marketplace sources in the MLRun DB.
+        """
+        path = "marketplace/sources"
+        response = self.api_call(method="GET", path=path).json()
+        results = []
+        for item in response:
+            results.append(schemas.IndexedMarketplaceSource(**item))
+        return results
+
+    def get_marketplace_source(self, source_name: str):
+        """
+        Retrieve a marketplace source from the DB.
+
+        :param source_name: Name of the marketplace source to retrieve.
+        """
+        path = f"marketplace/sources/{source_name}"
+        response = self.api_call(method="GET", path=path)
+        return schemas.IndexedMarketplaceSource(**response.json())
+
+    def delete_marketplace_source(self, source_name: str):
+        """
+        Delete a marketplace source from the DB.
+        The source will be deleted from the list, and any following sources will be promoted - for example, if the
+        1st source is deleted, the 2nd source will become #1 in the list.
+        The global marketplace source cannot be deleted.
+
+        :param source_name: Name of the marketplace source to delete.
+        """
+        path = f"marketplace/sources/{source_name}"
+        self.api_call(method="DELETE", path=path)
+
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
+        """
+        Retrieve the item catalog for a specified marketplace source.
+        The list of items can be filtered according to various filters, using item's metadata to filter.
+
+        :param source_name: Name of the source.
+        :param channel: Filter items according to their channel. For example ``development``.
+        :param version: Filter items according to their version.
+        :param tag: Filter items based on tag.
+        :param force_refresh: Make the server fetch the catalog from the actual marketplace source, rather than rely
+            on cached information which may exist from previous get requests. For example, if the source was re-built,
+            this will make the server get the updated information. Default is ``False``.
+        :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
+            of :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem` entries.
+        """
+        path = (f"marketplace/sources/{source_name}/items",)
+        params = {
+            "channel": channel,
+            "version": version,
+            "tag": tag,
+            "force-refresh": force_refresh,
+        }
+        response = self.api_call(method="GET", path=path, params=params)
+        return schemas.MarketplaceCatalog(**response.json())
+
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
+    ):
+        """
+        Retrieve a specific marketplace item.
+
+        :param source_name: Name of source.
+        :param item_name: Name of the item to retrieve, as it appears in the catalog.
+        :param channel: Get the item from the specified channel. Default is ``development``.
+        :param version: Get a specific version of the item. Default is ``None``.
+        :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
+        :param force_refresh: Make the server fetch the information from the actual marketplace source, rather than
+            rely on cached information. Default is ``False``.
+        :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem`.
+        """
+        path = (f"marketplace/sources/{source_name}/items/{item_name}",)
+        params = {
+            "channel": channel,
+            "version": version,
+            "tag": tag,
+            "force-refresh": force_refresh,
+        }
+        response = self.api_call(method="GET", path=path, params=params)
+        return schemas.MarketplaceItem(**response.json())
+
+    def verify_authorization(
+        self, authorization_verification_input: schemas.AuthorizationVerificationInput
+    ):
+        """ Verifies authorization for the provided action on the provided resource.
+
+        :param authorization_verification_input: Instance of
+            :py:class:`~mlrun.api.schemas.AuthorizationVerificationInput` that includes all the needed parameters for
+            the auth verification
+        """
+        error_message = "Authorization check failed"
+        self.api_call(
+            "POST",
+            "authorization/verifications",
+            error_message,
+            body=dict_to_json(authorization_verification_input),
+        )
 
 
 def _as_json(obj):

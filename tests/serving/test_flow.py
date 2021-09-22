@@ -109,3 +109,40 @@ def test_on_error():
     logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test(body=[])
     assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"
+
+
+def return_type(event):
+    return event.__class__.__name__
+
+
+def test_content_type():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to(name="totype", handler=return_type)
+    server = fn.to_mock_server()
+
+    # test that we json.load() when the content type is json
+    resp = server.test(body={"a": 1})
+    assert resp == "dict", "invalid type"
+    resp = server.test(body="[1,2]")
+    assert resp == "list", "did not load json on no type"
+    resp = server.test(body={"a": 1}, content_type="application/json")
+    assert resp == "dict", "invalid type, should keep dict"
+    resp = server.test(body="[1,2]", content_type="application/json")
+    assert resp == "list", "did not load json"
+    resp = server.test(body="[1,2]", content_type="application/text")
+    assert resp == "str", "did not keep as string"
+    resp = server.test(body="xx [1,2]")
+    assert resp == "str", "did not keep as string"
+    resp = server.test(body="xx [1,2]", content_type="application/json", silent=True)
+    assert resp.status_code == 400, "did not fail on bad json"
+
+    # test the use of default content type
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.spec.default_content_type = "application/json"
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to(name="totype", handler=return_type)
+
+    server = fn.to_mock_server()
+    resp = server.test(body="[1,2]")
+    assert resp == "list", "did not load json"

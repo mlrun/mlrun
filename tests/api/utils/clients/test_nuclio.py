@@ -385,6 +385,25 @@ def test_delete_project(
         nuclio_client.delete_project(None, project_name)
 
 
+def test_get_dashboard_version(
+    api_url: str,
+    nuclio_client: mlrun.api.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    label = "x.x.x"
+    response_body = {
+        "dashboard": {
+            "label": label,
+            "gitCommit": "commit sha",
+            "os": "linux",
+            "arch": "amd64",
+        }
+    }
+    requests_mock.get(f"{api_url}/api/versions", json=response_body)
+    nuclio_dashboard_version = nuclio_client.get_dashboard_version()
+    assert nuclio_dashboard_version == label
+
+
 def _generate_project_body(
     name=None,
     description=None,

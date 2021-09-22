@@ -58,22 +58,26 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner or labels or state:
             raise NotImplementedError(
                 "Filtering by owner, labels or state is not supported"
             )
-        if format_ == mlrun.api.schemas.Format.full:
-            return mlrun.api.schemas.ProjectsOutput(
-                projects=list(self._projects.values())
-            )
-        elif format_ == mlrun.api.schemas.Format.name_only:
-            project_names = [
-                project.metadata.name for project in list(self._projects.values())
+        projects = list(self._projects.values())
+        if names:
+            projects = [
+                project
+                for project_name, project in self._projects.items()
+                if project_name in names
             ]
+        if format_ == mlrun.api.schemas.ProjectsFormat.full:
+            return mlrun.api.schemas.ProjectsOutput(projects=projects)
+        elif format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+            project_names = [project.metadata.name for project in projects]
             return mlrun.api.schemas.ProjectsOutput(projects=project_names)
         else:
             raise NotImplementedError(

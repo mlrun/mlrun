@@ -90,6 +90,7 @@ class TestMLRunIntegration:
             "make",
             args=["run-api"],
             env=self._extend_current_env({"MLRUN_VERSION": "test-integration"}),
+            cwd=TestMLRunIntegration.root_path,
         )
         output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
         container_id = output.strip()

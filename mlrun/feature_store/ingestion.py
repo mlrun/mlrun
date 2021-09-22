@@ -32,7 +32,7 @@ from ..utils import logger
 
 
 def init_featureset_graph(
-    source, featureset, namespace, targets=None, return_df=True,
+    source, featureset, namespace, targets=None, return_df=True, verbose=False
 ):
     """create storey ingestion graph/DAG from feature set object"""
 
@@ -41,7 +41,7 @@ def init_featureset_graph(
 
     # init targets (and table)
     targets = targets or []
-    server = create_graph_server(graph=graph, parameters={}, verbose=True)
+    server = create_graph_server(graph=graph, parameters={}, verbose=verbose)
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
     if graph.engine != "sync":
@@ -71,7 +71,8 @@ def init_featureset_graph(
         target = get_target_driver(target, featureset)
         size = target.write_dataframe(data)
         target_status = target.update_resource_status("ready", size=size)
-        logger.info(f"wrote target: {target_status}")
+        if verbose:
+            logger.info(f"wrote target: {target_status}")
 
     return data
 
@@ -81,7 +82,7 @@ def featureset_initializer(server):
 
     context = server.context
     cache = server.resource_cache
-    featureset, source, targets, _ = context_to_ingestion_params(context)
+    featureset, source, targets, _, _ = context_to_ingestion_params(context)
     graph = featureset.spec.graph.copy()
     _add_data_steps(
         graph, cache, featureset, targets=targets, source=source,
@@ -117,12 +118,13 @@ def context_to_ingestion_params(context):
         source = get_source_from_dict(source)
     elif featureset.spec.source.to_dict():
         source = get_source_from_dict(featureset.spec.source.to_dict())
+    overwrite = context.get_param("overwrite", None)
 
     targets = context.get_param("targets", None)
     if not targets:
         targets = featureset.spec.targets
     targets = [get_target_driver(target, featureset) for target in targets]
-    return featureset, source, targets, infer_options
+    return featureset, source, targets, infer_options, overwrite
 
 
 def _add_data_steps(
@@ -197,11 +199,17 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     task.set_label("job-type", "feature-ingest").set_label(
         "feature-set", featureset.uri
     )
+    if run_config.owner:
+        task.set_label("owner", run_config.owner).set_label(
+            "v3io_user", run_config.owner
+        )
 
     # set run UID and save in the feature set status (linking the features et to the job)
     task.metadata.uid = uuid.uuid4().hex
     featureset.status.run_uri = task.metadata.uid
     featureset.save()
+
+    function.set_db_connection(featureset._get_run_db())
 
     run = function.run(
         task, schedule=schedule, local=run_config.local, watch=run_config.watch

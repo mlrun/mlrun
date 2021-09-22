@@ -16,7 +16,7 @@ from copy import copy
 import mlrun
 import mlrun.errors
 from mlrun.runtimes.function_reference import FunctionReference
-from mlrun.utils import parse_versioned_object_uri
+from mlrun.utils import StorePrefix, parse_versioned_object_uri
 
 from ..config import config
 
@@ -61,11 +61,26 @@ def parse_project_name_from_feature_string(feature):
     return project_name.strip(), feature_name.strip()
 
 
+def parse_feature_set_uri(uri, project=None):
+    """get feature set object from db by uri"""
+    default_project = project or config.default_project
+
+    # parse store://.. uri
+    if mlrun.datastore.is_store_uri(uri):
+        prefix, new_uri = mlrun.datastore.parse_store_uri(uri)
+        if prefix != StorePrefix.FeatureSet:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"provided store uri ({uri}) does not represent a feature set (prefix={prefix})"
+            )
+        uri = new_uri
+
+    return parse_versioned_object_uri(uri, default_project)
+
+
 def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
-    default_project = project or config.default_project
-    project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
+    project, name, tag, uid = parse_feature_set_uri(uri, project)
     return db.get_feature_set(name, project, tag, uid)
 
 
@@ -73,6 +88,16 @@ def get_feature_vector_by_uri(uri, project=None):
     """get feature vector object from db by uri"""
     db = mlrun.get_run_db()
     default_project = project or config.default_project
+
+    # parse store://.. uri
+    if mlrun.datastore.is_store_uri(uri):
+        prefix, new_uri = mlrun.datastore.parse_store_uri(uri)
+        if prefix != StorePrefix.FeatureVector:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"provided store uri ({uri}) does not represent a feature vector (prefix={prefix})"
+            )
+        uri = new_uri
+
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
     return db.get_feature_vector(name, project, tag, uid)
 
@@ -105,6 +130,7 @@ class RunConfig:
         handler=None,
         parameters=None,
         watch=None,
+        owner=None,
     ):
         self._function = None
         self._modifiers = []
@@ -117,6 +143,7 @@ class RunConfig:
         self.handler = handler
         self.parameters = parameters or {}
         self.watch = True if watch is None else watch
+        self.owner = owner
 
     @property
     def function(self):

@@ -7,6 +7,9 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 import deepdiff
+import fastapi.testclient
+import pytest
+import sqlalchemy.orm
 from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
@@ -26,6 +29,12 @@ class TestRuntimeBase:
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
         get_k8s().namespace = self.namespace
+
+        # set auto-mount to work as if this is an Iguazio system (otherwise it may try to mount PVC)
+        mlconf.igz_version = "1.1.1"
+        mlconf.storage.auto_mount_type = "auto"
+        mlconf.storage.auto_mount_params = ""
+
         self._logger = logger
         self.project = "test-project"
         self.name = "test-function"
@@ -54,6 +63,22 @@ class TestRuntimeBase:
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        # We want this mock for every test, ideally we would have simply put it in the setup_method
+        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
+        # in order to be able to mock k8s stuff
+        get_k8s().get_project_secret_keys = unittest.mock.Mock(return_value=[])
+        get_k8s().v1api = unittest.mock.Mock()
+        get_k8s().crdapi = unittest.mock.Mock()
+        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
+        # enable inheriting classes to do the same
+        self.custom_setup_after_fixtures()
+
     def teardown_method(self, method):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
@@ -76,6 +101,9 @@ class TestRuntimeBase:
         pass
 
     def custom_setup(self):
+        pass
+
+    def custom_setup_after_fixtures(self):
         pass
 
     def custom_teardown(self):
@@ -188,6 +216,11 @@ class TestRuntimeBase:
             side_effect=_generate_pod
         )
 
+        # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
+        get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
+            return_value=client.V1PodList(items=[])
+        )
+
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
         secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
@@ -215,6 +248,7 @@ class TestRuntimeBase:
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
         get_k8s().v1api.create_namespaced_pod.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
 
         runtime.run(
             name=self.name,
@@ -303,6 +337,22 @@ class TestRuntimeBase:
         # Make sure all variables were accounted for
         assert len(expected_variables) == 0
 
+    @staticmethod
+    def _assert_pod_env_from_secrets(pod_env, expected_variables):
+        for env_variable in pod_env:
+            if (
+                isinstance(env_variable, V1EnvVar)
+                and env_variable.value_from is not None
+            ):
+                name = env_variable.name
+                if name in expected_variables:
+                    expected_value = expected_variables[name]
+                    secret_key = env_variable.value_from.secret_key_ref.key
+                    secret_name = env_variable.value_from.secret_key_ref.name
+                    assert expected_value[secret_name] == secret_key
+                    expected_variables.pop(name)
+        assert len(expected_variables) == 0
+
     def _get_pod_creation_args(self):
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[1]
@@ -311,7 +361,9 @@ class TestRuntimeBase:
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[0]
 
-    def _assert_v3io_mount_configured(self, v3io_user, v3io_access_key):
+    def _assert_v3io_mount_or_creds_configured(
+        self, v3io_user, v3io_access_key, cred_only=False
+    ):
         args = self._get_pod_creation_args()
         pod_spec = args.spec
         container_spec = pod_spec.containers[0]
@@ -325,6 +377,11 @@ class TestRuntimeBase:
                 "V3IO_ACCESS_KEY": v3io_access_key,
             },
         )
+
+        if cred_only:
+            assert len(pod_spec.volumes) == 0
+            assert len(container_spec.volume_mounts) == 0
+            return
 
         expected_volume = {
             "flexVolume": {
@@ -413,9 +470,11 @@ class TestRuntimeBase:
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
+        expected_priority_class_name=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
+        expected_env_from_secrets={},
     ):
         if assert_create_pod_called:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -440,6 +499,7 @@ class TestRuntimeBase:
             expected_env["MLRUN_NAMESPACE"] = self.namespace
 
         self._assert_pod_env(pod_env, expected_env)
+        self._assert_pod_env_from_secrets(pod_env, expected_env_from_secrets)
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
                 env_variable = dict(name=env_variable.name, value=env_variable.value)
@@ -482,6 +542,9 @@ class TestRuntimeBase:
                 )
                 == {}
             )
+
+        if expected_priority_class_name:
+            assert pod.spec.priority_class_name == expected_priority_class_name
 
         assert pod.spec.containers[0].image == self.image_name
 

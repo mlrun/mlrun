@@ -1,12 +1,20 @@
+import typing
+import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
+import deepdiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
+import mlrun.api.api.endpoints.feature_store
+import mlrun.api.schemas
+import mlrun.api.utils.clients.opa
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
+    _list_tags_and_assert,
     _patch_object,
     _test_partition_by_for_feature_store_objects,
 )
@@ -22,7 +30,11 @@ def _generate_feature_vector(name):
             "extra_metadata": 100,
         },
         "spec": {
-            "features": ["feature_set:*", "feature_set:something", "just_a_feature"],
+            "features": [
+                "feature_set.*",
+                "feature_set.something",
+                "feature_set.just_a_feature",
+            ],
             "description": "just a bunch of features",
             "extra_spec": True,
         },
@@ -136,7 +148,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
     _list_and_assert_objects(client, "feature_vectors", "wrong_project", None, 0)
 
 
-def _assert_store_feature_vector(
+def _store_feature_vector(
     client: TestClient, project, name, reference, feature_vector, versioned=True
 ):
     response = client.put(
@@ -153,31 +165,25 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
     feature_vector = _generate_feature_vector(name)
 
     # Put a new object - verify it's created
-    response = _assert_store_feature_vector(
-        client, project_name, name, "tag1", feature_vector
-    )
+    response = _store_feature_vector(client, project_name, name, "tag1", feature_vector)
     assert response["metadata"]["tag"] == "tag1"
     uid = response["metadata"]["uid"]
 
     # Put same object using uid - should not return tag
-    response = _assert_store_feature_vector(
-        client, project_name, name, uid, feature_vector
-    )
+    response = _store_feature_vector(client, project_name, name, uid, feature_vector)
     assert response["metadata"]["tag"] is None
 
     # Change fields that will not affect the uid, verify object is overwritten
     feature_vector["status"]["state"] = "modified"
 
-    response = _assert_store_feature_vector(
-        client, project_name, name, "tag1", feature_vector
-    )
+    response = _store_feature_vector(client, project_name, name, "tag1", feature_vector)
     assert response["metadata"]["uid"] == uid
     assert response["status"]["state"] == "modified"
 
     # Now modify in a way that will affect uid, add a field to the metadata.
     # Since referencing the object as "latest", a new version (with new uid) should be created.
     feature_vector["metadata"]["new_metadata"] = True
-    response = _assert_store_feature_vector(
+    response = _store_feature_vector(
         client, project_name, name, "latest", feature_vector
     )
     modified_uid = response["metadata"]["uid"]
@@ -200,9 +206,9 @@ def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> N
     name = "feature_vector1"
     feature_vector = _generate_feature_vector(name)
 
-    _assert_store_feature_vector(client, project_name, name, "tag1", feature_vector)
+    _store_feature_vector(client, project_name, name, "tag1", feature_vector)
 
-    _assert_store_feature_vector(client, project_name, name, "tag2", feature_vector)
+    _store_feature_vector(client, project_name, name, "tag2", feature_vector)
 
     response = _list_and_assert_objects(
         client, "feature_vectors", project_name, f"name={name}", 2
@@ -215,7 +221,7 @@ def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> N
 
     # Storing object with same tag - should just update
     feature_vector["metadata"]["extra_metadata"] = 200
-    _assert_store_feature_vector(client, project_name, name, "tag2", feature_vector)
+    _store_feature_vector(client, project_name, name, "tag2", feature_vector)
 
     _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 2)
     response = _list_and_assert_objects(
@@ -304,7 +310,7 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
         # Store different copies of the feature set with different uids and tags
         feature_vector["metadata"]["extra_metadata"] = i * 100
         tag = f"tag{i}"
-        result = _assert_store_feature_vector(
+        result = _store_feature_vector(
             client, project_name, name, f"tag{i}", feature_vector
         )
         uids[result["metadata"]["uid"]] = tag
@@ -330,9 +336,7 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
 
     for i in range(count):
         feature_vector["metadata"]["extra_metadata"] = i * 100
-        _assert_store_feature_vector(
-            client, project_name, name, f"tag{i}", feature_vector
-        )
+        _store_feature_vector(client, project_name, name, f"tag{i}", feature_vector)
 
     # Now delete by name
     response = client.delete(f"/api/projects/{project_name}/feature-vectors/{name}")
@@ -354,7 +358,7 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
     )
     assert feature_vector_response["metadata"]["uid"] is None
 
-    feature_vector_response = _assert_store_feature_vector(
+    feature_vector_response = _store_feature_vector(
         client, project_name, name, "latest", feature_vector, versioned=False
     )
 
@@ -382,25 +386,86 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
     )
 
 
+def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
+    project_name = "some-project"
+    name = "feature_vector-1"
+    name_2 = "feature_vector-2"
+    feature_vector_1 = _generate_feature_vector(name)
+    feature_vector_2 = _generate_feature_vector(name_2)
+
+    tags = ["tag-1", "tag-2", "tag-3", "tag-4"]
+    for feature_vector in [feature_vector_1, feature_vector_2]:
+        for tag in tags:
+            _store_feature_vector(
+                client,
+                project_name,
+                feature_vector["metadata"]["name"],
+                tag,
+                feature_vector,
+            )
+    _list_tags_and_assert(
+        client, "feature_vectors", project_name, tags,
+    )
+
+
 def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
     count = 5
     for i in range(count):
         name = f"feature_vector_{i}"
         feature_vector = _generate_feature_vector(name)
-        _assert_store_feature_vector(
-            client, project_name, name, "older", feature_vector
-        )
+        _store_feature_vector(client, project_name, name, "older", feature_vector)
         # Must change the uid, otherwise it will just re-tag the same object
         feature_vector["metadata"]["extra_metadata"] = 200
-        _assert_store_feature_vector(
-            client, project_name, name, "newer", feature_vector
-        )
+        _store_feature_vector(client, project_name, name, "newer", feature_vector)
         feature_vector["metadata"]["extra_metadata"] = 300
-        _assert_store_feature_vector(
-            client, project_name, name, "newest", feature_vector
-        )
+        _store_feature_vector(client, project_name, name, "newest", feature_vector)
 
     _test_partition_by_for_feature_store_objects(
         client, "feature_vectors", project_name, count
+    )
+
+
+def test_verify_feature_vector_features_permissions(
+    db: Session, client: TestClient
+) -> None:
+    project = "some-project"
+    features = [
+        "without-project.*",
+        "without-project.with-feature-name",
+        "without-project.with-feature-alias as some-alias",
+        "without-project:with-tag.*",
+        "with-project/name.*",
+        "with-project/name:and-tag.*",
+        "with-project/name@and-uid.*",
+        "store://feature-sets/with-project/name:and-tag.*",
+        "store://feature-sets/with-project/name@and-uid.*",
+        "store://feature-sets/without-project.with-feature-alias as some-alias",
+    ]
+    label_feature = "some-feature-set.some-feature"
+
+    def _verify_queried_resources(
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resources: typing.List,
+        project_and_resource_name_extractor: typing.Callable,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ):
+        expected_resources = [
+            (project, "without-project"),
+            ("with-project", "name"),
+            (project, "some-feature-set"),
+        ]
+        assert (
+            deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
+        )
+
+    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions = unittest.mock.Mock(
+        side_effect=_verify_queried_resources
+    )
+    mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        {"spec": {"features": features, "label_feature": label_feature}},
     )

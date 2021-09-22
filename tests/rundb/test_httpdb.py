@@ -255,12 +255,14 @@ def test_artifacts(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, key, body = "p9", "u19", "k802", "tomato"
-    artifact = Artifact(key, body)
+    artifact = Artifact(key, body, target_path="a.txt")
 
     db.store_artifact(key, artifact, uid, project=prj)
     db.store_artifact(key, artifact, uid, project=prj, iter=42)
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 2, "bad number of artifacts"
+    assert artifacts.objects()[0].key == key, "not a valid artifact object"
+    assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
 
     artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
     assert len(artifacts) == 1, "bad number of artifacts"
@@ -487,7 +489,11 @@ def _create_feature_vector(name):
             "tag": "latest",
         },
         "spec": {
-            "features": ["feature_set:*", "feature_set:something", "just_a_feature"],
+            "features": [
+                "feature_set.*",
+                "feature_set.something",
+                "feature_set.just_a_feature",
+            ],
             "description": "just a bunch of features",
         },
         "status": {"state": "created"},
@@ -508,7 +514,7 @@ def test_feature_vectors(create_server):
     # Test store_feature_set, which allows updates as well as inserts
     db.store_feature_vector(feature_vector, project=project)
 
-    feature_vector_update = {"spec": {"features": ["bla", "blu"]}}
+    feature_vector_update = {"spec": {"features": ["bla.asd", "blu.asd"]}}
 
     # additive mode means add the feature to the features-list
     db.patch_feature_vector(

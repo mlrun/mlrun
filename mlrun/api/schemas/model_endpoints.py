@@ -7,6 +7,11 @@ from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.utils.model_monitoring import create_model_endpoint_id
 
 
+class ModelMonitoringStoreKinds:
+    ENDPOINTS = "endpoints"
+    EVENTS = "events"
+
+
 class ModelEndpointMetadata(BaseModel):
     project: Optional[str]
     labels: Optional[dict]
@@ -90,6 +95,7 @@ class ModelEndpointStatus(ObjectStatus):
     drift_measures: Optional[dict]
     metrics: Optional[Dict[str, Metric]]
     features: Optional[List[Features]]
+    children: Optional[List[str]]
 
     class Config:
         extra = Extra.allow

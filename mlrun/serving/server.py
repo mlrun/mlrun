@@ -81,6 +81,7 @@ class GraphServer(ModelObj):
         error_stream=None,
         track_models=None,
         secret_sources=None,
+        default_content_type=None,
     ):
         self._graph = None
         self.graph: Union[RouterStep, RootFlowStep] = graph
@@ -100,6 +101,8 @@ class GraphServer(ModelObj):
         self._secrets = SecretsStore.from_list(secret_sources)
         self._db_conn = None
         self.resource_cache = None
+        self.default_content_type = default_content_type
+        self.http_trigger = True
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -212,6 +215,23 @@ class GraphServer(ModelObj):
     def run(self, event, context=None, get_body=False, extra_args=None):
         server_context = self.context
         context = context or server_context
+        event.content_type = event.content_type or self.default_content_type or ""
+        if isinstance(event.body, (str, bytes)) and (
+            not event.content_type or event.content_type in ["json", "application/json"]
+        ):
+            # assume it is json and try to load
+            try:
+                body = json.loads(event.body)
+                event.body = body
+            except json.decoder.JSONDecodeError as exc:
+                if event.content_type in ["json", "application/json"]:
+                    # if its json type and didnt load, raise exception
+                    message = f"failed to json decode event, {exc}"
+                    context.logger.error(message)
+                    server_context.push_error(event, message, source="_handler")
+                    return context.Response(
+                        body=message, content_type="text/plain", status_code=400
+                    )
         try:
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
@@ -259,6 +279,8 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if config.log_level.lower() == "debug":
         server.verbose = True
+    if hasattr(context, "trigger"):
+        server.http_trigger = getattr(context.trigger, "kind", "http") == "http"
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     server.init_states(context, namespace or get_caller_globals())
     serving_handler = server.init_object(namespace or get_caller_globals())
@@ -272,6 +294,8 @@ def v2_serving_init(context, namespace=None):
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
+    if not context.server.http_trigger:
+        event.path = "/"  # fix the issue that non http returns "Unsupported"
     return context.server.run(event, context, get_body)
 
 
@@ -386,6 +410,43 @@ class GraphContext:
         if self._server and self._server._secrets:
             return self._server._secrets.get(key)
         return None
+
+    def get_remote_endpoint(self, name, external=False):
+        """return the remote nuclio/serving function http(s) endpoint given its name
+
+        :param name: the function name/uri in the form [project/]function-name[:tag]
+        :param external: return the external url (returns the in-cluster url by default)
+        """
+        if "://" in name:
+            return name
+        project, uri, tag, _ = mlrun.utils.parse_versioned_object_uri(
+            self._server.function_uri
+        )
+        if name.startswith("."):
+            name = f"{uri}-{name[1:]}"
+        else:
+            project, name, tag, _ = mlrun.utils.parse_versioned_object_uri(
+                name, project
+            )
+        (
+            state,
+            fullname,
+            _,
+            _,
+            _,
+            function_status,
+        ) = mlrun.runtimes.function.get_nuclio_deploy_status(name, project, tag)
+
+        if state in ["error", "unhealthy"]:
+            raise ValueError(
+                f"Nuclio function {fullname} is in error state, cannot be accessed"
+            )
+
+        key = "externalInvocationUrls" if external else "internalInvocationUrls"
+        urls = function_status.get(key)
+        if not urls:
+            raise ValueError(f"cannot read {key} for nuclio function {fullname}")
+        return f"http://{urls[0]}"
 
 
 def format_error(server, context, source, event, message, args):

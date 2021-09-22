@@ -74,16 +74,22 @@ api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it there as well
 extras_require = {
     # from 1.17.50 it requires botocore>=1.20.50,<1.21.0 which conflicts with s3fs 0.5.2 that has aiobotocore>=1.0.1
-    # which resolves to 1.3.0 which has botocore>=1.20.49,<1.20.50
-    # boto3 1.17.49 has botocore<1.21.0,>=1.20.49, so we must add botocore explictly
+    # which until 1.3.1 has botocore>=1.20.49,<1.20.50
+    # boto3 1.17.49 has botocore<1.21.0,>=1.20.49, so we must add botocore explicitly
+    # we can move forward to aiobotocore 1.3.2 which will require bumping botocore and boto3, but those 3 release pretty
+    # often, causing conflicts so anyway we'll need to lock on something, so locking (aiobotocore) on what is currently
+    # existing (as of writing this)
     "s3": [
         "boto3~=1.9, <1.17.50",
         "botocore>=1.20.49,<1.20.50",
+        "aiobotocore<=1.3.1",
         "s3fs>=0.5.0, <=0.6.0",
     ],
     # <12.7.0 from adlfs 0.6.3
     "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
+    # mlrun.frameworks requirements per framework:  # TODO: should be added in a later PR
+    "bokeh": ["bokeh~=2.3"],
 }
 extras_require["complete"] = sorted(
     {
@@ -110,35 +116,27 @@ setup(
     url="https://github.com/mlrun/mlrun",
     packages=[
         "mlrun",
-        "mlrun.runtimes",
-        "mlrun.runtimes.mpijob",
-        "mlrun.serving",
-        "mlrun.db",
-        "mlrun.mlutils",
-        "mlrun.platforms",
-        "mlrun.projects",
-        "mlrun.artifacts",
-        "mlrun.utils",
-        "mlrun.utils.version",
-        "mlrun.datastore",
-        "mlrun.data_types",
-        "mlrun.feature_store",
-        "mlrun.feature_store.retrieval",
         "mlrun.api",
-        "mlrun.api.migrations",
-        "mlrun.api.migrations.versions",
         "mlrun.api.api",
         "mlrun.api.api.endpoints",
+        "mlrun.api.crud",
         "mlrun.api.db",
         "mlrun.api.db.sqldb",
         "mlrun.api.db.filedb",
+        "mlrun.api.migrations",
+        "mlrun.api.migrations.versions",
         "mlrun.api.schemas",
-        "mlrun.api.crud",
         "mlrun.api.utils",
-        "mlrun.api.utils.singletons",
         "mlrun.api.utils.clients",
         "mlrun.api.utils.projects",
         "mlrun.api.utils.projects.remotes",
+        "mlrun.api.utils.singletons",
+        "mlrun.artifacts",
+        "mlrun.data_types",
+        "mlrun.datastore",
+        "mlrun.db",
+        "mlrun.feature_store",
+        "mlrun.feature_store.retrieval",
         "mlrun.frameworks",
         "mlrun.frameworks._common",
         "mlrun.frameworks._common.loggers",
@@ -146,6 +144,19 @@ setup(
         "mlrun.frameworks.pytorch.callbacks",
         "mlrun.frameworks.keras",
         "mlrun.frameworks.keras.callbacks",
+        "mlrun.frameworks.mlbase",
+        "mlrun.frameworks.sklearn",
+        "mlrun.frameworks.xgboost",
+        "mlrun.mlutils",
+        "mlrun.model_monitoring",
+        "mlrun.platforms",
+        "mlrun.projects",
+        "mlrun.runtimes",
+        "mlrun.runtimes.mpijob",
+        "mlrun.runtimes.sparkjob",
+        "mlrun.serving",
+        "mlrun.utils",
+        "mlrun.utils.version",
     ],
     install_requires=install_requires,
     extras_require=extras_require,

@@ -132,19 +132,24 @@ def get_df_stats_spark(df, options, num_bins=20):
     if InferOptions.get_common_options(options, InferOptions.Index):
         df = df.select("*").withColumn("id", funcs.monotonically_increasing_id())
 
-    describe_df = df.describe().toPandas()
-    describe_df = describe_df.set_index("summary")
-
+    describe_df = df.toPandas().describe(
+        include="all", percentiles=[], datetime_is_numeric=True
+    )
     results_dict = {}
     for col, values in describe_df.items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if isinstance(val, (float, np.floating, np.float64)):
-                stats_dict[stat] = float(val)
-            elif isinstance(val, (int, np.integer, np.int64)):
-                stats_dict[stat] = int(val)
-            else:
-                stats_dict[stat] = str(val)
+            if stat != "50%":
+                if isinstance(val, (float, np.floating, np.float64)):
+                    stats_dict[stat] = float(val)
+                elif isinstance(val, (int, np.integer, np.int64)):
+                    # boolean values are considered subclass of int
+                    if isinstance(val, bool):
+                        stats_dict[stat] = bool(val)
+                    else:
+                        stats_dict[stat] = int(val)
+                else:
+                    stats_dict[stat] = str(val)
         results_dict[col] = stats_dict
 
         if InferOptions.get_common_options(

@@ -1,7 +1,8 @@
 import json
 
-import mlrun.api.crud.pipelines
+import mlrun.api.crud
 import mlrun.errors
+import mlrun.kfpops
 import mlrun.run
 import mlrun.utils.helpers
 
@@ -228,11 +229,21 @@ def test_resolve_pipeline_project():
             "expected_project": mlrun.mlconf.default_project,
             "template": {"dag": {"asdasd": "asdasd"}},
         },
+        {
+            "expected_project": "project-from-annotation",
+            "template": {
+                "metadata": {
+                    "annotations": {
+                        mlrun.kfpops.project_annotation: "project-from-annotation"
+                    }
+                }
+            },
+        },
     ]
     for case in cases:
         workflow_manifest = {"spec": {"templates": [case["template"]]}}
         pipeline = {
             "pipeline_spec": {"workflow_manifest": json.dumps(workflow_manifest)}
         }
-        project = mlrun.api.crud.pipelines._resolve_pipeline_project(pipeline)
+        project = mlrun.api.crud.Pipelines().resolve_project_from_pipeline(pipeline)
         assert project == case["expected_project"]

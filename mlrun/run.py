@@ -14,14 +14,15 @@
 
 import importlib.util as imputil
 import json
+import pathlib
 import socket
+import tempfile
 import time
 import uuid
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
-from tempfile import mktemp
 from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
@@ -31,12 +32,12 @@ from nuclio import build_file
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
 from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
-from .k8s_utils import get_k8s_helper
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,
@@ -49,7 +50,8 @@ from .runtimes import (
     RemoteSparkRuntime,
     RuntimeKinds,
     ServingRuntime,
-    SparkRuntime,
+    Spark2Runtime,
+    Spark3Runtime,
     get_runtime_class,
 )
 from .runtimes.funcdoc import update_function_entry_points
@@ -146,28 +148,32 @@ def run_local(
     :return: run object
     """
 
+    function_name = name
     if command and isinstance(command, str):
         sp = command.split()
         command = sp[0]
         if len(sp) > 1:
             args = args or []
             args = sp[1:] + args
+        function_name = function_name or pathlib.Path(command).stem
 
-    meta = BaseMetadata(name, project=project, tag=tag)
+    meta = BaseMetadata(function_name, project=project, tag=tag)
     command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
         handler = handler or get_in(runtime, "spec.default_handler", "")
         meta = BaseMetadata.from_dict(runtime["metadata"])
-        meta.name = name or meta.name
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
     fn = new_function(meta.name, command=command, args=args, mode=mode)
-    meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
+    if runtime:
+        # copy the code/base-spec to the local function (for the UI and code logging)
+        fn.spec.description = get_in(runtime, "spec.description")
+        fn.spec.build = get_in(runtime, "spec.build", {})
     return fn.run(
         task,
         name=name,
@@ -240,15 +246,28 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 
         command = get_in(runtime, "spec.command", "")
         code = get_in(runtime, "spec.build.functionSourceCode")
+        origin_filename = get_in(runtime, "spec.build.origin_filename")
         kind = get_in(runtime, "kind", "")
         if kind in RuntimeKinds.nuclio_runtimes():
             code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
         if code:
-            fpath = mktemp(".py")
-            code = b64decode(code).decode("utf-8")
-            command = fpath
-            with open(fpath, "w") as fp:
-                fp.write(code)
+            if (
+                origin_filename
+                and origin_filename.endswith(".py")
+                and path.isfile(origin_filename)
+            ):
+                command = origin_filename
+            else:
+                suffix = ".py"
+                if origin_filename:
+                    suffix = f"-{pathlib.Path(origin_filename).stem}.py"
+                with tempfile.NamedTemporaryFile(
+                    suffix=suffix, mode="w", delete=False
+                ) as temp_file:
+                    code = b64decode(code).decode("utf-8")
+                    command = temp_file.name
+                    temp_file.write(code)
+
         elif command and not is_remote:
             command = path.join(workdir or "", command)
             if not path.isfile(command):
@@ -261,15 +280,17 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
         pass
 
     elif suffix == ".ipynb":
-        fpath = mktemp(".py")
-        code_to_function(name, filename=command, kind="local", code_output=fpath)
-        command = fpath
+        temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+        code_to_function(
+            name, filename=command, kind="local", code_output=temp_file.name
+        )
+        command = temp_file.name
 
     elif suffix == ".py":
         if "://" in command:
-            fpath = mktemp(".py")
-            download_object(command, fpath, secrets)
-            command = fpath
+            temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+            download_object(command, temp_file.name, secrets)
+            command = temp_file.name
 
     else:
         raise ValueError(f"unsupported suffix: {suffix}")
@@ -374,7 +395,7 @@ def get_or_create_ctx(
     return ctx
 
 
-def import_function(url="", secrets=None, db="", project=None):
+def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
     Function can be imported from function repositories (mlrun marketplace or local db),
@@ -395,6 +416,7 @@ def import_function(url="", secrets=None, db="", project=None):
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
+    :param new_name: optional, override the imported function name
 
     :returns: function object
     """
@@ -415,6 +437,8 @@ def import_function(url="", secrets=None, db="", project=None):
     # simply default to the default project
     if project and is_hub_uri:
         function.metadata.project = project
+    if new_name:
+        function.metadata.name = new_name
     return function
 
 
@@ -431,11 +455,12 @@ def import_function_to_dict(url, secrets=None):
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
         if code:
-            fpath = mktemp(".py")
-            code = b64decode(code).decode("utf-8")
-            update_in(runtime, "spec.command", fpath)
-            with open(fpath, "w") as fp:
-                fp.write(code)
+            with tempfile.NamedTemporaryFile(
+                suffix=".py", mode="w", delete=False
+            ) as temp_file:
+                code = b64decode(code).decode("utf-8")
+                update_in(runtime, "spec.command", temp_file.name)
+                temp_file.write(code)
         elif remote and cmd:
             if cmd.startswith("/"):
                 raise ValueError("exec path (spec.command) must be relative")
@@ -619,7 +644,8 @@ def code_to_function(
     DaskCluster,
     KubejobRuntime,
     LocalRuntime,
-    SparkRuntime,
+    Spark2Runtime,
+    Spark3Runtime,
     RemoteSparkRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
@@ -776,6 +802,7 @@ def code_to_function(
             raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
+        r.spec.build.origin_filename = filename or (name + ".ipynb")
         if requirements:
             r.with_requirements(requirements)
         update_meta(r)
@@ -799,6 +826,7 @@ def code_to_function(
     r.spec.image = image or get_in(spec, "spec.image", "")
     build = r.spec.build
     build.code_origin = code_origin
+    build.origin_filename = filename or (name + ".ipynb")
     build.base_image = get_in(spec, "spec.build.baseImage")
     build.commands = get_in(spec, "spec.build.commands")
     build.extra = get_in(spec, "spec.build.extra")
@@ -839,6 +867,7 @@ def run_pipeline(
     ops=None,
     url=None,
     ttl=None,
+    remote: bool = True,
 ):
     """remote KubeFlow pipeline execution
 
@@ -853,13 +882,13 @@ def run_pipeline(
     :param artifact_path:  target location/url for mlrun artifacts
     :param ops:        additional operators (.apply() to all pipeline functions)
     :param ttl:        pipeline ttl in secs (after that the pods will be removed)
+    :param remote:     read kfp data from mlrun service (default=True)
 
     :returns: kubeflow pipeline id
     """
 
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-
     artifact_path = artifact_path or mlconf.artifact_path
+    project = project or mlconf.default_project
     artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
         artifact_path, project or mlconf.default_project
     )
@@ -879,6 +908,7 @@ def run_pipeline(
                 ", please set the dbpath url"
             )
         id = mldb.submit_pipeline(
+            project,
             pipeline,
             arguments,
             experiment=experiment,
@@ -906,12 +936,17 @@ def run_pipeline(
             )
 
         id = run_result.run_id
-    logger.info(f"Pipeline run id={id}, check UI or DB for progress")
+    logger.info(f"Pipeline run id={id}, check UI for progress")
     return id
 
 
 def wait_for_pipeline_completion(
-    run_id, timeout=60 * 60, expected_statuses: List[str] = None, namespace=None
+    run_id,
+    timeout=60 * 60,
+    expected_statuses: List[str] = None,
+    namespace=None,
+    remote=True,
+    project: str = None,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -920,16 +955,18 @@ def wait_for_pipeline_completion(
     :param expected_statuses:  list of expected statuses, one of [ Succeeded | Failed | Skipped | Error ], by default
                                [ Succeeded ]
     :param namespace:  k8s namespace if not default
+    :param remote:     read kfp data from mlrun service (default=True)
+    :param project:    the project of the pipeline
 
     :return: kfp run dict
     """
     if expected_statuses is None:
         expected_statuses = [RunStatuses.succeeded]
     namespace = namespace or mlconf.namespace
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     logger.debug(
         f"Waiting for run completion."
         f" run_id: {run_id},"
+        f" project: {project},"
         f" expected_statuses: {expected_statuses},"
         f" timeout: {timeout},"
         f" remote: {remote},"
@@ -940,8 +977,9 @@ def wait_for_pipeline_completion(
         mldb = get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
-            resp = mldb.get_pipeline(run_id, namespace=namespace)
+            resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             status = resp["run"]["status"]
+            show_kfp_run(resp, clear_output=True)
             if status not in RunStatuses.stable_statuses():
 
                 # TODO: think of nicer liveness indication and make it re-usable
@@ -971,32 +1009,50 @@ def wait_for_pipeline_completion(
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
+            resp = format_summary_from_kfp_run(resp)
+        show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
+    message = resp["run"].get("message", "")
     if expected_statuses:
         if status not in expected_statuses:
-            raise RuntimeError(f"run status {status} not in expected statuses")
+            raise RuntimeError(
+                f"Pipeline run status {status}{', ' + message if message else ''}"
+            )
 
     logger.debug(
         f"Finished waiting for pipeline completion."
         f" run_id: {run_id},"
         f" status: {status},"
+        f" message: {message},"
         f" namespace: {namespace}"
     )
 
     return resp
 
 
-def get_pipeline(run_id, namespace=None):
+def get_pipeline(
+    run_id,
+    namespace=None,
+    format_: Union[
+        str, mlrun.api.schemas.PipelinesFormat
+    ] = mlrun.api.schemas.PipelinesFormat.summary,
+    project: str = None,
+    remote: bool = True,
+):
     """Get Pipeline status
 
     :param run_id:     id of pipelines run
     :param namespace:  k8s namespace if not default
+    :param format_:    Format of the results. Possible values are:
+            - ``summary`` (default value) - Return summary of the object data.
+            - ``full`` - Return full pipeline object.
+    :param project:    the project of the pipeline run
+    :param remote:     read kfp data from mlrun service (default=True)
 
     :return: kfp run dict
     """
     namespace = namespace or mlconf.namespace
-    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     if remote:
         mldb = get_run_db()
         if mldb.kind != "http":
@@ -1005,14 +1061,22 @@ def get_pipeline(run_id, namespace=None):
                 ", please set the dbpath url"
             )
 
-        resp = mldb.get_pipeline(run_id, namespace=namespace)
+        resp = mldb.get_pipeline(
+            run_id, namespace=namespace, format_=format_, project=project
+        )
 
     else:
         client = Client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
+            if (
+                not format_
+                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
+            ):
+                resp = format_summary_from_kfp_run(resp)
 
+    show_kfp_run(resp)
     return resp
 
 
@@ -1024,7 +1088,7 @@ def list_pipelines(
     filter_="",
     namespace=None,
     project="*",
-    format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.metadata_only,
+    format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
@@ -1043,7 +1107,7 @@ def list_pipelines(
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
-        format_ = mlrun.api.schemas.Format.full
+        format_ = mlrun.api.schemas.PipelinesFormat.full
     run_db = get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size

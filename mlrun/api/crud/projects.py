@@ -6,6 +6,7 @@ import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.scheduler
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
@@ -49,8 +50,8 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-        leader_session: typing.Optional[str] = None,
-        # In follower the store of the projects objects themselves is just a dict in the follower member class
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        # In follower mode the store of the projects objects themselves is just a dict in the follower member class
         # therefore two methods here (existence check + deletion) need to happen on the store itself (and not the db
         # like the rest of the actions) so enabling to overriding this store with this arg..
         # I felt like defining another layer and interface only for these two methods is an overkill, so although it's a
@@ -61,14 +62,21 @@ class Projects(
         projects_store = (
             projects_store_override or mlrun.api.utils.singletons.db.get_db()
         )
-        if deletion_strategy.is_restricted():
-            if not projects_store.is_project_exists(session, name):
+        if (
+            deletion_strategy.is_restricted()
+            or deletion_strategy == mlrun.api.schemas.DeletionStrategy.check
+        ):
+            if not projects_store.is_project_exists(
+                session, name, leader_session=auth_info.session
+            ):
                 return
             mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
                 session, name
             )
+            if deletion_strategy == mlrun.api.schemas.DeletionStrategy.check:
+                return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name, leader_session)
+            self.delete_project_resources(session, name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -76,17 +84,17 @@ class Projects(
         projects_store.delete_project(session, name, deletion_strategy)
 
     def delete_project_resources(
-        self,
-        session: sqlalchemy.orm.Session,
-        name: str,
-        leader_session: typing.Optional[str] = None,
+        self, session: sqlalchemy.orm.Session, name: str,
     ):
         # delete runtime resources
-        mlrun.api.crud.Runtimes().delete_runtimes(
-            session,
-            label_selector=f"mlrun/project={name}",
-            force=True,
-            leader_session=leader_session,
+        mlrun.api.crud.RuntimeResources().delete_runtime_resources(
+            session, label_selector=f"mlrun/project={name}", force=True,
+        )
+
+        mlrun.api.crud.Logs().delete_logs(name)
+
+        mlrun.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
+            session, name
         )
 
         # delete db resources
@@ -103,10 +111,11 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return mlrun.api.utils.singletons.db.get_db().list_projects(
-            session, owner, format_, labels, state
+            session, owner, format_, labels, state, names
         )

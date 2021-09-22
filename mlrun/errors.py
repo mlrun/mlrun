@@ -57,7 +57,7 @@ def raise_for_status(response: requests.Response, message: str = None):
         response.raise_for_status()
     except requests.HTTPError as exc:
         error_message = str(exc)
-        if error_message:
+        if message:
             error_message = f"{str(exc)}: {message}"
         try:
             raise STATUS_ERRORS[response.status_code](
@@ -65,6 +65,17 @@ def raise_for_status(response: requests.Response, message: str = None):
             ) from exc
         except KeyError:
             raise MLRunHTTPError(error_message, response=response) from exc
+
+
+def raise_for_status_code(status_code: int, message: str = None):
+    """
+    Raise a specific MLRunSDK error depending on the given response status code.
+    If no specific error exists, raises an MLRunHTTPError
+    """
+    try:
+        raise STATUS_ERRORS[status_code](message)
+    except KeyError:
+        raise MLRunHTTPError(message)
 
 
 # Specific Errors

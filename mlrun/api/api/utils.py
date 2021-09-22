@@ -6,11 +6,11 @@ from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.deps
+import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -26,11 +26,17 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
-    raise HTTPException(status_code=status, detail=kw)
+    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
+    #  version can be changed to details=kw
+    raise HTTPException(status_code=status, detail={"reason": kw})
 
 
 def log_path(project, uid) -> Path:
-    return get_logs_dir() / project / uid
+    return project_logs_path(project) / uid
+
+
+def project_logs_path(project) -> Path:
+    return get_logs_dir() / project
 
 
 def get_obj_path(schema, path, user=""):
@@ -57,28 +63,23 @@ def get_obj_path(schema, path, user=""):
     return path
 
 
-def get_secrets(_request: Request):
-    access_key = _request.headers.get("X-V3io-Session-Key")
+def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
     return {
-        "V3IO_ACCESS_KEY": access_key,
+        "V3IO_ACCESS_KEY": auth_info.data_session,
     }
 
 
-def get_run_db_instance(
-    db_session: Session, leader_session: typing.Optional[str] = None
-):
+def get_run_db_instance(db_session: Session,):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session, leader_session)
+        run_db = SQLRunDB(db.dsn, db_session)
     else:
         run_db = db.db
     run_db.connect()
     return run_db
 
 
-def _parse_submit_run_body(
-    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
-):
+def parse_submit_run_body(data):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -89,7 +90,13 @@ def _parse_submit_run_body(
             HTTPStatus.BAD_REQUEST.value,
             reason="bad JSON, need to include function/url and task objects",
         )
+    return function_dict, function_url, task
 
+
+def _generate_function_and_task_from_submit_run_body(
+    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+):
+    function_dict, function_url, task = parse_submit_run_body(data)
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
     # remote/container runtime)
 
@@ -122,6 +129,10 @@ def _parse_submit_run_body(
     # be able to communicate with the api
     ensure_function_has_auth_set(function, auth_info)
 
+    # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
+    # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
+    try_perform_auto_mount(function, auth_info)
+
     return function, task
 
 
@@ -133,13 +144,33 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
 
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
-    if auth_info and auth_info.session:
-        auth_env_vars = {
-            "V3IO_ACCESS_KEY": auth_info.session,
-        }
-        for key, value in auth_env_vars.items():
-            if not function.is_env_exists(key):
-                function.set_env(key, value)
+    if (
+        function.kind
+        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+    ):
+        if auth_info and auth_info.session:
+            auth_env_vars = {
+                "MLRUN_AUTH_SESSION": auth_info.session,
+            }
+            for key, value in auth_env_vars.items():
+                if not function.is_env_exists(key):
+                    function.set_env(key, value)
+
+
+def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
+    if (
+        function.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        or function.spec.disable_auto_mount
+    ):
+        return
+    # Retrieve v3io auth params from the caller auth info
+    override_params = {}
+    if auth_info.data_session:
+        override_params["access_key"] = auth_info.data_session
+    if auth_info.username:
+        override_params["user"] = auth_info.username
+
+    function.try_auto_mount_based_on_config(override_params)
 
 
 def _submit_run(
@@ -155,8 +186,18 @@ def _submit_run(
     run_uid = None
     project = None
     try:
-        fn, task = _parse_submit_run_body(db_session, auth_info, data)
-        run_db = get_run_db_instance(db_session, auth_info.session)
+        fn, task = _generate_function_and_task_from_submit_run_body(
+            db_session, auth_info, data
+        )
+        if (
+            not fn.kind
+            or fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+            and not mlrun.mlconf.httpdb.jobs.allow_local_run
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Local runtimes can not be run through API (not locally)"
+            )
+        run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"

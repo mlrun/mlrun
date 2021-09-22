@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import os
+import traceback
 import uuid
 
 import fastapi
@@ -44,6 +45,20 @@ app = fastapi.FastAPI(
 app.include_router(api_router, prefix="/api")
 
 
+@app.exception_handler(Exception)
+async def generic_error_handler(request: fastapi.Request, exc: Exception):
+    error_message = repr(exc)
+    return await fastapi.exception_handlers.http_exception_handler(
+        # we have no specific knowledge on what was the exception and what status code fits so we simply use 500
+        # This handler is mainly to put the error message in the right place in the body so the client will be able to
+        # show it
+        # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
+        #  version can be changed to detail=error_message
+        request,
+        fastapi.HTTPException(status_code=500, detail={"reason": error_message}),
+    )
+
+
 @app.exception_handler(mlrun.errors.MLRunHTTPStatusError)
 async def http_status_error_handler(
     request: fastapi.Request, exc: mlrun.errors.MLRunHTTPStatusError
@@ -54,9 +69,15 @@ async def http_status_error_handler(
         "Request handling returned error status",
         error_message=error_message,
         status_code=status_code,
+        traceback=traceback.format_exc(),
     )
+    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
+    #  version can be changed to detail=error_message
     return await http_exception_handler(
-        request, fastapi.HTTPException(status_code=status_code, detail=error_message)
+        request,
+        fastapi.HTTPException(
+            status_code=status_code, detail={"reason": error_message}
+        ),
     )
 
 
@@ -101,6 +122,7 @@ async def log_request_response(request: fastapi.Request, call_next):
             uri=path_with_query_string,
             method=request.method,
             exc=exc,
+            traceback=traceback.format_exc(),
         )
         raise
     else:
@@ -176,9 +198,7 @@ def _monitor_runs():
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(
-                    get_db(), db_session, config.httpdb.projects.iguazio_access_key
-                )
+                runtime_handler.monitor_runs(get_db(), db_session)
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring", exc=str(exc), kind=kind
@@ -193,9 +213,7 @@ def _cleanup_runtimes():
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.delete_resources(
-                    get_db(), db_session, config.httpdb.projects.iguazio_access_key
-                )
+                runtime_handler.delete_resources(get_db(), db_session)
             except Exception as exc:
                 logger.warning(
                     "Failed deleting resources. Ignoring", exc=str(exc), kind=kind

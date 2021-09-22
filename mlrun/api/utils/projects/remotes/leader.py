@@ -50,6 +50,18 @@ class Member(abc.ABC):
     def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
         pass
 
+    @abc.abstractmethod
+    def format_as_leader_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.IguazioProject:
+        pass
+
+    @abc.abstractmethod
+    def get_project_owner(
+        self, session: str, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        pass
+
     def patch_project(
         self,
         session: str,

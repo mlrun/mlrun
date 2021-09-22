@@ -13,12 +13,13 @@ RUN python -m pip install --upgrade pip~=20.2.0
 WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
+COPY --chown=$NB_UID:$NB_GID ./examples/mlrun_basics.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
 
 ARG MLRUN_CACHE_DATE=initial
 RUN git clone --branch hackathon https://github.com/mlrun/demos.git $HOME/demos
-RUN git clone https://github.com/mlrun/functions.git $HOME/functions
+RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data
 

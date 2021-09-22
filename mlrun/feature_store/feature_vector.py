@@ -13,6 +13,7 @@
 # limitations under the License.
 import collections
 from copy import copy
+from enum import Enum
 from typing import List
 
 import pandas as pd
@@ -112,6 +113,7 @@ class FeatureVectorStatus(ModelObj):
         stats=None,
         preview=None,
         run_uri=None,
+        index_keys=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -120,6 +122,7 @@ class FeatureVectorStatus(ModelObj):
         self.label_column = label_column
         self.targets = targets
         self.stats = stats or {}
+        self.index_keys = index_keys
         self.preview = preview or []
         self.features: List[Feature] = features or []
         self.run_uri = run_uri
@@ -147,18 +150,33 @@ class FeatureVectorStatus(ModelObj):
 
 
 class FeatureVector(ModelObj):
-    """Feature vector, specify selected features, their metadata and material views"""
+    """Feature vector, specify selected features, their metadata and material views
+    :param name: List of names of targets to delete (default: delete all ingested targets)
+    :param features: list of feature to collect to this vector. format <project>/<feature_set>.<feature_name or *>
+    :param label_feature: feature name to be used as label data
+    :param description: vector description
+    :param with_indexes: whether to keep the entity and timestamp columns in the response """
 
     kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, name=None, features=None, label_feature=None, description=None):
+    def __init__(
+        self,
+        name=None,
+        features=None,
+        label_feature=None,
+        description=None,
+        with_indexes=None,
+    ):
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
 
         self.spec = FeatureVectorSpec(
-            description=description, features=features, label_feature=label_feature
+            description=description,
+            features=features,
+            label_feature=label_feature,
+            with_indexes=with_indexes,
         )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
@@ -251,6 +269,7 @@ class FeatureVector(ModelObj):
         """
         processed_features = {}  # dict of name to (featureset, feature object)
         feature_set_objects = {}
+        index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
         if offline and self.spec.label_feature:
@@ -296,6 +315,9 @@ class FeatureVector(ModelObj):
 
         for feature_set_name, fields in feature_set_fields.items():
             feature_set = feature_set_objects[feature_set_name]
+            for key in feature_set.spec.entities.keys():
+                if key not in index_keys:
+                    index_keys.append(key)
             for name, alias in fields:
                 field_name = alias or name
                 if name in feature_set.status.stats:
@@ -303,6 +325,7 @@ class FeatureVector(ModelObj):
                 if name in feature_set.spec.features.keys():
                     self.status.features[field_name] = feature_set.spec.features[name]
 
+        self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
 
 
@@ -323,6 +346,12 @@ class OnlineVectorService:
         """get feature vector given the provided entity inputs"""
         results = []
         futures = []
+        if isinstance(entity_rows, dict):
+            entity_rows = [entity_rows]
+        if not isinstance(entity_rows, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{entity_rows} is of type {type(entity_rows)}. It should be list of Dictionaries"
+            )
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
         for future in futures:
@@ -386,3 +415,22 @@ class OfflineVectorResponse:
         """return results as csv file"""
         size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
         return size
+
+
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
+            )

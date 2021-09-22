@@ -7,6 +7,7 @@ import time
 import click
 import paramiko
 import requests
+import semver
 import yaml
 
 import mlrun.utils
@@ -26,7 +27,7 @@ class SystemTestPreparer:
 
         git_url = "https://github.com/mlrun/mlrun.git"
         provctl_releases = "https://api.github.com/repos/iguazio/provazio/releases"
-        provctl_release_search_amount = 3
+        provctl_release_search_amount = 10
         provctl_binary_format = "provctl-{release_name}-linux-amd64"
 
     def __init__(
@@ -246,6 +247,13 @@ class SystemTestPreparer:
         return stdout, stderr, exit_status
 
     def _get_provctl_version_and_url(self):
+        def extract_version_from_release(release):
+            tag = release["tag_name"]
+            version = tag
+            # remove prefix v if exists
+            version = version.replace("v", "")
+            return semver.VersionInfo.parse(version)
+
         response = requests.get(
             self.Constants.provctl_releases,
             headers={"Authorization": f"token {self._github_access_token}"},
@@ -258,6 +266,9 @@ class SystemTestPreparer:
         latest_provazio_releases = stable_provazio_releases[
             : self.Constants.provctl_release_search_amount
         ]
+        # This should protect us from taking a backport release (assuming there are never
+        # {provctl_release_search_amount} backport releases in a row)
+        latest_provazio_releases.sort(key=extract_version_from_release, reverse=True)
         for provazio_release in latest_provazio_releases:
             for asset in provazio_release["assets"]:
                 if asset["name"] == self.Constants.provctl_binary_format.format(
@@ -295,6 +306,10 @@ class SystemTestPreparer:
         )
         data = {
             "MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER": version_specifier,
+            # Disable the scheduler minimum allowed interval to allow fast tests (default minimum is 10 minutes, which
+            # will make our tests really long)
+            "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
+            # Enabling it in system tests until we enable it by default in config
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"

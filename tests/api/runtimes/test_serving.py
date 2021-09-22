@@ -5,7 +5,6 @@ from http import HTTPStatus
 
 import deepdiff
 import nuclio
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -21,11 +20,7 @@ from .test_nuclio import TestNuclioRuntime
 
 
 class TestServingRuntime(TestNuclioRuntime):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
         self._mock_vault_functionality()
         # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
@@ -54,6 +49,8 @@ class TestServingRuntime(TestNuclioRuntime):
                         state="ready",
                         nuclio_name=f"nuclio-{func.metadata.name}",
                         address="http://127.0.0.1:1234",
+                        external_invocation_urls=["http://somewhere-far-away.com"],
+                        internal_invocation_urls=["http://127.0.0.1:1234"],
                     )
                 }
             }
@@ -244,6 +241,7 @@ class TestServingRuntime(TestNuclioRuntime):
             {
                 "function_name": f"{self.project}-{self.name}-child_function",
                 "file_name": child_function_path,
+                "parent_function": function._function_uri(),
             },
             {
                 "function_name": f"{self.project}-{self.name}",

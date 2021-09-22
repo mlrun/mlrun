@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
 
@@ -20,9 +21,11 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     TargetTypes,
+    get_default_prefix_for_target,
     get_default_targets,
     get_target_driver,
     validate_target_list,
@@ -34,7 +37,12 @@ from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
 from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
 from .feature_set import FeatureSet
-from .feature_vector import FeatureVector, OfflineVectorResponse, OnlineVectorService
+from .feature_vector import (
+    FeatureVector,
+    FixedWindowType,
+    OfflineVectorResponse,
+    OnlineVectorService,
+)
 from .ingestion import (
     context_to_ingestion_params,
     init_featureset_graph,
@@ -52,6 +60,11 @@ def _features_to_vector(features):
         vector = get_feature_vector_by_uri(features)
     elif isinstance(features, FeatureVector):
         vector = features
+        if not vector.metadata.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "feature vector name must be specified"
+            )
+        vector.save()
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"illegal features value/type ({type(features)})"
@@ -134,7 +147,9 @@ def get_offline_features(
 
 
 def get_online_feature_service(
-    feature_vector: Union[str, FeatureVector], run_config: RunConfig = None,
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -147,11 +162,12 @@ def get_online_feature_service(
         resp = svc.get([{"ticker": "AAPL"}], as_list=True)
         print(resp)
 
-    :param feature_vector:  feature vector uri or FeatureVector object
-    :param run_config:   function and/or run configuration for remote jobs/services
+    :param feature_vector:    feature vector uri or FeatureVector object
+    :param run_config:        function and/or run configuration for remote jobs/services
+    :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
     feature_vector = _features_to_vector(feature_vector)
-    graph, index_columns = init_feature_vector_graph(feature_vector)
+    graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
     service = OnlineVectorService(feature_vector, graph, index_columns)
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
@@ -168,7 +184,7 @@ def ingest(
     run_config: RunConfig = None,
     mlrun_context=None,
     spark_context=None,
-    overwrite=True,
+    overwrite=None,
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -206,7 +222,9 @@ def ingest(
                           `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
-                          (default: True. deletes the targets that are about to be ingested)
+                          (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
+                                    False for scheduled ingest - does not delete the target)
+
     """
     if featureset:
         if isinstance(featureset, str):
@@ -236,7 +254,7 @@ def ingest(
         # remote job execution
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
-            featureset, source, targets, run_config.parameters, infer_options
+            featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
         return run_ingestion_job(
@@ -249,19 +267,51 @@ def ingest(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
             )
-        featureset, source, targets, infer_options = context_to_ingestion_params(
-            mlrun_context
-        )
+        (
+            featureset,
+            source,
+            targets,
+            infer_options,
+            overwrite,
+        ) = context_to_ingestion_params(mlrun_context)
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
             )
-        mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}")
+
+        filter_time_string = ""
+        if source.schedule:
+            featureset.reload(update_spec=False)
+            min_time = datetime.max
+            for target in featureset.status.targets:
+                if target.last_written:
+                    cur_last_written = datetime.fromisoformat(target.last_written)
+                    if cur_last_written < min_time:
+                        min_time = cur_last_written
+            if min_time != datetime.max:
+                source.start_time = min_time
+                time_zone = min_time.tzinfo
+                source.end_time = datetime.now(tz=time_zone)
+                filter_time_string = (
+                    f"Source.start_time for the job is{str(source.start_time)}. "
+                    f"Source.end_time is {str(source.end_time)}"
+                )
+
+        mlrun_context.logger.info(
+            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+        )
         return_df = False
 
     namespace = namespace or get_caller_globals()
 
     purge_targets = targets or featureset.spec.targets or get_default_targets()
+
+    if overwrite is None:
+        if isinstance(source, BaseSourceDriver) and source.schedule:
+            overwrite = False
+        else:
+            overwrite = True
+
     if overwrite:
         validate_target_list(targets=purge_targets)
         purge_target_names = [
@@ -276,6 +326,10 @@ def ingest(
                     "Only some targets ({0}) support overwrite=False ingestion".format(
                         ",".join(overwrite_supported_targets)
                     )
+                )
+            if hasattr(target, "is_single_file") and target.is_single_file():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "overwrite=False isn't supported in single files. Please use folder path."
                 )
 
     if spark_context and featureset.spec.engine != "spark":
@@ -295,7 +349,6 @@ def ingest(
         )
 
     if isinstance(source, str):
-        # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
     schema_options = InferOptions.get_common_options(
@@ -315,6 +368,11 @@ def ingest(
     df = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df,
     )
+    if not InferOptions.get_common_options(
+        infer_stats, InferOptions.Index
+    ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
+        infer_stats += InferOptions.Index
+
     infer_from_static_df(df, featureset, options=infer_stats)
     _post_ingestion(mlrun_context, featureset, spark_context)
 
@@ -328,6 +386,7 @@ def preview(
     timestamp_key=None,
     namespace=None,
     options: InferOptions = None,
+    verbose=False,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -349,6 +408,7 @@ def preview(
     :param timestamp_key:  timestamp column name
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param verbose:        verbose log
     """
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
@@ -375,7 +435,9 @@ def preview(
                 entity_columns,
                 InferOptions.get_common_options(options, InferOptions.Entities),
             )
-        source = init_featureset_graph(source, featureset, namespace, return_df=True)
+        source = init_featureset_graph(
+            source, featureset, namespace, return_df=True, verbose=verbose
+        )
 
     df = infer_from_static_df(source, featureset, entity_columns, options)
     return df
@@ -406,6 +468,7 @@ def deploy_ingestion_service(
     targets: List[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
+    verbose=False,
 ):
     """Start real-time ingestion service using nuclio function
 
@@ -424,11 +487,18 @@ def deploy_ingestion_service(
     :param targets:       list of data target objects
     :param name:          name name for the job/function
     :param run_config:    service runtime configuration (function object/uri, resources, etc..)
+    :param verbose:       verbose log
     """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
+    if isinstance(source, StreamSource) and not source.path:
+        source.path = get_default_prefix_for_target(source.kind).format(
+            project=featureset.metadata.project,
+            kind=source.kind,
+            name=featureset.metadata.name,
+        )
     source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters
     )
@@ -449,14 +519,14 @@ def deploy_ingestion_service(
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
 
-    # todo: add trigger (from source object)
-
     function.spec.graph = featureset.spec.graph
     function.spec.parameters = run_config.parameters
     function.spec.graph_initializer = (
         "mlrun.feature_store.ingestion.featureset_initializer"
     )
-    function.verbose = True
+    function.verbose = function.verbose or verbose
+    function = source.add_nuclio_trigger(function)
+
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
     return function.deploy()
@@ -493,7 +563,7 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
 
-        key_column = featureset.spec.entities[0].name
+        key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
         if not targets:
             if not featureset.spec.targets:
@@ -510,7 +580,7 @@ def _ingest_with_spark(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Paths for spark ingest must contain schema, i.e v3io, s3, az"
                 )
-            spark_options = target.get_spark_options(key_column, timestamp_key)
+            spark_options = target.get_spark_options(key_columns, timestamp_key)
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )
@@ -561,11 +631,13 @@ def set_task_params(
     targets: List[DataTargetBase] = None,
     parameters: dict = None,
     infer_options: InferOptions = InferOptions.Null,
+    overwrite=None,
 ):
     """convert ingestion parameters to dict, return source + params dict"""
     source = source or featureset.spec.source
     parameters = parameters or {}
     parameters["infer_options"] = infer_options
+    parameters["overwrite"] = overwrite
     parameters["featureset"] = featureset.uri
     if source:
         parameters["source"] = source.to_dict()

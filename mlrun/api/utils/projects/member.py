@@ -23,13 +23,15 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         wait_for_completion: bool = True,
-        leader_session: typing.Optional[str] = None,
-    ):
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ) -> bool:
         project_names = self.list_projects(
-            db_session, format_=mlrun.api.schemas.Format.name_only
+            db_session,
+            format_=mlrun.api.schemas.ProjectsFormat.name_only,
+            leader_session=auth_info.session,
         )
         if name in project_names.projects:
-            return
+            return False
         logger.info(
             "Ensure project called, but project does not exist. Creating", name=name
         )
@@ -39,9 +41,10 @@ class Member(abc.ABC):
         self.create_project(
             db_session,
             project,
-            leader_session=leader_session,
+            leader_session=auth_info.session,
             wait_for_completion=wait_for_completion,
         )
+        return True
 
     @abc.abstractmethod
     def create_project(
@@ -86,14 +89,17 @@ class Member(abc.ABC):
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         pass
 
     @abc.abstractmethod
     def get_project(
-        self, db_session: sqlalchemy.orm.Session, name: str
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
         pass
 
@@ -102,8 +108,17 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
+        pass
+
+    @abc.abstractmethod
+    def get_project_owner(
+        self, db_session: sqlalchemy.orm.Session, name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
         pass

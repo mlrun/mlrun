@@ -15,10 +15,15 @@ from copy import copy
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
+import v3io
+from nuclio import KafkaTrigger
+from nuclio.config import split_path
+
 import mlrun
 
 from ..config import config
 from ..model import DataSource
+from ..platforms.iguazio import parse_v3io_path
 from ..utils import get_class
 from .utils import store_path_to_spark
 
@@ -137,6 +142,24 @@ class CSVSource(BaseSourceDriver):
 
 
 class ParquetSource(BaseSourceDriver):
+    """
+       Reads Parquet file/dir as input source for a flow.
+
+       :parameter name: name of the source
+       :parameter path: path to Parquet file or directory
+       :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+       :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
+            'filter_column' >= start_filter. Default is None
+       :parameter end_filter: datetime. If not None, the results will be filtered by partitions
+            'filter_column' < end_filter. Default is None
+       :parameter filter_column: Optional. if not None, the results will be filtered by this column and
+            start_filter & end_filter
+       :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+            cause the job to run every 30 minutes
+       :parameter attributes: additional parameters to pass to storey.
+    """
+
     kind = "parquet"
     support_storey = True
     support_spark = True
@@ -149,12 +172,19 @@ class ParquetSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        start_time: Optional[Union[str, datetime]] = None,
-        end_time: Optional[Union[str, datetime]] = None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
     ):
-        super().__init__(name, path, attributes, key_field, time_field, schedule)
-        self.start_time = start_time
-        self.end_time = end_time
+        super().__init__(
+            name,
+            path,
+            attributes,
+            key_field,
+            time_field,
+            schedule,
+            start_time,
+            end_time,
+        )
 
     def to_step(
         self,
@@ -214,11 +244,22 @@ class CustomSource(BaseSourceDriver):
 
 
 class DataFrameSource:
+    """
+       Reads data frame as input source for a flow.
+
+       :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
+       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+       :parameter context: MLRun context. Defaults to None
+    """
+
     support_storey = True
 
     def __init__(self, df, key_field=None, time_field=None, context=None):
         self._df = df
-        self.key_field = key_field
+        if isinstance(key_field, str):
+            self.key_field = [key_field]
+        else:
+            self.key_field = key_field
         self.time_field = time_field
         self.context = context
 
@@ -278,9 +319,130 @@ class OnlineSource(BaseSourceDriver):
             full_event=True,
         )
 
+    def add_nuclio_trigger(self, function):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "This source type is not supported with ingestion service yet"
+        )
+
 
 class HttpSource(OnlineSource):
     kind = "http"
+
+    def add_nuclio_trigger(self, function):
+        return function
+
+
+class StreamSource(OnlineSource):
+    """
+       Sets stream source for the flow. If stream doesn't exist it will create it
+
+       :parameter name: stream name. Default "stream"
+       :parameter group: consumer group. Default "serving"
+       :parameter seek_to: from where to consume the stream. Default earliest
+       :parameter shards: number of shards in the stream. Default 1
+       :parameter retention_in_hours: if stream doesn't exist and it will be created set retention time. Default 24h
+    """
+
+    kind = "v3ioStream"
+
+    def __init__(
+        self,
+        name="stream",
+        group="serving",
+        seek_to="earliest",
+        shards=1,
+        retention_in_hours=24,
+        **kwargs,
+    ):
+        attrs = {
+            "group": group,
+            "seek_to": seek_to,
+            "shards": shards,
+            "retention_in_hours": retention_in_hours,
+        }
+        super().__init__(name, attributes=attrs, **kwargs)
+
+    def add_nuclio_trigger(self, function):
+        endpoint, stream_path = parse_v3io_path(self.path)
+        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
+        container, stream_path = split_path(stream_path)
+        res = v3io_client.create_stream(
+            container=container,
+            path=stream_path,
+            shard_count=self.attributes["shards"],
+            retention_period_hours=self.attributes["retention_in_hours"],
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+        )
+        res.raise_for_status([409, 204])
+        function.add_v3io_stream_trigger(
+            self.path,
+            self.name,
+            self.attributes["group"],
+            self.attributes["seek_to"],
+            self.attributes["shards"],
+        )
+        return function
+
+
+class KafkaSource(OnlineSource):
+    """
+       Sets kafka source for the flow
+       :parameter brokers: list of broker IP addresses
+       :parameter topics: list of topic names on which to listen.
+       :parameter group: consumer group. Default "serving"
+       :parameter initial_offset: from where to consume the stream. Default earliest
+       :parameter partitions: Optional, A list of partitions numbers for which the function receives events.
+       :parameter sasl_user: Optional, user name to use for sasl authentications
+       :parameter sasl_pass: Optional, password to use for sasl authentications
+    """
+
+    kind = "kafka"
+
+    def __init__(
+        self,
+        brokers="localhost:9092",
+        topics="topic",
+        group="serving",
+        initial_offset="earliest",
+        partitions=None,
+        sasl_user=None,
+        sasl_pass=None,
+        **kwargs,
+    ):
+        if isinstance(topics, str):
+            topics = [topics]
+        if isinstance(brokers, str):
+            brokers = [brokers]
+        attrs = {
+            "brokers": brokers,
+            "topics": topics,
+            "partitions": partitions,
+            "group": group,
+            "initial_offset": initial_offset,
+        }
+        if sasl_user and sasl_pass:
+            attrs["sasl_user"] = sasl_user
+            attrs["sasl_user"] = sasl_user
+        super().__init__(attributes=attrs, **kwargs)
+
+    def add_nuclio_trigger(self, function):
+        partitions = self.attributes.get("partitions")
+        trigger = KafkaTrigger(
+            brokers=self.attributes["brokers"],
+            topics=self.attributes["topics"],
+            partitions=partitions,
+            consumer_group=self.attributes["group"],
+            initial_offset=self.attributes["initial_offset"],
+        )
+        func = function.add_trigger("kafka", trigger)
+        sasl_user = self.attributes.get("sasl_user")
+        sasl_pass = self.attributes.get("sasl_pass")
+        if sasl_user and sasl_pass:
+            trigger.sasl(sasl_user, sasl_pass)
+        replicas = 1 if not partitions else len(partitions)
+        func.spec.min_replicas = replicas
+        func.spec.max_replicas = replicas
+        return func
 
 
 # map of sources (exclude DF source which is not serializable)
@@ -289,5 +451,7 @@ source_kind_to_driver = {
     "csv": CSVSource,
     "parquet": ParquetSource,
     "http": HttpSource,
+    "v3ioStream": StreamSource,
+    "kafka": KafkaSource,
     "custom": CustomSource,
 }

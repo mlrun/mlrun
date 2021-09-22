@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import sys
+import tempfile
 from base64 import b64encode
 from os import getenv, path, remove
-from tempfile import mktemp
 
+import dask.dataframe as dd
 import fsspec
+import orjson
 import pandas as pd
 import pyarrow.parquet as pq
 import requests
 import urllib3
 
 import mlrun.errors
-from mlrun.utils import logger
+from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
 if not verify_ssl:
@@ -71,6 +73,10 @@ class DataStore:
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
         return None
+
+    def supports_isdir(self):
+        """Whether the data store supports isdir"""
+        return True
 
     def _get_secret_or_env(self, key, default=None):
         return self._secret(key) or getenv(key, default)
@@ -177,7 +183,6 @@ class DataStore:
                         time_column,
                     )
                     kwargs["filters"] = filters
-
                 return df_module.read_parquet(*args, **kwargs)
 
         elif url.endswith(".json") or format == "json":
@@ -188,7 +193,7 @@ class DataStore:
 
         fs = self.get_filesystem()
         if fs:
-            if fs.isdir(url):
+            if self.supports_isdir() and fs.isdir(url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -204,10 +209,10 @@ class DataStore:
 
                 return reader(file, **kwargs)
 
-        tmp = mktemp()
-        self.download(self._join(subpath), tmp)
-        df = reader(tmp, **kwargs)
-        remove(tmp)
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
+        self.download(self._join(subpath), temp_file.name)
+        df = reader(temp_file.name, **kwargs)
+        remove(temp_file.name)
         return df
 
     def to_dict(self):
@@ -223,7 +228,29 @@ class DataStore:
 
 
 class DataItem:
-    """Data input/output class abstracting access to various local/remote data sources"""
+    """Data input/output class abstracting access to various local/remote data sources
+
+    DataItem objects are passed into functions and can be used inside the function, when a function run completes
+    users can access the run data via the run.artifact(key) which returns a DataItem object.
+    users can also convert a data url (e.g. s3://bucket/key.csv) to a DataItem using `mlrun.get_dataitem(url)`.
+
+    Example::
+
+        # using data item inside a function
+        def my_func(context, data: DataItem):
+            df = data.as_df()
+
+
+        # reading run results using DataItem (run.artifact())
+        train_run = train_iris_func.run(inputs={'dataset': dataset},
+                                        params={'label_column': 'label'})
+
+        train_run.artifact('confusion-matrix').show()
+        test_set = train_run.artifact('test_set').as_df()
+
+        # create and use DataItem from uri
+        data = mlrun.get_dataitem('http://xyz/data.json').get()
+    """
 
     def __init__(
         self,
@@ -278,20 +305,38 @@ class DataItem:
         """DataItem url e.g. /dir/path, s3://bucket/path"""
         return self._url
 
-    def get(self, size=None, offset=0):
-        """read all or a range and return the content"""
-        return self._store.get(self._path, size=size, offset=offset)
+    def get(self, size=None, offset=0, encoding=None):
+        """read all or a byte range and return the content
+
+        :param size:     number of bytes to get
+        :param offset:   fetch from offset (in bytes)
+        :param encoding: encoding (e.g. "utf-8") for converting bytes to str
+        """
+        body = self._store.get(self._path, size=size, offset=offset)
+        if encoding and isinstance(body, bytes):
+            body = body.decode(encoding)
+        return body
 
     def download(self, target_path):
-        """download to the target dir/path"""
+        """download to the target dir/path
+
+        :param target_path: local target path for the downloaded item
+        """
         self._store.download(self._path, target_path)
 
     def put(self, data, append=False):
-        """write/upload the data, append is only supported by some datastores"""
+        """write/upload the data, append is only supported by some datastores
+
+        :param data:   data (bytes/str) to write
+        :param append: append data to the end of the object, NOT SUPPORTED BY SOME OBJECT STORES!
+        """
         self._store.put(self._path, data, append=append)
 
     def upload(self, src_path):
-        """upload the source file (src_path) """
+        """upload the source file (src_path)
+
+        :param src_path: source file path to read from and upload
+        """
         self._store.upload(self._path, src_path)
 
     def stat(self):
@@ -318,8 +363,10 @@ class DataItem:
             return self._local_path
 
         dot = self._path.rfind(".")
-        self._local_path = mktemp() if dot == -1 else mktemp(self._path[dot:])
-        logger.info(f"downloading {self.url} to local tmp")
+        suffix = "" if dot == -1 else self._path[dot:]
+        temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        self._local_path = temp_file.name
+        logger.info(f"downloading {self.url} to local temp file")
         self.download(self._local_path)
         return self._local_path
 
@@ -340,6 +387,38 @@ class DataItem:
             format=format,
             **kwargs,
         )
+
+    def show(self, format=None):
+        """show the data object content in Jupyter
+
+        :param format: format to use (when there is no/wrong suffix), e.g. 'png'
+        """
+        if not is_ipython:
+            logger.warning(
+                "Jupyter/IPython was not detected, .show() will only display inside Jupyter"
+            )
+            return
+
+        from IPython import display
+
+        suffix = self.suffix.lower()
+        if format:
+            suffix = "." + format
+
+        if suffix in [".jpg", ".png", ".gif"]:
+            display.display(display.Image(self.get(), format=suffix[1:]))
+        elif suffix in [".htm", ".html"]:
+            display.display(display.HTML(self.get(encoding="utf-8")))
+        elif suffix in [".csv", ".pq", ".parquet"]:
+            display.display(self.as_df())
+        elif suffix in [".yaml", ".txt", ".py"]:
+            display.display(display.Pretty(self.get(encoding="utf-8")))
+        elif suffix == ".json":
+            display.display(display.JSON(orjson.loads(self.get())))
+        elif suffix == ".md":
+            display.display(display.Markdown(self.get(encoding="utf-8")))
+        else:
+            logger.error(f"unsupported show() format {suffix} for {self.url}")
 
     def __str__(self):
         return self.url
@@ -411,6 +490,9 @@ class HttpStore(DataStore):
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("http")
         return self._filesystem
+
+    def supports_isdir(self):
+        return False
 
     def upload(self, key, src_path):
         raise ValueError("unimplemented")

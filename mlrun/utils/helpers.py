@@ -92,13 +92,13 @@ try:
     import IPython
 
     ipy = IPython.get_ipython()
-    if ipy:
+    # if its IPython terminal ignore (cant show html)
+    if ipy and "Terminal" not in str(type(ipy)):
         is_ipython = True
 except ImportError:
     pass
 
 if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
-
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -115,7 +115,9 @@ class run_keys:
     secrets = "secret_sources"
 
 
-def verify_field_regex(field_name, field_value, patterns):
+def verify_field_regex(
+    field_name, field_value, patterns, raise_on_failure: bool = True
+) -> bool:
     logger.debug(
         "Validating field against patterns",
         field_name=field_name,
@@ -125,15 +127,39 @@ def verify_field_regex(field_name, field_value, patterns):
 
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
-            logger.warn(
+            log_func = logger.warn if raise_on_failure else logger.debug
+            log_func(
                 "Field is malformed. Does not match required pattern",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
             )
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field {field_name} is malformed. Does not match required pattern: {pattern}"
-            )
+            if raise_on_failure:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
+                )
+            else:
+                return False
+    return True
+
+
+# Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
+def verify_field_of_type(field_name: str, field_value, expected_type: type):
+    if not isinstance(field_value, expected_type):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"(got: {type(field_value).__name__} with value: {field_value})."
+        )
+
+
+# Verifying that a field input is of type list and all elements inside are of the expected element type.
+# If not the method raises a detailed MLRunInvalidArgumentError
+def verify_field_list_of_type(
+    field_name: str, field_value, expected_element_type: type
+):
+    verify_field_of_type(field_name, field_value, list)
+    for element in field_value:
+        verify_field_of_type(field_name, element, expected_element_type)
 
 
 def now_date():
@@ -190,6 +216,20 @@ def get_in(obj, keys, default=None):
     return obj
 
 
+def verify_and_update_in(
+    obj, key, value, expected_type: type, append=False, replace=True
+):
+    verify_field_of_type(key, value, expected_type)
+    update_in(obj, key, value, append, replace)
+
+
+def verify_list_and_update_in(
+    obj, key, value, expected_element_type: type, append=False, replace=True
+):
+    verify_field_list_of_type(key, value, expected_element_type)
+    update_in(obj, key, value, append, replace)
+
+
 def update_in(obj, key, value, append=False, replace=True):
     parts = key.split(".") if isinstance(key, str) else key
     for part in parts[:-1]:
@@ -242,7 +282,6 @@ def match_labels(labels, conditions):
 def match_times(time_from, time_to, obj, key):
     obj_time = get_in(obj, key)
     if not obj_time:
-
         # if obj doesn't have the required time, return false if either time_from or time_to were given
         return not time_from and not time_to
     obj_time = parser.isoparse(obj_time)
@@ -549,6 +588,12 @@ def enrich_image_url(image_url: str) -> str:
     return image_url
 
 
+def get_docker_repository_or_default(repository: str) -> str:
+    if not repository:
+        repository = "mlrun"
+    return repository
+
+
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry
@@ -578,6 +623,15 @@ def pr_comment(
     server=None,
     gitlab=False,
 ):
+    """push comment message to Git system PR/issue
+
+    :param message:  test message
+    :param repo:     repo name (org/repo)
+    :param issue:    pull-request/issue number
+    :param token:    git system security token
+    :param server:   url of the git system
+    :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
+    """
     if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
         gitlab = True
     token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
@@ -586,17 +640,24 @@ def pr_comment(
         server = server or "gitlab.com"
         headers = {"PRIVATE-TOKEN": token}
         repo = repo or environ.get("CI_PROJECT_ID")
+        # auto detect GitLab pr id from the environment
         issue = issue or environ.get("CI_MERGE_REQUEST_IID")
         repo = repo.replace("/", "%2F")
         url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
     else:
         server = server or "api.github.com"
         repo = repo or environ.get("GITHUB_REPOSITORY")
+        # auto detect pr number if not specified, in github the pr id is identified as an issue id
+        # we try and read the pr (issue) id from the github actions event file/object
         if not issue and "GITHUB_EVENT_PATH" in environ:
             with open(environ["GITHUB_EVENT_PATH"]) as fp:
                 data = fp.read()
                 event = json.loads(data)
-                issue = event["pull_request"].get("number")
+                if "issue" not in event:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"issue not found in github actions event\ndata={data}"
+                    )
+                issue = event["issue"].get("number")
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {token}",
@@ -695,14 +756,27 @@ def retry_until_successful(
     )
 
 
+def get_ui_url(project, uid=None):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = "{}/{}/{}/jobs".format(
+            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
+        )
+        if uid:
+            url += f"/monitor/{uid}/overview"
+    return url
+
+
 class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
         self._html = ""
+        self._with_print = False
         self._secrets = secrets or {}
         self.with_ipython = with_ipython
         if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
+        self.print(skip_ipython=True)
 
     def push_start_message(self, project, commit_id=None, id=None):
         message = f"Pipeline started in project {project}"
@@ -713,10 +787,9 @@ class RunNotifications:
         )
         if commit_id:
             message += f", commit={commit_id}"
-        if mlrun.mlconf.resolve_ui_url():
-            url = "{}/{}/{}/jobs".format(
-                mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
-            )
+        url = get_ui_url(project)
+        html = ""
+        if url:
             html = (
                 message
                 + f'<div><a href="{url}" target="_blank">click here to check progress</a></div>'
@@ -724,17 +797,28 @@ class RunNotifications:
             message = message + f", check progress in {url}"
         self.push(message, html=html)
 
-    def push_run_results(self, runs):
+    def push_run_results(self, runs, push_all=False, state=None):
+        """push a structured table with run results to notification targets
+
+        :param runs:  list if run objects (RunObject)
+        :param push_all: push all notifications (including already notified runs)
+        :param state: final run state
+        """
         had_errors = 0
         runs_list = []
         for r in runs:
-            if r.status.state == "error":
-                had_errors += 1
-            runs_list.append(r.to_dict())
+            notified = getattr(r, "_notified", False)
+            if not notified or push_all:
+                if r.status.state == "error":
+                    had_errors += 1
+                runs_list.append(r.to_dict())
+                r._notified = True
 
         text = "pipeline run finished"
         if had_errors:
             text += f" with {had_errors} errors"
+        if state:
+            text += f", state={state}"
         self.push(text, runs_list)
 
     def push(self, message, runs=None, html=None):
@@ -765,7 +849,7 @@ class RunNotifications:
         self._html = html
         return html
 
-    def print(self):
+    def print(self, skip_ipython=None):
         def _print(message, runs, html=None):
             if not runs:
                 print(message)
@@ -793,7 +877,11 @@ class RunNotifications:
                 + tabulate(table, headers=["status", "name", "uid", "results"])
             )
 
-        self._hooks.append(_print)
+        if not self._with_print and not (
+            skip_ipython and self.with_ipython and is_ipython
+        ):
+            self._hooks.append(_print)
+            self._with_print = True
         return self
 
     def slack(self, webhook=""):
@@ -813,12 +901,8 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs or []:
                 meta = r["metadata"]
-                if config.resolve_ui_url():
-                    url = (
-                        f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/"
-                        f"{meta.get('project')}/jobs/{meta.get('uid')}/info"
-                    )
-
+                url = get_ui_url(meta.get("project"), meta.get("uid"))
+                if url:
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:
                     line = meta.get("name")

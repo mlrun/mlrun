@@ -14,6 +14,8 @@
 import hashlib
 import json
 import os
+import re
+import typing
 from copy import deepcopy
 from io import StringIO
 from sys import stderr
@@ -103,6 +105,14 @@ def resolve_mpijob_crd_version(api_context=False):
         cached_mpijob_crd_version = mpijob_crd_version
 
     return cached_mpijob_crd_version
+
+
+def resolve_spark_operator_version():
+    try:
+        regex = re.compile("spark-([23])")
+        return int(regex.findall(config.spark_operator_version)[0])
+    except Exception:
+        raise ValueError("Failed to resolve spark operator's version")
 
 
 def calc_hash(func, tag=""):
@@ -245,15 +255,20 @@ def results_to_iter(results, runspec, execution):
 
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
-    execution.log_artifact(
-        TableArtifact(
-            "iteration_results",
-            body=csv_buffer.getvalue(),
-            header=header,
-            viewer="table",
-        ),
-        local_path="iteration_results.csv",
-    )
+    try:
+        # may fail due to lack of access credentials to the artifacts store
+        execution.log_artifact(
+            TableArtifact(
+                "iteration_results",
+                body=csv_buffer.getvalue(),
+                header=header,
+                viewer="table",
+            ),
+            local_path="iteration_results.csv",
+        )
+    except Exception:
+        pass
+
     if failed:
         execution.set_state(
             error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
@@ -264,13 +279,20 @@ def results_to_iter(results, runspec, execution):
     execution.commit()
 
 
-def generate_function_image_name(function):
+def generate_function_image_name(function) -> str:
     project = function.metadata.project or config.default_project
     tag = function.metadata.tag or "latest"
     _, repository = helpers.get_parsed_docker_registry()
-    if not repository:
-        repository = "mlrun"
-    return f".{repository}/func-{project}-{function.metadata.name}:{tag}"
+    repository = helpers.get_docker_repository_or_default(repository)
+    return fill_function_image_name_template(
+        ".", repository, project, function.metadata.name, tag
+    )
+
+
+def fill_function_image_name_template(
+    registry: str, repository: str, project: str, name: str, tag: str,
+) -> str:
+    return f"{registry}{repository}/func-{project}-{name}:{tag}"
 
 
 def set_named_item(obj, item):
@@ -289,6 +311,13 @@ def get_item_name(item, attr="name"):
 
 def apply_kfp(modify, cop, runtime):
     modify(cop)
+
+    # Have to do it here to avoid circular dependencies
+    from .pod import AutoMountType
+
+    if AutoMountType.is_auto_modifier(modify):
+        runtime.spec.disable_auto_mount = True
+
     api = client.ApiClient()
     for k, v in cop.pod_labels.items():
         runtime.metadata.labels[k] = v
@@ -366,6 +395,18 @@ def get_func_selector(project, name=None, tag=None):
     return s
 
 
+def parse_function_selector(selector: typing.List[str]) -> typing.Tuple[str, str, str]:
+    project, name, tag = None, None, None
+    for criteria in selector:
+        if f"{mlrun_key}project=" in criteria:
+            project = criteria[f"{mlrun_key}project=":]
+        if f"{mlrun_key}function=" in criteria:
+            name = criteria[f"{mlrun_key}function=":]
+        if f"{mlrun_key}tag=" in criteria:
+            tag = criteria[f"{mlrun_key}tag=":]
+    return project, name, tag
+
+
 class k8s_resource:
     kind = ""
     per_run = False
@@ -416,6 +457,7 @@ def enrich_function_from_dict(function, function_dict):
         "node_name",
         "node_selector",
         "affinity",
+        "priority_class_name",
     ]:
         override_value = getattr(override_function.spec, attribute, None)
         if override_value:

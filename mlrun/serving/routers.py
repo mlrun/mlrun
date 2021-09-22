@@ -15,14 +15,23 @@
 import concurrent
 import copy
 import json
+import traceback
 from enum import Enum
 from io import BytesIO
 
+import numpy as np
 from numpy.core.fromnumeric import mean
 
 import mlrun
-from mlrun.utils import now_date
+from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
+from ..api.schemas import (
+    ModelEndpoint,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
+)
+from ..config import config
 from .v2_serving import _ModelLogPusher
 
 
@@ -309,6 +318,16 @@ class VotingEnsemble(BaseModelRouter):
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = False
 
+    def post_init(self, mode="sync"):
+        server = getattr(self.context, "_server", None) or getattr(
+            self.context, "server", None
+        )
+        if not server:
+            logger.warn("GraphServer not initialized for VotingEnsemble instance")
+            return
+
+        _init_endpoint_record(server, self)
+
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
         Supports:
@@ -529,7 +548,7 @@ class VotingEnsemble(BaseModelRouter):
                 response = copy.copy(event)
                 response_body = {
                     "id": event.id,
-                    "model_name": votes,
+                    "model_name": self.name,
                     "outputs": votes,
                 }
                 if self.version:
@@ -641,3 +660,218 @@ class VotingEnsemble(BaseModelRouter):
             if not isinstance(request["inputs"], list):
                 raise Exception('Expected "inputs" to be a list')
         return request
+
+
+def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
+    logger.info("Initializing endpoint records")
+
+    try:
+        project, uri, tag, hash_key = parse_versioned_object_uri(
+            graph_server.function_uri
+        )
+
+        if voting_ensemble.version:
+            versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
+        else:
+            versioned_model_name = f"{voting_ensemble.name}:latest"
+
+        model_endpoint = ModelEndpoint(
+            metadata=ModelEndpointMetadata(project=project),
+            spec=ModelEndpointSpec(
+                function_uri=graph_server.function_uri,
+                model=versioned_model_name,
+                model_class=voting_ensemble.__class__.__name__,
+                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project, kind="stream"
+                ),
+                active=True,
+            ),
+            status=ModelEndpointStatus(children=list(voting_ensemble.routes.keys())),
+        )
+
+        db = mlrun.get_run_db()
+
+        db.create_or_patch_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed creating model endpoint record",
+            exc=exc,
+            traceback=traceback.format_exc(),
+        )
+
+
+class FeatureEnricher:
+    """enrich and impute real-time feature values from feature store
+
+    this is a temporary class for graph routers, code will move to feature store get_online_feature_service
+    """
+
+    def __init__(
+        self, feature_vector_uri, impute_policy: dict = {}, index_keys: list = None
+    ):
+        self.feature_vector_uri = feature_vector_uri
+        self.impute_policy = impute_policy
+        self.index_keys = index_keys
+
+        self._feature_service = None
+        self._impute_values = {}
+        self._feature_keys = None
+
+    def load(self):
+        """load the enricher: start the feature service and prep the imputing logic"""
+        self._feature_service = mlrun.feature_store.get_online_feature_service(
+            feature_vector=self.feature_vector_uri
+        )
+        vector = self._feature_service.vector
+        feature_stats = vector.get_stats_table()
+        self._impute_values = {}
+        self.index_keys = self.index_keys or vector.status.index_keys
+
+        self._feature_keys = list(vector.status.features.keys())
+        if vector.status.label_column in self._feature_keys:
+            self._feature_keys.remove(vector.status.label_column)
+
+        if "*" in self.impute_policy:
+            value = self.impute_policy["*"]
+            del self.impute_policy["*"]
+
+            for name in self._feature_keys:
+                if name not in self.impute_policy:
+                    if isinstance(value, str) and value.startswith("$"):
+                        self._impute_values[name] = feature_stats.loc[name, value[1:]]
+                    else:
+                        self._impute_values[name] = value
+
+        for name, value in self.impute_policy.items():
+            if name not in self._feature_keys:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"feature {name} in impute_policy but not in feature vector"
+                )
+            if isinstance(value, str) and value.startswith("$"):
+                self._impute_values[name] = feature_stats.loc[name, value[1:]]
+            else:
+                self._impute_values[name] = value
+
+    def enrich(self, inputs):
+        """enrich an input vector with features from the feature vector"""
+
+        # validate we have valid input struct
+        if (
+            not inputs
+            or not isinstance(inputs, list)
+            or not isinstance(inputs[0], (list, dict))
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "model inputs must be a list of list or list of dict"
+            )
+
+        # if list, convert to dict (with the index_keys as the dict keys)
+        if isinstance(inputs[0], list):
+            if not self.index_keys or len(inputs[0]) != len(self.index_keys):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "input list must be in the same size of the index_keys list"
+                )
+            index_range = range(len(self.index_keys))
+            inputs = [
+                {self.index_keys[i]: item[i] for i in index_range} for item in inputs
+            ]
+
+        feature_vectors = self._feature_service.get(inputs)
+
+        # Impute NaN or inf's values from feature vector stats and policy
+        new_vectors = []
+        for fv in feature_vectors:
+            new_vector = []
+            for name in self._feature_keys:
+                v = fv[name]
+                if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
+                    new_vector.append(self._impute_values.get(name, v))
+                else:
+                    new_vector.append(v)
+            new_vectors.append(new_vector)
+
+        return new_vectors
+
+
+class EnrichmentModelRouter(ModelRouter):
+    """model router with feature enrichment and imputing"""
+
+    def __init__(
+        self,
+        context,
+        name,
+        routes=None,
+        protocol=None,
+        url_prefix=None,
+        health_prefix=None,
+        feature_vector_uri: str = "",
+        impute_policy: dict = {},
+        index_keys: list = None,
+        **kwargs,
+    ):
+        super().__init__(
+            context, name, routes, protocol, url_prefix, health_prefix, **kwargs,
+        )
+
+        self._enricher = FeatureEnricher(feature_vector_uri, impute_policy, index_keys)
+
+    def post_init(self, mode="sync"):
+        super().post_init(mode)
+        self._enricher.load()
+
+    def preprocess(self, event):
+        """Turn an entity identifier (source) to a Feature Vector"""
+        if isinstance(event.body, (str, bytes)):
+            event.body = json.loads(event.body)
+        event.body["inputs"] = self._enricher.enrich(event.body["inputs"])
+        return event
+
+
+class EnrichmentVotingEnsemble(VotingEnsemble):
+    """model ensemble with feature enrichment and imputing"""
+
+    def __init__(
+        self,
+        context,
+        name,
+        routes=None,
+        protocol=None,
+        url_prefix=None,
+        health_prefix=None,
+        vote_type=None,
+        executor_type=None,
+        prediction_col_name=None,
+        feature_vector_uri: str = "",
+        impute_policy: dict = {},
+        index_keys: list = None,
+        **kwargs,
+    ):
+        super().__init__(
+            context,
+            name,
+            routes,
+            protocol,
+            url_prefix,
+            health_prefix,
+            vote_type,
+            executor_type,
+            prediction_col_name,
+            **kwargs,
+        )
+
+        self._enricher = FeatureEnricher(feature_vector_uri, impute_policy, index_keys)
+
+    def post_init(self, mode="sync"):
+        super().post_init(mode)
+        self._enricher.load()
+
+    def preprocess(self, event):
+        """Turn an entity identifier (source) to a Feature Vector"""
+        if isinstance(event.body, (str, bytes)):
+            event.body = json.loads(event.body)
+        event.body["inputs"] = self._enricher.enrich(event.body["inputs"])
+        return event

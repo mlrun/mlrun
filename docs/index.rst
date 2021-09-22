@@ -44,8 +44,8 @@ MLRun provides the following key benefits:
 - **Feature management** – ingestion, preparation, and monitoring
 - **Works anywhere** – your local IDE, multi-cloud, or on-prem
 
-Table Of Content
-----------------
+Table Of Contents
+-------------------
 
 .. toctree::
    :maxdepth: 1
@@ -63,16 +63,18 @@ Table Of Content
 
    runtimes/functions
    hyper-params
-   projects
+   projects/overview
    ci-pipeline
    load-from-marketplace
+   secrets
+   runtimes/node-affinity
 
 .. toctree::
    :maxdepth: 1
    :caption: Online Pipelines & Serving:
 
    serving/index
-   model_monitoring/model-monitoring-deployment
+   model_monitoring/index
 
 .. toctree::
    :maxdepth: 1

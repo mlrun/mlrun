@@ -18,6 +18,7 @@ import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
+from datetime import datetime
 from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -293,12 +294,14 @@ class ImageBuilder(ModelObj):
         code_origin=None,
         registry=None,
         load_source_on_run=None,
+        origin_filename=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
         self.codeEntryAttributes = ""  #: codeEntryAttributes
         self.source = source  #: source
         self.code_origin = code_origin  #: code_origin
+        self.origin_filename = origin_filename
         self.image = image  #: image
         self.base_image = base_image  #: base_image
         self.commands = commands or []  #: commands
@@ -639,6 +642,10 @@ class RunTemplate(ModelObj):
 
             task.with_secrets('vault', ['secret1', 'secret2'...])
 
+            # If using with k8s secrets, the k8s secret is managed by MLRun, through the project-secrets
+            # mechanism. The secrets will be attached to the running pod as environment variables.
+            task.with_secrets('kubernetes', ['secret1', 'secret2'])
+
             # If using an empty secrets list [] then all accessible secrets will be available.
             task.with_secrets('vault', [])
 
@@ -688,6 +695,7 @@ class RunObject(RunTemplate):
         super().__init__(spec, metadata)
         self._status = None
         self.status = status
+        self.outputs_wait_for_completion = True
 
     @classmethod
     def from_template(cls, template: RunTemplate):
@@ -703,9 +711,11 @@ class RunObject(RunTemplate):
 
     def output(self, key):
         """return the value of a specific result or artifact by key"""
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
-        artifact = self.artifact(key)
+        artifact = self._artifact(key)
         if artifact:
             return get_artifact_target(artifact, self.metadata.project)
         return None
@@ -722,6 +732,8 @@ class RunObject(RunTemplate):
     def outputs(self):
         """return a dict of outputs, result values and artifact uris"""
         outputs = {}
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion()
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
@@ -729,8 +741,19 @@ class RunObject(RunTemplate):
                 outputs[a["key"]] = get_artifact_target(a, self.metadata.project)
         return outputs
 
-    def artifact(self, key):
-        """return artifact metadata by key"""
+    def artifact(self, key) -> "mlrun.DataItem":
+        """return artifact DataItem by key"""
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion()
+        artifact = self._artifact(key)
+        if artifact:
+            uri = get_artifact_target(artifact, self.metadata.project)
+            if uri:
+                return mlrun.get_dataitem(uri)
+        return None
+
+    def _artifact(self, key):
+        """return artifact DataItem by key"""
         if self.status.artifacts:
             for a in self.status.artifacts:
                 if a["key"] == key:
@@ -743,6 +766,8 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
+        if self.status.state in mlrun.runtimes.constants.RunStates.terminal_states():
+            return self.status.state
         self.refresh()
         return self.status.state or "unknown"
 
@@ -783,7 +808,7 @@ class RunObject(RunTemplate):
             print(f"final state: {state}")
         return state
 
-    def wait_for_completion(self, sleep=3, timeout=0):
+    def wait_for_completion(self, sleep=3, timeout=0, raise_on_failure=True):
         """wait for async run to complete"""
         total_time = 0
         while True:
@@ -796,6 +821,11 @@ class RunObject(RunTemplate):
                 raise mlrun.errors.MLRunTimeoutError(
                     "Run did not reach terminal state on time"
                 )
+        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+            self.logs(watch=False)
+            raise mlrun.errors.MLRunRuntimeError(
+                f"task {self.metadata.name} did not complete (state={state})"
+            )
         return state
 
     @staticmethod
@@ -825,11 +855,21 @@ class RunObject(RunTemplate):
 
 
 class EntrypointParam(ModelObj):
-    def __init__(self, name="", type=None, default=None, doc=""):
+    def __init__(
+        self,
+        name="",
+        type=None,
+        default=None,
+        doc="",
+        required=None,
+        choices: list = None,
+    ):
         self.name = name
         self.type = type
         self.default = default
         self.doc = doc
+        self.required = required
+        self.choices = choices
 
 
 class FunctionEntrypoint(ModelObj):
@@ -901,7 +941,7 @@ def new_task(
     artifact_path=None,
     secrets=None,
     base=None,
-):
+) -> RunTemplate:
     """Creates a new task
 
     :param name:            task name
@@ -966,6 +1006,8 @@ class DataSource(ModelObj):
         "online",
         "workers",
         "max_age",
+        "start_time",
+        "end_time",
     ]
     kind = None
 
@@ -977,13 +1019,18 @@ class DataSource(ModelObj):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
     ):
+
         self.name = name
-        self.path = str(path)
+        self.path = str(path) if path is not None else None
         self.attributes = attributes
         self.schedule = schedule
         self.key_field = key_field
         self.time_field = time_field
+        self.start_time = start_time
+        self.end_time = end_time
 
         self.online = None
         self.max_age = None
@@ -1046,6 +1093,7 @@ class DataTargetBase(ModelObj):
         self.path = path
         self.after_step = after_step
         self.attributes = attributes or {}
+        self.last_written = None
         self.partitioned = partitioned
         self.key_bucketing_number = key_bucketing_number
         self.partition_cols = partition_cols
@@ -1077,6 +1125,7 @@ class DataTarget(DataTargetBase):
         "status",
         "updated",
         "size",
+        "last_written",
     ]
 
     def __init__(
@@ -1089,6 +1138,7 @@ class DataTarget(DataTargetBase):
         self.online = online
         self.max_age = None
         self.start_time = None
+        self.last_written = None
         self._producer = None
         self.producer = {}
 

@@ -108,3 +108,7 @@ class ProjectsOutput(pydantic.BaseModel):
     # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
     # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
     projects: typing.List[typing.Union[Project, str, ProjectSummary, IguazioProject]]
+
+
+class ProjectSummariesOutput(pydantic.BaseModel):
+    project_summaries: typing.List[ProjectSummary]

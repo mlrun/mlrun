@@ -215,6 +215,46 @@ def list_projects(
     )
 
 
+@router.get(
+    "/project-summaries", response_model=mlrun.api.schemas.ProjectSummariesOutput
+)
+def list_project_summaries(
+    owner: str = None,
+    labels: typing.List[str] = fastapi.Query(None, alias="label"),
+    state: mlrun.api.schemas.ProjectState = None,
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    projects_output = get_project_member().list_projects(
+        db_session,
+        owner,
+        mlrun.api.schemas.ProjectsFormat.name_only,
+        labels,
+        state,
+        auth_verifier.auth_info.projects_role,
+        auth_verifier.auth_info.session,
+    )
+    allowed_project_names = projects_output.projects
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
+        allowed_project_names = mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions(
+            projects_output.projects, auth_verifier.auth_info,
+        )
+    return get_project_member().list_project_summaries(
+        db_session,
+        owner,
+        labels,
+        state,
+        auth_verifier.auth_info.projects_role,
+        auth_verifier.auth_info.session,
+        allowed_project_names,
+    )
+
+
 def _is_request_from_leader(
     projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole],
 ) -> bool:

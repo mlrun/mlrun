@@ -858,6 +858,23 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                     )
         return schemas.ProjectsOutput(projects=projects)
 
+    def list_project_summaries(
+        self,
+        session: Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        query = self._query(session, Project.name, owner=owner, state=state)
+        if labels:
+            query = self._add_labels_filter(session, query, Project, labels)
+        if names:
+            query = query.filter(Project.name.in_(names))
+        project_names = query.all()
+        project_summaries = self.generate_projects_summaries(session, project_names)
+        return schemas.ProjectSummariesOutput(project_summaries=project_summaries)
+
     def _get_project_resources_counters(self, session: Session):
         now = datetime.now()
         if (

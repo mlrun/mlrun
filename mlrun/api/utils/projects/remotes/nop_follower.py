@@ -83,3 +83,13 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"
             )
+
+    def list_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        raise NotImplementedError("Listing project summaries is not supported")

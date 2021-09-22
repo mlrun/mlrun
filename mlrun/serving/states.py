@@ -1024,7 +1024,7 @@ class FlowStep(BaseStep):
                     # if regular class, wrap with storey Map
                     step._async_object = storey.Map(
                         step._handler,
-                        full_event=step.full_event,
+                        full_event=step.full_event or step._call_with_event,
                         input_path=step.input_path,
                         result_path=step.result_path,
                         name=step.name,

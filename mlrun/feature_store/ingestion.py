@@ -209,6 +209,8 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     featureset.status.run_uri = task.metadata.uid
     featureset.save()
 
+    function.set_db_connection(featureset._get_run_db())
+
     run = function.run(
         task, schedule=schedule, local=run_config.local, watch=run_config.watch
     )

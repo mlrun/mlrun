@@ -878,6 +878,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             project_to_function_count = {
                 result[0]: result[1] for result in functions_count_per_project
             }
+            schedules_count_per_project = (
+                session.query(Schedule.project, func.count(distinct(Schedule.name)))
+                .group_by(Schedule.project)
+                .all()
+            )
+            project_to_schedule_count = {
+                result[0]: result[1] for result in schedules_count_per_project
+            }
             feature_sets_count_per_project = (
                 session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
                 .group_by(FeatureSet.project)
@@ -942,6 +950,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
             self._cache["project_resources_counters"]["result"] = (
                 project_to_function_count,
+                project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
                 project_to_recent_failed_runs_count,
@@ -961,6 +970,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     ) -> List[mlrun.api.schemas.ProjectSummary]:
         (
             project_to_function_count,
+            project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
             project_to_recent_failed_runs_count,
@@ -972,6 +982,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 mlrun.api.schemas.ProjectSummary(
                     name=project,
                     functions_count=project_to_function_count.get(project, 0),
+                    schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
                     runs_failed_recent_count=project_to_recent_failed_runs_count.get(

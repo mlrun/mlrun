@@ -108,6 +108,7 @@ def test_requirement_specifiers_convention():
         "boto3": {"~=1.9, <1.17.50"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
+        "pyarrow": {">=1,<4"},
     }
 
     for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():

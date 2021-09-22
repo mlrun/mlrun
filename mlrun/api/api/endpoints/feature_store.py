@@ -330,7 +330,7 @@ def ingest_feature_set(
             for data_target in ingest_parameters.targets
         ]
 
-    run_config = RunConfig()
+    run_config = RunConfig(owner=username)
 
     # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and
     # targets. If it needs it, apply v3io mount to the run_config. Note that the access-key and username are
@@ -382,8 +382,8 @@ def list_features(
         mlrun.api.schemas.AuthorizationResourceTypes.feature,
         features.features,
         lambda feature_list_output: (
-            feature_list_output.feature.name,
             feature_list_output.feature_set_digest.metadata.project,
+            feature_list_output.feature.name,
         ),
         auth_verifier.auth_info,
     )
@@ -409,8 +409,8 @@ def list_entities(
         mlrun.api.schemas.AuthorizationResourceTypes.entity,
         entities.entities,
         lambda entity_list_output: (
-            entity_list_output.entity.name,
             entity_list_output.feature_set_digest.metadata.project,
+            entity_list_output.entity.name,
         ),
         auth_verifier.auth_info,
     )

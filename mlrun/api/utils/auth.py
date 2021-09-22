@@ -53,6 +53,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info = iguazio_client.verify_request_session(request)
             if "x-data-session-override" in request.headers:
                 auth_info.data_session = request.headers["x-data-session-override"]
+
+        # Fallback in case auth method didn't fill in the username already, and it is provided by the caller
+        if not auth_info.username and "x-remote-user" in request.headers:
+            auth_info.username = request.headers["x-remote-user"]
+
         projects_role_header = request.headers.get(
             mlrun.api.schemas.HeaderNames.projects_role
         )

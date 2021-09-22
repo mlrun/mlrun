@@ -1,3 +1,4 @@
+# This name is referenced in the release.yaml workflow, if you're changing here - change there
 name: Build
 
 on:
@@ -45,7 +46,7 @@ jobs:
       id: git_info
       run: |
         echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/})"
-        echo "::set-output name=mlrun_commit_hash::$(git rev-parse --short $GITHUB_SHA)"
+        echo "::set-output name=mlrun_commit_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
         echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
     - name: Resolve docker cache tag
       id: docker_cache

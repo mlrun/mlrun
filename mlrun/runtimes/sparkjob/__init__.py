@@ -1,4 +1,4 @@
-# Copyright 2020 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,10 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_DOCKER_REPO=mlrun
-ARG MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=ml-
-ARG MLRUN_DOCKER_TAG
 
-FROM ${MLRUN_DOCKER_REPO}/${MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX}base:${MLRUN_DOCKER_TAG}
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-RUN python3 -m pip install --no-cache-dir -U kfserving
+from .abstract import SparkRuntimeHandler
+from .spark2job import Spark2Runtime
+from .spark3job import Spark3Runtime

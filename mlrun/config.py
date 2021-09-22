@@ -64,6 +64,8 @@ default_config = {
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
+    "spark_history_server_path": "",  # spark logs directory for spark history server
+    "spark_operator_version": "spark-2",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
@@ -121,7 +123,12 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
-        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "db": {
+            "commit_retry_timeout": 30,
+            "commit_retry_interval": 3,
+            # Whether to perform data migrations on initialization. enabled or disabled
+            "data_migrations_mode": "enabled",
+        },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
             "allow_local_run": False,
@@ -236,6 +243,9 @@ default_config = {
             "secret_path": "~/.mlrun/azure_vault",
         },
         "kubernetes": {
+            # When this is True (the default), all project secrets will be automatically added to each job,
+            # unless user asks for a specific list of secrets.
+            "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
@@ -351,9 +361,17 @@ class Config:
 
     @staticmethod
     def get_valid_function_priority_class_names():
+        valid_function_priority_class_names = []
         if not config.valid_function_priority_class_names:
-            return []
-        return list(set(config.valid_function_priority_class_names.split(",")))
+            return valid_function_priority_class_names
+
+        # Manually ensure we have only unique values because we want to keep the order and using a set would lose it
+        for priority_class_name in config.valid_function_priority_class_names.split(
+            ","
+        ):
+            if priority_class_name not in valid_function_priority_class_names:
+                valid_function_priority_class_names.append(priority_class_name)
+        return valid_function_priority_class_names
 
     @staticmethod
     def get_storage_auto_mount_params():

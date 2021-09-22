@@ -14,6 +14,7 @@
 import hashlib
 import json
 import os
+import re
 import typing
 from copy import deepcopy
 from io import StringIO
@@ -104,6 +105,14 @@ def resolve_mpijob_crd_version(api_context=False):
         cached_mpijob_crd_version = mpijob_crd_version
 
     return cached_mpijob_crd_version
+
+
+def resolve_spark_operator_version():
+    try:
+        regex = re.compile("spark-([23])")
+        return int(regex.findall(config.spark_operator_version)[0])
+    except Exception:
+        raise ValueError("Failed to resolve spark operator's version")
 
 
 def calc_hash(func, tag=""):

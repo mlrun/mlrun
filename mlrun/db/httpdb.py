@@ -247,6 +247,10 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
+            config.spark_history_server_path = (
+                config.spark_history_server_path
+                or server_cfg.get("spark_history_server_path")
+            )
             config.httpdb.builder.docker_registry = (
                 config.httpdb.builder.docker_registry
                 or server_cfg.get("docker_registry")
@@ -288,6 +292,10 @@ class HTTPRunDB(RunDBInterface):
             )
             config.storage.auto_mount_params = (
                 server_cfg.get("auto_mount_params") or config.storage.auto_mount_params
+            )
+            config.spark_operator_version = (
+                server_cfg.get("spark_operator_version")
+                or config.spark_operator_version
             )
 
         except Exception:
@@ -2336,10 +2344,10 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "model": model,
                 "function": function,
-                "labels": labels,
+                "label": labels or [],
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
             },
             headers={"X-V3io-Session-Key": access_key},
         )
@@ -2381,7 +2389,7 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "start": start,
                 "end": end,
-                "metrics": metrics,
+                "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
             headers={"X-V3io-Session-Key": access_key},

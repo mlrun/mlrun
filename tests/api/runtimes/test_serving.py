@@ -21,7 +21,7 @@ from .test_nuclio import TestNuclioRuntime
 
 class TestServingRuntime(TestNuclioRuntime):
     @property
-    def runtime_name(self):
+    def runtime_kind(self):
         # enables extending classes to run the same tests with different runtime
         return "serving"
 
@@ -70,7 +70,7 @@ class TestServingRuntime(TestNuclioRuntime):
         SQLDB.get_builder_status = unittest.mock.Mock(return_value=("text", "last_log"))
 
     def _create_serving_function(self):
-        function = self._generate_runtime(self.runtime_name)
+        function = self._generate_runtime(self.runtime_kind)
         graph = function.set_topology("flow", exist_ok=True, engine="sync")
 
         graph.add_step(name="s1", class_name="Chain", secret="inline_secret1")

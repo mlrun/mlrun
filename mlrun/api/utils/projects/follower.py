@@ -300,9 +300,9 @@ class Member(
         project_names = list(map(lambda project: project.metadata.name, projects))
 
         # importing here to avoid circular import (db using project member using mlrun follower using db)
-        from mlrun.api.utils.singletons.db import get_db
+        import mlrun.api.crud
 
-        project_summaries = get_db().generate_projects_summaries(
+        project_summaries = mlrun.api.crud.Projects().generate_projects_summaries(
             db_session, project_names
         )
 

@@ -60,7 +60,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
+class SQLDB(DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {

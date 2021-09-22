@@ -86,11 +86,12 @@ class ProjectOwner(pydantic.BaseModel):
 class ProjectSummary(pydantic.BaseModel):
     name: str
     functions_count: int
-    schedules_count: int
     feature_sets_count: int
     models_count: int
     runs_failed_recent_count: int
     runs_running_count: int
+    schedules_count: int
+    pipelines_running_count: int
 
 
 class IguazioProject(pydantic.BaseModel):

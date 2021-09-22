@@ -304,7 +304,7 @@ def get_or_create_project(
                 secrets=secrets,
             )
             logger.info(f"created and saved project {name}")
-        project.save()
+        project.save_to_db()
         return project
 
 

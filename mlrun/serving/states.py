@@ -27,7 +27,8 @@ from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_v3io_path
-from ..utils import get_class, get_function, get_in, update_in
+from ..utils import get_class, get_function
+from .utils import _extract_input_data, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -322,6 +323,7 @@ class TaskStep(BaseStep):
         self.result_path = result_path
         self.on_error = None
         self._inject_context = False
+        self._call_with_event = False
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
@@ -367,7 +369,7 @@ class TaskStep(BaseStep):
                     class_args[key] = arg
             class_args.update(extra_kwargs)
 
-            # add name and context only if target class can accept them
+            # add common args (name, context, ..) only if target class can accept them
             argspec = getfullargspec(self._class_object)
             for key in ["name", "context", "input_path", "result_path"]:
                 if argspec.varkw or key in argspec.args:
@@ -390,7 +392,7 @@ class TaskStep(BaseStep):
             else:
                 if hasattr(self._object, "do_event"):
                     handler = "do_event"
-                    self.full_event = True
+                    self._call_with_event = True
                 elif hasattr(self._object, "do"):
                     handler = "do"
             if handler:
@@ -449,25 +451,13 @@ class TaskStep(BaseStep):
             del kwargs["context"]
 
         try:
-            if self.full_event:
+            if self.full_event or self._call_with_event:
                 return self._handler(event, *args, **kwargs)
-            input_data = event.body
-            if self.input_path:
-                if not hasattr(event.body, "__getitem__"):
-                    raise TypeError(
-                        "input_path parameter supports only dict-like event bodies"
-                    )
-                input_data = get_in(event.body, self.input_path)
 
-            result = self._handler(input_data, *args, **kwargs)
-            if self.result_path:
-                if not hasattr(event.body, "__getitem__"):
-                    raise TypeError(
-                        "result_path parameter supports only dict-like event bodies"
-                    )
-                update_in(event.body, self.result_path, result)
-            else:
-                event.body = result
+            result = self._handler(
+                _extract_input_data(self.input_path, event.body), *args, **kwargs
+            )
+            event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             self._log_error(event, exc)
             handled = self._call_error_handler(event, exc)

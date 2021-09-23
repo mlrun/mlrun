@@ -483,8 +483,18 @@ class RouterStep(TaskStep):
         routes: list = None,
         name: str = None,
         function: str = None,
+        input_path: str = None,
+        result_path: str = None,
     ):
-        super().__init__(class_name, class_args, handler, name=name, function=function)
+        super().__init__(
+            class_name,
+            class_args,
+            handler,
+            name=name,
+            function=function,
+            input_path=input_path,
+            result_path=result_path,
+        )
         self._routes: ObjectDict = None
         self.routes = routes
 
@@ -1336,7 +1346,14 @@ def params_to_step(
         class_name = class_name[1:]
         name = get_name(name, class_name or "router")
         step = RouterStep(
-            class_name, class_args, handler, name=name, function=function, routes=routes
+            class_name,
+            class_args,
+            handler,
+            name=name,
+            function=function,
+            routes=routes,
+            input_path=input_path,
+            result_path=result_path,
         )
 
     elif class_name or handler:

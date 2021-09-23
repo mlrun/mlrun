@@ -212,3 +212,38 @@ def test_path_control(engine, test_type):
     server.wait_for_completion()
     # expect y.z = x * 2 = 10
     assert resp == {"x": 5, "y": {"z": 10}}, "wrong resp"
+
+
+def test_path_control_routers():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.to(name="s1", class_name="Echo").to(
+        "*", name="r1", input_path="x", result_path="y"
+    ).to(name="s3", class_name="Echo").respond()
+    function.add_model("m1", class_name="ModelClass", model_path=".")
+    logger.info(graph.to_yaml())
+    server = function.to_mock_server()
+
+    resp = server.test("/v2/models/m1/infer", body={"x": {"inputs": [5]}})
+    server.wait_for_completion()
+    print(resp)
+    assert resp["y"]["outputs"] == 5, "wrong output"
+
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="sync")
+    graph.to(name="s1", class_name="Echo").to(
+        "*mlrun.serving.routers.VotingEnsemble",
+        name="r1",
+        input_path="x",
+        result_path="y",
+        vote_type="regression",
+    ).to(name="s3", class_name="Echo").respond()
+    function.add_model("m1", class_name="ModelClassList", model_path=".", multiplier=10)
+    function.add_model("m2", class_name="ModelClassList", model_path=".", multiplier=20)
+    logger.info(graph.to_yaml())
+    server = function.to_mock_server()
+
+    resp = server.test("/v2/models/infer", body={"x": {"inputs": [[5]]}})
+    server.wait_for_completion()
+    # expect avg of (5*10) and (5*20) = 75
+    assert resp["y"]["outputs"] == [75], "wrong output"

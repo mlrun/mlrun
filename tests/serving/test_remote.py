@@ -60,18 +60,25 @@ def test_remote_step(httpserver, engine):
     assert resp == {"foo": "ok"}
 
 
-def test_remote_class(httpserver):
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_remote_class(httpserver, engine):
     from mlrun.serving.remote import RemoteStep
 
     httpserver.expect_request("/cat", method="GET").respond_with_json({"cat": "ok"})
 
     function = mlrun.new_function("test2", kind="serving")
-    flow = function.set_topology("flow", engine="sync")
+    flow = function.set_topology("flow", engine=engine)
     flow.to(name="s1", handler="echo").to(
-        RemoteStep(name="remote_echo", url=httpserver.url_for("/cat"), method="GET")
+        RemoteStep(
+            name="remote_echo",
+            url=httpserver.url_for("/cat"),
+            method="GET",
+            input_path="req",
+            result_path="resp",
+        )
     ).to(name="s3", handler="echo").respond()
 
     server = function.to_mock_server()
-    resp = server.test(body={"x": 5})
+    resp = server.test(body={"req": {"x": 5}})
     server.wait_for_completion()
-    assert resp == {"cat": "ok"}
+    assert resp == {"req": {"x": 5}, "resp": {"cat": "ok"}}

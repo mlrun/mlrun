@@ -279,6 +279,13 @@ The Task steps are called with the `event.body` by default, if a Task step need 
 read or set other event elements (key, path, time, ..) the user should set the task `full_event`
 argument to `True`.
 
+Task steps support optional `input_path` and `result_path` attributes which allow controlling which portion of 
+the event will be sent as input to the step, and where to update the returned result.
+
+for example, if we have an event body `{"req": {"body": "x"}}`, `input_path="req.body"` and `result_path="resp"` 
+the step will get `"x"` as the input and the output after the step will be `{"req": {"body": "x"}: "resp": <step output>}`.
+Note that `input_path` and `result_path` do not work together with `full_event=True`.
+
 #### The Context object
 
 the step classes are initialized with a `context` object (when they have `context` in their `__init__` args)
@@ -292,10 +299,12 @@ Attributes:
 * **current_function** - when running in a distributed graph, the current child function name 
 
 Methods:
-* get_param(key, default=None) - get graph parameter by key, parameters are set at the
+* **get_param(key, default=None)** - get graph parameter by key, parameters are set at the
   serving function (e.g. `function.spec.parameters = {"param1": "x"}`)
-* get_store_resource(uri, use_cache=True) - get mlrun store object (data item, artifact, model, feature set, feature vector)
-* Response(headers=None, body=None, content_type=None, status_code=200) - create nuclio response object, for returning detailed http responses
+* **get_secret(key)** - get the value of a project/user secret
+* **get_store_resource(uri, use_cache=True)** - get mlrun store object (data item, artifact, model, feature set, feature vector)
+* **get_remote_endpoint(name, external=False)** - return the remote nuclio/serving function http(s) endpoint given its [project/]function-name[:tag]
+* **Response(headers=None, body=None, content_type=None, status_code=200)** - create nuclio response object, for returning detailed http responses
 
 Example, using the context:
 

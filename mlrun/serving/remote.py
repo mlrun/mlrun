@@ -7,6 +7,8 @@ from urllib3.util.retry import Retry
 
 import mlrun
 
+from .utils import _extract_input_data, _update_result_body
+
 http_adapter = HTTPAdapter(
     max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
 )
@@ -24,6 +26,8 @@ class RemoteStep(storey.SendToHttp):
         headers: dict = None,
         url_expression: str = None,
         return_json: bool = True,
+        input_path: str = None,
+        result_path: str = None,
         **kwargs,
     ):
         """class for calling remote endpoints
@@ -46,6 +50,13 @@ class RemoteStep(storey.SendToHttp):
         :param headers: dictionary with http header values
         :param url_expression: an expression for getting the url from the event, e.g. "event['url']"
         :param return_json: indicate the returned value is json, and convert it to a py object
+        :param input_path:  when specified selects the key/path in the event to use as body
+                            this require that the event body will behave like a dict, example:
+                            event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path: selects the key/path in the event to write the results to
+                            this require that the event body will behave like a dict, example:
+                            event: {"x": 5} , result_path="resp" means the returned response will be written
+                            to event["y"] resulting in {"x": 5, "resp": <result>}
         """
         if url and url_expression:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -57,7 +68,9 @@ class RemoteStep(storey.SendToHttp):
         self.method = method
         self.return_json = return_json
         self.subpath = subpath or ""
-        super().__init__(None, None, **kwargs)
+        super().__init__(
+            None, None, input_path=input_path, result_path=result_path, **kwargs
+        )
 
         self._append_event_path = False
         self._endpoint = ""
@@ -98,6 +111,8 @@ class RemoteStep(storey.SendToHttp):
             self._session.mount("http://", http_adapter)
             self._session.mount("https://", http_adapter)
 
+        original_body = event.body
+        event.body = _extract_input_data(self._input_path, event.body)
         method, url, headers, body = self._generate_request(event)
         try:
             resp = self._session.request(
@@ -108,7 +123,8 @@ class RemoteStep(storey.SendToHttp):
         if not resp.ok:
             raise RuntimeError(f"bad http response {resp.text}")
 
-        event.body = self._get_data(resp.content, resp.headers)
+        result = self._get_data(resp.content, resp.headers)
+        event.body = _update_result_body(self._result_path, original_body, result)
         return event
 
     def _generate_request(self, event):
@@ -155,4 +171,6 @@ class RemoteStep(storey.SendToHttp):
             "class_name": f"{__name__}.{self.__class__.__name__}",
             "name": self.name or self.__class__.__name__,
             "class_args": args,
+            "input_path": self._input_path,
+            "result_path": self._result_path,
         }

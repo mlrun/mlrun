@@ -6,6 +6,7 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.api.schemas
+import mlrun.api.crud
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.api.utils.singletons.db
@@ -274,7 +275,7 @@ def test_list_project(
     )
 
 
-def test_list_project_format_summary(
+def test_list_project_summaries(
     db: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
@@ -290,16 +291,16 @@ def test_list_project_format_summary(
         schedules_count=1,
         pipelines_running_count=2,
     )
-    mlrun.api.utils.singletons.db.get_db().generate_projects_summaries = unittest.mock.Mock(
+    mlrun.api.crud.Projects().generate_projects_summaries = unittest.mock.Mock(
         return_value=[project_summary]
     )
-    project_summaries = projects_follower.list_projects(
-        None, format_=mlrun.api.schemas.ProjectsFormat.summary
+    project_summaries = projects_follower.list_project_summaries(
+        None
     )
-    assert len(project_summaries.projects) == 1
+    assert len(project_summaries.project_summaries) == 1
     assert (
         deepdiff.DeepDiff(
-            project_summaries.projects[0].dict(),
+            project_summaries.project_summaries[0].dict(),
             project_summary.dict(),
             ignore_order=True,
         )

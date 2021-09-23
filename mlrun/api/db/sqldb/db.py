@@ -832,30 +832,24 @@ class SQLDB(DBInterface):
         if names:
             query = query.filter(Project.name.in_(names))
         project_records = query.all()
-        project_names = [project_record.name for project_record in project_records]
         projects = []
-        # calculating the project summary data is done by doing cross project queries (and not per project) so we're
-        # building it outside of the loop
-        if format_ == mlrun.api.schemas.ProjectsFormat.summary:
-            projects = self.generate_projects_summaries(session, project_names)
-        else:
-            for project_record in project_records:
-                if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-                    projects = project_names
-                # leader format is only for follower mode which will format the projects returned from here
-                elif format_ in [
-                    mlrun.api.schemas.ProjectsFormat.full,
-                    mlrun.api.schemas.ProjectsFormat.leader,
-                ]:
-                    projects.append(
-                        self._transform_project_record_to_schema(
-                            session, project_record
-                        )
+        for project_record in project_records:
+            if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+                projects = [project_record.name for project_record in project_records]
+            # leader format is only for follower mode which will format the projects returned from here
+            elif format_ in [
+                mlrun.api.schemas.ProjectsFormat.full,
+                mlrun.api.schemas.ProjectsFormat.leader,
+            ]:
+                projects.append(
+                    self._transform_project_record_to_schema(
+                        session, project_record
                     )
-                else:
-                    raise NotImplementedError(
-                        f"Provided format is not supported. format={format_}"
-                    )
+                )
+            else:
+                raise NotImplementedError(
+                    f"Provided format is not supported. format={format_}"
+                )
         return schemas.ProjectsOutput(projects=projects)
 
     def list_project_summaries(

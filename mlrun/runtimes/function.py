@@ -949,10 +949,19 @@ def compile_function_config(function: RemoteRuntime):
     # Needs to be here, since it adds env params, which are handled in the next lines.
     function.add_secrets_config_to_spec()
 
-    env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
+    secrets_dict = {}
+    env_dict = {}
+    for env_var in function.spec.env:
+        value = get_item_name(env_var, "value")
+        if value is not None:
+            env_dict[get_item_name(env_var)] = value
+        value_from = get_item_name(env_var, "value_from")
+        if value_from is not None:
+            secrets_dict[get_item_name(env_var)] = value_from
     for key, value in function._get_runtime_env().items():
         env_dict[key] = value
-    spec = nuclio.ConfigSpec(env=env_dict, config=function.spec.config)
+
+    spec = nuclio.ConfigSpec(env=env_dict, secrets=secrets_dict, config=function.spec.config)
     spec.cmd = function.spec.build.commands or []
     project = function.metadata.project or "default"
     tag = function.metadata.tag

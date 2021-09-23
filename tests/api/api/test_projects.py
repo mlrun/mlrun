@@ -173,7 +173,7 @@ def test_delete_project_with_resources(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
 
-def test_list_project_summaries(
+def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     # create empty project
@@ -260,7 +260,7 @@ def test_list_project_summaries(
     # mock pipelines for the project
     running_pipelines_count = _mock_pipelines(project_name,)
 
-    # list project summaries with summary format
+    # list project summaries
     response = client.get("/api/project-summaries")
     project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
         **response.json()
@@ -281,6 +281,20 @@ def test_list_project_summaries(
             )
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
+
+    # get project summary
+    response = client.get(f"/api/project-summaries/{project_name}")
+    project_summary = mlrun.api.schemas.ProjectSummary(**response.json())
+    _assert_project_summary(
+        project_summary,
+        functions_count,
+        feature_sets_count,
+        models_count,
+        recent_failed_runs_count + recent_aborted_runs_count,
+        running_runs_count,
+        schedules_count,
+        running_pipelines_count,
+    )
 
 
 def test_delete_project_deletion_strategy_check(

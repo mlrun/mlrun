@@ -871,7 +871,7 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, Project, labels)
         if names:
             query = query.filter(Project.name.in_(names))
-        project_names = query.all()
+        project_names = [name for name, in query]
         project_summaries = self.generate_projects_summaries(session, project_names)
         return schemas.ProjectSummariesOutput(project_summaries=project_summaries)
 
@@ -1013,6 +1013,9 @@ class SQLDB(DBInterface):
                         project, 0
                     ),
                     runs_running_count=project_to_running_runs_count.get(project, 0),
+                    # This is a mandatory field - filling here with 0, it will be filled with the real number in the
+                    # crud layer
+                    pipelines_running_count=0,
                 )
             )
         return project_summaries

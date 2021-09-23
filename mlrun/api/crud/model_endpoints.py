@@ -566,11 +566,11 @@ class ModelEndpoints:
         function_uri = function_uri.replace("db://", "")
 
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
+        task.spec.function = function_uri
 
         data = {
             "task": task.to_dict(),
             "schedule": "0 */1 * * *",
-            "functionUrl": function_uri,
         }
 
         _submit_run(db_session=db_session, auth_info=auth_info, data=data)

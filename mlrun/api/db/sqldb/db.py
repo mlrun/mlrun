@@ -842,9 +842,7 @@ class SQLDB(DBInterface):
                 mlrun.api.schemas.ProjectsFormat.leader,
             ]:
                 projects.append(
-                    self._transform_project_record_to_schema(
-                        session, project_record
-                    )
+                    self._transform_project_record_to_schema(session, project_record)
                 )
             else:
                 raise NotImplementedError(

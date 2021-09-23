@@ -5,8 +5,8 @@ import deepdiff
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.crud
+import mlrun.api.schemas
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.api.utils.singletons.db
@@ -294,9 +294,7 @@ def test_list_project_summaries(
     mlrun.api.crud.Projects().generate_projects_summaries = unittest.mock.Mock(
         return_value=[project_summary]
     )
-    project_summaries = projects_follower.list_project_summaries(
-        None
-    )
+    project_summaries = projects_follower.list_project_summaries(None)
     assert len(project_summaries.project_summaries) == 1
     assert (
         deepdiff.DeepDiff(

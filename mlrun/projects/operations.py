@@ -143,6 +143,10 @@ class BuildStatus:
         self.ready = ready
         self.outputs = outputs
 
+    def after(self, step):
+        """nil function, for KFP compatibility"""
+        return self
+
     def __repr__(self):
         return f"BuildStatus(ready={self.ready}, outputs={self.outputs})"
 
@@ -207,6 +211,10 @@ class DeployStatus:
     def __init__(self, state, outputs={}):
         self.state = state
         self.outputs = outputs
+
+    def after(self, step):
+        """nil function, for KFP compatibility"""
+        return self
 
     def __repr__(self):
         return f"DeployStatus(state={self.state}, outputs={self.outputs})"

@@ -88,6 +88,7 @@ from .project import (
     ProjectSpec,
     ProjectState,
     ProjectStatus,
+    ProjectSummariesOutput,
     ProjectSummary,
 )
 from .runtime_resource import (

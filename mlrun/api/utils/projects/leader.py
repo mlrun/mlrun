@@ -124,6 +124,28 @@ class Member(
             db_session, owner, format_, labels, state, names
         )
 
+    def list_project_summaries(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        return self._leader_follower.list_project_summaries(
+            db_session, owner, labels, state, names
+        )
+
+    def get_project_summary(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.ProjectSummary:
+        return self._leader_follower.get_project_summary(db_session, name)
+
     def get_project_owner(
         self, db_session: sqlalchemy.orm.Session, name: str,
     ) -> mlrun.api.schemas.ProjectOwner:

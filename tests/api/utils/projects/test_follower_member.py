@@ -287,6 +287,8 @@ def test_list_project_format_summary(
         models_count=6,
         runs_failed_recent_count=7,
         runs_running_count=8,
+        schedules_count=1,
+        pipelines_running_count=2,
     )
     mlrun.api.utils.singletons.db.get_db().generate_projects_summaries = unittest.mock.Mock(
         return_value=[project_summary]

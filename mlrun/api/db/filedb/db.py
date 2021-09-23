@@ -166,6 +166,19 @@ class FileDB(DBInterface):
             self.db.list_projects, owner, format_, labels, state
         )
 
+    def list_project_summaries(
+        self,
+        session,
+        owner: str = None,
+        labels: List[str] = None,
+        state: schemas.ProjectState = None,
+        names: Optional[List[str]] = None,
+    ) -> schemas.ProjectSummariesOutput:
+        raise NotImplementedError()
+
+    def get_project_summary(self, session, name: str) -> schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")
+
     def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()
 

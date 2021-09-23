@@ -60,7 +60,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
+class SQLDB(DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {
@@ -858,6 +858,30 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                     )
         return schemas.ProjectsOutput(projects=projects)
 
+    def list_project_summaries(
+        self,
+        session: Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        query = self._query(session, Project.name, owner=owner, state=state)
+        if labels:
+            query = self._add_labels_filter(session, query, Project, labels)
+        if names:
+            query = query.filter(Project.name.in_(names))
+        project_names = [name for name, in query]
+        project_summaries = self.generate_projects_summaries(session, project_names)
+        return schemas.ProjectSummariesOutput(project_summaries=project_summaries)
+
+    def get_project_summary(
+        self, session: Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        # Call get project so we'll explode if project doesn't exists
+        self.get_project(session, name)
+        return self.generate_projects_summaries(session, [name])[0]
+
     def _get_project_resources_counters(self, session: Session):
         now = datetime.now()
         if (
@@ -877,6 +901,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
             )
             project_to_function_count = {
                 result[0]: result[1] for result in functions_count_per_project
+            }
+            schedules_count_per_project = (
+                session.query(Schedule.project, func.count(distinct(Schedule.name)))
+                .group_by(Schedule.project)
+                .all()
+            )
+            project_to_schedule_count = {
+                result[0]: result[1] for result in schedules_count_per_project
             }
             feature_sets_count_per_project = (
                 session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
@@ -942,6 +974,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
 
             self._cache["project_resources_counters"]["result"] = (
                 project_to_function_count,
+                project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
                 project_to_recent_failed_runs_count,
@@ -961,6 +994,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
     ) -> List[mlrun.api.schemas.ProjectSummary]:
         (
             project_to_function_count,
+            project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
             project_to_recent_failed_runs_count,
@@ -972,12 +1006,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
                 mlrun.api.schemas.ProjectSummary(
                     name=project,
                     functions_count=project_to_function_count.get(project, 0),
+                    schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
                     runs_failed_recent_count=project_to_recent_failed_runs_count.get(
                         project, 0
                     ),
                     runs_running_count=project_to_running_runs_count.get(project, 0),
+                    # This is a mandatory field - filling here with 0, it will be filled with the real number in the
+                    # crud layer
+                    pipelines_running_count=0,
                 )
             )
         return project_summaries

@@ -161,6 +161,36 @@ def test_content_type():
     assert resp == "list", "did not load json"
 
 
+def test_add_model():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to("Echo", "e1").to("Echo", "e2")
+    try:
+        # should fail, we dont have a router
+        fn.add_model("m1", class_name="ModelTestingClass", model_path=".")
+        assert True, "add_model did not fail without router"
+    except Exception:
+        pass
+
+    # model should be added to the one (and only) router
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to("Echo", "e1").to("*", "router").to("Echo", "e2")
+    fn.add_model("m1", class_name="ModelTestingClass", model_path=".")
+    print(graph.to_yaml())
+
+    assert "m1" in graph["router"].routes, "model was not added to router"
+
+    # model is added to the specified router (by name)
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to("Echo", "e1").to("*", "r1").to("Echo", "e2").to("*", "r2")
+    fn.add_model("m1", class_name="ModelTestingClass", model_path=".", router_step="r2")
+    print(graph.to_yaml())
+
+    assert "m1" in graph["r2"].routes, "model was not added to proper router"
+
+
 path_control_tests = {"handler": (myfunc2, None), "class": (None, "Mul")}
 
 

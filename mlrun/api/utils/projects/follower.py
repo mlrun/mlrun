@@ -267,12 +267,90 @@ class Member(
             ]
             return mlrun.api.schemas.ProjectsOutput(projects=leader_projects)
 
+        projects = self._list_projects(leader_session, owner, labels, state, names)
+
+        project_names = list(map(lambda project: project.metadata.name, projects))
+        # format output
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+            projects = project_names
+        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
+            pass
+        elif format_ == mlrun.api.schemas.ProjectsFormat.summary:
+            # importing here to avoid circular import (db using project member using mlrun follower using db)
+            from mlrun.api.utils.singletons.db import get_db
+
+            projects = get_db().generate_projects_summaries(db_session, project_names)
+        else:
+            raise NotImplementedError(
+                f"Provided format is not supported. format={format_}"
+            )
+        return mlrun.api.schemas.ProjectsOutput(projects=projects)
+
+    def list_project_summaries(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        projects = self._list_projects(leader_session, owner, labels, state, names)
+        project_names = list(map(lambda project: project.metadata.name, projects))
+
+        # importing here to avoid circular import (db using project member using mlrun follower using db)
+        import mlrun.api.crud
+
+        project_summaries = mlrun.api.crud.Projects().generate_projects_summaries(
+            db_session, project_names
+        )
+
+        return mlrun.api.schemas.ProjectSummariesOutput(
+            project_summaries=project_summaries
+        )
+
+    def get_project_summary(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.ProjectSummary:
+        # Call get project so we'll explode if project doesn't exists
+        self.get_project(db_session, name, leader_session)
+
+        # importing here to avoid circular import (db using project member using mlrun follower using db)
+        import mlrun.api.crud
+
+        return mlrun.api.crud.Projects().generate_projects_summaries(
+            db_session, [name]
+        )[0]
+
+    def _list_projects(
+        self,
+        leader_session: typing.Optional[str] = None,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> typing.List[mlrun.api.schemas.Project]:
+        projects = []
         if self.projects_store_mode == self.ProjectsStoreMode.cache:
             projects = list(self._projects.values())
         elif self.projects_store_mode == self.ProjectsStoreMode.none:
             projects, _ = self._leader_client.list_projects(leader_session)
 
-        # filter projects
+        projects = self._filter_projects(projects, owner, labels, state, names)
+        return projects
+
+    def _filter_projects(
+        self,
+        projects: typing.List[mlrun.api.schemas.Project],
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> typing.List[mlrun.api.schemas.Project]:
         if names:
             projects = [
                 project for project in projects if project.metadata.name in names
@@ -292,22 +370,7 @@ class Member(
                     projects,
                 )
             )
-        project_names = list(map(lambda project: project.metadata.name, projects))
-        # format output
-        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-            projects = project_names
-        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
-            pass
-        elif format_ == mlrun.api.schemas.ProjectsFormat.summary:
-            # importing here to avoid circular import (db using project member using mlrun follower using db)
-            from mlrun.api.utils.singletons.db import get_db
-
-            projects = get_db().generate_projects_summaries(db_session, project_names)
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
-        return mlrun.api.schemas.ProjectsOutput(projects=projects)
+        return projects
 
     def _start_periodic_sync(self):
         # the > 0 condition is to allow ourselves to disable the sync from configuration

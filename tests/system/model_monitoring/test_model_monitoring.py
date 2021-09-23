@@ -14,7 +14,6 @@ from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
 import mlrun
-import mlrun.api.crud
 import mlrun.api.schemas
 from mlrun.api.schemas import (
     ModelEndpoint,
@@ -87,11 +86,22 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         assert endpoint_after_update.status.state == updated_state
 
     def test_list_endpoints(self):
+        db = mlrun.get_run_db()
+
+        # test before creating the endpoints on fresh new project
+        project_name = "test-list-endpoints"
+        project = mlrun.get_or_create_project(project_name, context="./")
+        project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
+
+        endpoints_out = db.list_model_endpoints(project_name)
+        assert len(endpoints_out.endpoints) == 0
+
+        db.delete_project(project_name)
+
         number_of_endpoints = 5
         endpoints_in = [
             self._mock_random_endpoint("testing") for _ in range(number_of_endpoints)
         ]
-        db = mlrun.get_run_db()
 
         for endpoint in endpoints_in:
             db.create_or_patch_model_endpoint(
@@ -153,7 +163,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         db = mlrun.get_run_db()
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.crud.ModelEndpoints().EVENTS
+            project=self.project_name,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -343,7 +354,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.crud.ModelEndpoints().ENDPOINTS
+            project=self.project_name,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 

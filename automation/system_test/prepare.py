@@ -310,8 +310,6 @@ class SystemTestPreparer:
             # will make our tests really long)
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
             # Enabling it in system tests until we enable it by default in config
-            # TODO: remove when it's enabled by default
-            "MLRUN_STORAGE__AUTO_MOUNT_TYPE": "v3io_credentials",
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"

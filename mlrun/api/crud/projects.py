@@ -1,3 +1,4 @@
+import collections
 import typing
 
 import sqlalchemy.orm
@@ -119,3 +120,59 @@ class Projects(
         return mlrun.api.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
         )
+
+    def list_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        project_summaries = mlrun.api.utils.singletons.db.get_db().list_project_summaries(
+            session, owner, labels, state, names
+        )
+        self._add_pipeline_running_count_to_project_summaries(
+            session, project_summaries.project_summaries
+        )
+        return project_summaries
+
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        project_summary = mlrun.api.utils.singletons.db.get_db().get_project_summary(
+            session, name
+        )
+        self._add_pipeline_running_count_to_project_summaries(
+            session, [project_summary]
+        )
+        return project_summary
+
+    def generate_projects_summaries(
+        self, session: sqlalchemy.orm.Session, projects: typing.List[str]
+    ) -> typing.List[mlrun.api.schemas.ProjectSummary]:
+        project_summaries = mlrun.api.utils.singletons.db.get_db().generate_projects_summaries(
+            session, projects
+        )
+        self._add_pipeline_running_count_to_project_summaries(
+            session, project_summaries
+        )
+        return project_summaries
+
+    def _add_pipeline_running_count_to_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        project_summaries: typing.List[mlrun.api.schemas.ProjectSummary],
+    ):
+        _, _, pipelines = mlrun.api.crud.Pipelines().list_pipelines(
+            session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
+        )
+        project_to_running_pipelines_count = collections.defaultdict(int)
+        for pipeline in pipelines:
+            if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
+                project_to_running_pipelines_count[pipeline["project"]] += 1
+        for project_summary in project_summaries:
+            project_summary.pipelines_running_count = project_to_running_pipelines_count.get(
+                project_summary.name, 0
+            )
+        return project_summaries

@@ -246,12 +246,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.set_tracking()
 
         model_name = "sklearn_RandomForestClassifier"
+        mlrun.get_dataitem(
+            os.path.relpath(str(self.assets_path / "model.pkl"))
+        ).download("model.pkl")
 
         # Log the model through the projects API so that it is available through the feature store API
         project.log_model(
-            model_name,
-            model_file=os.path.relpath(str(self.assets_path / "model.pkl")),
-            training_set=train_set,
+            model_name, model_file="model.pkl", training_set=train_set,
         )
         # Add the model to the serving function's routing spec
         serving_fn.add_model(
@@ -308,13 +309,14 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "sklearn_LogisticRegression",
             "sklearn_AdaBoostClassifier",
         ]
+        mlrun.get_dataitem(
+            os.path.relpath(str(self.assets_path / "model.pkl"))
+        ).download("model.pkl")
 
         for name in model_names:
             # Log the model through the projects API so that it is available through the feature store API
             project.log_model(
-                name,
-                model_file=os.path.relpath(str(self.assets_path / "model.pkl")),
-                training_set=train_set,
+                name, model_file="model.pkl", training_set=train_set,
             )
             # Add the model to the serving function's routing spec
             serving_fn.add_model(

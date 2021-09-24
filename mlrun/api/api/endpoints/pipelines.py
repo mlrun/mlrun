@@ -26,7 +26,7 @@ router = APIRouter()
 )
 def list_pipelines(
     project: str,
-    namespace: str = config.namespace,
+    namespace: str = None,
     sort_by: str = "",
     page_token: str = "",
     filter_: str = Query("", alias="filter"),
@@ -39,6 +39,8 @@ def list_pipelines(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if namespace is None:
+        namespace = config.namespace
     if project != "*":
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
             project,
@@ -84,13 +86,15 @@ def list_pipelines(
 # TODO: remove when 0.6.6 is no longer relevant
 async def submit_pipeline_legacy(
     request: Request,
-    namespace: str = config.namespace,
+    namespace: str = None,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
     auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
+    if namespace is None:
+        namespace = config.namespace
     response = await _create_pipeline(
         auth_verifier.auth_info, request, namespace, experiment_name, run_name,
     )
@@ -101,13 +105,15 @@ async def submit_pipeline_legacy(
 async def create_pipeline(
     project: str,
     request: Request,
-    namespace: str = config.namespace,
+    namespace: str = None,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
     auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
         mlrun.api.api.deps.AuthVerifierDep
     ),
 ):
+    if namespace is None:
+        namespace = config.namespace
     response = await _create_pipeline(
         auth_verifier.auth_info, request, namespace, experiment_name, run_name, project
     )

@@ -136,7 +136,7 @@ def delete_artifact(
 
 @router.get("/artifacts")
 def list_artifacts(
-    project: str = config.default_project,
+    project: str = None,
     name: str = None,
     tag: str = None,
     kind: str = None,
@@ -147,6 +147,8 @@ def list_artifacts(
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if project is None:
+        project = config.default_project
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
     )

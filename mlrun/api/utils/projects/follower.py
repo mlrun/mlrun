@@ -356,8 +356,8 @@ class Member(
                 project for project in projects if project.metadata.name in names
             ]
         if owner:
-            raise NotImplementedError(
-                "Filtering projects by owner is currently not supported in follower mode"
+            projects = list(
+                filter(lambda project: project.spec.owner == owner, projects)
             )
         if state:
             projects = list(

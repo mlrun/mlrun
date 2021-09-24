@@ -28,7 +28,7 @@ class Spark2Runtime(AbstractSparkRuntime):
         return
 
     def with_priority_class(
-        self, name: str = config.default_function_priority_class_name
+        self, name: str = None
     ):
         raise NotImplementedError("Not supported in spark 2 operator")
 

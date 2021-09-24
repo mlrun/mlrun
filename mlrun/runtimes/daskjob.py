@@ -678,11 +678,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         deleted_resources: List[Dict],
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ):
         """
         Handling services deletion
         """
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         service_names = []
         for pod_dict in deleted_resources:
             dask_component = (

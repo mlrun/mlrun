@@ -192,11 +192,13 @@ def test_list_project(
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
-    project = _generate_project(name="name-1")
+    owner = "project-owner"
+    project = _generate_project(name="name-1", owner=owner)
     archived_project = _generate_project(
         name="name-2",
         desired_state=mlrun.api.schemas.ProjectDesiredState.archived,
         state=mlrun.api.schemas.ProjectState.archived,
+        owner=owner,
     )
     label_key = "key"
     label_value = "value"
@@ -228,6 +230,11 @@ def test_list_project(
         projects_follower,
         [archived_project, archived_and_labeled_project],
         state=mlrun.api.schemas.ProjectState.archived,
+    )
+
+    # list by owner
+    _assert_list_projects(
+        projects_follower, [project, archived_project], owner=owner,
     )
 
     # list specific names only

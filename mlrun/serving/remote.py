@@ -92,7 +92,8 @@ class RemoteStep(storey.SendToHttp):
             )
         elif self.subpath:
             self._append_event_path = self.subpath == "$path"
-            self._endpoint = self._endpoint + "/" + self.subpath.lstrip("/")
+            if not self._append_event_path:
+                self._endpoint = self._endpoint + "/" + self.subpath.lstrip("/")
 
     async def _process_event(self, event):
         # async implementation (with storey)

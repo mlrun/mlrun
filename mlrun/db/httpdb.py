@@ -2279,7 +2279,7 @@ class HTTPRunDB(RunDBInterface):
             method="PUT",
             path=path,
             body=model_endpoint.json(),
-            headers={"X-V3io-Session-Key": access_key},
+            headers={"X-V3io-Access-Key": access_key},
         )
 
     def delete_model_endpoint_record(
@@ -2301,7 +2301,7 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="DELETE", path=path, headers={"X-V3io-Session-Key": access_key},
+            method="DELETE", path=path, headers={"X-V3io-Access-Key": access_key},
         )
 
     def list_model_endpoints(
@@ -2356,7 +2356,7 @@ class HTTPRunDB(RunDBInterface):
                 "end": end,
                 "metric": metrics or [],
             },
-            headers={"X-V3io-Session-Key": access_key},
+            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
@@ -2399,7 +2399,7 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
-            headers={"X-V3io-Session-Key": access_key},
+            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
 

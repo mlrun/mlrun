@@ -347,6 +347,16 @@ class Config:
         return build_args
 
     @staticmethod
+    def get_hub_url():
+        if not config.hub_url.endswith("function.yaml"):
+            if config.hub_url.startswith("http"):
+                return f"{config.hub_url}/{{tag}}/{{name}}/function.yaml"
+            elif config.hub_url.startswith("v3io"):
+                return f"{config.hub_url}/{{name}}/function.yaml"
+
+        return config.hub_url
+
+    @staticmethod
     def get_default_function_node_selector():
         default_function_node_selector = {}
         if config.default_function_node_selector:

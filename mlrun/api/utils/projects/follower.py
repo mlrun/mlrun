@@ -1,5 +1,6 @@
 import typing
 
+import fastapi.concurrency
 import humanfriendly
 import sqlalchemy.orm
 
@@ -227,6 +228,21 @@ class Member(
         elif self.projects_store_mode == self.ProjectsStoreMode.none:
             return self._leader_client.get_project(leader_session, name)
 
+    async def _async_get_project(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.Project:
+        if self.projects_store_mode == self.ProjectsStoreMode.cache:
+            if name not in self._projects:
+                raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
+            return self._projects[name]
+        elif self.projects_store_mode == self.ProjectsStoreMode.none:
+            return await fastapi.concurrency.run_in_threadpool(
+                self._leader_client.get_project, leader_session, name
+            )
+
     def get_project_owner(
         self, db_session: sqlalchemy.orm.Session, name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
@@ -281,7 +297,7 @@ class Member(
             )
         return mlrun.api.schemas.ProjectsOutput(projects=projects)
 
-    def list_project_summaries(
+    async def list_project_summaries(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
@@ -291,13 +307,15 @@ class Member(
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectSummariesOutput:
-        projects = self._list_projects(leader_session, owner, labels, state, names)
+        projects = await self._async_list_projects(
+            leader_session, owner, labels, state, names
+        )
         project_names = list(map(lambda project: project.metadata.name, projects))
 
         # importing here to avoid circular import (db using project member using mlrun follower using db)
         import mlrun.api.crud
 
-        project_summaries = mlrun.api.crud.Projects().generate_projects_summaries(
+        project_summaries = await mlrun.api.crud.Projects().generate_projects_summaries(
             db_session, project_names
         )
 
@@ -305,21 +323,23 @@ class Member(
             project_summaries=project_summaries
         )
 
-    def get_project_summary(
+    async def get_project_summary(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectSummary:
         # Call get project so we'll explode if project doesn't exists
-        self.get_project(db_session, name, leader_session)
+        await self._async_get_project(db_session, name, leader_session)
 
         # importing here to avoid circular import (db using project member using mlrun follower using db)
         import mlrun.api.crud
 
-        return mlrun.api.crud.Projects().generate_projects_summaries(
+        project_summaries = await mlrun.api.crud.Projects().generate_projects_summaries(
             db_session, [name]
-        )[0]
+        )
+
+        return project_summaries[0]
 
     def _list_projects(
         self,
@@ -334,6 +354,25 @@ class Member(
             projects = list(self._projects.values())
         elif self.projects_store_mode == self.ProjectsStoreMode.none:
             projects, _ = self._leader_client.list_projects(leader_session)
+
+        projects = self._filter_projects(projects, owner, labels, state, names)
+        return projects
+
+    async def _async_list_projects(
+        self,
+        leader_session: typing.Optional[str] = None,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> typing.List[mlrun.api.schemas.Project]:
+        projects = []
+        if self.projects_store_mode == self.ProjectsStoreMode.cache:
+            projects = list(self._projects.values())
+        elif self.projects_store_mode == self.ProjectsStoreMode.none:
+            projects, _ = await fastapi.concurrency.run_in_threadpool(
+                self._leader_client.list_projects, leader_session
+            )
 
         projects = self._filter_projects(projects, owner, labels, state, names)
         return projects

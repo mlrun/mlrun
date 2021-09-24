@@ -118,7 +118,7 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_project_summary(
+    async def get_project_summary(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
@@ -127,7 +127,7 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def list_project_summaries(
+    async def list_project_summaries(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,

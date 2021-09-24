@@ -1,3 +1,4 @@
+import asyncio
 import typing
 import unittest.mock
 
@@ -275,7 +276,8 @@ def test_list_project(
     )
 
 
-def test_list_project_summaries(
+@pytest.mark.asyncio
+async def test_list_project_summaries(
     db: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
@@ -292,9 +294,12 @@ def test_list_project_summaries(
         pipelines_running_count=2,
     )
     mlrun.api.crud.Projects().generate_projects_summaries = unittest.mock.Mock(
-        return_value=[project_summary]
+        return_value=asyncio.Future()
     )
-    project_summaries = projects_follower.list_project_summaries(None)
+    mlrun.api.crud.Projects().generate_projects_summaries.return_value.set_result(
+        [project_summary]
+    )
+    project_summaries = await projects_follower.list_project_summaries(None)
     assert len(project_summaries.project_summaries) == 1
     assert (
         deepdiff.DeepDiff(

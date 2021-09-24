@@ -41,6 +41,18 @@ class JobStates:
         ]
 
 
+class SessionPlanes:
+    data = "data"
+    control = "control"
+
+    @staticmethod
+    def all():
+        return [
+            SessionPlanes.data,
+            SessionPlanes.control,
+        ]
+
+
 class Client(
     mlrun.api.utils.projects.remotes.leader.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,

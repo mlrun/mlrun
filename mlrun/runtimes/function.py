@@ -955,7 +955,7 @@ def compile_function_config(function: RemoteRuntime):
         value = get_item_name(env_var, "value")
         if value is not None:
             env_dict[get_item_name(env_var)] = value
-        value_from = get_item_name(env_var, "value_from")
+        value_from = get_item_name(env_var, "valueFrom")
         if value_from is not None:
             secrets_dict[get_item_name(env_var)] = value_from
     for key, value in function._get_runtime_env().items():

@@ -339,6 +339,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             "name": name,
             "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
         }
+
+        # simulating sending to API - serialization through dict
+        function = function.from_dict(function.to_dict())
         function_name, project_name, config = compile_function_config(function)
         assert expected_env_var in config["spec"]["env"]
 

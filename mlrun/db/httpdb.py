@@ -845,10 +845,7 @@ class HTTPRunDB(RunDBInterface):
         return structured_dict
 
     def delete_runtimes(
-        self,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
+        self, label_selector: str = None, force: bool = False, grace_period: int = None,
     ):
         """ Deprecated use :py:func:`~delete_runtime_resources` instead
         """

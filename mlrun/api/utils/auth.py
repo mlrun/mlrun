@@ -70,6 +70,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         # needed for data operations were passed through this header, keep reading it to be backwards compatible
         if not auth_info.data_session and "X-V3io-Session-Key" in request.headers:
             auth_info.data_session = request.headers["X-V3io-Session-Key"]
+        # In Iguazio 3.0 the ingress auth verification overrides the X-V3io-Session-Key from the auth response
+        # therefore the above won't work for requests coming from outside the cluster so allowing another header that
+        # won't be overridden
+        if not auth_info.data_session and "X-V3io-Access-Key" in request.headers:
+            auth_info.data_session = request.headers["X-V3io-Access-Key"]
         return auth_info
 
     def generate_auth_info_from_session(

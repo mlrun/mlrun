@@ -231,18 +231,16 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_project_summaries(
-        self,
-        session,
-        owner: str = None,
-        labels: List[str] = None,
-        state: schemas.ProjectState = None,
-        names: Optional[List[str]] = None,
-    ) -> schemas.ProjectSummariesOutput:
-        pass
-
-    @abstractmethod
-    def get_project_summary(self, session, name: str) -> schemas.ProjectSummary:
+    async def get_project_resources_counters(
+        self, session
+    ) -> Tuple[
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+    ]:
         pass
 
     @abstractmethod

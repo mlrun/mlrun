@@ -329,6 +329,19 @@ class TestNuclioRuntime(TestRuntimeBase):
         ingresses = resolve_function_ingresses(config["spec"])
         assert ingresses == []
 
+    def test_env_from_secret(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+        name = "env1"
+        secret = "shh"
+        secret_key = "open sesame"
+        function.set_env_from_secret(name, secret=secret, secret_key=secret_key)
+        expected_env_var = {
+            "name": name,
+            "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
+        }
+        function_name, project_name, config = compile_function_config(function)
+        assert expected_env_var in config["spec"]["env"]
+
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
 

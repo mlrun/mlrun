@@ -961,7 +961,9 @@ def compile_function_config(function: RemoteRuntime):
     for key, value in function._get_runtime_env().items():
         env_dict[key] = value
 
-    spec = nuclio.ConfigSpec(env=env_dict, secrets=secrets_dict, config=function.spec.config)
+    spec = nuclio.ConfigSpec(
+        env=env_dict, secrets=secrets_dict, config=function.spec.config
+    )
     spec.cmd = function.spec.build.commands or []
     project = function.metadata.project or "default"
     tag = function.metadata.tag

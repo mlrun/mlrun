@@ -32,6 +32,8 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
+    project_name = "mm-system-test-project"
+
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
@@ -85,18 +87,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         assert endpoint_after_update.status.state == updated_state
 
-    def test_list_endpoints(self):
-        db = mlrun.get_run_db()
-
-        # test before creating the endpoints on fresh new project
-        project_name = "test-list-endpoints"
-        project = mlrun.get_or_create_project(project_name, context="./")
-        project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
-
-        endpoints_out = db.list_model_endpoints(project_name)
+    def test_list_endpoints_on_empty_project(self):
+        endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
         assert len(endpoints_out.endpoints) == 0
 
-        db.delete_project(project_name)
+    def test_list_endpoints(self):
+        db = mlrun.get_run_db()
 
         number_of_endpoints = 5
         endpoints_in = [
@@ -220,9 +216,9 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
             assert total == response_total
 
-    @pytest.mark.timeout(480)
+    @pytest.mark.timeout(200)
     def test_basic_model_monitoring(self):
-        simulation_time = 60 * 5  # 5 minutes
+        simulation_time = 20  # 20 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
@@ -246,13 +242,14 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.set_tracking()
 
         model_name = "sklearn_RandomForestClassifier"
-        mlrun.get_dataitem(
-            os.path.relpath(str(self.assets_path / "model.pkl"))
-        ).download("model.pkl")
 
-        # Log the model through the projects API so that it is available through the feature store API
+        # Upload the model through the projects API so that it is available to the serving function
         project.log_model(
-            model_name, model_file="model.pkl", training_set=train_set,
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{project.metadata.name}",
         )
         # Add the model to the serving function's routing spec
         serving_fn.add_model(
@@ -274,9 +271,9 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.7))
 
-    @pytest.mark.timeout(480)
+    @pytest.mark.timeout(200)
     def test_model_monitoring_voting_ensemble(self):
-        simulation_time = 60 * 5  # 5 minutes
+        simulation_time = 20  # 20 seconds
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
@@ -309,14 +306,15 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "sklearn_LogisticRegression",
             "sklearn_AdaBoostClassifier",
         ]
-        mlrun.get_dataitem(
-            os.path.relpath(str(self.assets_path / "model.pkl"))
-        ).download("model.pkl")
 
         for name in model_names:
             # Log the model through the projects API so that it is available through the feature store API
             project.log_model(
-                name, model_file="model.pkl", training_set=train_set,
+                name,
+                model_dir=os.path.relpath(self.assets_path),
+                model_file="model.pkl",
+                training_set=train_set,
+                artifact_path=f"v3io:///projects/{project.metadata.name}",
             )
             # Add the model to the serving function's routing spec
             serving_fn.add_model(
@@ -345,6 +343,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
     @pytest.fixture(autouse=True)
     def cleanup_endpoints(self):
         db = mlrun.get_run_db()
+
         endpoints = db.list_model_endpoints(self.project_name)
         for endpoint in endpoints.endpoints:
             db.delete_model_endpoint_record(

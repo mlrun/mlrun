@@ -131,7 +131,11 @@ class ModelEndpoints:
         return model_endpoint
 
     def delete_endpoint_record(
-        self, auth_info: mlrun.api.schemas.AuthInfo, project: str, endpoint_id: str
+        self,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        endpoint_id: str,
+        access_key: str,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
@@ -139,8 +143,8 @@ class ModelEndpoints:
         :param auth_info: The required auth information for doing the deletion
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
+        :param access_key: access key with permission to delete
         """
-        access_key = self.get_access_key(auth_info)
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
 

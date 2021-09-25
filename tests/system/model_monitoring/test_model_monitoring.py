@@ -32,7 +32,7 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "mm-system-test-project"
+    project_name = "model-monitoring-system-test-project"
 
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()

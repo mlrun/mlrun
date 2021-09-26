@@ -255,6 +255,16 @@ class ObjectList:
         return child_obj
 
 
+class Credentials(ModelObj):
+    generate_access_key = "$generate"
+
+    def __init__(
+        self,
+        access_key=None,
+    ):
+        self.access_key = access_key
+
+
 class BaseMetadata(ModelObj):
     def __init__(
         self,
@@ -267,6 +277,7 @@ class BaseMetadata(ModelObj):
         annotations=None,
         categories=None,
         updated=None,
+        credentials=None,
     ):
         self.name = name
         self.tag = tag
@@ -277,6 +288,16 @@ class BaseMetadata(ModelObj):
         self.categories = categories or []
         self.annotations = annotations or {}
         self.updated = updated
+        self._credentials = None
+        self.credentials = credentials
+
+    @property
+    def credentials(self) -> Credentials:
+        return self._credentials
+
+    @credentials.setter
+    def credentials(self, credentials):
+        self._credentials = self._verify_dict(credentials, "credentials", Credentials)
 
 
 class ImageBuilder(ModelObj):

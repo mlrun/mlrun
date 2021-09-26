@@ -79,6 +79,7 @@ extras_require = {
     # we can move forward to aiobotocore 1.3.2 which will require bumping botocore and boto3, but those 3 release pretty
     # often, causing conflicts so anyway we'll need to lock on something, so locking (aiobotocore) on what is currently
     # existing (as of writing this)
+    # s3fs versioning changed to year.month.patch after 0.6.0
     "s3": [
         "boto3~=1.9, <1.17.50",
         "botocore>=1.20.106,<1.20.107",
@@ -86,6 +87,7 @@ extras_require = {
         "s3fs>=0.5.0, <=2021.8.1",
     ],
     # <12.7.0 from adlfs 0.6.3
+    # adlfs versioning changed to year.month.patch after 0.7.7
     "azure-blob-storage": [
         "azure-storage-blob~=12.0, <12.7.0",
         "adlfs>=0.7.1, <=2021.8.1",

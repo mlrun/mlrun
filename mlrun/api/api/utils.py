@@ -1,4 +1,5 @@
 import re
+import mlrun.api.utils.auth
 import traceback
 import typing
 from hashlib import sha1
@@ -147,10 +148,15 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
     if (
         function.kind
         and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        and mlrun.api.utils.auth.AuthVerifier().is_jobs_auth_required()
     ):
         if auth_info and auth_info.session:
+            if function.metadata.credentials.access_key == mlrun.model.Credentials.generate_access_key:
+                function.metadata.credentials.access_key = mlrun.api.utils.auth.AuthVerifier().get_or_create_access_key(auth_info.session)
+            if not function.metadata.credentials.access_key:
+                raise mlrun.errors.MLRunInvalidArgumentError("Function access key must be set (function.metadata.credentials.access_key)")
             auth_env_vars = {
-                "MLRUN_AUTH_SESSION": auth_info.session,
+                "MLRUN_AUTH_SESSION": function.metadata.credentials.access_key,
             }
             for key, value in auth_env_vars.items():
                 if not function.is_env_exists(key):

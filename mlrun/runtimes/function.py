@@ -653,6 +653,8 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
+        if self.metadata.credentials.access_key:
+            runtime_env["MLRUN_AUTH_SESSION"] = self.metadata.credentials.access_key
         return runtime_env
 
     def deploy_step(

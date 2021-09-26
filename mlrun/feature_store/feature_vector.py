@@ -340,7 +340,6 @@ class OnlineVectorService:
         self._controller = graph.controller
         self._index_columns = index_columns
         self._impute_values = {}
-        self._feature_keys = None
 
     def load(self):
         """load the enricher: start the feature service and prep the imputing logic"""
@@ -351,15 +350,15 @@ class OnlineVectorService:
         feature_stats = vector.get_stats_table()
         self._impute_values = {}
 
-        self._feature_keys = list(vector.status.features.keys())
-        if vector.status.label_column in self._feature_keys:
-            self._feature_keys.remove(vector.status.label_column)
+        feature_keys = list(vector.status.features.keys())
+        if vector.status.label_column in feature_keys:
+            feature_keys.remove(vector.status.label_column)
 
         if "*" in self.impute_policy:
             value = self.impute_policy["*"]
             del self.impute_policy["*"]
 
-            for name in self._feature_keys:
+            for name in feature_keys:
                 if name not in self.impute_policy:
                     if isinstance(value, str) and value.startswith("$"):
                         self._impute_values[name] = feature_stats.loc[name, value[1:]]
@@ -367,7 +366,7 @@ class OnlineVectorService:
                         self._impute_values[name] = value
 
         for name, value in self.impute_policy.items():
-            if name not in self._feature_keys:
+            if name not in feature_keys:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature {name} in impute_policy but not in feature vector"
                 )
@@ -434,7 +433,6 @@ class OnlineVectorService:
 
             if self._impute_values:
                 for name in data.keys():
-                    self._feature_keys
                     v = data[name]
                     if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
                         data[name] = self._impute_values.get(name, v)

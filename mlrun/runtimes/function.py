@@ -665,6 +665,7 @@ class RemoteRuntime(KubeResource):
                 env_dict[get_item_name(env_var)] = value
                 continue
 
+            # currently supported only after spec passed serialization hence using CamelCase
             value_from = get_item_name(env_var, "valueFrom")
             if value_from is not None:
                 external_source_env_dict[get_item_name(env_var)] = value_from

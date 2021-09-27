@@ -122,7 +122,6 @@ setup(
         "mlrun.api.crud",
         "mlrun.api.db",
         "mlrun.api.db.sqldb",
-        "mlrun.api.db.filedb",
         "mlrun.api.migrations",
         "mlrun.api.migrations.versions",
         "mlrun.api.schemas",

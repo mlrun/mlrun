@@ -3,7 +3,6 @@ from typing import Generator
 
 import pytest
 
-from mlrun.api.db.filedb.db import FileDB
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import _init_engine
@@ -36,16 +35,6 @@ def db(request) -> Generator:
             yield db
         finally:
             close_session(db_session)
-    elif request.param == "filedb":
-        db = FileDB(config.httpdb.dirpath)
-        db_session = create_session(request.param)
-        try:
-            db.initialize(db_session)
-
-            yield db
-        finally:
-            shutil.rmtree(config.httpdb.dirpath, ignore_errors=True, onerror=None)
-            close_session(db_session)
     else:
         raise Exception("Unknown db type")
 
@@ -71,16 +60,6 @@ def data_migration_db(request) -> Generator:
             initialize_db(db)
             yield db
         finally:
-            close_session(db_session)
-    elif request.param == "filedb":
-        db = FileDB(config.httpdb.dirpath)
-        db_session = create_session(request.param)
-        try:
-            db.initialize(db_session)
-
-            yield db
-        finally:
-            shutil.rmtree(config.httpdb.dirpath, ignore_errors=True, onerror=None)
             close_session(db_session)
     else:
         raise Exception("Unknown db type")

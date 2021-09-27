@@ -284,22 +284,20 @@ def _add_default_marketplace_source_if_needed(
 def _add_data_version(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    projects = db.list_projects(db_session)
-    # heuristic - if there are no projects it's a new DB - data version is latest
-    if not projects.projects:
-        logger.info(
-            "Setting data version to latest", latest_data_version=latest_data_version
-        )
-        db.create_version(db_session, data_version_name, str(latest_data_version))
-    else:
-        # This code was added to 0.8.0
-        # The latest data migration added before adding this was added back in 0.6.0
-        # We can safely assume no one is upgrading from a version pre 0.6.0 directly to 0.8.0, therefore we assume the
-        # data already passed version 0 to 1 migrations
-        if (
-            db.get_version(db_session, data_version_name, raise_on_not_found=False)
-            is None
-        ):
+    if db.get_version(db_session, data_version_name, raise_on_not_found=False) is None:
+        projects = db.list_projects(db_session)
+        # heuristic - if there are no projects it's a new DB - data version is latest
+        if not projects.projects:
+            logger.info(
+                "Setting data version to latest",
+                latest_data_version=latest_data_version,
+            )
+            db.create_version(db_session, data_version_name, str(latest_data_version))
+        else:
+            # This code was added to 0.8.0
+            # The latest data migration added before adding this was added back in 0.6.0
+            # We can safely assume no one is upgrading from a version pre 0.6.0 directly to 0.8.0, therefore we assume
+            # the data already passed version 0 to 1 migrations
             logger.info("Setting data version to 1")
             db.create_version(db_session, data_version_name, str(1))
 

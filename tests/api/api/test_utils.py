@@ -23,7 +23,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
             "metadata": {"name": task_name, "project": task_project},
         },
         "function": {
-            "metadata": {"credentials": {"access_key": "some-access-key-override",},},
+            "metadata": {"credentials": {"access_key": "some-access-key-override"}},
             "spec": {
                 "volumes": [
                     {

@@ -1,6 +1,6 @@
 import base64
-import typing
 import http
+import typing
 
 import fastapi
 
@@ -87,12 +87,16 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             )
         return mlrun.api.utils.clients.iguazio.Client().verify_session(session)
 
-    def get_or_create_access_key(self, session: str, planes: typing.List[str] = None) -> str:
+    def get_or_create_access_key(
+        self, session: str, planes: typing.List[str] = None
+    ) -> str:
         if not self._iguazio_auth_configured():
             raise NotImplementedError(
                 "Access key is currently supported only for iguazio authentication mode"
             )
-        return mlrun.api.utils.clients.iguazio.Client().get_or_create_access_key(session, planes)
+        return mlrun.api.utils.clients.iguazio.Client().get_or_create_access_key(
+            session, planes
+        )
 
     def is_jobs_auth_required(self):
         return self._iguazio_auth_configured()

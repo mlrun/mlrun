@@ -1,11 +1,11 @@
 import copy
-import deepdiff
 import datetime
 import http
 import json
 import typing
 import urllib.parse
 
+import deepdiff
 import fastapi
 import requests.adapters
 import urllib3
@@ -126,7 +126,9 @@ class Client(
         )
         return self._generate_auth_info_from_session_verification_response(response)
 
-    def get_or_create_access_key(self, session: str, planes: typing.List[str] = None) -> str:
+    def get_or_create_access_key(
+        self, session: str, planes: typing.List[str] = None
+    ) -> str:
         if planes is None:
             planes = [
                 SessionPlanes.data,
@@ -134,26 +136,18 @@ class Client(
             ]
 
         response = self._send_request_to_api(
-            "GET",
-            "access_keys",
-            "Failed getting access keys from Iguazio",
-            session,
+            "GET", "access_keys", "Failed getting access keys from Iguazio", session,
         )
         response_body = response.json()
         for access_key in response_body.get("data", []):
-            access_key_planes = access_key.get("attributes", {}).get(
-                "planes", []
-            )
+            access_key_planes = access_key.get("attributes", {}).get("planes", [])
             if deepdiff.DeepDiff(planes, access_key_planes, ignore_order=True,) == {}:
-                return access_key['id']
+                return access_key["id"]
         # If we're here we couldn't find an existing access key with the requested planes, so let's create one
         body = {
             "data": {
                 "type": "access_key",
-                "attributes": {
-                    "label": "MLRun",
-                    "planes": planes
-                }
+                "attributes": {"label": "MLRun", "planes": planes},
             }
         }
         response = self._send_request_to_api(
@@ -163,7 +157,7 @@ class Client(
             session,
             json=body,
         )
-        return response.json()['data']['id']
+        return response.json()["data"]["id"]
 
     def create_project(
         self,

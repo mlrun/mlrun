@@ -478,7 +478,9 @@ def enrich_function_from_dict(function, function_dict):
                 ):
                     setattr(function.spec, attribute, override_value)
             elif attribute == "credentials":
-                function.metadata.credentials = mlrun.model.Credentials(**override_value)
+                function.metadata.credentials = mlrun.model.Credentials(
+                    **override_value
+                )
             else:
                 setattr(function.spec, attribute, override_value)
     return function

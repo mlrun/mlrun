@@ -259,8 +259,7 @@ class Credentials(ModelObj):
     generate_access_key = "$generate"
 
     def __init__(
-        self,
-        access_key=None,
+        self, access_key=None,
     ):
         self.access_key = access_key
 

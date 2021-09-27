@@ -228,8 +228,10 @@ class BaseRuntime(ModelObj):
         pass
 
     def fill_credentials(self):
-        if 'MLRUN_AUTH_SESSION' in os.environ or 'V3IO_ACCESS_KEY' in os.environ:
-            self.metadata.credentials.access_key = os.environ['MLRUN_AUTH_SESSION'] or os.environ['V3IO_ACCESS_KEY']
+        if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+            self.metadata.credentials.access_key = os.environ.get(
+                "MLRUN_AUTH_SESSION"
+            ) or os.environ.get("V3IO_ACCESS_KEY")
 
     def run(
         self,

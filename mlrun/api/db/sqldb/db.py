@@ -28,7 +28,6 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     Entity,
-    Version,
     Feature,
     FeatureSet,
     FeatureVector,
@@ -39,6 +38,7 @@ from mlrun.api.db.sqldb.models import (
     Run,
     Schedule,
     User,
+    Version,
     _labeled,
     _tagged,
 )
@@ -2662,17 +2662,13 @@ class SQLDB(DBInterface):
     def _get_version(self, session, name) -> Version:
         version_record = self._query(session, Version, name=name).one_or_none()
         if not version_record:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Version not found. name = {name}"
-            )
+            raise mlrun.errors.MLRunNotFoundError(f"Version not found. name = {name}")
 
         return version_record
 
     def create_version(self, session, name, version):
         logger.debug(
-            "Creating version in DB",
-            name=name,
-            version=version,
+            "Creating version in DB", name=name, version=version,
         )
 
         version_record = self._query(session, Version, name=name).one_or_none()
@@ -2681,19 +2677,12 @@ class SQLDB(DBInterface):
                 f"Version name already exists. name={name}"
             )
         now = datetime.now(timezone.utc)
-        version_record = Version(
-            name=name,
-            version=version,
-            created=now,
-            updated=now,
-        )
+        version_record = Version(name=name, version=version, created=now, updated=now,)
         self._upsert(session, version_record)
 
     def update_version(self, session, name, version):
         logger.debug(
-            "Updating version in DB",
-            name=name,
-            version=version,
+            "Updating version in DB", name=name, version=version,
         )
 
         version_record = self._get_version(session, name)

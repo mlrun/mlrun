@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-import pytest
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface

@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
-import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
@@ -39,22 +39,22 @@ async def store_function(
     name: str,
     tag: str = "",
     versioned: bool = False,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
-        auth_info=auth_verifier.auth_info,
+        auth_info=auth_info,
     )
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.store,
-        auth_verifier.auth_info,
+        auth_info,
     )
     data = None
     try:
@@ -83,18 +83,18 @@ def get_function(
     name: str,
     tag: str = "",
     hash_key="",
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     func = mlrun.api.crud.Functions().get_function(
         db_session, name, project, tag, hash_key
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+        auth_info,
     )
     return {
         "func": func,
@@ -107,15 +107,15 @@ def get_function(
 def delete_function(
     project: str,
     name: str,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.delete,
-        auth_verifier.auth_info,
+        auth_info,
     )
     mlrun.api.crud.Functions().delete_function(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
@@ -127,25 +127,25 @@ def list_functions(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project is None:
         project = config.default_project
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
     )
-    functions = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    functions = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         functions,
         lambda function: (
             function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
             function["metadata"]["name"],
         ),
-        auth_verifier.auth_info,
+        auth_info,
     )
     return {
         "funcs": functions,
@@ -156,7 +156,7 @@ def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -171,15 +171,15 @@ async def build_function(
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-        auth_info=auth_verifier.auth_info,
+        auth_info=auth_info,
     )
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
         function.get("metadata", {}).get("name"),
         mlrun.api.schemas.AuthorizationAction.update,
-        auth_verifier.auth_info,
+        auth_info,
     )
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
@@ -190,7 +190,7 @@ async def build_function(
     fn, ready = await run_in_threadpool(
         _build_function,
         db_session,
-        auth_verifier.auth_info,
+        auth_info,
         function,
         with_mlrun,
         skip_deployed,
@@ -208,7 +208,7 @@ async def build_function(
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     # TODO: ensure project here !!! for background task
@@ -222,12 +222,12 @@ async def start_function(
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.metadata.project,
         function.metadata.name,
         mlrun.api.schemas.AuthorizationAction.update,
-        auth_verifier.auth_info,
+        auth_info,
     )
 
     background_task = await run_in_threadpool(
@@ -236,7 +236,7 @@ async def start_function(
         background_tasks,
         _start_function,
         function,
-        auth_verifier.auth_info,
+        auth_info,
     )
 
     return background_task
@@ -246,7 +246,7 @@ async def start_function(
 @router.post("/status/function/")
 async def function_status(
     request: Request,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
     data = None
     try:
@@ -254,7 +254,7 @@ async def function_status(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    resp = await run_in_threadpool(_get_function_status, data, auth_verifier.auth_info)
+    resp = await run_in_threadpool(_get_function_status, data, auth_info)
     return {
         "data": resp,
     }
@@ -270,17 +270,17 @@ def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
         # store since with the current mechanism we update the status (and store the function) in the DB when a client
         # query for the status
         mlrun.api.schemas.AuthorizationAction.store,
-        auth_verifier.auth_info,
+        auth_info,
     )
     fn = mlrun.api.crud.Functions().get_function(db_session, name, project, tag)
     if not fn:
@@ -301,7 +301,7 @@ def build_status(
             tag,
             last_log_timestamp=last_log_timestamp,
             verbose=verbose,
-            auth_info=auth_verifier.auth_info,
+            auth_info=auth_info,
         )
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
@@ -534,7 +534,7 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     if not project or not name:
         project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,

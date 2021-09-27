@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.api.endpoints.feature_store
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
@@ -461,7 +461,7 @@ def test_verify_feature_vector_features_permissions(
             deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
         )
 
-    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = unittest.mock.Mock(
         side_effect=_verify_queried_resources
     )
     mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(

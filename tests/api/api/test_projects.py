@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -83,7 +82,7 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    mlrun.api.utils.clients.opa.Client().query_project_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunUnauthorizedError("bla")
     )
     response = client.get(f"/api/projects/{project}")

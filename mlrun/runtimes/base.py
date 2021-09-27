@@ -286,6 +286,7 @@ class BaseRuntime(ModelObj):
         # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
         if self._use_remote_api():
             self.try_auto_mount_based_on_config()
+            self.fill_credentials()
 
         if local:
 

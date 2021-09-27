@@ -28,6 +28,7 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     Entity,
+    Version,
     Feature,
     FeatureSet,
     FeatureVector,
@@ -2654,3 +2655,49 @@ class SQLDB(DBInterface):
             )
 
         return self._transform_marketplace_source_record_to_schema(source_record)
+
+    def get_version(self, session, name) -> str:
+        return self._get_version(session, name).version
+
+    def _get_version(self, session, name) -> Version:
+        version_record = self._query(session, Version, name=name).one_or_none()
+        if not version_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Version not found. name = {name}"
+            )
+
+        return version_record
+
+    def create_version(self, session, name, version):
+        logger.debug(
+            "Creating version in DB",
+            name=name,
+            version=version,
+        )
+
+        version_record = self._query(session, Version, name=name).one_or_none()
+        if version_record:
+            raise mlrun.errors.MLRunConflictError(
+                f"Version name already exists. name={name}"
+            )
+        now = datetime.now(timezone.utc)
+        version_record = Version(
+            name=name,
+            version=version,
+            created=now,
+            updated=now,
+        )
+        self._upsert(session, version_record)
+
+    def update_version(self, session, name, version):
+        logger.debug(
+            "Updating version in DB",
+            name=name,
+            version=version,
+        )
+
+        version_record = self._get_version(session, name)
+        version_record.version = version
+        version_record.updated = datetime.now(timezone.utc)
+        session.merge(version_record)
+        session.commit()

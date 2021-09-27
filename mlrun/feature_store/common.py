@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
+import typing
 
 import mlrun
 import mlrun.errors
@@ -131,6 +132,7 @@ class RunConfig:
         parameters=None,
         watch=None,
         owner=None,
+        credentials: typing.Optional[mlrun.model.Credentials] = None,
     ):
         self._function = None
         self._modifiers = []
@@ -144,6 +146,7 @@ class RunConfig:
         self.parameters = parameters or {}
         self.watch = True if watch is None else watch
         self.owner = owner
+        self.credentials = credentials
 
     @property
     def function(self):
@@ -201,6 +204,7 @@ class RunConfig:
         function.spec.image = function.spec.image or default_image
         for modifier in self._modifiers:
             function.apply(modifier)
+        function.metadata.credentials = self.credentials
         return function
 
     def copy(self):

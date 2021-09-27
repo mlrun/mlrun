@@ -481,7 +481,8 @@ def enrich_function_from_dict(function, function_dict):
                 ):
                     setattr(function.spec, attribute, override_value)
             elif attribute == "credentials":
-                function.metadata.credentials = override_value
+                if any(override_value.to_dict().values()):
+                    function.metadata.credentials = override_value
             else:
                 setattr(function.spec, attribute, override_value)
     return function

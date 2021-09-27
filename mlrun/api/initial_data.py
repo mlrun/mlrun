@@ -31,21 +31,36 @@ def init_data(from_scratch: bool = False) -> None:
     db_session = create_session()
     try:
         init_db(db_session)
+        _add_initial_data(db_session)
         _perform_data_migrations(db_session)
     finally:
         close_session(db_session)
     logger.info("Initial data created")
 
 
+current_data_version = 1
+data_version_name = "data"
+
+
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     if config.httpdb.db.data_migrations_mode == "enabled":
         # FileDB is not really a thing anymore, so using SQLDB directly
         db = mlrun.api.db.sqldb.db.SQLDB("")
-        logger.info("Performing data migrations")
-        _fill_project_state(db, db_session)
-        _fix_artifact_tags_duplications(db, db_session)
-        _fix_datasets_large_previews(db, db_session)
-        _add_default_marketplace_source_if_needed(db, db_session)
+        data_version = int(db.get_version(db_session, data_version_name))
+        logger.info("Performing data migrations", data_version=data_version)
+        if data_version < 1:
+            _fill_project_state(db, db_session)
+            _fix_artifact_tags_duplications(db, db_session)
+            _fix_datasets_large_previews(db, db_session)
+        if data_version != current_data_version:
+            db.update_version(db_session, data_version_name, str(current_data_version))
+
+
+def _add_initial_data(db_session: sqlalchemy.orm.Session):
+    # FileDB is not really a thing anymore, so using SQLDB directly
+    db = mlrun.api.db.sqldb.db.SQLDB("")
+    _add_default_marketplace_source_if_needed(db, db_session)
+    _add_data_version(db, db_session)
 
 
 def _fix_datasets_large_previews(
@@ -257,6 +272,16 @@ def _add_default_marketplace_source_if_needed(
         else:
             logger.info("Not adding default marketplace source, per configuration")
     return
+
+
+def _add_data_version(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    # This code was added to 0.8.0
+    # The latest data migration added before adding this was added back in 0.6.0
+    # We can safely assume no one is upgrading from a version pre 0.6.0 directly to 0.8.0, therefore we assume the data
+    # already passed version 0 to 1 migrations
+    db.create_version(db_session, data_version_name, str(1))
 
 
 def main() -> None:

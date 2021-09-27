@@ -14,10 +14,10 @@
 from os import environ
 from urllib.parse import urlparse
 
+import mlrun.errors
 from ..config import config
 from ..platforms import add_or_refresh_credentials
 from .base import RunDBError, RunDBInterface  # noqa
-from .filedb import FileRunDB
 from .sqldb import SQLDB
 
 
@@ -67,7 +67,7 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     scheme = parsed_url.scheme.lower()
     kwargs = {}
     if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
-        cls = FileRunDB
+        raise mlrun.errors.MLRunInvalidArgumentError("FileDB is not supported anymore")
     elif scheme in ("http", "https"):
         # import here to avoid circular imports
         from .httpdb import HTTPRunDB

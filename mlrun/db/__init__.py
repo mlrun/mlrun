@@ -67,7 +67,7 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     scheme = parsed_url.scheme.lower()
     kwargs = {}
     if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
-        raise mlrun.errors.MLRunInvalidArgumentError("FileDB is not supported anymore")
+        raise mlrun.errors.MLRunInvalidArgumentError(f"FileDB is not supported anymore. url={url}")
     elif scheme in ("http", "https"):
         # import here to avoid circular imports
         from .httpdb import HTTPRunDB

@@ -12,13 +12,8 @@ import mlrun.config
 import mlrun.errors
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import Project
-from tests.api.db.conftest import dbs
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_get_project(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -48,10 +43,6 @@ def test_get_project(
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_get_project_with_pre_060_record(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -70,10 +61,6 @@ def test_get_project_with_pre_060_record(
     assert updated_record.full_object is not None
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_data_migration_fill_project_state(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -104,10 +91,6 @@ def _generate_and_insert_pre_060_record(
     db_session.commit()
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_project(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -147,10 +130,6 @@ def test_list_project(
         )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_project_names_filter(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -176,10 +155,6 @@ def test_list_project_names_filter(
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_create_project(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -213,10 +188,6 @@ def test_create_project(
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_project_creation(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -249,10 +220,6 @@ def test_store_project_creation(
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_project_update(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -287,10 +254,6 @@ def test_store_project_update(
     assert project_output.metadata.created != project_created
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_patch_project(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
@@ -330,10 +293,6 @@ def test_patch_project(
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_delete_project(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):

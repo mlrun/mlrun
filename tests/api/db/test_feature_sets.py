@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
-from tests.api.db.conftest import dbs
 
 
 def _create_feature_set(name):
@@ -30,10 +29,6 @@ def _create_feature_set(name):
     }
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_create_feature_set(db: DBInterface, db_session: Session):
     name = "dummy"
     feature_set = _create_feature_set(name)

@@ -5,13 +5,8 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import Run
-from tests.api.db.conftest import dbs
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     project = "project"
     run_name_1 = "run_name_1"
@@ -42,10 +37,6 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     assert len(runs) == 2
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     project = "project-name"
     run_without_state_uid = "run_without_state_uid"

@@ -863,7 +863,7 @@ class SQLDB(DBInterface):
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_functions_counters, session
+                self._calculate_files_counters, session
             ),
             fastapi.concurrency.run_in_threadpool(
                 self._calculate_schedules_counters, session
@@ -879,14 +879,14 @@ class SQLDB(DBInterface):
             ),
         )
         (
-            project_to_function_count,
+            project_to_files_count,
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
             (project_to_recent_failed_runs_count, project_to_running_runs_count,),
         ) = results
         return (
-            project_to_function_count,
+            project_to_files_count,
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
@@ -941,6 +941,21 @@ class SQLDB(DBInterface):
         for model_artifact in model_artifacts:
             project_to_models_count[model_artifact.project] += 1
         return project_to_models_count
+
+    def _calculate_files_counters(self, session) -> Dict[str, int]:
+        import mlrun.artifacts
+
+        # The category filter is applied post the query to the DB (manually in python code), so counting should be that
+        # way as well, therefore we're doing it here, and can't do it with sql as the above
+        # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
+        # count (artifact count, not artifact versions count)
+        file_artifacts = self._find_artifacts(
+            session, None, "latest", category=mlrun.api.schemas.ArtifactCategories.other
+        )
+        project_to_files_count = collections.defaultdict(int)
+        for file_artifact in file_artifacts:
+            project_to_files_count[file_artifact.project] += 1
+        return project_to_files_count
 
     def _calculate_runs_counters(
         self, session

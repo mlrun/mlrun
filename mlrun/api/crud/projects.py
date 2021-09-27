@@ -167,7 +167,7 @@ class Projects(
         self, session: sqlalchemy.orm.Session, projects: typing.List[str]
     ) -> typing.List[mlrun.api.schemas.ProjectSummary]:
         (
-            project_to_function_count,
+            project_to_files_count,
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
@@ -180,7 +180,7 @@ class Projects(
             project_summaries.append(
                 mlrun.api.schemas.ProjectSummary(
                     name=project,
-                    functions_count=project_to_function_count.get(project, 0),
+                    files_count=project_to_files_count.get(project, 0),
                     schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
@@ -223,7 +223,7 @@ class Projects(
                 self._calculate_pipelines_counters(session),
             )
             (
-                project_to_function_count,
+                project_to_files_count,
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
@@ -232,7 +232,7 @@ class Projects(
             ) = results[0]
             project_to_running_pipelines_count = results[1]
             self._cache["project_resources_counters"]["result"] = (
-                project_to_function_count,
+                project_to_files_count,
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,

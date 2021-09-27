@@ -192,9 +192,11 @@ def test_list_and_get_project_summaries(
     response = client.post("/api/projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
-    # create functions for the project
-    functions_count = 5
-    _create_functions(client, project_name, functions_count)
+    # create files for the project
+    files_count = 5
+    _create_artifacts(
+        client, project_name, files_count, mlrun.artifacts.ChartArtifact.kind
+    )
 
     # create feature sets for the project
     feature_sets_count = 9
@@ -271,7 +273,7 @@ def test_list_and_get_project_summaries(
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
-                functions_count,
+                files_count,
                 feature_sets_count,
                 models_count,
                 recent_failed_runs_count + recent_aborted_runs_count,
@@ -287,7 +289,7 @@ def test_list_and_get_project_summaries(
     project_summary = mlrun.api.schemas.ProjectSummary(**response.json())
     _assert_project_summary(
         project_summary,
-        functions_count,
+        files_count,
         feature_sets_count,
         models_count,
         recent_failed_runs_count + recent_aborted_runs_count,
@@ -816,7 +818,7 @@ def _assert_project_response(
 
 def _assert_project_summary(
     project_summary: mlrun.api.schemas.ProjectSummary,
-    functions_count: int,
+    files_count: int,
     feature_sets_count: int,
     models_count: int,
     runs_failed_recent_count: int,
@@ -824,7 +826,7 @@ def _assert_project_summary(
     schedules_count: int,
     pipelines_running_count: int,
 ):
-    assert project_summary.functions_count == functions_count
+    assert project_summary.files_count == files_count
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count

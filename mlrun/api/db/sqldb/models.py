@@ -410,6 +410,16 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value)
 
+    class Version(Base, BaseModel):
+        __tablename__ = "versions"
+        __table_args__ = (UniqueConstraint("name", name="_versions_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        version = Column(String)
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]

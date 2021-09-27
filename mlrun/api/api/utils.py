@@ -10,8 +10,7 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.utils.auth
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -155,7 +154,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 function.metadata.credentials.access_key
                 == mlrun.model.Credentials.generate_access_key
             ):
-                function.metadata.credentials.access_key = mlrun.api.utils.auth.AuthVerifier().get_or_create_access_key(
+                function.metadata.credentials.access_key = mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
                     auth_info.session
                 )
             if not function.metadata.credentials.access_key:

@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
 
 import mlrun.api.api.utils
-import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
 from mlrun.api.schemas import (

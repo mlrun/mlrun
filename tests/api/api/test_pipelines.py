@@ -12,7 +12,6 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.k8s
 import tests.conftest
 
@@ -107,7 +106,7 @@ def test_get_pipeline_no_project_opa_validation(
     mlrun.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions = (
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.Mock()
     )
     api_run_detail = _generate_get_run_mock()
@@ -117,7 +116,7 @@ def test_get_pipeline_no_project_opa_validation(
         params={"format": format_},
     )
     assert (
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions.call_args[
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
             0
         ][
             1
